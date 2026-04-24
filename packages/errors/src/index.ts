@@ -1,1 +1,1 @@
-export const errorsPackage = "@pressly/errors";
+export const errorsPackage = '@pressly/errors';

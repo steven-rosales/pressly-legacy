@@ -1,1 +1,1 @@
-export const loggingPackage = "@pressly/logging";
+export const loggingPackage = '@pressly/logging';

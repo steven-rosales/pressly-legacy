@@ -1,1 +1,1 @@
-export const contractsPackage = "@pressly/contracts";
+export const contractsPackage = '@pressly/contracts';

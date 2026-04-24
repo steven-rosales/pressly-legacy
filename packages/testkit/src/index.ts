@@ -1,1 +1,1 @@
-export const testkitPackage = "@pressly/testkit";
+export const testkitPackage = '@pressly/testkit';

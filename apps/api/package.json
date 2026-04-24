@@ -16,6 +16,8 @@
     "typescript": "latest"
   },
   "dependencies": {
-    "dotenv": "^17.4.2"
+    "@pressly/config": "workspace:*",
+    "dotenv": "^17.4.2",
+    "zod": "^4.3.6"
   }
 }

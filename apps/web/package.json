@@ -1,0 +1,23 @@
+{
+  "name": "@pressly/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"lint pending: @pressly/web\"",
+    "test": "echo \"test pending: @pressly/web\"",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@pressly/tsconfig": "workspace:*",
+    "@types/node": "^25.6.0",
+    "tsx": "latest",
+    "typescript": "latest"
+  },
+  "dependencies": {
+    "@pressly/config": "workspace:*",
+    "zod": "^4.3.6"
+  }
+}

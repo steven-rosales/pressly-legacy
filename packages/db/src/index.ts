@@ -1,1 +1,1 @@
-export const dbPackage = "@pressly/db";
+export const dbPackage = '@pressly/db';

@@ -1,1 +1,1 @@
-export const authPackage = "@pressly/auth";
+export const authPackage = '@pressly/auth';

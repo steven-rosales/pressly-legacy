@@ -1,1 +1,1 @@
-export const metricsPackage = "@pressly/metrics";
+export const metricsPackage = '@pressly/metrics';

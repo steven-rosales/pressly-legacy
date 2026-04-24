@@ -1,1 +1,1 @@
-export const httpPackage = "@pressly/http";
+export const httpPackage = '@pressly/http';

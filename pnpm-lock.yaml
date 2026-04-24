@@ -27,9 +27,15 @@ importers:
 
   apps/api:
     dependencies:
+      '@pressly/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
@@ -41,15 +47,46 @@ importers:
         specifier: latest
         version: 6.0.3
 
-  apps/worker:
+  apps/web:
     dependencies:
-      dotenv:
-        specifier: ^17.4.2
-        version: 17.4.2
+      '@pressly/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      tsx:
+        specifier: latest
+        version: 4.21.0
+      typescript:
+        specifier: latest
+        version: 6.0.3
+
+  apps/worker:
+    dependencies:
+      '@pressly/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@pressly/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
       tsx:
         specifier: latest
         version: 4.21.0
