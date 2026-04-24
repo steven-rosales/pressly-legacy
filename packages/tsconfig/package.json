@@ -1,0 +1,10 @@
+{
+  "name": "@pressly/tsconfig",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./base": "./base.json",
+    "./node": "./node.json",
+    "./next": "./next.json"
+  }
+}

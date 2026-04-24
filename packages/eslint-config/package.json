@@ -1,0 +1,15 @@
+{
+  "name": "@pressly/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "typecheck": "echo \"typecheck pending: @pressly/eslint-config\"",
+    "lint": "echo \"lint pending: @pressly/eslint-config\"",
+    "test": "echo \"test pending: @pressly/eslint-config\"",
+    "clean": "rm -rf dist"
+  }
+}

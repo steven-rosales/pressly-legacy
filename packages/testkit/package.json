@@ -1,0 +1,20 @@
+{
+  "name": "@pressly/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"lint pending: @pressly/testkit\"",
+    "test": "echo \"test pending: @pressly/testkit\"",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@pressly/tsconfig": "workspace:*",
+    "typescript": "latest"
+  }
+}
