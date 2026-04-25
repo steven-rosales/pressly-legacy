@@ -105,6 +105,9 @@ importers:
 
   packages/config:
     dependencies:
+      '@pressly/errors':
+        specifier: workspace:*
+        version: link:../errors
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -146,6 +149,10 @@ importers:
   packages/eslint-config: {}
 
   packages/http:
+    dependencies:
+      '@pressly/errors':
+        specifier: workspace:*
+        version: link:../errors
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*

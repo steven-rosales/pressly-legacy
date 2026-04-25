@@ -14,10 +14,12 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@pressly/errors": "workspace:*"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",
-    "typescript": "latest"
+    "typescript": "latest",
+    "@pressly/errors": "workspace:*"
   }
 }
