@@ -1,8 +1,9 @@
-import type { Metadata } from 'next';
+import { buildPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = buildPageMetadata({
   title: 'FAQs',
   description: 'Answers to common Pressly pickup and delivery questions.',
-};
+  path: '/faqs',
+});
 
 export { default } from '@/routes/faqs/route';

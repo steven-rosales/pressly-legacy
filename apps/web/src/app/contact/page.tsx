@@ -1,8 +1,9 @@
-import type { Metadata } from 'next';
+import { buildPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = buildPageMetadata({
   title: 'Contact',
   description: 'Contact Pressly customer care.',
-};
+  path: '/contact',
+});
 
 export { default } from '@/routes/contact/route';

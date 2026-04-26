@@ -1,6 +1,8 @@
+import { JsonLd } from '@/common/seo/JsonLd';
 import { PublicSiteShell } from '@/routes/shared/public/PublicSiteShell';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
 import { CONTACT } from '@/lib/content';
+import { buildFaqJsonLd } from '@/lib/seo';
 
 const faqs = [
   {
@@ -37,6 +39,7 @@ const faqs = [
 export default function FaqsRoute() {
   return (
     <PublicSiteShell>
+      <JsonLd data={buildFaqJsonLd(faqs)} />
       <section className="mx-auto max-w-4xl px-4 py-14 sm:px-6 lg:py-20">
         <div className="max-w-2xl">
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">

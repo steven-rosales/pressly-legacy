@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "typecheck": "tsc --noEmit",
+    "seo:validate": "node scripts/validate-seo.mjs",
     "lint": "echo \"lint pending: @pressly/web\"",
     "test": "echo \"test pending: @pressly/web\"",
     "clean": "rm -rf .next"

@@ -2,6 +2,7 @@ import Image from 'next/image';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
 import { Shirt, Wind, User, Briefcase, Sparkles } from 'lucide-react';
 import { PricingDialog } from './PricingDialog';
+import { PRICING, formatUsd } from '@/lib/content';
 
 const PRICING_ITEMS = [
   {
@@ -51,7 +52,8 @@ export default function LocationsDryCleaning() {
         <div className="bg-card border border-border rounded-2xl p-6 lg:p-8 mb-6 w-full max-w-[400px] lg:max-w-[450px] mx-auto lg:mx-0">
           <h3 className="text-2xl font-semibold mb-2">Pricing</h3>
           <p className="text-sm text-muted-foreground mb-6">
-            Priced per item + $25 minimum.
+            Priced per item + {formatUsd(PRICING.dryCleaningMinimumCents)}{' '}
+            minimum.
           </p>
 
           {/* Pricing Items */}

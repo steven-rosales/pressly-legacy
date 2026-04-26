@@ -6,6 +6,7 @@ export {
 export { COUNTIES, COUNTY_CITIES } from './content/county-cities';
 export { makeTitle } from './content/seo-versions';
 export { buildCityServiceParams, resolveCityService } from './content/helpers';
+export { getLocalProof } from './content/local-proof';
 
 export { default as CommercialContactSection } from './ui/templates/CommercialContactSection';
 export { default as HomeConquerTime } from './ui/templates/HomeConquerTime';
@@ -19,6 +20,7 @@ export { LocationsBottomSection } from './ui/templates/LocationsBottomSection';
 export { LocationsHero } from './ui/templates/LocationsHero';
 export { LocationsHiw } from './ui/templates/LocationsHiw';
 export { LocationsLinksGrid } from './ui/templates/LocationsLinksGrid';
+export { LocationsLocalProof } from './ui/templates/LocationsLocalProof';
 export { LocationsStory } from './ui/templates/LocationsStory';
 export { default as LocationsDryCleaning } from './ui/templates/LocationsDryCleaning';
 export { default as LocationsTestimonials } from './ui/templates/LocationsTestimonials';

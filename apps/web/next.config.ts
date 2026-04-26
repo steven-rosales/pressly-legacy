@@ -4,6 +4,129 @@ const nextConfig: NextConfig = {
   images: {
     qualities: [75, 100],
   },
+  async redirects() {
+    return [
+      { source: '/home', destination: '/', permanent: true },
+      { source: '/landing', destination: '/', permanent: true },
+      { source: '/blog', destination: '/', permanent: true },
+      {
+        source: '/blog/cost-of-wash-and-fold-laundry-service-in-new-jersey',
+        destination: '/services-pricing/wash-fold',
+        permanent: true,
+      },
+      {
+        source: '/schedule-pickup',
+        destination: '/schedule',
+        permanent: true,
+      },
+      {
+        source: '/schedule-pickup-landing',
+        destination: '/schedule',
+        permanent: true,
+      },
+      {
+        source: '/schedule-promotion',
+        destination: '/schedule',
+        permanent: true,
+      },
+      {
+        source: '/app-for-laundry',
+        destination: '/schedule',
+        permanent: true,
+      },
+      {
+        source: '/dry-cleaning-landing',
+        destination: '/services-pricing/dry-cleaning',
+        permanent: true,
+      },
+      {
+        source: '/wash-and-fold-landing',
+        destination: '/services-pricing/wash-fold',
+        permanent: true,
+      },
+      {
+        source: '/wash-and-fold-landing-1',
+        destination: '/services-pricing/wash-fold',
+        permanent: true,
+      },
+      {
+        source: '/new-jersey/laundry-service-in-:county',
+        destination: '/new-jersey/:county',
+        permanent: true,
+      },
+      {
+        source: '/new-jersey/dry-cleaners-in-:county',
+        destination: '/new-jersey/:county',
+        permanent: true,
+      },
+      {
+        source: '/jersey-city',
+        destination: '/new-jersey/hudson-county/laundry-service-in-jersey-city',
+        permanent: true,
+      },
+      {
+        source: '/newark',
+        destination: '/new-jersey/essex-county/laundry-service-in-newark',
+        permanent: true,
+      },
+      {
+        source: '/paterson',
+        destination: '/new-jersey/passaic-county/laundry-service-in-paterson',
+        permanent: true,
+      },
+      {
+        source: '/elizabeth',
+        destination: '/new-jersey/union-county/laundry-service-in-elizabeth',
+        permanent: true,
+      },
+      {
+        source: '/clifton',
+        destination: '/new-jersey/passaic-county/laundry-service-in-clifton',
+        permanent: true,
+      },
+      {
+        source: '/hoboken',
+        destination: '/new-jersey/hudson-county/laundry-service-in-hoboken',
+        permanent: true,
+      },
+      {
+        source: '/midland-park-laundry',
+        destination:
+          '/new-jersey/bergen-county/laundry-service-in-midland-park',
+        permanent: true,
+      },
+      {
+        source: '/garwood-dry-cleaners',
+        destination: '/new-jersey/union-county',
+        permanent: true,
+      },
+      {
+        source: '/pressly-images',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/documentation',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/documentation-1',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/documentation-3',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/videos',
+        destination: '/',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

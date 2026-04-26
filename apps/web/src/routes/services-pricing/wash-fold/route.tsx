@@ -1,5 +1,7 @@
 import Image from 'next/image';
+import { JsonLd } from '@/common/seo/JsonLd';
 import ServicesHiw from '@/common/ui/templates/ServicesHiw';
+import { buildBreadcrumbJsonLd, buildServiceJsonLd } from '@/lib/seo';
 import {
   DeliveryInfo,
   OtherServices,
@@ -35,6 +37,25 @@ export default async function WashFoldRoute() {
 
   return (
     <>
+      <JsonLd
+        data={buildBreadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          {
+            name: 'Wash & Fold Laundry Service',
+            path: '/services-pricing/wash-fold',
+          },
+        ])}
+      />
+      <JsonLd
+        data={buildServiceJsonLd({
+          name: 'Wash & Fold Laundry Service',
+          description:
+            'Pressly wash and fold laundry pickup and delivery with free pickup, clear per-pound pricing, and online scheduling.',
+          path: '/services-pricing/wash-fold',
+          areaName: 'New Jersey',
+          serviceType: 'washFold',
+        })}
+      />
       <section className="mx-auto max-w-[1440px] px-4 pt-12 pb-[88px] sm:px-6 lg:py-20">
         <ServiceHero
           title="Wash & Fold"

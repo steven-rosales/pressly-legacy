@@ -1,6 +1,12 @@
 import { notFound } from 'next/navigation';
 
+import { JsonLd } from '@/common/seo/JsonLd';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import {
+  buildBreadcrumbJsonLd,
+  buildServiceJsonLd,
+  formatCountyName,
+} from '@/lib/seo';
 import {
   COUNTIES,
   COUNTY_CITIES,
@@ -18,12 +24,6 @@ import {
 
 export const revalidate = 3600;
 
-export const metadata = {
-  title: 'Laundry & Dry Cleaning in New Jersey | Pressly',
-  description:
-    'County-specific laundry and dry cleaning pickup and delivery in New Jersey. Free pickup & delivery with fast turnaround.',
-};
-
 export function generateStaticParams() {
   return COUNTIES.map((county) => ({ county }));
 }
@@ -39,10 +39,7 @@ export default async function CountyRoute({
   const representative = LOCATIONS.find((loc) => loc.county === countySlug);
   if (!representative) return notFound();
 
-  const formattedCounty = countySlug
-    .replace('-county', '')
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  const formattedCounty = formatCountyName(countySlug);
 
   const description = makeTitle(
     'seoCityHeroDescription',
@@ -54,6 +51,25 @@ export default async function CountyRoute({
 
   return (
     <>
+      <JsonLd
+        data={buildBreadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          { name: 'New Jersey', path: '/new-jersey' },
+          {
+            name: `${formattedCounty} County`,
+            path: `/new-jersey/${countySlug}`,
+          },
+        ])}
+      />
+      <JsonLd
+        data={buildServiceJsonLd({
+          name: `${formattedCounty} County Laundry Service & Dry Cleaning`,
+          description,
+          path: `/new-jersey/${countySlug}`,
+          areaName: `${formattedCounty} County, New Jersey`,
+          serviceType: 'combined',
+        })}
+      />
       <LocationsHero
         heroImage={representative.heroImage}
         heading={`${formattedCounty} County Laundry Service & Dry Cleaning`}

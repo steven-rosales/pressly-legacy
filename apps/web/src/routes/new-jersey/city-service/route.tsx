@@ -1,12 +1,21 @@
 import { notFound } from 'next/navigation';
 
+import { JsonLd } from '@/common/seo/JsonLd';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
 import {
+  buildBreadcrumbJsonLd,
+  buildFaqJsonLd,
+  buildServiceJsonLd,
+  formatCountyName,
+} from '@/lib/seo';
+import {
   buildCityServiceParams,
+  getLocalProof,
   LocationsBottomSection,
   LocationsDryCleaning,
   LocationsHero,
   LocationsHiw,
+  LocationsLocalProof,
   LocationsStory,
   LocationsTestimonials,
   LocationsWashFold,
@@ -33,6 +42,9 @@ export default async function CityServiceRoute({
 
   const { location, serviceConfig, serviceType } = resolved;
   const { cityName, heroImage, versions } = location;
+  const countyName = formatCountyName(county);
+  const proof = getLocalProof(location, serviceType);
+  const path = `/new-jersey/${county}/${slug}`;
 
   const heading = `${cityName} ${
     serviceConfig.serviceTitle === 'Dry Cleaning'
@@ -50,6 +62,24 @@ export default async function CityServiceRoute({
 
   return (
     <>
+      <JsonLd
+        data={buildBreadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          { name: 'New Jersey', path: '/new-jersey' },
+          { name: `${countyName} County`, path: `/new-jersey/${county}` },
+          { name: heading, path },
+        ])}
+      />
+      <JsonLd
+        data={buildServiceJsonLd({
+          name: heading,
+          description,
+          path,
+          areaName: `${cityName}, ${countyName} County, New Jersey`,
+          serviceType,
+        })}
+      />
+      <JsonLd data={buildFaqJsonLd(proof.faqs)} />
       <LocationsHero
         heroImage={heroImage}
         heading={heading}
@@ -161,6 +191,8 @@ export default async function CityServiceRoute({
         heroImage={heroImage}
         locationLabel={cityName}
       />
+
+      <LocationsLocalProof proof={proof} />
 
       <section className="mx-auto max-w-[1440px] px-4 py-28 sm:px-6 lg:py-20">
         <LocationsTestimonials />

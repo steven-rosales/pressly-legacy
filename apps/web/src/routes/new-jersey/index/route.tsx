@@ -1,4 +1,6 @@
+import { JsonLd } from '@/common/seo/JsonLd';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import { buildBreadcrumbJsonLd, buildServiceJsonLd } from '@/lib/seo';
 import {
   COUNTIES,
   LOCATIONS,
@@ -15,12 +17,6 @@ import {
 
 export const revalidate = 3600;
 
-export const metadata = {
-  title: 'New Jersey Laundry Service & Dry Cleaning | Pressly',
-  description:
-    'Complete laundry and dry cleaning pickup and delivery throughout New Jersey. Same-day pickup when available, next-day laundry delivery, expert dry cleaning care.',
-};
-
 export default function NewJerseyRoute() {
   const representative = LOCATIONS[0];
 
@@ -34,6 +30,21 @@ export default function NewJerseyRoute() {
 
   return (
     <>
+      <JsonLd
+        data={buildBreadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          { name: 'New Jersey', path: '/new-jersey' },
+        ])}
+      />
+      <JsonLd
+        data={buildServiceJsonLd({
+          name: 'New Jersey Laundry Service & Dry Cleaning',
+          description,
+          path: '/new-jersey',
+          areaName: 'New Jersey',
+          serviceType: 'combined',
+        })}
+      />
       <LocationsHero
         heroImage={
           representative?.heroImage ?? '/images/locations/default.webp'
