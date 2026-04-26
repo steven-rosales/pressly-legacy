@@ -1,11 +1,7 @@
 import type { NextConfig } from 'next';
 
-const canonicalUrl = 'https://trypressly.com';
-const canonicalRedirectHosts = [
-  'pressely.com',
-  'www.pressely.com',
-  'www.trypressly.com',
-];
+const canonicalUrl = 'https://www.trypressly.com';
+const canonicalRedirectHosts = ['pressely.com', 'www.pressely.com'];
 
 const nextConfig: NextConfig = {
   images: {

@@ -1,7 +1,6 @@
 import Image from 'next/image';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
 import SecondaryButton from '@/common/ui/primitives/SecondaryButton';
-import { DELIVERY_FEE_SHORT_COPY } from '@/lib/content';
 
 export default function HomeHero() {
   return (
