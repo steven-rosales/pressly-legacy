@@ -194,7 +194,10 @@ function CentsFrame({ className }: { className?: string }) {
     <iframe
       title="Pressly order scheduling"
       src={CENTS_ORDER_URL}
-      className={cn('border-0 bg-background', className)}
+      className={cn(
+        'border-0 bg-background [touch-action:manipulation]',
+        className,
+      )}
       allow="payment *; clipboard-write"
     />
   );
