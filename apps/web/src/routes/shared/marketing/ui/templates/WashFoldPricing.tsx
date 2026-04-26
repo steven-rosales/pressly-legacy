@@ -1,4 +1,5 @@
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import { DELIVERY_FEE_SHORT_COPY } from '@/lib/content';
 import { Check } from 'lucide-react';
 
 interface PricingItem {
@@ -14,7 +15,7 @@ interface PricingCatalog {
 }
 
 const PRICING_FEATURES = [
-  { text: 'Free Pickup & Delivery' },
+  { text: 'Pickup & Delivery Available' },
   { text: 'Cleaned to your preferences' },
   { text: 'Next-day turnaround' },
   { text: 'Professional folding' },
@@ -83,8 +84,9 @@ export default function WashFoldPricing(props: {
 
             <div className="space-y-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
               <p>
-                Includes free pickup and delivery, cleaning to your preferences,
-                and professional folding.
+                Includes cleaning to your preferences and professional folding.
+                Pickup and delivery are available with a{' '}
+                {DELIVERY_FEE_SHORT_COPY}.
               </p>
               <p>
                 No subscriptions and no hidden fees - you only pay for what you

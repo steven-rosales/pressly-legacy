@@ -1,11 +1,24 @@
 import type { NextConfig } from 'next';
 
+const canonicalUrl = 'https://trypressly.com';
+const canonicalRedirectHosts = [
+  'pressely.com',
+  'www.pressely.com',
+  'www.trypressly.com',
+];
+
 const nextConfig: NextConfig = {
   images: {
     qualities: [75, 100],
   },
   async redirects() {
     return [
+      ...canonicalRedirectHosts.map((host) => ({
+        source: '/:path*',
+        has: [{ type: 'host' as const, value: host }],
+        destination: `${canonicalUrl}/:path*`,
+        permanent: true,
+      })),
       { source: '/home', destination: '/', permanent: true },
       { source: '/landing', destination: '/', permanent: true },
       { source: '/blog', destination: '/', permanent: true },

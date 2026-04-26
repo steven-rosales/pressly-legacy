@@ -1,6 +1,6 @@
 import { JsonLd } from '@/common/seo/JsonLd';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
-import { OFFER_COPY } from '@/lib/content';
+import { DELIVERY_FEE_SHORT_COPY, OFFER_COPY } from '@/lib/content';
 import { buildBreadcrumbJsonLd, buildServiceJsonLd } from '@/lib/seo';
 import {
   COUNTIES,
@@ -181,7 +181,7 @@ export default function NewJerseyRoute() {
 
       <LocationsBottomSection
         title="All your garment care, one warm pickup away."
-        description="From everyday laundry to pressed dry cleaning, schedule one visit and we'll handle it all—picked up free, returned fresh, and folded or pressed the way you like."
+        description={`From everyday laundry to pressed dry cleaning, schedule one visit and we'll handle it all with a ${DELIVERY_FEE_SHORT_COPY}, returned fresh, and folded or pressed the way you like.`}
       />
     </>
   );

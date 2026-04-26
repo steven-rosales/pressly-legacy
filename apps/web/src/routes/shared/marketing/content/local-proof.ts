@@ -1,4 +1,4 @@
-import { CONTACT, PRICING, formatUsd } from '@/lib/content';
+import { CONTACT, DELIVERY_FEE_COPY, PRICING, formatUsd } from '@/lib/content';
 
 import type { LocationRecord } from './locations';
 import { COUNTY_CITIES } from './county-cities';
@@ -155,7 +155,7 @@ export function getLocalProof(
   const faqs = [
     {
       question: `Does Pressly offer ${serviceLabel} in ${location.cityName}?`,
-      answer: `Yes. Pressly offers ${serviceLabel} across ${location.cityName}, with online scheduling, free pickup, and delivery back to your door.`,
+      answer: `Yes. Pressly offers ${serviceLabel} across ${location.cityName}, with online scheduling and delivery back to your door. ${DELIVERY_FEE_COPY}`,
     },
     {
       question: `Which ZIP codes do you serve in ${location.cityName}?`,

@@ -1,4 +1,5 @@
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import { DELIVERY_FEE_SHORT_COPY } from '@/lib/content';
 
 interface PricingItem {
   service: string;
@@ -157,7 +158,7 @@ export default function DryCleaningPricing(props: {
           Schedule a Pickup
         </PrimaryButton>
         <p className="text-sm text-muted-foreground mt-4">
-          Same-day pickup available • Free delivery
+          Same-day pickup available • {DELIVERY_FEE_SHORT_COPY}
         </p>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
-import { OFFER_COPY } from '@/lib/content';
+import { DELIVERY_FEE_SHORT_COPY, OFFER_COPY } from '@/lib/content';
 
 import type { LocalProof } from '../../content/local-proof';
 
@@ -21,9 +21,9 @@ export function LocationsLocalProof({ proof }: LocationsLocalProofProps) {
             {proof.serviceLabel} in {proof.cityName}
           </h2>
           <p className="mt-4 text-base leading-7 text-muted-foreground">
-            Pressly serves {proof.cityName} with free pickup and delivery,
-            transparent pricing, and a single online ordering flow for laundry
-            and dry cleaning.
+            Pressly serves {proof.cityName} with transparent pricing, a{' '}
+            {DELIVERY_FEE_SHORT_COPY}, and a single online ordering flow for
+            laundry and dry cleaning.
           </p>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2">

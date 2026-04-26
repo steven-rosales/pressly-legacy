@@ -1,7 +1,7 @@
 import { JsonLd } from '@/common/seo/JsonLd';
 import { PublicSiteShell } from '@/routes/shared/public/PublicSiteShell';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
-import { CONTACT } from '@/lib/content';
+import { CONTACT, DELIVERY_FEE_COPY } from '@/lib/content';
 import { buildFaqJsonLd } from '@/lib/seo';
 
 const faqs = [
@@ -21,9 +21,8 @@ const faqs = [
       'Use any bag you have available. If you are sending dry cleaning too, separate those garments from wash and fold laundry.',
   },
   {
-    question: 'Is pickup and delivery free?',
-    answer:
-      'Pickup and delivery are free for standard Pressly service areas. Order minimums and item pricing still apply.',
+    question: 'What is the pickup and delivery fee?',
+    answer: `${DELIVERY_FEE_COPY} Order minimums and item pricing still apply.`,
   },
   {
     question: 'When will my order come back?',

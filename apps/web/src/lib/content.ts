@@ -15,11 +15,16 @@ export const PRICING = {
   washFoldMinimumCents: 3000,
   washFoldMinimumThresholdLbs: 18,
   dryCleaningMinimumCents: 3000,
+  deliveryFeeCents: 495,
   hangDryCents: 295,
   launderPressCents: 395,
 } as const;
 
 export const formatUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+export const DELIVERY_FEE_LABEL = 'Delivery Fee';
+export const DELIVERY_FEE_SHORT_COPY = `${formatUsd(PRICING.deliveryFeeCents)} delivery fee`;
+export const DELIVERY_FEE_COPY = `Pickup and delivery are handled through a ${DELIVERY_FEE_SHORT_COPY} per order.`;
 
 export type ServiceKind = 'washFold' | 'dryCleaning';
 
@@ -64,7 +69,7 @@ export const SERVICE_CONFIGS: Record<ServiceKind, ServiceConfig> = {
       'Cleaned to your preferences',
       'Professional folding',
       'Next-day turnaround when available',
-      'Free pickup and delivery',
+      'Pickup and delivery available',
     ],
   },
   dryCleaning: {
@@ -89,7 +94,7 @@ export const SERVICE_CONFIGS: Record<ServiceKind, ServiceConfig> = {
       'Pressed and ready to wear',
       'Shirts, suits, dresses, coats, and household items',
       'Pickup and delivery in one order',
-      'Free pickup and delivery',
+      'Pickup and delivery available',
     ],
   },
 };
@@ -103,8 +108,7 @@ export const HOW_IT_WORKS = [
   },
   {
     title: 'Pickup',
-    description:
-      'Leave your laundry or dry cleaning ready during the pickup window. Delivery is free.',
+    description: `Leave your laundry or dry cleaning ready during the pickup window. ${DELIVERY_FEE_COPY}`,
     image: '/graphic-img/2-how-it-works.webp',
   },
   {

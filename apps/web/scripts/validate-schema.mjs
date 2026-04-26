@@ -10,6 +10,7 @@ const checks = [
     requiredNames: [
       'Wash & Fold Laundry',
       'Wash & Fold Minimum',
+      'Delivery Fee',
       'Hang Dry',
       'Small Comforter',
     ],
@@ -20,6 +21,7 @@ const checks = [
     requiredTypes: ['DryCleaningOrLaundry', 'Service', 'OfferCatalog'],
     requiredNames: [
       'Dry Cleaning Minimum',
+      'Delivery Fee',
       'Launder & Press',
       'Tops',
       'Shirts',
@@ -33,6 +35,7 @@ const checks = [
     requiredNames: [
       'Wash & Fold Laundry',
       'Wash & Fold Minimum',
+      'Delivery Fee',
       'Hang Dry',
       'Small Comforter',
     ],
@@ -43,6 +46,7 @@ const checks = [
     requiredTypes: ['Service', 'OfferCatalog'],
     requiredNames: [
       'Dry Cleaning Minimum',
+      'Delivery Fee',
       'Launder & Press',
       'Tops',
       'Shirts',

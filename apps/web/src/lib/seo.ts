@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import {
   CONTACT,
+  DELIVERY_FEE_COPY,
   DRY_CLEANING_PRICING,
   PRICING,
   SITE_URL,
@@ -191,8 +192,7 @@ export function buildPageMetadata({
 export function buildStateMetadata(): Metadata {
   return buildPageMetadata({
     title: 'New Jersey Laundry Service & Dry Cleaning',
-    description:
-      'Schedule laundry and dry cleaning pickup and delivery across Pressly service areas in New Jersey. Free pickup and delivery with clear pricing.',
+    description: `Schedule laundry and dry cleaning pickup and delivery across Pressly service areas in New Jersey. Clear pricing with a ${formatUsd(PRICING.deliveryFeeCents)} delivery fee.`,
     path: '/new-jersey',
   });
 }
@@ -202,7 +202,7 @@ export function buildCountyMetadata(countySlug: string): Metadata {
 
   return buildPageMetadata({
     title: `${countyName} County Laundry & Dry Cleaning Pickup`,
-    description: `Schedule wash and fold laundry and dry cleaning pickup in ${countyName} County, NJ. Pressly offers free pickup and delivery, transparent pricing, and online scheduling.`,
+    description: `Schedule wash and fold laundry and dry cleaning pickup in ${countyName} County, NJ. Pressly offers transparent pricing, online scheduling, and a ${formatUsd(PRICING.deliveryFeeCents)} delivery fee.`,
     path: `/new-jersey/${countySlug}`,
   });
 }
@@ -231,7 +231,7 @@ export function buildCityServiceMetadata({
 
   return buildPageMetadata({
     title,
-    description: `Schedule ${service} in ${location.cityName}, NJ. Free pickup and delivery, clear pricing, and online ordering through Pressly.${zipText}`,
+    description: `Schedule ${service} in ${location.cityName}, NJ. Clear pricing, a ${formatUsd(PRICING.deliveryFeeCents)} delivery fee, and online ordering through Pressly.${zipText}`,
     path: `/new-jersey/${location.county}/${slug}`,
     image: location.heroImage,
   });
@@ -404,6 +404,11 @@ function buildWashFoldOfferCatalog(path: string) {
         description: `Minimum order for wash and fold laundry is ${formatUsd(PRICING.washFoldMinimumCents)}.`,
       }),
       buildCentsOffer({
+        name: 'Delivery Fee',
+        priceCents: PRICING.deliveryFeeCents,
+        description: DELIVERY_FEE_COPY,
+      }),
+      buildCentsOffer({
         name: 'Hang Dry',
         priceCents: PRICING.hangDryCents,
         unitText: 'item',
@@ -430,6 +435,11 @@ function buildDryCleaningOfferCatalog(path: string) {
         name: 'Dry Cleaning Minimum',
         priceCents: PRICING.dryCleaningMinimumCents,
         description: `Minimum dry cleaning order is ${formatUsd(PRICING.dryCleaningMinimumCents)}.`,
+      }),
+      buildCentsOffer({
+        name: 'Delivery Fee',
+        priceCents: PRICING.deliveryFeeCents,
+        description: DELIVERY_FEE_COPY,
       }),
       buildCentsOffer({
         name: 'Launder & Press',

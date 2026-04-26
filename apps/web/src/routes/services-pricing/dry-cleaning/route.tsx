@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { JsonLd } from '@/common/seo/JsonLd';
 import ServicesHiw from '@/common/ui/templates/ServicesHiw';
+import { DELIVERY_FEE_COPY, DELIVERY_FEE_LABEL, PRICING } from '@/lib/content';
 import { buildServicePricingPageJsonLd } from '@/lib/seo';
 import {
   DeliveryInfo,
@@ -37,7 +38,7 @@ export default async function DryCleaningRoute() {
         data={buildServicePricingPageJsonLd({
           name: 'Dry Cleaning Pickup and Delivery',
           description:
-            'Pressly dry cleaning pickup and delivery with per-item pricing, free pickup, and online scheduling.',
+            'Pressly dry cleaning pickup and delivery with per-item pricing, a delivery fee, and online scheduling.',
           path: '/services-pricing/dry-cleaning',
           areaName: 'New Jersey',
           serviceType: 'dryCleaning',
@@ -140,10 +141,9 @@ export default async function DryCleaningRoute() {
           description="Pressly's services are available 7-days a week, between 7pm-9pm. You may turn on contactless delivery when scheduling your first pickup or inside your account preferences."
           details={[
             {
-              title: 'Free Delivery',
-              price: '$0',
-              description:
-                'Yes! Delivery is always free for every dry cleaning order. You only pay for what you send to clean.',
+              title: DELIVERY_FEE_LABEL,
+              price: formatUsdShortFromCents(PRICING.deliveryFeeCents),
+              description: DELIVERY_FEE_COPY,
             },
             {
               title: 'Minimum',
