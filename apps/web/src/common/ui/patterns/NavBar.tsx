@@ -98,7 +98,10 @@ export default function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4 lg:gap-8">
-          <PrimaryButton className="h-auto bg-transparent p-0 text-base font-medium text-primary underline underline-offset-4 shadow-none transition hover:bg-transparent hover:text-foreground lg:hidden">
+          <PrimaryButton
+            href="/schedule"
+            className="h-auto bg-transparent p-0 text-base font-medium text-primary underline underline-offset-4 shadow-none transition hover:bg-transparent hover:text-foreground lg:hidden"
+          >
             Get Started
           </PrimaryButton>
           <a
@@ -111,7 +114,7 @@ export default function NavBar() {
           </a>
 
           <PrimaryButton
-            href="/signup"
+            href="/schedule"
             className="min-w-[140px] hidden lg:flex"
           >
             Schedule a Pickup

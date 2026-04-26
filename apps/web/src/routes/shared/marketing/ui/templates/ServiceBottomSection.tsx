@@ -33,7 +33,7 @@ export default function ServiceBottomSection({
           <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mb-8">
             {description}
           </p>
-          <PrimaryButton href="/signup">Schedule a Pickup</PrimaryButton>
+          <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
         </div>
       </div>
     </div>

@@ -12,7 +12,7 @@ interface LocationsBottomSectionProps {
 export function LocationsBottomSection({
   title,
   description,
-  ctaHref = '/signup',
+  ctaHref = '/schedule',
   backgroundImage = '/images/end-section.webp',
 }: LocationsBottomSectionProps) {
   return (

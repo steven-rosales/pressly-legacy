@@ -153,7 +153,7 @@ export default function DryCleaningPricing(props: {
       </div>
 
       <div className="mt-12 text-center">
-        <PrimaryButton href="/signup" className="w-full sm:w-auto px-12">
+        <PrimaryButton href="/schedule" className="w-full sm:w-auto px-12">
           Schedule a Pickup
         </PrimaryButton>
         <p className="text-sm text-muted-foreground mt-4">

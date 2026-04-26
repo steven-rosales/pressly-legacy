@@ -94,7 +94,7 @@ export default function WashFoldPricing(props: {
           </div>
 
           <div className="mt-auto pt-10">
-            <PrimaryButton href="/signup">Schedule a Pickup</PrimaryButton>
+            <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
           </div>
         </div>
 
@@ -135,7 +135,7 @@ export default function WashFoldPricing(props: {
           </div>
 
           <div className="mt-auto pt-10">
-            <PrimaryButton href="/signup">Schedule a Pickup</PrimaryButton>
+            <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
           </div>
         </div>
       </div>

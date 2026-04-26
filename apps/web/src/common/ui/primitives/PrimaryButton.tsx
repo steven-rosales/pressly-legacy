@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { Button } from '../../shadcn/button';
 import type { ReactNode } from 'react';
-import { CentsOrderDialog } from './CentsOrderDialog';
 
 type PrimaryButtonProps = {
   children?: ReactNode;
@@ -16,21 +15,12 @@ type PrimaryButtonProps = {
 export default function PrimaryButton(props: PrimaryButtonProps) {
   const baseClasses = `bg-primary text-primary-foreground cursor-pointer text-base ${props.className || ''}`;
   const children = props.children ?? 'Schedule a Pickup';
+  const href = props.href === '/signup' ? '/schedule' : props.href;
 
-  if (props.href === '/signup') {
-    return (
-      <CentsOrderDialog>
-        <Button className={baseClasses} size="lg">
-          {children}
-        </Button>
-      </CentsOrderDialog>
-    );
-  }
-
-  if (props.href) {
+  if (href) {
     return (
       <Button asChild className={baseClasses} size="lg">
-        <Link href={props.href}>{children}</Link>
+        <Link href={href}>{children}</Link>
       </Button>
     );
   }

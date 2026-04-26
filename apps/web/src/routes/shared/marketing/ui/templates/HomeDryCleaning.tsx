@@ -46,7 +46,7 @@ export default function DryCleaning() {
             ))}
           </div>
           <div className="mt-6 space-y-4">
-            <PrimaryButton href="/signup" className="w-full sm:w-auto">
+            <PrimaryButton href="/schedule" className="w-full sm:w-auto">
               Schedule a Pickup
             </PrimaryButton>
             <p className="text-center lg:text-left text-base font-medium text-primary">

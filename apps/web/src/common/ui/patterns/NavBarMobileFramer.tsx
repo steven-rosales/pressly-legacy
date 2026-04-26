@@ -193,7 +193,7 @@ export function NavBarMobileFramer({
                     Log in
                   </a>
                 </Button>
-                <PrimaryButton className="w-full">
+                <PrimaryButton href="/schedule" className="w-full">
                   Schedule a Pickup
                 </PrimaryButton>
               </div>

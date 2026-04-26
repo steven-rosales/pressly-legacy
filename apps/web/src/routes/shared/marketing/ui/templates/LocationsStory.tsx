@@ -32,7 +32,7 @@ export function LocationsStory({
             ))}
           </div>
           <div className="mt-6 flex w-full max-w-md flex-col items-start gap-3 lg:w-auto lg:max-w-none">
-            <PrimaryButton href="/signup" className="w-full lg:w-auto">
+            <PrimaryButton href="/schedule" className="w-full lg:w-auto">
               Schedule a Pickup
             </PrimaryButton>
             <p className="text-sm text-background/70">

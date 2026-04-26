@@ -20,7 +20,7 @@ export default function HomeConquerTime() {
       </p>
 
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 w-full sm:w-auto mb-8 lg:mb-12">
-        <PrimaryButton href="/signup">Schedule a Pickup</PrimaryButton>
+        <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
         <SecondaryButton href="/services-pricing/wash-fold">
           Services & Pricing
         </SecondaryButton>

@@ -54,7 +54,7 @@ export default async function CityServiceRoute({
         heroImage={heroImage}
         heading={heading}
         description={description}
-        cta={<PrimaryButton href="/signup">Schedule a Pickup</PrimaryButton>}
+        cta={<PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>}
         offerText="Free pickup & delivery and $20 OFF automatically applied."
         cityName={cityName}
       />
