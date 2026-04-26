@@ -1,5 +1,6 @@
 import { JsonLd } from '@/common/seo/JsonLd';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import { OFFER_COPY } from '@/lib/content';
 import { buildBreadcrumbJsonLd, buildServiceJsonLd } from '@/lib/seo';
 import {
   COUNTIES,
@@ -52,7 +53,7 @@ export default function NewJerseyRoute() {
         heading="New Jersey Laundry Service & Dry Cleaning"
         description={description}
         cta={<PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>}
-        offerText="Free pickup & delivery and $20 OFF automatically applied."
+        offerText={OFFER_COPY}
         cityName="New Jersey"
       />
       <LocationsHiw

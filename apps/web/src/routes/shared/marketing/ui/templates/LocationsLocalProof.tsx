@@ -1,5 +1,8 @@
 import Link from 'next/link';
 
+import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import { OFFER_COPY } from '@/lib/content';
+
 import type { LocalProof } from '../../content/local-proof';
 
 type LocationsLocalProofProps = {
@@ -11,7 +14,7 @@ export function LocationsLocalProof({ proof }: LocationsLocalProofProps) {
     <section className="bg-muted/40 py-16 lg:py-20">
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 lg:grid-cols-[1fr_0.9fr] lg:items-start">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-primary">
+          <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Local pickup details
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
@@ -104,6 +107,15 @@ export function LocationsLocalProof({ proof }: LocationsLocalProofProps) {
               </div>
             </div>
           ) : null}
+        </div>
+
+        <div className="flex flex-col items-center gap-3 text-center lg:col-span-2">
+          <PrimaryButton href="/schedule" className="w-full sm:w-auto">
+            Schedule a Pickup
+          </PrimaryButton>
+          <p className="text-center text-base font-medium text-primary">
+            {OFFER_COPY}
+          </p>
         </div>
       </div>
     </section>

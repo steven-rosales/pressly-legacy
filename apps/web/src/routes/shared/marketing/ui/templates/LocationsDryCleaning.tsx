@@ -2,7 +2,7 @@ import Image from 'next/image';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
 import { Shirt, Wind, User, Briefcase, Sparkles } from 'lucide-react';
 import { PricingDialog } from './PricingDialog';
-import { PRICING, formatUsd } from '@/lib/content';
+import { OFFER_COPY, PRICING, formatUsd } from '@/lib/content';
 
 const PRICING_ITEMS = [
   {
@@ -96,7 +96,7 @@ export default function LocationsDryCleaning() {
             Schedule a Pickup
           </PrimaryButton>
           <p className="text-center lg:text-left text-base font-medium text-primary">
-            Free pickup & delivery and $20 OFF automatically applied.
+            {OFFER_COPY}
           </p>
         </div>
       </div>

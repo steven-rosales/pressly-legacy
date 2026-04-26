@@ -1,4 +1,7 @@
 import Image from 'next/image';
+
+import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import { OFFER_COPY } from '@/lib/content';
 import {
   HiwTimeline,
   type HiwTimelineStep,
@@ -51,6 +54,14 @@ export function LocationsHiw({ heading, steps }: LocationsHiwProps) {
         </h2>
         <div className="mx-auto w-full max-w-5xl">
           <HiwTimeline steps={stepsWithMedia} />
+        </div>
+        <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 text-center">
+          <PrimaryButton href="/schedule" className="w-full sm:w-auto">
+            Schedule a Pickup
+          </PrimaryButton>
+          <p className="text-center text-base font-medium text-primary">
+            {OFFER_COPY}
+          </p>
         </div>
       </div>
     </section>

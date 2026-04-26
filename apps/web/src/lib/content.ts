@@ -8,7 +8,7 @@ export const CONTACT = {
 } as const;
 
 export const OFFER_COPY =
-  'Free pickup & delivery and $20 off automatically applied.';
+  'Claim your $20 OFF with code FIRST20 for your first order!';
 
 export const PRICING = {
   washFoldPerLbCents: 167,

@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import { OFFER_COPY } from '@/lib/content';
 
 const FEATURES = [
   {
@@ -48,7 +49,7 @@ export default function WashFold() {
           <div className="mt-6 space-y-4">
             <PrimaryButton href="/schedule" className="w-full sm:w-auto" />
             <p className="text-center lg:text-left text-base font-medium text-primary">
-              Free pickup & delivery and $20 OFF automatically applied.
+              {OFFER_COPY}
             </p>
           </div>
         </div>

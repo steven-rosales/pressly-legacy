@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { JsonLd } from '@/common/seo/JsonLd';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import { OFFER_COPY } from '@/lib/content';
 import {
   buildBreadcrumbJsonLd,
   buildServiceJsonLd,
@@ -75,7 +76,7 @@ export default async function CountyRoute({
         heading={`${formattedCounty} County Laundry Service & Dry Cleaning`}
         description={description}
         cta={<PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>}
-        offerText="Free pickup & delivery and $20 OFF automatically applied."
+        offerText={OFFER_COPY}
         cityName={formattedCounty}
       />
       <LocationsHiw

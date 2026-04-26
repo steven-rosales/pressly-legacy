@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import { OFFER_COPY } from '@/lib/content';
 
 interface LocationsStoryProps {
   title: string;
@@ -32,11 +33,11 @@ export function LocationsStory({
             ))}
           </div>
           <div className="mt-6 flex w-full max-w-md flex-col items-start gap-3 lg:w-auto lg:max-w-none">
-            <PrimaryButton href="/schedule" className="w-full lg:w-auto">
+            <PrimaryButton href="/schedule" className="w-full sm:w-auto">
               Schedule a Pickup
             </PrimaryButton>
-            <p className="text-sm text-background/70">
-              Free pickup & delivery and $20 OFF automatically applied.
+            <p className="text-center text-base font-medium text-primary">
+              {OFFER_COPY}
             </p>
           </div>
         </div>

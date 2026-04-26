@@ -1,6 +1,7 @@
 import Image from 'next/image';
 
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import { OFFER_COPY } from '@/lib/content';
 
 interface LocationsBottomSectionProps {
   title: string;
@@ -38,7 +39,12 @@ export function LocationsBottomSection({
           <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mb-8">
             {description}
           </p>
-          <PrimaryButton href={ctaHref}>Schedule a Pickup</PrimaryButton>
+          <PrimaryButton href={ctaHref} className="w-full sm:w-auto">
+            Schedule a Pickup
+          </PrimaryButton>
+          <p className="mt-4 text-center text-base font-medium text-primary">
+            {OFFER_COPY}
+          </p>
         </div>
       </div>
     </div>
