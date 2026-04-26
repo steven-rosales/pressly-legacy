@@ -4,6 +4,18 @@ export type LocationRecord = {
   cityName: string;
   zips: string[];
   heroImage: string;
+  schemaAddress?: {
+    streetAddress?: string;
+    postalCode?: string;
+  };
+  geo?: {
+    latitude: number;
+    longitude: number;
+  };
+  aggregateRating?: {
+    ratingValue: number;
+    reviewCount: number;
+  };
   seoCityDescription?: string;
   versions?: {
     seoCityHeroDescription?: 1 | 2 | 3 | 4 | 5;

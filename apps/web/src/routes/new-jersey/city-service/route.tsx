@@ -2,12 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { JsonLd } from '@/common/seo/JsonLd';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
-import {
-  buildBreadcrumbJsonLd,
-  buildFaqJsonLd,
-  buildServiceJsonLd,
-  formatCountyName,
-} from '@/lib/seo';
+import { buildLocationPageJsonLd, formatCountyName } from '@/lib/seo';
 import {
   buildCityServiceParams,
   getLocalProof,
@@ -63,23 +58,21 @@ export default async function CityServiceRoute({
   return (
     <>
       <JsonLd
-        data={buildBreadcrumbJsonLd([
-          { name: 'Home', path: '/' },
-          { name: 'New Jersey', path: '/new-jersey' },
-          { name: `${countyName} County`, path: `/new-jersey/${county}` },
-          { name: heading, path },
-        ])}
-      />
-      <JsonLd
-        data={buildServiceJsonLd({
+        data={buildLocationPageJsonLd({
+          location,
+          serviceType,
           name: heading,
           description,
           path,
-          areaName: `${cityName}, ${countyName} County, New Jersey`,
-          serviceType,
+          breadcrumbs: [
+            { name: 'Home', path: '/' },
+            { name: 'New Jersey', path: '/new-jersey' },
+            { name: `${countyName} County`, path: `/new-jersey/${county}` },
+            { name: heading, path },
+          ],
+          faqs: proof.faqs,
         })}
       />
-      <JsonLd data={buildFaqJsonLd(proof.faqs)} />
       <LocationsHero
         heroImage={heroImage}
         heading={heading}

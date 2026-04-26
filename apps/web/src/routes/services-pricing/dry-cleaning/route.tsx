@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { JsonLd } from '@/common/seo/JsonLd';
 import ServicesHiw from '@/common/ui/templates/ServicesHiw';
-import { buildBreadcrumbJsonLd, buildServiceJsonLd } from '@/lib/seo';
+import { buildServicePricingPageJsonLd } from '@/lib/seo';
 import {
   DeliveryInfo,
   DryCleaningPricing,
@@ -34,22 +34,20 @@ export default async function DryCleaningRoute() {
   return (
     <>
       <JsonLd
-        data={buildBreadcrumbJsonLd([
-          { name: 'Home', path: '/' },
-          {
-            name: 'Dry Cleaning Pickup and Delivery',
-            path: '/services-pricing/dry-cleaning',
-          },
-        ])}
-      />
-      <JsonLd
-        data={buildServiceJsonLd({
+        data={buildServicePricingPageJsonLd({
           name: 'Dry Cleaning Pickup and Delivery',
           description:
             'Pressly dry cleaning pickup and delivery with per-item pricing, free pickup, and online scheduling.',
           path: '/services-pricing/dry-cleaning',
           areaName: 'New Jersey',
           serviceType: 'dryCleaning',
+          breadcrumbs: [
+            { name: 'Home', path: '/' },
+            {
+              name: 'Dry Cleaning Pickup and Delivery',
+              path: '/services-pricing/dry-cleaning',
+            },
+          ],
         })}
       />
       <section className="mx-auto max-w-[1440px] px-4 pt-12 pb-[88px] sm:px-6 lg:py-20">
