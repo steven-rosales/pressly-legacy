@@ -4,7 +4,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRef, useState, useLayoutEffect } from 'react';
 
-import { CENTS_ORDER_URL } from '@/lib/content';
 import { NavBarMobileFramer } from './NavBarMobileFramer';
 import PrimaryButton from '../../ui/primitives/PrimaryButton';
 import {
@@ -104,14 +103,12 @@ export default function NavBar() {
           >
             Get Started
           </PrimaryButton>
-          <a
-            href={CENTS_ORDER_URL}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            href="/schedule"
             className="hidden text-base font-medium text-foreground/80 transition hover:text-foreground lg:inline cursor-pointer"
           >
             Log In
-          </a>
+          </Link>
 
           <PrimaryButton
             href="/schedule"

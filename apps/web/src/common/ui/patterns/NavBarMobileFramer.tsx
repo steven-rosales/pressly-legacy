@@ -5,7 +5,6 @@ import { ChevronRight, Menu, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { CENTS_ORDER_URL } from '@/lib/content';
 import { Button } from '../../shadcn/button';
 import PrimaryButton from '../primitives/PrimaryButton';
 
@@ -184,14 +183,9 @@ export function NavBarMobileFramer({
 
               <div className="mt-auto flex flex-col gap-3 pb-6 pt-6">
                 <Button variant="outline" size="lg" className="w-full" asChild>
-                  <a
-                    href={CENTS_ORDER_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="cursor-pointer"
-                  >
+                  <Link href="/schedule" className="cursor-pointer">
                     Log in
-                  </a>
+                  </Link>
                 </Button>
                 <PrimaryButton href="/schedule" className="w-full">
                   Schedule a Pickup
