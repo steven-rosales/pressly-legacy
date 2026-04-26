@@ -1,0 +1,176 @@
+import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import {
+  COUNTIES,
+  LOCATIONS,
+  LocationsBottomSection,
+  LocationsDryCleaning,
+  LocationsHero,
+  LocationsHiw,
+  LocationsLinksGrid,
+  LocationsStory,
+  LocationsTestimonials,
+  LocationsWashFold,
+  makeTitle,
+} from '@/routes/shared/marketing/public';
+
+export const revalidate = 3600;
+
+export const metadata = {
+  title: 'New Jersey Laundry Service & Dry Cleaning | Pressly',
+  description:
+    'Complete laundry and dry cleaning pickup and delivery throughout New Jersey. Same-day pickup when available, next-day laundry delivery, expert dry cleaning care.',
+};
+
+export default function NewJerseyRoute() {
+  const representative = LOCATIONS[0];
+
+  const description = makeTitle(
+    'seoCityHeroDescription',
+    1,
+    { state: 'New Jersey' },
+    undefined,
+    'combined',
+  );
+
+  return (
+    <>
+      <LocationsHero
+        heroImage={
+          representative?.heroImage ?? '/images/locations/default.webp'
+        }
+        heading="New Jersey Laundry Service & Dry Cleaning"
+        description={description}
+        cta={<PrimaryButton href="/signup">Schedule a Pickup</PrimaryButton>}
+        offerText="Free pickup & delivery and $20 OFF automatically applied."
+        cityName="New Jersey"
+      />
+      <LocationsHiw
+        heading="How your laundry and dry cleaning pickup works."
+        steps={[
+          {
+            title: makeTitle(
+              'hiwTitleSchedule',
+              undefined,
+              { state: 'New Jersey' },
+              undefined,
+              'combined',
+            ),
+            description: makeTitle(
+              'hiwDescriptionSchedule',
+              undefined,
+              { state: 'New Jersey' },
+              undefined,
+              'combined',
+            ),
+          },
+          {
+            title: makeTitle(
+              'hiwTitlePickup',
+              undefined,
+              { state: 'New Jersey' },
+              undefined,
+              'combined',
+            ),
+            description: makeTitle(
+              'hiwDescriptionPickup',
+              undefined,
+              { state: 'New Jersey' },
+              undefined,
+              'combined',
+            ),
+          },
+          {
+            title: makeTitle(
+              'hiwTitleClean',
+              undefined,
+              { state: 'New Jersey' },
+              undefined,
+              'combined',
+            ),
+            description: makeTitle(
+              'hiwDescriptionClean',
+              undefined,
+              { state: 'New Jersey' },
+              undefined,
+              'combined',
+            ),
+          },
+          {
+            title: makeTitle(
+              'hiwTitleDeliver',
+              undefined,
+              { state: 'New Jersey' },
+              undefined,
+              'combined',
+            ),
+            description: makeTitle(
+              'hiwDescriptionDeliver',
+              undefined,
+              { state: 'New Jersey' },
+              undefined,
+              'combined',
+            ),
+          },
+        ]}
+      />
+
+      <section className="mx-auto max-w-[1440px] px-4 py-28 sm:px-6 lg:py-20">
+        <LocationsWashFold />
+      </section>
+
+      <section className="mx-auto max-w-[1440px] px-4 py-28 sm:px-6 lg:py-20">
+        <LocationsDryCleaning />
+      </section>
+
+      <LocationsStory
+        title="Pressly & New Jersey"
+        heading="Complete laundry and dry cleaning across New Jersey"
+        paragraphs={[
+          makeTitle(
+            'seoCityDescriptionParagraph1',
+            undefined,
+            { state: 'New Jersey' },
+            undefined,
+            'combined',
+          ),
+          makeTitle(
+            'seoCityDescriptionParagraph2',
+            undefined,
+            { state: 'New Jersey' },
+            undefined,
+            'combined',
+          ),
+          makeTitle(
+            'seoCityDescriptionParagraph3',
+            undefined,
+            { state: 'New Jersey' },
+            undefined,
+            'combined',
+          ),
+        ]}
+        heroImage={representative?.heroImage}
+        locationLabel="New Jersey"
+      />
+
+      <LocationsLinksGrid
+        heading="Service by County"
+        items={COUNTIES.map((county) => ({
+          label: county
+            .replace('-county', '')
+            .replace(/-/g, ' ')
+            .replace(/\b\w/g, (l) => l.toUpperCase()),
+          primaryHref: `/new-jersey/${county}`,
+        }))}
+      />
+
+      <section className="mx-auto max-w-[1440px] px-4 py-28 sm:px-6 lg:py-20">
+        <LocationsTestimonials />
+      </section>
+
+      <LocationsBottomSection
+        title="All your garment care, one warm pickup away."
+        description="From everyday laundry to pressed dry cleaning, schedule one visit and we'll handle it all—picked up free, returned fresh, and folded or pressed the way you like."
+      />
+    </>
+  );
+}
