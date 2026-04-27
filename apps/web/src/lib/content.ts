@@ -1,5 +1,11 @@
 export const SITE_URL = 'https://trypressly.com';
 export const CENTS_ORDER_URL = 'https://app.trycents.com/order/business/OGgz';
+export const CENTS_ORDER_ENTRY_PATHS = ['/schedule', '/signup', '/login'];
+
+export function resolveCentsOrderHref(href: string | undefined) {
+  if (!href) return href;
+  return CENTS_ORDER_ENTRY_PATHS.includes(href) ? CENTS_ORDER_URL : href;
+}
 
 export const CONTACT = {
   email: 'care@trypressly.com',

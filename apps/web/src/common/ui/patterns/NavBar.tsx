@@ -6,6 +6,7 @@ import { useRef, useState, useLayoutEffect } from 'react';
 
 import { NavBarMobileFramer } from './NavBarMobileFramer';
 import PrimaryButton from '../../ui/primitives/PrimaryButton';
+import { CENTS_ORDER_URL } from '@/lib/content';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,12 +104,12 @@ export default function NavBar() {
           >
             Get Started
           </PrimaryButton>
-          <Link
-            href="/schedule"
+          <a
+            href={CENTS_ORDER_URL}
             className="hidden text-base font-medium text-foreground/80 transition hover:text-foreground lg:inline cursor-pointer"
           >
             Log In
-          </Link>
+          </a>
 
           <PrimaryButton
             href="/schedule"

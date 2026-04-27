@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { CENTS_ORDER_URL } from '@/lib/content';
 import { NOINDEX_ROBOTS } from '@/lib/seo';
 
 export const metadata: Metadata = {
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function LoginRedirectPage() {
-  redirect('/schedule');
+  redirect(CENTS_ORDER_URL);
 }

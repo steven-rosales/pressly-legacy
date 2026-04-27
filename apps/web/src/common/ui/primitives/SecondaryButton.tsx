@@ -1,6 +1,7 @@
 import { Button } from '../../shadcn/button';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { resolveCentsOrderHref } from '@/lib/content';
 
 type SecondaryButtonProps = {
   children: ReactNode;
@@ -12,11 +13,20 @@ type SecondaryButtonProps = {
 
 export default function SecondaryButton(props: SecondaryButtonProps) {
   const baseClasses = `bg-primary-foreground text-foreground cursor-pointer text-base ${props.className || ''}`;
+  const href = resolveCentsOrderHref(props.href);
 
-  if (props.href) {
+  if (href) {
+    if (href.startsWith('http')) {
+      return (
+        <Button asChild variant="outline" className={baseClasses} size="lg">
+          <a href={href}>{props.children}</a>
+        </Button>
+      );
+    }
+
     return (
       <Button asChild variant="outline" className={baseClasses} size="lg">
-        <Link href={props.href}>{props.children}</Link>
+        <Link href={href}>{props.children}</Link>
       </Button>
     );
   }

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import { Button } from '../../shadcn/button';
 import PrimaryButton from '../primitives/PrimaryButton';
+import { CENTS_ORDER_URL } from '@/lib/content';
 
 type NavItem = { href: string; label: string };
 
@@ -183,9 +184,9 @@ export function NavBarMobileFramer({
 
               <div className="mt-auto flex flex-col gap-3 pb-6 pt-6">
                 <Button variant="outline" size="lg" className="w-full" asChild>
-                  <Link href="/schedule" className="cursor-pointer">
+                  <a href={CENTS_ORDER_URL} className="cursor-pointer">
                     Log in
-                  </Link>
+                  </a>
                 </Button>
                 <PrimaryButton href="/schedule" className="w-full">
                   Schedule a Pickup
