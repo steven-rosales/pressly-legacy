@@ -1,8 +1,11 @@
+'use client';
+
 import Link from 'next/link';
 import { Mail, Phone } from 'lucide-react';
+import posthog from 'posthog-js';
 
 import { PublicSiteShell } from '@/routes/shared/public/PublicSiteShell';
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { CONTACT } from '@/lib/content';
 
 export default function ContactRoute() {
@@ -24,6 +27,7 @@ export default function ContactRoute() {
           <a
             href={CONTACT.phoneHref}
             className="rounded-lg border p-5 transition hover:bg-accent"
+            onClick={() => posthog.capture('contact_phone_clicked')}
           >
             <Phone className="size-5 text-primary" />
             <h2 className="mt-4 text-lg font-semibold">Phone</h2>
@@ -36,6 +40,7 @@ export default function ContactRoute() {
           <a
             href={`mailto:${CONTACT.email}`}
             className="rounded-lg border p-5 transition hover:bg-accent"
+            onClick={() => posthog.capture('contact_email_clicked')}
           >
             <Mail className="size-5 text-primary" />
             <h2 className="mt-4 text-lg font-semibold">Email</h2>

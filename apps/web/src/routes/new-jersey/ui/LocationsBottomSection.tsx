@@ -1,6 +1,9 @@
-import Image from 'next/image';
+'use client';
 
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import Image from 'next/image';
+import posthog from 'posthog-js';
+
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { OFFER_COPY } from '@/lib/content';
 
 interface LocationsBottomSectionProps {
@@ -39,9 +42,11 @@ export function LocationsBottomSection({
           <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mb-8">
             {description}
           </p>
-          <PrimaryButton href={ctaHref} className="w-full sm:w-auto">
-            Schedule a Pickup
-          </PrimaryButton>
+          <span onClick={() => posthog.capture('schedule_pickup_clicked', { source: 'location_bottom_section' })}>
+            <PrimaryButton href={ctaHref} className="w-full sm:w-auto">
+              Schedule a Pickup
+            </PrimaryButton>
+          </span>
           <p className="mt-4 text-center text-base font-medium text-primary">
             {OFFER_COPY}
           </p>

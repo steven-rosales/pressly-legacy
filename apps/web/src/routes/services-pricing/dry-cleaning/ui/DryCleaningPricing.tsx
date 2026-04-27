@@ -1,4 +1,7 @@
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+'use client';
+
+import posthog from 'posthog-js';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { DELIVERY_FEE_SHORT_COPY } from '@/lib/content';
 
 interface PricingItem {
@@ -154,9 +157,11 @@ export default function DryCleaningPricing(props: {
       </div>
 
       <div className="mt-12 text-center">
-        <PrimaryButton href="/schedule" className="w-full sm:w-auto px-12">
-          Schedule a Pickup
-        </PrimaryButton>
+        <span onClick={() => posthog.capture('schedule_pickup_clicked', { source: 'dry_cleaning_pricing' })}>
+          <PrimaryButton href="/schedule" className="w-full sm:w-auto px-12">
+            Schedule a Pickup
+          </PrimaryButton>
+        </span>
         <p className="text-sm text-muted-foreground mt-4">
           Same-day pickup available • {DELIVERY_FEE_SHORT_COPY}
         </p>

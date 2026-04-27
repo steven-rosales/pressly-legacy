@@ -1,6 +1,6 @@
 import { JsonLd } from '@/common/seo/JsonLd';
 import { PublicSiteShell } from '@/routes/shared/public/PublicSiteShell';
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { CONTACT, DELIVERY_FEE_COPY } from '@/lib/content';
 import { buildFaqJsonLd } from '@/lib/seo';
 

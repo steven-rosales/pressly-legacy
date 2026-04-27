@@ -4,8 +4,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRef, useState, useLayoutEffect } from 'react';
 
+import posthog from 'posthog-js';
 import { NavBarMobileFramer } from './NavBarMobileFramer';
-import PrimaryButton from '../../ui/primitives/PrimaryButton';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { CENTS_ORDER_URL } from '@/lib/content';
 import {
   DropdownMenu,
@@ -13,7 +14,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '../../shadcn/dropdown-menu';
+} from '@/common/shadcn/dropdown-menu';
 
 const NAV_LINKS = [
   { href: '/services-pricing/wash-fold', label: 'Services & Pricing' },
@@ -98,12 +99,14 @@ export default function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4 lg:gap-8">
-          <PrimaryButton
-            href="/schedule"
-            className="h-auto bg-transparent p-0 text-base font-medium text-primary underline underline-offset-4 shadow-none transition hover:bg-transparent hover:text-foreground lg:hidden"
-          >
-            Get Started
-          </PrimaryButton>
+          <span onClick={() => posthog.capture('schedule_pickup_clicked', { source: 'navbar_mobile' })}>
+            <PrimaryButton
+              href="/schedule"
+              className="h-auto bg-transparent p-0 text-base font-medium text-primary underline underline-offset-4 shadow-none transition hover:bg-transparent hover:text-foreground lg:hidden"
+            >
+              Get Started
+            </PrimaryButton>
+          </span>
           <a
             href={CENTS_ORDER_URL}
             className="hidden text-base font-medium text-foreground/80 transition hover:text-foreground lg:inline cursor-pointer"
@@ -111,12 +114,14 @@ export default function NavBar() {
             Log In
           </a>
 
-          <PrimaryButton
-            href="/schedule"
-            className="min-w-[140px] hidden lg:flex"
-          >
-            Schedule a Pickup
-          </PrimaryButton>
+          <span onClick={() => posthog.capture('schedule_pickup_clicked', { source: 'navbar_desktop' })}>
+            <PrimaryButton
+              href="/schedule"
+              className="min-w-[140px] hidden lg:flex"
+            >
+              Schedule a Pickup
+            </PrimaryButton>
+          </span>
           <NavBarMobileFramer
             locationItems={LOCATION_ITEMS}
             navbarHeight={navbarHeight ?? 0}

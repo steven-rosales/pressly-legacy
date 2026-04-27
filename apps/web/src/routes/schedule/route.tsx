@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { CircleDollarSign, ExternalLink, HelpCircle } from 'lucide-react';
 
+import posthog from 'posthog-js';
 import {
   CENTS_ORDER_URL,
   DRY_CLEANING_PRICING,
@@ -53,7 +54,7 @@ const faqItems = [
 
 function PricingDialog({ className }: { className?: string }) {
   return (
-    <Dialog>
+    <Dialog onOpenChange={(open) => { if (open) posthog.capture('pricing_dialog_opened'); }}>
       <DialogTrigger asChild>
         <Button
           variant="outline"
@@ -133,7 +134,7 @@ function PricingDialog({ className }: { className?: string }) {
 
 function FaqDialog({ className }: { className?: string }) {
   return (
-    <Dialog>
+    <Dialog onOpenChange={(open) => { if (open) posthog.capture('faq_dialog_opened'); }}>
       <DialogTrigger asChild>
         <Button
           variant="outline"

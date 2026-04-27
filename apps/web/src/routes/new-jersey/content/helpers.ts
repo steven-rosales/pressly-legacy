@@ -19,9 +19,8 @@ export {
   getServiceConfig,
   getServiceTypeFromSlug,
   COUNTY_CITIES,
+  type ServiceType
 };
-
-export type { ServiceType };
 
 export function buildCityServiceParams() {
   const base = allParamsForState();

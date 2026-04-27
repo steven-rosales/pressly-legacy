@@ -1,9 +1,9 @@
 import Image from 'next/image';
 import { JsonLd } from '@/common/seo/JsonLd';
-import ServicesHiw from '@/common/ui/templates/ServicesHiw';
+import ServicesHiw from '../ui/ServicesHiw';
 import { DELIVERY_FEE_COPY, DELIVERY_FEE_LABEL, PRICING } from '@/lib/content';
 import { buildServicePricingPageJsonLd } from '@/lib/seo';
-import { formatUsdShortFromCents } from '@/routes/services-pricing/pricing';
+import { formatUsdShortFromCents } from '@/routes/services-pricing/presenter';
 import DeliveryInfo from '../ui/DeliveryInfo';
 import OtherServices from '../ui/OtherServices';
 import ServiceBottomSection from '../ui/ServiceBottomSection';

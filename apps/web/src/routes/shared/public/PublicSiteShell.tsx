@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
-import Footer from '@/common/ui/patterns/Footer';
-import NavBar from '@/common/ui/patterns/NavBar';
+import Footer from './Footer';
+import NavBar from './NavBar';
 import { cn } from '@/styles/utils';
 
 type PublicSiteShellProps = {

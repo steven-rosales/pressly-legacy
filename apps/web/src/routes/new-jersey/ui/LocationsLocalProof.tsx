@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { DELIVERY_FEE_SHORT_COPY, OFFER_COPY } from '@/lib/content';
 
 import type { LocalProof } from '../content/local-proof';
@@ -18,7 +18,7 @@ export function LocationsLocalProof({ proof }: LocationsLocalProofProps) {
             Local pickup details
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            {proof.serviceLabel} in {proof.cityName}
+            {proof.serviceLabel.charAt(0).toUpperCase() + proof.serviceLabel.slice(1)} in {proof.cityName}
           </h2>
           <p className="mt-4 text-base leading-7 text-muted-foreground">
             Pressly serves {proof.cityName} with transparent pricing, a{' '}

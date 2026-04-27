@@ -1,5 +1,5 @@
 import { JsonLd } from '@/common/seo/JsonLd';
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { DELIVERY_FEE_SHORT_COPY, OFFER_COPY } from '@/lib/content';
 import { buildBreadcrumbJsonLd, buildServiceJsonLd } from '@/lib/seo';
 import { COUNTIES, LOCATIONS, makeTitle } from '@/routes/new-jersey/content';

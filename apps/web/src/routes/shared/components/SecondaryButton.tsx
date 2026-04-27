@@ -1,6 +1,6 @@
-import { Button } from '../../shadcn/button';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { Button } from '@/common/shadcn/button';
 import { resolveCentsOrderHref } from '@/lib/content';
 
 type SecondaryButtonProps = {

@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { Shirt, Wind, User, Briefcase, Sparkles } from 'lucide-react';
 import { PricingDialog } from './PricingDialog';
 import { OFFER_COPY, PRICING, formatUsd } from '@/lib/content';

@@ -13,7 +13,8 @@ import {
 } from '@/common/shadcn/form';
 import { Input } from '@/common/shadcn/input';
 import { Textarea } from '@/common/shadcn/textarea';
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import posthog from 'posthog-js';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 
 const formSchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
@@ -40,7 +41,10 @@ export default function CommercialContactSection() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    void values;
+    posthog.capture('commercial_inquiry_submitted', {
+      company_name: values.companyName,
+      location: values.location,
+    });
     // TODO: Handle form submission
   }
 

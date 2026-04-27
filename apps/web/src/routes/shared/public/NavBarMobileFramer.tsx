@@ -5,8 +5,8 @@ import { ChevronRight, Menu, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { Button } from '../../shadcn/button';
-import PrimaryButton from '../primitives/PrimaryButton';
+import { Button } from '@/common/shadcn/button';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { CENTS_ORDER_URL } from '@/lib/content';
 
 type NavItem = { href: string; label: string };

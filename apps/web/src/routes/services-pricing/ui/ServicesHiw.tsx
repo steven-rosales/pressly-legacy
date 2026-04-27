@@ -1,7 +1,7 @@
 import {
   HiwTimeline,
   type HiwTimelineStep,
-} from '@/common/ui/patterns/HiwTimeline';
+} from '@/routes/shared/public/HiwTimeline';
 
 interface ServicesHiwProps {
   title: string;

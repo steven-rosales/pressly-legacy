@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { OFFER_COPY } from '@/lib/content';
 
 const FEATURES = [

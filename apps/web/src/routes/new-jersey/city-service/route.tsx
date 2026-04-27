@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import { JsonLd } from '@/common/seo/JsonLd';
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
 import { OFFER_COPY } from '@/lib/content';
 import { buildLocationPageJsonLd, formatCountyName } from '@/lib/seo';
 import {

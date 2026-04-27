@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '../../shadcn/button';
 import type { ReactNode } from 'react';
+import { Button } from '@/common/shadcn/button';
 import { resolveCentsOrderHref } from '@/lib/content';
 
 type PrimaryButtonProps = {

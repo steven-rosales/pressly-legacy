@@ -1,6 +1,9 @@
+'use client';
+
 import Image from 'next/image';
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
-import SecondaryButton from '@/common/ui/primitives/SecondaryButton';
+import posthog from 'posthog-js';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
+import SecondaryButton from '@/routes/shared/components/SecondaryButton';
 
 export default function HomeConquerTime() {
   return (
@@ -20,7 +23,9 @@ export default function HomeConquerTime() {
       </p>
 
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 w-full sm:w-auto mb-8 lg:mb-12">
-        <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
+        <span onClick={() => posthog.capture('schedule_pickup_clicked', { source: 'home_mid_page' })}>
+          <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
+        </span>
         <SecondaryButton href="/services-pricing/wash-fold">
           Services & Pricing
         </SecondaryButton>

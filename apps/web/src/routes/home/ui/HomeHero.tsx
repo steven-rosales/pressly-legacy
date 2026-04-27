@@ -1,6 +1,9 @@
+'use client';
+
 import Image from 'next/image';
-import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
-import SecondaryButton from '@/common/ui/primitives/SecondaryButton';
+import posthog from 'posthog-js';
+import PrimaryButton from '@/routes/shared/components/PrimaryButton';
+import SecondaryButton from '@/routes/shared/components/SecondaryButton';
 
 export default function HomeHero() {
   return (
@@ -13,7 +16,9 @@ export default function HomeHero() {
           Pressly picks up, cleans, and delivers your laundry and dry cleaning. Quickest pickup & delivery in the area!
         </p>
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 w-full sm:w-auto mx-auto lg:mx-0">
-          <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
+          <span onClick={() => posthog.capture('schedule_pickup_clicked', { source: 'home_hero' })}>
+            <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
+          </span>
           <SecondaryButton href="/services-pricing/wash-fold">
             Services & Pricing
           </SecondaryButton>
