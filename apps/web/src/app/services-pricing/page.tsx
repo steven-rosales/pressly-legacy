@@ -7,4 +7,4 @@ export const metadata = buildPageMetadata({
   path: '/services-pricing',
 });
 
-export { default } from '@/routes/services-pricing/index/route';
+export { default } from '@/routes/services-pricing/route';

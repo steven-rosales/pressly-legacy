@@ -9,8 +9,8 @@ import {
   WASH_FOLD_SPECIALTY_ITEMS,
   formatUsd,
 } from '@/lib/content';
-import type { LocationRecord } from '@/routes/shared/marketing/content/locations';
-import type { ServiceType } from '@/routes/shared/marketing/content/service-configs';
+import type { LocationRecord } from '@/routes/new-jersey/content/locations';
+import type { ServiceType } from '@/routes/new-jersey/content/service-configs';
 
 type BuildPageMetadataInput = {
   title: string;

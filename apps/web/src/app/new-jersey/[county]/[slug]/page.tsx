@@ -3,7 +3,7 @@ import CityServiceRoute, {
   generateStaticParams as generateCityServiceStaticParams,
 } from '@/routes/new-jersey/city-service/route';
 import { buildCityServiceMetadata, NOINDEX_ROBOTS } from '@/lib/seo';
-import { resolveCityService } from '@/routes/shared/marketing/public';
+import { resolveCityService } from '@/routes/new-jersey/content';
 
 export const revalidate = 3600;
 export const dynamicParams = false;

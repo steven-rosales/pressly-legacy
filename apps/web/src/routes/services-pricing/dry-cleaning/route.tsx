@@ -3,14 +3,12 @@ import { JsonLd } from '@/common/seo/JsonLd';
 import ServicesHiw from '@/common/ui/templates/ServicesHiw';
 import { DELIVERY_FEE_COPY, DELIVERY_FEE_LABEL, PRICING } from '@/lib/content';
 import { buildServicePricingPageJsonLd } from '@/lib/seo';
-import {
-  DeliveryInfo,
-  DryCleaningPricing,
-  OtherServices,
-  ServiceBottomSection,
-  ServiceHero,
-} from '@/routes/shared/marketing/public';
 import { formatUsdShortFromCents } from '@/routes/services-pricing/pricing';
+import DeliveryInfo from '../ui/DeliveryInfo';
+import OtherServices from '../ui/OtherServices';
+import ServiceBottomSection from '../ui/ServiceBottomSection';
+import ServiceHero from '../ui/ServiceHero';
+import DryCleaningPricing from './ui/DryCleaningPricing';
 
 export const revalidate = 3600;
 

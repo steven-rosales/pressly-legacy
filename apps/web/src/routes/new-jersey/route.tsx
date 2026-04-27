@@ -2,19 +2,15 @@ import { JsonLd } from '@/common/seo/JsonLd';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
 import { DELIVERY_FEE_SHORT_COPY, OFFER_COPY } from '@/lib/content';
 import { buildBreadcrumbJsonLd, buildServiceJsonLd } from '@/lib/seo';
-import {
-  COUNTIES,
-  LOCATIONS,
-  LocationsBottomSection,
-  LocationsDryCleaning,
-  LocationsHero,
-  LocationsHiw,
-  LocationsLinksGrid,
-  LocationsStory,
-  LocationsTestimonials,
-  LocationsWashFold,
-  makeTitle,
-} from '@/routes/shared/marketing/public';
+import { COUNTIES, LOCATIONS, makeTitle } from '@/routes/new-jersey/content';
+import { LocationsBottomSection } from './ui/LocationsBottomSection';
+import LocationsDryCleaning from './ui/LocationsDryCleaning';
+import { LocationsHero } from './ui/LocationsHero';
+import { LocationsHiw } from './ui/LocationsHiw';
+import { LocationsLinksGrid } from './ui/LocationsLinksGrid';
+import { LocationsStory } from './ui/LocationsStory';
+import LocationsTestimonials from './ui/LocationsTestimonials';
+import LocationsWashFold from './ui/LocationsWashFold';
 
 export const revalidate = 3600;
 

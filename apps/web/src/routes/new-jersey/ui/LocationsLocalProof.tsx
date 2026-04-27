@@ -3,7 +3,7 @@ import Link from 'next/link';
 import PrimaryButton from '@/common/ui/primitives/PrimaryButton';
 import { DELIVERY_FEE_SHORT_COPY, OFFER_COPY } from '@/lib/content';
 
-import type { LocalProof } from '../../content/local-proof';
+import type { LocalProof } from '../content/local-proof';
 
 type LocationsLocalProofProps = {
   proof: LocalProof;

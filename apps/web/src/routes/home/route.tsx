@@ -1,12 +1,10 @@
-import {
-  HomeConquerTime,
-  HomeDryCleaning,
-  HomeHero,
-  HomeHiw,
-  HomeTestimonials,
-  HomeWashFold,
-} from '@/routes/shared/marketing/public';
 import { PublicSiteShell } from '@/routes/shared/public/PublicSiteShell';
+import HomeConquerTime from './ui/HomeConquerTime';
+import HomeDryCleaning from './ui/HomeDryCleaning';
+import HomeHero from './ui/HomeHero';
+import HomeHiw from './ui/HomeHiw';
+import HomeTestimonials from './ui/HomeTestimonials';
+import HomeWashFold from './ui/HomeWashFold';
 
 export default function HomeRoute() {
   return (

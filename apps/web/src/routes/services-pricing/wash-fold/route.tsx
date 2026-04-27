@@ -4,16 +4,14 @@ import ServicesHiw from '@/common/ui/templates/ServicesHiw';
 import { DELIVERY_FEE_COPY, DELIVERY_FEE_LABEL, PRICING } from '@/lib/content';
 import { buildServicePricingPageJsonLd } from '@/lib/seo';
 import {
-  DeliveryInfo,
-  OtherServices,
-  ServiceBottomSection,
-  ServiceHero,
-  WashFoldPricing,
-} from '@/routes/shared/marketing/public';
-import {
   formatQuantity,
   formatUsdShortFromCents,
 } from '@/routes/services-pricing/pricing';
+import DeliveryInfo from '../ui/DeliveryInfo';
+import OtherServices from '../ui/OtherServices';
+import ServiceBottomSection from '../ui/ServiceBottomSection';
+import ServiceHero from '../ui/ServiceHero';
+import WashFoldPricing from './ui/WashFoldPricing';
 
 export const revalidate = 3600;
 

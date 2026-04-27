@@ -7,17 +7,17 @@ import { buildLocationPageJsonLd, formatCountyName } from '@/lib/seo';
 import {
   buildCityServiceParams,
   getLocalProof,
-  LocationsBottomSection,
-  LocationsDryCleaning,
-  LocationsHero,
-  LocationsHiw,
-  LocationsLocalProof,
-  LocationsStory,
-  LocationsTestimonials,
-  LocationsWashFold,
   makeTitle,
   resolveCityService,
-} from '@/routes/shared/marketing/public';
+} from '@/routes/new-jersey/content';
+import { LocationsBottomSection } from '../ui/LocationsBottomSection';
+import LocationsDryCleaning from '../ui/LocationsDryCleaning';
+import { LocationsHero } from '../ui/LocationsHero';
+import { LocationsHiw } from '../ui/LocationsHiw';
+import { LocationsLocalProof } from '../ui/LocationsLocalProof';
+import { LocationsStory } from '../ui/LocationsStory';
+import LocationsTestimonials from '../ui/LocationsTestimonials';
+import LocationsWashFold from '../ui/LocationsWashFold';
 
 export const revalidate = 3600;
 
