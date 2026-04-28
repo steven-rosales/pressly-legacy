@@ -1,9 +1,11 @@
+import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
 const canonicalUrl = 'https://www.trypressly.com';
 const canonicalRedirectHosts = ['pressely.com', 'www.pressely.com'];
 
 const nextConfig: NextConfig = {
+  reactStrictMode: true,
   skipTrailingSlashRedirect: true,
   images: {
     qualities: [75, 100],
@@ -174,4 +176,24 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: 'pressly-laundry-service-dry-cl',
+
+  project: 'pressly-web',
+
+  silent: !process.env['CI'],
+
+  widenClientFileUpload: true,
+
+  tunnelRoute: '/monitoring',
+
+  webpack: {
+    automaticVercelMonitors: true,
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+  ...(process.env['SENTRY_AUTH_TOKEN'] && {
+    authToken: process.env['SENTRY_AUTH_TOKEN'],
+  }),
+});
