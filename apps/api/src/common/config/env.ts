@@ -7,6 +7,7 @@ import {
   nodeEnvSchema,
   parseEnv,
   secret,
+  envSampleRate,
 } from '@pressly/config';
 import { z } from 'zod';
 
@@ -28,6 +29,15 @@ const apiEnvSchema = z.object({
 
   FEATURE_METRICS_ENABLED: featureFlag,
   FEATURE_JOBS_ENABLED: featureFlag,
+
+  SENTRY_ENABLED: featureFlag,
+  SENTRY_DSN: z.url().optional(),
+  SENTRY_RELEASE: z.string().min(1).optional(),
+  SENTRY_TRACES_SAMPLE_RATE: envSampleRate.default(0.1),
+
+  POSTHOG_ENABLED: featureFlag,
+  POSTHOG_PROJECT_API_KEY: secret.optional(),
+  POSTHOG_HOST: envUrl.default('https://us.i.posthog.com'),
 });
 
 export const rawApiEnv = parseEnv(apiEnvSchema, process.env);
@@ -45,5 +55,18 @@ export const apiEnv = {
   features: {
     metricsEnabled: rawApiEnv.FEATURE_METRICS_ENABLED,
     jobsEnabled: rawApiEnv.FEATURE_JOBS_ENABLED,
+  },
+  observability: {
+    sentry: {
+      enabled: rawApiEnv.SENTRY_ENABLED,
+      dsn: rawApiEnv.SENTRY_DSN,
+      release: rawApiEnv.SENTRY_RELEASE,
+      traceSampleRate: rawApiEnv.SENTRY_TRACES_SAMPLE_RATE,
+    },
+    posthog: {
+      enabled: rawApiEnv.POSTHOG_ENABLED,
+      projectApiKey: rawApiEnv.POSTHOG_PROJECT_API_KEY,
+      host: rawApiEnv.POSTHOG_HOST,
+    },
   },
 } as const;

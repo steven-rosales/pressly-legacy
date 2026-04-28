@@ -7,6 +7,7 @@ export { featureFlag } from './feature-flag.js';
 export { nodeEnvSchema } from './node-env.js';
 export { parseEnv } from './parse-env.js';
 export { revealSecret, secret } from './secret.js';
+export { envSampleRate } from './sample-rate.js';
 
 export type { FeatureFlag } from './feature-flag.js';
 export type { NodeEnv } from './node-env.js';

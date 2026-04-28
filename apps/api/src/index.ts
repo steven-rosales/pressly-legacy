@@ -1,4 +1,4 @@
-import { apiEnv } from './common/env.js';
+import { apiEnv } from './common/config/env.js';
 
 const main = () => {
   console.log({
