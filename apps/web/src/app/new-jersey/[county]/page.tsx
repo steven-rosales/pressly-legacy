@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import CountyRoute, {
   generateStaticParams as generateCountyStaticParams,
 } from '@/routes/new-jersey/county/route';
-import { buildCountyMetadata } from '@/lib/seo';
+import { buildCountyMetadata } from '@/routes/shared/marketing/seo';
 
 export const revalidate = 3600;
 export const dynamicParams = false;

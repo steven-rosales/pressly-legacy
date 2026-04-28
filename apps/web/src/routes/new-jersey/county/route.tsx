@@ -1,13 +1,13 @@
 import { notFound } from 'next/navigation';
 
-import { JsonLd } from '@/common/seo/JsonLd';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
-import { OFFER_COPY } from '@/lib/content';
+import { JsonLd } from '@/routes/shared/marketing/JsonLd';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import { OFFER_COPY } from '@/routes/shared/marketing/content';
 import {
   buildBreadcrumbJsonLd,
   buildServiceJsonLd,
   formatCountyName,
-} from '@/lib/seo';
+} from '@/routes/shared/marketing/seo';
 import {
   COUNTIES,
   COUNTY_CITIES,

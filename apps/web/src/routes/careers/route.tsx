@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
-import { PublicSiteShell } from '@/routes/shared/public/PublicSiteShell';
-import { CONTACT } from '@/lib/content';
+import { PublicSiteShell } from '@/routes/shared/ui/public/PublicSiteShell';
+import { CONTACT } from '@/routes/shared/marketing/content';
 
 export default function CareersRoute() {
   return (

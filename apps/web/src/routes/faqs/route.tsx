@@ -1,8 +1,8 @@
-import { JsonLd } from '@/common/seo/JsonLd';
-import { PublicSiteShell } from '@/routes/shared/public/PublicSiteShell';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
-import { CONTACT, DELIVERY_FEE_COPY } from '@/lib/content';
-import { buildFaqJsonLd } from '@/lib/seo';
+import { JsonLd } from '@/routes/shared/marketing/JsonLd';
+import { PublicSiteShell } from '@/routes/shared/ui/public/PublicSiteShell';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import { CONTACT, DELIVERY_FEE_COPY } from '@/routes/shared/marketing/content';
+import { buildFaqJsonLd } from '@/routes/shared/marketing/seo';
 
 const faqs = [
   {

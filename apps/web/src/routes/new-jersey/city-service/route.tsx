@@ -1,9 +1,12 @@
 import { notFound } from 'next/navigation';
 
-import { JsonLd } from '@/common/seo/JsonLd';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
-import { OFFER_COPY } from '@/lib/content';
-import { buildLocationPageJsonLd, formatCountyName } from '@/lib/seo';
+import { JsonLd } from '@/routes/shared/marketing/JsonLd';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import { OFFER_COPY } from '@/routes/shared/marketing/content';
+import {
+  buildLocationPageJsonLd,
+  formatCountyName,
+} from '@/routes/shared/marketing/seo';
 import {
   buildCityServiceParams,
   getLocalProof,

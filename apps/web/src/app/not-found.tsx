@@ -1,6 +1,6 @@
-import Footer from '@/routes/shared/public/Footer';
-import NavBar from '@/routes/shared/public/NavBar';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
+import Footer from '@/routes/shared/ui/public/Footer';
+import NavBar from '@/routes/shared/ui/public/NavBar';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
 
 export default function NotFound() {
   return (

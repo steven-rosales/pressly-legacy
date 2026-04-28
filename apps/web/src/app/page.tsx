@@ -1,5 +1,5 @@
-import { buildPageMetadata } from '@/lib/seo';
-import { DELIVERY_FEE_SHORT_COPY } from '@/lib/content';
+import { buildPageMetadata } from '@/routes/shared/marketing/seo';
+import { DELIVERY_FEE_SHORT_COPY } from '@/routes/shared/marketing/content';
 
 export const metadata = buildPageMetadata({
   title: 'Laundry & Dry Cleaning Pickup and Delivery',

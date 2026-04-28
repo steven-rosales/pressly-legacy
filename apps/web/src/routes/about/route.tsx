@@ -1,8 +1,8 @@
 import Link from 'next/link';
 
-import { PublicSiteShell } from '@/routes/shared/public/PublicSiteShell';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
-import { CONTACT } from '@/lib/content';
+import { PublicSiteShell } from '@/routes/shared/ui/public/PublicSiteShell';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import { CONTACT } from '@/routes/shared/marketing/content';
 
 const values = [
   {

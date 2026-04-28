@@ -1,5 +1,5 @@
 import DryCleaningRoute from '@/routes/services-pricing/dry-cleaning/route';
-import { buildPageMetadata } from '@/lib/seo';
+import { buildPageMetadata } from '@/routes/shared/marketing/seo';
 
 export const revalidate = 3600;
 export const metadata = buildPageMetadata({

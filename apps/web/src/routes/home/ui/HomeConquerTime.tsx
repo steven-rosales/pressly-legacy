@@ -2,8 +2,8 @@
 
 import Image from 'next/image';
 import posthog from 'posthog-js';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
-import SecondaryButton from '@/routes/shared/components/SecondaryButton';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SecondaryButton from '@/routes/shared/ui/components/SecondaryButton';
 
 export default function HomeConquerTime() {
   return (
@@ -22,11 +22,23 @@ export default function HomeConquerTime() {
         same-day pickup and get it back the very next day!
       </p>
 
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 w-full sm:w-auto mb-8 lg:mb-12">
-        <span onClick={() => posthog.capture('schedule_pickup_clicked', { source: 'home_mid_page' })}>
-          <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
+      <div className="mb-8 flex w-full flex-col gap-3 lg:mb-12 lg:w-auto lg:flex-row lg:gap-2">
+        <span
+          className="block w-full lg:w-auto"
+          onClick={() =>
+            posthog.capture('schedule_pickup_clicked', {
+              source: 'home_mid_page',
+            })
+          }
+        >
+          <PrimaryButton href="/schedule" className="w-full lg:w-auto">
+            Schedule a Pickup
+          </PrimaryButton>
         </span>
-        <SecondaryButton href="/services-pricing/wash-fold">
+        <SecondaryButton
+          href="/services-pricing/wash-fold"
+          className="w-full lg:w-auto"
+        >
           Services & Pricing
         </SecondaryButton>
       </div>

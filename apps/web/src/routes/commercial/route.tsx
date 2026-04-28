@@ -1,4 +1,4 @@
-import { PublicSiteShell } from '@/routes/shared/public/PublicSiteShell';
+import { PublicSiteShell } from '@/routes/shared/ui/public/PublicSiteShell';
 import CommercialContactSection from './ui/CommercialContactSection';
 
 export default function CommercialRoute() {

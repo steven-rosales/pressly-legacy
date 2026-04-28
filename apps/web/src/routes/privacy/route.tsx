@@ -1,4 +1,4 @@
-import { LegalDocumentPage } from '@/routes/shared/public/LegalDocumentPage';
+import { LegalDocumentPage } from '@/routes/shared/ui/public/LegalDocumentPage';
 
 export default function PrivacyPolicyRoute() {
   return (

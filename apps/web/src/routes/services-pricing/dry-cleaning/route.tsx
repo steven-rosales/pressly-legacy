@@ -1,8 +1,12 @@
 import Image from 'next/image';
-import { JsonLd } from '@/common/seo/JsonLd';
+import { JsonLd } from '@/routes/shared/marketing/JsonLd';
 import ServicesHiw from '../ui/ServicesHiw';
-import { DELIVERY_FEE_COPY, DELIVERY_FEE_LABEL, PRICING } from '@/lib/content';
-import { buildServicePricingPageJsonLd } from '@/lib/seo';
+import {
+  DELIVERY_FEE_COPY,
+  DELIVERY_FEE_LABEL,
+  PRICING,
+} from '@/routes/shared/marketing/content';
+import { buildServicePricingPageJsonLd } from '@/routes/shared/marketing/seo';
 import { formatUsdShortFromCents } from '@/routes/services-pricing/presenter';
 import DeliveryInfo from '../ui/DeliveryInfo';
 import OtherServices from '../ui/OtherServices';

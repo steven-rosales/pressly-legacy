@@ -1,4 +1,4 @@
-import { PublicSiteShell } from '@/routes/shared/public/PublicSiteShell';
+import { PublicSiteShell } from '@/routes/shared/ui/public/PublicSiteShell';
 import HomeConquerTime from './ui/HomeConquerTime';
 import HomeDryCleaning from './ui/HomeDryCleaning';
 import HomeHero from './ui/HomeHero';

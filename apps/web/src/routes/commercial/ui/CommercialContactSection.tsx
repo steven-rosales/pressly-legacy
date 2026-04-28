@@ -14,7 +14,7 @@ import {
 import { Input } from '@/common/shadcn/input';
 import { Textarea } from '@/common/shadcn/textarea';
 import posthog from 'posthog-js';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
 
 const formSchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),

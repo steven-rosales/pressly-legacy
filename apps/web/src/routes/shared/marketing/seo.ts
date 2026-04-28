@@ -8,7 +8,7 @@ import {
   SITE_URL,
   WASH_FOLD_SPECIALTY_ITEMS,
   formatUsd,
-} from '@/lib/content';
+} from '@/routes/shared/marketing/content';
 import type { LocationRecord } from '@/routes/new-jersey/content/locations';
 import type { ServiceType } from '@/routes/new-jersey/content/service-configs';
 

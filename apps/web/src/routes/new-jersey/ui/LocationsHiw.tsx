@@ -1,11 +1,11 @@
 import Image from 'next/image';
 
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
-import { OFFER_COPY } from '@/lib/content';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import { OFFER_COPY } from '@/routes/shared/marketing/content';
 import {
   HiwTimeline,
   type HiwTimelineStep,
-} from '@/routes/shared/public/HiwTimeline';
+} from '@/routes/shared/ui/public/HiwTimeline';
 
 interface LocationsHiwProps {
   heading: string;

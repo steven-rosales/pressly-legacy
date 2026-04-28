@@ -1,6 +1,6 @@
 import Image from 'next/image';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
-import { OFFER_COPY } from '@/lib/content';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import { OFFER_COPY } from '@/routes/shared/marketing/content';
 
 const FEATURES = [
   {
@@ -47,7 +47,7 @@ export default function DryCleaning() {
             ))}
           </div>
           <div className="mt-6 space-y-4">
-            <PrimaryButton href="/schedule" className="w-full sm:w-auto">
+            <PrimaryButton href="/schedule" className="w-full lg:w-auto">
               Schedule a Pickup
             </PrimaryButton>
             <p className="text-center lg:text-left text-base font-medium text-primary">

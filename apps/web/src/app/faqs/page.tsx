@@ -1,4 +1,4 @@
-import { buildPageMetadata } from '@/lib/seo';
+import { buildPageMetadata } from '@/routes/shared/marketing/seo';
 
 export const metadata = buildPageMetadata({
   title: 'FAQs',

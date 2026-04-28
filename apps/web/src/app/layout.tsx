@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { Lexend_Deca } from 'next/font/google';
 import type { ReactNode } from 'react';
-import { SITE_URL } from '@/lib/content';
-import { JsonLd } from '@/common/seo/JsonLd';
-import { buildOrganizationJsonLd } from '@/lib/seo';
+import { SITE_URL } from '@/routes/shared/marketing/content';
+import { JsonLd } from '@/routes/shared/marketing/JsonLd';
+import { buildOrganizationJsonLd } from '@/routes/shared/marketing/seo';
 import '@/styles/globals.css';
 
 const lexend = Lexend_Deca({

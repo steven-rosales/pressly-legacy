@@ -1,6 +1,6 @@
 import Image from 'next/image';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
-import { OFFER_COPY } from '@/lib/content';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import { OFFER_COPY } from '@/routes/shared/marketing/content';
 import { ShoppingBag, Grid3x3, Layers, BedDouble } from 'lucide-react';
 
 const PRICING_ITEMS = [

@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 
 import ScheduleRoute from '@/routes/schedule/route';
-import { NOINDEX_ROBOTS, buildPageMetadata } from '@/lib/seo';
+import {
+  NOINDEX_ROBOTS,
+  buildPageMetadata,
+} from '@/routes/shared/marketing/seo';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'Schedule a Pickup',

@@ -10,7 +10,7 @@ import {
   DRY_CLEANING_PRICING,
   PRICING,
   formatUsd,
-} from '@/lib/content';
+} from '@/routes/shared/marketing/content';
 import { Button } from '@/common/shadcn/button';
 import {
   Dialog,
@@ -54,7 +54,11 @@ const faqItems = [
 
 function PricingDialog({ className }: { className?: string }) {
   return (
-    <Dialog onOpenChange={(open) => { if (open) posthog.capture('pricing_dialog_opened'); }}>
+    <Dialog
+      onOpenChange={(open) => {
+        if (open) posthog.capture('pricing_dialog_opened');
+      }}
+    >
       <DialogTrigger asChild>
         <Button
           variant="outline"
@@ -134,7 +138,11 @@ function PricingDialog({ className }: { className?: string }) {
 
 function FaqDialog({ className }: { className?: string }) {
   return (
-    <Dialog onOpenChange={(open) => { if (open) posthog.capture('faq_dialog_opened'); }}>
+    <Dialog
+      onOpenChange={(open) => {
+        if (open) posthog.capture('faq_dialog_opened');
+      }}
+    >
       <DialogTrigger asChild>
         <Button
           variant="outline"

@@ -1,8 +1,12 @@
 import Image from 'next/image';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
 import { Shirt, Wind, User, Briefcase, Sparkles } from 'lucide-react';
 import { PricingDialog } from './PricingDialog';
-import { OFFER_COPY, PRICING, formatUsd } from '@/lib/content';
+import {
+  OFFER_COPY,
+  PRICING,
+  formatUsd,
+} from '@/routes/shared/marketing/content';
 
 const PRICING_ITEMS = [
   {

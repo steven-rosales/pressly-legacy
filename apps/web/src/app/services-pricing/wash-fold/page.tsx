@@ -1,5 +1,5 @@
 import WashFoldRoute from '@/routes/services-pricing/wash-fold/route';
-import { buildPageMetadata } from '@/lib/seo';
+import { buildPageMetadata } from '@/routes/shared/marketing/seo';
 
 export const revalidate = 3600;
 export const metadata = buildPageMetadata({

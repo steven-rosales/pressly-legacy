@@ -1,7 +1,13 @@
-import { JsonLd } from '@/common/seo/JsonLd';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
-import { DELIVERY_FEE_SHORT_COPY, OFFER_COPY } from '@/lib/content';
-import { buildBreadcrumbJsonLd, buildServiceJsonLd } from '@/lib/seo';
+import { JsonLd } from '@/routes/shared/marketing/JsonLd';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import {
+  DELIVERY_FEE_SHORT_COPY,
+  OFFER_COPY,
+} from '@/routes/shared/marketing/content';
+import {
+  buildBreadcrumbJsonLd,
+  buildServiceJsonLd,
+} from '@/routes/shared/marketing/seo';
 import { COUNTIES, LOCATIONS, makeTitle } from '@/routes/new-jersey/content';
 import { LocationsBottomSection } from './ui/LocationsBottomSection';
 import LocationsDryCleaning from './ui/LocationsDryCleaning';

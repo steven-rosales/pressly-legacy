@@ -6,8 +6,8 @@ import { useRef, useState, useLayoutEffect } from 'react';
 
 import posthog from 'posthog-js';
 import { NavBarMobileFramer } from './NavBarMobileFramer';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
-import { CENTS_ORDER_URL } from '@/lib/content';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import { CENTS_ORDER_URL } from '@/routes/shared/marketing/content';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,7 +99,13 @@ export default function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4 lg:gap-8">
-          <span onClick={() => posthog.capture('schedule_pickup_clicked', { source: 'navbar_mobile' })}>
+          <span
+            onClick={() =>
+              posthog.capture('schedule_pickup_clicked', {
+                source: 'navbar_mobile',
+              })
+            }
+          >
             <PrimaryButton
               href="/schedule"
               className="h-auto bg-transparent p-0 text-base font-medium text-primary underline underline-offset-4 shadow-none transition hover:bg-transparent hover:text-foreground lg:hidden"
@@ -114,7 +120,13 @@ export default function NavBar() {
             Log In
           </a>
 
-          <span onClick={() => posthog.capture('schedule_pickup_clicked', { source: 'navbar_desktop' })}>
+          <span
+            onClick={() =>
+              posthog.capture('schedule_pickup_clicked', {
+                source: 'navbar_desktop',
+              })
+            }
+          >
             <PrimaryButton
               href="/schedule"
               className="min-w-[140px] hidden lg:flex"

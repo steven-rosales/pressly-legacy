@@ -2,7 +2,10 @@ import type { Metadata } from 'next';
 import CityServiceRoute, {
   generateStaticParams as generateCityServiceStaticParams,
 } from '@/routes/new-jersey/city-service/route';
-import { buildCityServiceMetadata, NOINDEX_ROBOTS } from '@/lib/seo';
+import {
+  buildCityServiceMetadata,
+  NOINDEX_ROBOTS,
+} from '@/routes/shared/marketing/seo';
 import { resolveCityService } from '@/routes/new-jersey/content';
 
 export const revalidate = 3600;

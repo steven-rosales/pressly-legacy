@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import posthog from 'posthog-js';
-import PrimaryButton from '@/routes/shared/components/PrimaryButton';
+import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
 
 interface ServiceBottomSectionProps {
   title: string;
@@ -36,7 +36,13 @@ export default function ServiceBottomSection({
           <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mb-8">
             {description}
           </p>
-          <span onClick={() => posthog.capture('schedule_pickup_clicked', { source: 'service_bottom_section' })}>
+          <span
+            onClick={() =>
+              posthog.capture('schedule_pickup_clicked', {
+                source: 'service_bottom_section',
+              })
+            }
+          >
             <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
           </span>
         </div>
