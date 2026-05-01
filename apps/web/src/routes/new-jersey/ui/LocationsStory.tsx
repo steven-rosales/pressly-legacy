@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { OFFER_COPY } from '@/routes/shared/marketing/content';
 
 interface LocationsStoryProps {
@@ -33,9 +33,12 @@ export function LocationsStory({
             ))}
           </div>
           <div className="mt-6 flex w-full max-w-md flex-col items-start gap-3 lg:w-auto lg:max-w-none">
-            <PrimaryButton href="/schedule" className="w-full sm:w-auto">
+            <SchedulePickupButton
+              source="location_story"
+              className="w-full sm:w-auto"
+            >
               Schedule a Pickup
-            </PrimaryButton>
+            </SchedulePickupButton>
             <p className="text-center text-base font-medium text-primary">
               {OFFER_COPY}
             </p>
@@ -44,7 +47,7 @@ export function LocationsStory({
 
         {heroImage ? (
           <div className="relative w-full shrink-0 overflow-hidden rounded-2xl lg:w-[320px]">
-            <div className="aspect-3/5 w-full max-h-56 lg:max-h-none">
+            <div className="relative aspect-3/5 w-full max-h-56 lg:max-h-none">
               <Image
                 src={heroImage}
                 alt={locationLabel ?? heading}

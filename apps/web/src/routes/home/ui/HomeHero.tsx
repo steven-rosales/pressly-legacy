@@ -1,8 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import posthog from 'posthog-js';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import SecondaryButton from '@/routes/shared/ui/components/SecondaryButton';
 
 export default function HomeHero() {
@@ -17,18 +16,10 @@ export default function HomeHero() {
           Quickest pickup & delivery in the area!
         </p>
         <div className="mx-auto flex w-full flex-col gap-3 lg:mx-0 lg:w-auto lg:flex-row lg:gap-2">
-          <span
-            className="block w-full lg:w-auto"
-            onClick={() =>
-              posthog.capture('schedule_pickup_clicked', {
-                source: 'home_hero',
-              })
-            }
-          >
-            <PrimaryButton href="/schedule" className="w-full lg:w-auto">
-              Schedule a Pickup
-            </PrimaryButton>
-          </span>
+          <SchedulePickupButton
+            source="home_hero"
+            className="w-full lg:w-auto"
+          />
           <SecondaryButton
             href="/services-pricing/wash-fold"
             className="w-full lg:w-auto"
@@ -42,6 +33,7 @@ export default function HomeHero() {
           src="/graphic-img/hero-customer.webp"
           alt="Laundry Customer leaving laundry outside for pickup."
           fill
+          sizes="(max-width: 1024px) 100vw, 500px"
           className="object-contain rounded-lg"
           priority
         />

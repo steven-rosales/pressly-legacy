@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { OFFER_COPY } from '@/routes/shared/marketing/content';
 import { ShoppingBag, Grid3x3, Layers, BedDouble } from 'lucide-react';
 
@@ -108,9 +108,12 @@ export default function LocationsWashFold() {
         </div>
 
         <div className="space-y-4">
-          <PrimaryButton href="/schedule" className="w-full sm:w-auto">
+          <SchedulePickupButton
+            source="location_wash_fold"
+            className="w-full sm:w-auto"
+          >
             Schedule a Pickup
-          </PrimaryButton>
+          </SchedulePickupButton>
           <p className="text-center lg:text-left text-base font-medium text-primary">
             {OFFER_COPY}
           </p>
@@ -122,6 +125,7 @@ export default function LocationsWashFold() {
           src="/graphic-img/wash-fold.webp"
           alt="Wash and fold laundry service"
           fill
+          sizes="(max-width: 1024px) 100vw, 600px"
           className="object-cover rounded-lg"
         />
       </div>

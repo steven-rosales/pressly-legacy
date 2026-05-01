@@ -1,22 +1,19 @@
 'use client';
 
 import Image from 'next/image';
-import posthog from 'posthog-js';
 
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { OFFER_COPY } from '@/routes/shared/marketing/content';
 
 interface LocationsBottomSectionProps {
   title: string;
   description: string;
-  ctaHref?: string;
   backgroundImage?: string;
 }
 
 export function LocationsBottomSection({
   title,
   description,
-  ctaHref = '/schedule',
   backgroundImage = '/images/end-section.webp',
 }: LocationsBottomSectionProps) {
   return (
@@ -26,6 +23,7 @@ export function LocationsBottomSection({
         src={backgroundImage}
         alt="Service background"
         fill
+        sizes="100vw"
         className="object-cover"
         priority={false}
       />
@@ -42,17 +40,12 @@ export function LocationsBottomSection({
           <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mb-8">
             {description}
           </p>
-          <span
-            onClick={() =>
-              posthog.capture('schedule_pickup_clicked', {
-                source: 'location_bottom_section',
-              })
-            }
+          <SchedulePickupButton
+            source="location_bottom_section"
+            className="w-full sm:w-auto"
           >
-            <PrimaryButton href={ctaHref} className="w-full sm:w-auto">
-              Schedule a Pickup
-            </PrimaryButton>
-          </span>
+            Schedule a Pickup
+          </SchedulePickupButton>
           <p className="mt-4 text-center text-base font-medium text-primary">
             {OFFER_COPY}
           </p>

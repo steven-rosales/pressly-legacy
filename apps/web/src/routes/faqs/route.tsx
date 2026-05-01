@@ -1,6 +1,6 @@
 import { JsonLd } from '@/routes/shared/marketing/JsonLd';
 import { PublicSiteShell } from '@/routes/shared/ui/public/PublicSiteShell';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { CONTACT, DELIVERY_FEE_COPY } from '@/routes/shared/marketing/content';
 import { buildFaqJsonLd } from '@/routes/shared/marketing/seo';
 
@@ -65,7 +65,9 @@ export default function FaqsRoute() {
         </div>
 
         <div className="mt-10">
-          <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
+          <SchedulePickupButton source="faq">
+            Schedule a Pickup
+          </SchedulePickupButton>
         </div>
       </section>
     </PublicSiteShell>

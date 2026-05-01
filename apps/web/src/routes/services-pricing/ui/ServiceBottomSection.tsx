@@ -1,8 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import posthog from 'posthog-js';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 
 interface ServiceBottomSectionProps {
   title: string;
@@ -20,6 +19,7 @@ export default function ServiceBottomSection({
         src="/images/end-section.webp"
         alt="Service background"
         fill
+        sizes="100vw"
         className="object-cover"
         priority={false}
       />
@@ -36,15 +36,9 @@ export default function ServiceBottomSection({
           <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mb-8">
             {description}
           </p>
-          <span
-            onClick={() =>
-              posthog.capture('schedule_pickup_clicked', {
-                source: 'service_bottom_section',
-              })
-            }
-          >
-            <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
-          </span>
+          <SchedulePickupButton source="service_bottom_section">
+            Schedule a Pickup
+          </SchedulePickupButton>
         </div>
       </div>
     </div>

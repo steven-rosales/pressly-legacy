@@ -1,8 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import posthog from 'posthog-js';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import SecondaryButton from '@/routes/shared/ui/components/SecondaryButton';
 
 export default function HomeConquerTime() {
@@ -23,18 +22,12 @@ export default function HomeConquerTime() {
       </p>
 
       <div className="mb-8 flex w-full flex-col gap-3 lg:mb-12 lg:w-auto lg:flex-row lg:gap-2">
-        <span
-          className="block w-full lg:w-auto"
-          onClick={() =>
-            posthog.capture('schedule_pickup_clicked', {
-              source: 'home_mid_page',
-            })
-          }
+        <SchedulePickupButton
+          source="home_mid_page"
+          className="w-full lg:w-auto"
         >
-          <PrimaryButton href="/schedule" className="w-full lg:w-auto">
-            Schedule a Pickup
-          </PrimaryButton>
-        </span>
+          Schedule a Pickup
+        </SchedulePickupButton>
         <SecondaryButton
           href="/services-pricing/wash-fold"
           className="w-full lg:w-auto"
@@ -48,6 +41,7 @@ export default function HomeConquerTime() {
           src="/graphic-img/conquer-time.webp"
           alt="Conquer your time with Pressly laundry service"
           fill
+          sizes="(max-width: 768px) 100vw, 600px"
           className="object-contain"
         />
       </div>

@@ -2,13 +2,18 @@
 
 import Link from 'next/link';
 import { Mail, Phone } from 'lucide-react';
-import posthog from 'posthog-js';
 
+import { useWebCore } from '@/common/adapters/runtime/web-core-context';
+import { publicEvents } from '@/common/core/analytics/events';
+import { trackPublicEvent } from '@/common/core/analytics/track';
 import { PublicSiteShell } from '@/routes/shared/ui/public/PublicSiteShell';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { CONTACT } from '@/routes/shared/marketing/content';
 
 export default function ContactRoute() {
+  const core = useWebCore();
+  const track = trackPublicEvent(core);
+
   return (
     <PublicSiteShell>
       <section className="mx-auto max-w-4xl px-4 py-14 sm:px-6 lg:py-20">
@@ -27,7 +32,14 @@ export default function ContactRoute() {
           <a
             href={CONTACT.phoneHref}
             className="rounded-lg border p-5 transition hover:bg-accent"
-            onClick={() => posthog.capture('contact_phone_clicked')}
+            onClick={() =>
+              track(
+                publicEvents.contactClicked({
+                  source: 'contact',
+                  method: 'phone',
+                }),
+              )
+            }
           >
             <Phone className="size-5 text-primary" />
             <h2 className="mt-4 text-lg font-semibold">Phone</h2>
@@ -40,7 +52,14 @@ export default function ContactRoute() {
           <a
             href={`mailto:${CONTACT.email}`}
             className="rounded-lg border p-5 transition hover:bg-accent"
-            onClick={() => posthog.capture('contact_email_clicked')}
+            onClick={() =>
+              track(
+                publicEvents.contactClicked({
+                  source: 'contact',
+                  method: 'email',
+                }),
+              )
+            }
           >
             <Mail className="size-5 text-primary" />
             <h2 className="mt-4 text-lg font-semibold">Email</h2>
@@ -52,7 +71,9 @@ export default function ContactRoute() {
         </div>
 
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-          <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
+          <SchedulePickupButton source="contact">
+            Schedule a Pickup
+          </SchedulePickupButton>
           <Link
             href="/commercial"
             className="inline-flex h-10 items-center justify-center rounded-md border border-border px-6 text-base font-medium transition hover:bg-accent"

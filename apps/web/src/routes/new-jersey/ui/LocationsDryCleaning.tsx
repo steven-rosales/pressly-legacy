@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { Shirt, Wind, User, Briefcase, Sparkles } from 'lucide-react';
 import { PricingDialog } from './PricingDialog';
 import {
@@ -96,9 +96,12 @@ export default function LocationsDryCleaning() {
         </div>
 
         <div className="space-y-4">
-          <PrimaryButton href="/schedule" className="w-full sm:w-auto">
+          <SchedulePickupButton
+            source="location_dry_cleaning"
+            className="w-full sm:w-auto"
+          >
             Schedule a Pickup
-          </PrimaryButton>
+          </SchedulePickupButton>
           <p className="text-center lg:text-left text-base font-medium text-primary">
             {OFFER_COPY}
           </p>
@@ -110,6 +113,7 @@ export default function LocationsDryCleaning() {
           src="/graphic-img/dry-cleaning.webp"
           alt="Dry cleaning service"
           fill
+          sizes="(max-width: 1024px) 100vw, 600px"
           className="object-cover rounded-lg"
         />
       </div>

@@ -1,6 +1,6 @@
 import Image from 'next/image';
 
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { OFFER_COPY } from '@/routes/shared/marketing/content';
 import {
   HiwTimeline,
@@ -56,9 +56,12 @@ export function LocationsHiw({ heading, steps }: LocationsHiwProps) {
           <HiwTimeline steps={stepsWithMedia} />
         </div>
         <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 text-center">
-          <PrimaryButton href="/schedule" className="w-full sm:w-auto">
+          <SchedulePickupButton
+            source="location_hiw"
+            className="w-full sm:w-auto"
+          >
             Schedule a Pickup
-          </PrimaryButton>
+          </SchedulePickupButton>
           <p className="text-center text-base font-medium text-primary">
             {OFFER_COPY}
           </p>

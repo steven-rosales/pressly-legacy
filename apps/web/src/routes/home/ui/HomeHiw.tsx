@@ -42,6 +42,7 @@ export default function HowItWorks() {
                 src={step.imageSrc}
                 alt={step.imageAlt}
                 fill
+                sizes="220px"
                 className="object-contain"
               />
             </div>

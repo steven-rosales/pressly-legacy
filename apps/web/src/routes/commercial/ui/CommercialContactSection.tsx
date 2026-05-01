@@ -13,7 +13,9 @@ import {
 } from '@/common/shadcn/form';
 import { Input } from '@/common/shadcn/input';
 import { Textarea } from '@/common/shadcn/textarea';
-import posthog from 'posthog-js';
+import { useWebCore } from '@/common/adapters/runtime/web-core-context';
+import { publicEvents } from '@/common/core/analytics/events';
+import { trackPublicEvent } from '@/common/core/analytics/track';
 import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
 
 const formSchema = z.object({
@@ -27,6 +29,9 @@ const formSchema = z.object({
 });
 
 export default function CommercialContactSection() {
+  const core = useWebCore();
+  const track = trackPublicEvent(core);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -40,11 +45,12 @@ export default function CommercialContactSection() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture('commercial_inquiry_submitted', {
-      company_name: values.companyName,
-      location: values.location,
-    });
+  function onSubmit(_values: z.infer<typeof formSchema>) {
+    track(
+      publicEvents.commercialInquiryFormCompleted({
+        source: 'commercial_form',
+      }),
+    );
     // TODO: Handle form submission
   }
 

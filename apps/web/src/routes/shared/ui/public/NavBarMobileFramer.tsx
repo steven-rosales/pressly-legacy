@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { Button } from '@/common/shadcn/button';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { CENTS_ORDER_URL } from '@/routes/shared/marketing/content';
 
 type NavItem = { href: string; label: string };
@@ -200,9 +200,12 @@ export function NavBarMobileFramer({
                         Log in
                       </a>
                     </Button>
-                    <PrimaryButton href="/schedule" className="w-full">
+                    <SchedulePickupButton
+                      source="navbar_mobile_menu"
+                      className="w-full"
+                    >
                       Schedule a Pickup
-                    </PrimaryButton>
+                    </SchedulePickupButton>
                   </div>
                 </motion.div>
               </>

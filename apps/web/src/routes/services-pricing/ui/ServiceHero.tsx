@@ -27,7 +27,13 @@ export default function ServiceHero({
       </div>
 
       <div className="relative w-full lg:w-1/2 aspect-video rounded-lg overflow-hidden">
-        <Image src={imageSrc} alt={imageAlt} fill className="object-cover" />
+        <Image
+          src={imageSrc}
+          alt={imageAlt}
+          fill
+          sizes="(max-width: 1024px) 100vw, 50vw"
+          className="object-cover"
+        />
       </div>
     </div>
   );

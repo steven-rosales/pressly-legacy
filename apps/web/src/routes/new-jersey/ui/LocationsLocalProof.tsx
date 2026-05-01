@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import {
   DELIVERY_FEE_SHORT_COPY,
   OFFER_COPY,
@@ -115,9 +115,12 @@ export function LocationsLocalProof({ proof }: LocationsLocalProofProps) {
         </div>
 
         <div className="flex flex-col items-center gap-3 text-center lg:col-span-2">
-          <PrimaryButton href="/schedule" className="w-full sm:w-auto">
+          <SchedulePickupButton
+            source="location_local_proof"
+            className="w-full sm:w-auto"
+          >
             Schedule a Pickup
-          </PrimaryButton>
+          </SchedulePickupButton>
           <p className="text-center text-base font-medium text-primary">
             {OFFER_COPY}
           </p>

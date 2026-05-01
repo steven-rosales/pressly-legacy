@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { PublicSiteShell } from '@/routes/shared/ui/public/PublicSiteShell';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { CONTACT } from '@/routes/shared/marketing/content';
 
 const values = [
@@ -40,7 +40,9 @@ export default function AboutRoute() {
             get clean laundry or pressed garments delivered back.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
+            <SchedulePickupButton source="about">
+              Schedule a Pickup
+            </SchedulePickupButton>
             <Link
               href="/services-pricing/wash-fold"
               className="inline-flex h-10 items-center justify-center rounded-md border border-border px-6 text-base font-medium transition hover:bg-accent"

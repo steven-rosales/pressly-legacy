@@ -1,5 +1,5 @@
 import { JsonLd } from '@/routes/shared/marketing/JsonLd';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import {
   DELIVERY_FEE_SHORT_COPY,
   OFFER_COPY,
@@ -54,7 +54,11 @@ export default function NewJerseyRoute() {
         }
         heading="New Jersey Laundry Service & Dry Cleaning"
         description={description}
-        cta={<PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>}
+        cta={
+          <SchedulePickupButton source="location_hero">
+            Schedule a Pickup
+          </SchedulePickupButton>
+        }
         offerText={OFFER_COPY}
         cityName="New Jersey"
       />

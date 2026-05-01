@@ -3,8 +3,12 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { CircleDollarSign, ExternalLink, HelpCircle } from 'lucide-react';
+import { useEffect } from 'react';
 
-import posthog from 'posthog-js';
+import { useWebCore } from '@/common/adapters/runtime/web-core-context';
+import { TrackedAnchor } from '@/common/adapters/analytics/tracked-anchor';
+import { publicEvents } from '@/common/core/analytics/events';
+import { trackPublicEvent } from '@/common/core/analytics/track';
 import {
   CENTS_ORDER_URL,
   DRY_CLEANING_PRICING,
@@ -53,10 +57,13 @@ const faqItems = [
 ] as const;
 
 function PricingDialog({ className }: { className?: string }) {
+  const core = useWebCore();
+  const track = trackPublicEvent(core);
+
   return (
     <Dialog
       onOpenChange={(open) => {
-        if (open) posthog.capture('pricing_dialog_opened');
+        if (open) track(publicEvents.pricingViewed({ source: 'schedule' }));
       }}
     >
       <DialogTrigger asChild>
@@ -137,10 +144,18 @@ function PricingDialog({ className }: { className?: string }) {
 }
 
 function FaqDialog({ className }: { className?: string }) {
+  const core = useWebCore();
+  const track = trackPublicEvent(core);
+
   return (
     <Dialog
       onOpenChange={(open) => {
-        if (open) posthog.capture('faq_dialog_opened');
+        if (open)
+          track(
+            publicEvents.faqOpened({
+              questionId: 'schedule_pickup_dialog',
+            }),
+          );
       }}
     >
       <DialogTrigger asChild>
@@ -213,6 +228,14 @@ function CentsFrame({ className }: { className?: string }) {
 }
 
 export default function ScheduleRoute() {
+  const core = useWebCore();
+
+  useEffect(() => {
+    trackPublicEvent(core)(
+      publicEvents.orderScheduleShellViewed({ vendor: 'cents' }),
+    );
+  }, [core]);
+
   return (
     <main className="h-[100svh] overflow-hidden bg-background text-foreground sm:bg-muted/60">
       <div className="flex h-full flex-col">
@@ -227,15 +250,19 @@ export default function ScheduleRoute() {
         <div className="relative flex min-h-0 flex-1 items-stretch justify-center sm:items-center sm:px-6 sm:py-10">
           <div className="flex min-h-0 w-full flex-1 flex-col items-stretch sm:w-auto sm:flex-none sm:items-center sm:gap-3">
             <CentsFrame className="min-h-0 w-full flex-1 sm:h-[min(860px,calc(100svh-5.5rem))] sm:w-[min(640px,calc(100vw-2rem))] sm:flex-none sm:overflow-hidden sm:rounded-xl sm:border sm:border-border sm:shadow-2xl" />
-            <a
+            <TrackedAnchor
               href={CENTS_ORDER_URL}
               target="_blank"
               rel="noreferrer"
+              event={publicEvents.orderIntentStarted({
+                source: 'schedule_open_new_tab',
+                vendor: 'cents',
+              })}
               className="hidden items-center gap-1 text-sm font-semibold text-foreground/70 transition hover:text-foreground sm:inline-flex"
             >
               Open in a new tab
               <ExternalLink className="size-4" />
-            </a>
+            </TrackedAnchor>
           </div>
         </div>
 

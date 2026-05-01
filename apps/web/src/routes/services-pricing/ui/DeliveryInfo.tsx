@@ -53,6 +53,7 @@ export default function DeliveryInfo({
             src={imageSrc}
             alt="Delivery information"
             fill
+            sizes="(max-width: 1024px) 100vw, 50vw"
             className="object-contain"
           />
         </div>

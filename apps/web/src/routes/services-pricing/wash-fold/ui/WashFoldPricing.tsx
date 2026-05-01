@@ -1,7 +1,4 @@
-'use client';
-
-import posthog from 'posthog-js';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { DELIVERY_FEE_SHORT_COPY } from '@/routes/shared/marketing/content';
 import { Check } from 'lucide-react';
 
@@ -99,15 +96,9 @@ export default function WashFoldPricing(props: {
           </div>
 
           <div className="mt-auto pt-10">
-            <span
-              onClick={() =>
-                posthog.capture('schedule_pickup_clicked', {
-                  source: 'wash_fold_pricing',
-                })
-              }
-            >
-              <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
-            </span>
+            <SchedulePickupButton source="wash_fold_pricing">
+              Schedule a Pickup
+            </SchedulePickupButton>
           </div>
         </div>
 
@@ -148,15 +139,9 @@ export default function WashFoldPricing(props: {
           </div>
 
           <div className="mt-auto pt-10">
-            <span
-              onClick={() =>
-                posthog.capture('schedule_pickup_clicked', {
-                  source: 'wash_fold_pricing',
-                })
-              }
-            >
-              <PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>
-            </span>
+            <SchedulePickupButton source="wash_fold_pricing">
+              Schedule a Pickup
+            </SchedulePickupButton>
           </div>
         </div>
       </div>

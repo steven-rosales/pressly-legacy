@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import { JsonLd } from '@/routes/shared/marketing/JsonLd';
-import PrimaryButton from '@/routes/shared/ui/components/PrimaryButton';
+import SchedulePickupButton from '@/routes/shared/ui/components/SchedulePickupButton';
 import { OFFER_COPY } from '@/routes/shared/marketing/content';
 import {
   buildBreadcrumbJsonLd,
@@ -75,7 +75,11 @@ export default async function CountyRoute({
         heroImage={representative.heroImage}
         heading={`${formattedCounty} County Laundry Service & Dry Cleaning`}
         description={description}
-        cta={<PrimaryButton href="/schedule">Schedule a Pickup</PrimaryButton>}
+        cta={
+          <SchedulePickupButton source="location_hero">
+            Schedule a Pickup
+          </SchedulePickupButton>
+        }
         offerText={OFFER_COPY}
         cityName={formattedCounty}
       />
