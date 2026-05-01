@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import { Lexend_Deca } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { WebCoreProvider } from '@/common/adapters/runtime/web-core-context';
 import { SITE_URL } from '@/routes/shared/marketing/content';
 import { JsonLd } from '@/routes/shared/marketing/JsonLd';
 import { buildOrganizationJsonLd } from '@/routes/shared/marketing/seo';
 import '@/styles/globals.css';
+import { SonnerToaster } from '@/common/adapters/feedback/sonner-toaster';
 
 const lexend = Lexend_Deca({
   subsets: ['latin'],
@@ -48,7 +50,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={lexend.className}>
       <body className="antialiased">
         <JsonLd data={buildOrganizationJsonLd()} />
-        {children}
+        <WebCoreProvider>
+          {children}
+          <SonnerToaster />
+        </WebCoreProvider>
       </body>
     </html>
   );

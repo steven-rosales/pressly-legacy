@@ -6,6 +6,7 @@ const canonicalRedirectHosts = ['pressely.com', 'www.pressely.com'];
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  reactCompiler: true,
   skipTrailingSlashRedirect: true,
   images: {
     qualities: [75, 100],

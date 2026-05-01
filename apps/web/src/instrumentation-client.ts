@@ -39,7 +39,8 @@ if (posthogKey !== undefined && posthogKey.length > 0) {
     autocapture: true,
     capture_pageview: true,
     capture_pageleave: true,
-    opt_out_capturing_by_default: true,
+    request_batching: false,
+    internal_or_test_user_hostname: null,
     before_send: (event) => event,
   });
 }

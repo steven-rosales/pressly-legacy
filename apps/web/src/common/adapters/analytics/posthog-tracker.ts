@@ -7,8 +7,6 @@ import type {
   ProductEvent,
 } from '@pressly/metrics';
 
-const anonymousDistinctId = 'anonymous';
-
 const toProperties = (
   event: ProductEvent,
   context: AnalyticsContext | undefined,
@@ -21,12 +19,16 @@ const toProperties = (
   route: context?.route,
 });
 
-export const makeBrowserPostHogTracker = (): AnalyticsTracker => ({
+export const makeBrowserPostHogTracker = (
+  enabled: boolean,
+): AnalyticsTracker => ({
   track: (event, context) =>
-    posthog.capture(event.name, toProperties(event, context)),
+    enabled &&
+    posthog.capture(event.name, toProperties(event, context), {
+      send_instantly: true,
+      transport: 'sendBeacon',
+    }),
   identify: (distinctId, properties) =>
-    posthog.identify(distinctId, properties),
+    enabled && posthog.identify(distinctId, properties),
   shutdown: async () => undefined,
 });
-
-export const getAnonymousDistinctId = (): string => anonymousDistinctId;
