@@ -4,7 +4,7 @@ import { envUrl, featureFlag, nodeEnvSchema, parseEnv } from '@pressly/config';
 import { z } from 'zod';
 
 const workerEnvSchema = z.object({
-  NODE_ENV: nodeEnvSchema.default('dev'),
+  NODE_ENV: nodeEnvSchema.default('development'),
 
   DATABASE_URL: envUrl,
 

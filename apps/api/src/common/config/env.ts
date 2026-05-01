@@ -12,7 +12,7 @@ import {
 import { z } from 'zod';
 
 const apiEnvSchema = z.object({
-  NODE_ENV: nodeEnvSchema.default('dev'),
+  NODE_ENV: nodeEnvSchema.default('development'),
 
   API_HOST: z.string().min(1).default('0.0.0.0'),
   API_PORT: envPort.default(4000),

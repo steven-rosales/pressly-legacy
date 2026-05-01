@@ -80,6 +80,8 @@ export const isAppError = (value: unknown): value is AppError =>
   typeof value['status'] === 'number';
 
 export const normalizeUnknownError = (value: unknown): AppError => {
+  if (value instanceof AppException) return value.appError;
+
   if (isAppError(value)) return value;
 
   if (value instanceof Error) {
@@ -102,3 +104,13 @@ export const normalizeUnknownError = (value: unknown): AppError => {
     cause: value,
   });
 };
+
+export class AppException extends Error {
+  readonly appError: AppError;
+
+  constructor(appError: AppError) {
+    super(appError.message, { cause: appError.cause });
+    this.name = appError.kind;
+    this.appError = appError;
+  }
+}
