@@ -25,17 +25,18 @@ export type HttpStatusCode =
 
 export type ErrorCode = string;
 
-export type AppError = Readonly<{
-  tag: 'AppError';
-  kind: ErrorKind;
-  code: ErrorCode;
-  message: string;
-  safeMessage: string;
-  status: HttpStatusCode;
-  details?: unknown;
-  cause?: unknown;
-  traceId?: string;
-}>;
+export type AppError = Error &
+  Readonly<{
+    tag: 'AppError';
+    kind: ErrorKind;
+    code: ErrorCode;
+    message: string;
+    safeMessage: string;
+    status: HttpStatusCode;
+    details?: unknown;
+    cause?: unknown;
+    traceId?: string;
+  }>;
 
 export type MakeAppErrorInput = Readonly<{
   kind: ErrorKind;
@@ -53,17 +54,26 @@ const defaultSafeMessage = (status: HttpStatusCode): string =>
     ? 'An unexpected error occurred.'
     : 'The request could not be completed.';
 
-export const makeAppError = (input: MakeAppErrorInput): AppError => ({
-  tag: 'AppError',
-  kind: input.kind,
-  code: input.code,
-  message: input.message,
-  safeMessage: input.safeMessage ?? defaultSafeMessage(input.status),
-  status: input.status,
-  ...(input.details === undefined ? {} : { details: input.details }),
-  ...(input.cause === undefined ? {} : { cause: input.cause }),
-  ...(input.traceId === undefined ? {} : { traceId: input.traceId }),
-});
+const makeThrowable = (input: MakeAppErrorInput): Error =>
+  input.cause === undefined
+    ? new Error(input.message)
+    : new Error(input.message, { cause: input.cause });
+
+export const makeAppError = (input: MakeAppErrorInput): AppError => {
+  const error = makeThrowable(input);
+
+  error.name = input.kind;
+
+  return Object.assign(error, {
+    tag: 'AppError' as const,
+    kind: input.kind,
+    code: input.code,
+    safeMessage: input.safeMessage ?? defaultSafeMessage(input.status),
+    status: input.status,
+    ...(input.details === undefined ? {} : { details: input.details }),
+    ...(input.traceId === undefined ? {} : { traceId: input.traceId }),
+  });
+};
 
 export const isRecord = (
   value: unknown,
@@ -71,6 +81,7 @@ export const isRecord = (
   typeof value === 'object' && value !== null;
 
 export const isAppError = (value: unknown): value is AppError =>
+  value instanceof Error &&
   isRecord(value) &&
   value['tag'] === 'AppError' &&
   typeof value['kind'] === 'string' &&
@@ -80,8 +91,6 @@ export const isAppError = (value: unknown): value is AppError =>
   typeof value['status'] === 'number';
 
 export const normalizeUnknownError = (value: unknown): AppError => {
-  if (value instanceof AppException) return value.appError;
-
   if (isAppError(value)) return value;
 
   if (value instanceof Error) {
@@ -104,13 +113,3 @@ export const normalizeUnknownError = (value: unknown): AppError => {
     cause: value,
   });
 };
-
-export class AppException extends Error {
-  readonly appError: AppError;
-
-  constructor(appError: AppError) {
-    super(appError.message, { cause: appError.cause });
-    this.name = appError.kind;
-    this.appError = appError;
-  }
-}

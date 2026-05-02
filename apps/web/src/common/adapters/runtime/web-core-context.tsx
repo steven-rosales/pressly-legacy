@@ -98,3 +98,13 @@ export const useWebCore = (): WebCore => {
 
   return core;
 };
+
+/**
+ * For testing only.
+ */
+export const InjectedWebCoreProvider = ({
+  core,
+  children,
+}: PropsWithChildren<{ core: WebCore }>) => (
+  <WebCoreContext.Provider value={core}>{children}</WebCoreContext.Provider>
+);

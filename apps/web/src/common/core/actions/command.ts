@@ -1,4 +1,4 @@
-import { normalizeUnknownError, AppException } from '@pressly/errors';
+import { normalizeUnknownError } from '@pressly/errors';
 import type { WebCore } from '../runtime/core';
 import type { ActionMeta, CommandFeedback } from './action-meta';
 
@@ -74,6 +74,6 @@ export const makeCommandRunner =
         route: context.route,
       });
 
-      throw new AppException(appError);
+      throw appError;
     }
   };

@@ -1,22 +1,8 @@
 'use client';
 
 import * as Sentry from '@sentry/nextjs';
-import {
-  isAppError,
-  normalizeUnknownError,
-  type AppError,
-} from '@pressly/errors';
+import { normalizeUnknownError, type AppError } from '@pressly/errors';
 import type { ErrorReporter, ErrorReportContext } from '@pressly/metrics';
-
-const toException = (error: unknown): Error => {
-  if (error instanceof Error) return error;
-
-  const appError = normalizeUnknownError(error);
-
-  return new Error(appError.message, {
-    cause: appError.cause,
-  });
-};
 
 const setAppErrorContext = (appError: AppError): void => {
   Sentry.setTag('error.kind', appError.kind);
@@ -53,15 +39,15 @@ const setReportContext = (context: ErrorReportContext): void => {
 
 export const makeSentryErrorReporter = (): ErrorReporter => ({
   capture: (error, context) => {
+    const appError = normalizeUnknownError(error);
+
     Sentry.withScope((scope) => {
       setReportContext(context);
+      setAppErrorContext(appError);
 
-      if (isAppError(error)) {
-        setAppErrorContext(error);
-        scope.setLevel(error.status >= 500 ? 'error' : 'warning');
-      }
+      scope.setLevel(appError.status >= 500 ? 'error' : 'warning');
 
-      Sentry.captureException(toException(error));
+      Sentry.captureException(appError);
     });
   },
 

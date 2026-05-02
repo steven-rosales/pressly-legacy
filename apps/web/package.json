@@ -10,7 +10,9 @@
     "seo:validate": "node scripts/validate-seo.mjs",
     "schema:validate": "node scripts/validate-schema.mjs",
     "lint": "echo \"lint pending: @pressly/web\"",
-    "test": "echo \"test pending: @pressly/web\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "clean": "rm -rf .next"
   },
   "devDependencies": {

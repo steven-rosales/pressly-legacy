@@ -1,8 +1,12 @@
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
-const canonicalUrl = 'https://www.trypressly.com';
-const canonicalRedirectHosts = ['pressely.com', 'www.pressely.com'];
+const canonicalUrl = 'https://trypressly.com';
+const canonicalRedirectHosts = [
+  'www.trypressly.com',
+  'pressely.com',
+  'www.pressely.com',
+];
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -10,6 +14,11 @@ const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
   images: {
     qualities: [75, 100],
+  },
+  experimental: {
+    cpus: 3,
+    staticGenerationMaxConcurrency: 2,
+    staticGenerationMinPagesPerWorker: 50,
   },
   async rewrites() {
     return [

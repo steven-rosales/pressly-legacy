@@ -2,7 +2,6 @@ export {
   isAppError,
   makeAppError,
   normalizeUnknownError,
-  AppException,
 } from './app-error.js';
 
 export { andThen, err, mapError, mapResult, ok } from './result.js';
