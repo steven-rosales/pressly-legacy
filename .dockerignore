@@ -1,14 +1,19 @@
 .git
-.turbo
-**/.turbo
-
+.github
 node_modules
 **/node_modules
 
+.turbo
+.next
+**/.next
 dist
-**/dist
 build
 coverage
 
 .env
 .env.*
+**/.env
+**/.env.*
+
+.DS_Store
+*.log

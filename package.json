@@ -14,7 +14,10 @@
     "test": "turbo test",
     "clean": "turbo clean",
     "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format:check": "prettier . --check",
+    "docker:web:build": "docker build -f apps/web/Dockerfile -t pressly-web:local .",
+    "docker:web:run": "docker run --rm -p 3000:3000 pressly-web:local",
+    "env:web:pull": "pnpm dlx vercel env pull apps/web/.env.local"
   },
   "keywords": [],
   "author": "",

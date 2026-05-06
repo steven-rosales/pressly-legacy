@@ -19,7 +19,7 @@ export {
   getServiceConfig,
   getServiceTypeFromSlug,
   COUNTY_CITIES,
-  type ServiceType
+  type ServiceType,
 };
 
 export function buildCityServiceParams() {

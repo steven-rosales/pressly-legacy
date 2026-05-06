@@ -150,3 +150,5 @@ vite.config.ts.timestamp-*
 # agents
 .codex
 .claude
+.vercel
+.env*.local

@@ -7,3 +7,4 @@ coverage
 pnpm-lock.yaml
 .env
 .env.*
+apps/web/next-env.d.ts
