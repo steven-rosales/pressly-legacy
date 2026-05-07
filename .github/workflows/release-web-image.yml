@@ -19,7 +19,7 @@ env:
 
 jobs:
   quality:
-    name: quality
+    name: release quality
     runs-on: ubuntu-latest
 
     steps:
