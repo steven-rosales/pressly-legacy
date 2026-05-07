@@ -8,7 +8,7 @@
   },
   "scripts": {
     "typecheck": "echo \"typecheck pending: @pressly/eslint-config\"",
-    "lint": "echo \"lint pending: @pressly/eslint-config\"",
+    "lint": "eslint index.js --max-warnings=0",
     "test": "node --test",
     "clean": "rm -rf dist"
   }

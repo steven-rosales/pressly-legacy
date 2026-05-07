@@ -23,6 +23,9 @@ const commonGlobals = {
   Response: 'readonly',
   setTimeout: 'readonly',
   clearTimeout: 'readonly',
+  caches: 'readonly',
+  self: 'readonly',
+  URL: 'readonly',
   window: 'readonly',
 };
 
@@ -51,11 +54,20 @@ export default tseslint.config(
     ],
   },
 
-  js.config.recommended,
+  js.configs.recommended,
   ...tseslint.configs.recommended,
 
   {
-    files: ['**/*.{ts, tsx}'],
+    files: ['**/*.{js,mjs,cjs}'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: commonGlobals,
+    },
+  },
+
+  {
+    files: ['**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -125,6 +137,7 @@ export default tseslint.config(
       ...nextPlugin.configs.recommended.rules,
       ...nextPlugin.configs['core-web-vitals'].rules,
       ...reactHooks.configs.recommended.rules,
+      '@next/next/no-html-link-for-pages': 'off',
     },
   },
 

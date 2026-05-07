@@ -61,11 +61,6 @@ export function NavBarMobileFramer({
   navbarHeight: number;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [portalElement, setPortalElement] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setPortalElement(document.body);
-  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -127,7 +122,7 @@ export function NavBarMobileFramer({
   const handleClose = () => setIsOpen(false);
 
   const mobileMenu =
-    portalElement === null
+    typeof document === 'undefined'
       ? null
       : createPortal(
           <AnimatePresence>
@@ -211,7 +206,7 @@ export function NavBarMobileFramer({
               </>
             )}
           </AnimatePresence>,
-          portalElement,
+          document.body,
         );
 
   return (
