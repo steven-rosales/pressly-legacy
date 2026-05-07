@@ -6,7 +6,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"lint pending: @pressly/worker\"",
+    "lint": "eslint src --max-warnings=0",
     "test": "echo \"test pending: @pressly/worker\"",
     "clean": "rm -rf dist"
   },

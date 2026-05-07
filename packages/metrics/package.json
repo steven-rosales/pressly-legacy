@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"lint pending: @pressly/metrics\"",
+    "lint": "eslint src --max-warnings=0",
     "test": "tsx --test 'src/**/*.test.ts' 'src/**/*.spec.ts'",
     "clean": "rm -rf dist"
   },
