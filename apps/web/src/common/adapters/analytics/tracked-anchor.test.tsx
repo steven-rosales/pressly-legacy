@@ -20,6 +20,7 @@ describe('TrackedAnchor', () => {
             source: 'hero',
             vendor: 'cents',
           })}
+          onClick={(event) => event.preventDefault()}
         >
           Schedule a Pickup
         </TrackedAnchor>

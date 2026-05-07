@@ -2,9 +2,11 @@ import posthog from 'posthog-js';
 import { publicEvents } from '@/common/core/analytics/events';
 import { makeBrowserPostHogTracker } from './posthog-tracker';
 
-jest.mock('posthog-js', () => ({
-  capture: jest.fn(),
-  identify: jest.fn(),
+vi.mock('posthog-js', () => ({
+  default: {
+    capture: vi.fn(),
+    identify: vi.fn(),
+  },
 }));
 
 describe('makeBrowserPosthogTracker', () => {

@@ -1,13 +1,13 @@
 import { toast } from 'sonner';
 import { makeSonnerFeedback } from './sonner-feedback';
 
-jest.mock('sonner', () => ({
+vi.mock('sonner', () => ({
   toast: {
-    loading: jest.fn(() => 'toast-id'),
-    success: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    dismiss: jest.fn(),
+    loading: vi.fn(() => 'toast-id'),
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    dismiss: vi.fn(),
   },
 }));
 
