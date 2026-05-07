@@ -58,6 +58,51 @@ future self-hosting
 future api/worker deployment consistency
 ```
 
+CI builds the image on pull requests but does not push it. The release workflow
+publishes the image to GHCR only after code lands on `main` or the release
+workflow is run manually.
+
+For local image work:
+
+```txt
+pnpm docker:web:build
+pnpm docker:web:run
+pnpm docker:web:up
+pnpm docker:web:down
+pnpm docker:web:pull
+```
+
+`docker:web:build` tags the same local image as:
+
+```txt
+pressly-web:local
+ghcr.io/steven-rosales/pressly-web:local
+```
+
+The first tag is ergonomic for local runs. The second tag matches the registry
+namespace without pushing anything.
+
+## Compose
+
+Docker Compose is for service orchestration, not package ownership.
+
+```txt
+package scripts -> test, lint, typecheck, build package code
+root docker scripts -> build, run, pull, and compose images
+docker-compose.yml -> run services together locally
+GitHub Actions -> verify and publish release images
+```
+
+The current compose stack has one service:
+
+```txt
+web -> apps/web/Dockerfile -> http://localhost:3000
+```
+
+When API, worker, Postgres, Redis, or other local dependencies become real
+runtime services, add them to Compose. Do not move package test/build scripts
+into Compose just because Docker exists.
+
 ## Environment Variables
 
 Secrets and environment values are owned by the services that use them.

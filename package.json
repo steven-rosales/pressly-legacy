@@ -15,8 +15,11 @@
     "clean": "turbo clean",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "docker:web:build": "docker build -f apps/web/Dockerfile -t pressly-web:local .",
+    "docker:web:build": "docker build -f apps/web/Dockerfile -t pressly-web:local -t ghcr.io/steven-rosales/pressly-web:local .",
     "docker:web:run": "docker run --rm -p 3000:3000 pressly-web:local",
+    "docker:web:up": "docker compose up --build web",
+    "docker:web:down": "docker compose down --remove-orphans",
+    "docker:web:pull": "docker pull ghcr.io/steven-rosales/pressly-web:latest",
     "env:web:pull": "pnpm dlx vercel env pull apps/web/.env.local"
   },
   "keywords": [],
