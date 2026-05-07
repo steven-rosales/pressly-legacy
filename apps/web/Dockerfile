@@ -1,0 +1,69 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:24-alpine AS base
+
+RUN apk add --no-cache libc6-compat
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+
+WORKDIR /repo
+
+FROM base AS builder
+
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+ARG NEXT_PUBLIC_ANALYTICS_ENABLED=false
+ARG NEXT_PUBLIC_POSTHOG_KEY
+ARG NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+ARG NEXT_PUBLIC_SENTRY_DSN
+
+ENV PRESSLY_DOCKER_BUILD=true
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_ANALYTICS_ENABLED=$NEXT_PUBLIC_ANALYTICS_ENABLED
+ENV NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY
+ENV NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+
+COPY . .
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @pressly/web build
+
+FROM node:24-alpine AS runner
+
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+ARG NEXT_PUBLIC_ANALYTICS_ENABLED=false
+ARG NEXT_PUBLIC_POSTHOG_KEY
+ARG NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+ARG NEXT_PUBLIC_SENTRY_DSN
+
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_ANALYTICS_ENABLED=$NEXT_PUBLIC_ANALYTICS_ENABLED
+ENV NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY
+ENV NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/public ./apps/web/public
+
+USER nextjs
+
+EXPOSE 3000
+
+CMD ["node", "apps/web/server.js"]

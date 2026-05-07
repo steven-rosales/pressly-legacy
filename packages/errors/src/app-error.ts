@@ -93,7 +93,7 @@ export const isAppError = (value: unknown): value is AppError =>
 export const normalizeUnknownError = (value: unknown): AppError => {
   if (isAppError(value)) return value;
 
-  if (value instanceof Error) {
+  if (value instanceof Error)
     return makeAppError({
       kind: 'UnexpectedError',
       code: 'unexpected_error',
@@ -102,7 +102,6 @@ export const normalizeUnknownError = (value: unknown): AppError => {
       status: 500,
       cause: value,
     });
-  }
 
   return makeAppError({
     kind: 'UnexpectedError',

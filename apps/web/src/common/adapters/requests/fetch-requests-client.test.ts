@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 
 import { z } from 'zod';
@@ -26,15 +26,13 @@ const jsonResponse = (body: unknown, init: ResponseInit = {}) =>
 
 describe('makeFetchRequestClient', () => {
   beforeEach(() => {
-    global.fetch = jest.fn();
+    global.fetch = vi.fn();
   });
 
   it('returns ok(data) for ApiSuccess', async () => {
-    jest
-      .mocked(global.fetch)
-      .mockResolvedValueOnce(
-        jsonResponse({ ok: true, data: { status: 'alive' } }),
-      );
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      jsonResponse({ ok: true, data: { status: 'alive' } }),
+    );
 
     const result = await makeClient().send({
       method: 'GET',
@@ -53,7 +51,7 @@ describe('makeFetchRequestClient', () => {
   });
 
   it('returns err(AppError) for ApiFailure', async () => {
-    jest.mocked(global.fetch).mockResolvedValueOnce(
+    vi.mocked(global.fetch).mockResolvedValueOnce(
       jsonResponse(
         {
           ok: false,
@@ -83,7 +81,7 @@ describe('makeFetchRequestClient', () => {
   });
 
   it('returns invalid_api_response when response contract does not match', async () => {
-    jest.mocked(global.fetch).mockResolvedValueOnce(
+    vi.mocked(global.fetch).mockResolvedValueOnce(
       jsonResponse({
         ok: true,
         data: {
@@ -108,7 +106,7 @@ describe('makeFetchRequestClient', () => {
   });
 
   it('adds context headers', async () => {
-    jest.mocked(global.fetch).mockResolvedValueOnce(
+    vi.mocked(global.fetch).mockResolvedValueOnce(
       jsonResponse({
         ok: true,
         data: {
@@ -125,7 +123,7 @@ describe('makeFetchRequestClient', () => {
       }),
     });
 
-    const call = jest.mocked(global.fetch).mock.calls[0];
+    const call = vi.mocked(global.fetch).mock.calls[0];
     const init = call?.[1];
 
     expect(init?.headers).toEqual(

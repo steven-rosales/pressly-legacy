@@ -1,5 +1,11 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
+
+const webRoot = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(webRoot, '../..');
+const isDockerBuild = process.env['PRESSLY_DOCKER_BUILD'] === 'true';
 
 const canonicalUrl = 'https://trypressly.com';
 const canonicalRedirectHosts = [
@@ -20,6 +26,12 @@ const nextConfig: NextConfig = {
     staticGenerationMaxConcurrency: 2,
     staticGenerationMinPagesPerWorker: 50,
   },
+  ...(isDockerBuild
+    ? {
+        output: 'standalone' as const,
+        outputFileTracingRoot: repoRoot,
+      }
+    : {}),
   async rewrites() {
     return [
       {

@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { envBoolean, envUrl, nodeEnvSchema, parseEnv } from '@pressly/config';
 
+const emptyStringToUndefined = (value: unknown) =>
+  value === '' ? undefined : value;
+
+const optionalNonEmptyString = z.preprocess(
+  emptyStringToUndefined,
+  z.string().min(1).optional(),
+);
+
+const optionalUrl = z.preprocess(emptyStringToUndefined, envUrl.optional());
+
 const webEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema.default('development'),
 
@@ -8,9 +18,9 @@ const webEnvSchema = z.object({
 
   NEXT_PUBLIC_ANALYTICS_ENABLED: envBoolean.optional(),
 
-  NEXT_PUBLIC_SENTRY_DSN: z.url().optional(),
+  NEXT_PUBLIC_SENTRY_DSN: optionalUrl,
 
-  NEXT_PUBLIC_POSTHOG_KEY: z.string().min(1).optional(),
+  NEXT_PUBLIC_POSTHOG_KEY: optionalNonEmptyString,
   NEXT_PUBLIC_POSTHOG_HOST: envUrl.default('https://us.i.posthog.com'),
 });
 

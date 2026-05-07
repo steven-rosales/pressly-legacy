@@ -2,6 +2,9 @@
   "name": "@pressly/tsconfig",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
   "exports": {
     "./base": "./base.json",
     "./node": "./node.json",

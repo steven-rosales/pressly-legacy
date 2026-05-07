@@ -9,7 +9,7 @@
   "scripts": {
     "typecheck": "echo \"typecheck pending: @pressly/eslint-config\"",
     "lint": "echo \"lint pending: @pressly/eslint-config\"",
-    "test": "echo \"test pending: @pressly/eslint-config\"",
+    "test": "node --test",
     "clean": "rm -rf dist"
   }
 }

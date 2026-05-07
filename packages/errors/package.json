@@ -10,11 +10,12 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"lint pending: @pressly/errors\"",
-    "test": "echo \"test pending: @pressly/errors\"",
+    "test": "tsx --test 'src/**/*.test.ts' 'src/**/*.spec.ts'",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",
+    "tsx": "latest",
     "typescript": "latest"
   }
 }

@@ -11,10 +11,16 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
-    "test": "turbo test",
+    "test": "node ./tooling/scripts/run-package-tests.mjs",
     "clean": "turbo clean",
     "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format:check": "prettier . --check",
+    "docker:web:build": "docker build -f apps/web/Dockerfile -t pressly-web:local -t ghcr.io/steven-rosales/pressly-web:local .",
+    "docker:web:run": "docker run --rm -p 3000:3000 pressly-web:local",
+    "docker:web:up": "docker compose up --build web",
+    "docker:web:down": "docker compose down --remove-orphans",
+    "docker:web:pull": "docker pull ghcr.io/steven-rosales/pressly-web:latest",
+    "env:web:pull": "pnpm dlx vercel env pull apps/web/.env.local"
   },
   "keywords": [],
   "author": "",
@@ -25,7 +31,9 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "prettier": "^3.8.3",
+    "tsx": "^4.21.0",
     "turbo": "^2.9.6",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   }
 }
