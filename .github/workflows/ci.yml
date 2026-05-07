@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - devops-pipeline
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
