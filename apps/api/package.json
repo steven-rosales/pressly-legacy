@@ -22,6 +22,7 @@
     "@pressly/errors": "workspace:*",
     "@pressly/http": "workspace:*",
     "@pressly/logging": "workspace:*",
+    "@pressly/db": "workspace:*",
     "@sentry/node": "^10.50.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
