@@ -373,9 +373,6 @@ importers:
       '@pressly/errors':
         specifier: workspace:*
         version: link:../errors
-      '@pressly/pricing':
-        specifier: workspace:*
-        version: link:../../modules/pricing
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

@@ -6,11 +6,7 @@ import {
   type AppError,
   type Result,
 } from '@pressly/errors';
-import type { Database } from '@pressly/db';
-import { pricingItems } from '../schema/items.schema.ts';
-import { pricingLocations } from '../schema/locations.schema.ts';
-import { pricingServices } from '../schema/services.schema.ts';
-import { pricingSets } from '../schema/sets.schema.ts';
+import { pricing, type Database } from '@pressly/db';
 import type { GetPricingCommand } from '../../features/get-pricing/get-pricing.command.ts';
 import type { PricingReader } from '../../features/get-pricing/get-pricing.port.ts';
 import type { GetPricingResult } from '../../features/get-pricing/get-pricing.result.ts';
@@ -41,8 +37,8 @@ export const makePostgresPricingReader = (db: Database): PricingReader => ({
     try {
       const [service] = await db
         .select()
-        .from(pricingServices)
-        .where(eq(pricingServices.slug, command.serviceSlug))
+        .from(pricing.pricingServices)
+        .where(eq(pricing.pricingServices.slug, command.serviceSlug))
         .limit(1);
 
       if (service === undefined)
@@ -56,8 +52,8 @@ export const makePostgresPricingReader = (db: Database): PricingReader => ({
           : (
               await db
                 .select()
-                .from(pricingLocations)
-                .where(eq(pricingLocations.slug, command.locationSlug))
+                .from(pricing.pricingLocations)
+                .where(eq(pricing.pricingLocations.slug, command.locationSlug))
                 .limit(1)
             )[0];
 
@@ -67,15 +63,15 @@ export const makePostgresPricingReader = (db: Database): PricingReader => ({
           : (
               await db
                 .select()
-                .from(pricingSets)
+                .from(pricing.pricingSets)
                 .where(
                   and(
-                    eq(pricingSets.serviceId, service.id),
-                    eq(pricingSets.locationId, location.id),
-                    eq(pricingSets.status, 'active'),
+                    eq(pricing.pricingSets.serviceId, service.id),
+                    eq(pricing.pricingSets.locationId, location.id),
+                    eq(pricing.pricingSets.status, 'active'),
                   ),
                 )
-                .orderBy(desc(pricingSets.effectiveFrom))
+                .orderBy(desc(pricing.pricingSets.effectiveFrom))
                 .limit(1)
             )[0];
 
@@ -84,15 +80,15 @@ export const makePostgresPricingReader = (db: Database): PricingReader => ({
         (
           await db
             .select()
-            .from(pricingSets)
+            .from(pricing.pricingSets)
             .where(
               and(
-                eq(pricingSets.serviceId, service.id),
-                isNull(pricingSets.locationId),
-                eq(pricingSets.status, 'active'),
+                eq(pricing.pricingSets.serviceId, service.id),
+                isNull(pricing.pricingSets.locationId),
+                eq(pricing.pricingSets.status, 'active'),
               ),
             )
-            .orderBy(desc(pricingSets.effectiveFrom))
+            .orderBy(desc(pricing.pricingSets.effectiveFrom))
             .limit(1)
         )[0];
 
@@ -103,9 +99,9 @@ export const makePostgresPricingReader = (db: Database): PricingReader => ({
 
       const items = await db
         .select()
-        .from(pricingItems)
-        .where(eq(pricingItems.pricingSetId, defaultSet.id))
-        .orderBy(pricingItems.sortOrder, pricingItems.name);
+        .from(pricing.pricingItems)
+        .where(eq(pricing.pricingItems.pricingSetId, defaultSet.id))
+        .orderBy(pricing.pricingItems.sortOrder, pricing.pricingItems.name);
 
       return ok({
         serviceSlug: command.serviceSlug,

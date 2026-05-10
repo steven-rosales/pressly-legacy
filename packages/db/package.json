@@ -24,7 +24,6 @@
   "devDependencies": {
     "@pressly/errors": "workspace:*",
     "@pressly/tsconfig": "workspace:*",
-    "@pressly/pricing": "workspace:*",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
     "tsx": "latest",
