@@ -23,6 +23,7 @@
     "@pressly/http": "workspace:*",
     "@pressly/logging": "workspace:*",
     "@pressly/db": "workspace:*",
+    "@pressly/pricing": "workspace:*",
     "@sentry/node": "^10.50.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

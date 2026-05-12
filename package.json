@@ -21,7 +21,8 @@
     "docker:web:up": "docker compose up --build web",
     "docker:web:down": "docker compose down --remove-orphans",
     "docker:web:pull": "docker pull ghcr.io/steven-rosales/pressly-web:latest",
-    "env:web:pull": "pnpm dlx vercel env pull apps/web/.env.local",
+    "env:web:pull": "pnpm dlx vercel env pull apps/web/.env.local --environment=development --yes",
+    "env:api:pull": "pnpm dlx vercel env pull apps/api/.env.local --environment=development --yes",
     "db:migrate": "pnpm -F @pressly/db migrate"
   },
   "keywords": [],

@@ -69,6 +69,9 @@ importers:
       '@pressly/logging':
         specifier: workspace:*
         version: link:../../packages/logging
+      '@pressly/pricing':
+        specifier: workspace:*
+        version: link:../../modules/pricing
       '@sentry/node':
         specifier: ^10.50.0
         version: 10.50.0

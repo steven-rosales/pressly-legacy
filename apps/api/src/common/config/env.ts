@@ -1,4 +1,6 @@
-import 'dotenv/config';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { config as loadEnv } from 'dotenv';
 
 import {
   envPort,
@@ -10,6 +12,10 @@ import {
   envSampleRate,
 } from '@pressly/config';
 import { z } from 'zod';
+
+loadEnv({
+  path: resolve(dirname(fileURLToPath(import.meta.url)), '../../..', '.env.local'),
+});
 
 const apiEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema.default('development'),
@@ -23,9 +29,9 @@ const apiEnvSchema = z.object({
     .enum(['debug', 'info', 'warn', 'error', 'fatal'])
     .default('info'),
 
-  CORS_ORIGIN: z.string().min(1).default(`http://localhost:4000`),
+  CORS_ORIGIN: z.string().min(1).default('http://localhost:3000'),
 
-  AUTH_SECRET: secret,
+  AUTH_SECRET: secret.optional(),
 
   FEATURE_METRICS_ENABLED: featureFlag,
   FEATURE_JOBS_ENABLED: featureFlag,

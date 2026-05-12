@@ -1,7 +1,13 @@
-import 'dotenv/config';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { config as loadEnv } from 'dotenv';
 
 import { envUrl, featureFlag, nodeEnvSchema, parseEnv } from '@pressly/config';
 import { z } from 'zod';
+
+loadEnv({
+  path: resolve(dirname(fileURLToPath(import.meta.url)), '../..', '.env.local'),
+});
 
 const workerEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema.default('development'),
