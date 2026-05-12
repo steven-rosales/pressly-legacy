@@ -6,7 +6,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const locationsPath = resolve(
   root,
-  'src/routes/new-jersey/content/locations.json',
+  'src/app/(marketing)/new-jersey/content/locations.json',
 );
 
 const locations = JSON.parse(readFileSync(locationsPath, 'utf8'));

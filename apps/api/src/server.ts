@@ -1,3 +1,7 @@
+/**
+ * `server.ts` creates the http server.
+ */
+
 import type { Server } from 'node:http';
 import type express from 'express';
 import type { Logger } from '@pressly/logging';

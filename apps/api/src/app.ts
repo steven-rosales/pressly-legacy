@@ -1,3 +1,7 @@
+/**
+ * `app.ts` is to create composition of the routes, handlers, and runtimes.
+ */
+
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { SITE_URL } from '@/routes/shared/marketing/content';
+import { SITE_URL } from '@/app/(marketing)/shared/marketing/content';
 
 export default function robots(): MetadataRoute.Robots {
   return {

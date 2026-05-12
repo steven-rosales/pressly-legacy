@@ -1,3 +1,7 @@
+/**
+ * `index.ts` wires runtime: libraries, engines, and services
+ */
+
 import { createDatabaseRuntime } from '@pressly/db';
 import { makeApiApp } from './app.ts';
 import { apiEnv } from './common/config/env.ts';

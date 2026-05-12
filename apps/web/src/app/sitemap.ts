@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
-import { SITE_URL } from '@/routes/shared/marketing/content';
-import { COUNTIES, buildCityServiceParams } from '@/routes/new-jersey/content';
+import { SITE_URL } from '@/app/(marketing)/shared/marketing/content';
+import { COUNTIES, buildCityServiceParams } from '@/app/(marketing)/new-jersey/content';
 
 const staticRoutes = [
   '',

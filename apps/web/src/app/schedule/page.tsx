@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 
-import ScheduleRoute from '@/routes/schedule/route';
 import {
   NOINDEX_ROBOTS,
   buildPageMetadata,
-} from '@/routes/shared/marketing/seo';
+} from '@/app/(marketing)/shared/marketing/seo';
+import ScheduleShell from './ui/ScheduleShell';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'Schedule a Pickup',
@@ -23,4 +23,4 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default ScheduleRoute;
+export default ScheduleShell;
