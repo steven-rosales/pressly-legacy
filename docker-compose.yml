@@ -1,20 +1,94 @@
 name: pressly
 
 services:
+  postgres:
+    image: postgres:18-bookworm
+    ports:
+      - '${POSTGRES_PORT:-55433}:5432'
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pressly}
+      POSTGRES_USER: ${POSTGRES_USER:-pressly}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pressly}
+    volumes:
+      - pressly_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-pressly} -d ${POSTGRES_DB:-pressly}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: pressly-api:local
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    ports:
+      - '${API_PORT:-4000}:4000'
+    environment:
+      NODE_ENV: development
+      API_HOST: 0.0.0.0
+      API_PORT: 4000
+      DATABASE_URL: postgres://pressly:pressly@postgres:5432/pressly
+      DATABASE_MAX_CONNECTIONS: 10
+      SHUTDOWN_GRACE_PERIOD_MS: 30000
+      LOG_LEVEL: info
+      CORS_ORIGIN: http://localhost:3000
+      AUTH_SECRET: local-dev-auth-secret
+      FEATURE_METRICS_ENABLED: false
+      FEATURE_JOBS_ENABLED: false
+      SENTRY_ENABLED: false
+      POSTHOG_ENABLED: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "pnpm -F @pressly/db migrate && pnpm -F @pressly/api dev"
+    volumes:
+      - .:/repo
+      - pressly_node_modules:/repo/node_modules
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'wget -qO- http://127.0.0.1:4000/health/ready >/dev/null || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   web:
     image: ${PRESSLY_WEB_IMAGE:-pressly-web:local}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      extra_hosts:
+        - 'host.docker.internal:host-gateway'
       args:
+        API_BASE_URL: ${API_BASE_URL:-http://host.docker.internal:4000}
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000}
         NEXT_PUBLIC_ANALYTICS_ENABLED: ${NEXT_PUBLIC_ANALYTICS_ENABLED:-false}
         NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
         NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     ports:
       - '${WEB_PORT:-3000}:3000'
     environment:
+      API_BASE_URL: ${API_BASE_URL:-http://host.docker.internal:4000}
       HOSTNAME: 0.0.0.0
       NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000}
+      NEXT_PUBLIC_ANALYTICS_ENABLED: ${NEXT_PUBLIC_ANALYTICS_ENABLED:-false}
+      NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
       PORT: 3000
+
+volumes:
+  pressly_postgres_data:
+  pressly_node_modules:

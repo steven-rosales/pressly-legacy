@@ -6,6 +6,7 @@ import { createDatabaseRuntime } from '@pressly/db';
 import { makeApiApp } from './app.ts';
 import { apiEnv } from './common/config/env.ts';
 import { makePinoLogger } from './common/logging/pino-logger.ts';
+import { installShutdownHandlers } from './common/runtime/shutdown.ts';
 import { startServer } from './server.ts';
 
 const main = async (): Promise<void> => {
@@ -14,7 +15,13 @@ const main = async (): Promise<void> => {
     environment: apiEnv.nodeEnv,
   });
 
-  const database = createDatabaseRuntime(apiEnv.databaseUrl);
+  const database = createDatabaseRuntime({
+    databaseUrl: apiEnv.databaseUrl,
+    maxConnections: apiEnv.databaseMaxConnections ?? 100,
+    connectTimeoutSeconds: 5,
+    idleTimeoutSeconds: 30,
+    maxLifetimeSeconds: 60 * 30,
+  });
 
   const app = makeApiApp({ env: apiEnv, logger, database });
 
@@ -25,18 +32,17 @@ const main = async (): Promise<void> => {
     logger,
   });
 
-  const shutdown = async (signal: string): Promise<void> => {
-    logger.info('api shutdown started', { signal });
+  installShutdownHandlers({
+    logger,
+    shutdownGracePeriodMs: apiEnv.shutdownGracePeriodMs,
 
-    server.close(async () => {
+    forceClose: server.forceClose,
+
+    close: async () => {
+      server.close();
       await database.close();
-      logger.info('api shutdown completed', { signal });
-      process.exit(0);
-    });
-  };
-
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
-  process.on('SIGINT', () => void shutdown('SIGINT'));
+    },
+  });
 };
 
 main().catch((error: unknown) => {

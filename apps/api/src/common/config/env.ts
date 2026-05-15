@@ -14,16 +14,27 @@ import {
 import { z } from 'zod';
 
 loadEnv({
-  path: resolve(dirname(fileURLToPath(import.meta.url)), '../../..', '.env.local'),
+  path: resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../..',
+    '.env.local',
+  ),
 });
+
+const envInteger = z.preprocess(
+  (value) => (typeof value === 'string' ? value.replaceAll('_', '') : value),
+  z.coerce.number().int().positive(),
+);
 
 const apiEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema.default('development'),
+  SHUTDOWN_GRACE_PERIOD_MS: envInteger.default(30_000),
 
   API_HOST: z.string().min(1).default('0.0.0.0'),
   API_PORT: envPort.default(4000),
 
   DATABASE_URL: envUrl,
+  DATABASE_MAX_CONNECTIONS: envInteger.default(10),
 
   LOG_LEVEL: z
     .enum(['debug', 'info', 'warn', 'error', 'fatal'])
@@ -52,9 +63,11 @@ export type ApiEnv = typeof rawApiEnv;
 
 export const apiEnv = {
   nodeEnv: rawApiEnv.NODE_ENV,
+  shutdownGracePeriodMs: rawApiEnv.SHUTDOWN_GRACE_PERIOD_MS,
   host: rawApiEnv.API_HOST,
   port: rawApiEnv.API_PORT,
   databaseUrl: rawApiEnv.DATABASE_URL,
+  databaseMaxConnections: rawApiEnv.DATABASE_MAX_CONNECTIONS,
   logLevel: rawApiEnv.LOG_LEVEL,
   corsOrigin: rawApiEnv.CORS_ORIGIN,
   authSecret: rawApiEnv.AUTH_SECRET,

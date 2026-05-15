@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --max-warnings=0",
     "test": "tsx --test 'src/**/*.test.ts' 'src/**/*.spec.ts'",
-    "migrate": "DOTENV_CONFIG_PATH=../../apps/api/.env.local drizzle-kit migrate --config drizzle.config.ts",
+    "migrate": "drizzle-kit migrate --config drizzle.config.ts",
+    "migrate:docker": "pnpm --dir ../.. docker:db:migrate",
     "clean": "rm -rf dist"
   },
   "dependencies": {

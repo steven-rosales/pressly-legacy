@@ -107,8 +107,6 @@ pressly/
           <feature-name>.presenter.ts
         persistence/
           (<feature-name> || <feature-name-variant>).repo.ts
-        schemas/
-          <schema-name>.schema.ts
 
     main.ts
     public.ts
@@ -120,6 +118,8 @@ pressly/
     logging/
     metrics/
     db/
+      schemas/
+          <schema-name>.schema.ts
     auth/
     http/
     testkit/
