@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
 import {
   err,
   makeAppError,
@@ -30,6 +30,16 @@ const databaseFailure = (cause: unknown): AppError =>
     cause,
   });
 
+const isCurrentPricingSet = () =>
+  and(
+    eq(pricing.pricingSets.status, 'active'),
+    lte(pricing.pricingSets.effectiveFrom, sql`now()`),
+    or(
+      isNull(pricing.pricingSets.effectiveTo),
+      gt(pricing.pricingSets.effectiveTo, sql`now()`),
+    ),
+  );
+
 export const makePostgresPricingReader = (db: Database): PricingReader => ({
   getPricing: async (
     command: GetPricingCommand,
@@ -38,7 +48,12 @@ export const makePostgresPricingReader = (db: Database): PricingReader => ({
       const [service] = await db
         .select()
         .from(pricing.pricingServices)
-        .where(eq(pricing.pricingServices.slug, command.serviceSlug))
+        .where(
+          and(
+            eq(pricing.pricingServices.slug, command.serviceSlug),
+            eq(pricing.pricingServices.isActive, true),
+          ),
+        )
         .limit(1);
 
       if (service === undefined)
@@ -53,9 +68,19 @@ export const makePostgresPricingReader = (db: Database): PricingReader => ({
               await db
                 .select()
                 .from(pricing.pricingLocations)
-                .where(eq(pricing.pricingLocations.slug, command.locationSlug))
+                .where(
+                  and(
+                    eq(pricing.pricingLocations.slug, command.locationSlug),
+                    eq(pricing.pricingLocations.isActive, true),
+                  ),
+                )
                 .limit(1)
             )[0];
+
+      if (command.locationSlug !== undefined && location === undefined)
+        return err(
+          notFound(`Pricing location not found: ${command.locationSlug}`),
+        );
 
       const locationSet =
         location === undefined
@@ -68,7 +93,7 @@ export const makePostgresPricingReader = (db: Database): PricingReader => ({
                   and(
                     eq(pricing.pricingSets.serviceId, service.id),
                     eq(pricing.pricingSets.locationId, location.id),
-                    eq(pricing.pricingSets.status, 'active'),
+                    isCurrentPricingSet(),
                   ),
                 )
                 .orderBy(desc(pricing.pricingSets.effectiveFrom))
@@ -85,7 +110,7 @@ export const makePostgresPricingReader = (db: Database): PricingReader => ({
               and(
                 eq(pricing.pricingSets.serviceId, service.id),
                 isNull(pricing.pricingSets.locationId),
-                eq(pricing.pricingSets.status, 'active'),
+                isCurrentPricingSet(),
               ),
             )
             .orderBy(desc(pricing.pricingSets.effectiveFrom))
