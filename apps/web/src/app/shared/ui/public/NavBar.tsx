@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useRef, useState, useLayoutEffect } from 'react';
 
 import { NavBarMobileFramer } from './NavBarMobileFramer';
-import SchedulePickupButton from '@/app/(marketing)/shared/ui/components/SchedulePickupButton';
-import { CENTS_ORDER_URL } from '@/app/(marketing)/shared/marketing/content';
+import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
+import { CENTS_ORDER_URL } from '@/app/shared/marketing/content';
 import {
   DropdownMenu,
   DropdownMenuContent,

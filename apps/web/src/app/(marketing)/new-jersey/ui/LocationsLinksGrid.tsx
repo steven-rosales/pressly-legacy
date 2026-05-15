@@ -6,7 +6,7 @@ type GridItem =
 
 interface LocationsLinksGridProps {
   heading: string;
-  items: GridItem[];
+  items: readonly GridItem[];
 }
 
 export function LocationsLinksGrid({

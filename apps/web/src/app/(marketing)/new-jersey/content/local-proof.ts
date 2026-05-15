@@ -3,7 +3,7 @@ import {
   DELIVERY_FEE_COPY,
   PRICING,
   formatUsd,
-} from '@/app/(marketing)/shared/marketing/content';
+} from '@/app/shared/marketing/content';
 
 import type { LocationRecord } from './locations';
 import { COUNTY_CITIES } from './county-cities';

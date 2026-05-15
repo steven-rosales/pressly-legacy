@@ -26,6 +26,7 @@ const nextConfig: NextConfig = {
     staticGenerationMaxConcurrency: 2,
     staticGenerationMinPagesPerWorker: 50,
   },
+  devIndicators: { position: 'bottom-right' },
   ...(isDockerBuild
     ? {
         output: 'standalone' as const,

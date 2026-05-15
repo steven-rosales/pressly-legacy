@@ -1,56 +1,22 @@
-import SchedulePickupButton from '@/app/(marketing)/shared/ui/components/SchedulePickupButton';
-import { DELIVERY_FEE_SHORT_COPY } from '@/app/(marketing)/shared/marketing/content';
+import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
+import FetchErrorCallout from '@/app/shared/ui/components/FetchErrorCallout';
+import { DELIVERY_FEE_SHORT_COPY } from '@/app/shared/marketing/content';
+import type { WashFoldPricingModel } from '@/app/shared/marketing/pricing';
 import { Check } from 'lucide-react';
 
-interface PricingItem {
-  service: string;
-  unit: string;
-  category: string;
-  name: string;
-  priceCents: number;
-}
-
-interface PricingCatalog {
-  items: PricingItem[];
-}
-
-const PRICING_FEATURES = [
-  { text: 'Pickup & Delivery Available' },
-  { text: 'Cleaned to your preferences' },
-  { text: 'Next-day turnaround' },
-  { text: 'Professional folding' },
-];
-
-const FALLBACK_PER_LB_CENTS = 167;
-
-const FALLBACK_SPECIALTY_ITEMS = [
-  { name: 'Small Comforter', price: '$9.95' },
-  { name: 'Large Comforter', price: '$19.95' },
-  { name: 'Duvet', price: '$14.95' },
-  { name: 'Bathmat', price: '$5.95' },
-];
-
-const formatUsdFromCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-
-export default function WashFoldPricing(props: {
-  pricing: PricingCatalog | null;
+export default function WashFoldPricing({
+  model,
+}: {
+  model: WashFoldPricingModel;
 }) {
-  const wfItems =
-    props.pricing?.items.filter((i) => i.service === 'wash_fold') ?? [];
-
-  const perLb = wfItems.find((i) => i.unit === 'lb');
-  const perLbCents = perLb?.priceCents ?? FALLBACK_PER_LB_CENTS;
-
-  const specialtyItems =
-    wfItems
-      .filter((i) => i.category === 'Specialty')
-      .map((i) => ({
-        name: i.name,
-        price: formatUsdFromCents(i.priceCents),
-      })) ?? FALLBACK_SPECIALTY_ITEMS;
-
-  const displayedSpecialtyItems =
-    specialtyItems.length > 0 ? specialtyItems : FALLBACK_SPECIALTY_ITEMS;
+  if (model.error !== undefined)
+    return (
+      <FetchErrorCallout
+        title={model.error.title}
+        message={model.error.message}
+        canRetry={model.error.canRetry}
+      />
+    );
 
   return (
     <div className="w-full">
@@ -75,7 +41,7 @@ export default function WashFoldPricing(props: {
 
             <div className="flex items-baseline gap-3">
               <span className="text-5xl font-semibold tracking-tight text-foreground sm:text-6xl">
-                {formatUsdFromCents(perLbCents)}
+                {model.basePrice}
               </span>
               <span className="text-xl text-muted-foreground sm:text-2xl">
                 / lb
@@ -111,7 +77,7 @@ export default function WashFoldPricing(props: {
             </div>
 
             <div className="space-y-3">
-              {displayedSpecialtyItems.map((item) => (
+              {model.specialtyItems.map((item) => (
                 <div
                   key={item.name}
                   className="flex items-center justify-between gap-6 text-sm sm:text-base"
@@ -126,7 +92,7 @@ export default function WashFoldPricing(props: {
 
             <div className="border-t border-border pt-8">
               <ul className="space-y-3" role="list">
-                {PRICING_FEATURES.map((feature) => (
+                {model.features.map((feature) => (
                   <li key={feature.text} className="flex items-start gap-3">
                     <Check className="mt-0.5 size-5 shrink-0 text-primary" />
                     <span className="text-sm leading-relaxed text-muted-foreground sm:text-base">

@@ -121,6 +121,9 @@ importers:
       '@pressly/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@pressly/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@pressly/errors':
         specifier: workspace:*
         version: link:../../packages/errors
@@ -403,8 +406,6 @@ importers:
       typescript:
         specifier: latest
         version: 6.0.3
-
-  packages/eslint-config: {}
 
   packages/express:
     dependencies:

@@ -1,6 +1,6 @@
 import type { Logger } from '@pressly/logging';
 import type { AnalyticsTracker, ErrorReporter } from '@pressly/metrics';
-import type { WebCore } from '../core/runtime/core';
+import { createWebCore, type WebCore } from '../core/runtime/core';
 import type { FeedbackPort } from '../core/feedback/feedback';
 import type { RequestClient } from '../core/requests/request-client';
 import type { WebContext } from '../core/runtime/context';
@@ -15,8 +15,13 @@ export type TestWebCore = WebCore & {
   };
 };
 
+export type MakeTestWebCoreOptions = Readonly<{
+  request?: RequestClient;
+}>;
+
 export const makeTestWebCore = (
   context: Partial<WebContext> = {},
+  options: MakeTestWebCoreOptions = {},
 ): TestWebCore => {
   const calls = {
     logs: [] as unknown[],
@@ -72,8 +77,7 @@ export const makeTestWebCore = (
     },
   };
 
-  return {
-    calls,
+  const core = createWebCore({
     clock: {
       now: () => new Date('2026-01-01T00:00:00.000Z'),
     },
@@ -90,6 +94,11 @@ export const makeTestWebCore = (
     analytics,
     errors,
     feedback,
-    request,
+    request: options.request ?? request,
+  });
+
+  return {
+    calls,
+    ...core,
   };
 };

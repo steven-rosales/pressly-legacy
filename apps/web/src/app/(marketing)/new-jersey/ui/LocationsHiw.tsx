@@ -1,15 +1,15 @@
 import Image from 'next/image';
 
-import SchedulePickupButton from '@/app/(marketing)/shared/ui/components/SchedulePickupButton';
-import { OFFER_COPY } from '@/app/(marketing)/shared/marketing/content';
+import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
+import { OFFER_COPY } from '@/app/shared/marketing/content';
 import {
   HiwTimeline,
   type HiwTimelineStep,
-} from '@/app/(marketing)/shared/ui/public/HiwTimeline';
+} from '@/app/shared/ui/public/HiwTimeline';
 
 interface LocationsHiwProps {
   heading: string;
-  steps: HiwTimelineStep[];
+  steps: readonly HiwTimelineStep[];
 }
 
 const LOCATION_HIW_IMAGES = [
@@ -34,7 +34,7 @@ function LocationHiwStepImage({ src, alt }: { src: string; alt: string }) {
 }
 
 export function LocationsHiw({ heading, steps }: LocationsHiwProps) {
-  const stepsWithMedia = steps.map((step, index) => {
+  const stepsWithMedia: HiwTimelineStep[] = steps.map((step, index) => {
     if (step.media) return step;
 
     const image = LOCATION_HIW_IMAGES[index];

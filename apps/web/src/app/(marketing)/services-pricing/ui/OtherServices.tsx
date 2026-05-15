@@ -9,7 +9,7 @@ interface Service {
 interface OtherServicesProps {
   title: string;
   subtitle: string;
-  services: Service[];
+  services: readonly Service[];
   imageSrc?: string;
 }
 

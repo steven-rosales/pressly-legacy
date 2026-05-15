@@ -9,3 +9,11 @@ export type FeedbackPort = Readonly<{
   info: (message: FeedbackMessage) => void;
   dismiss: (id: FeedbackId) => void;
 }>;
+
+export const nullFeedback: FeedbackPort = {
+  loading: () => 'noop',
+  success: () => undefined,
+  error: () => undefined,
+  info: () => undefined,
+  dismiss: () => undefined,
+};

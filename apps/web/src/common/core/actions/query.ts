@@ -5,57 +5,116 @@ import {
   type AppError,
   type Result,
 } from '@pressly/errors';
-import type { WebCore } from '../runtime/core';
+import type { RequestInput } from '../requests/request-client';
+import type { WebCorePorts } from '../runtime/core';
 import type { ActionMeta } from './action-meta';
 
-export type QueryRunner = <A>(
-  meta: ActionMeta,
-  work: () => Promise<A>,
-) => Promise<Result<A, AppError>>;
+export type QueryRunInput<A> = Readonly<{
+  meta: ActionMeta;
+  work: () => Promise<A>;
+}>;
+
+export type QueryFetchInput<A> = Readonly<{
+  meta: ActionMeta;
+  request: RequestInput<A>;
+}>;
+
+export type QueryRuntime = Readonly<{
+  run: <A>(input: QueryRunInput<A>) => Promise<Result<A, AppError>>;
+  fetch: <A>(input: QueryFetchInput<A>) => Promise<Result<A, AppError>>;
+}>;
 
 const shouldReportQueryFailure = (meta: ActionMeta): boolean =>
   meta.criticality === 'medium' || meta.criticality === 'high';
 
-export const makeQueryRunner =
-  (core: WebCore): QueryRunner =>
-  async (meta, work) => {
-    const startedAt = core.clock.now();
-    const context = core.context.get();
+const recordQueryFailure = (
+  core: WebCorePorts,
+  meta: ActionMeta,
+  appError: AppError,
+): void => {
+  const context = core.context.get();
 
-    try {
-      const value = await work();
+  core.logger.warn('web query failed', {
+    action: meta.action,
+    kind: appError.kind,
+    code: appError.code,
+    status: appError.status,
+    route: context.route,
+  });
 
-      core.logger.debug('web query succeeded', {
-        action: meta.action,
-        durationMs: core.clock.now().getTime() - startedAt.getTime(),
-        route: context.route,
-      });
+  if (!shouldReportQueryFailure(meta)) return;
 
-      return ok(value);
-    } catch (error) {
-      const appError = normalizeUnknownError(error);
+  core.errors.capture(appError, {
+    source: 'web',
+    operation: meta.action,
+    route: context.route,
+    actorId: context.distinctId,
+    tags: {
+      rail: meta.rail,
+      criticality: meta.criticality,
+    },
+  });
+};
 
-      core.logger.warn('web query failed', {
-        action: meta.action,
-        kind: appError.kind,
-        code: appError.code,
-        status: appError.status,
-        route: context.route,
-      });
+const recordQuerySuccess = (
+  core: WebCorePorts,
+  meta: ActionMeta,
+  startedAt: Date,
+): void => {
+  const context = core.context.get();
 
-      if (shouldReportQueryFailure(meta)) {
-        core.errors.capture(appError, {
-          source: 'web',
-          operation: meta.action,
-          route: context.route,
-          actorId: context.distinctId,
-          tags: {
-            rail: meta.rail,
-            criticality: meta.criticality,
-          },
-        });
+  core.logger.debug('web query succeeded', {
+    action: meta.action,
+    durationMs: core.clock.now().getTime() - startedAt.getTime(),
+    route: context.route,
+  });
+};
+
+export const createQueryRuntime = (core: WebCorePorts): QueryRuntime =>
+  Object.freeze({
+    run: async <A>({
+      meta,
+      work,
+    }: QueryRunInput<A>): Promise<Result<A, AppError>> => {
+      const startedAt = core.clock.now();
+
+      try {
+        const value = await work();
+
+        recordQuerySuccess(core, meta, startedAt);
+
+        return ok(value);
+      } catch (error) {
+        const appError = normalizeUnknownError(error);
+
+        recordQueryFailure(core, meta, appError);
+
+        return err(appError);
       }
+    },
 
-      return err(appError);
-    }
-  };
+    fetch: async <A>({
+      meta,
+      request,
+    }: QueryFetchInput<A>): Promise<Result<A, AppError>> => {
+      const startedAt = core.clock.now();
+
+      try {
+        const result = await core.request.send(request);
+
+        if (result.ok) {
+          recordQuerySuccess(core, meta, startedAt);
+        } else {
+          recordQueryFailure(core, meta, result.error);
+        }
+
+        return result;
+      } catch (error) {
+        const appError = normalizeUnknownError(error);
+
+        recordQueryFailure(core, meta, appError);
+
+        return err(appError);
+      }
+    },
+  });

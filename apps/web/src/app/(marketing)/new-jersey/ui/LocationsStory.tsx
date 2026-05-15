@@ -1,11 +1,11 @@
 import Image from 'next/image';
-import SchedulePickupButton from '@/app/(marketing)/shared/ui/components/SchedulePickupButton';
-import { OFFER_COPY } from '@/app/(marketing)/shared/marketing/content';
+import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
+import { OFFER_COPY } from '@/app/shared/marketing/content';
 
 interface LocationsStoryProps {
   title: string;
   heading: string;
-  paragraphs: string[];
+  paragraphs: readonly string[];
   heroImage?: string | undefined;
   locationLabel?: string | undefined;
 }

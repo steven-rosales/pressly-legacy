@@ -10,6 +10,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@pressly/config": ["../../packages/config/dist/index"],
+      "@pressly/contracts": ["../../packages/contracts/dist/index"],
       "@pressly/errors": ["../../packages/errors/dist/index"],
       "@pressly/logging": ["../../packages/logging/dist/index"],
       "@pressly/metrics": ["../../packages/metrics/dist/index"]

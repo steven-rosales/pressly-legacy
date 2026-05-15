@@ -8,7 +8,7 @@ interface DeliveryDetail {
 
 interface DeliveryInfoProps {
   description: string;
-  details: DeliveryDetail[];
+  details: readonly DeliveryDetail[];
   imageSrc?: string;
 }
 

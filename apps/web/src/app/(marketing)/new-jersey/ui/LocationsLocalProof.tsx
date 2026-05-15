@@ -1,10 +1,10 @@
 import Link from 'next/link';
 
-import SchedulePickupButton from '@/app/(marketing)/shared/ui/components/SchedulePickupButton';
+import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
 import {
   DELIVERY_FEE_SHORT_COPY,
   OFFER_COPY,
-} from '@/app/(marketing)/shared/marketing/content';
+} from '@/app/shared/marketing/content';
 
 import type { LocalProof } from '../content/local-proof';
 

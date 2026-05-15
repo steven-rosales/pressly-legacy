@@ -16,7 +16,8 @@ import { Textarea } from '@/common/shadcn/textarea';
 import { useWebCore } from '@/common/adapters/runtime/web-core-context';
 import { publicEvents } from '@/common/core/analytics/events';
 import { trackPublicEvent } from '@/common/core/analytics/track';
-import PrimaryButton from '@/app/(marketing)/shared/ui/components/PrimaryButton';
+import PrimaryButton from '@/app/shared/ui/components/PrimaryButton';
+import type { CommercialPageModel } from '../model';
 
 const formSchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
@@ -28,7 +29,11 @@ const formSchema = z.object({
   needs: z.string().min(10, 'Please tell us more about your needs'),
 });
 
-export default function CommercialContactSection() {
+export default function CommercialContactSection({
+  model,
+}: {
+  model: CommercialPageModel;
+}) {
   const core = useWebCore();
   const track = trackPublicEvent(core);
 
@@ -58,11 +63,10 @@ export default function CommercialContactSection() {
     <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-start w-full">
       <div className="w-full lg:w-1/2">
         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold mb-4 lg:mb-6">
-          Get Started Today
+          {model.contact.title}
         </h2>
         <p className="text-base sm:text-lg text-muted-foreground mb-6 lg:mb-8">
-          Fill out the form below and our team will get back to you within 24
-          hours.
+          {model.contact.description}
         </p>
 
         <Form {...form}>
@@ -71,10 +75,13 @@ export default function CommercialContactSection() {
               control={form.control}
               name="companyName"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Company Name</FormLabel>
+                  <FormItem>
+                  <FormLabel>{model.contact.fields.companyName.label}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Acme Corporation" {...field} />
+                    <Input
+                      placeholder={model.contact.fields.companyName.placeholder}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -87,9 +94,12 @@ export default function CommercialContactSection() {
                 name="firstName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>First Name</FormLabel>
+                    <FormLabel>{model.contact.fields.firstName.label}</FormLabel>
                     <FormControl>
-                      <Input placeholder="John" {...field} />
+                      <Input
+                        placeholder={model.contact.fields.firstName.placeholder}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -101,9 +111,12 @@ export default function CommercialContactSection() {
                 name="lastName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Last Name</FormLabel>
+                    <FormLabel>{model.contact.fields.lastName.label}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Doe" {...field} />
+                      <Input
+                        placeholder={model.contact.fields.lastName.placeholder}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -116,11 +129,11 @@ export default function CommercialContactSection() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{model.contact.fields.email.label}</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
-                      placeholder="john@example.com"
+                      placeholder={model.contact.fields.email.placeholder}
                       {...field}
                     />
                   </FormControl>
@@ -134,9 +147,13 @@ export default function CommercialContactSection() {
               name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Phone</FormLabel>
+                  <FormLabel>{model.contact.fields.phone.label}</FormLabel>
                   <FormControl>
-                    <Input type="tel" placeholder="(555) 123-4567" {...field} />
+                    <Input
+                      type="tel"
+                      placeholder={model.contact.fields.phone.placeholder}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -148,9 +165,12 @@ export default function CommercialContactSection() {
               name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location</FormLabel>
+                  <FormLabel>{model.contact.fields.location.label}</FormLabel>
                   <FormControl>
-                    <Input placeholder="New York, NY" {...field} />
+                    <Input
+                      placeholder={model.contact.fields.location.placeholder}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -162,10 +182,10 @@ export default function CommercialContactSection() {
               name="needs"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tell us more about your needs</FormLabel>
+                  <FormLabel>{model.contact.fields.needs.label}</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Please describe your commercial laundry needs..."
+                      placeholder={model.contact.fields.needs.placeholder}
                       className="min-h-[120px]"
                       {...field}
                     />
@@ -176,7 +196,7 @@ export default function CommercialContactSection() {
             />
 
             <PrimaryButton type="submit" className="w-full">
-              Submit Request
+              {model.contact.submitLabel}
             </PrimaryButton>
           </form>
         </Form>
@@ -184,26 +204,12 @@ export default function CommercialContactSection() {
 
       <div className="w-full lg:w-1/2">
         <h3 className="text-2xl sm:text-3xl font-semibold mb-4">
-          Enterprise Laundry Solutions for Your Business
+          {model.story.title}
         </h3>
         <div className="space-y-4 text-base sm:text-lg text-muted-foreground leading-relaxed">
-          <p>
-            Running a business comes with enough moving parts—your laundry
-            shouldn’t be one of them. Whether you manage a busy office, a
-            wellness studio, or a growing hospitality team, we’re here to keep
-            things fresh, clean, and always ready to go.
-          </p>
-          <p>
-            From reliable pickups to high-quality cleaning, our commercial
-            services are designed to give you peace of mind and one less thing
-            to worry about. We handle everything with care, consistency, and a
-            focus on making your days a little easier.
-          </p>
-          <p>
-            If you have unique needs or special items, just let us know. We’ll
-            work with you to build a simple, flexible plan that fits your
-            workflow and helps your team shine.
-          </p>
+          {model.story.paragraphs.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
         </div>
       </div>
     </div>

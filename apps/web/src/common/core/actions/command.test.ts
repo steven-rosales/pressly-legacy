@@ -1,17 +1,19 @@
 import { makeAppError } from '@pressly/errors';
 import { makeTestWebCore } from '@/common/testing/make-test-web-core';
-import { makeCommandRunner } from './command';
 
-describe('makeCommandRunner', () => {
+describe('core.command.run', () => {
   it('returns the command value and records success feedback', async () => {
     const core = makeTestWebCore();
-    const runCommand = makeCommandRunner(core);
 
-    const result = await runCommand(
-      { action: 'save_preferences', rail: 'command', criticality: 'medium' },
-      async () => 'saved',
-      { loading: 'Saving...', success: 'Saved.' },
-    );
+    const result = await core.command.run({
+      meta: {
+        action: 'save_preferences',
+        rail: 'command',
+        criticality: 'medium',
+      },
+      work: async () => 'saved',
+      feedback: { loading: 'Saving...', success: 'Saved.' },
+    });
 
     expect(result).toBe('saved');
     expect(core.calls.feedback).toEqual([
@@ -24,7 +26,6 @@ describe('makeCommandRunner', () => {
 
   it('normalizes failure, reports it, shows feedback, and throws AppError', async () => {
     const core = makeTestWebCore();
-    const runCommand = makeCommandRunner(core);
 
     const appError = makeAppError({
       kind: 'ValidationError',
@@ -35,22 +36,22 @@ describe('makeCommandRunner', () => {
     });
 
     await expect(
-      runCommand(
-        {
+      core.command.run({
+        meta: {
           action: 'submit_contract_form',
           rail: 'command',
           criticality: 'high',
           source: 'contact',
         },
-        async () => {
+        work: async () => {
           throw appError;
         },
-        {
+        feedback: {
           loading: 'Submitting form...',
           success: 'Form submitted',
           error: 'Could not submit contract form.',
         },
-      ),
+      }),
     ).rejects.toMatchObject({
       tag: 'AppError',
       code: 'invalid_contact_form',

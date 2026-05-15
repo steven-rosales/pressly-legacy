@@ -1,9 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 
-import {
-  NOINDEX_ROBOTS,
-  buildPageMetadata,
-} from '@/app/(marketing)/shared/marketing/seo';
+import { NOINDEX_ROBOTS, buildPageMetadata } from '@/app/shared/marketing/seo';
+import { getSchedulePageModel } from './model';
 import ScheduleShell from './ui/ScheduleShell';
 
 export const metadata: Metadata = buildPageMetadata({
@@ -23,4 +21,6 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default ScheduleShell;
+export default function SchedulePage() {
+  return <ScheduleShell model={getSchedulePageModel()} />;
+}

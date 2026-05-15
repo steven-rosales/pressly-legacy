@@ -1,42 +1,24 @@
 import Image from 'next/image';
-import SchedulePickupButton from '@/app/(marketing)/shared/ui/components/SchedulePickupButton';
+import { OFFER_COPY } from '@/app/shared/marketing/content';
+import type { DryCleaningPricingModel } from '@/app/shared/marketing/pricing';
+import FetchErrorCallout from '@/app/shared/ui/components/FetchErrorCallout';
+import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
 import { Shirt, Wind, User, Briefcase, Sparkles } from 'lucide-react';
 import { PricingDialog } from './PricingDialog';
-import {
-  OFFER_COPY,
-  PRICING,
-  formatUsd,
-} from '@/app/(marketing)/shared/marketing/content';
 
-const PRICING_ITEMS = [
-  {
-    icon: Shirt,
-    label: 'Shirts',
-    price: '$4.95',
-  },
-  {
-    icon: Wind,
-    label: 'Blouse',
-    price: '$7.95',
-  },
-  {
-    icon: User,
-    label: 'Pants',
-    price: '$8.95',
-  },
-  {
-    icon: Sparkles,
-    label: 'Casual Dress',
-    price: '$9.50',
-  },
-  {
-    icon: Briefcase,
-    label: 'Suit - Full Piece',
-    price: '$18.90',
-  },
-];
+const getPreviewIcon = (name: string) => {
+  if (name === 'Blouse') return Wind;
+  if (name === 'Pants') return User;
+  if (name === 'Suit - Full Piece') return Briefcase;
+  if (name.includes('Dress')) return Sparkles;
+  return Shirt;
+};
 
-export default function LocationsDryCleaning() {
+export default function LocationsDryCleaning({
+  pricing,
+}: {
+  pricing: DryCleaningPricingModel;
+}) {
   return (
     <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-center w-full">
       <div className="flex w-full lg:w-1/2 flex-col text-center lg:text-left">
@@ -55,44 +37,53 @@ export default function LocationsDryCleaning() {
         {/* Pricing Card */}
         <div className="bg-card border border-border rounded-2xl p-6 lg:p-8 mb-6 w-full max-w-[400px] lg:max-w-[450px] mx-auto lg:mx-0">
           <h3 className="text-2xl font-semibold mb-2">Pricing</h3>
-          <p className="text-sm text-muted-foreground mb-6">
-            Priced per item + {formatUsd(PRICING.dryCleaningMinimumCents)}{' '}
-            minimum.
-          </p>
+          {pricing.minimumPrice === undefined ? null : (
+            <p className="text-sm text-muted-foreground mb-6">
+              Priced per item + {pricing.minimumPrice} minimum.
+            </p>
+          )}
 
-          {/* Pricing Items */}
-          <div>
-            {PRICING_ITEMS.map((item, index) => {
-              const Icon = item.icon;
-              const isLast = index === PRICING_ITEMS.length - 1;
-              return (
-                <div
-                  key={index}
-                  className={`flex items-center justify-between ${
-                    isLast ? 'pt-3' : 'py-3'
-                  } ${!isLast ? 'border-b border-border' : ''}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon
-                      className="w-5 h-5 text-foreground"
-                      strokeWidth={1.5}
-                    />
-                    <span className="text-base text-foreground">
-                      {item.label}
-                    </span>
-                  </div>
-                  <span className="text-base font-semibold text-foreground">
-                    {item.price}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          {pricing.error === undefined ? (
+            <>
+              <div>
+                {pricing.previewItems.map((item, index) => {
+                  const Icon = getPreviewIcon(item.name);
+                  const isLast = index === pricing.previewItems.length - 1;
+                  return (
+                    <div
+                      key={item.name}
+                      className={`flex items-center justify-between ${
+                        isLast ? 'pt-3' : 'py-3'
+                      } ${!isLast ? 'border-b border-border' : ''}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon
+                          className="w-5 h-5 text-foreground"
+                          strokeWidth={1.5}
+                        />
+                        <span className="text-base text-foreground">
+                          {item.name}
+                        </span>
+                      </div>
+                      <span className="text-base font-semibold text-foreground">
+                        {item.price}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
 
-          {/* View Full Pricing Link */}
-          <div className="mt-3 pt-6 border-t border-border text-center">
-            <PricingDialog />
-          </div>
+              <div className="mt-3 pt-6 border-t border-border text-center">
+                <PricingDialog categories={pricing.categories} />
+              </div>
+            </>
+          ) : (
+            <FetchErrorCallout
+              title={pricing.error.title}
+              message={pricing.error.message}
+              canRetry={pricing.error.canRetry}
+            />
+          )}
         </div>
 
         <div className="space-y-4">

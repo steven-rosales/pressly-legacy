@@ -7,8 +7,8 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { Button } from '@/common/shadcn/button';
-import SchedulePickupButton from '@/app/(marketing)/shared/ui/components/SchedulePickupButton';
-import { CENTS_ORDER_URL } from '@/app/(marketing)/shared/marketing/content';
+import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
+import { CENTS_ORDER_URL } from '@/app/shared/marketing/content';
 
 type NavItem = { href: string; label: string };
 

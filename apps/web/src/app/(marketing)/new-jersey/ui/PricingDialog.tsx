@@ -7,63 +7,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/common/shadcn/dialog';
+import type { DryCleaningPricingModel } from '@/app/shared/marketing/pricing';
 import { Shirt, User, Sparkles, Home, Zap } from 'lucide-react';
 
-const FULL_PRICING = [
-  {
-    icon: Shirt,
-    category: 'Tops',
-    items: [
-      { label: 'Shirts', price: '$4.95' },
-      { label: 'Polo', price: '$4.95' },
-      { label: 'Blouse', price: '$7.95' },
-      { label: 'Sweater', price: '$8.50' },
-      { label: 'Vest', price: '$8.50' },
-      { label: 'Blazer / Jacket', price: '$9.95' },
-    ],
-  },
-  {
-    icon: User,
-    category: 'Bottoms',
-    items: [
-      { label: 'Shorts', price: '$6.95' },
-      { label: 'Skirt', price: '$6.95' },
-      { label: 'Pants', price: '$8.95' },
-    ],
-  },
-  {
-    icon: Sparkles,
-    category: 'Full Body',
-    items: [
-      { label: 'Casual Dress', price: '$9.50' },
-      { label: 'Coat', price: '$17.95' },
-      { label: 'Suit - Full Piece', price: '$18.90' },
-      { label: 'Formal Dress', price: '$25.90' },
-    ],
-  },
-  {
-    icon: Home,
-    category: 'Household',
-    items: [
-      { label: 'Rugs', price: '$3.25 /sqft' },
-      { label: 'Sheet / Blanket', price: '$12.95' },
-      { label: 'Tablecloth', price: '$18.95' },
-      { label: 'Curtain', price: '$37.95' },
-      { label: 'Comforter', price: '$39.95' },
-    ],
-  },
-  {
-    icon: Zap,
-    category: 'Accessories',
-    items: [
-      { label: 'Napkin', price: '$1.95' },
-      { label: 'Scarf', price: '$5.95' },
-      { label: 'Tie', price: '$6.95' },
-    ],
-  },
-];
+const getCategoryIcon = (category: string) => {
+  if (category === 'Bottoms') return User;
+  if (category === 'Full Body') return Sparkles;
+  if (category === 'Household') return Home;
+  if (category === 'Accessories') return Zap;
+  return Shirt;
+};
 
-export function PricingDialog() {
+export function PricingDialog({
+  categories,
+}: {
+  categories: DryCleaningPricingModel['categories'];
+}) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -77,24 +36,24 @@ export function PricingDialog() {
         </DialogHeader>
 
         <div className="space-y-8 mt-4">
-          {FULL_PRICING.map((category, idx) => {
-            const Icon = category.icon;
+          {categories.map((category) => {
+            const Icon = getCategoryIcon(category.title);
             return (
-              <div key={idx}>
+              <div key={category.title}>
                 <div className="flex items-center gap-2 mb-4">
                   <Icon className="w-5 h-5 text-foreground" strokeWidth={1.5} />
                   <h3 className="text-lg font-semibold text-foreground">
-                    {category.category}
+                    {category.title}
                   </h3>
                 </div>
                 <div className="space-y-3 pl-7">
-                  {category.items.map((item, itemIdx) => (
+                  {category.items.map((item) => (
                     <div
-                      key={itemIdx}
+                      key={`${category.title}-${item.name}`}
                       className="flex items-center justify-between py-2 border-b border-border last:border-0"
                     >
                       <span className="text-base text-foreground">
-                        {item.label}
+                        {item.name}
                       </span>
                       <span className="text-base font-semibold text-foreground">
                         {item.price}

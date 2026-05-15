@@ -131,6 +131,15 @@ const createAbortSignal = (
   };
 };
 
+/**
+ * Creates a fetch request and handles:
+ * - transport failed
+ * - response body not JSON
+ * - known API error envelope
+ * - unknown non-2xx response
+ * - known success envelope + valid data
+ * - known/unknown success-shapes response with invalid data
+ */
 export const makeFetchRequestClient = ({
   baseUrl,
   getContext,
@@ -156,6 +165,8 @@ export const makeFetchRequestClient = ({
         method: input.method,
         headers,
         signal: timeout.signal,
+        ...(input.cache === undefined ? {} : { cache: input.cache }),
+        ...(input.next === undefined ? {} : { next: input.next }),
         ...(hasBody ? { body: JSON.stringify(input.body) } : {}),
       });
 
@@ -174,6 +185,17 @@ export const makeFetchRequestClient = ({
             safeMessage: failureResult.data.error.message,
             status: statusFromResponse(response.status),
             details: failureResult.data.error.details,
+          }),
+        );
+
+      if (!response.ok)
+        return err(
+          makeRequestError({
+            code: 'http_error_response',
+            message: `API returned HTTP ${response.status}.`,
+            safeMessage: 'The server returned an unsuccessful response.',
+            status: statusFromResponse(response.status),
+            details: json,
           }),
         );
 

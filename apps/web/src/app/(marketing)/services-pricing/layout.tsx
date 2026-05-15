@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { PublicSiteShell } from '@/app/(marketing)/shared/ui/public/PublicSiteShell';
+import { PublicSiteShell } from '@/app/shared/ui/public/PublicSiteShell';
 import ServicesTabBar from './ui/ServiceTabBar';
 
 export default function ServicesPricingLayout({

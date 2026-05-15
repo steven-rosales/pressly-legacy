@@ -7,33 +7,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/common/shadcn/carousel';
-
-const TESTIMONIALS = [
-  {
-    name: 'Shaunta J.',
-    verified: true,
-    petInfo: 'on Google',
-    rating: 5,
-    review:
-      'Laundry service is top notch! They pick up and deliver. It is a completely seamless process! I will continue to use their services.',
-  },
-  {
-    name: 'Carla R.',
-    verified: true,
-    petInfo: 'on Google',
-    rating: 5,
-    review:
-      'I get my laundry picked up and delivered hassle free. My Laundry is picked up within a 2 hour window and delivered the very next day. The laundry comes back superb. Washed well, whites come back whiter, smelling great and folded prestige. I will be a forever be a customer.',
-  },
-  {
-    name: 'Joe S.',
-    verified: false,
-    petInfo: 'on Google',
-    rating: 5,
-    review:
-      'I have been using this laundry service for over a year now, and I can confidently say that they have been nothing but a blessing. I highly recommend this service to anyone looking for laundry services.',
-  },
-];
+import type { HomePageModel } from '../model';
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -66,14 +40,18 @@ function VerifiedBadge() {
   );
 }
 
-export default function HomeTestimonials() {
+export default function HomeTestimonials({
+  model,
+}: {
+  model: HomePageModel['testimonials'];
+}) {
   return (
     <div className="flex flex-col items-center text-center w-full">
       <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground mb-4">
-        Testimonials
+        {model.eyebrow}
       </p>
       <h2 className="text-4xl sm:text-5xl lg:text-6xl font-semibold mb-12 sm:mb-16 lg:mb-20 max-w-4xl">
-        What Our Customers Say
+        {model.title}
       </h2>
 
       <Carousel
@@ -84,9 +62,9 @@ export default function HomeTestimonials() {
         className="w-full"
       >
         <CarouselContent className="-ml-4">
-          {TESTIMONIALS.map((testimonial, index) => (
+          {model.items.map((testimonial) => (
             <CarouselItem
-              key={index}
+              key={testimonial.name}
               className="pl-4 md:basis-1/2 lg:basis-1/3"
             >
               <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-6 text-left h-full">
@@ -100,7 +78,7 @@ export default function HomeTestimonials() {
                 </div>
 
                 <p className="text-sm text-muted-foreground">
-                  {testimonial.petInfo}
+                  {testimonial.source}
                 </p>
 
                 <p className="text-base leading-relaxed text-foreground">

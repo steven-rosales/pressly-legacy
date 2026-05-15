@@ -2,7 +2,7 @@ import Image from 'next/image';
 
 interface ServiceHeroProps {
   title: string;
-  description: string[];
+  description: readonly string[];
   imageSrc: string;
   imageAlt: string;
 }

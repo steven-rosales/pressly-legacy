@@ -1,40 +1,21 @@
 import Image from 'next/image';
-import SchedulePickupButton from '@/app/(marketing)/shared/ui/components/SchedulePickupButton';
-import { OFFER_COPY } from '@/app/(marketing)/shared/marketing/content';
+import { OFFER_COPY } from '@/app/shared/marketing/content';
+import type { WashFoldPricingModel } from '@/app/shared/marketing/pricing';
+import FetchErrorCallout from '@/app/shared/ui/components/FetchErrorCallout';
+import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
 import { ShoppingBag, Grid3x3, Layers, BedDouble } from 'lucide-react';
 
-const PRICING_ITEMS = [
-  {
-    icon: ShoppingBag,
-    label: 'Per Pound',
-    price: '$1.67 / lb',
-  },
-];
+const getSpecialtyIcon = (name: string) => {
+  if (name === 'Bathmat') return Grid3x3;
+  if (name === 'Duvet') return BedDouble;
+  return Layers;
+};
 
-const INDIVIDUALLY_PRICED = [
-  {
-    icon: Grid3x3,
-    label: 'Bathmat',
-    price: '$5.95',
-  },
-  {
-    icon: Layers,
-    label: 'Small Comforter',
-    price: '$9.95',
-  },
-  {
-    icon: BedDouble,
-    label: 'Duvet',
-    price: '$14.95',
-  },
-  {
-    icon: Layers,
-    label: 'Large Comforter',
-    price: '$19.95',
-  },
-];
-
-export default function LocationsWashFold() {
+export default function LocationsWashFold({
+  pricing,
+}: {
+  pricing: WashFoldPricingModel;
+}) {
   return (
     <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-center w-full">
       <div className="flex w-full lg:w-1/2 flex-col text-center lg:text-left">
@@ -54,57 +35,62 @@ export default function LocationsWashFold() {
         <div className="bg-card border border-border rounded-2xl p-6 lg:p-8 mb-6 w-full max-w-[400px] lg:max-w-[450px] mx-auto lg:mx-0">
           <h3 className="text-2xl font-semibold mb-6">Pricing</h3>
 
-          {/* Price per Pound */}
-          {PRICING_ITEMS.map((item, index) => {
-            const Icon = item.icon;
-            return (
+          {pricing.error === undefined ? (
+            <>
               <div
-                key={index}
                 className="flex items-center justify-between py-4 border-b border-border"
               >
                 <div className="flex items-center gap-3">
-                  <Icon className="w-6 h-6 text-foreground" strokeWidth={1.5} />
+                  <ShoppingBag
+                    className="w-6 h-6 text-foreground"
+                    strokeWidth={1.5}
+                  />
                   <span className="text-base font-medium text-foreground">
-                    {item.label}
+                    Per Pound
                   </span>
                 </div>
                 <span className="text-lg font-semibold text-foreground">
-                  {item.price}
+                  {pricing.basePrice} / lb
                 </span>
               </div>
-            );
-          })}
 
-          {/* Individually Priced Section */}
-          <div className="mt-6">
-            <h4 className="text-sm font-bold uppercase tracking-wide text-foreground mb-4">
-              INDIVIDUALLY PRICED
-            </h4>
-            <div className="space-y-4">
-              {INDIVIDUALLY_PRICED.map((item, index) => {
-                const Icon = item.icon;
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon
-                        className="w-5 h-5 text-foreground"
-                        strokeWidth={1.5}
-                      />
-                      <span className="text-base text-foreground">
-                        {item.label}
-                      </span>
-                    </div>
-                    <span className="text-base font-semibold text-foreground">
-                      {item.price}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+              <div className="mt-6">
+                <h4 className="text-sm font-bold uppercase tracking-wide text-foreground mb-4">
+                  INDIVIDUALLY PRICED
+                </h4>
+                <div className="space-y-4">
+                  {pricing.specialtyItems.map((item) => {
+                    const Icon = getSpecialtyIcon(item.name);
+                    return (
+                      <div
+                        key={item.name}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon
+                            className="w-5 h-5 text-foreground"
+                            strokeWidth={1.5}
+                          />
+                          <span className="text-base text-foreground">
+                            {item.name}
+                          </span>
+                        </div>
+                        <span className="text-base font-semibold text-foreground">
+                          {item.price}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : (
+            <FetchErrorCallout
+              title={pricing.error.title}
+              message={pricing.error.message}
+              canRetry={pricing.error.canRetry}
+            />
+          )}
         </div>
 
         <div className="space-y-4">

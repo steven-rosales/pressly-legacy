@@ -1,46 +1,27 @@
 import Image from 'next/image';
+import type { HomePageModel } from '../model';
 
-const STEPS = [
-  {
-    title: 'Your driver will pickup between 6:30pm-9:30pm',
-    description:
-      'Enjoy the convenience of our 7-day-a-week pickup and delivery service.',
-    imageSrc: '/graphic-img/1-how-it-works.webp',
-    imageAlt: 'Schedule pickup on mobile device',
-  },
-  {
-    title: 'Industry experts will carefully clean everything',
-    description:
-      'Professionals with decades of experience handle all your laundry and dry cleaning.',
-    imageSrc: '/graphic-img/2-how-it-works.webp',
-    imageAlt: 'Professional cleaning equipment',
-  },
-  {
-    title: 'Enjoy always having clean clothes at your fingertips',
-    description:
-      "With our quick turnarounds you'll always find a clean closet—and a clean peace of mind.",
-    imageSrc: '/graphic-img/3-how-it-works.webp',
-    imageAlt: 'Clean laundry delivered to your door',
-  },
-];
-
-export default function HowItWorks() {
+export default function HowItWorks({
+  model,
+}: {
+  model: HomePageModel['hiw'];
+}) {
   return (
     <div className="flex flex-col items-center text-center">
       <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground mb-4">
-        How It Works
+        {model.eyebrow}
       </p>
       <h2 className="text-4xl sm:text-5xl lg:text-6xl font-semibold mb-12 sm:mb-16 lg:mb-20 max-w-4xl">
-        A solution for everything in your wardrobe.
+        {model.title}
       </h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 w-full">
-        {STEPS.map((step, index) => (
-          <div key={index} className="flex flex-col items-center">
+        {model.steps.map((step) => (
+          <div key={step.title} className="flex flex-col items-center">
             <div className="relative w-full max-w-[220px] aspect-square mb-6 lg:mb-8">
               <Image
-                src={step.imageSrc}
-                alt={step.imageAlt}
+                src={step.image.src}
+                alt={step.image.alt}
                 fill
                 sizes="220px"
                 className="object-contain"

@@ -1,5 +1,3 @@
-'use client';
-
 import * as Sentry from '@sentry/nextjs';
 import { normalizeUnknownError, type AppError } from '@pressly/errors';
 import type { ErrorReporter, ErrorReportContext } from '@pressly/metrics';

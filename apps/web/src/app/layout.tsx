@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import { Lexend_Deca } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { WebCoreProvider } from '@/common/adapters/runtime/web-core-context';
-import { SITE_URL } from '@/app/(marketing)/shared/marketing/content';
-import { JsonLd } from '@/app/(marketing)/shared/marketing/JsonLd';
-import { buildOrganizationJsonLd } from '@/app/(marketing)/shared/marketing/seo';
+import { SITE_URL } from '@/app/shared/marketing/content';
+import { JsonLd } from '@/app/shared/marketing/JsonLd';
+import { buildOrganizationJsonLd } from '@/app/shared/marketing/seo';
 import '@/styles/globals.css';
 import { SonnerToaster } from '@/common/adapters/feedback/sonner-toaster';
 
