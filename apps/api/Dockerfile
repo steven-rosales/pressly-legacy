@@ -41,7 +41,7 @@ FROM deps AS builder
 
 COPY . .
 
-RUN pnpm -F @pressly/api build
+RUN pnpm turbo build --filter=@pressly/api...
 
 FROM builder AS runner
 

@@ -39,7 +39,7 @@ const main = async (): Promise<void> => {
     forceClose: server.forceClose,
 
     close: async () => {
-      server.close();
+      await server.close();
       await database.close();
     },
   });

@@ -3,8 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
   "exports": {
-    ".": "./src/public.ts"
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
