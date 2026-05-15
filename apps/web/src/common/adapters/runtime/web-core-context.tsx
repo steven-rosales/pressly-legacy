@@ -7,6 +7,7 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { usePathname } from 'next/navigation';
+import { makeAppError } from '@pressly/errors';
 import { nullErrorReporter, nullAnalyticsTracker } from '@pressly/metrics';
 import { nullLogger } from '@pressly/logging';
 import { webEnv } from '@/common/config/env';
@@ -43,7 +44,13 @@ const makeBrowserContextProvider = (
 
 const makeUnavailableRequestClient = (): WebCore['request'] => ({
   send: async () => {
-    throw new Error('WebCore request client is unavailable');
+    throw makeAppError({
+      kind: 'InvariantViolationError',
+      code: 'web_core_request_client_unavailable',
+      message: 'WebCore request client is unavailable.',
+      safeMessage: 'Application runtime is unavailable.',
+      status: 500,
+    });
   },
 });
 
@@ -94,7 +101,13 @@ export const useWebCore = (): WebCore => {
   const core = useContext(WebCoreContext);
 
   if (core === null)
-    throw new Error('useWebCore must be used inside WebCoreProvider.');
+    throw makeAppError({
+      kind: 'InvariantViolationError',
+      code: 'web_core_provider_missing',
+      message: 'useWebCore must be used inside WebCoreProvider.',
+      safeMessage: 'Application runtime is unavailable.',
+      status: 500,
+    });
 
   return core;
 };
