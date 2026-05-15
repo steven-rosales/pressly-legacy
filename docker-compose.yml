@@ -46,7 +46,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "pnpm -F @pressly/db migrate && pnpm -F @pressly/api dev"
+    command: sh -c "pnpm install --frozen-lockfile && pnpm -F @pressly/db migrate && pnpm -F @pressly/db seed:pricing && pnpm -F @pressly/api dev"
     volumes:
       - .:/repo
       - pressly_node_modules:/repo/node_modules

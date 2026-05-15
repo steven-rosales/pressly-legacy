@@ -29,12 +29,16 @@
     "docker:api:up": "docker compose up --build api",
     "docker:api:logs": "docker compose logs -f api",
     "docker:api:shell": "docker compose exec api sh",
-    "docker:db:migrate": "docker compose run --rm --build api pnpm -F @pressly/db migrate",
+    "docker:db:migrate": "docker compose run --rm --build api sh -c \"pnpm install --frozen-lockfile && pnpm -F @pressly/db migrate\"",
+    "docker:db:seed:pricing": "docker compose run --rm --build api sh -c \"pnpm install --frozen-lockfile && pnpm -F @pressly/db seed:pricing\"",
+    "docker:db:setup": "docker compose run --rm --build api sh -c \"pnpm install --frozen-lockfile && pnpm -F @pressly/db migrate && pnpm -F @pressly/db seed:pricing\"",
     "docker:up": "docker compose up --build api web",
     "docker:down": "docker compose down --remove-orphans",
     "env:web:pull": "pnpm dlx vercel env pull apps/web/.env.local --environment=development --yes",
     "env:api:pull": "pnpm dlx vercel env pull apps/api/.env.local --environment=development --yes",
-    "db:migrate": "pnpm -F @pressly/db migrate"
+    "db:migrate": "pnpm -F @pressly/db migrate",
+    "db:seed:pricing": "pnpm -F @pressly/db seed:pricing",
+    "db:setup": "pnpm db:migrate && pnpm db:seed:pricing"
   },
   "keywords": [],
   "author": "",
