@@ -7,7 +7,7 @@ import type { SchedulePageModel } from '../model';
 import { useWebCore } from '@/common/adapters/runtime/web-core-context';
 import { publicEvents } from '@/common/core/analytics/events';
 import { trackPublicEvent } from '@/common/core/analytics/track';
-import { Button } from '@/common/shadcn/button';
+import { Button } from '@/app/shared/ui/shadcn/button';
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/common/shadcn/dialog';
+} from '@/app/shared/ui/shadcn/dialog';
 import { cn } from '@/styles/utils';
 
 const helperButtonClass =

@@ -6,7 +6,7 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from '@/common/shadcn/carousel';
+} from '@/app/shared/ui/shadcn/carousel';
 
 const TESTIMONIALS = [
   {

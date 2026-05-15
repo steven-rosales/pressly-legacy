@@ -1,7 +1,7 @@
 'use client';
 
 import { useTransition } from 'react';
-import { Button } from '@/common/shadcn/button';
+import { Button } from '@/app/shared/ui/shadcn/button';
 
 type RefreshButtonProps = { label: string; action: () => Promise<void> };
 

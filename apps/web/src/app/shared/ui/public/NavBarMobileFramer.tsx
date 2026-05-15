@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { Button } from '@/common/shadcn/button';
+import { Button } from '@/app/shared/ui/shadcn/button';
 import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
 import { CENTS_ORDER_URL } from '@/app/shared/marketing/content';
 

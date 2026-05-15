@@ -13,7 +13,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/common/shadcn/dropdown-menu';
+} from '@/app/shared/ui/shadcn/dropdown-menu';
 
 const NAV_LINKS = [
   { href: '/services-pricing/wash-fold', label: 'Services & Pricing' },

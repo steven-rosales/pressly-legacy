@@ -2,7 +2,11 @@
 
 import { revalidateTag, refresh } from 'next/cache';
 
-import { Alert, AlertDescription, AlertTitle } from '@/common/shadcn/alert';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/app/shared/ui/shadcn/alert';
 import RefreshButton from './RefreshButton';
 
 export async function refreshPricing() {

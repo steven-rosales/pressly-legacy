@@ -6,7 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/common/shadcn/dialog';
+} from '@/app/shared/ui/shadcn/dialog';
 import type { DryCleaningPricingModel } from '@/app/shared/marketing/pricing';
 import { Shirt, User, Sparkles, Home, Zap } from 'lucide-react';
 

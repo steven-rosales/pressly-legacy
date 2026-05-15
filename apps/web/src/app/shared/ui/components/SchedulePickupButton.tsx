@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import type { PublicEventSource } from '@/common/core/analytics/events';
 import { publicEvents } from '@/common/core/analytics/events';
 import { TrackedAnchor } from '@/common/adapters/analytics/tracked-anchor';
-import { Button } from '@/common/shadcn/button';
+import { Button } from '@/app/shared/ui/shadcn/button';
 import { CENTS_ORDER_URL } from '@/app/shared/marketing/content';
 
 type SchedulePickupButtonProps = {

@@ -10,9 +10,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/common/shadcn/form';
-import { Input } from '@/common/shadcn/input';
-import { Textarea } from '@/common/shadcn/textarea';
+} from '@/app/shared/ui/shadcn/form';
+import { Input } from '@/app/shared/ui/shadcn/input';
+import { Textarea } from '@/app/shared/ui/shadcn/textarea';
 import { useWebCore } from '@/common/adapters/runtime/web-core-context';
 import { publicEvents } from '@/common/core/analytics/events';
 import { trackPublicEvent } from '@/common/core/analytics/track';
@@ -75,8 +75,10 @@ export default function CommercialContactSection({
               control={form.control}
               name="companyName"
               render={({ field }) => (
-                  <FormItem>
-                  <FormLabel>{model.contact.fields.companyName.label}</FormLabel>
+                <FormItem>
+                  <FormLabel>
+                    {model.contact.fields.companyName.label}
+                  </FormLabel>
                   <FormControl>
                     <Input
                       placeholder={model.contact.fields.companyName.placeholder}
@@ -94,7 +96,9 @@ export default function CommercialContactSection({
                 name="firstName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{model.contact.fields.firstName.label}</FormLabel>
+                    <FormLabel>
+                      {model.contact.fields.firstName.label}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         placeholder={model.contact.fields.firstName.placeholder}

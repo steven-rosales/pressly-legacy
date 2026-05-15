@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Button } from '@/common/shadcn/button';
+import { Button } from '@/app/shared/ui/shadcn/button';
 
 type PrimaryButtonProps = {
   children?: ReactNode;
