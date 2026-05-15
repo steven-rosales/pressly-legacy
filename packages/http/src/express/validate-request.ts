@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import { catchAsync } from './catch-async.ts';
+import { catchAsync } from './catch-async.js';
 import { makeAppError } from '@pressly/errors';
 
 type ParseIssue = {

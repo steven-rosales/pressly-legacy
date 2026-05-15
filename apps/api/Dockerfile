@@ -21,7 +21,6 @@ COPY packages/config/package.json packages/config/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/errors/package.json packages/errors/package.json
-COPY packages/express/package.json packages/express/package.json
 COPY packages/http/package.json packages/http/package.json
 COPY packages/logging/package.json packages/logging/package.json
 COPY packages/metrics/package.json packages/metrics/package.json

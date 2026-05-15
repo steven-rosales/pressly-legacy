@@ -1,7 +1,7 @@
 import type { RequestHandler } from 'express';
 import { apiFailure, apiSuccess } from '@pressly/http';
 import type { PricingParamsRequestSchema } from '@pressly/contracts';
-import { catchAsync } from '@pressly/express';
+import { catchAsync } from '@pressly/http/express';
 import type { GetPricing } from '../../features/get-pricing/get-pricing.usecase.ts';
 
 export const makeGetPricingController = (

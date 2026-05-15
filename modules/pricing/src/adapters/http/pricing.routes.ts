@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { validateRequest } from '@pressly/express';
+import { validateRequest } from '@pressly/http/express';
 import { pricingParamsRequestSchema } from '@pressly/contracts';
 import type { GetPricing } from '../../features/get-pricing/get-pricing.usecase.ts';
 import { makeGetPricingController } from './pricing.controller.ts';

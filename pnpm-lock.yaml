@@ -282,9 +282,6 @@ importers:
       '@pressly/errors':
         specifier: workspace:*
         version: link:../../packages/errors
-      '@pressly/express':
-        specifier: workspace:*
-        version: link:../../packages/express
       '@pressly/http':
         specifier: workspace:*
         version: link:../../packages/http
@@ -294,9 +291,6 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      zod:
-        specifier: 4.3.6
-        version: 4.3.6
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
@@ -407,34 +401,6 @@ importers:
         specifier: latest
         version: 6.0.3
 
-  packages/express:
-    dependencies:
-      '@pressly/errors':
-        specifier: workspace:*
-        version: link:../errors
-      '@types/express':
-        specifier: ^5.0.6
-        version: 5.0.6
-      '@types/express-serve-static-core':
-        specifier: ^5.1.1
-        version: 5.1.1
-      express:
-        specifier: ^5.2.1
-        version: 5.2.1
-      zod:
-        specifier: 4.3.6
-        version: 4.3.6
-    devDependencies:
-      '@pressly/tsconfig':
-        specifier: workspace:*
-        version: link:../tsconfig
-      tsx:
-        specifier: latest
-        version: 4.21.0
-      typescript:
-        specifier: latest
-        version: 6.0.3
-
   packages/http:
     dependencies:
       '@pressly/errors':
@@ -444,6 +410,15 @@ importers:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      '@types/express-serve-static-core':
+        specifier: ^5.1.1
+        version: 5.1.1
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       tsx:
         specifier: latest
         version: 4.21.0
