@@ -1,13 +1,29 @@
 export {
+  loadPricingCatalogCommandSchema,
   pricingCatalogSchema,
+  pricingItemMetadataSchema,
   pricingItemSchema,
-  pricingServiceSlugSchema,
   pricingParamsRequestSchema,
-} from './pricing.js';
+  pricingServiceSlugSchema,
+  publishPricingChangeActorSchema,
+  publishPricingChangeCommandSchema,
+  publishPricingChangeItemSchema,
+} from './pricing/pricing.contracts.js';
 
 export type {
-  PricingCatalogDto,
-  PricingItemDto,
-  PricingServiceSlug,
+  LoadPricingCatalogCommand,
   PricingParamsRequestSchema,
-} from './pricing.js';
+  PublishPricingChangeActor,
+  PublishPricingChangeCommand,
+  PublishPricingChangeItem,
+} from './pricing/pricing.command.js';
+
+export type {
+  LoadPricingCatalogResult,
+  PricingCatalogResult,
+  PricingChangeDiffItem,
+  PricingChangePlan,
+  PricingItemResult,
+  PricingServiceSlug,
+  PublishPricingChangeResult,
+} from './pricing/pricing.result.js';
