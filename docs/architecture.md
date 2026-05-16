@@ -1,54 +1,61 @@
 # Architecture
 
-This document defines the structural laws of the system before any domain, use case, controller, port, repo, UI feature, job, or database table is introduced.
+Architecture is how this repo keeps meaning separate from mechanism.
 
-The goal is not to make the project look enterprise. The goal is to keep meaning separate from mechanism, keep state explicit, make effects visible, and make each layer speak a small language appropiate to its responsibility.
+The goal is not to look enterprise. The goal is to make code easy to place, easy to change, and hard to accidentally couple. Business language should live in modules. Runtime wiring should live in apps. Shared technical capabilities should live in packages. The frontend is a UI and protocol adapter, not the owner of backend business rules.
 
-The project uses a Typescript and SQL monorepo with a clean architecture / hexagonal architecture style. The frontend is treated as an external adapter and protocol consumer, not as an owner of business rules.
+This repo is intentionally TypeScript and SQL first.
 
-## 1. Architectural Premise
+## 1. Working Principles
 
-The system is built around a small number of principles
+### Name the idea before the mechanism
 
-### Programs express ideas
-
-Code should descibe the concepts of the system before it describes machine steps. A function, type, module, or package should answer one of these questions:
+A file, function, type, or package should answer one clear question:
 
 - What concept does this represent?
 - What invariant does this protect?
 - What transformation does this describe?
 - What effect does this perform?
-- What boundary does this adapt?
+- What outside mechanism does this adapt?
 
-Implementation detail is allowed only after the meaning has a home.
+Implementation details are allowed, but only after the meaning has a home.
 
-### Separate meaning from mechanism
+### Keep meaning separate from mechanism
 
-The system distinguishes between:
+These are not the same thing:
 
-- Domain meaning
-- Application decisions
-- Protocol representation
-- Persistence representation
-- Runtime mechanism
-- Framework mechanism
+- A database row and a domain concept
+- An HTTP request and a use case
+- A React component and a business rule
+- A Zod schema and a domain model
+- Express middleware and application policy
+- A cron schedule and a business process
 
-A database row is not a domain entity, an HTTP request is not a use case, a react component is not a domain owner, a zod schema is not automatically a domain model, an express middleware is not an application policy, ..., a cron job is not a business process.
+Adapters translate mechanisms. They should not become the place where business meaning hides.
 
-### Compose small general pieces
+### Compose at the edge
 
-Modules should expose small, composable functions and types rather than large objects hidden behavior.
+Inner code should be small and explicit. Outer code can compose many pieces.
 
-Prefer: `validate -> authorize -> transact -> execute -> present`
-Avoid: `controller.doEverything(req, res)`
+Prefer:
 
-Composition should happen at the outer layers. Inner layers should describe meaning and decisions.
+```txt
+validate -> authorize -> transact -> execute -> present
+```
 
-### Make state explicit and limited
+Avoid:
 
-State should have a visible owner.
+```txt
+controller.doEverything(req, res)
+```
 
-State is allowed in:
+`main.ts`, route handlers, page components, and app startup files may import many things because they are composition points. Domain and feature files should import very little.
+
+### Make state and effects visible
+
+State needs an owner. Effects need a boundary.
+
+Allowed state owners:
 
 - Database records
 - Request context
@@ -58,167 +65,55 @@ State is allowed in:
 - Worker job state
 - Process runtime state
 
-State should not be smuggled through globals, mutable singletons, implicit caches, hiddne module variable, or framework magic.
+Do not smuggle state through mutable singletons, hidden module variables, accidental caches, or framework objects passed deep into the system.
 
-### Design for change
+Effects include database writes, HTTP calls, email, queues, cron, logging, metrics, time, and random IDs. Inner code should depend on capabilities, not concrete vendors.
 
-An architecture assumes that the following things will change:
+## 2. Repo Shape
 
-- UI framework behavior
-- API protocols
-- Authentication provider
-- Authorization rules
-- Database schema
-- Deployment target
-- Queue/worker mechanism
-- Observability vendor
-- Feature flag mechanism
-- Business use cases
-
-The core should not be rewritten when these change.
-
-## 2. Monorepo Shape
-
-The repository is organized by deployable applications and reusable packages.
+Current high-level shape:
 
 ```txt
 pressly/
   apps/
     web/
-    api/
-    worker/
+      src/app/        Next.js route tree and route-local files
+      src/common/     web runtime core, adapters, and browser/server helpers
+      src/infra/      web-side protocol clients
+
+    api/              Express HTTP process
+    worker/           background and scheduled process
+    cli/              operator/developer CLI tools
 
   modules/
-
-    <module-name>
-      domain/
-
-      features/
-        <feature-name>/
-          <feature-name>.command.ts
-          <feature-name>.result.ts
-          (<feature-name> || <feature-name-variant>).usecase.ts
-          <feature-name>.port.ts
-
-      adapters/
-        http/
-          (<feature-name> || <feature-name-variant>).controller.ts
-          (<feature-name> || <feature-name-variant>).routes.ts
-          <feature-name>.presenter.ts
-        persistence/
-          (<feature-name> || <feature-name-variant>).repo.ts
-
-    main.ts
-    public.ts
+    pricing/          business capability module
 
   packages/
-    config/
-    contracts/
-    errors/
-    logging/
-    metrics/
-    db/
-      schemas/
-          <schema-name>.schema.ts
-    auth/
-    http/
-    testkit/
-    tsconfig/
-    eslint-config/
+    auth/             shared auth types/capabilities
+    config/           environment parsing and runtime config
+    contracts/        shared protocol contracts, commands, and results
+    db/               Drizzle schema, migrations, seeds, and db client
+    errors/           AppError and AppException language
+    http/             HTTP helpers, response shapes, Express adapters
+    logging/          structured logging capabilities
+    metrics/          metrics capabilities
+    testkit/          shared test helpers
+    tsconfig/         shared TypeScript configs
 
-  tooling/
-    docker/
-    github/
-    scripts/
-
-  docs/
-    architecture.md
-
-  .gitignore
-  .dockerignore
-  docker-compose.yml
-  pnpm-workspace.yaml
-  turbo.json
-  package.json
+  tooling/            repo scripts and automation
+  docs/               project docs
 ```
 
-Note: `(<feature-name> || <feature-name-variant>)` is used to let the architecture scale vertically. For example, if the feature is `create-user`, there can be `create-user.usecase.ts`, but later we might refactor towards `create-customer.usecase.ts` and `create-staff.usecase.ts`.
+The short version:
 
-### Deployable applications
+```txt
+apps compose
+modules decide
+packages enable
+adapters translate
+contracts validate boundaries
+```
 
-`apps/web`
-
-Next.js frontend application
-
-Responsibilities
-
-- Render UI
-- Manage browser and UI state
-- Call API protocols
-- Subscribe to event streams
-- Validate protocol payloads at the edge
-- Present errors in user-appropiate language
-
-Non-responsibilites
-
-- Own domain rules
-- Import databse code
-- Import backend application services
-- Import backend repositories
-- Reconstruct authorization rules as business truths
-- Treat API DTOs as domain entities
-
-The frontend is a port consumer. It speaks HTTP, event stream, and UI state languages.
-
-`apps/api`
-
-Express HTTP API application.
-
-Responsibilities:
-
-- Process HTTP requests
-- Parse and validate request input
-- Create request context
-- Authenticate caller
-- Invoke application/use-case ports later
-- Map application results to protocol responses
-- Handle errors consistently
-- Expose health and readiness endpoints
-
-Non-responsiblities:
-
-- Contain domain logic
-- Contain persistence logic directly in route handlers
-- Contain authorization decisions inline
-- Let Express types leak inward
-
-`apps/worker`
-
-Background and scheduled job application.
-
-Responsibilities:
-
-- Run scheduled work
-- Run async/background work
-- Create job context
-- Enforce job timeouts and cancellation
-
-Non-responsibilities:
-
-- Own domain logic
-- Contain business rules inside scheduled job handlers
-- Bypass use cases by calling repositories directly
-- Hide retries, timeouts, or cancellation inside job code
-- Run database migrations as ordinary jobs
-- Share mutable process state across job runs
-- Assume only one worker instance exists
-- Treat cron timing as a business invariant
-- Perform non-idempotent work without an idempotency boundary
-- Let node-cron types or scheduling mechanics leak inward
-
-Here’s a compact continuation you can paste after section 2.
-
-````md
 ## 3. Dependency Direction
 
 Dependencies point inward.
@@ -227,165 +122,132 @@ Allowed direction:
 
 ```txt
 apps -> modules -> packages
-adapters -> features -> domain
+adapters -> features
 controllers -> use cases
-repos -> ports
+repos -> feature ports
 routes -> controllers
-main.ts -> everything needed for composition
+main.ts -> runtime composition
 ```
-````
 
 Disallowed direction:
 
 ```txt
-domain -> adapters
-domain -> packages/db
-domain -> Express / Next.js / Drizzle / Pino
+modules -> apps
 features -> controllers
-features -> repos
+features -> repositories
 use cases -> HTTP details
 use cases -> SQL details
-apps/web -> backend internals
+domain -> Express / Next.js / Drizzle / Pino
+apps/web -> backend module internals
+packages -> apps
 ```
 
-The composition root may import many things. Inner layers should import very little.
+Cross-module imports should go through `public.ts`. Cross-package imports should go through package exports.
 
-## 4. Layer Responsibilities
+## 4. Packages
 
-### Domain
+Packages are for stable, reusable boundaries. They should not become a junk drawer for app-specific behavior.
 
-Owns meaning and invariants.
+Use a package when the code is:
 
-Responsibilities:
+- Needed by more than one app or module
+- Stable enough to expose as a public API
+- Technical infrastructure rather than product-specific behavior
+- Useful to test independently
 
-- Entities
-- Value objects
-- Domain rules
-- Pure transformations
-- Invariant protection
+Examples:
 
-The domain should not know how it is stored, transported, rendered, logged, scheduled, or deployed.
+- `@pressly/errors` owns the structured error language.
+- `@pressly/contracts` owns shared protocol contracts and command/result types.
+- `@pressly/db` owns persistence schema and database wiring.
+- `@pressly/http` owns HTTP response helpers and Express-specific adapters under `src/express`.
+- `@pressly/config`, `@pressly/logging`, and `@pressly/metrics` own runtime capabilities.
 
-### Features
+Rules:
 
-Owns application behavior.
+- Export from `src/index.ts` or another explicit public entry.
+- Avoid deep imports across package internals.
+- Runtime packages should export built `dist` files, not raw `src` files.
+- A package should have a small public surface and boring internals.
 
-Responsibilities:
+## 5. Modules
 
-- Commands
-- Results
-- Use cases
-- Application ports
-- Authorization calls
-- Transaction boundaries
-- Idempotency boundaries
+A module is a vertical business capability.
 
-A feature describes what the system does, not how a framework performs it.
-
-### Adapters
-
-Own mechanisms.
-
-Responsibilities:
-
-- HTTP controllers
-- Routes
-- Presenters
-- Repositories
-- Database schemas
-- External service clients
-- Framework translation
-
-Adapters translate between external mechanisms and internal language.
-
-### Apps
-
-Own runtime composition.
-
-Responsibilities:
-
-- Process startup
-- Env loading
-- Logger creation
-- Database connection
-- Express/Next/worker runtime
-- Middleware setup
-- Module mounting
-- Graceful shutdown
-
-Apps assemble the program. They do not own business meaning.
-
-## 5. Module Anatomy
-
-Each module is a vertical boundary around a business capability.
+Current example:
 
 ```txt
-modules/
-  <module-name>/
-    domain/
-
+modules/pricing/
+  src/
     features/
-      <feature-name>/
-        <feature-name>.command.ts
-        <feature-name>.result.ts
-        <feature-name>.usecase.ts
-        <feature-name>.port.ts
+      load-pricing-catalog/
+        load-pricing-catalog.port.ts
+        load-pricing-catalog.usecase.ts
+      publish-pricing/
+        publish-pricing-change.usecase.ts
 
     adapters/
       http/
-        <feature-name>.controller.ts
-        <feature-name>.routes.ts
-        <feature-name>.presenter.ts
+        pricing.controller.ts
+        pricing.routes.ts
       persistence/
-        <feature-name>.repo.ts
-        <schema-name>.schema.ts
+        pricing.repo.ts
 
     main.ts
     public.ts
 ```
 
-`public.ts` exposes the stable public surface of the module.
+`public.ts` is the stable module surface.
 
-`main.ts` composes the module for runtime use. It wires repos, use cases, controllers, and routes.
+`main.ts` is the module composition root. It wires repositories, use cases, controllers, and routes.
 
-No other code should deep import from another module.
+Feature files should speak application language. For reads and lookups, prefer precise verbs:
 
-## 6. Contracts vs Domain Types
+- `loadX` for loading an application-facing view or catalog.
+- `findX` for a persistence lookup that may or may not exist.
+- `publishX` for making a controlled business change visible.
+- `createX`, `updateX`, and `deleteX` only when that is literally the business action.
 
-Contracts are protocol types.
+Avoid `getX` in application and module naming. It is too vague and collides mentally with HTTP `GET`. HTTP route methods can still use `router.get(...)`.
 
-Domain types are meaning types.
+## 6. Contracts
 
-A contract may describe:
+Contracts are boundary language.
 
-- HTTP request body
-- HTTP response body
-- Query params
-- Route params
-- Event payload
-- Error envelope
+They may describe:
 
-A domain type may describe:
+- HTTP params
+- HTTP request bodies
+- HTTP response bodies
+- Event payloads
+- Commands entering a use case
+- Results leaving a use case
+- Error envelopes
 
-- Entity
-- Value object
-- Invariant
-- Domain decision
-- Domain event
+Current pattern:
 
-A Zod schema in `packages/contracts` validates protocol shape. It does not automatically become a domain model.
+```txt
+packages/contracts/src/pricing/
+  pricing.contracts.ts  runtime schemas, usually Zod
+  pricing.command.ts    command types
+  pricing.result.ts     result types
+```
 
-External input should move through this path:
+Do not default to `*.dto.ts`. A DTO is usually either input, output, or protocol shape. Name the role directly.
+
+A Zod schema is a validation contract. It does not automatically become a domain model.
+
+Input path:
 
 ```txt
 unknown input
   -> contract validation
   -> command
   -> use case
-  -> domain model
+  -> domain/application decision
 ```
 
-External output should move through this path:
+Output path:
 
 ```txt
 domain/application result
@@ -394,11 +256,142 @@ domain/application result
   -> protocol response
 ```
 
-## 7. Error Language
+## 7. Web App
+
+`apps/web/src/app` is the route tree. Route folders can also colocate route-local implementation files as long as they are not Next.js convention files such as `page.tsx`, `layout.tsx`, or `route.ts`.
+
+Current shape:
+
+```txt
+apps/web/src/app/
+  (marketing)/
+    home/
+      page.tsx
+      model.ts
+      ui/
+    services-pricing/
+      model.ts
+      presenter.ts
+      wash-fold/
+      dry-cleaning/
+      ui/
+    new-jersey/
+      model.ts
+      content/
+      ui/
+
+  shared/
+    marketing/
+    ui/
+    legal/
+
+apps/web/src/common/
+  core/       web runtime capability language
+  adapters/   PostHog, Sentry, Sonner, request clients, browser ids
+  config/
+  testing/
+
+apps/web/src/infra/
+  pricing.ts  web-side protocol integration
+```
+
+Frontend rules:
+
+- `page.tsx` and `layout.tsx` compose.
+- `model.ts` builds view models for the page.
+- `presenter.ts` transforms data into UI-ready representation.
+- `ui/` renders the view model.
+- `content/` holds route-local static content.
+- `common/core` owns generic web capabilities, not business rules.
+- `common/adapters` owns vendor/framework implementations.
+- `infra` owns protocol clients and server-side integration points.
+
+The frontend can validate protocol payloads and build view models. It should not recreate backend domain rules as truth.
+
+For public marketing pages, prefer static or build-time rendering unless the route genuinely needs per-request behavior. If a build-time fetch has a fallback, the fallback policy must be explicit and user-safe.
+
+## 8. Web Core
+
+Web core is a small capability layer, not a god object.
+
+It exists to make runtime effects declarative:
+
+```txt
+core.query.run(...)
+core.query.fetch(...)
+core.command.run(...)
+core.analytics.track(...)
+core.feedback.show(...)
+core.clock.now()
+core.ids.sessionId()
+```
+
+The call site should describe the work. The core interpreter handles logging, metadata, error normalization, reporting, and feedback policy.
+
+Rules:
+
+- Core should not own product workflows.
+- Core should not know pricing, marketing, or Cents-specific behavior.
+- Vendor imports belong in adapters.
+- Route code should use declarative helpers instead of importing vendors directly.
+- Add to core only when the capability is broadly useful across frontend workflows.
+
+State machines, forms, workflow engines, and pricing flows can be sibling interpreters that consume core. They do not all need to be inside core.
+
+## 9. API, Worker, and CLI Apps
+
+Apps own runtime composition.
+
+`apps/api` responsibilities:
+
+- Load env
+- Create logger
+- Create database connection
+- Install HTTP middleware
+- Mount module routes
+- Map errors to HTTP responses
+- Expose health/readiness endpoints
+- Shut down cleanly
+
+`apps/worker` responsibilities:
+
+- Create job context
+- Run scheduled/background work
+- Enforce timeouts and cancellation
+- Keep retries and idempotency visible
+
+`apps/cli` responsibilities:
+
+- Run operator/developer workflows
+- Validate operator input
+- Call module/application capabilities safely
+- Fail loudly with structured errors
+
+Apps do not own business meaning. They assemble the program.
+
+## 10. Persistence
+
+`packages/db` owns database schema, migrations, seeds, and database clients.
+
+Modules may import schema through stable database exports when implementing persistence adapters. The database package should not import business modules. That keeps migration/schema ownership from creating circular dependencies.
+
+Rules:
+
+- Schema describes storage.
+- Repositories translate storage into application results.
+- Use cases decide business policy.
+- Temporal fields must be honored by reads.
+- Seed data and schema migrations should be split once business data starts changing regularly.
+
+## 11. Errors
 
 Errors must be structured and predictable.
 
-The system uses application errors with:
+`AppError` is the structured error value.
+
+`AppException` is the throwable `Error` wrapper.
+
+The common error shape is:
 
 ```txt
 kind
@@ -411,72 +404,19 @@ cause
 traceId
 ```
 
-Error categories:
-
-```txt
-ValidationError
-AuthError
-PermissionError
-NotFoundError
-ConflictError
-RateLimitError
-ExternalServiceError
-DatabaseError
-InvariantViolationError
-UnexpectedError
-```
-
 Rules:
 
+- Throw `AppException` when code needs to throw.
+- Return or serialize `AppError` when code needs an error value.
 - Domain errors should describe violated meaning.
-- Application errors should describe failed decisions.
 - Adapter errors should describe failed mechanisms.
 - HTTP status mapping belongs at the HTTP boundary.
 - Internal causes should be logged, not leaked to clients.
-- Every failed response should include a trace id.
+- Failed responses should include a trace id when available.
 
-## 8. Context and State
-
-State must have a visible owner.
-
-Allowed state owners:
-
-```txt
-RequestContext
-TransactionContext
-JobContext
-AuthContext
-UI state
-Database state
-Process runtime state
-```
-
-Common context shape:
-
-```txt
-requestId
-traceId
-principal
-logger
-signal
-startedAt
-```
-
-Rules:
-
-- No hidden mutable globals.
-- No implicit request state.
-- No framework objects passed inward.
-- No database transaction hidden in module state.
-- State should be passed explicitly as data.
-
-## 9. Transaction Boundaries
+## 12. Transactions
 
 Transactions are application boundaries, not repository accidents.
-
-Use cases decide when a transaction starts and ends.
-
-Repositories may use a transaction, yet they should not secretly create one for a larger business operation.
 
 Preferred shape:
 
@@ -490,84 +430,13 @@ use case
 
 Rules:
 
-- A use case owns its transaction boundary.
+- A use case owns the transaction boundary.
 - A transaction context is passed explicitly.
 - Cross-repository consistency happens inside one transaction.
-- External network calls should not happen inside DB transactions unless explicitly required.
-- Idempotency should wrap the operation at the application boundary.
+- External network calls should not happen inside database transactions unless explicitly required.
+- Idempotency should wrap risky operations at the application boundary.
 
-## 10. Effects and Adapters
-
-Effects happen at the edges.
-
-Effects include:
-
-```txt
-database writes
-HTTP calls
-email
-file system
-queues
-cron
-logging
-metrics
-time
-random ids
-```
-
-Inner code should depend on capabilities, not concrete effects.
-
-Examples:
-
-```txt
-Clock
-IdGenerator
-Logger
-Transactor
-RunIdempotently
-EventPublisher
-PasswordHasher
-```
-
-A use case should describe required capabilities through its dependencies.
-
-```txt
-makeUseCase({ repo, transactor, clock, ids, logger })
-```
-
-This keeps the program declarative: the use case describes the composition of meanings and effects.
-
-## 11. Testing Strategy
-
-Tests should follow the architecture.
-
-```txt
-domain tests
-  Pure rules and invariants.
-
-use case tests
-  Application behavior with fake ports.
-
-adapter tests
-  HTTP, persistence, and external mechanism translation.
-
-integration tests
-  Real database, real app wiring, real middleware.
-
-e2e tests
-  Browser and API behavior through public protocols.
-```
-
-Rules:
-
-- Domain tests should be fast and pure.
-- Use case tests should not require Express or Postgres.
-- Repository tests may require Postgres.
-- Controller tests should verify protocol behavior.
-- E2E tests should cover critical flows only.
-- Test helpers belong in `packages/testkit`.
-
-## 12. Observability Laws
+## 13. Observability
 
 The system should explain itself while running.
 
@@ -585,78 +454,77 @@ error reporting
 
 Rules:
 
-- Logs are structured JSON.
-- Logs should not contain secrets.
-- Each request gets a child logger.
+- Logs are structured.
+- Logs do not contain secrets.
+- Each request gets request metadata.
 - Each job run gets a run id.
-- Health checks prove the process is alive.
-- Readiness checks prove the process can serve traffic.
-- Metrics describe system behavior, not business guesses.
+- Health proves the process is alive.
+- Readiness proves the process can serve traffic.
+- Metrics describe system behavior, not guesses.
 - Errors should be correlated with trace ids.
 
-## 13. CI / Boundary Enforcement
+## 14. Testing
 
-Architecture should be enforced by tooling.
-
-CI should run:
+Tests should match the layer being tested.
 
 ```txt
-format
-lint
-typecheck
-unit tests
+domain tests
+  Pure rules and invariants.
+
+use case tests
+  Application behavior with fake ports.
+
+adapter tests
+  HTTP, persistence, vendor, and framework translation.
+
 integration tests
-build
-e2e smoke tests
-migration checks
-```
+  Real database, real app wiring, real middleware.
 
-Boundaries should be enforced with:
-
-```txt
-package exports
-TypeScript project references
-ESLint import rules
-no deep imports
-no circular dependencies
-CI checks
+e2e tests
+  Public behavior through browser or API protocols.
 ```
 
 Rules:
 
-- A package exposes its public API through `index.ts` or `public.ts`.
-- Cross-module imports must use public exports.
-- Apps may compose modules.
-- Modules should not import from apps.
-- Failing boundary checks should block merges.
+- Pure code gets fast unit tests.
+- Use cases should not require Express or Postgres.
+- Repository tests may require Postgres.
+- Controller tests verify protocol behavior.
+- E2E tests cover critical flows only.
+- Shared helpers belong in `packages/testkit`.
 
-## 14. Naming Conventions
+## 15. Naming
 
 Names should reveal architectural role.
 
 Files:
 
 ```txt
-*.command.ts      input to a use case
-*.result.ts       output from a use case
-*.usecase.ts      application behavior
-*.port.ts         required capability
-*.repo.ts         persistence adapter
-*.controller.ts   HTTP adapter
-*.routes.ts       route binding
-*.presenter.ts    result-to-response mapping
-*.schema.ts       protocol or persistence shape
+*.contracts.ts   runtime boundary schemas
+*.command.ts     input to a use case
+*.result.ts      output from a use case
+*.usecase.ts     application behavior
+*.port.ts        required capability
+*.repo.ts        persistence adapter
+*.controller.ts  HTTP adapter
+*.routes.ts      route binding
+*.presenter.ts   result-to-response or data-to-view mapping
+*.model.ts       page/view model composition
+*.schema.ts      protocol or persistence shape
 ```
 
 Functions:
 
 ```txt
-makeX          creates a composed capability
-parseX         validates unknown input
-toX            transforms representation
-assertX        enforces an invariant
-isX            returns boolean
-runX           performs an effectful operation
+makeX     creates a composed capability
+parseX    validates unknown input
+toX       transforms representation
+assertX   enforces an invariant
+isX       returns boolean
+loadX     loads an application-facing result
+findX     looks up something that may not exist
+publishX  makes a controlled business change visible
+runX      performs an effectful operation
 ```
 
 Types:
@@ -677,7 +545,35 @@ General rules:
 
 - Prefer precise names over short names.
 - Name concepts before mechanisms.
-- Avoid generic service names.
-- Avoid files that contain many unrelated ideas.
+- Avoid generic `service` names.
+- Avoid files that contain unrelated ideas.
 - Keep public names stable.
 - Let private names change freely.
+
+## 16. Adding a Feature
+
+A normal backend feature should move like this:
+
+```txt
+1. Define shared contract if the feature crosses a boundary.
+2. Add command/result types.
+3. Add the use case in the module.
+4. Define ports the use case needs.
+5. Implement adapters for HTTP, persistence, vendors, or jobs.
+6. Wire everything in module main.ts.
+7. Mount the module in the app.
+8. Add tests at the right layer.
+```
+
+A normal frontend page should move like this:
+
+```txt
+1. Put the route in app/.
+2. Put route-specific model/presenter/ui/content beside the route.
+3. Use infra/common adapters for protocol calls and effects.
+4. Render UI from view models.
+5. Keep vendor imports out of page components.
+6. Preserve static rendering unless per-request behavior is intentional.
+```
+
+That is the architecture in one sentence: put meaning near the business capability, put mechanisms at the edges, and compose the final program only at the runtime boundary.
