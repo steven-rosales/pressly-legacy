@@ -38,7 +38,8 @@
     "env:api:pull": "pnpm dlx vercel env pull apps/api/.env.local --environment=development --yes",
     "db:migrate": "pnpm -F @pressly/db migrate",
     "db:seed:pricing": "pnpm -F @pressly/db seed:pricing",
-    "db:setup": "pnpm db:migrate && pnpm db:seed:pricing"
+    "db:setup": "pnpm db:migrate && pnpm db:seed:pricing",
+    "admin": "pnpm -F @pressly/cli dev --"
   },
   "keywords": [],
   "author": "",
