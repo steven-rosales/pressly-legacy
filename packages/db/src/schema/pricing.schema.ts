@@ -14,6 +14,22 @@ export type PricingItemMetadata = Readonly<{
   displayUnitLabel?: string;
 }>;
 
+/**
+ * Pricing table dependency graph:
+ *
+ * pricing_services
+ *   -> pricing_sets <- pricing_locations
+ *        -> pricing_items
+ *        -> pricing_change_events
+ *
+ * Services and locations are stable catalogs. Pricing sets are versioned snapshots for a service, optionally scoped to one location. Pricing items are the actual money-bearing line items inside a pricing set. Pricing change events record publish actions from one pricing set to another.
+ */
+
+/**
+ * Stable service catalog, such as `wash-fold` or `dry-cleaning`.
+ *
+ * This table identifies what kind of pricing can be requested. It should stay small and change rarely; historical pricing should point to services here instead of duplicating service identity on every pricing item.
+ */
 export const pricingServices = pgTable('pricing_services', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: text('slug').notNull().unique(),
@@ -28,6 +44,12 @@ export const pricingServices = pgTable('pricing_services', {
     .defaultNow(),
 });
 
+/**
+ * Stable location catalog for cities or service areas that may have custom
+ * pricing.
+ *
+ * A pricing set can reference a location when pricing differs by place. If a pricing set has no location, it acts as the default pricing for its service.
+ */
 export const pricingLocations = pgTable('pricing_locations', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: text('slug').notNull().unique(),
@@ -41,6 +63,11 @@ export const pricingLocations = pgTable('pricing_locations', {
     .defaultNow(),
 });
 
+/**
+ * Versioned pricing container for one service and optional location.
+ *
+ * Reads should choose the current active set by service/location and effective window, then fall back to the service default set when location-specific pricing does not exist. Price changes should publish a new set instead of mutating live item rows in place.
+ */
 export const pricingSets = pgTable('pricing_sets', {
   id: uuid('id').primaryKey().defaultRandom(),
   serviceId: uuid('service_id')
@@ -61,6 +88,11 @@ export const pricingSets = pgTable('pricing_sets', {
     .defaultNow(),
 });
 
+/**
+ * Money-bearing pricing lines inside a pricing set.
+ *
+ * Examples include `wash_fold_per_lb`, `delivery_fee`, `small_comforter`, and dry-cleaning garment prices. The `code` is the stable business key within a set; `priceCents` is stored as integer cents to avoid floating-point money errors.
+ */
 export const pricingItems = pgTable('pricing_items', {
   id: uuid('id').primaryKey().defaultRandom(),
   pricingSetId: uuid('pricing_set_id')
@@ -81,6 +113,32 @@ export const pricingItems = pgTable('pricing_items', {
     .notNull()
     .defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * Immutable audit record for a pricing publish action.
+ *
+ * This table makes the publishing model complete: a price change is not just a new row in `pricing_sets`; it is an actor-approved transition from one pricing set to another, with the original input and reason preserved. Both `oldPricingSetId` and `newPricingSetId` point to `pricing_sets` so the system can explain what changed, who changed it, and why.
+ */
+export const pricingChangeEvents = pgTable('pricing_change_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  kind: text('kind').notNull(),
+  actorId: text('actor_id').notNull(),
+  actorKind: text('actor_kind').notNull(),
+  actorDisplayName: text('actor_display_name').notNull(),
+  serviceSlug: text('service_slug').notNull(),
+  locationSlug: text('location_slug'),
+  reason: text('reason').notNull(),
+  oldPricingSetId: uuid('old_pricing_set_id')
+    .notNull()
+    .references(() => pricingSets.id),
+  newPricingSetId: uuid('new_pricing_set_id')
+    .notNull()
+    .references(() => pricingSets.id),
+  input: jsonb('input').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 });

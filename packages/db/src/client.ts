@@ -19,6 +19,12 @@ export type DatabaseRuntimeOptions = Readonly<{
   maxLifetimeSeconds?: number;
 }>;
 
+export type DatabaseTransaction = Parameters<
+  Parameters<Database['transaction']>[0]
+>[0];
+
+export type DatabaseExecutor = Database | DatabaseTransaction;
+
 export const createDatabaseRuntime = (
   options: DatabaseRuntimeOptions,
 ): DatabaseRuntime => {

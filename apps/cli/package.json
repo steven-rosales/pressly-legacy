@@ -1,0 +1,30 @@
+{
+  "name": "@pressly/cli",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "pressly-admin": "./dist/main.js"
+  },
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --max-warnings=0",
+    "test": "echo \"test pending: @pressly/cli\"",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pressly/auth": "workspace:*",
+    "@pressly/db": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/pricing": "workspace:*",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@pressly/tsconfig": "workspace:*",
+    "@types/node": "^25.6.0",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}
