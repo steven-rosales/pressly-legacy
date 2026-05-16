@@ -5,8 +5,8 @@ import {
   OFFER_COPY,
 } from '@/app/shared/marketing/content';
 import {
-  getDryCleaningPricingViewModel,
-  getWashFoldPricingViewModel,
+  loadDryCleaningPricingViewModel,
+  loadWashFoldPricingViewModel,
   type DryCleaningPricingModel,
   type WashFoldPricingModel,
 } from '@/app/shared/marketing/pricing';
@@ -184,11 +184,11 @@ const getLocationServicePanel = async (
   service === 'dryCleaning'
     ? {
         service,
-        pricing: await getDryCleaningPricingViewModel(),
+        pricing: await loadDryCleaningPricingViewModel(),
       }
     : {
         service,
-        pricing: await getWashFoldPricingViewModel(),
+        pricing: await loadWashFoldPricingViewModel(),
       };
 
 const getLocationServicePanels = (

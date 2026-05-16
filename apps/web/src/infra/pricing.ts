@@ -3,7 +3,7 @@ import 'server-only';
 import type { AppError, Result } from '@pressly/errors';
 import {
   pricingCatalogSchema,
-  type PricingCatalogDto,
+  type PricingCatalogResult,
   type PricingParamsRequestSchema,
 } from '@pressly/contracts';
 import { makeServerWebCore } from '@/common/adapters/runtime/server-web-core';
@@ -15,9 +15,9 @@ const toPricingPath = (input: PricingParamsRequestSchema): string =>
 
 const pricingCore = makeServerWebCore({ route: 'server:pricing' });
 
-export async function getPricingCatalog(
+export async function loadPricingCatalog(
   input: PricingParamsRequestSchema,
-): Promise<Result<PricingCatalogDto, AppError>> {
+): Promise<Result<PricingCatalogResult, AppError>> {
   return pricingCore.query.fetch({
     meta: {
       action: 'load_pricing_catalog',

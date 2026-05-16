@@ -1,5 +1,5 @@
 vi.mock('@/infra/pricing', () => ({
-  getPricingCatalog: vi.fn().mockResolvedValue({
+  loadPricingCatalog: vi.fn().mockResolvedValue({
     ok: false,
     error: {
       code: 'pricing_unavailable',

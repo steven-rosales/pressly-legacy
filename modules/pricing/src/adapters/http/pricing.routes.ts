@@ -1,24 +1,26 @@
 import { Router } from 'express';
 import { validateRequest } from '@pressly/http/express';
 import { pricingParamsRequestSchema } from '@pressly/contracts';
-import type { GetPricing } from '../../features/get-pricing/get-pricing.usecase.ts';
-import { makeGetPricingController } from './pricing.controller.ts';
+import type { LoadPricingCatalog } from '../../features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
+import { makeLoadPricingCatalogController } from './pricing.controller.ts';
 
 export const makePricingRoutes = (input: {
-  getPricing: GetPricing;
+  loadPricingCatalog: LoadPricingCatalog;
 }): Router => {
   const router = Router();
-  const getPricingController = makeGetPricingController(input.getPricing);
+  const loadPricingCatalogController = makeLoadPricingCatalogController(
+    input.loadPricingCatalog,
+  );
 
   router.get(
     '/services/:serviceSlug/pricing',
     validateRequest({ params: pricingParamsRequestSchema }),
-    getPricingController,
+    loadPricingCatalogController,
   );
   router.get(
     '/locations/:locationSlug/services/:serviceSlug/pricing',
     validateRequest({ params: pricingParamsRequestSchema }),
-    getPricingController,
+    loadPricingCatalogController,
   );
 
   return router;

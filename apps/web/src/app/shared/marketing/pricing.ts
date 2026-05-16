@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import type {
-  PricingCatalogDto,
-  PricingItemDto,
+  PricingCatalogResult,
+  PricingItemResult,
   PricingParamsRequestSchema,
   PricingServiceSlug,
 } from '@pressly/contracts';
@@ -12,7 +12,7 @@ import {
   PRICING,
   WASH_FOLD_SPECIALTY_ITEMS,
 } from '@/app/shared/marketing/content';
-import { getPricingCatalog } from '@/infra/pricing';
+import { loadPricingCatalog } from '@/infra/pricing';
 
 export const formatUsdShortFromCents = (cents: number) =>
   cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`;
@@ -36,7 +36,7 @@ export type PricingNotice = Readonly<{
 
 export type PricingCatalogViewModel = Readonly<{
   source: PricingSource;
-  catalog: PricingCatalogDto;
+  catalog: PricingCatalogResult;
 }>;
 
 export type PricingDisplayItem = Readonly<{
@@ -71,10 +71,10 @@ const PRICING_FEATURES = [
 ] as const;
 
 const makePricingItem = (
-  item: Omit<PricingItemDto, 'metadata'> & {
-    metadata?: PricingItemDto['metadata'];
+  item: Omit<PricingItemResult, 'metadata'> & {
+    metadata?: PricingItemResult['metadata'];
   },
-): PricingItemDto => ({
+): PricingItemResult => ({
   ...item,
   metadata: item.metadata ?? {},
 });
@@ -100,7 +100,7 @@ const parseDisplayPriceCents = (price: string): number => {
 
 const buildWashFoldStaticCatalog = (
   locationSlug?: string,
-): PricingCatalogDto => ({
+): PricingCatalogResult => ({
   serviceSlug: 'wash-fold',
   ...(locationSlug === undefined ? {} : { locationSlug }),
   currency: 'USD',
@@ -157,7 +157,7 @@ const buildWashFoldStaticCatalog = (
 
 const buildDryCleaningStaticCatalog = (
   locationSlug?: string,
-): PricingCatalogDto => ({
+): PricingCatalogResult => ({
   serviceSlug: 'dry-cleaning',
   ...(locationSlug === undefined ? {} : { locationSlug }),
   currency: 'USD',
@@ -205,12 +205,12 @@ const buildDryCleaningStaticCatalog = (
 const buildStaticCatalog = (
   serviceSlug: PricingServiceSlug,
   locationSlug?: string,
-): PricingCatalogDto =>
+): PricingCatalogResult =>
   serviceSlug === 'wash-fold'
     ? buildWashFoldStaticCatalog(locationSlug)
     : buildDryCleaningStaticCatalog(locationSlug);
 
-const hasRequiredPricing = (catalog: PricingCatalogDto): boolean => {
+const hasRequiredPricing = (catalog: PricingCatalogResult): boolean => {
   if (catalog.serviceSlug === 'wash-fold') {
     return catalog.items.some(
       (item) => item.service === 'wash_fold' && item.category === 'Base',
@@ -226,7 +226,7 @@ const hasRequiredPricing = (catalog: PricingCatalogDto): boolean => {
   );
 };
 
-const getCachedPricingCatalogViewModel = cache(
+const loadCachedPricingCatalogViewModel = cache(
   async (
     serviceSlug: PricingServiceSlug,
     locationSlug?: string,
@@ -235,7 +235,7 @@ const getCachedPricingCatalogViewModel = cache(
       locationSlug === undefined
         ? { serviceSlug }
         : { serviceSlug, locationSlug };
-    const pricing = await getPricingCatalog(input);
+    const pricing = await loadPricingCatalog(input);
 
     if (pricing.ok && hasRequiredPricing(pricing.value))
       return {
@@ -250,28 +250,28 @@ const getCachedPricingCatalogViewModel = cache(
   },
 );
 
-export async function getPricingCatalogViewModel(
+export async function loadPricingCatalogViewModel(
   input: PricingParamsRequestSchema,
 ): Promise<PricingCatalogViewModel> {
-  return getCachedPricingCatalogViewModel(input.serviceSlug, input.locationSlug);
+  return loadCachedPricingCatalogViewModel(input.serviceSlug, input.locationSlug);
 }
 
-export const getItemsByCategory = (
-  catalog: PricingCatalogDto,
+export const selectItemsByCategory = (
+  catalog: PricingCatalogResult,
   category: string,
-): PricingItemDto[] =>
+): PricingItemResult[] =>
   catalog.items
     .filter((item) => item.category === category)
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
-const toPriceLabel = (item: PricingItemDto): string => {
+const toPriceLabel = (item: PricingItemResult): string => {
   const base = formatUsdFromCents(item.priceCents);
   return item.unit === 'sqft' ? `${base} /sqft` : base;
 };
 
-const getDryCleaningCategories = (
-  catalog: PricingCatalogDto,
+const selectDryCleaningCategories = (
+  catalog: PricingCatalogResult,
 ): DryCleaningPricingModel['categories'] => {
   const items = catalog.items
     .filter((item) => item.service === 'dry_cleaning')
@@ -298,17 +298,17 @@ const getDryCleaningCategories = (
   }));
 };
 
-export async function getWashFoldPricingViewModel(
+export async function loadWashFoldPricingViewModel(
   input: { locationSlug?: string } = {},
 ): Promise<WashFoldPricingModel> {
-  const pricing = await getPricingCatalogViewModel({
+  const pricing = await loadPricingCatalogViewModel({
     serviceSlug: 'wash-fold',
     ...(input.locationSlug === undefined
       ? {}
       : { locationSlug: input.locationSlug }),
   });
 
-  const baseItem = getItemsByCategory(pricing.catalog, 'Base')[0];
+  const baseItem = selectItemsByCategory(pricing.catalog, 'Base')[0];
 
   return {
     ...(baseItem === undefined
@@ -320,7 +320,7 @@ export async function getWashFoldPricingViewModel(
           },
         }
       : { basePrice: formatUsdFromCents(baseItem.priceCents) }),
-    specialtyItems: getItemsByCategory(pricing.catalog, 'Specialty').map(
+    specialtyItems: selectItemsByCategory(pricing.catalog, 'Specialty').map(
       (item) => ({
         name: item.name,
         price: formatUsdFromCents(item.priceCents),
@@ -330,19 +330,19 @@ export async function getWashFoldPricingViewModel(
   };
 }
 
-export async function getDryCleaningPricingViewModel(
+export async function loadDryCleaningPricingViewModel(
   input: { locationSlug?: string } = {},
 ): Promise<DryCleaningPricingModel> {
-  const pricing = await getPricingCatalogViewModel({
+  const pricing = await loadPricingCatalogViewModel({
     serviceSlug: 'dry-cleaning',
     ...(input.locationSlug === undefined
       ? {}
       : { locationSlug: input.locationSlug }),
   });
 
-  const categories = getDryCleaningCategories(pricing.catalog);
+  const categories = selectDryCleaningCategories(pricing.catalog);
   const previewItems = categories.flatMap((category) => category.items).slice(0, 5);
-  const minimumItem = getItemsByCategory(pricing.catalog, 'Minimum')[0];
+  const minimumItem = selectItemsByCategory(pricing.catalog, 'Minimum')[0];
 
   return {
     ...(categories.length === 0

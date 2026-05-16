@@ -7,8 +7,8 @@ import {
   formatQuantity,
   formatUsdFromCents,
   formatUsdShortFromCents,
-  getDryCleaningPricingViewModel,
-  getWashFoldPricingViewModel,
+  loadDryCleaningPricingViewModel,
+  loadWashFoldPricingViewModel,
   type DryCleaningPricingModel,
   type WashFoldPricingModel,
 } from '@/app/shared/marketing/pricing';
@@ -144,7 +144,7 @@ export async function getWashFoldServicePricingPageModel(): Promise<ServicePrici
     },
     pricing: {
       service: 'wash-fold',
-      model: await getWashFoldPricingViewModel(),
+      model: await loadWashFoldPricingViewModel(),
     },
     otherServices: {
       title: 'Other Services',
@@ -262,7 +262,7 @@ export async function getDryCleaningServicePricingPageModel(): Promise<ServicePr
     },
     pricing: {
       service: 'dry-cleaning',
-      model: await getDryCleaningPricingViewModel(),
+      model: await loadDryCleaningPricingViewModel(),
     },
     otherServices: {
       title: 'Other Services',

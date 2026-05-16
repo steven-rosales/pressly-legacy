@@ -2,10 +2,10 @@ import type { RequestHandler } from 'express';
 import { apiFailure, apiSuccess } from '@pressly/http';
 import type { PricingParamsRequestSchema } from '@pressly/contracts';
 import { catchAsync } from '@pressly/http/express';
-import type { GetPricing } from '../../features/get-pricing/get-pricing.usecase.ts';
+import type { LoadPricingCatalog } from '../../features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
 
-export const makeGetPricingController = (
-  getPricing: GetPricing,
+export const makeLoadPricingCatalogController = (
+  loadPricingCatalog: LoadPricingCatalog,
 ): RequestHandler =>
   catchAsync(async (req, res) => {
     const params = req.params as PricingParamsRequestSchema;
@@ -17,7 +17,7 @@ export const makeGetPricingController = (
             locationSlug: params.locationSlug,
           };
 
-    const result = await getPricing(command);
+    const result = await loadPricingCatalog(command);
 
     if (!result.ok) {
       res.status(result.error.status).json(apiFailure(result.error));

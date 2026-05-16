@@ -7,9 +7,11 @@ import {
   type Result,
 } from '@pressly/errors';
 import { pricing, type Database } from '@pressly/db';
-import type { GetPricingCommand } from '../../features/get-pricing/get-pricing.command.ts';
-import type { PricingReader } from '../../features/get-pricing/get-pricing.port.ts';
-import type { GetPricingResult } from '../../features/get-pricing/get-pricing.result.ts';
+import type {
+  LoadPricingCatalogCommand,
+  LoadPricingCatalogResult,
+} from '@pressly/contracts';
+import type { EffectivePricingCatalogFinder } from '../../features/load-pricing-catalog/load-pricing-catalog.port.ts';
 
 const notFound = (message: string): AppError =>
   makeAppError({
@@ -40,10 +42,12 @@ const isCurrentPricingSet = () =>
     ),
   );
 
-export const makePostgresPricingReader = (db: Database): PricingReader => ({
-  getPricing: async (
-    command: GetPricingCommand,
-  ): Promise<Result<GetPricingResult, AppError>> => {
+export const makePostgresEffectivePricingCatalogFinder = (
+  db: Database,
+): EffectivePricingCatalogFinder => ({
+  findEffectivePricingCatalog: async (
+    command: LoadPricingCatalogCommand,
+  ): Promise<Result<LoadPricingCatalogResult, AppError>> => {
     try {
       const [service] = await db
         .select()

@@ -1,14 +1,17 @@
 import type { Database } from '@pressly/db';
-import { makePostgresPricingReader } from './adapters/persistence/pricing.repo.ts';
+import { makePostgresEffectivePricingCatalogFinder } from './adapters/persistence/pricing.repo.ts';
 import { makePricingRoutes } from './adapters/http/pricing.routes.ts';
-import { makeGetPricing } from './features/get-pricing/get-pricing.usecase.ts';
+import { makeLoadPricingCatalog } from './features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
 
 export type PricingModuleDeps = Readonly<{ db: Database }>;
 
 export const makePricingModule = ({ db }: PricingModuleDeps) => {
-  const pricingReader = makePostgresPricingReader(db);
-  const getPricing = makeGetPricing(pricingReader);
-  const routes = makePricingRoutes({ getPricing });
+  const effectivePricingCatalogFinder =
+    makePostgresEffectivePricingCatalogFinder(db);
+  const loadPricingCatalog = makeLoadPricingCatalog(
+    effectivePricingCatalogFinder,
+  );
+  const routes = makePricingRoutes({ loadPricingCatalog });
 
   return { routes };
 };
