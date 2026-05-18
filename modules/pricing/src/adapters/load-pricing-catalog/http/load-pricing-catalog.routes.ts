@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { validateRequest } from '@pressly/http/express';
 import { pricingParamsRequestSchema } from '@pressly/contracts';
-import type { LoadPricingCatalog } from '../../features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
-import { makeLoadPricingCatalogController } from './pricing.controller.ts';
+import type { LoadPricingCatalog } from '../../../features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
+import { makeLoadPricingCatalogController } from './load-pricing-catalog.controller.ts';
 
-export const makePricingRoutes = (input: {
+export const makeLoadPricingCatalogRoutes = (input: {
   loadPricingCatalog: LoadPricingCatalog;
 }): Router => {
   const router = Router();

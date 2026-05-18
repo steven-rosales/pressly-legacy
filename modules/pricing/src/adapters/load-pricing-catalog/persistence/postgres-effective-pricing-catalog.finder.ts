@@ -11,7 +11,7 @@ import type {
   LoadPricingCatalogCommand,
   LoadPricingCatalogResult,
 } from '@pressly/contracts';
-import type { EffectivePricingCatalogFinder } from '../../features/load-pricing-catalog/load-pricing-catalog.port.ts';
+import type { EffectivePricingCatalogFinder } from '../../../features/load-pricing-catalog/load-pricing-catalog.port.ts';
 
 const notFound = (message: string): AppError =>
   makeAppError({

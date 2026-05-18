@@ -2,7 +2,7 @@ import type { RequestHandler } from 'express';
 import { apiFailure, apiSuccess } from '@pressly/http';
 import type { PricingParamsRequestSchema } from '@pressly/contracts';
 import { catchAsync } from '@pressly/http/express';
-import type { LoadPricingCatalog } from '../../features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
+import type { LoadPricingCatalog } from '../../../features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
 
 export const makeLoadPricingCatalogController = (
   loadPricingCatalog: LoadPricingCatalog,
