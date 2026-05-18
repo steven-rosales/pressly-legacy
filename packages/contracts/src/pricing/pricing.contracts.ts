@@ -37,8 +37,9 @@ export const pricingParamsRequestSchema = loadPricingCatalogCommandSchema;
 export const publishPricingChangeActorSchema = z
   .object({
     id: z.string().min(1),
-    kind: z.string().min(1),
+    kind: z.enum(['user', 'service']),
     displayName: z.string().min(1),
+    role: z.enum(['developer', 'admin', 'ci']),
   })
   .strict();
 
