@@ -8,6 +8,13 @@
       "when": 1778523826077,
       "tag": "0001_pricing",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779135973885,
+      "tag": "0002_pricing_change_events",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import type {
 import { makeAppError } from '@pressly/errors';
 
 import {
+  DELIVERY_FEE_LABEL,
   DRY_CLEANING_PRICING,
   PRICING,
   WASH_FOLD_SPECIALTY_ITEMS,
@@ -44,15 +45,28 @@ export type PricingDisplayItem = Readonly<{
   price: string;
 }>;
 
+export type DeliveryFeePricingModel = Readonly<{
+  title: string;
+  price: string;
+  shortCopy: string;
+  copy: string;
+}>;
+
 export type WashFoldPricingModel = Readonly<{
   error?: PricingNotice;
   basePrice?: string;
+  deliveryFee: DeliveryFeePricingModel;
+  hangDryPrice?: string;
+  minimumPrice?: string;
+  minimumThresholdQuantity?: number;
   specialtyItems: readonly PricingDisplayItem[];
   features: readonly Readonly<{ text: string }>[];
 }>;
 
 export type DryCleaningPricingModel = Readonly<{
   error?: PricingNotice;
+  deliveryFee: DeliveryFeePricingModel;
+  launderPressPrice?: string;
   minimumPrice?: string;
   previewItems: readonly PricingDisplayItem[];
   categories: readonly Readonly<{
@@ -265,9 +279,36 @@ export const selectItemsByCategory = (
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
+const selectItem = (
+  catalog: PricingCatalogResult,
+  input: Readonly<{ category: string; name?: string }>,
+): PricingItemResult | undefined =>
+  selectItemsByCategory(catalog, input.category).find(
+    (item) => input.name === undefined || item.name === input.name,
+  );
+
 const toPriceLabel = (item: PricingItemResult): string => {
   const base = formatUsdFromCents(item.priceCents);
   return item.unit === 'sqft' ? `${base} /sqft` : base;
+};
+
+const toDeliveryFeeModel = (
+  catalog: PricingCatalogResult,
+): DeliveryFeePricingModel => {
+  const item = selectItem(catalog, {
+    category: 'Fee',
+    name: DELIVERY_FEE_LABEL,
+  });
+  const priceCents = item?.priceCents ?? PRICING.deliveryFeeCents;
+  const price = formatUsdShortFromCents(priceCents);
+  const shortCopy = `${price} delivery fee`;
+
+  return {
+    title: DELIVERY_FEE_LABEL,
+    price,
+    shortCopy,
+    copy: `Pickup and delivery are handled through a ${shortCopy} per order.`,
+  };
 };
 
 const selectDryCleaningCategories = (
@@ -298,17 +339,15 @@ const selectDryCleaningCategories = (
   }));
 };
 
-export async function loadWashFoldPricingViewModel(
-  input: { locationSlug?: string } = {},
-): Promise<WashFoldPricingModel> {
-  const pricing = await loadPricingCatalogViewModel({
-    serviceSlug: 'wash-fold',
-    ...(input.locationSlug === undefined
-      ? {}
-      : { locationSlug: input.locationSlug }),
+export const toWashFoldPricingModel = (
+  catalog: PricingCatalogResult,
+): WashFoldPricingModel => {
+  const baseItem = selectItemsByCategory(catalog, 'Base')[0];
+  const minimumItem = selectItem(catalog, { category: 'Minimum' });
+  const hangDryItem = selectItem(catalog, {
+    category: 'Other Services',
+    name: 'Hang Dry',
   });
-
-  const baseItem = selectItemsByCategory(pricing.catalog, 'Base')[0];
 
   return {
     ...(baseItem === undefined
@@ -320,29 +359,54 @@ export async function loadWashFoldPricingViewModel(
           },
         }
       : { basePrice: formatUsdFromCents(baseItem.priceCents) }),
-    specialtyItems: selectItemsByCategory(pricing.catalog, 'Specialty').map(
-      (item) => ({
-        name: item.name,
-        price: formatUsdFromCents(item.priceCents),
-      }),
-    ),
+    deliveryFee: toDeliveryFeeModel(catalog),
+    ...(hangDryItem === undefined
+      ? {}
+      : { hangDryPrice: formatUsdFromCents(hangDryItem.priceCents) }),
+    ...(minimumItem === undefined
+      ? {}
+      : {
+          minimumPrice: formatUsdShortFromCents(minimumItem.priceCents),
+          ...(minimumItem.metadata.minimumThresholdQuantity === undefined
+            ? {}
+            : {
+                minimumThresholdQuantity:
+                  minimumItem.metadata.minimumThresholdQuantity,
+              }),
+        }),
+    specialtyItems: selectItemsByCategory(catalog, 'Specialty').map((item) => ({
+      name: item.name,
+      price: formatUsdFromCents(item.priceCents),
+    })),
     features: PRICING_FEATURES,
   };
-}
+};
 
-export async function loadDryCleaningPricingViewModel(
+export async function loadWashFoldPricingViewModel(
   input: { locationSlug?: string } = {},
-): Promise<DryCleaningPricingModel> {
+): Promise<WashFoldPricingModel> {
   const pricing = await loadPricingCatalogViewModel({
-    serviceSlug: 'dry-cleaning',
+    serviceSlug: 'wash-fold',
     ...(input.locationSlug === undefined
       ? {}
       : { locationSlug: input.locationSlug }),
   });
 
-  const categories = selectDryCleaningCategories(pricing.catalog);
-  const previewItems = categories.flatMap((category) => category.items).slice(0, 5);
-  const minimumItem = selectItemsByCategory(pricing.catalog, 'Minimum')[0];
+  return toWashFoldPricingModel(pricing.catalog);
+}
+
+export const toDryCleaningPricingModel = (
+  catalog: PricingCatalogResult,
+): DryCleaningPricingModel => {
+  const categories = selectDryCleaningCategories(catalog);
+  const previewItems = categories
+    .flatMap((category) => category.items)
+    .slice(0, 5);
+  const minimumItem = selectItemsByCategory(catalog, 'Minimum')[0];
+  const launderPressItem = selectItem(catalog, {
+    category: 'Other Services',
+    name: 'Launder & Press',
+  });
 
   return {
     ...(categories.length === 0
@@ -354,10 +418,29 @@ export async function loadDryCleaningPricingViewModel(
           },
         }
       : {}),
+    deliveryFee: toDeliveryFeeModel(catalog),
+    ...(launderPressItem === undefined
+      ? {}
+      : {
+          launderPressPrice: formatUsdFromCents(launderPressItem.priceCents),
+        }),
     ...(minimumItem === undefined
       ? {}
       : { minimumPrice: formatUsdFromCents(minimumItem.priceCents) }),
     previewItems,
     categories,
   };
+};
+
+export async function loadDryCleaningPricingViewModel(
+  input: { locationSlug?: string } = {},
+): Promise<DryCleaningPricingModel> {
+  const pricing = await loadPricingCatalogViewModel({
+    serviceSlug: 'dry-cleaning',
+    ...(input.locationSlug === undefined
+      ? {}
+      : { locationSlug: input.locationSlug }),
+  });
+
+  return toDryCleaningPricingModel(pricing.catalog);
 }

@@ -18,6 +18,7 @@
     "lint": "eslint src --max-warnings=0",
     "test": "tsx --test 'src/**/*.test.ts' 'src/**/*.spec.ts'",
     "migrate": "drizzle-kit migrate --config drizzle.config.ts",
+    "generate": "drizzle-kit generate --config drizzle.config.ts",
     "seed:pricing": "tsx src/seeds/pricing.ts",
     "migrate:docker": "pnpm --dir ../.. docker:db:migrate",
     "clean": "rm -rf dist"

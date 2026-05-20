@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import type { PricingCatalogResult, PricingItemResult } from '@pressly/contracts';
 
 import {
   CONTACT,
@@ -41,6 +42,7 @@ type BuildServiceSchemaInput = {
   serviceType: ServiceSchemaType;
   providerId?: string;
   includeOfferCatalog?: boolean;
+  pricingCatalog?: PricingCatalogResult;
 };
 
 type BuildPageGraphInput = {
@@ -54,11 +56,13 @@ type BuildLocationPageGraphInput = BuildPageGraphInput & {
   location: LocationRecord;
   serviceType: ServiceType;
   faqs: readonly FaqItem[];
+  pricingCatalog?: PricingCatalogResult;
 };
 
 type BuildServicePricingPageGraphInput = BuildPageGraphInput & {
   areaName: string;
   serviceType: ServiceType;
+  pricingCatalog?: PricingCatalogResult;
 };
 
 const DEFAULT_IMAGE = '/graphic-img/hero-customer.webp';
@@ -390,7 +394,122 @@ function buildPriceTextOffer({
   });
 }
 
-function buildWashFoldOfferCatalog(path: string) {
+function schemaUnitTextFromPricingUnit(unit: string) {
+  if (unit === 'lb') return 'pound';
+  if (unit === 'sqft') return 'square foot';
+  if (unit === 'item') return 'item';
+  return undefined;
+}
+
+function sortPricingItems(items: readonly PricingItemResult[]) {
+  return [...items].sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function findPricingItem(
+  catalog: PricingCatalogResult | undefined,
+  input: Readonly<{ category: string; name?: string }>,
+) {
+  if (catalog === undefined) return undefined;
+
+  return sortPricingItems(catalog.items).find(
+    (item) =>
+      item.category === input.category &&
+      (input.name === undefined || item.name === input.name),
+  );
+}
+
+function buildWashFoldItemDescription(
+  item: PricingItemResult,
+  minimum: PricingItemResult | undefined,
+) {
+  const price = formatUsd(item.priceCents);
+
+  if (item.category === 'Base') {
+    const minimumText =
+      minimum === undefined ? '' : ` with a ${formatUsd(minimum.priceCents)} minimum`;
+    return `${price} per pound${minimumText}.`;
+  }
+
+  if (item.category === 'Minimum') {
+    return `Minimum order for wash and fold laundry is ${price}.`;
+  }
+
+  if (item.category === 'Fee') {
+    return `Pickup and delivery are handled through a ${price} delivery fee per order.`;
+  }
+
+  if (item.name === 'Hang Dry') {
+    return `${price} per item.`;
+  }
+
+  return `${item.name} is individually priced at ${price}.`;
+}
+
+function buildDryCleaningItemDescription(item: PricingItemResult) {
+  const price = formatUsd(item.priceCents);
+
+  if (item.category === 'Minimum') {
+    return `Minimum dry cleaning order is ${price}.`;
+  }
+
+  if (item.category === 'Fee') {
+    return `Pickup and delivery are handled through a ${price} delivery fee per order.`;
+  }
+
+  if (item.category === 'Other Services') {
+    return `${price} per item.`;
+  }
+
+  return `${item.name} dry cleaning is priced at ${price}.`;
+}
+
+function buildPricingItemOffer(
+  item: PricingItemResult,
+  description: string,
+) {
+  const name =
+    item.category === 'Base'
+      ? 'Wash & Fold Laundry'
+      : item.category === 'Minimum' && item.service === 'wash_fold'
+        ? 'Wash & Fold Minimum'
+        : item.category === 'Minimum' && item.service === 'dry_cleaning'
+          ? 'Dry Cleaning Minimum'
+          : item.name;
+
+  return buildCentsOffer({
+    name,
+    priceCents: item.priceCents,
+    unitText: schemaUnitTextFromPricingUnit(item.unit),
+    description,
+  });
+}
+
+function buildWashFoldOfferCatalog(
+  path: string,
+  pricingCatalog?: PricingCatalogResult,
+) {
+  if (pricingCatalog !== undefined) {
+    const minimum = findPricingItem(pricingCatalog, {
+      category: 'Minimum',
+      name: 'Minimum',
+    });
+
+    return {
+      '@type': 'OfferCatalog',
+      '@id': buildOfferCatalogId(path),
+      name: 'Wash & Fold Pricing',
+      itemListElement: sortPricingItems(pricingCatalog.items).map((item) =>
+        buildPricingItemOffer(
+          item,
+          buildWashFoldItemDescription(item, minimum),
+        ),
+      ),
+    };
+  }
+
   return {
     '@type': 'OfferCatalog',
     '@id': buildOfferCatalogId(path),
@@ -429,7 +548,56 @@ function buildWashFoldOfferCatalog(path: string) {
   };
 }
 
-function buildDryCleaningOfferCatalog(path: string) {
+function buildDryCleaningOfferCatalog(
+  path: string,
+  pricingCatalog?: PricingCatalogResult,
+) {
+  if (pricingCatalog !== undefined) {
+    const standaloneItems = sortPricingItems(
+      pricingCatalog.items.filter(
+        (item) => item.category === 'Minimum' || item.category === 'Fee',
+      ),
+    );
+    const otherServices = sortPricingItems(
+      pricingCatalog.items.filter((item) => item.category === 'Other Services'),
+    );
+    const groupedItems = new Map<string, PricingItemResult[]>();
+
+    for (const item of sortPricingItems(
+      pricingCatalog.items.filter(
+        (item) =>
+          item.category !== 'Minimum' &&
+          item.category !== 'Fee' &&
+          item.category !== 'Other Services',
+      ),
+    )) {
+      const bucket = groupedItems.get(item.category) ?? [];
+      bucket.push(item);
+      groupedItems.set(item.category, bucket);
+    }
+
+    return {
+      '@type': 'OfferCatalog',
+      '@id': buildOfferCatalogId(path),
+      name: 'Dry Cleaning Pricing',
+      itemListElement: [
+        ...standaloneItems.map((item) =>
+          buildPricingItemOffer(item, buildDryCleaningItemDescription(item)),
+        ),
+        ...otherServices.map((item) =>
+          buildPricingItemOffer(item, buildDryCleaningItemDescription(item)),
+        ),
+        ...[...groupedItems.entries()].map(([title, items]) => ({
+          '@type': 'OfferCatalog',
+          name: title,
+          itemListElement: items.map((item) =>
+            buildPricingItemOffer(item, buildDryCleaningItemDescription(item)),
+          ),
+        })),
+      ],
+    };
+  }
+
   return {
     '@type': 'OfferCatalog',
     '@id': buildOfferCatalogId(path),
@@ -471,10 +639,11 @@ export function buildServiceOfferCatalog(
   path = serviceType === 'dryCleaning'
     ? '/services-pricing/dry-cleaning'
     : '/services-pricing/wash-fold',
+  pricingCatalog?: PricingCatalogResult,
 ) {
   return serviceType === 'dryCleaning'
-    ? buildDryCleaningOfferCatalog(path)
-    : buildWashFoldOfferCatalog(path);
+    ? buildDryCleaningOfferCatalog(path, pricingCatalog)
+    : buildWashFoldOfferCatalog(path, pricingCatalog);
 }
 
 function getServiceLabel(serviceType: ServiceSchemaType) {
@@ -498,11 +667,24 @@ function buildServiceNode({
   serviceType,
   providerId = LOCAL_BUSINESS_ID,
   includeOfferCatalog = serviceType !== 'combined',
+  pricingCatalog,
 }: BuildServiceSchemaInput) {
   const catalog =
     includeOfferCatalog && serviceType !== 'combined'
-      ? buildServiceOfferCatalog(serviceType, path)
+      ? buildServiceOfferCatalog(serviceType, path, pricingCatalog)
       : undefined;
+  const washFoldBase = findPricingItem(pricingCatalog, {
+    category: 'Base',
+    name: 'Wash & Fold',
+  });
+  const washFoldMinimum = findPricingItem(pricingCatalog, {
+    category: 'Minimum',
+    name: 'Minimum',
+  });
+  const dryCleaningMinimum = findPricingItem(pricingCatalog, {
+    category: 'Minimum',
+    name: 'Minimum',
+  });
 
   return withoutUndefined({
     '@type': 'Service',
@@ -526,15 +708,24 @@ function buildServiceNode({
       serviceType === 'washFold'
         ? buildCentsOffer({
             name: 'Wash & Fold Laundry',
-            priceCents: PRICING.washFoldPerLbCents,
+            priceCents: washFoldBase?.priceCents ?? PRICING.washFoldPerLbCents,
             unitText: 'pound',
-            description: `${formatUsd(PRICING.washFoldPerLbCents)} per pound with a ${formatUsd(PRICING.washFoldMinimumCents)} minimum.`,
+            description: `${formatUsd(
+              washFoldBase?.priceCents ?? PRICING.washFoldPerLbCents,
+            )} per pound with a ${formatUsd(
+              washFoldMinimum?.priceCents ?? PRICING.washFoldMinimumCents,
+            )} minimum.`,
           })
         : serviceType === 'dryCleaning'
           ? buildCentsOffer({
               name: 'Dry Cleaning Minimum',
-              priceCents: PRICING.dryCleaningMinimumCents,
-              description: `Dry cleaning is priced per item with a ${formatUsd(PRICING.dryCleaningMinimumCents)} minimum.`,
+              priceCents:
+                dryCleaningMinimum?.priceCents ??
+                PRICING.dryCleaningMinimumCents,
+              description: `Dry cleaning is priced per item with a ${formatUsd(
+                dryCleaningMinimum?.priceCents ??
+                  PRICING.dryCleaningMinimumCents,
+              )} minimum.`,
             })
           : undefined,
   });
@@ -544,7 +735,11 @@ export function buildServiceJsonLd(input: BuildServiceSchemaInput) {
   const service = buildServiceNode(input);
   const catalog =
     input.includeOfferCatalog !== false && input.serviceType !== 'combined'
-      ? buildServiceOfferCatalog(input.serviceType, input.path)
+      ? buildServiceOfferCatalog(
+          input.serviceType,
+          input.path,
+          input.pricingCatalog,
+        )
       : undefined;
 
   if (catalog) {
@@ -682,6 +877,7 @@ export function buildLocationPageJsonLd({
   path,
   breadcrumbs,
   faqs,
+  pricingCatalog,
 }: BuildLocationPageGraphInput) {
   const business = buildLocationBusinessNode({
     location,
@@ -690,7 +886,7 @@ export function buildLocationPageJsonLd({
     name,
     description,
   });
-  const catalog = buildServiceOfferCatalog(serviceType, path);
+  const catalog = buildServiceOfferCatalog(serviceType, path, pricingCatalog);
   const service = buildServiceNode({
     name,
     description,
@@ -698,6 +894,7 @@ export function buildLocationPageJsonLd({
     areaName: `${location.cityName}, ${formatCountyName(location.county)} County, ${SCHEMA_STATE_NAME}`,
     serviceType,
     providerId: business['@id'] as string,
+    ...(pricingCatalog === undefined ? {} : { pricingCatalog }),
   });
 
   return buildJsonLdGraph([
@@ -716,6 +913,7 @@ export function buildServicePricingPageJsonLd({
   path,
   areaName,
   breadcrumbs,
+  pricingCatalog,
 }: BuildServicePricingPageGraphInput) {
   const service = buildServiceNode({
     name,
@@ -723,8 +921,9 @@ export function buildServicePricingPageJsonLd({
     path,
     areaName,
     serviceType,
+    ...(pricingCatalog === undefined ? {} : { pricingCatalog }),
   });
-  const catalog = buildServiceOfferCatalog(serviceType, path);
+  const catalog = buildServiceOfferCatalog(serviceType, path, pricingCatalog);
 
   return buildJsonLdGraph([service, catalog, buildBreadcrumbNode(breadcrumbs)]);
 }

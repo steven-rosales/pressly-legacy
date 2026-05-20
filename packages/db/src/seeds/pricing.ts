@@ -184,9 +184,16 @@ export const seedPricing = async (db: Database): Promise<void> => {
 
     await tx.execute(sql`
       insert into pricing_sets (service_id, location_id, status, currency)
-      select id, null, 'active', 'USD'
-      from pricing_services
-      where slug in ('wash-fold', 'dry-cleaning')
+      select service.id, null, 'active', 'USD'
+      from pricing_services service
+      where service.slug in ('wash-fold', 'dry-cleaning')
+        and not exists (
+          select 1
+          from pricing_sets active_set
+          where active_set.service_id = service.id
+            and active_set.location_id is null
+            and active_set.status = 'active'
+        )
       on conflict do nothing
     `);
 
@@ -261,16 +268,7 @@ export const seedPricing = async (db: Database): Promise<void> => {
         metadata
       ) on item.service_slug = s.slug
       where ps.location_id is null
-      on conflict (pricing_set_id, code) do update
-      set
-        service = excluded.service,
-        category = excluded.category,
-        name = excluded.name,
-        unit = excluded.unit,
-        price_cents = excluded.price_cents,
-        sort_order = excluded.sort_order,
-        metadata = excluded.metadata,
-        updated_at = now()
+      on conflict (pricing_set_id, code) do nothing
     `);
   });
 };

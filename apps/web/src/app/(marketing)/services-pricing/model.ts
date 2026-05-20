@@ -1,14 +1,11 @@
-import {
-  DELIVERY_FEE_COPY,
-  DELIVERY_FEE_LABEL,
-  PRICING,
-} from '@/app/shared/marketing/content';
+import { PRICING } from '@/app/shared/marketing/content';
 import {
   formatQuantity,
   formatUsdFromCents,
   formatUsdShortFromCents,
-  loadDryCleaningPricingViewModel,
-  loadWashFoldPricingViewModel,
+  loadPricingCatalogViewModel,
+  toDryCleaningPricingModel,
+  toWashFoldPricingModel,
   type DryCleaningPricingModel,
   type WashFoldPricingModel,
 } from '@/app/shared/marketing/pricing';
@@ -72,8 +69,16 @@ export type ServicePricingPageModel = Readonly<{
 }>;
 
 export async function getWashFoldServicePricingPageModel(): Promise<ServicePricingPageModel> {
-  const minimumCents = PRICING.washFoldMinimumCents;
-  const thresholdLbs = PRICING.washFoldMinimumThresholdLbs;
+  const pricing = await loadPricingCatalogViewModel({
+    serviceSlug: 'wash-fold',
+  });
+  const pricingModel = toWashFoldPricingModel(pricing.catalog);
+  const minimumPrice =
+    pricingModel.minimumPrice ??
+    formatUsdShortFromCents(PRICING.washFoldMinimumCents);
+  const thresholdLbs =
+    pricingModel.minimumThresholdQuantity ??
+    PRICING.washFoldMinimumThresholdLbs;
 
   return {
     jsonLd: buildServicePricingPageJsonLd({
@@ -83,6 +88,7 @@ export async function getWashFoldServicePricingPageModel(): Promise<ServicePrici
       path: '/services-pricing/wash-fold',
       areaName: 'New Jersey',
       serviceType: 'washFold',
+      pricingCatalog: pricing.catalog,
       breadcrumbs: [
         { name: 'Home', path: '/' },
         {
@@ -144,7 +150,7 @@ export async function getWashFoldServicePricingPageModel(): Promise<ServicePrici
     },
     pricing: {
       service: 'wash-fold',
-      model: await loadWashFoldPricingViewModel(),
+      model: pricingModel,
     },
     otherServices: {
       title: 'Other Services',
@@ -152,7 +158,9 @@ export async function getWashFoldServicePricingPageModel(): Promise<ServicePrici
       services: [
         {
           title: 'Hang Dry',
-          price: formatUsdFromCents(PRICING.hangDryCents),
+          price:
+            pricingModel.hangDryPrice ??
+            formatUsdFromCents(PRICING.hangDryCents),
           description:
             'Priced per item. Perfect for everyday delicate items you want to have washed, hung to dry, and neatly folded.',
         },
@@ -164,20 +172,18 @@ export async function getWashFoldServicePricingPageModel(): Promise<ServicePrici
         "Pressly's services are available 7-days a week, between 7pm-9pm. You may turn on contactless delivery when scheduling your first pickup or inside your account preferences.",
       details: [
         {
-          title: DELIVERY_FEE_LABEL,
-          price: formatUsdShortFromCents(PRICING.deliveryFeeCents),
-          description: DELIVERY_FEE_COPY,
+          title: pricingModel.deliveryFee.title,
+          price: pricingModel.deliveryFee.price,
+          description: pricingModel.deliveryFee.copy,
         },
         {
           title: 'Minimum',
-          price: formatUsdShortFromCents(minimumCents),
+          price: minimumPrice,
           description: `Minimum will be waived for orders above ${formatQuantity(
             thresholdLbs,
           )} lbs. For orders ${formatQuantity(
             thresholdLbs,
-          )} lbs or lower, Pressly charges your per-pound laundry and any specialty items, then only adds a minimum adjustment if that subtotal is below ${formatUsdShortFromCents(
-            minimumCents,
-          )}.`,
+          )} lbs or lower, Pressly charges your per-pound laundry and any specialty items, then only adds a minimum adjustment if that subtotal is below ${minimumPrice}.`,
         },
       ],
       imageSrc: '/graphic-img/wf-delivery.webp',
@@ -191,7 +197,13 @@ export async function getWashFoldServicePricingPageModel(): Promise<ServicePrici
 }
 
 export async function getDryCleaningServicePricingPageModel(): Promise<ServicePricingPageModel> {
-  const minimumCents = PRICING.dryCleaningMinimumCents;
+  const pricing = await loadPricingCatalogViewModel({
+    serviceSlug: 'dry-cleaning',
+  });
+  const pricingModel = toDryCleaningPricingModel(pricing.catalog);
+  const minimumPrice =
+    pricingModel.minimumPrice ??
+    formatUsdShortFromCents(PRICING.dryCleaningMinimumCents);
 
   return {
     jsonLd: buildServicePricingPageJsonLd({
@@ -201,6 +213,7 @@ export async function getDryCleaningServicePricingPageModel(): Promise<ServicePr
       path: '/services-pricing/dry-cleaning',
       areaName: 'New Jersey',
       serviceType: 'dryCleaning',
+      pricingCatalog: pricing.catalog,
       breadcrumbs: [
         { name: 'Home', path: '/' },
         {
@@ -262,7 +275,7 @@ export async function getDryCleaningServicePricingPageModel(): Promise<ServicePr
     },
     pricing: {
       service: 'dry-cleaning',
-      model: await loadDryCleaningPricingViewModel(),
+      model: pricingModel,
     },
     otherServices: {
       title: 'Other Services',
@@ -270,7 +283,9 @@ export async function getDryCleaningServicePricingPageModel(): Promise<ServicePr
       services: [
         {
           title: 'Launder & Press',
-          price: formatUsdFromCents(PRICING.launderPressCents),
+          price:
+            pricingModel.launderPressPrice ??
+            formatUsdFromCents(PRICING.launderPressCents),
           description:
             'Priced per item. Perfect for shirts you want laundered and pressed. Our cleaning experts will separate what is best for dry cleaning and launder-press.',
         },
@@ -282,18 +297,14 @@ export async function getDryCleaningServicePricingPageModel(): Promise<ServicePr
         "Pressly's services are available 7-days a week, between 7pm-9pm. You may turn on contactless delivery when scheduling your first pickup or inside your account preferences.",
       details: [
         {
-          title: DELIVERY_FEE_LABEL,
-          price: formatUsdShortFromCents(PRICING.deliveryFeeCents),
-          description: DELIVERY_FEE_COPY,
+          title: pricingModel.deliveryFee.title,
+          price: pricingModel.deliveryFee.price,
+          description: pricingModel.deliveryFee.copy,
         },
         {
           title: 'Minimum',
-          price: formatUsdShortFromCents(minimumCents),
-          description: `Minimum only applies to orders that total less than ${formatUsdShortFromCents(
-            minimumCents,
-          )}. This is not an extra charge on top of orders above ${formatUsdShortFromCents(
-            minimumCents,
-          )}.`,
+          price: minimumPrice,
+          description: `Minimum only applies to orders that total less than ${minimumPrice}. This is not an extra charge on top of orders above ${minimumPrice}.`,
         },
       ],
       imageSrc: '/graphic-img/dc-delivery.webp',

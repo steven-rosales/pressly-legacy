@@ -1,6 +1,5 @@
 import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
 import FetchErrorCallout from '@/app/shared/ui/components/FetchErrorCallout';
-import { DELIVERY_FEE_SHORT_COPY } from '@/app/shared/marketing/content';
 import type { WashFoldPricingModel } from '@/app/shared/marketing/pricing';
 import { Check } from 'lucide-react';
 
@@ -52,7 +51,7 @@ export default function WashFoldPricing({
               <p>
                 Includes cleaning to your preferences and professional folding.
                 Pickup and delivery are available with a{' '}
-                {DELIVERY_FEE_SHORT_COPY}.
+                {model.deliveryFee.shortCopy}.
               </p>
               <p>
                 No subscriptions and no hidden fees - you only pay for what you

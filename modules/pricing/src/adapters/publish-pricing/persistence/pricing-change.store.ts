@@ -206,7 +206,7 @@ const loadPricingPlan = async (
   };
 };
 
-export const makePostgresPricingChangeStore = (input: {
+export const makePricingChangeStore = (input: {
   db: Database;
 }): PricingChangeStore => ({
   loadCurrentPricingForPublish: async (

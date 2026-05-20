@@ -42,7 +42,7 @@ const isCurrentPricingSet = () =>
     ),
   );
 
-export const makePostgresEffectivePricingCatalogFinder = (
+export const makeEffectivePricingCatalogFinder = (
   db: Database,
 ): EffectivePricingCatalogFinder => ({
   findEffectivePricingCatalog: async (

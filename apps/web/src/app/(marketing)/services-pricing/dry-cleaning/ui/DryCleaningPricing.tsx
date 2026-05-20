@@ -1,5 +1,4 @@
 import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
-import { DELIVERY_FEE_SHORT_COPY } from '@/app/shared/marketing/content';
 import FetchErrorCallout from '@/app/shared/ui/components/FetchErrorCallout';
 import type { DryCleaningPricingModel } from '@/app/shared/marketing/pricing';
 
@@ -66,7 +65,7 @@ export default function DryCleaningPricing({
           Schedule a Pickup
         </SchedulePickupButton>
         <p className="text-sm text-muted-foreground mt-4">
-          Same-day pickup available • {DELIVERY_FEE_SHORT_COPY}
+          Same-day pickup available • {model.deliveryFee.shortCopy}
         </p>
       </div>
     </div>

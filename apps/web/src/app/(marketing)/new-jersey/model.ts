@@ -5,9 +5,11 @@ import {
   OFFER_COPY,
 } from '@/app/shared/marketing/content';
 import {
-  loadDryCleaningPricingViewModel,
-  loadWashFoldPricingViewModel,
+  loadPricingCatalogViewModel,
+  toDryCleaningPricingModel,
+  toWashFoldPricingModel,
   type DryCleaningPricingModel,
+  type PricingCatalogViewModel,
   type WashFoldPricingModel,
 } from '@/app/shared/marketing/pricing';
 import {
@@ -35,8 +37,16 @@ import type { TitleVersion } from './content/seo-versions';
 type LocationServicePanelKind = 'washFold' | 'dryCleaning';
 
 type LocationServicePanel =
-  | Readonly<{ service: 'washFold'; pricing: WashFoldPricingModel }>
-  | Readonly<{ service: 'dryCleaning'; pricing: DryCleaningPricingModel }>;
+  | Readonly<{
+      service: 'washFold';
+      catalog: PricingCatalogViewModel['catalog'];
+      pricing: WashFoldPricingModel;
+    }>
+  | Readonly<{
+      service: 'dryCleaning';
+      catalog: PricingCatalogViewModel['catalog'];
+      pricing: DryCleaningPricingModel;
+    }>;
 
 type LocationGridItem =
   | Readonly<{ label: string; primaryHref: string; secondaryHref?: undefined }>
@@ -180,21 +190,32 @@ const toCountyLabel = (county: string) =>
 
 const getLocationServicePanel = async (
   service: LocationServicePanelKind,
-): Promise<LocationServicePanel> =>
-  service === 'dryCleaning'
+): Promise<LocationServicePanel> => {
+  const catalog = await loadPricingCatalogViewModel({
+    serviceSlug: service === 'dryCleaning' ? 'dry-cleaning' : 'wash-fold',
+  });
+
+  return service === 'dryCleaning'
     ? {
         service,
-        pricing: await loadDryCleaningPricingViewModel(),
+        catalog: catalog.catalog,
+        pricing: toDryCleaningPricingModel(catalog.catalog),
       }
     : {
         service,
-        pricing: await loadWashFoldPricingViewModel(),
+        catalog: catalog.catalog,
+        pricing: toWashFoldPricingModel(catalog.catalog),
       };
+};
 
 const getLocationServicePanels = (
   services: readonly LocationServicePanelKind[],
 ): Promise<readonly LocationServicePanel[]> =>
   Promise.all(services.map((service) => getLocationServicePanel(service)));
+
+const getDeliveryFeeShortCopy = (
+  panels: readonly LocationServicePanel[],
+): string => panels[0]?.pricing.deliveryFee.shortCopy ?? DELIVERY_FEE_SHORT_COPY;
 
 export const newJerseyMetadata: Metadata = buildStateMetadata();
 
@@ -216,6 +237,10 @@ export const getCityServicePageMetadata = (
 
 export const getNewJerseyPageModel = async (): Promise<LocationPageModel> => {
   const representative = LOCATIONS[0];
+  const servicePanels = await getLocationServicePanels([
+    'washFold',
+    'dryCleaning',
+  ]);
   const description = makeTitle(
     'seoCityHeroDescription',
     1,
@@ -250,7 +275,7 @@ export const getNewJerseyPageModel = async (): Promise<LocationPageModel> => {
       heading: 'How your laundry and dry cleaning pickup works.',
       steps: buildCombinedHiwSteps({ state: 'New Jersey' }),
     },
-    servicePanels: await getLocationServicePanels(['washFold', 'dryCleaning']),
+    servicePanels,
     serviceSectionClassName: stateServiceSection,
     story: {
       title: 'Pressly & New Jersey',
@@ -294,7 +319,7 @@ export const getNewJerseyPageModel = async (): Promise<LocationPageModel> => {
       'mx-auto max-w-[1440px] px-4 py-28 sm:px-6 lg:py-20',
     bottom: {
       title: 'All your garment care, one warm pickup away.',
-      description: `From everyday laundry to pressed dry cleaning, schedule one visit and we'll handle it all with a ${DELIVERY_FEE_SHORT_COPY}, returned fresh, and folded or pressed the way you like.`,
+      description: `From everyday laundry to pressed dry cleaning, schedule one visit and we'll handle it all with a ${getDeliveryFeeShortCopy(servicePanels)}, returned fresh, and folded or pressed the way you like.`,
     },
   };
 };
@@ -403,7 +428,14 @@ export const getCityServicePageModel = async (
   const { location, serviceConfig, serviceType } = resolved;
   const { cityName, heroImage, versions } = location;
   const countyName = formatCountyName(county);
-  const proof = getLocalProof(location, serviceType);
+  const servicePanel = await getLocationServicePanel(
+    serviceConfig.isDryCleaningService ? 'dryCleaning' : 'washFold',
+  );
+  const proof = getLocalProof(
+    location,
+    serviceType,
+    servicePanel.pricing.deliveryFee,
+  );
   const path = `/new-jersey/${county}/${slug}`;
   const heading = `${cityName} ${serviceLabel(serviceType)} ${serviceNoun(
     serviceType,
@@ -431,6 +463,7 @@ export const getCityServicePageModel = async (
           { name: heading, path },
         ],
         faqs: proof.faqs,
+        pricingCatalog: servicePanel.catalog,
       }),
     ],
     hero: {
@@ -448,9 +481,7 @@ export const getCityServicePageModel = async (
           : `How your laundry pickup works in ${cityName}`,
       steps: buildCityHiwSteps(cityName, serviceType, versions ?? {}),
     },
-    servicePanels: await getLocationServicePanels([
-      serviceConfig.isDryCleaningService ? 'dryCleaning' : 'washFold',
-    ]),
+    servicePanels: [servicePanel],
     serviceSectionClassName: cityServiceSection,
     story: {
       title: `Pressly & ${cityName}`,

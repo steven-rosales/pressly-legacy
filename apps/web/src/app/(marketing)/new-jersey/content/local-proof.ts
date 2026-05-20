@@ -1,9 +1,4 @@
-import {
-  CONTACT,
-  DELIVERY_FEE_COPY,
-  PRICING,
-  formatUsd,
-} from '@/app/shared/marketing/content';
+import { CONTACT, PRICING, formatUsd } from '@/app/shared/marketing/content';
 
 import type { LocationRecord } from './locations';
 import { COUNTY_CITIES } from './county-cities';
@@ -23,6 +18,7 @@ export type LocalProof = {
   cityName: string;
   countyName: string;
   serviceLabel: string;
+  deliveryFeeShortCopy: string;
   zips: string[];
   neighborhoods: string[];
   notes: string[];
@@ -145,6 +141,7 @@ function getNearbyLinks(location: LocationRecord, serviceType: ServiceType) {
 export function getLocalProof(
   location: LocationRecord,
   serviceType: ServiceType,
+  deliveryFee: Readonly<{ copy: string; shortCopy: string }>,
 ): LocalProof {
   const serviceLabel = getServiceLabel(serviceType);
   const countyName = formatCountyName(location.county);
@@ -160,7 +157,7 @@ export function getLocalProof(
   const faqs = [
     {
       question: `Does Pressly offer ${serviceLabel} in ${location.cityName}?`,
-      answer: `Yes. Pressly offers ${serviceLabel} across ${location.cityName}, with online scheduling and delivery back to your door. ${DELIVERY_FEE_COPY}`,
+      answer: `Yes. Pressly offers ${serviceLabel} across ${location.cityName}, with online scheduling and delivery back to your door. ${deliveryFee.copy}`,
     },
     {
       question: `Which ZIP codes do you serve in ${location.cityName}?`,
@@ -182,6 +179,7 @@ export function getLocalProof(
     cityName: location.cityName,
     countyName,
     serviceLabel,
+    deliveryFeeShortCopy: deliveryFee.shortCopy,
     zips: location.zips,
     neighborhoods: PRIORITY_CITY_NEIGHBORHOODS[location.citySlug] ?? [],
     notes: [

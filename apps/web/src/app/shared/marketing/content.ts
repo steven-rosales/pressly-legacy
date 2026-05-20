@@ -22,7 +22,7 @@ export const PRICING = {
   washFoldMinimumThresholdLbs: 18,
   dryCleaningMinimumCents: 3000,
   deliveryFeeCents: 495,
-  hangDryCents: 295,
+  hangDryCents: 395,
   launderPressCents: 395,
 } as const;
 
