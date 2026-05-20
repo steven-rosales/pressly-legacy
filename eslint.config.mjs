@@ -39,6 +39,16 @@ const testGlobals = {
   test: 'readonly',
 };
 
+const restrictedFileNameRule = (message) => ({
+  'no-restricted-syntax': [
+    'error',
+    {
+      selector: 'Program',
+      message,
+    },
+  ],
+});
+
 export default tseslint.config(
   {
     ignores: [
@@ -146,6 +156,235 @@ export default tseslint.config(
     languageOptions: {
       globals: testGlobals,
     },
+  },
+
+  {
+    files: ['**/*.policy.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
+
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@pressly/contracts',
+              allowTypeImports: true,
+              message:
+                'Policy files may only import types from @pressly/contracts.',
+            },
+          ],
+          patterns: [
+            {
+              regex: '^(?!@pressly/contracts$).*',
+              allowTypeImports: false,
+              message: 'Policy files may only import from @pressly/contracts.',
+            },
+          ],
+        },
+      ],
+
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          fixStyle: 'inline-type-imports',
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['**/*.usecase.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(?!(?:@pressly/|.*\\.(?:policy|port|error)(?:\\.(?:ts|js))?$)).*',
+              message:
+                'Usecase files may only import @pressly/* packages, *.policy, *.port, or *.error files.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['**/*.port.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
+
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?:@pressly\\/.*|.*\\.(?:policy)(?:\\.(?:ts|js))?)$',
+              allowTypeImports: true,
+              message:
+                'Port files may only import types from @pressly/*, or *.policy files.',
+            },
+            {
+              regex:
+                '^(?!(?:@pressly\\/.*|.*\\.(?:policy)(?:\\.(?:ts|js))?$)).*',
+              message:
+                'Port files may only import from @pressly/* or *.policy files.',
+            },
+          ],
+        },
+      ],
+
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          fixStyle: 'inline-type-imports',
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['**/*.error.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?!@pressly\\/|\\.).*',
+              message:
+                'Error files may only import @pressly/* packages or *.policy files.',
+            },
+            {
+              regex: '^\\.(?!.*\\.policy(?:\\.(?:ts|js))?$).*',
+              message: 'Relative imports in error files must target *.policy files.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['**/*.route.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^\\.(?!.*\\.(?:usecase|controller)(?:\\.(?:ts|js))?$).*',
+              message:
+                'Route files may only use relative imports for *.usecase or *.controller files.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['**/*.controller.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
+
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^\\.(?!.*\\.usecase(?:\\.(?:ts|js))?$).*',
+              message:
+                'Controller files may only use relative imports for *.usecase files.',
+            },
+            {
+              regex: '^\\..*\\.usecase(?:\\.(?:ts|js))?$',
+              allowTypeImports: true,
+              message:
+                'Controller files may only type-import from *.usecase files.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['**/*.repo.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?!@pressly\\/|\\.).*',
+              message:
+                'Repo files may only import @pressly/* packages or *.port files.',
+            },
+            {
+              regex: '^\\.(?!.*\\.port(?:\\.(?:ts|js))?$).*',
+              message: 'Relative imports in repo files must target *.port files.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: [
+      '**/adapters/**/http/**/*.ts',
+      '**/adapter/**/http/**/*.ts',
+    ],
+    ignores: [
+      '**/adapters/**/http/**/*.controller.ts',
+      '**/adapters/**/http/**/*.route.ts',
+      '**/adapter/**/http/**/*.controller.ts',
+      '**/adapter/**/http/**/*.route.ts',
+    ],
+    rules: restrictedFileNameRule(
+      'HTTP adapter files must end with .controller.ts or .route.ts.',
+    ),
+  },
+
+  {
+    files: [
+      '**/adapters/**/persistence/**/*.ts',
+      '**/adapter/**/persistence/**/*.ts',
+    ],
+    ignores: [
+      '**/adapters/**/persistence/**/*.repo.ts',
+      '**/adapter/**/persistence/**/*.repo.ts',
+    ],
+    rules: restrictedFileNameRule(
+      'Persistence adapter files must end with .repo.ts.',
+    ),
+  },
+
+  {
+    files: ['**/features/**/*.ts'],
+    ignores: [
+      '**/features/**/*.usecase.ts',
+      '**/features/**/*.port.ts',
+      '**/features/**/*.error.ts',
+    ],
+    rules: restrictedFileNameRule(
+      'Feature files must end with .usecase.ts, .port.ts, or .error.ts.',
+    ),
+  },
+
+  {
+    files: ['**/domain/**/*.ts'],
+    ignores: ['**/domain/**/*.machine.ts', '**/domain/**/*.policy.ts'],
+    rules: restrictedFileNameRule(
+      'Domain files must end with .machine.ts or .policy.ts.',
+    ),
   },
 
   prettier,

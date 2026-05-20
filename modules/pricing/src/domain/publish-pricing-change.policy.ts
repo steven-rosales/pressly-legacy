@@ -3,28 +3,29 @@ import type {
   PublishPricingChangeCommand,
 } from '@pressly/contracts';
 
-export type PricingPolicyViolation =
-  | Readonly<{
+export type PricingPolicyViolation = DeepReadonly<
+  | {
       code: 'pricing_change_reason_too_short';
       minimumLength: number;
       actualLength: number;
-    }>
-  | Readonly<{
+    }
+  | {
       code: 'duplicate_pricing_item_code';
       itemCode: string;
-    }>
-  | Readonly<{
+    }
+  | {
       code: 'invalid_pricing_item_price';
       itemCode: string;
       priceCents: number;
-    }>
-  | Readonly<{
+    }
+  | {
       code: 'pricing_item_code_not_found';
       itemCode: string;
-    }>
-  | Readonly<{
+    }
+  | {
       code: 'pricing_change_has_no_changes';
-    }>;
+    }
+>;
 
 export type CurrentPricingSet = Readonly<{
   id: string;
@@ -37,12 +38,13 @@ export type CurrentPricingItem = Readonly<{
   priceCents: number;
 }>;
 
-export type PricingChangePlanEvaluation =
-  | Readonly<{ ok: true; plan: PricingChangePlan }>
-  | Readonly<{
+export type PricingChangePlanEvaluation = DeepReadonly<
+  | { ok: true; plan: PricingChangePlan }
+  | {
       ok: false;
       violations: readonly PricingPolicyViolation[];
-    }>;
+    }
+>;
 
 export const validatePricingCommand = (
   command: PublishPricingChangeCommand,

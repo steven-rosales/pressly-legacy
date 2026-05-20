@@ -23,5 +23,6 @@
     "declarationMap": true,
     "sourceMap": true,
     "skipLibCheck": true
-  }
+  },
+  "files": ["../../tooling/types/index.d.ts"]
 }

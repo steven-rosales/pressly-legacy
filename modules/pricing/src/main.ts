@@ -1,7 +1,7 @@
 import type { Database } from '@pressly/db';
-import { makeLoadPricingCatalogRoutes } from './adapters/load-pricing-catalog/http/load-pricing-catalog.routes.ts';
-import { makeEffectivePricingCatalogFinder } from './adapters/load-pricing-catalog/persistence/effective-pricing-catalog.finder.ts';
-import { makePricingChangeStore } from './adapters/publish-pricing/persistence/pricing-change.store.ts';
+import { makeLoadPricingCatalogRoutes } from './adapters/load-pricing-catalog/http/load-pricing-catalog.route.ts';
+import { makeEffectivePricingCatalogFinder } from './adapters/load-pricing-catalog/persistence/effective-pricing-catalog.repo.ts';
+import { makePricingChangeStore } from './adapters/publish-pricing/persistence/pricing-change.repo.ts';
 import {
   makeLoadPricingCatalog,
   type LoadPricingCatalog,
