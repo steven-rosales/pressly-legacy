@@ -24,6 +24,10 @@
     "docker:postgres:up": "docker compose up -d postgres",
     "docker:postgres:logs": "docker compose logs -f postgres",
     "docker:postgres:shell": "docker compose exec postgres psql -U pressly -d pressly",
+    "docker:test-db:up": "docker compose up -d --wait postgres-test",
+    "docker:test-db:down": "docker compose stop postgres-test",
+    "docker:test-db:logs": "docker compose logs -f postgres-test",
+    "docker:test-db:shell": "docker compose exec postgres-test psql -U pressly -d pressly_test",
     "docker:api:build": "docker build --target dev -f apps/api/Dockerfile -t pressly-api:local .",
     "docker:api:build:runner": "docker build --target runner -f apps/api/Dockerfile -t pressly-api:local .",
     "docker:api:up": "docker compose up -d --build postgres api",
@@ -42,7 +46,9 @@
     "db:setup": "pnpm db:migrate && pnpm db:seed:pricing",
     "admin": "pnpm -F @pressly/cli dev --",
     "admin:docker": "docker compose run --rm -e PRESSLY_ADMIN_DATABASE_URL=postgres://pressly:pressly@postgres:5432/pressly api sh -c 'pnpm install --frozen-lockfile && pnpm -F @pressly/cli dev -- \"$@\"' --",
-    "admin:env": "pnpm -F @pressly/cli dev --"
+    "admin:env": "pnpm -F @pressly/cli dev --",
+    "db:test:migrate": "DATABASE_URL=${PRESSLY_TEST_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test} pnpm -F @pressly/db migrate",
+    "test:pricing:int": "pnpm docker:test-db:up && pnpm db:test:migrate && PRESSLY_TEST_DATABASE_URL=${PRESSLY_TEST_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test} pnpm -F @pressly/pricing test:integration"
   },
   "keywords": [],
   "author": "",

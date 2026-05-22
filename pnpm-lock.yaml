@@ -329,6 +329,9 @@ importers:
         specifier: ^5.2.1
         version: 5.2.1
     devDependencies:
+      '@pressly/testkit':
+        specifier: workspace:*
+        version: link:../../packages/testkit
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
@@ -341,6 +344,9 @@ importers:
       typescript:
         specifier: latest
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0))
 
   packages/auth:
     dependencies:
@@ -492,6 +498,13 @@ importers:
         version: 6.0.3
 
   packages/testkit:
+    dependencies:
+      '@pressly/db':
+        specifier: workspace:*
+        version: link:../db
+      '@pressly/errors':
+        specifier: workspace:*
+        version: link:../errors
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
@@ -502,6 +515,9 @@ importers:
       typescript:
         specifier: latest
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0))
 
   packages/tsconfig: {}
 
