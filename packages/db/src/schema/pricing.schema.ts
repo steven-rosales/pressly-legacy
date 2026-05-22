@@ -45,8 +45,7 @@ export const pricingServices = pgTable('pricing_services', {
 });
 
 /**
- * Stable location catalog for cities or service areas that may have custom
- * pricing.
+ * Stable location catalog for cities or service areas that may have custom pricing.
  *
  * A pricing set can reference a location when pricing differs by place. If a pricing set has no location, it acts as the default pricing for its service.
  */

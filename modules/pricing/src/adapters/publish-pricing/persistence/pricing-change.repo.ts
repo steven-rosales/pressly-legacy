@@ -1,3 +1,7 @@
+import type {
+  PublishPricingChangeCommand,
+  PublishPricingChangeResult,
+} from '@pressly/contracts';
 import {
   and,
   eq,
@@ -10,10 +14,6 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
-import type {
-  PublishPricingChangeCommand,
-  PublishPricingChangeResult,
-} from '@pressly/contracts';
 import {
   conflictError,
   err,
@@ -25,7 +25,6 @@ import {
   type Result,
 } from '@pressly/errors';
 import type {
-  CommitPricingChangePlanInput,
   LoadCurrentPricingForPublishInput,
   PricingChangeStore,
 } from '../../../features/publish-pricing/publish-pricing-change.port.ts';
@@ -219,9 +218,7 @@ const loadPricingPlan = async (
 export const makePricingChangeStore = (input: {
   db: Database;
 }): PricingChangeStore => ({
-  loadCurrentPricingForPublish: async (
-    scope: LoadCurrentPricingForPublishInput,
-  ) =>
+  loadCurrentPricingForPublish: async (scope) =>
     toDatabaseResult(async () => {
       const { currentSet, currentItems } = await loadPricingPlan(
         input.db,
@@ -242,7 +239,7 @@ export const makePricingChangeStore = (input: {
     }),
 
   commitPricingChangePlan: async (
-    publish: CommitPricingChangePlanInput,
+    publish,
   ): Promise<Result<PublishPricingChangeResult, AppError>> =>
     toDatabaseResult(async () =>
       input.db.transaction(async (tx) => {

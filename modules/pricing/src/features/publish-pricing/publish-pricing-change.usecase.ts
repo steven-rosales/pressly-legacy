@@ -52,7 +52,8 @@ export const makePublishPricingChange =
       currentItems: current.value.currentItems,
     });
 
-    if (!plan.ok) return err(pricingPolicyViolationsToAppError(plan.violations));
+    if (!plan.ok)
+      return err(pricingPolicyViolationsToAppError(plan.violations));
 
     const now = options.now ?? (() => new Date());
 
