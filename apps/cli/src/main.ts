@@ -1,7 +1,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config as loadEnv } from 'dotenv';
-import { pricingCli } from './pricing/cli.ts';
+import { pricingCli } from './features/pricing/cli.ts';
 import { runCli } from './shell/run-cli.ts';
 
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');

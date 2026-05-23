@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ok } from '@pressly/errors';
-import { runCli } from '../shell/run-cli.ts';
-import type { CliIO } from '../shell/io.ts';
+import { runCli } from '../../shell/run-cli.ts';
+import type { CliIO } from '../../shell/io.ts';
 import type { PricingAdminClient } from './client.ts';
 import { makePricingCli, type PricingCliDeps } from './cli.ts';
 import { parsePricingCliCommand } from './args.ts';

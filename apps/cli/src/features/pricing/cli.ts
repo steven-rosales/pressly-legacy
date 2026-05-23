@@ -5,7 +5,7 @@ import type {
   PublishPricingChangeResult,
 } from '@pressly/contracts';
 import { err, ok, type AppError, type Result } from '@pressly/errors';
-import { makeCliFeature } from '../shell/feature.ts';
+import { makeCliFeature } from '../../shell/feature.ts';
 import {
   parsePricingCliCommand,
   usage,
