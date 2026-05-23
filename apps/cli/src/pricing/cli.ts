@@ -1,11 +1,11 @@
 import { createElement } from 'react';
-import { render } from 'ink';
-import {
-  normalizeUnknownError,
-  type AppError,
-  type Result,
-} from '@pressly/errors';
-import { PresslyAdminApp } from '../App.tsx';
+import type {
+  LoadPricingCatalogResult,
+  PricingChangePlan,
+  PublishPricingChangeResult,
+} from '@pressly/contracts';
+import { err, ok, type AppError, type Result } from '@pressly/errors';
+import { makeCliFeature } from '../shell/feature.ts';
 import {
   parsePricingCliCommand,
   usage,
@@ -17,22 +17,17 @@ import {
   makeLocalPricingAdminClient,
   type PricingCliEnv,
 } from './local-client.ts';
+import { PricingCliView } from './PricingCliView.tsx';
 import {
-  renderAppError,
   renderPricingCatalog,
   renderPricingPlan,
   renderPricingPublishResult,
-} from './render.ts';
+} from './presenter.ts';
 
-type CliWriter = Readonly<{
-  write: (chunk: string) => unknown;
-}>;
-
-export type PricingCliIO = Readonly<{
-  stdin?: NodeJS.ReadStream;
-  stdout: NodeJS.WriteStream | CliWriter;
-  stderr: NodeJS.WriteStream | CliWriter;
-}>;
+type PricingCliOutput =
+  | Readonly<{ tag: 'catalog'; value: LoadPricingCatalogResult }>
+  | Readonly<{ tag: 'plan'; value: PricingChangePlan }>
+  | Readonly<{ tag: 'published'; value: PublishPricingChangeResult }>;
 
 export type PricingCliDeps = Readonly<{
   makePricingAdminClient: (
@@ -44,37 +39,10 @@ const defaultDeps: PricingCliDeps = {
   makePricingAdminClient: makeLocalPricingAdminClient,
 };
 
-const isTty = (stream: unknown): stream is NodeJS.WriteStream =>
-  typeof stream === 'object' &&
-  stream !== null &&
-  'isTTY' in stream &&
-  (stream as NodeJS.WriteStream).isTTY === true;
-
-const writeOutput = (
-  io: PricingCliIO,
-  output: unknown,
-  json: boolean,
-): void => {
-  io.stdout.write(
-    json
-      ? `${JSON.stringify(output, null, 2)}\n`
-      : `${String(output).trimEnd()}\n`,
-  );
-};
-
-const writeError = (io: PricingCliIO, error: AppError, json: boolean): void => {
-  io.stderr.write(
-    json
-      ? `${JSON.stringify({ ok: false, error }, null, 2)}\n`
-      : `${renderAppError(error)}\n`,
-  );
-};
-
-const runPlainPricingCommand = async (
+const runPricingCommand = async (
   command: PricingCliCommand,
   client: PricingAdminClient,
-  io: PricingCliIO,
-): Promise<number> => {
+): Promise<Result<PricingCliOutput, AppError>> => {
   if (command.action === 'show') {
     const result = await client.loadCatalog({
       serviceSlug: command.serviceSlug,
@@ -83,127 +51,57 @@ const runPlainPricingCommand = async (
         : { locationSlug: command.locationSlug }),
     });
 
-    if (!result.ok) {
-      writeError(io, result.error, command.json);
-      return 1;
-    }
-
-    writeOutput(
-      io,
-      command.json ? result.value : renderPricingCatalog(result.value),
-      command.json,
-    );
-    return 0;
+    return result.ok
+      ? ok({ tag: 'catalog', value: result.value })
+      : err(result.error);
   }
 
   const input = toPricingChangeInput(command);
 
-  if (!input.ok) {
-    writeError(io, input.error, command.json);
-    return 1;
-  }
+  if (!input.ok) return input;
 
   if (command.action === 'plan') {
     const result = await client.planChange(input.value);
 
-    if (!result.ok) {
-      writeError(io, result.error, command.json);
-      return 1;
-    }
-
-    writeOutput(
-      io,
-      command.json ? result.value : renderPricingPlan(result.value),
-      command.json,
-    );
-    return 0;
+    return result.ok
+      ? ok({ tag: 'plan', value: result.value })
+      : err(result.error);
   }
 
-  if (!command.confirm) {
-    writeError(
-      io,
-      commandError('pricing publish requires --yes to commit.'),
-      command.json,
-    );
-    return 1;
-  }
+  if (!command.confirm)
+    return err(commandError('pricing publish requires --yes to commit.'));
 
   const result = await client.publishChange(input.value);
 
-  if (!result.ok) {
-    writeError(io, result.error, command.json);
-    return 1;
-  }
-
-  writeOutput(
-    io,
-    command.json ? result.value : renderPricingPublishResult(result.value),
-    command.json,
-  );
-
-  return 0;
+  return result.ok
+    ? ok({ tag: 'published', value: result.value })
+    : err(result.error);
 };
 
-const runInkPricingCommand = async (
-  command: PricingCliCommand,
-  client: PricingAdminClient,
-  io: PricingCliIO,
-): Promise<number> => {
-  const stdout = isTty(io.stdout) ? io.stdout : process.stdout;
-  const stderr = isTty(io.stderr) ? io.stderr : process.stderr;
-  const stdin = io.stdin ?? process.stdin;
-  const instance = render(
-    createElement(PresslyAdminApp, {
-      command,
-      client,
-    }),
-    {
-      stdin,
-      stdout,
-      stderr,
-    },
-  );
-  const exitValue = await instance.waitUntilExit();
+const presentPricingOutput = (output: PricingCliOutput): string => {
+  if (output.tag === 'catalog') return renderPricingCatalog(output.value);
+  if (output.tag === 'plan') return renderPricingPlan(output.value);
 
-  return typeof exitValue === 'number' ? exitValue : 0;
+  return renderPricingPublishResult(output.value);
 };
 
-export const runPricingCli = async (
-  argv: readonly string[],
-  env: PricingCliEnv,
-  io: PricingCliIO,
-  deps: PricingCliDeps = defaultDeps,
-): Promise<number> => {
-  const parsed = parsePricingCliCommand(argv);
+const serializePricingOutput = (output: PricingCliOutput): unknown =>
+  output.value;
 
-  if (!parsed.ok) {
-    writeError(io, parsed.error, false);
-    io.stderr.write(`\n${usage}\n`);
-    return 1;
-  }
+export const makePricingCli = (deps: PricingCliDeps = defaultDeps) =>
+  makeCliFeature<PricingCliCommand, PricingAdminClient, PricingCliOutput>({
+    namespace: 'pricing',
+    usage,
+    parse: parsePricingCliCommand,
+    makeClient: deps.makePricingAdminClient,
+    run: runPricingCommand,
+    present: presentPricingOutput,
+    serialize: serializePricingOutput,
+    createView: ({ command, client }) =>
+      createElement(PricingCliView, {
+        command,
+        client,
+      }),
+  });
 
-  if (parsed.value === 'help') {
-    io.stdout.write(`${usage}\n`);
-    return 0;
-  }
-
-  const command = parsed.value;
-  const client = deps.makePricingAdminClient(env);
-
-  if (!client.ok) {
-    writeError(io, client.error, command.json);
-    return 1;
-  }
-
-  try {
-    if (command.json || !isTty(io.stdout))
-      return await runPlainPricingCommand(command, client.value, io);
-
-    return await runInkPricingCommand(command, client.value, io);
-  } catch (error) {
-    writeError(io, normalizeUnknownError(error), command.json);
-    return 1;
-  } finally {
-    await client.value.close();
-  }
-};
+export const pricingCli = makePricingCli();

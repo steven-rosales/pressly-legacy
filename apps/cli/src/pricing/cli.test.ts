@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ok } from '@pressly/errors';
+import { runCli } from '../shell/run-cli.ts';
+import type { CliIO } from '../shell/io.ts';
 import type { PricingAdminClient } from './client.ts';
-import { runPricingCli, type PricingCliIO } from './cli.ts';
+import { makePricingCli, type PricingCliDeps } from './cli.ts';
 import { parsePricingCliCommand } from './args.ts';
 
 const makeWriter = () => {
@@ -88,13 +90,25 @@ const makeFakeClient = () => {
   return { calls, client };
 };
 
-const makeIo = (): PricingCliIO & {
+const makeIo = (): CliIO & {
   stdout: ReturnType<typeof makeWriter>;
   stderr: ReturnType<typeof makeWriter>;
 } => ({
   stdout: makeWriter(),
   stderr: makeWriter(),
 });
+
+const runTestPricingCli = (
+  argv: readonly string[],
+  io: CliIO,
+  deps: PricingCliDeps,
+): Promise<number> =>
+  runCli({
+    argv,
+    env: {},
+    io,
+    features: [makePricingCli(deps)],
+  });
 
 describe('pricing CLI', () => {
   it('parses a pricing show command', () => {
@@ -147,6 +161,34 @@ describe('pricing CLI', () => {
     }
   });
 
+  it('parses supported money input syntax from pricing changes', () => {
+    const result = parsePricingCliCommand([
+      'pricing',
+      'plan',
+      '--service',
+      'wash-fold',
+      '--set',
+      'delivery_fee=$4.95',
+      '--set',
+      'shirt=495c',
+      '--reason',
+      'Update tested CLI pricing',
+    ]);
+
+    assert.equal(result.ok, true);
+
+    if (result.ok && result.value !== 'help') {
+      assert.deepEqual(result.value.items[0], {
+        code: 'delivery_fee',
+        priceCents: 495,
+      });
+      assert.deepEqual(result.value.items[1], {
+        code: 'shirt',
+        priceCents: 495,
+      });
+    }
+  });
+
   it('requires explicit confirmation for publish at run time only', () => {
     const result = parsePricingCliCommand([
       'pricing',
@@ -170,9 +212,8 @@ describe('pricing CLI', () => {
   it('runs pricing show through the injected admin client', async () => {
     const fake = makeFakeClient();
     const io = makeIo();
-    const exitCode = await runPricingCli(
+    const exitCode = await runTestPricingCli(
       ['pricing', 'show', '--service', 'wash-fold'],
-      {},
       io,
       { makePricingAdminClient: () => ok(fake.client) },
     );
@@ -186,7 +227,7 @@ describe('pricing CLI', () => {
   it('prints pricing plans as JSON for script usage', async () => {
     const fake = makeFakeClient();
     const io = makeIo();
-    const exitCode = await runPricingCli(
+    const exitCode = await runTestPricingCli(
       [
         'pricing',
         'plan',
@@ -198,7 +239,6 @@ describe('pricing CLI', () => {
         'Test JSON output',
         '--json',
       ],
-      {},
       io,
       { makePricingAdminClient: () => ok(fake.client) },
     );
@@ -225,7 +265,7 @@ describe('pricing CLI', () => {
   it('fails closed when publish runs non-interactively without --yes', async () => {
     const fake = makeFakeClient();
     const io = makeIo();
-    const exitCode = await runPricingCli(
+    const exitCode = await runTestPricingCli(
       [
         'pricing',
         'publish',
@@ -236,7 +276,6 @@ describe('pricing CLI', () => {
         '--reason',
         'Test confirmation',
       ],
-      {},
       io,
       { makePricingAdminClient: () => ok(fake.client) },
     );

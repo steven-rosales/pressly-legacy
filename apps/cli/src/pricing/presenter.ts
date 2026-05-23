@@ -3,8 +3,7 @@ import type {
   PricingChangePlan,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
-import { formatMoney } from './money.ts';
+import { formatMoney } from '@pressly/presenters';
 
 export const renderPricingCatalog = (
   catalog: LoadPricingCatalogResult,
@@ -64,12 +63,3 @@ export const renderPricingPlan = (plan: PricingChangePlan): string => {
 
   return lines.join('\n');
 };
-
-export const renderAppError = (error: AppError): string =>
-  [
-    error.safeMessage,
-    '',
-    `code: ${error.code}`,
-    `kind: ${error.kind}`,
-    `message: ${error.message}`,
-  ].join('\n');

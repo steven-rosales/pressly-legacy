@@ -36,6 +36,9 @@ const readDatabaseUrl = (env: PricingCliEnv): Result<string, AppError> => {
   );
 };
 
+/**
+ * The main bridge between the pricing module and the CLI. The `makePricingModule` returns and `admin` property which holds values to command.
+ */
 export const makeLocalPricingAdminClient = (
   env: PricingCliEnv,
 ): Result<PricingAdminClient, AppError> => {

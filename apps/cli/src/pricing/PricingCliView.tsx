@@ -1,22 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { normalizeUnknownError, type AppError } from '@pressly/errors';
+import { presentAppError } from '@pressly/presenters';
 import type {
   LoadPricingCatalogResult,
   PricingChangePlan,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
-import type {
-  PricingAdminClient,
-  PricingChangeInput,
-} from './pricing/client.ts';
-import { commandError, toPricingChangeInput } from './pricing/command.ts';
+import type { PricingAdminClient, PricingChangeInput } from './client.ts';
+import { commandError, toPricingChangeInput } from './command.ts';
 import {
   renderPricingCatalog,
   renderPricingPlan,
   renderPricingPublishResult,
-} from './pricing/render.ts';
-import type { PricingCliCommand } from './pricing/args.ts';
+} from './presenter.ts';
+import type { PricingCliCommand } from './args.ts';
 
 type AppState =
   | Readonly<{ tag: 'loading'; message: string }>
@@ -32,7 +30,7 @@ type AppState =
   | Readonly<{ tag: 'cancelled' }>
   | Readonly<{ tag: 'error'; error: AppError }>;
 
-export type PresslyAdminAppProps = Readonly<{
+export type PricingCliViewProps = Readonly<{
   command: PricingCliCommand;
   client: PricingAdminClient;
 }>;
@@ -50,13 +48,7 @@ const SpinnerLine = ({ children }: { children: string }) => (
 );
 
 const ErrorView = ({ error }: { error: AppError }) => (
-  <Box flexDirection="column">
-    <Text color="red">{error.safeMessage}</Text>
-    <Text> </Text>
-    <Text>code: {error.code}</Text>
-    <Text>kind: {error.kind}</Text>
-    <Text>message: {error.message}</Text>
-  </Box>
+  <Lines value={presentAppError(error)} />
 );
 
 const exitCodeForState = (state: AppState): number =>
@@ -64,7 +56,7 @@ const exitCodeForState = (state: AppState): number =>
 
 const asAppError = (error: unknown): AppError => normalizeUnknownError(error);
 
-export const PresslyAdminApp = ({ command, client }: PresslyAdminAppProps) => {
+export const PricingCliView = ({ command, client }: PricingCliViewProps) => {
   const app = useApp();
   const [state, setState] = useState<AppState>({
     tag: 'loading',
