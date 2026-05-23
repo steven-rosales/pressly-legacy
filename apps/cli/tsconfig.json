@@ -2,10 +2,11 @@
   "extends": "../../packages/tsconfig/node.json",
   "compilerOptions": {
     "composite": true,
+    "jsx": "react-jsx",
     "outDir": "dist",
     "rootDir": "src",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["dist", "node_modules"]
 }

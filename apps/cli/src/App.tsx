@@ -1,0 +1,229 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Box, Text, useApp, useInput } from 'ink';
+import { normalizeUnknownError, type AppError } from '@pressly/errors';
+import type {
+  LoadPricingCatalogResult,
+  PricingChangePlan,
+  PublishPricingChangeResult,
+} from '@pressly/contracts';
+import type {
+  PricingAdminClient,
+  PricingChangeInput,
+} from './pricing/client.ts';
+import { commandError, toPricingChangeInput } from './pricing/command.ts';
+import {
+  renderPricingCatalog,
+  renderPricingPlan,
+  renderPricingPublishResult,
+} from './pricing/render.ts';
+import type { PricingCliCommand } from './pricing/args.ts';
+
+type AppState =
+  | Readonly<{ tag: 'loading'; message: string }>
+  | Readonly<{ tag: 'catalog'; catalog: LoadPricingCatalogResult }>
+  | Readonly<{ tag: 'plan'; plan: PricingChangePlan }>
+  | Readonly<{
+      tag: 'confirm';
+      input: PricingChangeInput;
+      plan: PricingChangePlan;
+    }>
+  | Readonly<{ tag: 'publishing'; message: string }>
+  | Readonly<{ tag: 'published'; result: PublishPricingChangeResult }>
+  | Readonly<{ tag: 'cancelled' }>
+  | Readonly<{ tag: 'error'; error: AppError }>;
+
+export type PresslyAdminAppProps = Readonly<{
+  command: PricingCliCommand;
+  client: PricingAdminClient;
+}>;
+
+const Lines = ({ value }: { value: string }) => (
+  <Box flexDirection="column">
+    {value.split('\n').map((line, index) => (
+      <Text key={`${index}-${line}`}>{line === '' ? ' ' : line}</Text>
+    ))}
+  </Box>
+);
+
+const SpinnerLine = ({ children }: { children: string }) => (
+  <Text color="cyan">{children}</Text>
+);
+
+const ErrorView = ({ error }: { error: AppError }) => (
+  <Box flexDirection="column">
+    <Text color="red">{error.safeMessage}</Text>
+    <Text> </Text>
+    <Text>code: {error.code}</Text>
+    <Text>kind: {error.kind}</Text>
+    <Text>message: {error.message}</Text>
+  </Box>
+);
+
+const exitCodeForState = (state: AppState): number =>
+  state.tag === 'error' || state.tag === 'cancelled' ? 1 : 0;
+
+const asAppError = (error: unknown): AppError => normalizeUnknownError(error);
+
+export const PresslyAdminApp = ({ command, client }: PresslyAdminAppProps) => {
+  const app = useApp();
+  const [state, setState] = useState<AppState>({
+    tag: 'loading',
+    message: 'Loading pricing...',
+  });
+
+  const changeInput = useMemo(() => {
+    if (command.action === 'show') return undefined;
+
+    return toPricingChangeInput(command);
+  }, [command]);
+
+  useEffect(() => {
+    let active = true;
+
+    const setIfActive = (next: AppState) => {
+      if (active) setState(next);
+    };
+
+    const run = async () => {
+      try {
+        if (command.action === 'show') {
+          const result = await client.loadCatalog({
+            serviceSlug: command.serviceSlug,
+            ...(command.locationSlug === undefined
+              ? {}
+              : { locationSlug: command.locationSlug }),
+          });
+
+          setIfActive(
+            result.ok
+              ? { tag: 'catalog', catalog: result.value }
+              : { tag: 'error', error: result.error },
+          );
+          return;
+        }
+
+        if (changeInput === undefined || !changeInput.ok) {
+          setIfActive({
+            tag: 'error',
+            error:
+              changeInput === undefined
+                ? commandError('Missing pricing change input.')
+                : changeInput.error,
+          });
+          return;
+        }
+
+        if (command.action === 'plan') {
+          const result = await client.planChange(changeInput.value);
+
+          setIfActive(
+            result.ok
+              ? { tag: 'plan', plan: result.value }
+              : { tag: 'error', error: result.error },
+          );
+          return;
+        }
+
+        if (command.confirm) {
+          setIfActive({
+            tag: 'publishing',
+            message: 'Publishing pricing change...',
+          });
+
+          const result = await client.publishChange(changeInput.value);
+
+          setIfActive(
+            result.ok
+              ? { tag: 'published', result: result.value }
+              : { tag: 'error', error: result.error },
+          );
+          return;
+        }
+
+        const plan = await client.planChange(changeInput.value);
+
+        setIfActive(
+          plan.ok
+            ? { tag: 'confirm', input: changeInput.value, plan: plan.value }
+            : { tag: 'error', error: plan.error },
+        );
+      } catch (error) {
+        setIfActive({ tag: 'error', error: asAppError(error) });
+      }
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, [changeInput, client, command]);
+
+  useEffect(() => {
+    if (
+      state.tag === 'catalog' ||
+      state.tag === 'plan' ||
+      state.tag === 'published' ||
+      state.tag === 'cancelled' ||
+      state.tag === 'error'
+    ) {
+      app.exit(exitCodeForState(state));
+    }
+  }, [app, state]);
+
+  useInput(
+    async (input, key) => {
+      if (state.tag !== 'confirm') return;
+
+      if (input.toLowerCase() === 'n' || key.escape) {
+        setState({ tag: 'cancelled' });
+        return;
+      }
+
+      if (input.toLowerCase() !== 'y') return;
+
+      setState({ tag: 'publishing', message: 'Publishing pricing change...' });
+
+      try {
+        const result = await client.publishChange(state.input);
+
+        setState(
+          result.ok
+            ? { tag: 'published', result: result.value }
+            : { tag: 'error', error: result.error },
+        );
+      } catch (error) {
+        setState({ tag: 'error', error: asAppError(error) });
+      }
+    },
+    { isActive: state.tag === 'confirm' },
+  );
+
+  if (state.tag === 'loading' || state.tag === 'publishing')
+    return <SpinnerLine>{state.message}</SpinnerLine>;
+
+  if (state.tag === 'catalog')
+    return <Lines value={renderPricingCatalog(state.catalog)} />;
+
+  if (state.tag === 'plan')
+    return <Lines value={renderPricingPlan(state.plan)} />;
+
+  if (state.tag === 'confirm')
+    return (
+      <Box flexDirection="column">
+        <Lines value={renderPricingPlan(state.plan)} />
+        <Text> </Text>
+        <Text color="yellow">
+          Publish this pricing change? Press y to publish or n to cancel.
+        </Text>
+      </Box>
+    );
+
+  if (state.tag === 'published')
+    return <Lines value={renderPricingPublishResult(state.result)} />;
+
+  if (state.tag === 'cancelled')
+    return <Text color="yellow">Pricing change cancelled.</Text>;
+
+  return <ErrorView error={state.error} />;
+};

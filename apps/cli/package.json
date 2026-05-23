@@ -21,11 +21,14 @@
     "@pressly/db": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/pricing": "workspace:*",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "ink": "^6.8.0",
+    "react": "^19.2.6"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",
     "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
     "tsx": "latest",
     "typescript": "latest"
   }

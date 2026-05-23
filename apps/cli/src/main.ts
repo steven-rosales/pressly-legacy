@@ -9,6 +9,7 @@ loadEnv({ path: resolve(appDir, '.env.local') });
 
 const main = async (): Promise<void> => {
   const exitCode = await runPricingCli(process.argv.slice(2), process.env, {
+    stdin: process.stdin,
     stdout: process.stdout,
     stderr: process.stderr,
   });
