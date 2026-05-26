@@ -1,3 +1,4 @@
+import type { Principal } from './principal.ts';
 import type { Permission, Role } from './permission.ts';
 import { permissionsForRole } from './permission.ts';
 
@@ -18,3 +19,14 @@ export const makeActor = (input: Omit<Actor, 'permissions'>): Actor => ({
   role: input.role,
   permissions: permissionsForRole(input.role),
 });
+
+export const actorFromPrincipal = (input: {
+  principal: Principal;
+  role: Role;
+}): Actor =>
+  makeActor({
+    id: input.principal.identityId,
+    kind: input.principal.kind === 'service' ? 'service' : 'user',
+    displayName: input.principal.displayName,
+    role: input.role,
+  });

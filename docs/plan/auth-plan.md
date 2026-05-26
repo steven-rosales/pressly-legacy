@@ -93,11 +93,7 @@ const authModule = makeAuthModule({ db, env });
 const pricingModule = makePricingModule({ db });
 
 app.use('/auth', authModule.routes);
-app.use(
-  '/admin/pricing',
-  authModule.authenticate,
-  pricingModule.adminRoutes,
-);
+app.use('/admin/pricing', authModule.authenticate, pricingModule.adminRoutes);
 ```
 
 Bad:
@@ -277,10 +273,10 @@ packages/contracts/src/index.ts
 Contracts to define:
 
 ```ts
-loginRequestSchema
-loginResultSchema
-sessionResultSchema
-logoutResultSchema
+loginRequestSchema;
+loginResultSchema;
+sessionResultSchema;
+logoutResultSchema;
 ```
 
 Login request:
@@ -1029,7 +1025,7 @@ Reason:
 Generate token:
 
 ```ts
-crypto.randomBytes(32).toString('base64url')
+crypto.randomBytes(32).toString('base64url');
 ```
 
 Hash token before storing:
@@ -1782,11 +1778,7 @@ export { actorFromPrincipal, makeActor } from './actor.ts';
 export { allowDecision, denyDecision } from './decision.ts';
 export { normalizeEmail } from './identity.ts';
 export { principalLabel } from './principal.ts';
-export {
-  isRole,
-  permissionsForRole,
-  selectHighestRole,
-} from './permission.ts';
+export { isRole, permissionsForRole, selectHighestRole } from './permission.ts';
 export { allow, authorize, freshSession, permission } from './policy.ts';
 export {
   isSessionExpired,
@@ -1990,27 +1982,24 @@ export const authIdentities = pgTable('auth_identities', {
     .defaultNow(),
 });
 
-export const authPasswordCredentials = pgTable(
-  'auth_password_credentials',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    identityId: uuid('identity_id')
-      .notNull()
-      .references(() => authIdentities.id),
-    passwordHash: text('password_hash').notNull(),
-    passwordUpdatedAt: timestamp('password_updated_at', {
-      withTimezone: true,
-    })
-      .notNull()
-      .defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-);
+export const authPasswordCredentials = pgTable('auth_password_credentials', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  identityId: uuid('identity_id')
+    .notNull()
+    .references(() => authIdentities.id),
+  passwordHash: text('password_hash').notNull(),
+  passwordUpdatedAt: timestamp('password_updated_at', {
+    withTimezone: true,
+  })
+    .notNull()
+    .defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export const authSessions = pgTable('auth_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -2058,11 +2047,15 @@ export const authLoginAttempts = pgTable('auth_login_attempts', {
 
 export const authAuditEvents = pgTable('auth_audit_events', {
   id: uuid('id').primaryKey().defaultRandom(),
-  actorIdentityId: uuid('actor_identity_id').references(() => authIdentities.id),
+  actorIdentityId: uuid('actor_identity_id').references(
+    () => authIdentities.id,
+  ),
   eventType: text('event_type').notNull(),
   resourceType: text('resource_type').notNull(),
   resourceId: text('resource_id'),
-  metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+  metadata: jsonb('metadata')
+    .notNull()
+    .default(sql`'{}'::jsonb`),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -2426,7 +2419,12 @@ import { normalizeEmail } from '@pressly/auth';
 import type { LoginResult } from '@pressly/contracts';
 import { err, ok, type AppError, type Result } from '@pressly/errors';
 import { invalidCredentials, loginRateLimited } from './login.error.ts';
-import type { Clock, LoginStore, PasswordVerifier, TokenIssuer } from './login.port.ts';
+import type {
+  Clock,
+  LoginStore,
+  PasswordVerifier,
+  TokenIssuer,
+} from './login.port.ts';
 
 export type LoginCommand = Readonly<{
   email: string;
@@ -2552,8 +2550,12 @@ export const makeLogin =
       emailNormalized,
       identityId: identity.value.id,
       success: true,
-      ...(command.ipAddress === undefined ? {} : { ipAddress: command.ipAddress }),
-      ...(command.userAgent === undefined ? {} : { userAgent: command.userAgent }),
+      ...(command.ipAddress === undefined
+        ? {}
+        : { ipAddress: command.ipAddress }),
+      ...(command.userAgent === undefined
+        ? {}
+        : { userAgent: command.userAgent }),
     });
 
     await deps.store.recordAuditEvent({
@@ -2570,7 +2572,9 @@ export const makeLogin =
       principal: {
         identityId: identity.value.id,
         displayName: identity.value.displayName,
-        ...(identity.value.email === undefined ? {} : { email: identity.value.email }),
+        ...(identity.value.email === undefined
+          ? {}
+          : { email: identity.value.email }),
         roles: [...identity.value.roles],
       },
     });
@@ -2600,7 +2604,10 @@ export type LoadSessionStore = Readonly<{
   findByTokenHash: (
     tokenHash: string,
   ) => Promise<Result<StoredSessionPrincipal | undefined, AppError>>;
-  touchSession: (sessionId: string, now: Date) => Promise<Result<void, AppError>>;
+  touchSession: (
+    sessionId: string,
+    now: Date,
+  ) => Promise<Result<void, AppError>>;
 }>;
 
 export type TokenHasher = Readonly<{
@@ -2657,7 +2664,11 @@ import {
 } from '@pressly/auth';
 import { err, ok, type AppError, type Result } from '@pressly/errors';
 import { expiredSession, invalidSession } from './load-session.error.ts';
-import type { Clock, LoadSessionStore, TokenHasher } from './load-session.port.ts';
+import type {
+  Clock,
+  LoadSessionStore,
+  TokenHasher,
+} from './load-session.port.ts';
 
 export type LoadSessionCommand = Readonly<{
   bearerToken: string;
@@ -2862,9 +2873,9 @@ const toDatabaseResult = async <T>(
   }
 };
 
-export const makeAuthStore = (db: Database): LoginStore &
-  LoadSessionStore &
-  RevokeSessionStore => ({
+export const makeAuthStore = (
+  db: Database,
+): LoginStore & LoadSessionStore & RevokeSessionStore => ({
   findIdentityByEmail: async (emailNormalized) =>
     toDatabaseResult(async () => {
       const [identity] = await db
@@ -3057,7 +3068,11 @@ import { makeLoginController } from './login.controller.ts';
 export const makeLoginRoute = (login: Login): Router => {
   const router = Router();
 
-  router.post('/', validateRequest({ body: loginRequestSchema }), makeLoginController(login));
+  router.post(
+    '/',
+    validateRequest({ body: loginRequestSchema }),
+    makeLoginController(login),
+  );
 
   return router;
 };
@@ -3159,8 +3174,7 @@ export type AuthorizeMiddlewareFactory = (
 ) => RequestHandler;
 
 export const makeAuthorizeMiddleware =
-  (): AuthorizeMiddlewareFactory =>
-  (input) =>
+  (): AuthorizeMiddlewareFactory => (input) =>
     catchAsync(async (_req, res, next) => {
       const auth = res.locals['auth'] as AuthLocals | undefined;
 
@@ -3266,7 +3280,9 @@ export const makeLoadSessionController = (
         principal: {
           identityId: result.value.identityId,
           displayName: result.value.displayName,
-          ...(result.value.email === undefined ? {} : { email: result.value.email }),
+          ...(result.value.email === undefined
+            ? {}
+            : { email: result.value.email }),
           roles: [...result.value.roles],
         },
         expiresAt: result.value.sessionExpiresAt.toISOString(),
@@ -3821,10 +3837,7 @@ export type LoginPromptResult = Readonly<{
   password: string;
 }>;
 
-const promptHidden = async (
-  question: string,
-  io: CliIO,
-): Promise<string> => {
+const promptHidden = async (question: string, io: CliIO): Promise<string> => {
   const stdin = io.stdin ?? process.stdin;
   const output = io.stderr as NodeJS.WriteStream;
 
@@ -3975,7 +3988,9 @@ const requestJson = async <T>(input: {
       method: input.method ?? 'GET',
       headers: {
         accept: 'application/json',
-        ...(input.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(input.body === undefined
+          ? {}
+          : { 'content-type': 'application/json' }),
         ...(input.bearerToken === undefined
           ? {}
           : { authorization: `Bearer ${input.bearerToken}` }),
