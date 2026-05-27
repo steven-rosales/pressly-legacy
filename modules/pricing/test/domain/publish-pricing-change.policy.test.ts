@@ -8,7 +8,7 @@ import {
 
 const actor = {
   id: 'user_1',
-  kind: 'user',
+  kind: 'human',
   displayName: 'Steven',
   role: 'admin',
 } satisfies PublishPricingChangeCommand['actor'];

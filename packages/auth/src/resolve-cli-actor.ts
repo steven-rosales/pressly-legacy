@@ -31,7 +31,7 @@ export const resolveCliActor = (env: CliActorEnv): Actor => {
       details: { role: roleValue },
     });
 
-  const kind = env['CI'] === 'true' ? 'service' : 'user';
+  const kind = env['CI'] === 'true' ? 'service' : 'human';
 
   return makeActor({ id, kind, displayName, role: roleValue });
 };

@@ -5,6 +5,7 @@ export { normalizeEmail } from './identity.ts';
 export { principalLabel } from './principal.ts';
 export { isRole, permissionsForRole, selectHighestRole } from './permission.ts';
 export { allow, authorize, freshSession, permission } from './policy.ts';
+export { resolveCliActor } from './resolve-cli-actor.ts';
 export {
   isSessionExpired,
   isSessionRevoked,
@@ -13,7 +14,7 @@ export {
 export { validatePasswordStrength } from './password.ts';
 
 export type { Action } from './action.ts';
-export type { Actor, ActorKind } from './actor.ts';
+export type { Actor } from './actor.ts';
 export type { AuthDecision, AuthDenyReason } from './decision.ts';
 export type { Identity, IdentityKind } from './identity.ts';
 export type { Principal } from './principal.ts';

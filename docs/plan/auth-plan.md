@@ -211,7 +211,7 @@ export type Principal = Readonly<{
 
 export type Actor = Readonly<{
   id: string;
-  kind: 'user' | 'service';
+  kind: 'human' | 'service';
   displayName: string;
   role: Role;
   permissions: readonly Permission[];
@@ -1463,14 +1463,13 @@ export const principalLabel = (principal: Principal): string =>
 
 ```ts
 import type { Principal } from './principal.ts';
+import type { IdentityKind } from './identity.ts';
 import type { Permission, Role } from './permission.ts';
 import { permissionsForRole } from './permission.ts';
 
-export type ActorKind = 'user' | 'service';
-
 export type Actor = Readonly<{
   id: string;
-  kind: ActorKind;
+  kind: IdentityKind;
   displayName: string;
   role: Role;
   permissions: readonly Permission[];
@@ -1479,7 +1478,7 @@ export type Actor = Readonly<{
 export const makeActor = (
   input: Readonly<{
     id: string;
-    kind: ActorKind;
+    kind: IdentityKind;
     displayName: string;
     role: Role;
   }>,
@@ -1494,7 +1493,7 @@ export const actorFromPrincipal = (input: {
 }): Actor =>
   makeActor({
     id: input.principal.identityId,
-    kind: input.principal.kind === 'service' ? 'service' : 'user',
+    kind: input.principal.kind,
     displayName: input.principal.displayName,
     role: input.role,
   });
@@ -1788,7 +1787,7 @@ export {
 export { validatePasswordStrength } from './password.ts';
 
 export type { Action } from './action.ts';
-export type { Actor, ActorKind } from './actor.ts';
+export type { Actor } from './actor.ts';
 export type { AuthDecision, AuthDenyReason } from './decision.ts';
 export type { Identity, IdentityKind } from './identity.ts';
 export type { Principal } from './principal.ts';
@@ -1900,7 +1899,7 @@ Also expand the actor role enum:
 export const publishPricingChangeActorSchema = z
   .object({
     id: z.string().min(1),
-    kind: z.enum(['user', 'service']),
+    kind: z.enum(['human', 'service']),
     displayName: z.string().min(1),
     role: z.enum([
       'owner',

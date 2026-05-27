@@ -1,4 +1,4 @@
-import type { Actor, ActorKind } from '@pressly/auth';
+import type { Actor, IdentityKind } from '@pressly/auth';
 import type {
   LoadPricingCatalogCommand,
   PublishPricingChangeCommand,
@@ -11,7 +11,7 @@ import type {
 
 export const makeAdminActor = (
   id = 'user_1',
-  kind: ActorKind = 'user',
+  kind: IdentityKind = 'human',
   displayName = 'steven',
 ): Omit<Actor, 'permissions'> => ({
   id,
@@ -22,7 +22,7 @@ export const makeAdminActor = (
 
 export const makeDeveloperActor = (): Omit<Actor, 'permissions'> => ({
   id: 'user_2',
-  kind: 'user',
+  kind: 'human',
   displayName: 'Developer',
   role: 'developer',
 });

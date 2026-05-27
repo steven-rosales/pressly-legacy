@@ -164,7 +164,7 @@ describe('pricing change repo', () => {
       id: value.auditEventId,
       kind: 'pricing.publish',
       actorId: 'user_1',
-      actorKind: 'user',
+      actorKind: 'human',
       actorDisplayName: 'steven',
       serviceSlug: 'wash-fold',
       reason: 'Update delivery fee',

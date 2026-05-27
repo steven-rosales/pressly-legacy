@@ -90,9 +90,11 @@ export const authorize = (input: {
     (rule) =>
       rule.action === input.action && matchesResource(rule, input.resource),
   );
+  let hasRoleMatch = false;
 
   for (const rule of candidates) {
     if (!matchesRole(rule, input.actor)) continue;
+    hasRoleMatch = true;
     if (!matchesPermissions(rule, input.actor)) continue;
 
     const failed = rule.conditions.find(
@@ -114,7 +116,9 @@ export const authorize = (input: {
   }
 
   return denyDecision(
-    candidates.length === 0 ? 'missing_permission' : 'missing_role',
+    candidates.length === 0 || hasRoleMatch
+      ? 'missing_permission'
+      : 'missing_role',
     'You do not have permission to perform this action.',
     { action: input.action, resource: input.resource, role: input.actor.role },
   );
