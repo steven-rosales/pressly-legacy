@@ -4,7 +4,7 @@ export { allowDecision, denyDecision } from './decision.ts';
 export { normalizeEmail } from './identity.ts';
 export { principalLabel } from './principal.ts';
 export { isRole, permissionsForRole, selectHighestRole } from './permission.ts';
-export { allow, authorize, freshSession, permission } from './policy.ts';
+export { allow, authorize, freshSession } from './policy.ts';
 export { resolveCliActor } from './resolve-cli-actor.ts';
 export {
   isSessionExpired,
@@ -20,6 +20,5 @@ export type { Identity, IdentityKind } from './identity.ts';
 export type { Principal } from './principal.ts';
 export type { Permission, Role } from './permission.ts';
 export type { AuthContext, PolicyCondition, PolicyRule } from './policy.ts';
-export type { Resource } from './resource.ts';
 export type { Session } from './session.ts';
 export type { PasswordStrengthViolation } from './password.ts';

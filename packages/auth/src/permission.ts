@@ -1,3 +1,11 @@
+/**
+ * This Permission shape is fine for now, but later:
+ * 1) Split permissions by boundary context, not technical shape: auth.permissions.ts, pricing.permissions.ts, etc.
+ * 2) Keep role grants composed centrally in auth, because roles are cross domain security policy
+ * 3) Add runtime/dev validation that every granted permission exists in the registry
+ * 4) Add metadata when useful: owner/domain, description, maybe deprecation state. Do not turn permissions into a database/config system unless non-engineers need to edit them
+ */
+
 export type Permission =
   | 'auth:session:read'
   | 'auth:session:revoke'

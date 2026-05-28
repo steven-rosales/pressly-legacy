@@ -3,9 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Action } from './action.ts';
 import type { Actor } from './actor.ts';
 import type { Permission, Role } from './permission.ts';
-import type { AuthContext, PolicyCondition, PolicyRule } from './policy.ts';
-import { allow, authorize, freshSession, permission } from './policy.ts';
-import type { Resource } from './resource.ts';
+import type { AuthContext, PolicyCondition } from './policy.ts';
+import { allow, authorize, freshSession } from './policy.ts';
 
 const actor = (
   input: {
@@ -20,33 +19,16 @@ const actor = (
   permissions: input.permissions ?? [],
 });
 
-const authorizeWith = (input: {
-  actor?: Actor;
-  action?: Action;
-  resource?: Resource;
-  context?: AuthContext;
-  policies?: readonly PolicyRule[];
-}) =>
-  authorize({
-    actor: input.actor ?? actor(),
-    action: input.action ?? 'pricing:publish',
-    resource: input.resource ?? 'pricing_catalog',
-    ...(input.context === undefined ? {} : { context: input.context }),
-    policies: input.policies ?? [],
-  });
-
 describe('allow policy builder', () => {
-  it('builds a rule with action, resource, roles, permissions, and conditions', () => {
+  it('builds a rule with action, roles, permissions, and conditions', () => {
     const condition = freshSession({ maxAgeMinutes: 10 });
 
     const rule = allow('auth:login')
-      .on('auth_identity')
       .to('admin')
       .require('auth:session:read')
       .when(condition);
 
     expect(rule.action).toBe('auth:login');
-    expect(rule.resource).toBe('auth_identity');
     expect(rule.roles).toEqual(['admin']);
     expect(rule.permissions).toEqual(['auth:session:read']);
     expect(rule.conditions).toEqual([condition]);
@@ -55,18 +37,13 @@ describe('allow policy builder', () => {
   it('keeps builder calls immutable', () => {
     const condition = freshSession({ maxAgeMinutes: 10 });
     const base = allow('auth:login');
-    const scoped = base.on('auth_identity');
-    const restricted = scoped.to('admin');
+    const restricted = base.to('admin');
     const permitted = restricted.require('auth:session:read');
     const conditioned = permitted.when(condition);
 
-    expect(base.resource).toBeUndefined();
     expect(base.roles).toEqual([]);
     expect(base.permissions).toEqual([]);
     expect(base.conditions).toEqual([]);
-
-    expect(scoped.resource).toBe('auth_identity');
-    expect(scoped.roles).toEqual([]);
 
     expect(restricted.roles).toEqual(['admin']);
     expect(restricted.permissions).toEqual([]);
@@ -79,7 +56,12 @@ describe('allow policy builder', () => {
 
   it('appends conditions across multiple when calls', () => {
     const first = freshSession({ maxAgeMinutes: 10 });
-    const second = permission('auth:session:read');
+    const second: PolicyCondition = {
+      name: 'location_context',
+      denyReason: 'missing_context',
+      safeMessage: 'Choose a location before continuing.',
+      evaluate: ({ context }) => context['locationId'] === 'loc_1',
+    };
 
     const rule = allow('auth:login').when(first).when(second);
 
@@ -88,32 +70,29 @@ describe('allow policy builder', () => {
 });
 
 describe('authorize', () => {
-  it('allows a matching action, resource, role, and permission', () => {
+  it('allows a matching action, role, and permission', () => {
     const allowedActor = actor({
       role: 'admin',
       permissions: ['pricing:publish'],
     });
 
-    const decision = authorizeWith({
+    const decision = authorize({
       actor: allowedActor,
+      action: 'pricing:publish',
       policies: [
-        allow('pricing:publish')
-          .on('pricing_catalog')
-          .to('admin')
-          .require('pricing:publish'),
+        allow('pricing:publish').to('admin').require('pricing:publish'),
       ],
     });
 
     expect(decision).toEqual({ ok: true, actor: allowedActor });
   });
 
-  it('allows resource-less rules for any requested resource', () => {
+  it('allows a matching action and role without required permissions', () => {
     const customer = actor({ role: 'customer' });
 
-    const decision = authorizeWith({
+    const decision = authorize({
       actor: customer,
       action: 'auth:logout',
-      resource: 'auth_session',
       policies: [allow('auth:logout').to('customer')],
     });
 
@@ -126,12 +105,11 @@ describe('authorize', () => {
       permissions: ['pricing:read', 'pricing:plan'],
     });
 
-    const decision = authorizeWith({
+    const decision = authorize({
       actor: admin,
       action: 'pricing:publish',
       policies: [
         allow('pricing:publish')
-          .on('pricing_catalog')
           .to('admin')
           .require('pricing:read', 'pricing:publish'),
       ],
@@ -143,13 +121,13 @@ describe('authorize', () => {
     });
   });
 
-  it('denies when no action/resource candidate exists', () => {
-    const decision = authorizeWith({
+  it('denies when no action candidate exists', () => {
+    const decision = authorize({
+      actor: actor(),
       action: 'auth:logout',
-      resource: 'auth_session',
       policies: [
-        allow('pricing:publish').on('pricing_catalog').to('admin'),
-        allow('auth:logout').on('auth_identity').to('admin'),
+        allow('pricing:publish').to('admin'),
+        allow('auth:login').to('admin'),
       ],
     });
 
@@ -159,18 +137,16 @@ describe('authorize', () => {
       safeMessage: 'You do not have permission to perform this action.',
       details: {
         action: 'auth:logout',
-        resource: 'auth_session',
         role: 'admin',
       },
     });
   });
 
   it('denies missing_role when candidates exist but no role matches', () => {
-    const decision = authorizeWith({
+    const decision = authorize({
       actor: actor({ role: 'customer' }),
-      policies: [
-        allow('pricing:publish').on('pricing_catalog').to('admin', 'owner'),
-      ],
+      action: 'pricing:publish',
+      policies: [allow('pricing:publish').to('admin', 'owner')],
     });
 
     expect(decision).toMatchObject({
@@ -180,13 +156,11 @@ describe('authorize', () => {
   });
 
   it('denies missing_permission when the role matches but permission does not', () => {
-    const decision = authorizeWith({
+    const decision = authorize({
       actor: actor({ role: 'admin', permissions: ['pricing:read'] }),
+      action: 'pricing:publish',
       policies: [
-        allow('pricing:publish')
-          .on('pricing_catalog')
-          .to('admin')
-          .require('pricing:publish'),
+        allow('pricing:publish').to('admin').require('pricing:publish'),
       ],
     });
 
@@ -199,15 +173,13 @@ describe('authorize', () => {
   it('keeps scanning after an earlier candidate fails role or permission checks', () => {
     const customer = actor({ role: 'customer' });
 
-    const decision = authorizeWith({
+    const decision = authorize({
       actor: customer,
+      action: 'pricing:publish',
       policies: [
-        allow('pricing:publish').on('pricing_catalog').to('admin'),
-        allow('pricing:publish')
-          .on('pricing_catalog')
-          .to('customer')
-          .require('pricing:publish'),
-        allow('pricing:publish').on('pricing_catalog').to('customer'),
+        allow('pricing:publish').to('admin'),
+        allow('pricing:publish').to('customer').require('pricing:publish'),
+        allow('pricing:publish').to('customer'),
       ],
     });
 
@@ -222,15 +194,11 @@ describe('authorize', () => {
       evaluate: ({ context }) => context['locationId'] === 'loc_1',
     };
 
-    const decision = authorizeWith({
+    const decision = authorize({
       actor: actor({ role: 'admin' }),
+      action: 'pricing:publish',
       context: { locationId: 'loc_2' },
-      policies: [
-        allow('pricing:publish')
-          .on('pricing_catalog')
-          .to('admin')
-          .when(condition),
-      ],
+      policies: [allow('pricing:publish').to('admin').when(condition)],
     });
 
     expect(decision).toEqual({
@@ -241,12 +209,11 @@ describe('authorize', () => {
     });
   });
 
-  it('passes actor, action, resource, and context into conditions', () => {
+  it('passes actor, action, and context into conditions', () => {
     const admin = actor({ role: 'admin' });
     const seen: Array<{
       actor: Actor;
       action: Action;
-      resource: Resource;
       context: AuthContext;
     }> = [];
 
@@ -260,21 +227,17 @@ describe('authorize', () => {
       },
     };
 
-    authorizeWith({
+    authorize({
       actor: admin,
       action: 'pricing:publish',
-      resource: 'pricing_catalog',
       context: { requestId: 'req_1' },
-      policies: [
-        allow('pricing:publish').on('pricing_catalog').when(condition),
-      ],
+      policies: [allow('pricing:publish').when(condition)],
     });
 
     expect(seen).toEqual([
       {
         actor: admin,
         action: 'pricing:publish',
-        resource: 'pricing_catalog',
         context: { requestId: 'req_1' },
       },
     ]);
@@ -286,9 +249,11 @@ describe('authorize', () => {
       throw new Error('second condition should not run');
     });
 
-    const decision = authorizeWith({
+    const decision = authorize({
+      actor: actor(),
+      action: 'pricing:publish',
       policies: [
-        allow('pricing:publish').on('pricing_catalog').when(
+        allow('pricing:publish').when(
           {
             name: 'first',
             denyReason: 'missing_context',
@@ -317,7 +282,6 @@ describe('authorize', () => {
   it('does not evaluate conditions after role or permission mismatch', () => {
     const condition = vi.fn(() => true);
     const guardedRule = allow('pricing:publish')
-      .on('pricing_catalog')
       .to('owner')
       .require('pricing:publish')
       .when({
@@ -327,12 +291,14 @@ describe('authorize', () => {
         evaluate: condition,
       });
 
-    authorizeWith({
+    authorize({
       actor: actor({ role: 'customer' }),
+      action: 'pricing:publish',
       policies: [guardedRule],
     });
-    authorizeWith({
+    authorize({
       actor: actor({ role: 'owner', permissions: [] }),
+      action: 'pricing:publish',
       policies: [guardedRule],
     });
 
@@ -345,14 +311,13 @@ describe('authorize', () => {
       permissions: ['pricing:publish'],
     });
     const noisyPolicies = Array.from({ length: 1_000 }, (_, index) =>
-      allow(index % 2 === 0 ? 'pricing:read' : 'auth:logout')
-        .on(`noise_resource_${index}`)
-        .to(index % 2 === 0 ? 'customer' : 'driver'),
+      allow(index % 2 === 0 ? 'pricing:read' : 'auth:logout').to(
+        index % 2 === 0 ? 'customer' : 'driver',
+      ),
     );
     const policies = [
       ...noisyPolicies.slice(0, 777),
       allow('pricing:publish')
-        .on('pricing_catalog')
         .to('admin')
         .require('pricing:publish')
         .when(freshSession({ maxAgeMinutes: 15 })),
@@ -361,41 +326,14 @@ describe('authorize', () => {
 
     for (let index = 0; index < 100; index += 1) {
       expect(
-        authorizeWith({
+        authorize({
           actor: admin,
+          action: 'pricing:publish',
           context: { sessionAgeMinutes: index % 16 },
           policies,
         }),
       ).toEqual({ ok: true, actor: admin });
     }
-  });
-});
-
-describe('permission condition', () => {
-  it('checks actor permissions and exposes denial metadata', () => {
-    const condition = permission('auth:session:read');
-
-    expect(condition.name).toBe('permission:auth:session:read');
-    expect(condition.denyReason).toBe('missing_permission');
-    expect(condition.safeMessage).toBe(
-      'You do not have permission to perform this action.',
-    );
-    expect(
-      condition.evaluate({
-        actor: actor({ permissions: ['auth:session:read'] }),
-        action: 'auth:login',
-        resource: 'auth_identity',
-        context: {},
-      }),
-    ).toBe(true);
-    expect(
-      condition.evaluate({
-        actor: actor({ permissions: [] }),
-        action: 'auth:login',
-        resource: 'auth_identity',
-        context: {},
-      }),
-    ).toBe(false);
   });
 });
 
@@ -407,7 +345,6 @@ describe('freshSession condition', () => {
       condition.evaluate({
         actor: actor(),
         action: 'auth:login',
-        resource: 'auth_session',
         context: { sessionAgeMinutes: 10 },
       }),
     ).toBe(true);
@@ -420,7 +357,6 @@ describe('freshSession condition', () => {
       condition.evaluate({
         actor: actor(),
         action: 'auth:login',
-        resource: 'auth_session',
         context: { sessionAgeMinutes: 11 },
       }),
     ).toBe(false);
@@ -428,7 +364,6 @@ describe('freshSession condition', () => {
       condition.evaluate({
         actor: actor(),
         action: 'auth:login',
-        resource: 'auth_session',
         context: {},
       }),
     ).toBe(false);

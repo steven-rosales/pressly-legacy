@@ -176,7 +176,6 @@ packages/auth/src/
   permission.ts
   policy.ts
   principal.ts
-  resource.ts
   session.ts
   index.ts
 ```
@@ -233,7 +232,6 @@ Policy shape:
 authorize({
   actor,
   action: 'pricing:publish',
-  resource: 'pricing_catalog',
   context: { sessionAgeMinutes: 4 },
   policies,
 });
@@ -243,7 +241,6 @@ Keep policies declarative:
 
 ```ts
 allow('pricing:publish')
-  .on('pricing_catalog')
   .to('owner')
   .require('pricing:publish')
   .when(freshSession({ maxAgeMinutes: 15 }));
@@ -716,7 +713,6 @@ router.post(
   guards.authenticate,
   guards.authorize({
     action: 'pricing:publish',
-    resource: 'pricing_catalog',
     freshSession: true,
   }),
   publishPricingChangeController,
@@ -1528,16 +1524,6 @@ import type { Permission } from './permission.ts';
 export type Action = Permission | 'auth:login' | 'auth:logout';
 ```
 
-#### `packages/auth/src/resource.ts`
-
-```ts
-export type Resource =
-  | 'auth_identity'
-  | 'auth_session'
-  | 'pricing_catalog'
-  | (string & {});
-```
-
 #### `packages/auth/src/session.ts`
 
 ```ts
@@ -1613,7 +1599,6 @@ export const denyDecision = (
 ```ts
 import type { Actor } from './actor.ts';
 import type { Action } from './action.ts';
-import type { Resource } from './resource.ts';
 import type { AuthDecision, AuthDenyReason } from './decision.ts';
 import { allowDecision, denyDecision } from './decision.ts';
 import type { Permission, Role } from './permission.ts';
@@ -1631,14 +1616,12 @@ export type PolicyCondition = Readonly<{
   evaluate: (input: {
     actor: Actor;
     action: Action;
-    resource: Resource;
     context: AuthContext;
   }) => boolean;
 }>;
 
 export type PolicyRule = Readonly<{
   action: Action;
-  resource?: Resource;
   roles: readonly Role[];
   permissions: readonly Permission[];
   conditions: readonly PolicyCondition[];
@@ -1646,7 +1629,6 @@ export type PolicyRule = Readonly<{
 
 export type PolicyBuilder = PolicyRule &
   Readonly<{
-    on: (resource: Resource) => PolicyBuilder;
     to: (...roles: readonly Role[]) => PolicyBuilder;
     require: (...permissions: readonly Permission[]) => PolicyBuilder;
     when: (...conditions: readonly PolicyCondition[]) => PolicyBuilder;
@@ -1654,7 +1636,6 @@ export type PolicyBuilder = PolicyRule &
 
 const buildRule = (draft: PolicyRule): PolicyBuilder => ({
   ...draft,
-  on: (resource) => buildRule({ ...draft, resource }),
   to: (...roles) => buildRule({ ...draft, roles }),
   require: (...permissions) => buildRule({ ...draft, permissions }),
   when: (...conditions) =>
@@ -1669,13 +1650,6 @@ export const allow = (action: Action): PolicyBuilder =>
     conditions: [],
   });
 
-export const permission = (value: Permission): PolicyCondition => ({
-  name: `permission:${value}`,
-  denyReason: 'missing_permission',
-  safeMessage: 'You do not have permission to perform this action.',
-  evaluate: ({ actor }) => can(actor, value),
-});
-
 export const freshSession = (input: {
   maxAgeMinutes: number;
 }): PolicyCondition => ({
@@ -1687,9 +1661,6 @@ export const freshSession = (input: {
     context.sessionAgeMinutes <= input.maxAgeMinutes,
 });
 
-const matchesResource = (rule: PolicyRule, resource: Resource): boolean =>
-  rule.resource === undefined || rule.resource === resource;
-
 const matchesRole = (rule: PolicyRule, actor: Actor): boolean =>
   rule.roles.length === 0 || rule.roles.includes(actor.role);
 
@@ -1699,18 +1670,18 @@ const matchesPermissions = (rule: PolicyRule, actor: Actor): boolean =>
 export const authorize = (input: {
   actor: Actor;
   action: Action;
-  resource: Resource;
   context?: AuthContext;
   policies: readonly PolicyRule[];
 }): AuthDecision => {
   const context = input.context ?? {};
   const candidates = input.policies.filter(
-    (rule) =>
-      rule.action === input.action && matchesResource(rule, input.resource),
+    (rule) => rule.action === input.action,
   );
+  let hasRoleMatch = false;
 
   for (const rule of candidates) {
     if (!matchesRole(rule, input.actor)) continue;
+    hasRoleMatch = true;
     if (!matchesPermissions(rule, input.actor)) continue;
 
     const failed = rule.conditions.find(
@@ -1718,7 +1689,6 @@ export const authorize = (input: {
         !condition.evaluate({
           actor: input.actor,
           action: input.action,
-          resource: input.resource,
           context,
         }),
     );
@@ -1732,11 +1702,12 @@ export const authorize = (input: {
   }
 
   return denyDecision(
-    candidates.length === 0 ? 'missing_permission' : 'missing_role',
+    candidates.length === 0 || hasRoleMatch
+      ? 'missing_permission'
+      : 'missing_role',
     'You do not have permission to perform this action.',
     {
       action: input.action,
-      resource: input.resource,
       role: input.actor.role,
     },
   );
@@ -1778,7 +1749,7 @@ export { allowDecision, denyDecision } from './decision.ts';
 export { normalizeEmail } from './identity.ts';
 export { principalLabel } from './principal.ts';
 export { isRole, permissionsForRole, selectHighestRole } from './permission.ts';
-export { allow, authorize, freshSession, permission } from './policy.ts';
+export { allow, authorize, freshSession } from './policy.ts';
 export {
   isSessionExpired,
   isSessionRevoked,
@@ -1793,7 +1764,6 @@ export type { Identity, IdentityKind } from './identity.ts';
 export type { Principal } from './principal.ts';
 export type { Permission, Role } from './permission.ts';
 export type { AuthContext, PolicyCondition, PolicyRule } from './policy.ts';
-export type { Resource } from './resource.ts';
 export type { Session } from './session.ts';
 export type { PasswordStrengthViolation } from './password.ts';
 ```
@@ -3150,7 +3120,6 @@ import {
   type Actor,
   type Permission,
   type Principal,
-  type Resource,
   type Role,
 } from '@pressly/auth';
 import { catchAsync } from '@pressly/http/express';
@@ -3163,7 +3132,6 @@ type AuthLocals = Readonly<{
 
 export type AuthorizeMiddlewareInput = Readonly<{
   action: Permission;
-  resource: Resource;
   roles: readonly Role[];
   freshSessionMaxAgeMinutes?: number;
 }>;
@@ -3193,7 +3161,6 @@ export const makeAuthorizeMiddleware =
 
       const policies = [
         allow(input.action)
-          .on(input.resource)
           .to(...input.roles)
           .require(input.action)
           .when(...conditions),
@@ -3212,7 +3179,6 @@ export const makeAuthorizeMiddleware =
       const decision = authorize({
         actor: auth.actor,
         action: input.action,
-        resource: input.resource,
         context,
         policies,
       });
@@ -3432,7 +3398,6 @@ export type PricingReadRouteGuards = Readonly<{
   authenticate: RequestHandler;
   authorize: (input: {
     action: 'pricing:read';
-    resource: 'pricing_catalog';
     roles: readonly ['owner', 'admin'];
   }) => RequestHandler;
 }>;
@@ -3445,7 +3410,6 @@ export const makeAdminLoadPricingCatalogRoutes = (input: {
   const controller = makeLoadPricingCatalogController(input.loadPricingCatalog);
   const authorizeRead = input.guards.authorize({
     action: 'pricing:read',
-    resource: 'pricing_catalog',
     roles: ['owner', 'admin'],
   });
 
@@ -3584,7 +3548,6 @@ export type PricingAdminRouteGuards = Readonly<{
   authenticate: RequestHandler;
   authorize: (input: {
     action: 'pricing:read' | 'pricing:plan' | 'pricing:publish';
-    resource: 'pricing_catalog';
     roles: readonly ['owner'] | readonly ['owner', 'admin'];
     freshSessionMaxAgeMinutes?: number;
   }) => RequestHandler;
@@ -3604,7 +3567,6 @@ export const makePublishPricingChangeRoutes = (input: {
     input.guards.authenticate,
     input.guards.authorize({
       action: 'pricing:plan',
-      resource: 'pricing_catalog',
       roles: ['owner', 'admin'],
     }),
     makePlanPricingChangeController(input.planPricingChange),
@@ -3616,7 +3578,6 @@ export const makePublishPricingChangeRoutes = (input: {
     input.guards.authenticate,
     input.guards.authorize({
       action: 'pricing:publish',
-      resource: 'pricing_catalog',
       roles: ['owner'],
       freshSessionMaxAgeMinutes: input.freshSessionMaxAgeMinutes,
     }),
