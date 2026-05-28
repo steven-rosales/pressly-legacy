@@ -68,3 +68,12 @@ export const publishPricingChangeCommandSchema = z
     items: z.array(publishPricingChangeItemSchema).min(1),
   })
   .strict();
+
+export const adminPricingChangeRequestSchema = z
+  .object({
+    serviceSlug: pricingServiceSlugSchema,
+    locationSlug: z.string().min(1).optional(),
+    reason: z.string().min(1),
+    items: z.array(publishPricingChangeItemSchema).min(1),
+  })
+  .strict();

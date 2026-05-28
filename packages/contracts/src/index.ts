@@ -1,3 +1,9 @@
+/*
+===============
+PRICING
+===============
+*/
+
 export {
   loadPricingCatalogCommandSchema,
   pricingCatalogSchema,
@@ -27,3 +33,31 @@ export type {
   PricingServiceSlug,
   PublishPricingChangeResult,
 } from './pricing/pricing.result.js';
+
+/*
+===============
+AUTHENTICATION
+===============
+*/
+
+export {
+  authPrincipalSchema,
+  authRoleSchema,
+  loginRequestSchema,
+  loginResultSchema,
+  logoutResultSchema,
+  sessionResultSchema,
+} from './auth/auth.contracts.ts';
+
+export type { LoginRequest } from './auth/auth.command.ts';
+
+export type {
+  AuthPrincipalResult,
+  LoginResult,
+  LogoutResult,
+  SessionResult,
+} from './auth/auth.result.ts';
+
+export { adminPricingChangeRequestSchema } from './pricing/pricing.contracts.ts';
+
+export type { AdminPricingChangeRequest } from './pricing/pricing.command.ts';
