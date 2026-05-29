@@ -43,5 +43,8 @@
     "tsx": "latest",
     "typescript": "latest",
     "vitest": "^4.1.5"
+  },
+  "peerDependencies": {
+    "vitest": "^4.1.5"
   }
 }

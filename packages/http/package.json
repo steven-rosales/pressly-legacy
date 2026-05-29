@@ -34,5 +34,8 @@
     "express": "^5.2.1",
     "tsx": "latest",
     "typescript": "latest"
+  },
+  "peerDependencies": {
+    "express": "^5.2.1"
   }
 }

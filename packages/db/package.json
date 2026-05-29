@@ -24,15 +24,17 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@types/node": "^25.6.0",
+    "@pressly/auth": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "argon2": "^0.44.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.0",
     "pg": "^8.20.0",
     "postgres": "^3.4.7"
   },
   "devDependencies": {
-    "@pressly/errors": "workspace:*",
     "@pressly/tsconfig": "workspace:*",
+    "@types/node": "^25.6.0",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
     "tsx": "latest",

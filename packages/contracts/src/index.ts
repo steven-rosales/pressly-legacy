@@ -14,6 +14,7 @@ export {
   publishPricingChangeActorSchema,
   publishPricingChangeCommandSchema,
   publishPricingChangeItemSchema,
+  adminPricingChangeRequestSchema,
 } from './pricing/pricing.contracts.js';
 
 export type {
@@ -22,6 +23,7 @@ export type {
   PublishPricingChangeActor,
   PublishPricingChangeCommand,
   PublishPricingChangeItem,
+  AdminPricingChangeRequest,
 } from './pricing/pricing.command.js';
 
 export type {
@@ -57,7 +59,3 @@ export type {
   LogoutResult,
   SessionResult,
 } from './auth/auth.result.ts';
-
-export { adminPricingChangeRequestSchema } from './pricing/pricing.contracts.ts';
-
-export type { AdminPricingChangeRequest } from './pricing/pricing.command.ts';
