@@ -6,22 +6,19 @@ import type {
   Clock,
   PasswordVerifier,
   TokenIssuer,
-} from '../../../src/features/login/login.port.ts';
+} from '../../src/features/login/login.port.ts';
 import {
   makeLogin,
   type LoginOptions,
-} from '../../../src/features/login/login.usecase.ts';
+} from '../../src/features/login/login.usecase.ts';
 import {
   makeDefaultIdentity,
   makeDefaultOptions,
   makeDefaultSession,
   makeLoginCommand,
   now,
-} from '../../support/builders.ts';
-import {
-  makeFakeLoginStore,
-  type FakeStoreOptions,
-} from '../../support/fakes.ts';
+} from '../support/builders.ts';
+import { makeFakeLoginStore, type FakeStoreOptions } from '../support/fakes.ts';
 
 const accessToken = 'access-token-with-at-least-thirty-two-chars';
 
