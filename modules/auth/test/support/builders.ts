@@ -4,6 +4,7 @@ import type {
   LoginIdentityRecord,
   LoginPasswordCredentialRecord,
 } from '../../src/features/login/login.port.ts';
+import type { StoredSessionPrincipal } from '../../src/features/load-session/load-session.port.ts';
 import type {
   LoginOptions,
   LoginCommand,
@@ -64,5 +65,21 @@ export const makeDefaultSession = (
   id: '00000000-0000-4000-8000-000000000002',
   issuedAt: now,
   expiresAt: new Date('2026-05-29T12:30:00.000Z'),
+  ...overrides,
+});
+
+export const makeDefaultStoredSessionPrincipal = (
+  overrides: Partial<StoredSessionPrincipal> = {},
+): StoredSessionPrincipal => ({
+  sessionId: makeDefaultSession().id,
+  identityId: makeDefaultIdentity().id,
+  kind: 'human',
+  displayName: 'Admin User',
+  email: 'admin@pressly.com',
+  isActive: true,
+  roles: ['admin'],
+  issuedAt: new Date('2026-05-29T11:30:00.000Z'),
+  expiresAt: new Date('2026-05-29T12:30:00.000Z'),
+  revokedAt: null,
   ...overrides,
 });

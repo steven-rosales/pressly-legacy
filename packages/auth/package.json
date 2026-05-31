@@ -20,7 +20,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@pressly/errors": "workspace:*"
+    "@pressly/errors": "workspace:*",
+    "argon2": "^0.44.0"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",

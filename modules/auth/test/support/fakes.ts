@@ -8,10 +8,15 @@ import type {
   LoginPasswordCredentialRecord,
   LoginStore,
 } from '../../src/features/login/login.port.ts';
+import type {
+  LoadSessionStore,
+  StoredSessionPrincipal,
+} from '../../src/features/load-session/load-session.port.ts';
 import {
   makeDefaultCredential,
   makeDefaultIdentity,
   makeDefaultSession,
+  makeDefaultStoredSessionPrincipal,
 } from './builders.ts';
 
 export type FakeStoreOptions = Readonly<{
@@ -74,6 +79,39 @@ export const makeFakeLoginStore = (options: FakeStoreOptions = {}) => {
     async recordAuditEvent(input) {
       calls.recordAuditEvent.push(input);
       return options.recordAuditEventResult ?? ok(undefined);
+    },
+  };
+
+  return { store, calls };
+};
+
+export type FakeLoadSessionStoreOptions = Readonly<{
+  principal?: StoredSessionPrincipal | undefined;
+  findByTokenHashResult?: Result<StoredSessionPrincipal | undefined, AppError>;
+  touchSessionResult?: Result<void, AppError>;
+}>;
+
+export const makeFakeLoadSessionStore = (
+  options: FakeLoadSessionStoreOptions = {},
+) => {
+  const principal =
+    'principal' in options
+      ? options.principal
+      : makeDefaultStoredSessionPrincipal();
+
+  const calls = {
+    findByTokenHash: [] as string[],
+    touchSession: [] as Array<{ sessionId: string; now: Date }>,
+  };
+
+  const store: LoadSessionStore = {
+    async findByTokenHash(tokenHash) {
+      calls.findByTokenHash.push(tokenHash);
+      return options.findByTokenHashResult ?? ok(principal);
+    },
+    async touchSession(sessionId, now) {
+      calls.touchSession.push({ sessionId, now });
+      return options.touchSessionResult ?? ok(undefined);
     },
   };
 

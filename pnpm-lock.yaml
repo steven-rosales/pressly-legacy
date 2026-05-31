@@ -401,6 +401,9 @@ importers:
       '@pressly/errors':
         specifier: workspace:*
         version: link:../errors
+      argon2:
+        specifier: ^0.44.0
+        version: 0.44.0
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
