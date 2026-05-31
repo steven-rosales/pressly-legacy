@@ -12,6 +12,7 @@ import type {
   LoadSessionStore,
   StoredSessionPrincipal,
 } from '../../src/features/load-session/load-session.port.ts';
+import type { RevokeSessionStore } from '../../src/features/revoke-session/revoke-session.port.ts';
 import {
   makeDefaultCredential,
   makeDefaultIdentity,
@@ -112,6 +113,50 @@ export const makeFakeLoadSessionStore = (
     async touchSession(sessionId, now) {
       calls.touchSession.push({ sessionId, now });
       return options.touchSessionResult ?? ok(undefined);
+    },
+  };
+
+  return { store, calls };
+};
+
+type RevokedSession = Readonly<{
+  sessionId?: string;
+  identityId?: string;
+}>;
+
+type RevokeSessionAuditEventInput = Parameters<
+  RevokeSessionStore['recordAuditEvent']
+>[0];
+
+export type FakeRevokeSessionStoreOptions = Readonly<{
+  revoked?: RevokedSession;
+  revokeByTokenHashResult?: Result<RevokedSession, AppError>;
+  recordAuditEventResult?: Result<void, AppError>;
+}>;
+
+export const makeFakeRevokeSessionStore = (
+  options: FakeRevokeSessionStoreOptions = {},
+) => {
+  const revoked =
+    options.revoked ??
+    ({
+      sessionId: makeDefaultSession().id,
+      identityId: makeDefaultIdentity().id,
+    } satisfies RevokedSession);
+
+  const calls = {
+    revokeByTokenHash: [] as Array<{ tokenHash: string; revokedAt: Date }>,
+    recordAuditEvent: [] as RevokeSessionAuditEventInput[],
+  };
+
+  const store: RevokeSessionStore = {
+    async revokeByTokenHash(tokenHash, revokedAt) {
+      calls.revokeByTokenHash.push({ tokenHash, revokedAt });
+      return options.revokeByTokenHashResult ?? ok(revoked);
+    },
+    async recordAuditEvent(input) {
+      calls.recordAuditEvent.push(input);
+      return options.recordAuditEventResult ?? ok(undefined);
     },
   };
 
