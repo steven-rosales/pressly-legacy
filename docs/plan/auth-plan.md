@@ -2801,11 +2801,36 @@ export const makePasswordVerifier = () => ({
 });
 ```
 
-#### `modules/auth/src/adapters/shared/persistence/auth.repo.ts`
+#### Persistence adapter shape
+
+Do not create one combined `auth.repo.ts`.
+
+The feature ports stay narrow, so the persistence adapters should stay vertical:
+
+```txt
+modules/auth/src/adapters/
+  login/
+    persistence/
+      login.repo.ts
+  load-session/
+    persistence/
+      load-session.repo.ts
+  revoke-session/
+    persistence/
+      revoke-session.repo.ts
+  shared/
+    persistence/
+      auth-audit.ts
+      database-result.ts
+      roles.ts
+```
+
+The `shared/persistence` files are small helpers, not a shared auth repository.
+They should not import feature ports or combine store interfaces.
+
+#### `modules/auth/src/adapters/shared/persistence/database-result.ts`
 
 ```ts
-import { and, auth, eq, gt, isNull, sql, type Database } from '@pressly/db';
-import { isRole } from '@pressly/auth';
 import {
   err,
   isAppError,
@@ -2814,15 +2839,8 @@ import {
   type AppError,
   type Result,
 } from '@pressly/errors';
-import type {
-  AuthAuditEventInput,
-  LoginAttemptInput,
-  LoginStore,
-} from '../../../features/login/login.port.ts';
-import type { LoadSessionStore } from '../../../features/load-session/load-session.port.ts';
-import type { RevokeSessionStore } from '../../../features/revoke-session/revoke-session.port.ts';
 
-const databaseFailure = (cause: unknown): AppError =>
+export const databaseFailure = (cause: unknown): AppError =>
   makeAppError({
     kind: 'DatabaseError',
     code: 'auth_database_failed',
@@ -2832,7 +2850,7 @@ const databaseFailure = (cause: unknown): AppError =>
     cause,
   });
 
-const toDatabaseResult = async <T>(
+export const toDatabaseResult = async <T>(
   work: () => Promise<T>,
 ): Promise<Result<T, AppError>> => {
   try {
@@ -2841,10 +2859,61 @@ const toDatabaseResult = async <T>(
     return err(isAppError(error) ? error : databaseFailure(error));
   }
 };
+```
 
-export const makeAuthStore = (
+#### `modules/auth/src/adapters/shared/persistence/roles.ts`
+
+```ts
+import { isRole, type Role } from '@pressly/auth';
+
+export const mapStoredRoles = (
+  rows: readonly { role: string }[],
+): Role[] => rows.map((row) => row.role).filter(isRole);
+```
+
+#### `modules/auth/src/adapters/shared/persistence/auth-audit.ts`
+
+```ts
+import { auth, type Database } from '@pressly/db';
+import type { AppError, Result } from '@pressly/errors';
+import { toDatabaseResult } from './database-result.ts';
+
+export type AuthAuditEventInput = Readonly<{
+  actorIdentityId?: string;
+  eventType: string;
+  resourceType: string;
+  resourceId?: string;
+  metadata?: Record<string, unknown>;
+}>;
+
+export const recordAuthAuditEvent = (
   db: Database,
-): LoginStore & LoadSessionStore & RevokeSessionStore => ({
+  input: AuthAuditEventInput,
+): Promise<Result<void, AppError>> =>
+  toDatabaseResult(async () => {
+    await db.insert(auth.authAuditEvents).values({
+      ...input,
+      metadata: input.metadata ?? {},
+    });
+  });
+```
+
+#### `modules/auth/src/adapters/login/persistence/login.repo.ts`
+
+```ts
+import { and, auth, eq, gt, sql, type Database } from '@pressly/db';
+import type {
+  LoginAttemptInput,
+  LoginStore,
+} from '../../../features/login/login.port.ts';
+import { recordAuthAuditEvent } from '../../shared/persistence/auth-audit.ts';
+import {
+  databaseFailure,
+  toDatabaseResult,
+} from '../../shared/persistence/database-result.ts';
+import { mapStoredRoles } from '../../shared/persistence/roles.ts';
+
+export const makeLoginRepository = (db: Database): LoginStore => ({
   findIdentityByEmail: async (emailNormalized) =>
     toDatabaseResult(async () => {
       const [identity] = await db
@@ -2866,7 +2935,7 @@ export const makeAuthStore = (
         displayName: identity.displayName,
         ...(identity.email === null ? {} : { email: identity.email }),
         isActive: identity.isActive,
-        roles: roles.map((role) => role.role).filter(isRole),
+        roles: mapStoredRoles(roles),
       };
     }),
 
@@ -2924,14 +2993,21 @@ export const makeAuthStore = (
       await db.insert(auth.authLoginAttempts).values(input);
     }),
 
-  recordAuditEvent: async (input: AuthAuditEventInput) =>
-    toDatabaseResult(async () => {
-      await db.insert(auth.authAuditEvents).values({
-        ...input,
-        metadata: input.metadata ?? {},
-      });
-    }),
+  recordAuditEvent: async (input) => recordAuthAuditEvent(db, input),
+});
+```
 
+#### `modules/auth/src/adapters/load-session/persistence/load-session.repo.ts`
+
+```ts
+import { auth, eq, type Database } from '@pressly/db';
+import type { LoadSessionStore } from '../../../features/load-session/load-session.port.ts';
+import { toDatabaseResult } from '../../shared/persistence/database-result.ts';
+import { mapStoredRoles } from '../../shared/persistence/roles.ts';
+
+export const makeLoadSessionRepository = (
+  db: Database,
+): LoadSessionStore => ({
   findByTokenHash: async (tokenHash) =>
     toDatabaseResult(async () => {
       const [row] = await db
@@ -2961,7 +3037,7 @@ export const makeAuthStore = (
         displayName: row.identity.displayName,
         ...(row.identity.email === null ? {} : { email: row.identity.email }),
         isActive: row.identity.isActive,
-        roles: roles.map((role) => role.role).filter(isRole),
+        roles: mapStoredRoles(roles),
         issuedAt: row.session.issuedAt,
         expiresAt: row.session.expiresAt,
         revokedAt: row.session.revokedAt,
@@ -2975,7 +3051,20 @@ export const makeAuthStore = (
         .set({ lastUsedAt: now })
         .where(eq(auth.authSessions.id, sessionId));
     }),
+});
+```
 
+#### `modules/auth/src/adapters/revoke-session/persistence/revoke-session.repo.ts`
+
+```ts
+import { and, auth, eq, gt, isNull, type Database } from '@pressly/db';
+import type { RevokeSessionStore } from '../../../features/revoke-session/revoke-session.port.ts';
+import { recordAuthAuditEvent } from '../../shared/persistence/auth-audit.ts';
+import { toDatabaseResult } from '../../shared/persistence/database-result.ts';
+
+export const makeRevokeSessionRepository = (
+  db: Database,
+): RevokeSessionStore => ({
   revokeByTokenHash: async (tokenHash, revokedAt) =>
     toDatabaseResult(async () => {
       const [session] = await db
@@ -2985,6 +3074,7 @@ export const makeAuthStore = (
           and(
             eq(auth.authSessions.tokenHash, tokenHash),
             isNull(auth.authSessions.revokedAt),
+            gt(auth.authSessions.expiresAt, revokedAt),
           ),
         )
         .returning();
@@ -2994,6 +3084,8 @@ export const makeAuthStore = (
         ...(session === undefined ? {} : { identityId: session.identityId }),
       };
     }),
+
+  recordAuditEvent: async (input) => recordAuthAuditEvent(db, input),
 });
 ```
 
@@ -3298,14 +3390,16 @@ export const makeRevokeSessionController = (
 ```ts
 import { Router } from 'express';
 import type { Database } from '@pressly/db';
-import { makeAuthStore } from './adapters/shared/persistence/auth.repo.ts';
 import { makePasswordVerifier } from './adapters/shared/security/password-verifier.ts';
 import { makeTokenIssuer } from './adapters/shared/security/token-issuer.ts';
 import { makeLoginRoute } from './adapters/login/http/login.route.ts';
+import { makeLoginRepository } from './adapters/login/persistence/login.repo.ts';
 import { makeAuthenticateMiddleware } from './adapters/load-session/http/authenticate.middleware.ts';
 import { makeAuthorizeMiddleware } from './adapters/load-session/http/authorize.middleware.ts';
 import { makeLoadSessionController } from './adapters/load-session/http/load-session.controller.ts';
+import { makeLoadSessionRepository } from './adapters/load-session/persistence/load-session.repo.ts';
 import { makeRevokeSessionController } from './adapters/revoke-session/http/revoke-session.controller.ts';
+import { makeRevokeSessionRepository } from './adapters/revoke-session/persistence/revoke-session.repo.ts';
 import { makeLogin } from './features/login/login.usecase.ts';
 import { makeLoadSession } from './features/load-session/load-session.usecase.ts';
 import { makeRevokeSession } from './features/revoke-session/revoke-session.usecase.ts';
@@ -3320,12 +3414,14 @@ export type AuthModuleDeps = Readonly<{
 }>;
 
 export const makeAuthModule = (deps: AuthModuleDeps) => {
-  const store = makeAuthStore(deps.db);
+  const loginStore = makeLoginRepository(deps.db);
+  const loadSessionStore = makeLoadSessionRepository(deps.db);
+  const revokeSessionStore = makeRevokeSessionRepository(deps.db);
   const tokenIssuer = makeTokenIssuer(deps.tokenSecret);
   const clock = { now: () => new Date() };
 
   const login = makeLogin({
-    store,
+    store: loginStore,
     passwordVerifier: makePasswordVerifier(),
     tokenIssuer,
     clock,
@@ -3337,13 +3433,13 @@ export const makeAuthModule = (deps: AuthModuleDeps) => {
   });
 
   const loadSession = makeLoadSession({
-    store,
+    store: loadSessionStore,
     tokenHasher: tokenIssuer,
     clock,
   });
 
   const revokeSession = makeRevokeSession({
-    store,
+    store: revokeSessionStore,
     tokenHasher: tokenIssuer,
     clock,
   });
