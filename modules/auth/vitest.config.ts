@@ -16,6 +16,9 @@ const errorsSource = fileURLToPath(
 const httpSource = fileURLToPath(
   new URL('../../packages/http/src/index.ts', import.meta.url),
 );
+const httpExpressSource = fileURLToPath(
+  new URL('../../packages/http/src/express/index.ts', import.meta.url),
+);
 const testkitSource = fileURLToPath(
   new URL('../../packages/testkit/src', import.meta.url),
 );
@@ -40,7 +43,11 @@ export default defineConfig({
         replacement: errorsSource,
       },
       {
-        find: '@pressly/http',
+        find: /^@pressly\/http\/express$/,
+        replacement: httpExpressSource,
+      },
+      {
+        find: /^@pressly\/http$/,
         replacement: httpSource,
       },
       {

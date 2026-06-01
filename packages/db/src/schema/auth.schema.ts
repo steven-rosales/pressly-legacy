@@ -2,11 +2,23 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   jsonb,
+  pgEnum,
   pgTable,
   text,
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+
+export const authRoleEnum = pgEnum('auth_role', [
+  'owner',
+  'admin',
+  'operator',
+  'customer',
+  'driver',
+  'service',
+  'developer',
+  'ci',
+]);
 
 export const authIdentities = pgTable('auth_identites', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -64,7 +76,7 @@ export const authIdentityRoles = pgTable('auth_identity_roles', {
   identityId: uuid('identity_id')
     .notNull()
     .references(() => authIdentities.id),
-  role: text('role').notNull(),
+  role: authRoleEnum('role').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
