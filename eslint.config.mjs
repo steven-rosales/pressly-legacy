@@ -262,7 +262,8 @@ export default tseslint.config(
             },
             {
               regex: '^\\.(?!.*\\.policy(?:\\.(?:ts|js))?$).*',
-              message: 'Relative imports in error files must target *.policy files.',
+              message:
+                'Relative imports in error files must target *.policy files.',
             },
           ],
         },
@@ -279,9 +280,9 @@ export default tseslint.config(
           patterns: [
             {
               regex:
-                '^\\.(?!.*\\.(?:usecase|controller)(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!.*\\.(?:usecase|controller|middleware)(?:\\.(?:ts|js))?$).*',
               message:
-                'Route files may only use relative imports for *.usecase or *.controller files.',
+                'Route files may only use relative imports for *.usecase, *.controller, or *.middleware files.',
             },
           ],
         },
@@ -290,7 +291,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/*.controller.ts'],
+    files: ['**/*.controller.ts', '**/*.middleware.ts'],
     rules: {
       'no-restricted-imports': 'off',
 
@@ -299,15 +300,20 @@ export default tseslint.config(
         {
           patterns: [
             {
+              regex: '^(?!express$|@pressly\\/|\\.).*',
+              message:
+                'Controller and middleware files may only import packages from express or @pressly/*.',
+            },
+            {
               regex: '^\\.(?!.*\\.usecase(?:\\.(?:ts|js))?$).*',
               message:
-                'Controller files may only use relative imports for *.usecase files.',
+                'Controller and middleware files may only use relative imports for *.usecase files.',
             },
             {
               regex: '^\\..*\\.usecase(?:\\.(?:ts|js))?$',
               allowTypeImports: true,
               message:
-                'Controller files may only type-import from *.usecase files.',
+                'Controller and middleware files may only type-import from *.usecase files.',
             },
           ],
         },
@@ -329,7 +335,8 @@ export default tseslint.config(
             },
             {
               regex: '^\\.(?!.*\\.port(?:\\.(?:ts|js))?$).*',
-              message: 'Relative imports in repo files must target *.port files.',
+              message:
+                'Relative imports in repo files must target *.port files.',
             },
           ],
         },
@@ -338,18 +345,17 @@ export default tseslint.config(
   },
 
   {
-    files: [
-      '**/adapters/**/http/**/*.ts',
-      '**/adapter/**/http/**/*.ts',
-    ],
+    files: ['**/adapters/**/http/**/*.ts', '**/adapter/**/http/**/*.ts'],
     ignores: [
       '**/adapters/**/http/**/*.controller.ts',
       '**/adapters/**/http/**/*.route.ts',
+      '**/adapters/**/http/**/*.middleware.ts',
       '**/adapter/**/http/**/*.controller.ts',
       '**/adapter/**/http/**/*.route.ts',
+      '**/adapter/**/http/**/*.middleware.ts',
     ],
     rules: restrictedFileNameRule(
-      'HTTP adapter files must end with .controller.ts or .route.ts.',
+      'HTTP adapter files must end with .controller.ts, .route.ts, or .middleware.ts.',
     ),
   },
 
@@ -368,11 +374,11 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/features/**/*.ts'],
+    files: ['modules/*/src/features/**/*.ts'],
     ignores: [
-      '**/features/**/*.usecase.ts',
-      '**/features/**/*.port.ts',
-      '**/features/**/*.error.ts',
+      'modules/*/src/features/**/*.usecase.ts',
+      'modules/*/src/features/**/*.port.ts',
+      'modules/*/src/features/**/*.error.ts',
     ],
     rules: restrictedFileNameRule(
       'Feature files must end with .usecase.ts, .port.ts, or .error.ts.',

@@ -1,14 +1,51 @@
+import { isRole, type Role } from '@pressly/auth';
 import { and, auth, eq, gt, sql, type Database } from '@pressly/db';
+import {
+  err,
+  isAppError,
+  makeAppError,
+  ok,
+  type AppError,
+  type Result,
+} from '@pressly/errors';
 import type {
+  AuthAuditEventInput,
   LoginAttemptInput,
   LoginStore,
 } from '../../../features/login/login.port.ts';
-import { recordAuthAuditEvent } from '../../common/persistence/auth-audit.ts';
-import {
-  databaseFailure,
-  toDatabaseResult,
-} from '../../common/persistence/database-result.ts';
-import { mapStoredRoles } from '../../common/persistence/roles.ts';
+
+const databaseFailure = (cause: unknown): AppError =>
+  makeAppError({
+    kind: 'DatabaseError',
+    code: 'auth_database_field',
+    message: 'Auth database operation failed.',
+    safeMessage: 'Authentication could not be completed.',
+    status: 500,
+    cause,
+  });
+
+const toDatabaseResult = async <T>(
+  work: () => Promise<T>,
+): Promise<Result<T, AppError>> => {
+  try {
+    return ok(await work());
+  } catch (error) {
+    return err(isAppError(error) ? error : databaseFailure(error));
+  }
+};
+
+const mapStoredRoles = (rows: readonly { role: string }[]): Role[] =>
+  rows.map((row) => row.role).filter(isRole);
+
+const recordAuthAuditEvent = (
+  db: Database,
+  input: AuthAuditEventInput,
+): Promise<Result<void, AppError>> =>
+  toDatabaseResult(async () => {
+    await db
+      .insert(auth.authAuditEvents)
+      .values({ ...input, metadata: input.metadata });
+  });
 
 export const makeLoginStore = (db: Database): LoginStore => ({
   findIdentityByEmail: async (emailNormalized) =>

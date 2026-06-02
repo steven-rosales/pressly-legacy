@@ -66,7 +66,7 @@ const matchesPermissions = (rule: PolicyRule, actor: Actor): boolean =>
 /**
  * The function's purpose is to answer: _'Given this actor, can they do this action?'_.
  *
- * The `policies` array is just a list of possible rules: `rule 1 OR rule2 OR rule3 ...`, where each rule is independent.
+ * The `policies` array is just a list of possible rules: `rule 1 OR rule2 OR rule3 ...`, where each rule is independent. The rules usually will come from executing `allow` which will conatin the actore and their roles, permissions, and conditions.
  *
  * **Usage**:
  * ```ts
