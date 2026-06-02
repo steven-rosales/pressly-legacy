@@ -28,7 +28,6 @@
     "@pressly/db": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/http": "workspace:*",
-    "drizzle-orm": "^0.45.0",
     "express": "^5.2.1"
   },
   "devDependencies": {

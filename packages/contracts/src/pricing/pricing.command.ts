@@ -6,6 +6,7 @@ import type {
   publishPricingChangeCommandSchema,
   publishPricingChangeItemSchema,
 } from './pricing.contracts.js';
+import type { adminPricingChangeRequestSchema } from './pricing.contracts.ts';
 
 export type LoadPricingCatalogCommand = z.infer<
   typeof loadPricingCatalogCommandSchema
@@ -25,4 +26,8 @@ export type PublishPricingChangeItem = z.infer<
 
 export type PublishPricingChangeCommand = z.infer<
   typeof publishPricingChangeCommandSchema
+>;
+
+export type AdminPricingChangeRequest = z.infer<
+  typeof adminPricingChangeRequestSchema
 >;

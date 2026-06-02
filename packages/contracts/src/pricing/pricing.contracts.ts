@@ -37,9 +37,18 @@ export const pricingParamsRequestSchema = loadPricingCatalogCommandSchema;
 export const publishPricingChangeActorSchema = z
   .object({
     id: z.string().min(1),
-    kind: z.enum(['user', 'service']),
+    kind: z.enum(['human', 'service']),
     displayName: z.string().min(1),
-    role: z.enum(['developer', 'admin', 'ci']),
+    role: z.enum([
+      'owner',
+      'admin',
+      'operator',
+      'customer',
+      'driver',
+      'service',
+      'developer',
+      'ci',
+    ]),
   })
   .strict();
 
@@ -56,6 +65,15 @@ export const publishPricingChangeCommandSchema = z
     locationSlug: z.string().min(1).optional(),
     reason: z.string().min(1),
     actor: publishPricingChangeActorSchema,
+    items: z.array(publishPricingChangeItemSchema).min(1),
+  })
+  .strict();
+
+export const adminPricingChangeRequestSchema = z
+  .object({
+    serviceSlug: pricingServiceSlugSchema,
+    locationSlug: z.string().min(1).optional(),
+    reason: z.string().min(1),
     items: z.array(publishPricingChangeItemSchema).min(1),
   })
   .strict();

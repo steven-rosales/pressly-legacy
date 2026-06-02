@@ -93,11 +93,7 @@ const authModule = makeAuthModule({ db, env });
 const pricingModule = makePricingModule({ db });
 
 app.use('/auth', authModule.routes);
-app.use(
-  '/admin/pricing',
-  authModule.authenticate,
-  pricingModule.adminRoutes,
-);
+app.use('/admin/pricing', authModule.authenticate, pricingModule.adminRoutes);
 ```
 
 Bad:
@@ -180,7 +176,6 @@ packages/auth/src/
   permission.ts
   policy.ts
   principal.ts
-  resource.ts
   session.ts
   index.ts
 ```
@@ -215,7 +210,7 @@ export type Principal = Readonly<{
 
 export type Actor = Readonly<{
   id: string;
-  kind: 'user' | 'service';
+  kind: 'human' | 'service';
   displayName: string;
   role: Role;
   permissions: readonly Permission[];
@@ -237,7 +232,6 @@ Policy shape:
 authorize({
   actor,
   action: 'pricing:publish',
-  resource: 'pricing_catalog',
   context: { sessionAgeMinutes: 4 },
   policies,
 });
@@ -247,7 +241,6 @@ Keep policies declarative:
 
 ```ts
 allow('pricing:publish')
-  .on('pricing_catalog')
   .to('owner')
   .require('pricing:publish')
   .when(freshSession({ maxAgeMinutes: 15 }));
@@ -277,10 +270,10 @@ packages/contracts/src/index.ts
 Contracts to define:
 
 ```ts
-loginRequestSchema
-loginResultSchema
-sessionResultSchema
-logoutResultSchema
+loginRequestSchema;
+loginResultSchema;
+sessionResultSchema;
+logoutResultSchema;
 ```
 
 Login request:
@@ -720,7 +713,6 @@ router.post(
   guards.authenticate,
   guards.authorize({
     action: 'pricing:publish',
-    resource: 'pricing_catalog',
     freshSession: true,
   }),
   publishPricingChangeController,
@@ -1029,7 +1021,7 @@ Reason:
 Generate token:
 
 ```ts
-crypto.randomBytes(32).toString('base64url')
+crypto.randomBytes(32).toString('base64url');
 ```
 
 Hash token before storing:
@@ -1467,14 +1459,13 @@ export const principalLabel = (principal: Principal): string =>
 
 ```ts
 import type { Principal } from './principal.ts';
+import type { IdentityKind } from './identity.ts';
 import type { Permission, Role } from './permission.ts';
 import { permissionsForRole } from './permission.ts';
 
-export type ActorKind = 'user' | 'service';
-
 export type Actor = Readonly<{
   id: string;
-  kind: ActorKind;
+  kind: IdentityKind;
   displayName: string;
   role: Role;
   permissions: readonly Permission[];
@@ -1483,7 +1474,7 @@ export type Actor = Readonly<{
 export const makeActor = (
   input: Readonly<{
     id: string;
-    kind: ActorKind;
+    kind: IdentityKind;
     displayName: string;
     role: Role;
   }>,
@@ -1498,7 +1489,7 @@ export const actorFromPrincipal = (input: {
 }): Actor =>
   makeActor({
     id: input.principal.identityId,
-    kind: input.principal.kind === 'service' ? 'service' : 'user',
+    kind: input.principal.kind,
     displayName: input.principal.displayName,
     role: input.role,
   });
@@ -1531,16 +1522,6 @@ export const assertCan = (actor: Actor, permission: Permission): void => {
 import type { Permission } from './permission.ts';
 
 export type Action = Permission | 'auth:login' | 'auth:logout';
-```
-
-#### `packages/auth/src/resource.ts`
-
-```ts
-export type Resource =
-  | 'auth_identity'
-  | 'auth_session'
-  | 'pricing_catalog'
-  | (string & {});
 ```
 
 #### `packages/auth/src/session.ts`
@@ -1618,7 +1599,6 @@ export const denyDecision = (
 ```ts
 import type { Actor } from './actor.ts';
 import type { Action } from './action.ts';
-import type { Resource } from './resource.ts';
 import type { AuthDecision, AuthDenyReason } from './decision.ts';
 import { allowDecision, denyDecision } from './decision.ts';
 import type { Permission, Role } from './permission.ts';
@@ -1636,14 +1616,12 @@ export type PolicyCondition = Readonly<{
   evaluate: (input: {
     actor: Actor;
     action: Action;
-    resource: Resource;
     context: AuthContext;
   }) => boolean;
 }>;
 
 export type PolicyRule = Readonly<{
   action: Action;
-  resource?: Resource;
   roles: readonly Role[];
   permissions: readonly Permission[];
   conditions: readonly PolicyCondition[];
@@ -1651,7 +1629,6 @@ export type PolicyRule = Readonly<{
 
 export type PolicyBuilder = PolicyRule &
   Readonly<{
-    on: (resource: Resource) => PolicyBuilder;
     to: (...roles: readonly Role[]) => PolicyBuilder;
     require: (...permissions: readonly Permission[]) => PolicyBuilder;
     when: (...conditions: readonly PolicyCondition[]) => PolicyBuilder;
@@ -1659,7 +1636,6 @@ export type PolicyBuilder = PolicyRule &
 
 const buildRule = (draft: PolicyRule): PolicyBuilder => ({
   ...draft,
-  on: (resource) => buildRule({ ...draft, resource }),
   to: (...roles) => buildRule({ ...draft, roles }),
   require: (...permissions) => buildRule({ ...draft, permissions }),
   when: (...conditions) =>
@@ -1674,13 +1650,6 @@ export const allow = (action: Action): PolicyBuilder =>
     conditions: [],
   });
 
-export const permission = (value: Permission): PolicyCondition => ({
-  name: `permission:${value}`,
-  denyReason: 'missing_permission',
-  safeMessage: 'You do not have permission to perform this action.',
-  evaluate: ({ actor }) => can(actor, value),
-});
-
 export const freshSession = (input: {
   maxAgeMinutes: number;
 }): PolicyCondition => ({
@@ -1692,9 +1661,6 @@ export const freshSession = (input: {
     context.sessionAgeMinutes <= input.maxAgeMinutes,
 });
 
-const matchesResource = (rule: PolicyRule, resource: Resource): boolean =>
-  rule.resource === undefined || rule.resource === resource;
-
 const matchesRole = (rule: PolicyRule, actor: Actor): boolean =>
   rule.roles.length === 0 || rule.roles.includes(actor.role);
 
@@ -1704,18 +1670,18 @@ const matchesPermissions = (rule: PolicyRule, actor: Actor): boolean =>
 export const authorize = (input: {
   actor: Actor;
   action: Action;
-  resource: Resource;
   context?: AuthContext;
   policies: readonly PolicyRule[];
 }): AuthDecision => {
   const context = input.context ?? {};
   const candidates = input.policies.filter(
-    (rule) =>
-      rule.action === input.action && matchesResource(rule, input.resource),
+    (rule) => rule.action === input.action,
   );
+  let hasRoleMatch = false;
 
   for (const rule of candidates) {
     if (!matchesRole(rule, input.actor)) continue;
+    hasRoleMatch = true;
     if (!matchesPermissions(rule, input.actor)) continue;
 
     const failed = rule.conditions.find(
@@ -1723,7 +1689,6 @@ export const authorize = (input: {
         !condition.evaluate({
           actor: input.actor,
           action: input.action,
-          resource: input.resource,
           context,
         }),
     );
@@ -1737,11 +1702,12 @@ export const authorize = (input: {
   }
 
   return denyDecision(
-    candidates.length === 0 ? 'missing_permission' : 'missing_role',
+    candidates.length === 0 || hasRoleMatch
+      ? 'missing_permission'
+      : 'missing_role',
     'You do not have permission to perform this action.',
     {
       action: input.action,
-      resource: input.resource,
       role: input.actor.role,
     },
   );
@@ -1782,12 +1748,8 @@ export { actorFromPrincipal, makeActor } from './actor.ts';
 export { allowDecision, denyDecision } from './decision.ts';
 export { normalizeEmail } from './identity.ts';
 export { principalLabel } from './principal.ts';
-export {
-  isRole,
-  permissionsForRole,
-  selectHighestRole,
-} from './permission.ts';
-export { allow, authorize, freshSession, permission } from './policy.ts';
+export { isRole, permissionsForRole, selectHighestRole } from './permission.ts';
+export { allow, authorize, freshSession } from './policy.ts';
 export {
   isSessionExpired,
   isSessionRevoked,
@@ -1796,13 +1758,12 @@ export {
 export { validatePasswordStrength } from './password.ts';
 
 export type { Action } from './action.ts';
-export type { Actor, ActorKind } from './actor.ts';
+export type { Actor } from './actor.ts';
 export type { AuthDecision, AuthDenyReason } from './decision.ts';
 export type { Identity, IdentityKind } from './identity.ts';
 export type { Principal } from './principal.ts';
 export type { Permission, Role } from './permission.ts';
 export type { AuthContext, PolicyCondition, PolicyRule } from './policy.ts';
-export type { Resource } from './resource.ts';
 export type { Session } from './session.ts';
 export type { PasswordStrengthViolation } from './password.ts';
 ```
@@ -1908,7 +1869,7 @@ Also expand the actor role enum:
 export const publishPricingChangeActorSchema = z
   .object({
     id: z.string().min(1),
-    kind: z.enum(['user', 'service']),
+    kind: z.enum(['human', 'service']),
     displayName: z.string().min(1),
     role: z.enum([
       'owner',
@@ -1990,27 +1951,24 @@ export const authIdentities = pgTable('auth_identities', {
     .defaultNow(),
 });
 
-export const authPasswordCredentials = pgTable(
-  'auth_password_credentials',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    identityId: uuid('identity_id')
-      .notNull()
-      .references(() => authIdentities.id),
-    passwordHash: text('password_hash').notNull(),
-    passwordUpdatedAt: timestamp('password_updated_at', {
-      withTimezone: true,
-    })
-      .notNull()
-      .defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-);
+export const authPasswordCredentials = pgTable('auth_password_credentials', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  identityId: uuid('identity_id')
+    .notNull()
+    .references(() => authIdentities.id),
+  passwordHash: text('password_hash').notNull(),
+  passwordUpdatedAt: timestamp('password_updated_at', {
+    withTimezone: true,
+  })
+    .notNull()
+    .defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export const authSessions = pgTable('auth_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -2058,11 +2016,15 @@ export const authLoginAttempts = pgTable('auth_login_attempts', {
 
 export const authAuditEvents = pgTable('auth_audit_events', {
   id: uuid('id').primaryKey().defaultRandom(),
-  actorIdentityId: uuid('actor_identity_id').references(() => authIdentities.id),
+  actorIdentityId: uuid('actor_identity_id').references(
+    () => authIdentities.id,
+  ),
   eventType: text('event_type').notNull(),
   resourceType: text('resource_type').notNull(),
   resourceId: text('resource_id'),
-  metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+  metadata: jsonb('metadata')
+    .notNull()
+    .default(sql`'{}'::jsonb`),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -2426,7 +2388,12 @@ import { normalizeEmail } from '@pressly/auth';
 import type { LoginResult } from '@pressly/contracts';
 import { err, ok, type AppError, type Result } from '@pressly/errors';
 import { invalidCredentials, loginRateLimited } from './login.error.ts';
-import type { Clock, LoginStore, PasswordVerifier, TokenIssuer } from './login.port.ts';
+import type {
+  Clock,
+  LoginStore,
+  PasswordVerifier,
+  TokenIssuer,
+} from './login.port.ts';
 
 export type LoginCommand = Readonly<{
   email: string;
@@ -2552,8 +2519,12 @@ export const makeLogin =
       emailNormalized,
       identityId: identity.value.id,
       success: true,
-      ...(command.ipAddress === undefined ? {} : { ipAddress: command.ipAddress }),
-      ...(command.userAgent === undefined ? {} : { userAgent: command.userAgent }),
+      ...(command.ipAddress === undefined
+        ? {}
+        : { ipAddress: command.ipAddress }),
+      ...(command.userAgent === undefined
+        ? {}
+        : { userAgent: command.userAgent }),
     });
 
     await deps.store.recordAuditEvent({
@@ -2570,7 +2541,9 @@ export const makeLogin =
       principal: {
         identityId: identity.value.id,
         displayName: identity.value.displayName,
-        ...(identity.value.email === undefined ? {} : { email: identity.value.email }),
+        ...(identity.value.email === undefined
+          ? {}
+          : { email: identity.value.email }),
         roles: [...identity.value.roles],
       },
     });
@@ -2600,7 +2573,10 @@ export type LoadSessionStore = Readonly<{
   findByTokenHash: (
     tokenHash: string,
   ) => Promise<Result<StoredSessionPrincipal | undefined, AppError>>;
-  touchSession: (sessionId: string, now: Date) => Promise<Result<void, AppError>>;
+  touchSession: (
+    sessionId: string,
+    now: Date,
+  ) => Promise<Result<void, AppError>>;
 }>;
 
 export type TokenHasher = Readonly<{
@@ -2657,7 +2633,11 @@ import {
 } from '@pressly/auth';
 import { err, ok, type AppError, type Result } from '@pressly/errors';
 import { expiredSession, invalidSession } from './load-session.error.ts';
-import type { Clock, LoadSessionStore, TokenHasher } from './load-session.port.ts';
+import type {
+  Clock,
+  LoadSessionStore,
+  TokenHasher,
+} from './load-session.port.ts';
 
 export type LoadSessionCommand = Readonly<{
   bearerToken: string;
@@ -2821,11 +2801,36 @@ export const makePasswordVerifier = () => ({
 });
 ```
 
-#### `modules/auth/src/adapters/shared/persistence/auth.repo.ts`
+#### Persistence adapter shape
+
+Do not create one combined `auth.repo.ts`.
+
+The feature ports stay narrow, so the persistence adapters should stay vertical:
+
+```txt
+modules/auth/src/adapters/
+  login/
+    persistence/
+      login.repo.ts
+  load-session/
+    persistence/
+      load-session.repo.ts
+  revoke-session/
+    persistence/
+      revoke-session.repo.ts
+  shared/
+    persistence/
+      auth-audit.ts
+      database-result.ts
+      roles.ts
+```
+
+The `shared/persistence` files are small helpers, not a shared auth repository.
+They should not import feature ports or combine store interfaces.
+
+#### `modules/auth/src/adapters/shared/persistence/database-result.ts`
 
 ```ts
-import { and, auth, eq, gt, isNull, sql, type Database } from '@pressly/db';
-import { isRole } from '@pressly/auth';
 import {
   err,
   isAppError,
@@ -2834,15 +2839,8 @@ import {
   type AppError,
   type Result,
 } from '@pressly/errors';
-import type {
-  AuthAuditEventInput,
-  LoginAttemptInput,
-  LoginStore,
-} from '../../../features/login/login.port.ts';
-import type { LoadSessionStore } from '../../../features/load-session/load-session.port.ts';
-import type { RevokeSessionStore } from '../../../features/revoke-session/revoke-session.port.ts';
 
-const databaseFailure = (cause: unknown): AppError =>
+export const databaseFailure = (cause: unknown): AppError =>
   makeAppError({
     kind: 'DatabaseError',
     code: 'auth_database_failed',
@@ -2852,7 +2850,7 @@ const databaseFailure = (cause: unknown): AppError =>
     cause,
   });
 
-const toDatabaseResult = async <T>(
+export const toDatabaseResult = async <T>(
   work: () => Promise<T>,
 ): Promise<Result<T, AppError>> => {
   try {
@@ -2861,10 +2859,61 @@ const toDatabaseResult = async <T>(
     return err(isAppError(error) ? error : databaseFailure(error));
   }
 };
+```
 
-export const makeAuthStore = (db: Database): LoginStore &
-  LoadSessionStore &
-  RevokeSessionStore => ({
+#### `modules/auth/src/adapters/shared/persistence/roles.ts`
+
+```ts
+import { isRole, type Role } from '@pressly/auth';
+
+export const mapStoredRoles = (
+  rows: readonly { role: string }[],
+): Role[] => rows.map((row) => row.role).filter(isRole);
+```
+
+#### `modules/auth/src/adapters/shared/persistence/auth-audit.ts`
+
+```ts
+import { auth, type Database } from '@pressly/db';
+import type { AppError, Result } from '@pressly/errors';
+import { toDatabaseResult } from './database-result.ts';
+
+export type AuthAuditEventInput = Readonly<{
+  actorIdentityId?: string;
+  eventType: string;
+  resourceType: string;
+  resourceId?: string;
+  metadata?: Record<string, unknown>;
+}>;
+
+export const recordAuthAuditEvent = (
+  db: Database,
+  input: AuthAuditEventInput,
+): Promise<Result<void, AppError>> =>
+  toDatabaseResult(async () => {
+    await db.insert(auth.authAuditEvents).values({
+      ...input,
+      metadata: input.metadata ?? {},
+    });
+  });
+```
+
+#### `modules/auth/src/adapters/login/persistence/login.repo.ts`
+
+```ts
+import { and, auth, eq, gt, sql, type Database } from '@pressly/db';
+import type {
+  LoginAttemptInput,
+  LoginStore,
+} from '../../../features/login/login.port.ts';
+import { recordAuthAuditEvent } from '../../shared/persistence/auth-audit.ts';
+import {
+  databaseFailure,
+  toDatabaseResult,
+} from '../../shared/persistence/database-result.ts';
+import { mapStoredRoles } from '../../shared/persistence/roles.ts';
+
+export const makeLoginRepository = (db: Database): LoginStore => ({
   findIdentityByEmail: async (emailNormalized) =>
     toDatabaseResult(async () => {
       const [identity] = await db
@@ -2886,7 +2935,7 @@ export const makeAuthStore = (db: Database): LoginStore &
         displayName: identity.displayName,
         ...(identity.email === null ? {} : { email: identity.email }),
         isActive: identity.isActive,
-        roles: roles.map((role) => role.role).filter(isRole),
+        roles: mapStoredRoles(roles),
       };
     }),
 
@@ -2944,14 +2993,21 @@ export const makeAuthStore = (db: Database): LoginStore &
       await db.insert(auth.authLoginAttempts).values(input);
     }),
 
-  recordAuditEvent: async (input: AuthAuditEventInput) =>
-    toDatabaseResult(async () => {
-      await db.insert(auth.authAuditEvents).values({
-        ...input,
-        metadata: input.metadata ?? {},
-      });
-    }),
+  recordAuditEvent: async (input) => recordAuthAuditEvent(db, input),
+});
+```
 
+#### `modules/auth/src/adapters/load-session/persistence/load-session.repo.ts`
+
+```ts
+import { auth, eq, type Database } from '@pressly/db';
+import type { LoadSessionStore } from '../../../features/load-session/load-session.port.ts';
+import { toDatabaseResult } from '../../shared/persistence/database-result.ts';
+import { mapStoredRoles } from '../../shared/persistence/roles.ts';
+
+export const makeLoadSessionRepository = (
+  db: Database,
+): LoadSessionStore => ({
   findByTokenHash: async (tokenHash) =>
     toDatabaseResult(async () => {
       const [row] = await db
@@ -2981,7 +3037,7 @@ export const makeAuthStore = (db: Database): LoginStore &
         displayName: row.identity.displayName,
         ...(row.identity.email === null ? {} : { email: row.identity.email }),
         isActive: row.identity.isActive,
-        roles: roles.map((role) => role.role).filter(isRole),
+        roles: mapStoredRoles(roles),
         issuedAt: row.session.issuedAt,
         expiresAt: row.session.expiresAt,
         revokedAt: row.session.revokedAt,
@@ -2995,7 +3051,20 @@ export const makeAuthStore = (db: Database): LoginStore &
         .set({ lastUsedAt: now })
         .where(eq(auth.authSessions.id, sessionId));
     }),
+});
+```
 
+#### `modules/auth/src/adapters/revoke-session/persistence/revoke-session.repo.ts`
+
+```ts
+import { and, auth, eq, gt, isNull, type Database } from '@pressly/db';
+import type { RevokeSessionStore } from '../../../features/revoke-session/revoke-session.port.ts';
+import { recordAuthAuditEvent } from '../../shared/persistence/auth-audit.ts';
+import { toDatabaseResult } from '../../shared/persistence/database-result.ts';
+
+export const makeRevokeSessionRepository = (
+  db: Database,
+): RevokeSessionStore => ({
   revokeByTokenHash: async (tokenHash, revokedAt) =>
     toDatabaseResult(async () => {
       const [session] = await db
@@ -3005,6 +3074,7 @@ export const makeAuthStore = (db: Database): LoginStore &
           and(
             eq(auth.authSessions.tokenHash, tokenHash),
             isNull(auth.authSessions.revokedAt),
+            gt(auth.authSessions.expiresAt, revokedAt),
           ),
         )
         .returning();
@@ -3014,6 +3084,8 @@ export const makeAuthStore = (db: Database): LoginStore &
         ...(session === undefined ? {} : { identityId: session.identityId }),
       };
     }),
+
+  recordAuditEvent: async (input) => recordAuthAuditEvent(db, input),
 });
 ```
 
@@ -3057,7 +3129,11 @@ import { makeLoginController } from './login.controller.ts';
 export const makeLoginRoute = (login: Login): Router => {
   const router = Router();
 
-  router.post('/', validateRequest({ body: loginRequestSchema }), makeLoginController(login));
+  router.post(
+    '/',
+    validateRequest({ body: loginRequestSchema }),
+    makeLoginController(login),
+  );
 
   return router;
 };
@@ -3136,7 +3212,6 @@ import {
   type Actor,
   type Permission,
   type Principal,
-  type Resource,
   type Role,
 } from '@pressly/auth';
 import { catchAsync } from '@pressly/http/express';
@@ -3149,7 +3224,6 @@ type AuthLocals = Readonly<{
 
 export type AuthorizeMiddlewareInput = Readonly<{
   action: Permission;
-  resource: Resource;
   roles: readonly Role[];
   freshSessionMaxAgeMinutes?: number;
 }>;
@@ -3159,8 +3233,7 @@ export type AuthorizeMiddlewareFactory = (
 ) => RequestHandler;
 
 export const makeAuthorizeMiddleware =
-  (): AuthorizeMiddlewareFactory =>
-  (input) =>
+  (): AuthorizeMiddlewareFactory => (input) =>
     catchAsync(async (_req, res, next) => {
       const auth = res.locals['auth'] as AuthLocals | undefined;
 
@@ -3180,7 +3253,6 @@ export const makeAuthorizeMiddleware =
 
       const policies = [
         allow(input.action)
-          .on(input.resource)
           .to(...input.roles)
           .require(input.action)
           .when(...conditions),
@@ -3199,7 +3271,6 @@ export const makeAuthorizeMiddleware =
       const decision = authorize({
         actor: auth.actor,
         action: input.action,
-        resource: input.resource,
         context,
         policies,
       });
@@ -3266,7 +3337,9 @@ export const makeLoadSessionController = (
         principal: {
           identityId: result.value.identityId,
           displayName: result.value.displayName,
-          ...(result.value.email === undefined ? {} : { email: result.value.email }),
+          ...(result.value.email === undefined
+            ? {}
+            : { email: result.value.email }),
           roles: [...result.value.roles],
         },
         expiresAt: result.value.sessionExpiresAt.toISOString(),
@@ -3317,14 +3390,16 @@ export const makeRevokeSessionController = (
 ```ts
 import { Router } from 'express';
 import type { Database } from '@pressly/db';
-import { makeAuthStore } from './adapters/shared/persistence/auth.repo.ts';
 import { makePasswordVerifier } from './adapters/shared/security/password-verifier.ts';
 import { makeTokenIssuer } from './adapters/shared/security/token-issuer.ts';
 import { makeLoginRoute } from './adapters/login/http/login.route.ts';
+import { makeLoginRepository } from './adapters/login/persistence/login.repo.ts';
 import { makeAuthenticateMiddleware } from './adapters/load-session/http/authenticate.middleware.ts';
 import { makeAuthorizeMiddleware } from './adapters/load-session/http/authorize.middleware.ts';
 import { makeLoadSessionController } from './adapters/load-session/http/load-session.controller.ts';
+import { makeLoadSessionRepository } from './adapters/load-session/persistence/load-session.repo.ts';
 import { makeRevokeSessionController } from './adapters/revoke-session/http/revoke-session.controller.ts';
+import { makeRevokeSessionRepository } from './adapters/revoke-session/persistence/revoke-session.repo.ts';
 import { makeLogin } from './features/login/login.usecase.ts';
 import { makeLoadSession } from './features/load-session/load-session.usecase.ts';
 import { makeRevokeSession } from './features/revoke-session/revoke-session.usecase.ts';
@@ -3339,12 +3414,14 @@ export type AuthModuleDeps = Readonly<{
 }>;
 
 export const makeAuthModule = (deps: AuthModuleDeps) => {
-  const store = makeAuthStore(deps.db);
+  const loginStore = makeLoginRepository(deps.db);
+  const loadSessionStore = makeLoadSessionRepository(deps.db);
+  const revokeSessionStore = makeRevokeSessionRepository(deps.db);
   const tokenIssuer = makeTokenIssuer(deps.tokenSecret);
   const clock = { now: () => new Date() };
 
   const login = makeLogin({
-    store,
+    store: loginStore,
     passwordVerifier: makePasswordVerifier(),
     tokenIssuer,
     clock,
@@ -3356,13 +3433,13 @@ export const makeAuthModule = (deps: AuthModuleDeps) => {
   });
 
   const loadSession = makeLoadSession({
-    store,
+    store: loadSessionStore,
     tokenHasher: tokenIssuer,
     clock,
   });
 
   const revokeSession = makeRevokeSession({
-    store,
+    store: revokeSessionStore,
     tokenHasher: tokenIssuer,
     clock,
   });
@@ -3417,7 +3494,6 @@ export type PricingReadRouteGuards = Readonly<{
   authenticate: RequestHandler;
   authorize: (input: {
     action: 'pricing:read';
-    resource: 'pricing_catalog';
     roles: readonly ['owner', 'admin'];
   }) => RequestHandler;
 }>;
@@ -3430,7 +3506,6 @@ export const makeAdminLoadPricingCatalogRoutes = (input: {
   const controller = makeLoadPricingCatalogController(input.loadPricingCatalog);
   const authorizeRead = input.guards.authorize({
     action: 'pricing:read',
-    resource: 'pricing_catalog',
     roles: ['owner', 'admin'],
   });
 
@@ -3569,7 +3644,6 @@ export type PricingAdminRouteGuards = Readonly<{
   authenticate: RequestHandler;
   authorize: (input: {
     action: 'pricing:read' | 'pricing:plan' | 'pricing:publish';
-    resource: 'pricing_catalog';
     roles: readonly ['owner'] | readonly ['owner', 'admin'];
     freshSessionMaxAgeMinutes?: number;
   }) => RequestHandler;
@@ -3589,7 +3663,6 @@ export const makePublishPricingChangeRoutes = (input: {
     input.guards.authenticate,
     input.guards.authorize({
       action: 'pricing:plan',
-      resource: 'pricing_catalog',
       roles: ['owner', 'admin'],
     }),
     makePlanPricingChangeController(input.planPricingChange),
@@ -3601,7 +3674,6 @@ export const makePublishPricingChangeRoutes = (input: {
     input.guards.authenticate,
     input.guards.authorize({
       action: 'pricing:publish',
-      resource: 'pricing_catalog',
       roles: ['owner'],
       freshSessionMaxAgeMinutes: input.freshSessionMaxAgeMinutes,
     }),
@@ -3821,10 +3893,7 @@ export type LoginPromptResult = Readonly<{
   password: string;
 }>;
 
-const promptHidden = async (
-  question: string,
-  io: CliIO,
-): Promise<string> => {
+const promptHidden = async (question: string, io: CliIO): Promise<string> => {
   const stdin = io.stdin ?? process.stdin;
   const output = io.stderr as NodeJS.WriteStream;
 
@@ -3975,7 +4044,9 @@ const requestJson = async <T>(input: {
       method: input.method ?? 'GET',
       headers: {
         accept: 'application/json',
-        ...(input.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(input.body === undefined
+          ? {}
+          : { 'content-type': 'application/json' }),
         ...(input.bearerToken === undefined
           ? {}
           : { authorization: `Bearer ${input.bearerToken}` }),

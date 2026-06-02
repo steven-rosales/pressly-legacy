@@ -1,4 +1,5 @@
 export * as pricing from './schema/pricing.schema.ts';
+export * as auth from './schema/auth.schema.ts';
 
 export { createDatabaseRuntime } from './client.ts';
 export { checkDatabaseHealth } from './health.ts';
