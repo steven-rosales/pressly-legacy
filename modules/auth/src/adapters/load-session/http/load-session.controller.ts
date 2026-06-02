@@ -3,26 +3,7 @@ import { apiFailure, apiSuccess } from '@pressly/http';
 import { catchAsync } from '@pressly/http/express';
 import { makeAppError } from '@pressly/errors';
 import type { LoadSession } from '../../../features/load-session/load-session.usecase.ts';
-
-const missingBearerToken = () =>
-  makeAppError({
-    kind: 'PermissionError',
-    code: 'missing_bearer_token',
-    message: 'Bearer token is required.',
-    safeMessage: 'Authentication is required.',
-    status: 401,
-  });
-
-const readBearerToken = (authorization: string | undefined): string => {
-  if (authorization === undefined) throw missingBearerToken();
-
-  const [scheme, token] = authorization.split(' ');
-
-  if (scheme !== 'Bearer' || token === undefined || token.trim() === '')
-    throw missingBearerToken();
-
-  return token;
-};
+import { readBearerToken } from '../../common/persistence/read-bearer.ts';
 
 export const makeLoadSessionController = (
   loadSession: LoadSession,

@@ -305,9 +305,10 @@ export default tseslint.config(
                 'Controller and middleware files may only import packages from express or @pressly/*.',
             },
             {
-              regex: '^\\.(?!.*\\.usecase(?:\\.(?:ts|js))?$).*',
+              regex:
+                '^\\.(?!.*(?:\\.usecase(?:\\.(?:ts|js))?$|\\/common\\/persistence\\/read-bearer(?:\\.(?:ts|js))?$)).*',
               message:
-                'Controller and middleware files may only use relative imports for *.usecase files.',
+                'Controller and middleware files may only use relative imports for *.usecase files or the common bearer-token reader.',
             },
             {
               regex: '^\\..*\\.usecase(?:\\.(?:ts|js))?$',
@@ -331,12 +332,13 @@ export default tseslint.config(
             {
               regex: '^(?!@pressly\\/|\\.).*',
               message:
-                'Repo files may only import @pressly/* packages or *.port files.',
+                'Repo files may only import @pressly/* packages, *.port files, or common persistence helpers.',
             },
             {
-              regex: '^\\.(?!.*\\.port(?:\\.(?:ts|js))?$).*',
+              regex:
+                '^\\.(?!.*(?:\\.port(?:\\.(?:ts|js))?$|\\/common\\/persistence\\/)).*',
               message:
-                'Relative imports in repo files must target *.port files.',
+                'Relative imports in repo files must target *.port files or common persistence helpers.',
             },
           ],
         },
@@ -365,7 +367,9 @@ export default tseslint.config(
       '**/adapter/**/persistence/**/*.ts',
     ],
     ignores: [
+      '**/adapters/common/persistence/**/*.ts',
       '**/adapters/**/persistence/**/*.repo.ts',
+      '**/adapter/common/persistence/**/*.ts',
       '**/adapter/**/persistence/**/*.repo.ts',
     ],
     rules: restrictedFileNameRule(

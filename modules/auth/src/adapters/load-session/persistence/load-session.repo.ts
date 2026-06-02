@@ -1,37 +1,7 @@
-import { isRole, type Role } from '@pressly/auth';
 import { auth, eq, type Database } from '@pressly/db';
-import {
-  err,
-  isAppError,
-  makeAppError,
-  ok,
-  type AppError,
-  type Result,
-} from '@pressly/errors';
 import type { LoadSessionStore } from '../../../features/load-session/load-session.port.ts';
-
-const databaseFailure = (cause: unknown): AppError =>
-  makeAppError({
-    kind: 'DatabaseError',
-    code: 'auth_database_field',
-    message: 'Auth database operation failed.',
-    safeMessage: 'Authentication could not be completed.',
-    status: 500,
-    cause,
-  });
-
-const toDatabaseResult = async <T>(
-  work: () => Promise<T>,
-): Promise<Result<T, AppError>> => {
-  try {
-    return ok(await work());
-  } catch (error) {
-    return err(isAppError(error) ? error : databaseFailure(error));
-  }
-};
-
-const mapStoredRoles = (rows: readonly { role: string }[]): Role[] =>
-  rows.map((row) => row.role).filter(isRole);
+import { toDatabaseResult } from '../../common/persistence/database-result.ts';
+import { mapStoredRoles } from '../../common/persistence/roles.ts';
 
 export const makeLoadSessionStore = (db: Database): LoadSessionStore => ({
   findByTokenHash: async (tokenHash) =>
