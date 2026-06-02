@@ -3,7 +3,7 @@ import { apiFailure, apiSuccess } from '@pressly/http';
 import { catchAsync } from '@pressly/http/express';
 import { makeAppError } from '@pressly/errors';
 import type { LoadSession } from '../../../features/load-session/load-session.usecase.ts';
-import { readBearerToken } from '../../common/persistence/read-bearer.ts';
+import { readBearerToken } from '../../common/read-bearer.ts';
 
 export const makeLoadSessionController = (
   loadSession: LoadSession,

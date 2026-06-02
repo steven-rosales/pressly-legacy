@@ -209,6 +209,6 @@ describe('load session repository integration', () => {
 
     const result = await store.touchSession('not-a-session-id', new Date());
 
-    expectErrCode(result, 'auth_database_field');
+    expectErrCode(result, 'auth_database_failed');
   });
 });

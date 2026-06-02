@@ -197,6 +197,6 @@ describe('revoke session repository integration', () => {
       resourceType: 'auth_session',
     });
 
-    expectErrCode(result, 'auth_database_field');
+    expectErrCode(result, 'auth_database_failed');
   });
 });

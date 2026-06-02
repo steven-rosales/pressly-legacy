@@ -5,12 +5,14 @@ export { normalizeEmail } from './identity.ts';
 export { principalLabel } from './principal.ts';
 export { isRole, permissionsForRole, selectHighestRole } from './permission.ts';
 export { allow, authorize, freshSession } from './policy.ts';
+export { makePasswordVerifier } from './password-verifier.ts';
 export { resolveCliActor } from './resolve-cli-actor.ts';
 export {
   isSessionExpired,
   isSessionRevoked,
   sessionAgeMinutes,
 } from './session.ts';
+export { makeTokenIssuer } from './token-issuer.ts';
 export { validatePasswordStrength } from './password.ts';
 
 export type { Action } from './action.ts';

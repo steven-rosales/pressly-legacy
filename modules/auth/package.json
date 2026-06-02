@@ -28,7 +28,6 @@
     "@pressly/db": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/http": "workspace:*",
-    "argon2": "^0.44.0",
     "express": "^5.2.1"
   },
   "devDependencies": {

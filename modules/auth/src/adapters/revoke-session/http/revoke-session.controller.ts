@@ -2,7 +2,7 @@ import type { RequestHandler } from 'express';
 import { apiFailure, apiSuccess } from '@pressly/http';
 import { catchAsync } from '@pressly/http/express';
 import type { RevokeSession } from '../../../features/revoke-session/revoke-session.usecase.ts';
-import { readBearerToken } from '../../common/persistence/read-bearer.ts';
+import { readBearerToken } from '../../common/read-bearer.ts';
 
 export const makeRevokeSessionController = (
   revokeSession: RevokeSession,

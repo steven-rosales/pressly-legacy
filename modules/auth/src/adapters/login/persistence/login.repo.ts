@@ -3,12 +3,12 @@ import type {
   LoginAttemptInput,
   LoginStore,
 } from '../../../features/login/login.port.ts';
-import { recordAuthAuditEvent } from '../../common/persistence/auth-audit.ts';
+import { recordAuthAuditEvent } from '../../common/auth-audit.ts';
 import {
   databaseFailure,
   toDatabaseResult,
-} from '../../common/persistence/database-result.ts';
-import { mapStoredRoles } from '../../common/persistence/roles.ts';
+} from '../../common/database-result.ts';
+import { mapStoredRoles } from '../../common/roles.ts';
 
 export const makeLoginStore = (db: Database): LoginStore => ({
   findIdentityByEmail: async (emailNormalized) =>

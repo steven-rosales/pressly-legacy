@@ -333,9 +333,6 @@ importers:
       '@pressly/http':
         specifier: workspace:*
         version: link:../../packages/http
-      argon2:
-        specifier: ^0.44.0
-        version: 0.44.0
       express:
         specifier: ^5.2.1
         version: 5.2.1

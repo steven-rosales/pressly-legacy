@@ -4,6 +4,7 @@ import type { LoginResult } from '@pressly/contracts';
 import { err, makeAppError, ok } from '@pressly/errors';
 import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
 import { makeLoginController } from '../../src/adapters/login/http/login.controller.ts';
+import { makeLoginRoute } from '../../src/adapters/login/http/login.route.ts';
 import type { Login } from '../../src/features/login/login.usecase.ts';
 
 const loginResult: LoginResult = {
@@ -135,5 +136,27 @@ describe('login http controller', () => {
     expect(next).toHaveBeenCalledWith(error);
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).not.toHaveBeenCalled();
+  });
+});
+
+describe('login http router', () => {
+  it('registers POST / with validation and the login controller', () => {
+    const login = vi.fn<Login>().mockResolvedValue(ok(loginResult));
+    const router = makeLoginRoute(login) as unknown as {
+      stack: Array<{
+        route?: {
+          path: string;
+          methods: Record<string, boolean>;
+          stack: unknown[];
+        };
+      }>;
+    };
+
+    expect(router.stack).toHaveLength(1);
+    expect(router.stack[0]?.route).toMatchObject({
+      path: '/',
+      methods: { post: true },
+    });
+    expect(router.stack[0]?.route?.stack).toHaveLength(2);
   });
 });

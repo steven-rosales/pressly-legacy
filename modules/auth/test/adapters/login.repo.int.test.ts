@@ -293,6 +293,6 @@ describe('login repository integration', () => {
       expiresAt,
     });
 
-    expectErrCode(result, 'auth_database_field');
+    expectErrCode(result, 'auth_database_failed');
   });
 });

@@ -4,6 +4,7 @@ import type { Principal } from '@pressly/auth';
 import { err, makeAppError, ok } from '@pressly/errors';
 import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
 import { makeLoadSessionController } from '../../src/adapters/load-session/http/load-session.controller.ts';
+import { makeLoadSessionRouter } from '../../src/adapters/load-session/http/load-session.route.ts';
 import type { LoadSession } from '../../src/features/load-session/load-session.usecase.ts';
 
 const bearerToken = 'access-token-with-at-least-thirty-two-chars';
@@ -220,5 +221,29 @@ describe('load session http controller', () => {
     expectNextErrorCode(next, 'loaded_session_missing_expiry');
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).not.toHaveBeenCalled();
+  });
+});
+
+describe('load session http router', () => {
+  it('registers GET / for the load session controller', () => {
+    const loadSession = vi
+      .fn<LoadSession>()
+      .mockResolvedValue(ok(loadSessionResult));
+    const router = makeLoadSessionRouter({ loadSession }) as unknown as {
+      stack: Array<{
+        route?: {
+          path: string;
+          methods: Record<string, boolean>;
+          stack: unknown[];
+        };
+      }>;
+    };
+
+    expect(router.stack).toHaveLength(1);
+    expect(router.stack[0]?.route).toMatchObject({
+      path: '/',
+      methods: { get: true },
+    });
+    expect(router.stack[0]?.route?.stack).toHaveLength(1);
   });
 });

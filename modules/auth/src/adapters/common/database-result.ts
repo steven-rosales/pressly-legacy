@@ -10,7 +10,7 @@ import {
 export const databaseFailure = (cause: unknown): AppError =>
   makeAppError({
     kind: 'DatabaseError',
-    code: 'auth_database_field',
+    code: 'auth_database_failed',
     message: 'Auth database operation failed.',
     safeMessage: 'Authentication could not be completed.',
     status: 500,

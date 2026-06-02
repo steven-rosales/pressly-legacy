@@ -1,7 +1,7 @@
 import { auth, eq, type Database } from '@pressly/db';
 import type { LoadSessionStore } from '../../../features/load-session/load-session.port.ts';
-import { toDatabaseResult } from '../../common/persistence/database-result.ts';
-import { mapStoredRoles } from '../../common/persistence/roles.ts';
+import { toDatabaseResult } from '../../common/database-result.ts';
+import { mapStoredRoles } from '../../common/roles.ts';
 
 export const makeLoadSessionStore = (db: Database): LoadSessionStore => ({
   findByTokenHash: async (tokenHash) =>

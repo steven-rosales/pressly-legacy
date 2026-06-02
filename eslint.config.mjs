@@ -291,6 +291,30 @@ export default tseslint.config(
   },
 
   {
+    files: ['modules/*/src/main.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?!express$|@pressly\\/|\\.).*',
+              message:
+                'Module main files may only import packages from express or @pressly/*.',
+            },
+            {
+              regex:
+                '^\\.(?!.*\\.(?:repo|middleware|route|usecase)(?:\\.(?:ts|js))?$).*',
+              message:
+                'Module main files may only use relative imports for *.repo, *.middleware, *.route, or *.usecase files.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
     files: ['**/*.controller.ts', '**/*.middleware.ts'],
     rules: {
       'no-restricted-imports': 'off',
@@ -306,7 +330,7 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.(?!.*(?:\\.usecase(?:\\.(?:ts|js))?$|\\/common\\/persistence\\/read-bearer(?:\\.(?:ts|js))?$)).*',
+                '^\\.(?!.*(?:\\.usecase(?:\\.(?:ts|js))?$|\\/common\\/read-bearer(?:\\.(?:ts|js))?$)).*',
               message:
                 'Controller and middleware files may only use relative imports for *.usecase files or the common bearer-token reader.',
             },
@@ -332,13 +356,13 @@ export default tseslint.config(
             {
               regex: '^(?!@pressly\\/|\\.).*',
               message:
-                'Repo files may only import @pressly/* packages, *.port files, or common persistence helpers.',
+                'Repo files may only import @pressly/* packages, *.port files, or common adapter helpers.',
             },
             {
               regex:
-                '^\\.(?!.*(?:\\.port(?:\\.(?:ts|js))?$|\\/common\\/persistence\\/)).*',
+                '^\\.(?!.*(?:\\.port(?:\\.(?:ts|js))?$|\\/common\\/[^/]+(?:\\.(?:ts|js))?$)).*',
               message:
-                'Relative imports in repo files must target *.port files or common persistence helpers.',
+                'Relative imports in repo files must target *.port files or common adapter helpers.',
             },
           ],
         },
@@ -367,9 +391,7 @@ export default tseslint.config(
       '**/adapter/**/persistence/**/*.ts',
     ],
     ignores: [
-      '**/adapters/common/persistence/**/*.ts',
       '**/adapters/**/persistence/**/*.repo.ts',
-      '**/adapter/common/persistence/**/*.ts',
       '**/adapter/**/persistence/**/*.repo.ts',
     ],
     rules: restrictedFileNameRule(
