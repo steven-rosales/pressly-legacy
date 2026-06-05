@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - main
-      - devops-pipeline
+      - db-modules-creation
   pull_request:
     branches:
       - main
-      - devops-pipeline
+      - db-modules-creation
   workflow_dispatch:
 
 concurrency:
