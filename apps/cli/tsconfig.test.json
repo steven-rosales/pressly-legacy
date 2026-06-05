@@ -1,0 +1,22 @@
+{
+  "extends": "../../packages/tsconfig/node.json",
+  "compilerOptions": {
+    "composite": false,
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "rootDir": "../..",
+    "types": ["node", "vitest"],
+    "paths": {
+      "@pressly/contracts": ["../../packages/contracts/src/index.ts"],
+      "@pressly/errors": ["../../packages/errors/src/index.ts"],
+      "@pressly/presenters": ["../../packages/presenters/src/index.ts"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "test/**/*.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}

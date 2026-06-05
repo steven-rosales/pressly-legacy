@@ -11,21 +11,11 @@ import {
   type AppError,
   type Result,
 } from '@pressly/errors';
-
-export type PricingCliAction = 'show' | 'plan' | 'publish';
-
-export type PricingCliCommand = Readonly<{
-  action: PricingCliAction;
-  serviceSlug: PricingServiceSlug;
-  locationSlug?: string;
-  reason?: string;
-  items: readonly PublishPricingChangeItem[];
-  confirm: boolean;
-  json: boolean;
-}>;
+import { commandError } from '../../shell/command-error.ts';
+import type { PricingCliCommand } from './application/command.ts';
 
 export const usage = [
-  'Pressly admin CLI',
+  'Pressly pricing CLI',
   '',
   'Usage:',
   '  pressly-admin pricing show --service wash-fold [--location hoboken]',
@@ -44,14 +34,6 @@ export const usage = [
 
 const isPricingServiceSlug = (value: string): value is PricingServiceSlug =>
   value === 'wash-fold' || value === 'dry-cleaning';
-
-const commandError = (message: string, details?: unknown): AppError =>
-  validationError({
-    code: 'invalid_cli_command',
-    message,
-    safeMessage: message,
-    ...(details === undefined ? {} : { details }),
-  });
 
 const getSingleString = (
   values: ReturnType<typeof parseArgs>['values'],

@@ -33,6 +33,12 @@ const namespaceError = (namespace: string | undefined): AppError =>
     details: { namespace },
   });
 
+/**
+ * Finds the feature specified in the CLI
+ * @param argv The arguments specified in the CLI
+ * @param features The feature and all the commands it can run.
+ * @returns `feature` and `namespace` (which is usually the name of the feature)
+ */
 const findFeature = (
   argv: readonly string[],
   features: readonly CliFeature[],
@@ -46,6 +52,9 @@ const findFeature = (
   };
 };
 
+/**
+ * This runs the http command
+ */
 const runPlainCommand = async (
   feature: CliFeature,
   command: CliCommand,
@@ -141,7 +150,7 @@ export const runCli = async (input: RunCliInput): Promise<number> => {
   }
 
   try {
-    if (command.json || !isTty(input.io.stdout))
+    if (command.json || !feature.interactive || !isTty(input.io.stdout))
       return await runPlainCommand(feature, command, client.value, input.io);
 
     return await runInteractiveCommand(

@@ -26,6 +26,7 @@ export type CliFeatureSpec<
   run: (command: Command, client: Client) => Promise<Result<Output, AppError>>;
   present: (output: Output) => string;
   serialize?: (output: Output) => unknown;
+  interactive?: boolean;
   createView: (context: CliFeatureContext<Command, Client>) => ReactElement;
 }>;
 
@@ -40,6 +41,7 @@ export type CliFeature = Readonly<{
   ) => Promise<Result<unknown, AppError>>;
   present: (output: unknown) => string;
   serialize: (output: unknown) => unknown;
+  interactive: boolean;
   createView: (
     context: CliFeatureContext<CliCommand, CliClient>,
   ) => ReactElement;
@@ -63,6 +65,7 @@ export const makeCliFeature = <
   present: (output) => spec.present(output as Output),
   serialize: (output) =>
     spec.serialize === undefined ? output : spec.serialize(output as Output),
+  interactive: spec.interactive ?? true,
   createView: (context) =>
     spec.createView({
       command: context.command as Command,

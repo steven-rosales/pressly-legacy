@@ -14,7 +14,7 @@ export type PricingChangeInput = Readonly<{
   items: readonly PublishPricingChangeItem[];
 }>;
 
-export type PricingAdminClient = Readonly<{
+export type PricingClient = Readonly<{
   loadCatalog: (
     command: LoadPricingCatalogCommand,
   ) => Promise<Result<LoadPricingCatalogResult, AppError>>;

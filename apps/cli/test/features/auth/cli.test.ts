@@ -1,0 +1,126 @@
+import { describe, expect, it } from 'vitest';
+import type { AuthPrincipalResult } from '@pressly/contracts';
+import { ok } from '@pressly/errors';
+import {
+  makeAuthCli,
+  type AuthCliClient,
+  type AuthCliDeps,
+} from '../../../src/features/auth/index.ts';
+import { parseAuthCliCommand } from '../../../src/features/auth/args.ts';
+import type { CliIO } from '../../../src/shell/io.ts';
+import { runCli } from '../../../src/shell/run-cli.ts';
+import { makeTestIo } from '../../support/io.ts';
+
+const makeFakeClient = () => {
+  const calls = {
+    login: 0,
+    session: 0,
+    logout: 0,
+    close: 0,
+  };
+
+  const principal: AuthPrincipalResult = {
+    identityId: '00000000-0000-0000-0000-000000000001',
+    displayName: 'Steven',
+    email: 'steven@example.com',
+    roles: ['owner'],
+  };
+
+  const client: AuthCliClient = {
+    login: async () => {
+      calls.login += 1;
+
+      return ok({
+        accessToken: 'token_12345678901234567890123456789012',
+        expiresAt: '2026-06-03T12:00:00.000Z',
+        principal,
+      });
+    },
+    loadSession: async () => {
+      calls.session += 1;
+
+      return ok({
+        expiresAt: '2026-06-03T12:00:00.000Z',
+        principal,
+      });
+    },
+    logout: async () => {
+      calls.logout += 1;
+
+      return ok({ revoked: true });
+    },
+    close: async () => {
+      calls.close += 1;
+    },
+  };
+
+  return { calls, client };
+};
+
+const runTestAuthCli = (
+  argv: readonly string[],
+  io: CliIO,
+  deps: AuthCliDeps,
+): Promise<number> =>
+  runCli({
+    argv,
+    env: {},
+    io,
+    features: [makeAuthCli(deps)],
+  });
+
+describe('auth CLI', () => {
+  it('parses login credentials', () => {
+    const result = parseAuthCliCommand([
+      'auth',
+      'login',
+      '--email',
+      'steven@example.com',
+      '--password',
+      'password-123',
+    ]);
+
+    expect(result.ok).toBe(true);
+
+    if (result.ok && result.value !== 'help') {
+      expect(result.value.action).toBe('login');
+      expect(result.value.email).toBe('steven@example.com');
+      expect(result.value.password).toBe('password-123');
+    }
+  });
+
+  it('runs login through the injected auth client', async () => {
+    const fake = makeFakeClient();
+    const io = makeTestIo();
+    const exitCode = await runTestAuthCli(
+      [
+        'auth',
+        'login',
+        '--email',
+        'steven@example.com',
+        '--password',
+        'password-123',
+      ],
+      io,
+      { makeAuthClient: () => ok(fake.client) },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(fake.calls.login).toBe(1);
+    expect(fake.calls.close).toBe(1);
+    expect(io.stdout.text()).toMatch(/Signed in as Steven/);
+  });
+
+  it('runs logout through the injected auth client', async () => {
+    const fake = makeFakeClient();
+    const io = makeTestIo();
+    const exitCode = await runTestAuthCli(['auth', 'logout'], io, {
+      makeAuthClient: () => ok(fake.client),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(fake.calls.logout).toBe(1);
+    expect(fake.calls.close).toBe(1);
+    expect(io.stdout.text()).toMatch(/Logged out/);
+  });
+});

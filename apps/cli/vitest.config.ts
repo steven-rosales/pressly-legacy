@@ -1,0 +1,39 @@
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vitest/config';
+
+const contractsSource = fileURLToPath(
+  new URL('../../packages/contracts/src/index.ts', import.meta.url),
+);
+const errorsSource = fileURLToPath(
+  new URL('../../packages/errors/src/index.ts', import.meta.url),
+);
+const presentersSource = fileURLToPath(
+  new URL('../../packages/presenters/src/index.ts', import.meta.url),
+);
+
+export default defineConfig({
+  resolve: {
+    alias: [
+      {
+        find: '@pressly/contracts',
+        replacement: contractsSource,
+      },
+      {
+        find: '@pressly/errors',
+        replacement: errorsSource,
+      },
+      {
+        find: '@pressly/presenters',
+        replacement: presentersSource,
+      },
+    ],
+  },
+  test: {
+    coverage: {
+      provider: 'v8',
+      reportsDirectory: './coverage',
+    },
+    environment: 'node',
+    include: ['test/**/*.test.ts', 'test/**/*.spec.ts'],
+  },
+});

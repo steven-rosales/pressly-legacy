@@ -7,14 +7,18 @@ import type {
   PricingChangePlan,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
-import type { PricingAdminClient, PricingChangeInput } from './client.ts';
-import { commandError, toPricingChangeInput } from './command.ts';
+import { commandError } from '../../../shell/command-error.ts';
+import { toPricingChangeInput } from '../application/command.ts';
+import type {
+  PricingChangeInput,
+  PricingClient,
+} from '../application/ports.ts';
 import {
   renderPricingCatalog,
   renderPricingPlan,
   renderPricingPublishResult,
 } from './presenter.ts';
-import type { PricingCliCommand } from './args.ts';
+import type { PricingCliCommand } from '../application/command.ts';
 
 type AppState =
   | Readonly<{ tag: 'loading'; message: string }>
@@ -32,7 +36,7 @@ type AppState =
 
 export type PricingCliViewProps = Readonly<{
   command: PricingCliCommand;
-  client: PricingAdminClient;
+  client: PricingClient;
 }>;
 
 const Lines = ({ value }: { value: string }) => (

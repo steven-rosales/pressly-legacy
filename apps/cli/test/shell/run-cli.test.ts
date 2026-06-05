@@ -1,31 +1,10 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
 import { createElement } from 'react';
 import { Text } from 'ink';
+import { describe, expect, it } from 'vitest';
 import { ok } from '@pressly/errors';
-import { makeCliFeature } from './feature.ts';
-import { runCli } from './run-cli.ts';
-import type { CliIO } from './io.ts';
-
-const makeWriter = () => {
-  let value = '';
-
-  return {
-    write: (chunk: string | Uint8Array) => {
-      value += chunk.toString();
-      return true;
-    },
-    text: () => value,
-  };
-};
-
-const makeIo = (): CliIO & {
-  stdout: ReturnType<typeof makeWriter>;
-  stderr: ReturnType<typeof makeWriter>;
-} => ({
-  stdout: makeWriter(),
-  stderr: makeWriter(),
-});
+import { makeCliFeature } from '../../src/shell/feature.ts';
+import { runCli } from '../../src/shell/run-cli.ts';
+import { makeTestIo } from '../support/io.ts';
 
 const testFeature = makeCliFeature({
   namespace: 'example',
@@ -39,7 +18,7 @@ const testFeature = makeCliFeature({
 
 describe('runCli', () => {
   it('prints global usage without constructing a feature client', async () => {
-    const io = makeIo();
+    const io = makeTestIo();
     const exitCode = await runCli({
       argv: ['--help'],
       env: {},
@@ -47,12 +26,12 @@ describe('runCli', () => {
       features: [testFeature],
     });
 
-    assert.equal(exitCode, 0);
-    assert.match(io.stdout.text(), /example usage/);
+    expect(exitCode).toBe(0);
+    expect(io.stdout.text()).toMatch(/example usage/);
   });
 
   it('fails unknown namespaces before running a feature', async () => {
-    const io = makeIo();
+    const io = makeTestIo();
     const exitCode = await runCli({
       argv: ['missing'],
       env: {},
@@ -60,7 +39,7 @@ describe('runCli', () => {
       features: [testFeature],
     });
 
-    assert.equal(exitCode, 1);
-    assert.match(io.stderr.text(), /Unknown command namespace: missing/);
+    expect(exitCode).toBe(1);
+    expect(io.stderr.text()).toMatch(/Unknown command namespace: missing/);
   });
 });

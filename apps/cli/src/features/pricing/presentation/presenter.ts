@@ -4,6 +4,7 @@ import type {
   PublishPricingChangeResult,
 } from '@pressly/contracts';
 import { formatMoney } from '@pressly/presenters';
+import type { PricingCliOutput } from '../application/command.ts';
 
 export const renderPricingCatalog = (
   catalog: LoadPricingCatalogResult,
@@ -63,3 +64,13 @@ export const renderPricingPlan = (plan: PricingChangePlan): string => {
 
   return lines.join('\n');
 };
+
+export const presentPricingOutput = (output: PricingCliOutput): string => {
+  if (output.tag === 'catalog') return renderPricingCatalog(output.value);
+  if (output.tag === 'plan') return renderPricingPlan(output.value);
+
+  return renderPricingPublishResult(output.value);
+};
+
+export const serializePricingOutput = (output: PricingCliOutput): unknown =>
+  output.value;

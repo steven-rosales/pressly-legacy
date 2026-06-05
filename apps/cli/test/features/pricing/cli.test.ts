@@ -1,23 +1,14 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 import { ok } from '@pressly/errors';
-import { runCli } from '../../shell/run-cli.ts';
-import type { CliIO } from '../../shell/io.ts';
-import type { PricingAdminClient } from './client.ts';
-import { makePricingCli, type PricingCliDeps } from './cli.ts';
-import { parsePricingCliCommand } from './args.ts';
-
-const makeWriter = () => {
-  let value = '';
-
-  return {
-    write: (chunk: string | Uint8Array) => {
-      value += chunk.toString();
-      return true;
-    },
-    text: () => value,
-  };
-};
+import {
+  makePricingCli,
+  type PricingClient,
+  type PricingCliDeps,
+} from '../../../src/features/pricing/index.ts';
+import { parsePricingCliCommand } from '../../../src/features/pricing/args.ts';
+import type { CliIO } from '../../../src/shell/io.ts';
+import { runCli } from '../../../src/shell/run-cli.ts';
+import { makeTestIo } from '../../support/io.ts';
 
 const makeFakeClient = () => {
   const calls = {
@@ -27,7 +18,7 @@ const makeFakeClient = () => {
     close: 0,
   };
 
-  const client: PricingAdminClient = {
+  const client: PricingClient = {
     loadCatalog: async (command) => {
       calls.load += 1;
 
@@ -90,14 +81,6 @@ const makeFakeClient = () => {
   return { calls, client };
 };
 
-const makeIo = (): CliIO & {
-  stdout: ReturnType<typeof makeWriter>;
-  stderr: ReturnType<typeof makeWriter>;
-} => ({
-  stdout: makeWriter(),
-  stderr: makeWriter(),
-});
-
 const runTestPricingCli = (
   argv: readonly string[],
   io: CliIO,
@@ -122,12 +105,12 @@ describe('pricing CLI', () => {
       'hoboken',
     ]);
 
-    assert.equal(result.ok, true);
+    expect(result.ok).toBe(true);
 
     if (result.ok && result.value !== 'help') {
-      assert.equal(result.value.action, 'show');
-      assert.equal(result.value.serviceSlug, 'wash-fold');
-      assert.equal(result.value.locationSlug, 'hoboken');
+      expect(result.value.action).toBe('show');
+      expect(result.value.serviceSlug).toBe('wash-fold');
+      expect(result.value.locationSlug).toBe('hoboken');
     }
   });
 
@@ -145,16 +128,16 @@ describe('pricing CLI', () => {
       'Update tested CLI pricing',
     ]);
 
-    assert.equal(result.ok, true);
+    expect(result.ok).toBe(true);
 
     if (result.ok && result.value !== 'help') {
-      assert.equal(result.value.action, 'plan');
-      assert.equal(result.value.items.length, 2);
-      assert.deepEqual(result.value.items[0], {
+      expect(result.value.action).toBe('plan');
+      expect(result.value.items).toHaveLength(2);
+      expect(result.value.items[0]).toEqual({
         code: 'delivery_fee',
         priceCents: 495,
       });
-      assert.deepEqual(result.value.items[1], {
+      expect(result.value.items[1]).toEqual({
         code: 'shirt',
         priceCents: 250,
       });
@@ -175,14 +158,14 @@ describe('pricing CLI', () => {
       'Update tested CLI pricing',
     ]);
 
-    assert.equal(result.ok, true);
+    expect(result.ok).toBe(true);
 
     if (result.ok && result.value !== 'help') {
-      assert.deepEqual(result.value.items[0], {
+      expect(result.value.items[0]).toEqual({
         code: 'delivery_fee',
         priceCents: 495,
       });
-      assert.deepEqual(result.value.items[1], {
+      expect(result.value.items[1]).toEqual({
         code: 'shirt',
         priceCents: 495,
       });
@@ -201,32 +184,32 @@ describe('pricing CLI', () => {
       'Update tested CLI pricing',
     ]);
 
-    assert.equal(result.ok, true);
+    expect(result.ok).toBe(true);
 
     if (result.ok && result.value !== 'help') {
-      assert.equal(result.value.action, 'publish');
-      assert.equal(result.value.confirm, false);
+      expect(result.value.action).toBe('publish');
+      expect(result.value.confirm).toBe(false);
     }
   });
 
-  it('runs pricing show through the injected admin client', async () => {
+  it('runs pricing show through the injected pricing client', async () => {
     const fake = makeFakeClient();
-    const io = makeIo();
+    const io = makeTestIo();
     const exitCode = await runTestPricingCli(
       ['pricing', 'show', '--service', 'wash-fold'],
       io,
-      { makePricingAdminClient: () => ok(fake.client) },
+      { makePricingClient: () => ok(fake.client) },
     );
 
-    assert.equal(exitCode, 0);
-    assert.equal(fake.calls.load, 1);
-    assert.equal(fake.calls.close, 1);
-    assert.match(io.stdout.text(), /Delivery Fee/);
+    expect(exitCode).toBe(0);
+    expect(fake.calls.load).toBe(1);
+    expect(fake.calls.close).toBe(1);
+    expect(io.stdout.text()).toMatch(/Delivery Fee/);
   });
 
   it('prints pricing plans as JSON for script usage', async () => {
     const fake = makeFakeClient();
-    const io = makeIo();
+    const io = makeTestIo();
     const exitCode = await runTestPricingCli(
       [
         'pricing',
@@ -240,13 +223,13 @@ describe('pricing CLI', () => {
         '--json',
       ],
       io,
-      { makePricingAdminClient: () => ok(fake.client) },
+      { makePricingClient: () => ok(fake.client) },
     );
 
-    assert.equal(exitCode, 0);
-    assert.equal(fake.calls.plan, 1);
-    assert.equal(fake.calls.close, 1);
-    assert.deepEqual(JSON.parse(io.stdout.text()), {
+    expect(exitCode).toBe(0);
+    expect(fake.calls.plan).toBe(1);
+    expect(fake.calls.close).toBe(1);
+    expect(JSON.parse(io.stdout.text())).toEqual({
       serviceSlug: 'wash-fold',
       reason: 'Test JSON output',
       oldPricingSetId: 'old_set',
@@ -264,7 +247,7 @@ describe('pricing CLI', () => {
 
   it('fails closed when publish runs non-interactively without --yes', async () => {
     const fake = makeFakeClient();
-    const io = makeIo();
+    const io = makeTestIo();
     const exitCode = await runTestPricingCli(
       [
         'pricing',
@@ -277,12 +260,12 @@ describe('pricing CLI', () => {
         'Test confirmation',
       ],
       io,
-      { makePricingAdminClient: () => ok(fake.client) },
+      { makePricingClient: () => ok(fake.client) },
     );
 
-    assert.equal(exitCode, 1);
-    assert.equal(fake.calls.publish, 0);
-    assert.equal(fake.calls.close, 1);
-    assert.match(io.stderr.text(), /requires --yes/);
+    expect(exitCode).toBe(1);
+    expect(fake.calls.publish).toBe(0);
+    expect(fake.calls.close).toBe(1);
+    expect(io.stderr.text()).toMatch(/requires --yes/);
   });
 });
