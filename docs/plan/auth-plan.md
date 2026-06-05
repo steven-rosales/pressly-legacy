@@ -49,7 +49,7 @@ modules/auth
   login/session/logout/authenticate middleware
 
 modules/pricing
-  admin pricing HTTP adapter + existing pricing usecases
+  neutral pricing HTTP endpoint parts + existing pricing usecases
 
 packages/auth
   pure auth vocabulary and policy interpreter
@@ -93,7 +93,17 @@ const authModule = makeAuthModule({ db, env });
 const pricingModule = makePricingModule({ db });
 
 app.use('/auth', authModule.routes);
-app.use('/admin/pricing', authModule.authenticate, pricingModule.adminRoutes);
+app.post(
+  '/pricing/changes/publish',
+  pricingModule.http.publishChange.validate,
+  authModule.guards.authenticate,
+  authModule.guards.authorize({
+    action: 'pricing:publish',
+    roles: ['owner'],
+    freshSessionMaxAgeMinutes,
+  }),
+  pricingModule.http.publishChange.handle,
+);
 ```
 
 Bad:
@@ -745,62 +755,59 @@ Add a rule for middleware imports:
 - may import `*.policy.ts`
 - may not import repo files directly
 
-## 6. Pricing Admin API
+## 6. Pricing HTTP API
 
-Keep public pricing routes as they are.
+Pricing routes are capability routes, not audience routes.
 
-Add an admin HTTP adapter inside the pricing module:
+Do not use `/admin/pricing`.
+
+The pricing module exposes neutral HTTP endpoint parts:
 
 ```txt
-modules/pricing/src/adapters/publish-pricing/http/
-  plan-pricing-change.controller.ts
-  publish-pricing-change.controller.ts
-  publish-pricing-change.route.ts
+pricingModule.http.loadCatalog.validate
+pricingModule.http.loadCatalog.handle
+pricingModule.http.planChange({ readAuthor }).validate
+pricingModule.http.planChange({ readAuthor }).handle
+pricingModule.http.publishChange({ readAuthor }).validate
+pricingModule.http.publishChange({ readAuthor }).handle
 ```
 
-The route composes:
+`apps/api` composes those parts with auth middleware:
 
 ```txt
 validate -> authenticate -> authorize -> controller
 ```
 
-Auth middleware is injected by `apps/api` when it asks the pricing module to
-build admin routes.
+Do not make pricing import auth middleware, roles, permissions, or
+`@pressly/auth`.
 
-Do not make pricing import the auth module.
+Pricing write controllers receive only a generic `readAuthor(res)` function.
 
-Pricing should receive auth guards through dependency injection.
-
-That gives pricing route files the middleware they need without importing
-`modules/auth` or `@pressly/auth` runtime code directly.
-
-Shape:
+That function returns attribution:
 
 ```ts
-pricingModule.makeAdminRoutes({
-  authenticate: authModule.guards.authenticate,
-  authorize: authModule.guards.authorize,
-});
+{
+  id: string;
+  kind: 'human' | 'service';
+  displayName: string;
+}
 ```
 
-Admin route behavior:
+The author is for audit.
 
-```txt
-validate -> authenticate -> authorize -> controller
-```
+It is not authorization.
 
-Pricing controllers should only receive a trusted actor from the request
-adapter.
+Authorization is declared in `apps/api`.
 
 Controller behavior:
 
 1. Read validated body.
-2. Read trusted actor from `res.locals.auth.actor`.
-3. Build `PlanPricingChangeCommand` or `PublishPricingChangeCommand`.
+2. Read author through injected `readAuthor(res)`.
+3. Build `PricingChangeCommand`.
 4. Call pricing usecase.
 5. Return `apiSuccess(...)`.
 
-The actor-bearing command is server-side only.
+The `requestedBy` command field is server-side only.
 
 It is not a public HTTP request body.
 
@@ -822,14 +829,28 @@ const pricingModule = makePricingModule({
 
 app.use('/health', makeHealthRoutes(runtime));
 app.use('/auth', authModule.routes);
-app.use('/pricing', pricingModule.routes);
 
-app.use(
-  '/admin/pricing',
-  pricingModule.makeAdminRoutes({
-    authenticate: authModule.guards.authenticate,
-    authorize: authModule.guards.authorize,
+app.get(
+  '/pricing/services/:serviceSlug/pricing',
+  pricingModule.http.loadCatalog.validate,
+  authModule.guards.authenticate,
+  authModule.guards.authorize({
+    action: 'pricing:read',
+    roles: ['owner', 'admin'],
   }),
+  pricingModule.http.loadCatalog.handle,
+);
+
+app.post(
+  '/pricing/changes/publish',
+  pricingModule.http.publishChange({ readAuthor }).validate,
+  authModule.guards.authenticate,
+  authModule.guards.authorize({
+    action: 'pricing:publish',
+    roles: ['owner'],
+    freshSessionMaxAgeMinutes: runtime.env.auth.freshSessionMaxAgeMinutes,
+  }),
+  pricingModule.http.publishChange({ readAuthor }).handle,
 );
 ```
 
@@ -955,15 +976,16 @@ Returns:
 }
 ```
 
-### Admin Pricing
+### Protected Pricing
 
 ```txt
-GET  /admin/pricing?serviceSlug=wash-fold&locationSlug=hoboken
-POST /admin/pricing/plan
-POST /admin/pricing/publish
+GET  /pricing/services/:serviceSlug/pricing
+GET  /pricing/locations/:locationSlug/services/:serviceSlug/pricing
+POST /pricing/changes/plan
+POST /pricing/changes/publish
 ```
 
-All admin pricing endpoints require:
+All protected pricing endpoints require:
 
 ```txt
 Authorization: Bearer <token>
@@ -1027,13 +1049,13 @@ crypto.randomBytes(32).toString('base64url');
 Hash token before storing:
 
 ```txt
-HMAC-SHA256(rawToken, AUTH_TOKEN_SECRET)
+HMAC-SHA256(rawToken, AUTH_SECRET)
 ```
 
 Environment:
 
 ```txt
-AUTH_TOKEN_SECRET
+AUTH_SECRET
 AUTH_SESSION_TTL_MINUTES
 AUTH_LOGIN_WINDOW_MINUTES
 AUTH_LOGIN_MAX_FAILURES
@@ -1228,7 +1250,7 @@ pnpm admin pricing publish --service wash-fold --set delivery_fee=4.95 --reason 
 Production:
 
 ```bash
-PRESSLY_ADMIN_API_URL=https://api.trypressly.com \
+PRESSLY_API_URL=https://api.trypressly.com \
 pnpm admin pricing show --service wash-fold
 ```
 
@@ -1853,7 +1875,7 @@ export type LogoutResult = z.infer<typeof logoutResultSchema>;
 #### Add to `packages/contracts/src/pricing/pricing.contracts.ts`
 
 ```ts
-export const adminPricingChangeRequestSchema = z
+export const pricingChangeRequestSchema = z
   .object({
     serviceSlug: pricingServiceSlugSchema,
     locationSlug: z.string().min(1).optional(),
@@ -1863,24 +1885,14 @@ export const adminPricingChangeRequestSchema = z
   .strict();
 ```
 
-Also expand the actor role enum:
+Add neutral server-side attribution:
 
 ```ts
-export const publishPricingChangeActorSchema = z
+export const pricingChangeAuthorSchema = z
   .object({
     id: z.string().min(1),
     kind: z.enum(['human', 'service']),
     displayName: z.string().min(1),
-    role: z.enum([
-      'owner',
-      'admin',
-      'operator',
-      'customer',
-      'driver',
-      'service',
-      'developer',
-      'ci',
-    ]),
   })
   .strict();
 ```
@@ -1888,11 +1900,9 @@ export const publishPricingChangeActorSchema = z
 #### Add to `packages/contracts/src/pricing/pricing.command.ts`
 
 ```ts
-import type { adminPricingChangeRequestSchema } from './pricing.contracts.ts';
+import type { pricingChangeRequestSchema } from './pricing.contracts.ts';
 
-export type AdminPricingChangeRequest = z.infer<
-  typeof adminPricingChangeRequestSchema
->;
+export type PricingChangeRequest = z.infer<typeof pricingChangeRequestSchema>;
 ```
 
 #### Add to `packages/contracts/src/index.ts`
@@ -1916,9 +1926,9 @@ export type {
   SessionResult,
 } from './auth/auth.result.ts';
 
-export { adminPricingChangeRequestSchema } from './pricing/pricing.contracts.ts';
+export { pricingChangeRequestSchema } from './pricing/pricing.contracts.ts';
 
-export type { AdminPricingChangeRequest } from './pricing/pricing.command.ts';
+export type { PricingChangeRequest } from './pricing/pricing.command.ts';
 ```
 
 ### 17.3 `packages/db`
@@ -2866,9 +2876,8 @@ export const toDatabaseResult = async <T>(
 ```ts
 import { isRole, type Role } from '@pressly/auth';
 
-export const mapStoredRoles = (
-  rows: readonly { role: string }[],
-): Role[] => rows.map((row) => row.role).filter(isRole);
+export const mapStoredRoles = (rows: readonly { role: string }[]): Role[] =>
+  rows.map((row) => row.role).filter(isRole);
 ```
 
 #### `modules/auth/src/adapters/shared/persistence/auth-audit.ts`
@@ -3005,9 +3014,7 @@ import type { LoadSessionStore } from '../../../features/load-session/load-sessi
 import { toDatabaseResult } from '../../shared/persistence/database-result.ts';
 import { mapStoredRoles } from '../../shared/persistence/roles.ts';
 
-export const makeLoadSessionRepository = (
-  db: Database,
-): LoadSessionStore => ({
+export const makeLoadSessionRepository = (db: Database): LoadSessionStore => ({
   findByTokenHash: async (tokenHash) =>
     toDatabaseResult(async () => {
       const [row] = await db
@@ -3479,284 +3486,30 @@ export type {
 } from './adapters/load-session/http/authorize.middleware.ts';
 ```
 
-### 17.5 Pricing Admin HTTP Adapter
+### 17.5 Pricing HTTP Adapter
 
-#### `modules/pricing/src/adapters/load-pricing-catalog/http/load-pricing-catalog-admin.route.ts`
+Current shape:
 
-```ts
-import { Router, type RequestHandler } from 'express';
-import { pricingParamsRequestSchema } from '@pressly/contracts';
-import { validateRequest } from '@pressly/http/express';
-import type { LoadPricingCatalog } from '../../../features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
-import { makeLoadPricingCatalogController } from './load-pricing-catalog.controller.ts';
+```txt
+modules/pricing exposes:
+  http.loadCatalog
+  http.planChange({ readAuthor })
+  http.publishChange({ readAuthor })
 
-export type PricingReadRouteGuards = Readonly<{
-  authenticate: RequestHandler;
-  authorize: (input: {
-    action: 'pricing:read';
-    roles: readonly ['owner', 'admin'];
-  }) => RequestHandler;
-}>;
-
-export const makeAdminLoadPricingCatalogRoutes = (input: {
-  guards: PricingReadRouteGuards;
-  loadPricingCatalog: LoadPricingCatalog;
-}): Router => {
-  const router = Router();
-  const controller = makeLoadPricingCatalogController(input.loadPricingCatalog);
-  const authorizeRead = input.guards.authorize({
-    action: 'pricing:read',
-    roles: ['owner', 'admin'],
-  });
-
-  router.get(
-    '/services/:serviceSlug/pricing',
-    validateRequest({ params: pricingParamsRequestSchema }),
-    input.guards.authenticate,
-    authorizeRead,
-    controller,
-  );
-
-  router.get(
-    '/locations/:locationSlug/services/:serviceSlug/pricing',
-    validateRequest({ params: pricingParamsRequestSchema }),
-    input.guards.authenticate,
-    authorizeRead,
-    controller,
-  );
-
-  return router;
-};
+apps/api declares:
+  validate -> authenticate -> authorize -> handler
 ```
 
-#### `modules/pricing/src/adapters/publish-pricing/http/plan-pricing-change.controller.ts`
+Pricing HTTP adapters do not import auth middleware, roles, permissions, or `@pressly/auth`.
+
+Pricing write controllers build commands with `requestedBy`, not a role-bearing actor.
 
 ```ts
-import type { RequestHandler } from 'express';
-import { apiFailure, apiSuccess } from '@pressly/http';
-import type { Actor } from '@pressly/auth';
-import type { AdminPricingChangeRequest } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
-import { makeAppError } from '@pressly/errors';
-import type { PlanPricingChange } from '../../../features/publish-pricing/plan-pricing-change.usecase.ts';
-
-const readTrustedActor = (res: Parameters<RequestHandler>[1]): Actor => {
-  const auth = res.locals['auth'] as { actor?: Actor } | undefined;
-
-  if (auth?.actor !== undefined) return auth.actor;
-
-  throw makeAppError({
-    kind: 'PermissionError',
-    code: 'missing_auth_actor',
-    message: 'Authenticated actor is missing from request locals.',
-    safeMessage: 'Authentication is required.',
-    status: 401,
-  });
-};
-
-export const makePlanPricingChangeController = (
-  planPricingChange: PlanPricingChange,
-): RequestHandler =>
-  catchAsync(async (req, res) => {
-    const body = req.body as AdminPricingChangeRequest;
-    const actor = readTrustedActor(res);
-    const result = await planPricingChange({
-      ...body,
-      actor: {
-        id: actor.id,
-        kind: actor.kind,
-        displayName: actor.displayName,
-        role: actor.role,
-      },
-    });
-
-    if (!result.ok) {
-      res.status(result.error.status).json(apiFailure(result.error));
-      return;
-    }
-
-    res.status(200).json(apiSuccess(result.value));
-  });
+const result = await publishPricingChange({
+  ...body,
+  requestedBy: readAuthor(res),
+});
 ```
-
-#### `modules/pricing/src/adapters/publish-pricing/http/publish-pricing-change.controller.ts`
-
-```ts
-import type { RequestHandler } from 'express';
-import { apiFailure, apiSuccess } from '@pressly/http';
-import type { Actor } from '@pressly/auth';
-import type { AdminPricingChangeRequest } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
-import { makeAppError } from '@pressly/errors';
-import type { PublishPricingChange } from '../../../features/publish-pricing/publish-pricing-change.usecase.ts';
-
-const readTrustedActor = (res: Parameters<RequestHandler>[1]): Actor => {
-  const auth = res.locals['auth'] as { actor?: Actor } | undefined;
-
-  if (auth?.actor !== undefined) return auth.actor;
-
-  throw makeAppError({
-    kind: 'PermissionError',
-    code: 'missing_auth_actor',
-    message: 'Authenticated actor is missing from request locals.',
-    safeMessage: 'Authentication is required.',
-    status: 401,
-  });
-};
-
-export const makePublishPricingChangeController = (
-  publishPricingChange: PublishPricingChange,
-): RequestHandler =>
-  catchAsync(async (req, res) => {
-    const body = req.body as AdminPricingChangeRequest;
-    const actor = readTrustedActor(res);
-    const result = await publishPricingChange({
-      ...body,
-      actor: {
-        id: actor.id,
-        kind: actor.kind,
-        displayName: actor.displayName,
-        role: actor.role,
-      },
-    });
-
-    if (!result.ok) {
-      res.status(result.error.status).json(apiFailure(result.error));
-      return;
-    }
-
-    res.status(200).json(apiSuccess(result.value));
-  });
-```
-
-#### `modules/pricing/src/adapters/publish-pricing/http/publish-pricing-change.route.ts`
-
-```ts
-import { Router, type RequestHandler } from 'express';
-import { adminPricingChangeRequestSchema } from '@pressly/contracts';
-import { validateRequest } from '@pressly/http/express';
-import type { PlanPricingChange } from '../../../features/publish-pricing/plan-pricing-change.usecase.ts';
-import type { PublishPricingChange } from '../../../features/publish-pricing/publish-pricing-change.usecase.ts';
-import { makePlanPricingChangeController } from './plan-pricing-change.controller.ts';
-import { makePublishPricingChangeController } from './publish-pricing-change.controller.ts';
-
-export type PricingAdminRouteGuards = Readonly<{
-  authenticate: RequestHandler;
-  authorize: (input: {
-    action: 'pricing:read' | 'pricing:plan' | 'pricing:publish';
-    roles: readonly ['owner'] | readonly ['owner', 'admin'];
-    freshSessionMaxAgeMinutes?: number;
-  }) => RequestHandler;
-}>;
-
-export const makePublishPricingChangeRoutes = (input: {
-  guards: PricingAdminRouteGuards;
-  planPricingChange: PlanPricingChange;
-  publishPricingChange: PublishPricingChange;
-  freshSessionMaxAgeMinutes: number;
-}): Router => {
-  const router = Router();
-
-  router.post(
-    '/plan',
-    validateRequest({ body: adminPricingChangeRequestSchema }),
-    input.guards.authenticate,
-    input.guards.authorize({
-      action: 'pricing:plan',
-      roles: ['owner', 'admin'],
-    }),
-    makePlanPricingChangeController(input.planPricingChange),
-  );
-
-  router.post(
-    '/publish',
-    validateRequest({ body: adminPricingChangeRequestSchema }),
-    input.guards.authenticate,
-    input.guards.authorize({
-      action: 'pricing:publish',
-      roles: ['owner'],
-      freshSessionMaxAgeMinutes: input.freshSessionMaxAgeMinutes,
-    }),
-    makePublishPricingChangeController(input.publishPricingChange),
-  );
-
-  return router;
-};
-```
-
-#### Update `modules/pricing/src/main.ts`
-
-Add:
-
-```ts
-import { Router } from 'express';
-import {
-  makeAdminLoadPricingCatalogRoutes,
-  type PricingReadRouteGuards,
-} from './adapters/load-pricing-catalog/http/load-pricing-catalog-admin.route.ts';
-import {
-  makePublishPricingChangeRoutes,
-  type PricingAdminRouteGuards,
-} from './adapters/publish-pricing/http/publish-pricing-change.route.ts';
-```
-
-Return:
-
-```ts
-return {
-  routes,
-  makeAdminRoutes: (input: {
-    guards: PricingAdminRouteGuards & PricingReadRouteGuards;
-    freshSessionMaxAgeMinutes: number;
-  }) => {
-    const adminRoutes = Router();
-
-    adminRoutes.use(
-      makeAdminLoadPricingCatalogRoutes({
-        guards: input.guards,
-        loadPricingCatalog,
-      }),
-    );
-
-    adminRoutes.use(
-      makePublishPricingChangeRoutes({
-        guards: input.guards,
-        planPricingChange,
-        publishPricingChange,
-        freshSessionMaxAgeMinutes: input.freshSessionMaxAgeMinutes,
-      }),
-    );
-
-    return adminRoutes;
-  },
-  admin: {
-    loadCatalog: loadPricingCatalog,
-    planChange: planPricingChange,
-    publishChange: publishPricingChange,
-  },
-};
-```
-
-Do not return this older shape:
-
-```ts
-return {
-  routes,
-  makeAdminRoutes: (input: {
-    guards: PricingAdminRouteGuards;
-    freshSessionMaxAgeMinutes: number;
-  }) =>
-    makePublishPricingChangeRoutes({
-      guards: input.guards,
-      planPricingChange,
-      publishPricingChange,
-      freshSessionMaxAgeMinutes: input.freshSessionMaxAgeMinutes,
-    }),
-};
-```
-
-That older shape protects `plan` and `publish`, but it forgets authenticated
-admin `show`.
 
 ### 17.6 API Wiring
 
@@ -3775,7 +3528,7 @@ admin `show`.
 Add to schema:
 
 ```ts
-AUTH_TOKEN_SECRET: secret,
+AUTH_SECRET: secret,
 AUTH_SESSION_TTL_MINUTES: envInteger.default(720),
 AUTH_LOGIN_WINDOW_MINUTES: envInteger.default(15),
 AUTH_LOGIN_MAX_FAILURES: envInteger.default(8),
@@ -3786,7 +3539,7 @@ Add to `apiEnv`:
 
 ```ts
 auth: {
-  tokenSecret: rawApiEnv.AUTH_TOKEN_SECRET,
+  secret: rawApiEnv.AUTH_SECRET,
   sessionTtlMinutes: rawApiEnv.AUTH_SESSION_TTL_MINUTES,
   loginWindowMinutes: rawApiEnv.AUTH_LOGIN_WINDOW_MINUTES,
   loginMaxFailures: rawApiEnv.AUTH_LOGIN_MAX_FAILURES,
@@ -3806,480 +3559,84 @@ Inside `makeApiApp`:
 ```ts
 const authModule = makeAuthModule({
   db: runtime.database.db,
-  tokenSecret: runtime.env.auth.tokenSecret,
+  tokenSecret: revealSecret(runtime.env.auth.secret),
   sessionTtlMinutes: runtime.env.auth.sessionTtlMinutes,
   loginWindowMinutes: runtime.env.auth.loginWindowMinutes,
   loginMaxFailures: runtime.env.auth.loginMaxFailures,
-  freshSessionMaxAgeMinutes: runtime.env.auth.freshSessionMaxAgeMinutes,
 });
 
 const pricingModule = makePricingModule({ db: runtime.database.db });
+const planPricingChange = pricingModule.http.planChange({ readAuthor });
+const publishPricingChange = pricingModule.http.publishChange({ readAuthor });
 
 app.use('/auth', authModule.routes);
-app.use('/pricing', pricingModule.routes);
-app.use(
-  '/admin/pricing',
-  pricingModule.makeAdminRoutes({
-    guards: authModule.guards,
+
+app.post(
+  '/pricing/changes/plan',
+  planPricingChange.validate,
+  authModule.guards.authenticate,
+  authModule.guards.authorize({
+    action: 'pricing:plan',
+    roles: ['owner', 'admin'],
+  }),
+  planPricingChange.handle,
+);
+
+app.post(
+  '/pricing/changes/publish',
+  publishPricingChange.validate,
+  authModule.guards.authenticate,
+  authModule.guards.authorize({
+    action: 'pricing:publish',
+    roles: ['owner'],
     freshSessionMaxAgeMinutes: runtime.env.auth.freshSessionMaxAgeMinutes,
   }),
+  publishPricingChange.handle,
 );
 ```
 
 ### 17.7 CLI API Client
 
-#### Add `@pressly/http` to `apps/cli/package.json`
+Current implementation shape:
 
-```json
-{
-  "dependencies": {
-    "@pressly/http": "workspace:*"
-  }
-}
+```txt
+apps/cli/src/features/auth/
+  api-client.ts
+  args.ts
+  cli.ts
+  token-store.ts
+
+apps/cli/src/features/pricing/
+  api-client.ts
 ```
 
-#### `apps/cli/src/features/auth/token-store.ts`
+CLI uses:
 
-```ts
-import { mkdir, readFile, writeFile, chmod, rm } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { homedir } from 'node:os';
-import type { LoginResult } from '@pressly/contracts';
-
-export type StoredAdminSession = LoginResult &
-  Readonly<{
-    apiUrl: string;
-  }>;
-
-const sessionPath = () =>
-  join(homedir(), '.config', 'pressly', 'admin-session.json');
-
-export const makeAdminSessionStore = () => ({
-  read: async (): Promise<StoredAdminSession | undefined> => {
-    try {
-      const raw = await readFile(sessionPath(), 'utf8');
-      return JSON.parse(raw) as StoredAdminSession;
-    } catch {
-      return undefined;
-    }
-  },
-
-  write: async (session: StoredAdminSession): Promise<void> => {
-    const path = sessionPath();
-
-    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-    await chmod(dirname(path), 0o700);
-    await writeFile(path, JSON.stringify(session, null, 2), {
-      mode: 0o600,
-    });
-    await chmod(path, 0o600);
-  },
-
-  clear: async (): Promise<void> => {
-    await rm(sessionPath(), { force: true });
-  },
-});
+```txt
+PRESSLY_API_URL=http://localhost:4000
+~/.config/pressly/admin-session.json
 ```
 
-#### `apps/cli/src/features/auth/login.ts`
+Pricing CLI commands read the stored bearer token.
 
-```ts
-import { createInterface } from 'node:readline/promises';
-import { validationError } from '@pressly/errors';
-import type { CliIO } from '../../shell/io.ts';
+They call:
 
-export type LoginPromptResult = Readonly<{
-  email: string;
-  password: string;
-}>;
-
-const promptHidden = async (question: string, io: CliIO): Promise<string> => {
-  const stdin = io.stdin ?? process.stdin;
-  const output = io.stderr as NodeJS.WriteStream;
-
-  if (!stdin.isTTY || !output.isTTY) {
-    const readline = createInterface({ input: stdin, output });
-
-    try {
-      return await readline.question(question);
-    } finally {
-      readline.close();
-    }
-  }
-
-  output.write(question);
-
-  return new Promise((resolve, reject) => {
-    let value = '';
-    const wasRaw = stdin.isRaw;
-
-    const cleanup = () => {
-      stdin.off('data', onData);
-      stdin.setRawMode(wasRaw);
-      output.write('\n');
-    };
-
-    const onData = (chunk: Buffer) => {
-      const input = chunk.toString('utf8');
-
-      if (input === '\u0003') {
-        cleanup();
-        reject(
-          validationError({
-            code: 'password_prompt_cancelled',
-            message: 'Password prompt was cancelled.',
-            safeMessage: 'Password prompt was cancelled.',
-          }),
-        );
-        return;
-      }
-
-      if (input === '\r' || input === '\n') {
-        cleanup();
-        resolve(value);
-        return;
-      }
-
-      if (input === '\u007f') {
-        value = value.slice(0, -1);
-        return;
-      }
-
-      value += input;
-    };
-
-    stdin.setRawMode(true);
-    stdin.resume();
-    stdin.on('data', onData);
-  });
-};
-
-export const promptLogin = async (io: CliIO): Promise<LoginPromptResult> => {
-  const readline = createInterface({
-    input: io.stdin ?? process.stdin,
-    output: io.stderr as NodeJS.WriteStream,
-  });
-
-  let email = '';
-
-  try {
-    email = await readline.question('Email: ');
-  } finally {
-    readline.close();
-  }
-
-  const password = await promptHidden('Password: ', io);
-
-  return { email, password };
-};
+```txt
+GET  /pricing/services/:serviceSlug/pricing
+GET  /pricing/locations/:locationSlug/services/:serviceSlug/pricing
+POST /pricing/changes/plan
+POST /pricing/changes/publish
 ```
 
-#### `apps/cli/src/features/pricing/api-client.ts`
+Auth CLI commands call:
 
-```ts
-import {
-  adminPricingChangeRequestSchema,
-  loadPricingCatalogCommandSchema,
-  loginResultSchema,
-  loginRequestSchema,
-  type LoadPricingCatalogCommand,
-  type LoadPricingCatalogResult,
-  type PricingChangePlan,
-  type PublishPricingChangeResult,
-} from '@pressly/contracts';
-import {
-  err,
-  makeAppError,
-  ok,
-  validationError,
-  type AppError,
-  type Result,
-} from '@pressly/errors';
-import type { ApiResponse } from '@pressly/http';
-import type { CliIO } from '../../shell/io.ts';
-import { makeAdminSessionStore } from '../auth/token-store.ts';
-import { promptLogin } from '../auth/login.ts';
-import type { PricingAdminClient, PricingChangeInput } from './client.ts';
-
-const readApiUrl = (env: NodeJS.ProcessEnv): Result<string, AppError> => {
-  const value = env['PRESSLY_ADMIN_API_URL'];
-
-  if (value !== undefined && value.trim() !== '') return ok(value.trim());
-
-  return err(
-    validationError({
-      code: 'missing_admin_api_url',
-      message: 'PRESSLY_ADMIN_API_URL is required.',
-      safeMessage: 'Admin API URL is required.',
-    }),
-  );
-};
-
-const apiError = (response: ApiResponse<unknown>): AppError =>
-  response.ok
-    ? makeAppError({
-        kind: 'UnexpectedError',
-        code: 'unexpected_api_success',
-        message: 'Expected API failure but received success.',
-        safeMessage: 'Unexpected API response.',
-        status: 500,
-      })
-    : makeAppError({
-        kind: 'ExternalServiceError',
-        code: response.error.code,
-        message: response.error.message,
-        safeMessage: response.error.message,
-        status: 503,
-        details: response.error.details,
-      });
-
-const requestJson = async <T>(input: {
-  url: string;
-  method?: string;
-  bearerToken?: string;
-  body?: unknown;
-}): Promise<Result<T, AppError>> => {
-  try {
-    const response = await fetch(input.url, {
-      method: input.method ?? 'GET',
-      headers: {
-        accept: 'application/json',
-        ...(input.body === undefined
-          ? {}
-          : { 'content-type': 'application/json' }),
-        ...(input.bearerToken === undefined
-          ? {}
-          : { authorization: `Bearer ${input.bearerToken}` }),
-      },
-      ...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
-    });
-
-    const payload = (await response.json()) as ApiResponse<T>;
-
-    if (!payload.ok) return err(apiError(payload));
-
-    return ok(payload.data);
-  } catch (error) {
-    return err(
-      makeAppError({
-        kind: 'ExternalServiceError',
-        code: 'admin_api_request_failed',
-        message: 'Admin API request failed.',
-        safeMessage: 'Could not reach the admin API.',
-        status: 503,
-        cause: error,
-      }),
-    );
-  }
-};
-
-export const makeApiPricingAdminClient = (
-  env: NodeJS.ProcessEnv,
-  io: CliIO,
-): Result<PricingAdminClient, AppError> => {
-  const apiUrl = readApiUrl(env);
-
-  if (!apiUrl.ok) return apiUrl;
-
-  const sessionStore = makeAdminSessionStore();
-
-  const getToken = async (): Promise<Result<string, AppError>> => {
-    const existing = await sessionStore.read();
-
-    if (
-      existing !== undefined &&
-      existing.apiUrl === apiUrl.value &&
-      new Date(existing.expiresAt).getTime() > Date.now()
-    )
-      return ok(existing.accessToken);
-
-    const prompted = await promptLogin(io);
-    const parsed = loginRequestSchema.safeParse(prompted);
-
-    if (!parsed.success)
-      return err(
-        validationError({
-          code: 'invalid_login_input',
-          message: 'Login input is invalid.',
-          safeMessage: 'Login input is invalid.',
-          details: parsed.error.issues,
-        }),
-      );
-
-    const login = await requestJson<unknown>({
-      url: `${apiUrl.value}/auth/login`,
-      method: 'POST',
-      body: parsed.data,
-    });
-
-    if (!login.ok) return login;
-
-    const result = loginResultSchema.safeParse(login.value);
-
-    if (!result.success)
-      return err(
-        validationError({
-          code: 'invalid_login_response',
-          message: 'Login response did not match the contract.',
-          safeMessage: 'Admin API returned an invalid login response.',
-          details: result.error.issues,
-        }),
-      );
-
-    await sessionStore.write({
-      apiUrl: apiUrl.value,
-      ...result.data,
-    });
-
-    return ok(result.data.accessToken);
-  };
-
-  const withToken = async <T>(
-    work: (token: string) => Promise<Result<T, AppError>>,
-  ): Promise<Result<T, AppError>> => {
-    const token = await getToken();
-
-    if (!token.ok) return token;
-
-    return work(token.value);
-  };
-
-  return ok({
-    loadCatalog: async (
-      command: LoadPricingCatalogCommand,
-    ): Promise<Result<LoadPricingCatalogResult, AppError>> => {
-      const parsed = loadPricingCatalogCommandSchema.safeParse(command);
-
-      if (!parsed.success)
-        return err(
-          validationError({
-            code: 'invalid_pricing_command',
-            message: 'Pricing command is invalid.',
-            safeMessage: 'Pricing command is invalid.',
-            details: parsed.error.issues,
-          }),
-        );
-
-      const path =
-        parsed.data.locationSlug === undefined
-          ? `/admin/pricing/services/${parsed.data.serviceSlug}/pricing`
-          : `/admin/pricing/locations/${parsed.data.locationSlug}/services/${parsed.data.serviceSlug}/pricing`;
-
-      return withToken((token) =>
-        requestJson<LoadPricingCatalogResult>({
-          url: `${apiUrl.value}${path}`,
-          bearerToken: token,
-        }),
-      );
-    },
-
-    planChange: async (
-      input: PricingChangeInput,
-    ): Promise<Result<PricingChangePlan, AppError>> => {
-      const parsed = adminPricingChangeRequestSchema.safeParse(input);
-
-      if (!parsed.success)
-        return err(
-          validationError({
-            code: 'invalid_pricing_change',
-            message: 'Pricing change input is invalid.',
-            safeMessage: 'Pricing change input is invalid.',
-            details: parsed.error.issues,
-          }),
-        );
-
-      return withToken((token) =>
-        requestJson<PricingChangePlan>({
-          url: `${apiUrl.value}/admin/pricing/plan`,
-          method: 'POST',
-          bearerToken: token,
-          body: parsed.data,
-        }),
-      );
-    },
-
-    publishChange: async (
-      input: PricingChangeInput,
-    ): Promise<Result<PublishPricingChangeResult, AppError>> => {
-      const parsed = adminPricingChangeRequestSchema.safeParse(input);
-
-      if (!parsed.success)
-        return err(
-          validationError({
-            code: 'invalid_pricing_change',
-            message: 'Pricing change input is invalid.',
-            safeMessage: 'Pricing change input is invalid.',
-            details: parsed.error.issues,
-          }),
-        );
-
-      return withToken((token) =>
-        requestJson<PublishPricingChangeResult>({
-          url: `${apiUrl.value}/admin/pricing/publish`,
-          method: 'POST',
-          bearerToken: token,
-          body: parsed.data,
-        }),
-      );
-    },
-
-    close: async () => {},
-  });
-};
+```txt
+POST /auth/login
+GET  /auth/session
+POST /auth/logout
 ```
 
-#### Update CLI shell to pass IO into clients
-
-In `apps/cli/src/shell/feature.ts`, change:
-
-```ts
-makeClient: (env: NodeJS.ProcessEnv) => Result<Client, AppError>;
-```
-
-to:
-
-```ts
-makeClient: (env: NodeJS.ProcessEnv, io: CliIO) => Result<Client, AppError>;
-```
-
-Import `CliIO` in that file:
-
-```ts
-import type { CliIO } from './io.ts';
-```
-
-In `apps/cli/src/shell/run-cli.ts`, change:
-
-```ts
-const client = feature.makeClient(input.env);
-```
-
-to:
-
-```ts
-const client = feature.makeClient(input.env, input.io);
-```
-
-In `apps/cli/src/features/pricing/cli.ts`, set the default client:
-
-```ts
-import { makeApiPricingAdminClient } from './api-client.ts';
-
-const defaultDeps: PricingCliDeps = {
-  makePricingAdminClient: makeApiPricingAdminClient,
-};
-```
-
-Also update the dependency type:
-
-```ts
-export type PricingCliDeps = Readonly<{
-  makePricingAdminClient: (
-    env: NodeJS.ProcessEnv,
-    io: CliIO,
-  ) => Result<PricingAdminClient, AppError>;
-}>;
-```
+The old local DB CLI adapter is intentionally gone.
 
 ### 17.8 ESLint Boundary Update
 
