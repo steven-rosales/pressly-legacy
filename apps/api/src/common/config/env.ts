@@ -42,7 +42,11 @@ const apiEnvSchema = z.object({
 
   CORS_ORIGIN: z.string().min(1).default('http://localhost:3000'),
 
-  AUTH_SECRET: secret.optional(),
+  AUTH_SECRET: secret,
+  AUTH_SESSION_TTL_MINUTES: envInteger.default(720),
+  AUTH_LOGIN_WINDOW_MINUTES: envInteger.default(15),
+  AUTH_LOGIN_MAX_FAILURES: envInteger.default(8),
+  AUTH_FRESH_SESSION_MAX_AGE_MINUTES: envInteger.default(15),
 
   FEATURE_METRICS_ENABLED: featureFlag,
   FEATURE_JOBS_ENABLED: featureFlag,
@@ -70,7 +74,13 @@ export const apiEnv = {
   databaseMaxConnections: rawApiEnv.DATABASE_MAX_CONNECTIONS,
   logLevel: rawApiEnv.LOG_LEVEL,
   corsOrigin: rawApiEnv.CORS_ORIGIN,
-  authSecret: rawApiEnv.AUTH_SECRET,
+  auth: {
+    secret: rawApiEnv.AUTH_SECRET,
+    sessionTtlMinutes: rawApiEnv.AUTH_SESSION_TTL_MINUTES,
+    loginWindowMinutes: rawApiEnv.AUTH_LOGIN_WINDOW_MINUTES,
+    loginMaxFailures: rawApiEnv.AUTH_LOGIN_MAX_FAILURES,
+    freshSessionMaxAgeMinutes: rawApiEnv.AUTH_FRESH_SESSION_MAX_AGE_MINUTES,
+  },
   features: {
     metricsEnabled: rawApiEnv.FEATURE_METRICS_ENABLED,
     jobsEnabled: rawApiEnv.FEATURE_JOBS_ENABLED,

@@ -2,7 +2,9 @@ export { makePricingModule } from './main.ts';
 
 export type {
   PricingModule,
-  PricingModuleAdmin,
+  PricingModuleActions,
+  PricingModuleAuth,
+  PricingModuleAuthorizationInput,
   PricingModuleDeps,
 } from './main.ts';
 export type {

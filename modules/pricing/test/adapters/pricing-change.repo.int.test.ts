@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, pricing } from '@pressly/db';
 import { makePricingChangeStore } from '../../src/adapters/publish-pricing/persistence/pricing-change.repo.ts';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
-import { makeAdminActor } from '../support/builders.ts';
+import { makePricingChangeAuthor } from '../support/builders.ts';
 import { createPricingTestDatabase } from '../support/database.ts';
 import {
   insertPricingLocation,
@@ -95,7 +95,7 @@ describe('pricing change repo', () => {
       command: {
         serviceSlug: 'wash-fold',
         reason: 'Update delivery fee',
-        actor: makeAdminActor(),
+        requestedBy: makePricingChangeAuthor(),
         items: [{ code: 'delivery_fee', priceCents: 100 }],
       },
       plan: {
@@ -190,7 +190,7 @@ describe('pricing change repo', () => {
         serviceSlug: 'wash-fold',
         locationSlug: 'fort-lee',
         reason: 'Update Fort Lee delivery fee',
-        actor: makeAdminActor(),
+        requestedBy: makePricingChangeAuthor(),
         items: [{ code: 'delivery_fee', priceCents: 695 }],
       },
       plan: {
@@ -258,7 +258,7 @@ describe('pricing change repo', () => {
       command: {
         serviceSlug: 'wash-fold',
         reason: 'Update delivery fee',
-        actor: makeAdminActor(),
+        requestedBy: makePricingChangeAuthor(),
         items: [{ code: 'delivery_fee', priceCents: 100 }],
       },
       plan: {

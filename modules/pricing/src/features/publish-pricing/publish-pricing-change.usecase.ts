@@ -1,14 +1,8 @@
-import { assertCan, makeActor } from '@pressly/auth';
 import type {
   PublishPricingChangeCommand,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
-import {
-  err,
-  normalizeUnknownError,
-  type AppError,
-  type Result,
-} from '@pressly/errors';
+import { err, type AppError, type Result } from '@pressly/errors';
 import {
   makePricingChangePlan,
   validatePricingCommand,
@@ -26,12 +20,6 @@ export const makePublishPricingChange =
     options: Readonly<{ now?: () => Date }> = {},
   ): PublishPricingChange =>
   async (command) => {
-    try {
-      assertCan(makeActor(command.actor), 'pricing:publish');
-    } catch (error) {
-      return err(normalizeUnknownError(error));
-    }
-
     const violations = validatePricingCommand(command);
 
     if (violations.length > 0)

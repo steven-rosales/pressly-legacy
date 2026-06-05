@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { err, makeAppError } from '@pressly/errors';
 import { makePublishPricingChange } from '../../src/features/publish-pricing/publish-pricing-change.usecase.ts';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
-import {
-  makeDeveloperActor,
-  makePublishPricingChangeCommand,
-} from '../support/builders.ts';
+import { makePublishPricingChangeCommand } from '../support/builders.ts';
 import { makeFakePricingChangeStore } from '../support/fakes.ts';
 
 describe('publish pricing change usecase', () => {
@@ -47,21 +44,6 @@ describe('publish pricing change usecase', () => {
         },
       ],
     });
-  });
-
-  it('rejects actors without publish permission before loading pricing', async () => {
-    const { store, calls } = makeFakePricingChangeStore();
-    const publishPricingChange = makePublishPricingChange(store);
-
-    const result = await publishPricingChange(
-      makePublishPricingChangeCommand({
-        actor: makeDeveloperActor(),
-      }),
-    );
-
-    expectErrCode(result, 'missing_permission');
-    expect(calls.load).toEqual([]);
-    expect(calls.commit).toEqual([]);
   });
 
   it('rejects invalid commands before loading pricing', async () => {

@@ -10,15 +10,14 @@ const actor = {
   id: 'user_1',
   kind: 'human',
   displayName: 'Steven',
-  role: 'admin',
-} satisfies PublishPricingChangeCommand['actor'];
+} satisfies PublishPricingChangeCommand['requestedBy'];
 
 describe('publish pricing change policy', () => {
   it('creates a pricing change plan from a valid global command', () => {
     const command: PublishPricingChangeCommand = {
       serviceSlug: 'wash-fold',
       reason: 'Update delivery fee',
-      actor,
+      requestedBy: actor,
       items: [{ code: 'delivery_fee', priceCents: 100 }],
     };
 
@@ -58,7 +57,7 @@ describe('publish pricing change policy', () => {
       serviceSlug: 'dry-cleaning',
       locationSlug: 'fort-lee',
       reason: 'Update local dry cleaning prices',
-      actor,
+      requestedBy: actor,
       items: [
         { code: 'delivery_fee', priceCents: 595 },
         { code: 'shirts', priceCents: 495 },
@@ -118,7 +117,7 @@ describe('publish pricing change policy', () => {
     const command: PublishPricingChangeCommand = {
       serviceSlug: 'wash-fold',
       reason: 'short',
-      actor,
+      requestedBy: actor,
       items: [
         { code: 'delivery_fee', priceCents: 100 },
         { code: 'delivery_fee', priceCents: 0 },
@@ -147,7 +146,7 @@ describe('publish pricing change policy', () => {
     const command: PublishPricingChangeCommand = {
       serviceSlug: 'wash-fold',
       reason: 'Update delivery fee',
-      actor,
+      requestedBy: actor,
       items: [{ code: 'unknown_item', priceCents: 100 }],
     };
 

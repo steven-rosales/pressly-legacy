@@ -317,9 +317,9 @@ export const makePricingChangeStore = (input: {
           .insert(pricing.pricingChangeEvents)
           .values({
             kind: 'pricing.publish',
-            actorId: command.actor.id,
-            actorKind: command.actor.kind,
-            actorDisplayName: command.actor.displayName,
+            actorId: command.requestedBy.id,
+            actorKind: command.requestedBy.kind,
+            actorDisplayName: command.requestedBy.displayName,
             serviceSlug: command.serviceSlug,
             ...(command.locationSlug === undefined
               ? {}

@@ -16,20 +16,17 @@ describe('readBearerToken', () => {
     );
   });
 
-  it.each([
-    undefined,
-    '',
-    'Basic raw-session-token',
-    'Bearer',
-    'Bearer   ',
-  ])('rejects missing or malformed bearer headers: %s', (authorization) => {
-    expect(() => readBearerToken(authorization)).toThrow(
-      expect.objectContaining({
-        code: 'missing_bearer_token',
-        status: 401,
-      }),
-    );
-  });
+  it.each([undefined, '', 'Basic raw-session-token', 'Bearer', 'Bearer   '])(
+    'rejects missing or malformed bearer headers: %s',
+    (authorization) => {
+      expect(() => readBearerToken(authorization)).toThrow(
+        expect.objectContaining({
+          code: 'missing_bearer_token',
+          status: 401,
+        }),
+      );
+    },
+  );
 });
 
 describe('mapStoredRoles', () => {

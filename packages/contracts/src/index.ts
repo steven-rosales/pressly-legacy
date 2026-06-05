@@ -11,19 +11,19 @@ export {
   pricingItemSchema,
   pricingParamsRequestSchema,
   pricingServiceSlugSchema,
-  publishPricingChangeActorSchema,
+  pricingChangeAuthorSchema,
+  pricingChangeRequestSchema,
   publishPricingChangeCommandSchema,
   publishPricingChangeItemSchema,
-  adminPricingChangeRequestSchema,
 } from './pricing/pricing.contracts.js';
 
 export type {
   LoadPricingCatalogCommand,
   PricingParamsRequestSchema,
-  PublishPricingChangeActor,
+  PricingChangeAuthor,
   PublishPricingChangeCommand,
   PublishPricingChangeItem,
-  AdminPricingChangeRequest,
+  PricingChangeRequest,
 } from './pricing/pricing.command.js';
 
 export type {

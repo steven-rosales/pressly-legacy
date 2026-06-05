@@ -1,9 +1,25 @@
-import type { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import { err, makeAppError, ok } from '@pressly/errors';
 import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
 import { makeLoadPricingCatalogController } from '../../src/adapters/load-pricing-catalog/http/load-pricing-catalog.controller.ts';
+import { makeLoadPricingCatalogRoute } from '../../src/adapters/load-pricing-catalog/http/load-pricing-catalog.route.ts';
 import type { LoadPricingCatalog } from '../../src/features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
+
+type RouteLayer = Readonly<{ handle: unknown }>;
+type ExpressRoute = Readonly<{
+  path: string;
+  methods: Record<string, boolean>;
+  stack: RouteLayer[];
+}>;
+type RouterWithStack = Readonly<{
+  stack: Array<Readonly<{ route?: ExpressRoute }>>;
+}>;
+
+const getRoutes = (router: unknown): ExpressRoute[] =>
+  (router as RouterWithStack).stack
+    .map((layer) => layer.route)
+    .filter((route): route is ExpressRoute => route !== undefined);
 
 describe('load pricing catalog http controller', () => {
   it('returns a success envelope for global pricing', async () => {
@@ -106,5 +122,49 @@ describe('load pricing catalog http controller', () => {
       },
     });
     expect(next).not.toHaveBeenCalled();
+  });
+});
+
+describe('load pricing catalog http route', () => {
+  it('registers protected global and location-scoped pricing catalog routes', () => {
+    const loadPricingCatalog = vi.fn<LoadPricingCatalog>().mockResolvedValue(
+      ok({
+        serviceSlug: 'wash-fold',
+        currency: 'USD',
+        updatedAt: '2026-05-21T12:00:00.000Z',
+        items: [],
+      }),
+    );
+    const authenticate = vi.fn() as unknown as RequestHandler;
+    const authorizePricingRead = vi.fn() as unknown as RequestHandler;
+    const authorize = vi.fn(() => authorizePricingRead);
+    const router = makeLoadPricingCatalogRoute({
+      loadPricingCatalog,
+      auth: {
+        authenticate,
+        authorize,
+      },
+    });
+    const routes = getRoutes(router);
+
+    expect(authorize).toHaveBeenCalledWith({
+      action: 'pricing:read',
+      roles: ['owner', 'admin'],
+    });
+    expect(routes).toHaveLength(2);
+    expect(routes[0]).toMatchObject({
+      path: '/services/:serviceSlug/pricing',
+      methods: { get: true },
+    });
+    expect(routes[1]).toMatchObject({
+      path: '/locations/:locationSlug/services/:serviceSlug/pricing',
+      methods: { get: true },
+    });
+    expect(routes[0]?.stack).toHaveLength(4);
+    expect(routes[1]?.stack).toHaveLength(4);
+    expect(routes[0]?.stack[1]?.handle).toBe(authenticate);
+    expect(routes[0]?.stack[2]?.handle).toBe(authorizePricingRead);
+    expect(routes[1]?.stack[1]?.handle).toBe(authenticate);
+    expect(routes[1]?.stack[2]?.handle).toBe(authorizePricingRead);
   });
 });

@@ -34,21 +34,11 @@ export const loadPricingCatalogCommandSchema = z.object({
 
 export const pricingParamsRequestSchema = loadPricingCatalogCommandSchema;
 
-export const publishPricingChangeActorSchema = z
+export const pricingChangeAuthorSchema = z
   .object({
     id: z.string().min(1),
     kind: z.enum(['human', 'service']),
     displayName: z.string().min(1),
-    role: z.enum([
-      'owner',
-      'admin',
-      'operator',
-      'customer',
-      'driver',
-      'service',
-      'developer',
-      'ci',
-    ]),
   })
   .strict();
 
@@ -64,12 +54,12 @@ export const publishPricingChangeCommandSchema = z
     serviceSlug: pricingServiceSlugSchema,
     locationSlug: z.string().min(1).optional(),
     reason: z.string().min(1),
-    actor: publishPricingChangeActorSchema,
+    requestedBy: pricingChangeAuthorSchema,
     items: z.array(publishPricingChangeItemSchema).min(1),
   })
   .strict();
 
-export const adminPricingChangeRequestSchema = z
+export const pricingChangeRequestSchema = z
   .object({
     serviceSlug: pricingServiceSlugSchema,
     locationSlug: z.string().min(1).optional(),

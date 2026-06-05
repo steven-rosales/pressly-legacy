@@ -1,6 +1,6 @@
-import type { Actor, IdentityKind } from '@pressly/auth';
 import type {
   LoadPricingCatalogCommand,
+  PricingChangeAuthor,
   PublishPricingChangeCommand,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
@@ -9,22 +9,14 @@ import type {
   CurrentPricingSet,
 } from '../../src/domain/publish-pricing-change.policy.ts';
 
-export const makeAdminActor = (
+export const makePricingChangeAuthor = (
   id = 'user_1',
-  kind: IdentityKind = 'human',
+  kind: PricingChangeAuthor['kind'] = 'human',
   displayName = 'steven',
-): Omit<Actor, 'permissions'> => ({
+): PricingChangeAuthor => ({
   id,
   kind,
   displayName,
-  role: 'admin',
-});
-
-export const makeDeveloperActor = (): Omit<Actor, 'permissions'> => ({
-  id: 'user_2',
-  kind: 'human',
-  displayName: 'Developer',
-  role: 'developer',
 });
 
 export const makePublishPricingChangeCommand = (
@@ -32,7 +24,7 @@ export const makePublishPricingChangeCommand = (
 ): PublishPricingChangeCommand => ({
   serviceSlug: 'wash-fold',
   reason: 'Update delivery fee',
-  actor: makeAdminActor(),
+  requestedBy: makePricingChangeAuthor(),
   items: [{ code: 'delivery_fee', priceCents: 100 }],
   ...overrides,
 });

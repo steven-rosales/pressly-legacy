@@ -2,11 +2,11 @@ import type { z } from 'zod';
 import type {
   loadPricingCatalogCommandSchema,
   pricingParamsRequestSchema,
-  publishPricingChangeActorSchema,
+  pricingChangeAuthorSchema,
+  pricingChangeRequestSchema,
   publishPricingChangeCommandSchema,
   publishPricingChangeItemSchema,
 } from './pricing.contracts.js';
-import type { adminPricingChangeRequestSchema } from './pricing.contracts.ts';
 
 export type LoadPricingCatalogCommand = z.infer<
   typeof loadPricingCatalogCommandSchema
@@ -16,9 +16,7 @@ export type PricingParamsRequestSchema = z.infer<
   typeof pricingParamsRequestSchema
 >;
 
-export type PublishPricingChangeActor = z.infer<
-  typeof publishPricingChangeActorSchema
->;
+export type PricingChangeAuthor = z.infer<typeof pricingChangeAuthorSchema>;
 
 export type PublishPricingChangeItem = z.infer<
   typeof publishPricingChangeItemSchema
@@ -28,6 +26,4 @@ export type PublishPricingChangeCommand = z.infer<
   typeof publishPricingChangeCommandSchema
 >;
 
-export type AdminPricingChangeRequest = z.infer<
-  typeof adminPricingChangeRequestSchema
->;
+export type PricingChangeRequest = z.infer<typeof pricingChangeRequestSchema>;
