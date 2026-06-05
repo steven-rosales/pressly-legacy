@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@pressly/config": "workspace:*",
+    "@pressly/auth-module": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/http": "workspace:*",
     "@pressly/logging": "workspace:*",

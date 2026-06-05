@@ -23,7 +23,6 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@pressly/auth": "workspace:*",
     "@pressly/contracts": "workspace:*",
     "@pressly/db": "workspace:*",
     "@pressly/errors": "workspace:*",
