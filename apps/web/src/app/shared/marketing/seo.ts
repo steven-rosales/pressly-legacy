@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
-import type { PricingCatalogResult, PricingItemResult } from '@pressly/contracts';
+import type {
+  PricingCatalogResult,
+  PricingItemResult,
+} from '@pressly/contracts';
 
 import {
   CONTACT,
@@ -429,7 +432,9 @@ function buildWashFoldItemDescription(
 
   if (item.category === 'Base') {
     const minimumText =
-      minimum === undefined ? '' : ` with a ${formatUsd(minimum.priceCents)} minimum`;
+      minimum === undefined
+        ? ''
+        : ` with a ${formatUsd(minimum.priceCents)} minimum`;
     return `${price} per pound${minimumText}.`;
   }
 
@@ -466,10 +471,7 @@ function buildDryCleaningItemDescription(item: PricingItemResult) {
   return `${item.name} dry cleaning is priced at ${price}.`;
 }
 
-function buildPricingItemOffer(
-  item: PricingItemResult,
-  description: string,
-) {
+function buildPricingItemOffer(item: PricingItemResult, description: string) {
   const name =
     item.category === 'Base'
       ? 'Wash & Fold Laundry'

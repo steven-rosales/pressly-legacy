@@ -3,11 +3,7 @@ import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButto
 import SecondaryButton from '@/app/shared/ui/components/SecondaryButton';
 import type { HomePageModel } from '../model';
 
-export default function HomeHero({
-  model,
-}: {
-  model: HomePageModel['hero'];
-}) {
+export default function HomeHero({ model }: { model: HomePageModel['hero'] }) {
   return (
     <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 items-center lg:items-start w-full">
       <div className="flex flex-col w-full lg:w-1/2 text-center lg:text-left">

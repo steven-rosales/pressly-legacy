@@ -103,48 +103,73 @@ const asTitleVersion = (value: number | undefined): TitleVersion | undefined =>
 
 const buildCombinedHiwSteps = (
   scope: Readonly<{ state?: string; county?: string }>,
-) => [
-  {
-    title: makeTitle('hiwTitleSchedule', undefined, scope, undefined, 'combined'),
-    description: makeTitle(
-      'hiwDescriptionSchedule',
-      undefined,
-      scope,
-      undefined,
-      'combined',
-    ),
-  },
-  {
-    title: makeTitle('hiwTitlePickup', undefined, scope, undefined, 'combined'),
-    description: makeTitle(
-      'hiwDescriptionPickup',
-      undefined,
-      scope,
-      undefined,
-      'combined',
-    ),
-  },
-  {
-    title: makeTitle('hiwTitleClean', undefined, scope, undefined, 'combined'),
-    description: makeTitle(
-      'hiwDescriptionClean',
-      undefined,
-      scope,
-      undefined,
-      'combined',
-    ),
-  },
-  {
-    title: makeTitle('hiwTitleDeliver', undefined, scope, undefined, 'combined'),
-    description: makeTitle(
-      'hiwDescriptionDeliver',
-      undefined,
-      scope,
-      undefined,
-      'combined',
-    ),
-  },
-] as const;
+) =>
+  [
+    {
+      title: makeTitle(
+        'hiwTitleSchedule',
+        undefined,
+        scope,
+        undefined,
+        'combined',
+      ),
+      description: makeTitle(
+        'hiwDescriptionSchedule',
+        undefined,
+        scope,
+        undefined,
+        'combined',
+      ),
+    },
+    {
+      title: makeTitle(
+        'hiwTitlePickup',
+        undefined,
+        scope,
+        undefined,
+        'combined',
+      ),
+      description: makeTitle(
+        'hiwDescriptionPickup',
+        undefined,
+        scope,
+        undefined,
+        'combined',
+      ),
+    },
+    {
+      title: makeTitle(
+        'hiwTitleClean',
+        undefined,
+        scope,
+        undefined,
+        'combined',
+      ),
+      description: makeTitle(
+        'hiwDescriptionClean',
+        undefined,
+        scope,
+        undefined,
+        'combined',
+      ),
+    },
+    {
+      title: makeTitle(
+        'hiwTitleDeliver',
+        undefined,
+        scope,
+        undefined,
+        'combined',
+      ),
+      description: makeTitle(
+        'hiwDescriptionDeliver',
+        undefined,
+        scope,
+        undefined,
+        'combined',
+      ),
+    },
+  ] as const;
 
 const buildCityHiwSteps = (
   cityName: string,
@@ -215,7 +240,8 @@ const getLocationServicePanels = (
 
 const getDeliveryFeeShortCopy = (
   panels: readonly LocationServicePanel[],
-): string => panels[0]?.pricing.deliveryFee.shortCopy ?? DELIVERY_FEE_SHORT_COPY;
+): string =>
+  panels[0]?.pricing.deliveryFee.shortCopy ?? DELIVERY_FEE_SHORT_COPY;
 
 export const newJerseyMetadata: Metadata = buildStateMetadata();
 
@@ -315,8 +341,7 @@ export const getNewJerseyPageModel = async (): Promise<LocationPageModel> => {
         primaryHref: `/new-jersey/${county}`,
       })),
     },
-    testimonialsClassName:
-      'mx-auto max-w-[1440px] px-4 py-28 sm:px-6 lg:py-20',
+    testimonialsClassName: 'mx-auto max-w-[1440px] px-4 py-28 sm:px-6 lg:py-20',
     bottom: {
       title: 'All your garment care, one warm pickup away.',
       description: `From everyday laundry to pressed dry cleaning, schedule one visit and we'll handle it all with a ${getDeliveryFeeShortCopy(servicePanels)}, returned fresh, and folded or pressed the way you like.`,
@@ -408,8 +433,7 @@ export const getCountyPageModel = async (
         secondaryHref: `/new-jersey/${countySlug}/dry-cleaners-in-${city.slug}`,
       })),
     },
-    testimonialsClassName:
-      'mx-auto max-w-[1440px] px-4 py-16 sm:px-6 lg:py-20',
+    testimonialsClassName: 'mx-auto max-w-[1440px] px-4 py-16 sm:px-6 lg:py-20',
     bottom: {
       title: `Laundry and dry cleaning made easy in ${formattedCounty} County`,
       description:
@@ -505,8 +529,7 @@ export const getCityServicePageModel = async (
       locationLabel: cityName,
     },
     localProof: proof,
-    testimonialsClassName:
-      'mx-auto max-w-[1440px] px-4 py-28 sm:px-6 lg:py-20',
+    testimonialsClassName: 'mx-auto max-w-[1440px] px-4 py-28 sm:px-6 lg:py-20',
     bottom:
       serviceType === 'dryCleaning'
         ? {

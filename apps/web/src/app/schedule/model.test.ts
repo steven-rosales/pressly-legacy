@@ -6,9 +6,7 @@ describe('getSchedulePageModel', () => {
 
     expect(model.orderUrl).toContain('app.trycents.com');
     expect(model.pricing.washFold).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ label: 'Per pound' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ label: 'Per pound' })]),
     );
     expect(model.faqs).toHaveLength(4);
   });

@@ -37,9 +37,7 @@ export default function LocationsWashFold({
 
           {pricing.error === undefined ? (
             <>
-              <div
-                className="flex items-center justify-between py-4 border-b border-border"
-              >
+              <div className="flex items-center justify-between py-4 border-b border-border">
                 <div className="flex items-center gap-3">
                   <ShoppingBag
                     className="w-6 h-6 text-foreground"

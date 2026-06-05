@@ -33,10 +33,7 @@ export function LocationPageView({ model }: { model: LocationPageModel }) {
       <LocationsHiw heading={model.hiw.heading} steps={model.hiw.steps} />
 
       {model.servicePanels.map((panel) => (
-        <section
-          key={panel.service}
-          className={model.serviceSectionClassName}
-        >
+        <section key={panel.service} className={model.serviceSectionClassName}>
           {panel.service === 'dryCleaning' ? (
             <LocationsDryCleaning pricing={panel.pricing} />
           ) : (

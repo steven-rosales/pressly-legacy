@@ -89,12 +89,8 @@
           "name": "pricing_change_events_old_pricing_set_id_pricing_sets_id_fk",
           "tableFrom": "pricing_change_events",
           "tableTo": "pricing_sets",
-          "columnsFrom": [
-            "old_pricing_set_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["old_pricing_set_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -102,12 +98,8 @@
           "name": "pricing_change_events_new_pricing_set_id_pricing_sets_id_fk",
           "tableFrom": "pricing_change_events",
           "tableTo": "pricing_sets",
-          "columnsFrom": [
-            "new_pricing_set_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["new_pricing_set_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -206,12 +198,8 @@
           "name": "pricing_items_pricing_set_id_pricing_sets_id_fk",
           "tableFrom": "pricing_items",
           "tableTo": "pricing_sets",
-          "columnsFrom": [
-            "pricing_set_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pricing_set_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -274,9 +262,7 @@
         "pricing_locations_slug_unique": {
           "name": "pricing_locations_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -341,9 +327,7 @@
         "pricing_services_slug_unique": {
           "name": "pricing_services_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -421,12 +405,8 @@
           "name": "pricing_sets_service_id_pricing_services_id_fk",
           "tableFrom": "pricing_sets",
           "tableTo": "pricing_services",
-          "columnsFrom": [
-            "service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["service_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -434,12 +414,8 @@
           "name": "pricing_sets_location_id_pricing_locations_id_fk",
           "tableFrom": "pricing_sets",
           "tableTo": "pricing_locations",
-          "columnsFrom": [
-            "location_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["location_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

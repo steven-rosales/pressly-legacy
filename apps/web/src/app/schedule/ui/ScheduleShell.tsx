@@ -7,10 +7,7 @@ import { TrackedAnchor } from '@/common/adapters/analytics/tracked-anchor';
 import { publicEvents } from '@/common/core/analytics/events';
 import { cn } from '@/styles/utils';
 import { CentsFrame } from './ScheduleFrame';
-import {
-  ScheduleFaqDialog,
-  SchedulePricingDialog,
-} from './ScheduleDialogs';
+import { ScheduleFaqDialog, SchedulePricingDialog } from './ScheduleDialogs';
 import { ScheduleViewedTracker } from './ScheduleViewedTracker';
 
 function HomeLogo({ mobile = false }: { mobile?: boolean }) {

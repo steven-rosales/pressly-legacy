@@ -3,10 +3,7 @@ import type { LegalDocumentModel } from '@/app/shared/legal/model';
 
 export function LegalDocumentView({ model }: { model: LegalDocumentModel }) {
   return (
-    <LegalDocumentPage
-      title={model.title}
-      updatedLabel={model.updatedLabel}
-    >
+    <LegalDocumentPage title={model.title} updatedLabel={model.updatedLabel}>
       {model.sections.map((section) => (
         <div key={section.title}>
           <h2 className="mb-3 text-xl font-semibold">{section.title}</h2>

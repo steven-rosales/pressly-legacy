@@ -60,12 +60,8 @@
           "name": "auth_audit_events_actor_identity_id_auth_identites_id_fk",
           "tableFrom": "auth_audit_events",
           "tableTo": "auth_identites",
-          "columnsFrom": [
-            "actor_identity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_identity_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -140,16 +136,12 @@
         "auth_identites_email_unique": {
           "name": "auth_identites_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "auth_identites_email_normalized_unique": {
           "name": "auth_identites_email_normalized_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email_normalized"
-          ]
+          "columns": ["email_normalized"]
         }
       },
       "policies": {},
@@ -199,12 +191,8 @@
           "name": "auth_identity_roles_identity_id_auth_identites_id_fk",
           "tableFrom": "auth_identity_roles",
           "tableTo": "auth_identites",
-          "columnsFrom": [
-            "identity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["identity_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -212,12 +200,8 @@
           "name": "auth_identity_roles_created_by_identity_id_auth_identites_id_fk",
           "tableFrom": "auth_identity_roles",
           "tableTo": "auth_identites",
-          "columnsFrom": [
-            "created_by_identity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by_identity_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -289,12 +273,8 @@
           "name": "auth_login_attempts_identity_id_auth_identites_id_fk",
           "tableFrom": "auth_login_attempts",
           "tableTo": "auth_identites",
-          "columnsFrom": [
-            "identity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["identity_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -356,12 +336,8 @@
           "name": "auth_password_credentials_identity_id_auth_identites_id_fk",
           "tableFrom": "auth_password_credentials",
           "tableTo": "auth_identites",
-          "columnsFrom": [
-            "identity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["identity_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -434,12 +410,8 @@
           "name": "auth_sessions_identity_id_auth_identites_id_fk",
           "tableFrom": "auth_sessions",
           "tableTo": "auth_identites",
-          "columnsFrom": [
-            "identity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["identity_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -449,9 +421,7 @@
         "auth_sessions_token_hash_unique": {
           "name": "auth_sessions_token_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -543,12 +513,8 @@
           "name": "pricing_change_events_old_pricing_set_id_pricing_sets_id_fk",
           "tableFrom": "pricing_change_events",
           "tableTo": "pricing_sets",
-          "columnsFrom": [
-            "old_pricing_set_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["old_pricing_set_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -556,12 +522,8 @@
           "name": "pricing_change_events_new_pricing_set_id_pricing_sets_id_fk",
           "tableFrom": "pricing_change_events",
           "tableTo": "pricing_sets",
-          "columnsFrom": [
-            "new_pricing_set_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["new_pricing_set_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -660,12 +622,8 @@
           "name": "pricing_items_pricing_set_id_pricing_sets_id_fk",
           "tableFrom": "pricing_items",
           "tableTo": "pricing_sets",
-          "columnsFrom": [
-            "pricing_set_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pricing_set_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -728,9 +686,7 @@
         "pricing_locations_slug_unique": {
           "name": "pricing_locations_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -795,9 +751,7 @@
         "pricing_services_slug_unique": {
           "name": "pricing_services_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -875,12 +829,8 @@
           "name": "pricing_sets_service_id_pricing_services_id_fk",
           "tableFrom": "pricing_sets",
           "tableTo": "pricing_services",
-          "columnsFrom": [
-            "service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["service_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -888,12 +838,8 @@
           "name": "pricing_sets_location_id_pricing_locations_id_fk",
           "tableFrom": "pricing_sets",
           "tableTo": "pricing_locations",
-          "columnsFrom": [
-            "location_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["location_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

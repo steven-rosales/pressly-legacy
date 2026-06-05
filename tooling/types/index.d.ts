@@ -1,6 +1,11 @@
 type Primitive = string | number | boolean | bigint | symbol | null | undefined;
 
-type Builtin = Primitive | Date | RegExp | Error | ((...args: never[]) => unknown);
+type Builtin =
+  | Primitive
+  | Date
+  | RegExp
+  | Error
+  | ((...args: never[]) => unknown);
 
 declare global {
   type DeepReadonly<T> = T extends Builtin

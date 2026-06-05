@@ -20,9 +20,7 @@ export default function HomeConquerTime({
         <p
           key={paragraph}
           className={`text-base sm:text-lg lg:text-[20px] leading-relaxed text-muted-foreground max-w-[800px] ${
-            index === model.paragraphs.length - 1
-              ? 'mb-8 lg:mb-12'
-              : 'mb-6'
+            index === model.paragraphs.length - 1 ? 'mb-8 lg:mb-12' : 'mb-6'
           }`}
         >
           {paragraph}

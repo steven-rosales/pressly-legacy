@@ -40,7 +40,8 @@ export type WebEnv = typeof rawWebEnv;
 
 export const webEnv = {
   nodeEnv: rawWebEnv.NODE_ENV,
-  serverApiBaseUrl: rawWebEnv.API_BASE_URL ?? rawWebEnv.NEXT_PUBLIC_API_BASE_URL,
+  serverApiBaseUrl:
+    rawWebEnv.API_BASE_URL ?? rawWebEnv.NEXT_PUBLIC_API_BASE_URL,
   apiBaseUrl: rawWebEnv.NEXT_PUBLIC_API_BASE_URL,
   analyticsEnabled:
     rawWebEnv.NEXT_PUBLIC_ANALYTICS_ENABLED ??

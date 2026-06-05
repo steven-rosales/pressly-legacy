@@ -1,11 +1,7 @@
 import Image from 'next/image';
 import type { HomePageModel } from '../model';
 
-export default function HowItWorks({
-  model,
-}: {
-  model: HomePageModel['hiw'];
-}) {
+export default function HowItWorks({ model }: { model: HomePageModel['hiw'] }) {
   return (
     <div className="flex flex-col items-center text-center">
       <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground mb-4">

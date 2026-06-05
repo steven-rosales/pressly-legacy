@@ -46,9 +46,7 @@ describe('new jersey page models', () => {
       'laundry-service-in-fort-lee',
     );
 
-    expect(model?.hero.heading).toBe(
-      'Fort Lee Wash & Fold Laundry Service',
-    );
+    expect(model?.hero.heading).toBe('Fort Lee Wash & Fold Laundry Service');
     expect(model?.localProof?.cityName).toBe('Fort Lee');
     await expect(
       getCityServicePageModel('bergen-county', 'unknown'),

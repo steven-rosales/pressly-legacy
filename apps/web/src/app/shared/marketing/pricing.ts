@@ -267,7 +267,10 @@ const loadCachedPricingCatalogViewModel = cache(
 export async function loadPricingCatalogViewModel(
   input: PricingParamsRequestSchema,
 ): Promise<PricingCatalogViewModel> {
-  return loadCachedPricingCatalogViewModel(input.serviceSlug, input.locationSlug);
+  return loadCachedPricingCatalogViewModel(
+    input.serviceSlug,
+    input.locationSlug,
+  );
 }
 
 export const selectItemsByCategory = (
