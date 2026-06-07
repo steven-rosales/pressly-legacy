@@ -13,10 +13,12 @@
     }
   },
   "scripts": {
+    "build:workspace-deps": "pnpm --dir ../../packages/errors run build && pnpm --dir ../../packages/auth run build && pnpm --dir ../../packages/db run build",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint src --max-warnings=0",
+    "bootstrap:owner": "pnpm run build:workspace-deps && pnpm --dir ../.. exec tsx modules/auth/src/adapters/bootstrap-owner/cli/bootstrap-owner.command.ts",
     "test": "vitest run --exclude 'test/**/*.int.test.ts'",
     "test:integration": "vitest run test/adapters/*.repo.int.test.ts --no-file-parallelism",
     "test:all": "pnpm test && pnpm test:integration",
