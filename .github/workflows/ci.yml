@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - main
-      - db-modules-creation
+      - db-modules-setup
   pull_request:
     branches:
       - main
-      - db-modules-creation
+      - db-modules-setup
   workflow_dispatch:
 
 concurrency:
