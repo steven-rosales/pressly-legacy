@@ -2,7 +2,6 @@
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { makeAppError } from '@pressly/errors';
 import { config as loadEnv } from 'dotenv';
 import { defineConfig, type Config } from 'drizzle-kit';
 
@@ -16,13 +15,7 @@ loadEnv({
 const databaseUrl = process.env['DATABASE_URL'];
 
 if (!databaseUrl) {
-  throw makeAppError({
-    kind: 'ConfigError',
-    code: 'missing_database_url',
-    message: 'DATABASE_URL is required for drizzle.',
-    safeMessage: 'Database configuration is invalid.',
-    status: 500,
-  });
+  throw new Error('DATABASE_URL is required for drizzle.');
 }
 
 export default defineConfig({

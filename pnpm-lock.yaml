@@ -561,9 +561,6 @@ importers:
 
   packages/db:
     dependencies:
-      '@pressly/errors':
-        specifier: workspace:*
-        version: link:../errors
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
