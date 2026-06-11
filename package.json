@@ -48,7 +48,9 @@
     "admin:docker": "node ./tooling/scripts/run-admin-cli.mjs --docker",
     "admin:env": "pnpm -F @pressly/cli dev --",
     "db:test:migrate": "DATABASE_URL=${PRESSLY_TEST_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test} pnpm -F @pressly/db migrate",
-    "test:pricing:int": "pnpm docker:test-db:up && pnpm db:test:migrate && PRESSLY_TEST_DATABASE_URL=${PRESSLY_TEST_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test} pnpm -F @pressly/pricing test:integration"
+    "test:auth:int": "pnpm docker:test-db:up && pnpm db:test:migrate && PRESSLY_TEST_DATABASE_URL=${PRESSLY_TEST_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test} pnpm -F @pressly/auth-module test:integration",
+    "test:pricing:int": "pnpm docker:test-db:up && pnpm db:test:migrate && PRESSLY_TEST_DATABASE_URL=${PRESSLY_TEST_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test} pnpm -F @pressly/pricing test:integration",
+    "test:int": "pnpm test:auth:int && pnpm test:pricing:int"
   },
   "keywords": [],
   "author": "",
@@ -61,6 +63,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.8.3",
+    "prettier-plugin-tailwindcss": "^0.8.0",
     "tsx": "^4.21.0",
     "turbo": "^2.9.6",
     "typescript": "^6.0.3",

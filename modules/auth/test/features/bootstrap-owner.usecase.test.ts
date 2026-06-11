@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { PasswordHasher } from '@pressly/auth';
-import { err, makeAppError, ok, type AppError, type Result } from '@pressly/errors';
+import {
+  err,
+  makeAppError,
+  ok,
+  type AppError,
+  type Result,
+} from '@pressly/errors';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import type {
   BootstrapOwnerStore,

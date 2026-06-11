@@ -26,7 +26,8 @@ export const makeBootstrapOwnerStore = (db: Database): BootstrapOwnerStore => ({
           .where(eq(auth.authIdentities.emailNormalized, input.emailNormalized))
           .limit(1);
 
-        if (existingIdentity !== undefined) return { status: 'identity_exists' };
+        if (existingIdentity !== undefined)
+          return { status: 'identity_exists' };
 
         const [identity] = await tx
           .insert(auth.authIdentities)
@@ -40,7 +41,9 @@ export const makeBootstrapOwnerStore = (db: Database): BootstrapOwnerStore => ({
           .returning();
 
         if (identity === undefined)
-          throw databaseFailure('bootstrap owner identity insert returned no row');
+          throw databaseFailure(
+            'bootstrap owner identity insert returned no row',
+          );
 
         await tx.insert(auth.authPasswordCredentials).values({
           identityId: identity.id,

@@ -11,6 +11,9 @@ WORKDIR /repo
 
 FROM base AS deps
 
+COPY apps/cli/package.json apps/cli/package.json
+COPY apps/processor/package.json apps/processor/package.json
+COPY modules/auth/package.json modules/auth/package.json
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json

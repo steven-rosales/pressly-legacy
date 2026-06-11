@@ -8,3 +8,5 @@ pnpm-lock.yaml
 .env
 .env.*
 apps/web/next-env.d.ts
+infra/aws/lightsail/Caddyfile
+.agents/skills/shadcn

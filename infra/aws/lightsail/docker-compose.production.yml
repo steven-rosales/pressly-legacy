@@ -1,0 +1,97 @@
+name: pressly-production
+
+x-production-env: &production-env
+  - ${PRESSLY_ENV_FILE:-/opt/pressly/.env.production}
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: *production-env
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+  web:
+    restart: unless-stopped
+    build:
+      context: ../../..
+      dockerfile: apps/web/Dockerfile
+      target: runner
+      args:
+        API_BASE_URL: ${API_BASE_URL}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        NEXT_PUBLIC_ANALYTICS_ENABLED: ${NEXT_PUBLIC_ANALYTICS_ENABLED:-false}
+        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+    env_file: *production-env
+    expose:
+      - '3000'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://127.0.0.1:3000/health'').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    restart: unless-stopped
+    build:
+      context: ../../..
+      dockerfile: apps/api/Dockerfile
+      target: runner
+    env_file: *production-env
+    expose:
+      - '4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://127.0.0.1:4000/health/ready'').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:18-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pressly}
+      POSTGRES_USER: ${POSTGRES_USER:-pressly}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-pressly} -d ${POSTGRES_DB:-pressly}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

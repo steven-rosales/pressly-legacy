@@ -1,0 +1,73 @@
+name: deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to deploy
+        required: true
+        default: main
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy to lightsail
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Validate deploy branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          branch="${{ inputs.branch }}"
+
+          case "$branch" in
+            *[!a-zA-Z0-9._/-]*)
+              echo "Invalid branch name: $branch" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Install SSH key
+        shell: bash
+        env:
+          LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$LIGHTSAIL_SSH_KEY" > ~/.ssh/lightsail
+          chmod 600 ~/.ssh/lightsail
+
+      - name: Trust Lightsail host
+        shell: bash
+        env:
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+        run: |
+          set -euo pipefail
+
+          ssh-keyscan -H "$LIGHTSAIL_HOST" >> ~/.ssh/known_hosts
+
+      - name: Run deployment
+        shell: bash
+        env:
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USER: ${{ secrets.LIGHTSAIL_USER }}
+          DEPLOY_BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -i ~/.ssh/lightsail \
+            -o IdentitiesOnly=yes \
+            "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
+            "DEPLOY_BRANCH='$DEPLOY_BRANCH' /opt/pressly/repo/infra/aws/lightsail/deploy.sh"

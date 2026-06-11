@@ -70,11 +70,10 @@ function SheetContent({
           <SheetPrimitive.Close data-slot="sheet-close" asChild>
             <Button
               variant="ghost"
-              className="absolute top-3 end-3"
+              className="absolute end-3 top-3"
               size="icon-sm"
             >
-              <IconX
-              />
+              <IconX />
               <span className="sr-only">Close</span>
             </Button>
           </SheetPrimitive.Close>
