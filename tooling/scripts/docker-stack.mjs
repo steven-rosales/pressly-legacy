@@ -54,17 +54,6 @@ const buildWeb = async () => {
   runCompose(['up', '-d', '--build', 'postgres', 'api']);
   await waitForApi();
   runCompose(['build', 'web']);
-
-  if (
-    (process.env['PRESSLY_WEB_IMAGE'] ?? 'pressly-web:local') ===
-    'pressly-web:local'
-  ) {
-    runDocker([
-      'tag',
-      'pressly-web:local',
-      'ghcr.io/steven-rosales/pressly-web:local',
-    ]);
-  }
 };
 
 const up = async () => {

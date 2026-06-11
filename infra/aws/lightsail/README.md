@@ -98,7 +98,7 @@ git clone git@github.com:<owner>/<repo>.git /opt/pressly/repo
 Deploy another branch:
 
 ```bash
-DEPLOY_BRANCH=db-modules-setup /opt/pressly/repo/infra/aws/lightsail/deploy.sh
+DEPLOY_BRANCH=<branch-name> /opt/pressly/repo/infra/aws/lightsail/deploy.sh
 ```
 
 ## Backups

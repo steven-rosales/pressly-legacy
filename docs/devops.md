@@ -1,231 +1,180 @@
 # Devops
 
-This project uses GitHub Actions for verification, GHCR for container image publishing, and Vercel for the primary web deployment.
+Pressly currently uses GitHub Actions for verification and a low-cost AWS
+Lightsail server for production runtime.
 
-## Release Model
-
-Code moves through:
+The production stack is:
 
 ```txt
-feature -> pull request -> CI -> merge to main -> release workflow
+GitHub
+  -> CI verifies commits
+  -> manual deploy workflow SSHes into Lightsail
+  -> Lightsail pulls source
+  -> Docker Compose builds and runs Caddy, web, API, and Postgres
 ```
 
-`main` is protected. Direct pushes should be disabled.
+There is no registry release workflow right now.
 
-## Pull Request CI
+Images are built on the Lightsail server from the checked-out source.
 
-Pull requests run:
+## Branch Model
 
-- format:check
-- lint
-- typecheck
-- unit tests
-- build
-- web Docker build
-
-Pull request CI does not require production secrets.
-
-## Main Release
-
-Merges to `main` run:
-
-- format:check
-- lint
-- typecheck
-- unit tests
-- build
-- web Docker build
-- web image push to GHCR
-
-Vercel remains the primary production deployment path for the web app.
-
-## Images
-
-The web image is published as:
+Normal development:
 
 ```txt
-ghcr.io/steven-rosales/pressly-web:latest
-ghcr.io/steven-rosales/pressly-web:sha-<commit-sha>
-ghcr.io/steven-rosales/pressly-web:main-<run-number>
+feature branch
+  -> CI
+  -> merge to main when ready
+  -> manual production deploy from the selected branch
 ```
 
-The image exists for:
+During deployment work, branches like `devops-improve` should still run CI.
+
+CI intentionally runs on every branch push and every pull request.
+
+## CI
+
+`.github/workflows/ci.yml` proves that a commit is releasable.
+
+It runs:
 
 ```txt
-production parity
-registry artifact history
-future self-hosting
-future api/worker deployment consistency
+format check
+lint
+typecheck
+unit tests
+build
+auth integration tests with Postgres
+pricing integration tests with Postgres
+web Docker build
+API Docker build
 ```
 
-CI builds the image on pull requests but does not push it. The release workflow
-publishes the image to GHCR only after code lands on `main` or the release
-workflow is run manually.
+CI does not need production secrets.
 
-For local image work:
+The integration database is a GitHub Actions Postgres service. It is separate
+from local Docker and production Docker.
+
+## Production Deploy
+
+`.github/workflows/deploy-production.yml` is manual.
+
+It SSHes into the Lightsail instance and runs:
 
 ```txt
+/opt/pressly/repo/infra/aws/lightsail/deploy.sh
+```
+
+The deploy script:
+
+```txt
+validates the branch
+pulls the selected branch
+builds production images
+runs migrations
+starts services
+checks API and web health
+```
+
+Production secrets live on the server, not in GitHub:
+
+```txt
+/opt/pressly/.env.production
+```
+
+GitHub should only need the SSH deploy credentials:
+
+```txt
+LIGHTSAIL_HOST
+LIGHTSAIL_USER
+LIGHTSAIL_SSH_KEY
+```
+
+## Runtime
+
+The production Compose stack lives in:
+
+```txt
+infra/aws/lightsail/docker-compose.production.yml
+```
+
+Public traffic should only reach Caddy:
+
+```txt
+80/tcp
+443/tcp
+22/tcp restricted to your IP
+```
+
+Do not expose:
+
+```txt
+5432/tcp
+4000/tcp
+3000/tcp
+```
+
+Postgres is private inside the Docker network.
+
+The API connects to it with:
+
+```txt
+postgres://pressly:<password>@postgres:5432/pressly
+```
+
+## Local Docker
+
+Local Docker still uses the root `docker-compose.yml`.
+
+Useful commands:
+
+```bash
+pnpm docker:up
+pnpm docker:down
 pnpm docker:web:build
 pnpm docker:web:run
-pnpm docker:web:up
-pnpm docker:web:down
-pnpm docker:web:pull
+pnpm docker:api:up
+pnpm docker:test-db:up
+pnpm test:int
 ```
 
-`docker:web:build` tags the same local image as:
+Local Docker is for development and integration testing.
+
+Production Docker is composed by the Lightsail files under `infra/aws/lightsail`.
+
+## Backups
+
+Production Postgres data lives in a Docker volume on the Lightsail server.
+
+That is acceptable only because backups leave the box.
+
+Required production backup path:
 
 ```txt
-pressly-web:local
-ghcr.io/steven-rosales/pressly-web:local
+nightly encrypted pg_dump
+upload to S3 or Lightsail object storage
+retain recent backups
+test restore manually
 ```
 
-The first tag is ergonomic for local runs. The second tag matches the registry
-namespace without pushing anything.
-
-## Compose
-
-Docker Compose is for service orchestration, not package ownership.
+The backup script is:
 
 ```txt
-package scripts -> test, lint, typecheck, build package code
-root docker scripts -> build, run, pull, and compose images
-docker-compose.yml -> run services together locally
-GitHub Actions -> verify and publish release images
+infra/aws/lightsail/backup-postgres.sh
 ```
 
-The current compose stack has one service:
-
-```txt
-web -> apps/web/Dockerfile -> http://localhost:3000
-```
-
-When API, worker, Postgres, Redis, or other local dependencies become real
-runtime services, add them to Compose. Do not move package test/build scripts
-into Compose just because Docker exists.
-
-## Environment Variables
-
-Secrets and environment values are owned by the services that use them.
-
-```txt
-Vercel owns web deploy env.
-GitHub owns CI/release env.
-Repo owns only examples, schemas, and docs.
-```
-
-Allowed in the repo:
-
-```txt
-.env.example
-env validation schemas
-documentation of required keys
-```
-
-Not allowed in the repo:
-
-```txt
-.env
-.env.local
-real tokens
-real database URLs
-auth secrets
-service tokens
-```
-
-## GitHub Environment Variables
-
-GitHub `production` environment should define:
-
-```txt
-NEXT_PUBLIC_API_BASE_URL
-NEXT_PUBLIC_ANALYTICS_ENABLED
-NEXT_PUBLIC_POSTHOG_KEY
-NEXT_PUBLIC_POSTHOG_HOST
-NEXT_PUBLIC_SENTRY_DSN
-```
-
-These are used to build the registry web image.
-
-## GitHub Environment Secrets
-
-GitHub may define:
-
-```txt
-SENTRY_AUTH_TOKEN
-```
-
-Only use it in workflows that intentionally upload source maps.
-
-## Vercel Environment Variables
-
-Vercel should define:
-
-```txt
-NEXT_PUBLIC_API_BASE_URL
-NEXT_PUBLIC_ANALYTICS_ENABLED
-NEXT_PUBLIC_POSTHOG_KEY
-NEXT_PUBLIC_POSTHOG_HOST
-NEXT_PUBLIC_SENTRY_DSN
-SENTRY_AUTH_TOKEN
-```
-
-Use Vercel environment scopes:
-
-```txt
-Production
-Preview
-Development
-```
-
-## Secret Rules
-
-- Do not commit secrets.
-- Do not pass private secrets as Docker build args.
-- Only NEXT*PUBLIC*\* values may be passed as web image build args.
-- Future API/worker secrets must be injected at runtime, not baked into images.
-- Production secrets should be visible only to maintainers and deployment systems.
-
-## Vercel
-
-Vercel remains the primary web deployment target.
-
-```txt
-Vercel Production -> production website
-Vercel Preview -> pull request previews
-GHCR image -> portable web artifact
-```
-
-## Future API and Worker
-
-When API and worker are added:
-
-```txt
-apps/api    -> Docker image -> deploy target
-apps/worker -> Docker image -> deploy target
-```
-
-Future release order:
-
-```txt
-build images
-run migration check
-run migrations
-deploy api
-deploy worker
-verify health/readiness
-```
+Lightsail snapshots are useful, but they do not replace database dumps.
 
 ## Invariant
 
-GitHub verifies and publishes artifacts.
-Vercel deploys the web application.
-GHCR stores portable images.
-Services own the secrets they consume.
+GitHub verifies source.
 
-PR CI proves code is safe to merge.
-Main workflow publishes portable release artifacts.
-Vercel remains the live web deploy path.
-GitHub owns CI/registry env.
-Vercel owns web production env.
-No centralized secret platform.
-No secrets in repo.
+Lightsail runs production.
+
+Caddy is the only public runtime entrypoint.
+
+Postgres stays private.
+
+Secrets stay on the server.
+
+Backups leave the server.

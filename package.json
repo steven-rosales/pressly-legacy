@@ -19,7 +19,6 @@
     "docker:web:run": "docker run --rm -p 3000:3000 pressly-web:local",
     "docker:web:up": "docker compose up --no-build web",
     "docker:web:down": "docker compose down --remove-orphans",
-    "docker:web:pull": "docker pull ghcr.io/steven-rosales/pressly-web:latest",
     "docker:postgres:up": "docker compose up -d postgres",
     "docker:postgres:logs": "docker compose logs -f postgres",
     "docker:postgres:shell": "docker compose exec postgres psql -U pressly -d pressly",

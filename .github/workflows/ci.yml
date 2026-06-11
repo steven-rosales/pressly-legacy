@@ -3,12 +3,8 @@ name: ci
 on:
   push:
     branches:
-      - main
-      - db-modules-setup
+      - '**'
   pull_request:
-    branches:
-      - main
-      - db-modules-setup
   workflow_dispatch:
 
 concurrency:
