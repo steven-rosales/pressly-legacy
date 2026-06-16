@@ -22,9 +22,9 @@ const nextConfig: NextConfig = {
     qualities: [75, 100],
   },
   experimental: {
-    cpus: 3,
-    staticGenerationMaxConcurrency: 2,
-    staticGenerationMinPagesPerWorker: 50,
+    cpus: 1,
+    staticGenerationMaxConcurrency: 1,
+    staticGenerationMinPagesPerWorker: 25,
   },
   devIndicators: { position: 'bottom-right' },
   ...(isDockerBuild
