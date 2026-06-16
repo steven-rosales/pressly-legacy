@@ -1,4 +1,4 @@
-{$PRESSLY_WEB_DOMAIN:app.trypressly.com} {
+{$PRESSLY_WEB_DOMAIN:trypressly.com} {
 	encode zstd gzip
 	reverse_proxy web:3000
 }

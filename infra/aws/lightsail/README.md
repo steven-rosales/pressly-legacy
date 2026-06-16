@@ -48,6 +48,7 @@ sudo chown -R ubuntu:ubuntu /opt/pressly
 Create the production env file:
 
 ```bash
+cp /opt/pressly/repo/infra/aws/lightsail/.env.production.example /opt/pressly/.env.production
 nano /opt/pressly/.env.production
 chmod 600 /opt/pressly/.env.production
 ```
