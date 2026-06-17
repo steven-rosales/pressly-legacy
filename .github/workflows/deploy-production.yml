@@ -8,6 +8,14 @@ on:
         required: true
         default: main
 
+  workflow_run:
+    workflows:
+      - ci
+    branches:
+      - main
+    types:
+      - completed
+
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -21,20 +29,39 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
 
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
     steps:
-      - name: Validate deploy branch
+      - name: Resolve deploy branch
+        id: deploy-branch
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_BRANCH: ${{ inputs.branch }}
+          WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -euo pipefail
 
-          branch="${{ inputs.branch }}"
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            branch="$WORKFLOW_RUN_BRANCH"
+          else
+            branch="$MANUAL_BRANCH"
+          fi
 
           case "$branch" in
+            "")
+              echo "Missing deploy branch" >&2
+              exit 1
+              ;;
             *[!a-zA-Z0-9._/-]*)
               echo "Invalid branch name: $branch" >&2
               exit 1
               ;;
           esac
+
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
 
       - name: Install SSH key
         shell: bash
@@ -62,7 +89,7 @@ jobs:
         env:
           LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
           LIGHTSAIL_USER: ${{ secrets.LIGHTSAIL_USER }}
-          DEPLOY_BRANCH: ${{ inputs.branch }}
+          DEPLOY_BRANCH: ${{ steps.deploy-branch.outputs.branch }}
         run: |
           set -euo pipefail
 

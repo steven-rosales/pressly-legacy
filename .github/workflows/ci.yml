@@ -85,7 +85,7 @@ jobs:
     name: ci web docker build
     runs-on: ubuntu-latest
     needs:
-      - quality
+      - integration-tests
 
     steps:
       - name: Checkout
@@ -111,7 +111,7 @@ jobs:
     name: ci api docker build
     runs-on: ubuntu-latest
     needs:
-      - quality
+      - integration-tests
 
     steps:
       - name: Checkout
