@@ -1,4 +1,4 @@
-import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import { err, makeAppError, ok } from '@pressly/errors';
 import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
@@ -126,7 +126,7 @@ describe('load pricing catalog http controller', () => {
 });
 
 describe('load pricing catalog http route', () => {
-  it('registers protected global and location-scoped pricing catalog routes', () => {
+  it('registers public global and location-scoped pricing catalog routes', () => {
     const loadPricingCatalog = vi.fn<LoadPricingCatalog>().mockResolvedValue(
       ok({
         serviceSlug: 'wash-fold',
@@ -135,22 +135,11 @@ describe('load pricing catalog http route', () => {
         items: [],
       }),
     );
-    const authenticate = vi.fn() as unknown as RequestHandler;
-    const authorizePricingRead = vi.fn() as unknown as RequestHandler;
-    const authorize = vi.fn(() => authorizePricingRead);
     const router = makeLoadPricingCatalogRoute({
       loadPricingCatalog,
-      auth: {
-        authenticate,
-        authorize,
-      },
     });
     const routes = getRoutes(router);
 
-    expect(authorize).toHaveBeenCalledWith({
-      action: 'pricing:read',
-      roles: ['owner', 'admin'],
-    });
     expect(routes).toHaveLength(2);
     expect(routes[0]).toMatchObject({
       path: '/services/:serviceSlug/pricing',
@@ -160,11 +149,7 @@ describe('load pricing catalog http route', () => {
       path: '/locations/:locationSlug/services/:serviceSlug/pricing',
       methods: { get: true },
     });
-    expect(routes[0]?.stack).toHaveLength(4);
-    expect(routes[1]?.stack).toHaveLength(4);
-    expect(routes[0]?.stack[1]?.handle).toBe(authenticate);
-    expect(routes[0]?.stack[2]?.handle).toBe(authorizePricingRead);
-    expect(routes[1]?.stack[1]?.handle).toBe(authenticate);
-    expect(routes[1]?.stack[2]?.handle).toBe(authorizePricingRead);
+    expect(routes[0]?.stack).toHaveLength(2);
+    expect(routes[1]?.stack).toHaveLength(2);
   });
 });

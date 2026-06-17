@@ -7,7 +7,7 @@ ENV_FILE="${PRESSLY_ENV_FILE:-$APP_ROOT/.env.production}"
 COMPOSE_FILE="${PRESSLY_COMPOSE_FILE:-$REPO_DIR/infra/aws/lightsail/docker-compose.production.yml}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 API_HEALTH_URL="${PRESSLY_API_HEALTH_URL:-https://api.trypressly.com/health/ready}"
-WEB_HEALTH_URL="${PRESSLY_WEB_HEALTH_URL:-https://app.trypressly.com/health}"
+WEB_HEALTH_URL="${PRESSLY_WEB_HEALTH_URL:-https://trypressly.com/health}"
 
 export PRESSLY_ENV_FILE="$ENV_FILE"
 

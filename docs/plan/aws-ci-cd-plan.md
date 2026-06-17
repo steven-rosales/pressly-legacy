@@ -509,7 +509,7 @@ docker compose \
   up -d --remove-orphans --wait
 
 curl --fail --silent --show-error https://api.trypressly.com/health/ready
-curl --fail --silent --show-error https://app.trypressly.com/health
+curl --fail --silent --show-error https://trypressly.com/health
 ```
 
 This is intentionally simple.

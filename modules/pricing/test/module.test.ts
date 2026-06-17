@@ -26,10 +26,6 @@ describe('pricing module composition', () => {
       publishChange: expect.any(Function),
     });
     expect(authorize).toHaveBeenCalledWith({
-      action: 'pricing:read',
-      roles: ['owner', 'admin'],
-    });
-    expect(authorize).toHaveBeenCalledWith({
       action: 'pricing:plan',
       roles: ['owner', 'admin'],
     });

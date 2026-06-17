@@ -23,10 +23,7 @@ import {
   type PublishPricingChange,
 } from './features/publish-pricing/publish-pricing-change.usecase.ts';
 
-export type PricingModuleAction =
-  | 'pricing:read'
-  | 'pricing:plan'
-  | 'pricing:publish';
+export type PricingModuleAction = 'pricing:plan' | 'pricing:publish';
 
 export type PricingModuleRole = 'owner' | 'admin';
 
@@ -78,13 +75,7 @@ export const makePricingModule = (deps: PricingModuleDeps): PricingModule => {
   };
   const routes = Router();
 
-  routes.use(
-    '/',
-    makeLoadPricingCatalogRoute({
-      loadPricingCatalog,
-      auth: deps.auth,
-    }),
-  );
+  routes.use('/', makeLoadPricingCatalogRoute({ loadPricingCatalog }));
 
   routes.use(
     '/',

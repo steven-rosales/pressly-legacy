@@ -62,7 +62,7 @@ API_PORT=4000
 DATABASE_URL=postgres://pressly:<postgres-password>@postgres:5432/pressly
 DATABASE_MAX_CONNECTIONS=10
 LOG_LEVEL=info
-CORS_ORIGIN=https://app.trypressly.com
+CORS_ORIGIN=https://trypressly.com
 AUTH_SECRET=<strong-random-secret>
 AUTH_SESSION_TTL_MINUTES=720
 AUTH_LOGIN_WINDOW_MINUTES=15
@@ -80,7 +80,7 @@ PORT=3000
 API_BASE_URL=https://api.trypressly.com
 NEXT_PUBLIC_API_BASE_URL=https://api.trypressly.com
 NEXT_PUBLIC_ANALYTICS_ENABLED=false
-PRESSLY_WEB_DOMAIN=app.trypressly.com
+PRESSLY_WEB_DOMAIN=trypressly.com
 PRESSLY_API_DOMAIN=api.trypressly.com
 ```
 
