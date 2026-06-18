@@ -129,3 +129,17 @@ Also enable Lightsail automatic snapshots.
 Database dumps are for database recovery.
 
 Snapshots are for machine recovery.
+
+## Rollback
+
+Rollback manually:
+
+```bash
+/opt/pressly/repo/infra/aws/lightsail/rollback.sh
+```
+
+Rollback with an exact SHA:
+
+```bash
+DEPLOY_REF=<known-good-sha> /opt/pressly/repo/infra/aws/lightsail/deploy.sh
+```

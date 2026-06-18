@@ -3,8 +3,8 @@ name: deploy production
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: Branch to deploy
+      ref:
+        description: Branch, tag, or git SHA to deploy
         required: true
         default: main
 
@@ -34,34 +34,34 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
 
     steps:
-      - name: Resolve deploy branch
-        id: deploy-branch
+      - name: Resolve deploy ref
+        id: deploy-ref
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MANUAL_BRANCH: ${{ inputs.branch }}
-          WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          MANUAL_REF: ${{ inputs.ref }}
+          WORKFLOW_RUN_REF: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -euo pipefail
 
           if [[ "$EVENT_NAME" == "workflow_run" ]]; then
-            branch="$WORKFLOW_RUN_BRANCH"
+            ref="$WORKFLOW_RUN_REF"
           else
-            branch="$MANUAL_BRANCH"
+            ref="$MANUAL_REF"
           fi
 
-          case "$branch" in
+          case "$ref" in
             "")
-              echo "Missing deploy branch" >&2
+              echo "Missing deploy ref" >&2
               exit 1
               ;;
-            *[!a-zA-Z0-9._/-]*)
-              echo "Invalid branch name: $branch" >&2
+            -* | *[!a-zA-Z0-9._/-]*)
+              echo "Invalid deploy ref: $ref" >&2
               exit 1
               ;;
           esac
 
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       - name: Install SSH key
         shell: bash
@@ -89,7 +89,7 @@ jobs:
         env:
           LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
           LIGHTSAIL_USER: ${{ secrets.LIGHTSAIL_USER }}
-          DEPLOY_BRANCH: ${{ steps.deploy-branch.outputs.branch }}
+          DEPLOY_REF: ${{ steps.deploy-ref.outputs.ref }}
         run: |
           set -euo pipefail
 
@@ -97,4 +97,4 @@ jobs:
             -i ~/.ssh/lightsail \
             -o IdentitiesOnly=yes \
             "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
-            "DEPLOY_BRANCH='$DEPLOY_BRANCH' /opt/pressly/repo/infra/aws/lightsail/deploy.sh"
+            "DEPLOY_REF='$DEPLOY_REF' /opt/pressly/repo/infra/aws/lightsail/deploy.sh"
