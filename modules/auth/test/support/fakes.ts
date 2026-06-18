@@ -6,12 +6,10 @@ import type {
   LoginAttemptInput,
   LoginIdentityRecord,
   LoginPasswordCredentialRecord,
-  LoginStore,
-} from '../../src/features/login/login.port.ts';
-import type {
-  LoadSessionStore,
   StoredSessionPrincipal,
-} from '../../src/features/load-session/load-session.port.ts';
+} from '@pressly/contracts';
+import type { LoginStore } from '../../src/features/login/login.port.ts';
+import type { LoadSessionStore } from '../../src/features/load-session/load-session.port.ts';
 import type { RevokeSessionStore } from '../../src/features/revoke-session/revoke-session.port.ts';
 import {
   makeDefaultCredential,

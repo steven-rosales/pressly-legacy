@@ -1,17 +1,17 @@
+import type {
+  AuthAuditEventInput,
+  RevokeSessionStoreResult,
+} from '@pressly/contracts';
 import type { AppError, Result } from '@pressly/errors';
 
 export type RevokeSessionStore = Readonly<{
   revokeByTokenHash: (
     tokenHash: string,
     revokedAt: Date,
-  ) => Promise<Result<{ sessionId?: string; identityId?: string }, AppError>>;
-  recordAuditEvent: (input: {
-    actorIdentityId?: string;
-    eventType: string;
-    resourceType: string;
-    resourceId?: string;
-    metadata?: Record<string, unknown>;
-  }) => Promise<Result<void, AppError>>;
+  ) => Promise<Result<RevokeSessionStoreResult, AppError>>;
+  recordAuditEvent: (
+    input: AuthAuditEventInput,
+  ) => Promise<Result<void, AppError>>;
 }>;
 
 export type TokenHasher = Readonly<{

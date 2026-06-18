@@ -3,12 +3,10 @@ import type {
   CreatedSession,
   LoginIdentityRecord,
   LoginPasswordCredentialRecord,
-} from '../../src/features/login/login.port.ts';
-import type { StoredSessionPrincipal } from '../../src/features/load-session/load-session.port.ts';
-import type {
-  LoginOptions,
   LoginCommand,
-} from '../../src/features/login/login.usecase.ts';
+  StoredSessionPrincipal,
+} from '@pressly/contracts';
+import type { LoginOptions } from '../../src/features/login/login.usecase.ts';
 
 export const now = new Date('2026-05-29T12:00:00.000Z');
 

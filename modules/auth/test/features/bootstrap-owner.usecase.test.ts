@@ -7,12 +7,12 @@ import {
   type AppError,
   type Result,
 } from '@pressly/errors';
-import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import type {
-  BootstrapOwnerStore,
   BootstrapOwnerStoreResult,
   CreateBootstrapOwnerInput,
-} from '../../src/features/bootstrap-owner/bootstrap-owner.port.ts';
+} from '@pressly/contracts';
+import { expectErrCode, expectOk } from '@pressly/testkit/result';
+import type { BootstrapOwnerStore } from '../../src/features/bootstrap-owner/bootstrap-owner.port.ts';
 import {
   BOOTSTRAP_OWNER_CONFIRMATION,
   makeBootstrapOwner,

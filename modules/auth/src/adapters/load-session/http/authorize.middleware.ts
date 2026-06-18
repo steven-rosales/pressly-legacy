@@ -6,22 +6,15 @@ import {
   sessionAgeMinutes,
   type AuthContext,
   type Actor,
-  type Permission,
   type Principal,
-  type Role,
 } from '@pressly/auth';
+import type { AuthorizeMiddlewareInput } from '@pressly/contracts';
 import { catchAsync } from '@pressly/http/express';
 import { makeAppError } from '@pressly/errors';
 
 type AuthLocals = Readonly<{
   principal: Principal;
   actor: Actor;
-}>;
-
-export type AuthorizeMiddlewareInput = Readonly<{
-  action: Permission;
-  roles: readonly Role[];
-  freshSessionMaxAgeMinutes?: number;
 }>;
 
 export type AuthorizeMiddlewareFactory = (

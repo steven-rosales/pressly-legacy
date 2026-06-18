@@ -1,4 +1,5 @@
 import type {
+  LoadCurrentPricingForPublishInput,
   PublishPricingChangeCommand,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
@@ -24,10 +25,7 @@ import {
   type AppError,
   type Result,
 } from '@pressly/errors';
-import type {
-  LoadCurrentPricingForPublishInput,
-  PricingChangeStore,
-} from '../../../features/publish-pricing/publish-pricing-change.port.ts';
+import type { PricingChangeStore } from '../../../features/publish-pricing/publish-pricing-change.port.ts';
 
 type PricingService = typeof pricing.pricingServices.$inferSelect;
 type PricingSet = typeof pricing.pricingSets.$inferSelect;

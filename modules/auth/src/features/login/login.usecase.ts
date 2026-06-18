@@ -1,5 +1,5 @@
 import { normalizeEmail } from '@pressly/auth';
-import type { LoginResult } from '@pressly/contracts';
+import type { LoginCommand, LoginResult } from '@pressly/contracts';
 import { err, ok, type AppError, type Result } from '@pressly/errors';
 import { invalidCredentials, loginRateLimited } from './login.error.ts';
 import type {
@@ -8,13 +8,6 @@ import type {
   PasswordVerifier,
   TokenIssuer,
 } from './login.port.ts';
-
-export type LoginCommand = Readonly<{
-  email: string;
-  password: string;
-  ipAddress?: string;
-  userAgent?: string;
-}>;
 
 export type LoginOptions = Readonly<{
   sessionTtlMinutes: number;

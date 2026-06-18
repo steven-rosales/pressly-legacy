@@ -1,8 +1,5 @@
-import {
-  isSessionExpired,
-  isSessionRevoked,
-  type Principal,
-} from '@pressly/auth';
+import { isSessionExpired, isSessionRevoked } from '@pressly/auth';
+import type { LoadSessionCommand, LoadSessionResult } from '@pressly/contracts';
 import { err, ok, type AppError, type Result } from '@pressly/errors';
 import { expiredSession, invalidSession } from './load-session.error.ts';
 import type {
@@ -10,8 +7,6 @@ import type {
   LoadSessionStore,
   TokenHasher,
 } from './load-session.port.ts';
-
-export type LoadSessionCommand = Readonly<{ bearerToken: string }>;
 
 type MakeLoadSessionDeps = {
   store: LoadSessionStore;
@@ -21,11 +16,11 @@ type MakeLoadSessionDeps = {
 
 export type LoadSession = (
   command: LoadSessionCommand,
-) => Promise<Result<Principal, AppError>>;
+) => Promise<Result<LoadSessionResult, AppError>>;
 
 /**
  * Loads session by finding the token hash.
- * @returns {Principal} The Principal object that has roles, email, the kind (e.g., human | service), identityId, sessionId, and timestamps.
+ * @returns The loaded principal with session timestamps.
  */
 export const makeLoadSession =
   (deps: MakeLoadSessionDeps): LoadSession =>

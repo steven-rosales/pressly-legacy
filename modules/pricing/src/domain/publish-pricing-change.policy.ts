@@ -1,4 +1,6 @@
 import type {
+  CurrentPricingItem,
+  CurrentPricingSet,
   PricingChangePlan,
   PublishPricingChangeCommand,
 } from '@pressly/contracts';
@@ -26,17 +28,6 @@ export type PricingPolicyViolation = DeepReadonly<
       code: 'pricing_change_has_no_changes';
     }
 >;
-
-export type CurrentPricingSet = Readonly<{
-  id: string;
-  currency: string;
-}>;
-
-export type CurrentPricingItem = Readonly<{
-  code: string;
-  name: string;
-  priceCents: number;
-}>;
 
 export type PricingChangePlanEvaluation = DeepReadonly<
   | { ok: true; plan: PricingChangePlan }

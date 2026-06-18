@@ -27,3 +27,18 @@ export type PublishPricingChangeCommand = z.infer<
 >;
 
 export type PricingChangeRequest = z.infer<typeof pricingChangeRequestSchema>;
+
+export type LoadCurrentPricingForPublishInput = Readonly<{
+  serviceSlug: PublishPricingChangeCommand['serviceSlug'];
+  locationSlug?: NonNullable<PublishPricingChangeCommand['locationSlug']>;
+}>;
+
+export type PricingModuleAction = 'pricing:plan' | 'pricing:publish';
+
+export type PricingModuleRole = 'owner' | 'admin';
+
+export type PricingModuleAuthorizationInput = Readonly<{
+  action: PricingModuleAction;
+  roles: readonly PricingModuleRole[];
+  freshSessionMaxAgeMinutes?: number;
+}>;

@@ -1,14 +1,10 @@
-import type { LogoutResult } from '@pressly/contracts';
+import type { LogoutResult, RevokeSessionCommand } from '@pressly/contracts';
 import { ok, type AppError, type Result } from '@pressly/errors';
 import type {
   Clock,
   RevokeSessionStore,
   TokenHasher,
 } from './revoke-session.port.ts';
-
-export type RevokeSessionCommand = Readonly<{
-  bearerToken: string;
-}>;
 
 type MakeRevokeSessionDeps = {
   store: RevokeSessionStore;

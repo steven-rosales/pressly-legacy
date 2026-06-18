@@ -11,6 +11,18 @@ export const authRoleSchema = z.enum([
   'ci',
 ]);
 
+export const authIdentityKindSchema = z.enum(['human', 'service']);
+
+export const authPermissionSchema = z.enum([
+  'auth:session:read',
+  'auth:session:revoke',
+  'auth:user:manage',
+  'pricing:read',
+  'pricing:plan',
+  'pricing:publish',
+  'pricing:rollback',
+]);
+
 export const loginRequestSchema = z
   .object({
     email: z.email(),
