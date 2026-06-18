@@ -1,6 +1,10 @@
 # Restore Postgres From Backup
 
-Use this only for local restore tests or production recovery.
+Use this for production recovery.
+
+For a safe practice restore, use `infra/aws/lightsail/restore-postgres-drill.md`
+instead. The drill restores into a disposable container and does not touch the
+production Postgres volume.
 
 The normal production rule is:
 
@@ -9,12 +13,31 @@ prefer forward fixes for normal migration mistakes
 restore from backup for serious data corruption or machine loss
 ```
 
+## Before Production Restore
+
+Production restore is destructive.
+
+Before running it, confirm:
+
+```txt
+fresh backup object chosen
+restore drill has passed at least once
+api and web writers are stopped
+expected data loss window is understood
+current app release is known
+owner/operator approved the restore
+```
+
 ## 1. Copy The Backup To The Server
 
 If the backup is in S3:
 
 ```bash
-aws s3 cp s3://your-pressly-backups/postgres/pressly-YYYYMMDDTHHMMSSZ.sql.gz.gpg /opt/pressly/backups/postgres/
+AWS_PROFILE=pressly-backup aws s3 ls s3://bucket-a5tjsz/postgres/
+
+AWS_PROFILE=pressly-backup aws s3 cp \
+  s3://bucket-a5tjsz/postgres/pressly-YYYYMMDDTHHMMSSZ.sql.gz.gpg \
+  /opt/pressly/backups/postgres/
 ```
 
 ## 2. Stop Writers
@@ -63,4 +86,9 @@ curl --fail --silent --show-error https://api.trypressly.com/health/ready
 
 ## 5. Practice Once
 
-Before trusting production backups, test this flow against a disposable database.
+Before trusting production backups, test the drill against a disposable
+database:
+
+```bash
+less /opt/pressly/repo/infra/aws/lightsail/restore-postgres-drill.md
+```

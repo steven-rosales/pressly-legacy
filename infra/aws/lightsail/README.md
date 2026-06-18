@@ -102,6 +102,10 @@ Deploy another branch:
 DEPLOY_BRANCH=<branch-name> /opt/pressly/repo/infra/aws/lightsail/deploy.sh
 ```
 
+Production deploys assume migrations are backward-compatible.
+Read `docs/ops/production-migrations.md` before generating destructive
+migrations.
+
 ## Backups
 
 Create a server-only encryption passphrase:
@@ -129,6 +133,14 @@ Also enable Lightsail automatic snapshots.
 Database dumps are for database recovery.
 
 Snapshots are for machine recovery.
+
+Practice restores before trusting backups:
+
+```bash
+less /opt/pressly/repo/infra/aws/lightsail/restore-postgres-drill.md
+```
+
+Production recovery steps live in `infra/aws/lightsail/restore-postgres.md`.
 
 ## Rollback
 
