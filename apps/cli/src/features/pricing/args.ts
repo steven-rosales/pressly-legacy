@@ -1,15 +1,13 @@
+import { result, type Result } from '@pressly/kernel';
 import { parseArgs } from 'node:util';
 import type {
   PricingServiceSlug,
   PublishPricingChangeItem,
 } from '@pressly/contracts';
 import {
-  err,
   normalizeUnknownError,
-  ok,
   validationError,
   type AppError,
-  type Result,
 } from '@pressly/errors';
 import { commandError } from '../../shell/command-error.ts';
 import type { PricingCliCommand } from './application/command.ts';
@@ -72,10 +70,10 @@ const parseMoneyCents = (value: string): Result<number, AppError> => {
   const trimmed = value.trim();
   const raw = trimmed.startsWith('$') ? trimmed.slice(1) : trimmed;
 
-  if (/^\d+c$/i.test(raw)) return ok(Number(raw.slice(0, -1)));
+  if (/^\d+c$/i.test(raw)) return result.ok(Number(raw.slice(0, -1)));
 
   if (!/^\d+(?:\.\d{1,2})?$/.test(raw))
-    return err(
+    return result.err(
       validationError({
         code: 'invalid_money_value',
         message: `Invalid money value: ${value}.`,
@@ -85,7 +83,7 @@ const parseMoneyCents = (value: string): Result<number, AppError> => {
     );
 
   const [dollars = '0', cents = ''] = raw.split('.');
-  return ok(Number(dollars) * 100 + Number(cents.padEnd(2, '0')));
+  return result.ok(Number(dollars) * 100 + Number(cents.padEnd(2, '0')));
 };
 
 const parseItemChange = (
@@ -94,7 +92,7 @@ const parseItemChange = (
   const separator = value.indexOf('=');
 
   if (separator <= 0 || separator === value.length - 1)
-    return err(
+    return result.err(
       commandError('Use --set as item_code=money.', {
         value,
       }),
@@ -104,15 +102,15 @@ const parseItemChange = (
   const price = parseMoneyCents(value.slice(separator + 1));
 
   if (code === '')
-    return err(
+    return result.err(
       commandError('Pricing item code is required in --set.', {
         value,
       }),
     );
 
-  if (!price.ok) return price;
+  if (result.isErr(price)) return price;
 
-  return ok({ code, priceCents: price.value });
+  return result.ok({ code, priceCents: price.value });
 };
 
 const parseItemChanges = (
@@ -123,12 +121,12 @@ const parseItemChanges = (
   for (const value of values) {
     const item = parseItemChange(value);
 
-    if (!item.ok) return item;
+    if (result.isErr(item)) return item;
 
     items.push(item.value);
   }
 
-  return ok(items);
+  return result.ok(items);
 };
 
 /**
@@ -155,25 +153,25 @@ export const parsePricingCliCommand = (
       },
     });
   } catch (error) {
-    return err(commandError(normalizeUnknownError(error).message));
+    return result.err(commandError(normalizeUnknownError(error).message));
   }
 
-  if (getBoolean(parsed.values, 'help')) return ok('help');
+  if (getBoolean(parsed.values, 'help')) return result.ok('help');
 
   const [namespace, action] = parsed.positionals;
 
   if (namespace !== 'pricing')
-    return err(commandError('Expected command namespace: pricing.'));
+    return result.err(commandError('Expected command namespace: pricing.'));
 
   if (action !== 'show' && action !== 'plan' && action !== 'publish')
-    return err(
+    return result.err(
       commandError('Expected pricing action: show, plan, or publish.'),
     );
 
   const service = getSingleString(parsed.values, 'service');
 
   if (service === undefined || !isPricingServiceSlug(service))
-    return err(
+    return result.err(
       commandError('Expected --service to be wash-fold or dry-cleaning.', {
         service,
       }),
@@ -181,19 +179,21 @@ export const parsePricingCliCommand = (
 
   const changes = parseItemChanges(getStringList(parsed.values, 'set'));
 
-  if (!changes.ok) return changes;
+  if (result.isErr(changes)) return changes;
 
   if (action !== 'show' && changes.value.length === 0)
-    return err(commandError('At least one --set item is required.'));
+    return result.err(commandError('At least one --set item is required.'));
 
   const reason = getSingleString(parsed.values, 'reason');
 
   if (action !== 'show' && (reason === undefined || reason.trim() === ''))
-    return err(commandError('--reason is required for pricing changes.'));
+    return result.err(
+      commandError('--reason is required for pricing changes.'),
+    );
 
   const locationSlug = getSingleString(parsed.values, 'location');
 
-  return ok({
+  return result.ok({
     action,
     serviceSlug: service,
     ...(locationSlug === undefined ? {} : { locationSlug }),

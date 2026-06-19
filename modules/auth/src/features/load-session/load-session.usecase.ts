@@ -1,6 +1,7 @@
+import { result, type Result } from '@pressly/kernel';
 import { isSessionExpired, isSessionRevoked } from '@pressly/auth';
 import type { LoadSessionCommand, LoadSessionResult } from '@pressly/contracts';
-import { err, ok, type AppError, type Result } from '@pressly/errors';
+import { type AppError } from '@pressly/errors';
 import { expiredSession, invalidSession } from './load-session.error.ts';
 import type {
   Clock,
@@ -30,17 +31,17 @@ export const makeLoadSession =
       deps.tokenHasher.hash(command.bearerToken),
     );
 
-    if (!found.ok) return found;
-    if (found.value === undefined) return err(invalidSession());
-    if (!found.value.isActive) return err(invalidSession());
-    if (isSessionRevoked(found.value)) return err(invalidSession());
-    if (isSessionExpired(found.value, now)) return err(expiredSession());
+    if (result.isErr(found)) return found;
+    if (found.value === undefined) return result.err(invalidSession());
+    if (!found.value.isActive) return result.err(invalidSession());
+    if (isSessionRevoked(found.value)) return result.err(invalidSession());
+    if (isSessionExpired(found.value, now)) return result.err(expiredSession());
 
     const touched = await deps.store.touchSession(found.value.sessionId, now);
 
-    if (!touched.ok) return touched;
+    if (result.isErr(touched)) return touched;
 
-    return ok({
+    return result.ok({
       identityId: found.value.identityId,
       kind: found.value.kind,
       displayName: found.value.displayName,

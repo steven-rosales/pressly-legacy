@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'express';
+import { result } from '@pressly/kernel';
 import { apiFailure, apiSuccess } from '@pressly/http';
 import type {
   PricingChangeAuthor,
@@ -18,15 +19,17 @@ export const makePublishPricingChangeController = (input: {
   catchAsync(async (req, res) => {
     const body = req.body as PricingChangeRequest;
     const requestedBy = input.readAuthor(res);
-    const result = await input.publishPricingChange({
+    const publishResult = await input.publishPricingChange({
       ...body,
       requestedBy,
     });
 
-    if (!result.ok) {
-      res.status(result.error.status).json(apiFailure(result.error));
+    if (result.isErr(publishResult)) {
+      res
+        .status(publishResult.error.status)
+        .json(apiFailure(publishResult.error));
       return;
     }
 
-    res.status(200).json(apiSuccess(result.value));
+    res.status(200).json(apiSuccess(publishResult.value));
   });

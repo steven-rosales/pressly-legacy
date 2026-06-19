@@ -1,5 +1,6 @@
+import type { Result } from '@pressly/kernel';
 import type { ReactElement } from 'react';
-import type { AppError, Result } from '@pressly/errors';
+import type { AppError } from '@pressly/errors';
 
 export type CliCommand = Readonly<{
   json: boolean;

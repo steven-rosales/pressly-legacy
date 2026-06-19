@@ -1,4 +1,5 @@
-import { ok, type AppError, type Result } from '@pressly/errors';
+import { result, type Result } from '@pressly/kernel';
+import { type AppError } from '@pressly/errors';
 import type {
   CommitPricingChangePlanInput,
   CurrentPricingForPublish,
@@ -24,9 +25,9 @@ export const makeFakeEffectivePricingCatalogFinder = (
     find: [] as LoadPricingCatalogCommand[],
   };
 
-  const result =
+  const catalogResult =
     input.result ??
-    ok({
+    result.ok({
       serviceSlug: 'wash-fold',
       currency: 'USD',
       updatedAt: '2026-05-21T12:00:00.000Z',
@@ -47,7 +48,7 @@ export const makeFakeEffectivePricingCatalogFinder = (
     findEffectivePricingCatalog: async (command) => {
       calls.find.push(command);
 
-      return result;
+      return catalogResult;
     },
   };
 
@@ -86,13 +87,13 @@ export const makeFakePricingChangeStore = (
   const store: PricingChangeStore = {
     loadCurrentPricingForPublish: async (command) => {
       calls.load.push(command);
-      return input.loadResult ?? ok(current);
+      return input.loadResult ?? result.ok(current);
     },
 
     commitPricingChangePlan: async (command) => {
       calls.commit.push(command);
 
-      return input.commitResult ?? ok(publishResult);
+      return input.commitResult ?? result.ok(publishResult);
     },
   };
 

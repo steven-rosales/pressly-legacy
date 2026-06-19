@@ -19,6 +19,9 @@ const httpSource = fileURLToPath(
 const httpExpressSource = fileURLToPath(
   new URL('../../packages/http/src/express/index.ts', import.meta.url),
 );
+const kernelSource = fileURLToPath(
+  new URL('../../packages/kernel/src/index.ts', import.meta.url),
+);
 const testkitSource = fileURLToPath(
   new URL('../../packages/testkit/src', import.meta.url),
 );
@@ -49,6 +52,10 @@ export default defineConfig({
       {
         find: /^@pressly\/http$/,
         replacement: httpSource,
+      },
+      {
+        find: '@pressly/kernel',
+        replacement: kernelSource,
       },
       {
         find: /^@pressly\/testkit\/(.+)$/,

@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'express';
+import { result } from '@pressly/kernel';
 import { apiFailure, apiSuccess } from '@pressly/http';
 import type { PricingParamsRequestSchema } from '@pressly/contracts';
 import { catchAsync } from '@pressly/http/express';
@@ -17,12 +18,14 @@ export const makeLoadPricingCatalogController = (
             locationSlug: params.locationSlug,
           };
 
-    const result = await loadPricingCatalog(command);
+    const catalogResult = await loadPricingCatalog(command);
 
-    if (!result.ok) {
-      res.status(result.error.status).json(apiFailure(result.error));
+    if (result.isErr(catalogResult)) {
+      res
+        .status(catalogResult.error.status)
+        .json(apiFailure(catalogResult.error));
       return;
     }
 
-    res.status(200).json(apiSuccess(result.value));
+    res.status(200).json(apiSuccess(catalogResult.value));
   });

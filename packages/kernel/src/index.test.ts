@@ -1,10 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { option, pipe, result, spec, workflow } from './index.ts';
+import {
+  option,
+  pipe,
+  result,
+  spec,
+  workflow,
+  type Err,
+  type None,
+  type Ok,
+  type Option,
+  type Result,
+  type Some,
+  type Spec,
+  type Step,
+  type WorkflowEvent,
+} from './index.ts';
 
 describe('kernel public API', () => {
   it('uses lower-case option and result namespaces', () => {
-    const maybeValue = pipe(
-      option.some(2),
+    const typedSome: Some<number> = option.some(2);
+    const typedNone: None = option.none;
+    const maybeValue: Option<number> = pipe(
+      typedSome,
       option.map((value: number) => value + 1),
       option.andThen((value) =>
         value > 2 ? option.some(value * 2) : option.none,
@@ -17,9 +34,13 @@ describe('kernel public API', () => {
         none: () => 0,
       })(maybeValue),
     ).toBe(6);
+    expect(typedNone).toEqual(option.none);
 
+    const typedOk: Ok<number> = result.ok(2);
+    const typedErr: Err<string> = result.err('failed');
+    const typedResult: Result<number, string> = typedErr;
     const calculation = pipe(
-      result.ok(2),
+      typedOk,
       result.map((value: number) => value + 1),
       result.andThen((value) => result.ok(value * 2)),
     );
@@ -30,10 +51,11 @@ describe('kernel public API', () => {
         err: () => 0,
       })(calculation),
     ).toBe(6);
+    expect(typedResult).toEqual(result.err('failed'));
   });
 
   it('uses lower-case spec and workflow namespaces', async () => {
-    const positive = spec.spec<number, string>(
+    const positive: Spec<number, string> = spec.spec<number, string>(
       'positive',
       (value) => value > 0,
       () => 'must be positive',
@@ -48,19 +70,22 @@ describe('kernel public API', () => {
       result.ok(4),
     );
 
-    const double = workflow.step<
+    const double: Step<
       Readonly<{ multiplier: number }>,
       number,
       number,
       string
-    >('double', async (_env, input) => result.ok(input * 2));
+    > = workflow.step<Readonly<{ multiplier: number }>, number, number, string>(
+      'double',
+      async (_env, input) => result.ok(input * 2),
+    );
     const multiply = workflow.step<
       Readonly<{ multiplier: number }>,
       number,
       number,
       string
     >('multiply', async (env, input) => result.ok(input * env.multiplier));
-    const events: unknown[] = [];
+    const events: WorkflowEvent<number, number, string>[] = [];
 
     const process = pipe(
       double,

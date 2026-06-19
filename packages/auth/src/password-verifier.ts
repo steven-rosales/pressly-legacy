@@ -1,11 +1,6 @@
+import { result, type Result } from '@pressly/kernel';
 import { verify } from 'argon2';
-import {
-  err,
-  makeAppError,
-  ok,
-  type AppError,
-  type Result,
-} from '@pressly/errors';
+import { makeAppError, type AppError } from '@pressly/errors';
 
 export const makePasswordVerifier = () => ({
   verify: async (
@@ -13,9 +8,9 @@ export const makePasswordVerifier = () => ({
     plainTextPassword: string,
   ): Promise<Result<boolean, AppError>> => {
     try {
-      return ok(await verify(passwordHash, plainTextPassword));
+      return result.ok(await verify(passwordHash, plainTextPassword));
     } catch (error) {
-      return err(
+      return result.err(
         makeAppError({
           kind: 'UnexpectedError',
           code: 'password_verification_failed',

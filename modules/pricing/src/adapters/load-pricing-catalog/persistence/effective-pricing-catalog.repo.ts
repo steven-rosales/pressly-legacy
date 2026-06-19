@@ -1,10 +1,5 @@
-import {
-  err,
-  makeAppError,
-  ok,
-  type AppError,
-  type Result,
-} from '@pressly/errors';
+import { result, type Result } from '@pressly/kernel';
+import { makeAppError, type AppError } from '@pressly/errors';
 import {
   and,
   desc,
@@ -71,7 +66,7 @@ export const makeEffectivePricingCatalogFinder = (
         .limit(1);
 
       if (service === undefined)
-        return err(
+        return result.err(
           notFound(`Pricing service not found: ${command.serviceSlug}`),
         );
 
@@ -92,7 +87,7 @@ export const makeEffectivePricingCatalogFinder = (
             )[0];
 
       if (command.locationSlug !== undefined && location === undefined)
-        return err(
+        return result.err(
           notFound(`Pricing location not found: ${command.locationSlug}`),
         );
 
@@ -132,7 +127,7 @@ export const makeEffectivePricingCatalogFinder = (
         )[0];
 
       if (defaultSet === undefined)
-        return err(
+        return result.err(
           notFound(`Active pricing set not found: ${command.serviceSlug}`),
         );
 
@@ -142,7 +137,7 @@ export const makeEffectivePricingCatalogFinder = (
         .where(eq(pricing.pricingItems.pricingSetId, defaultSet.id))
         .orderBy(pricing.pricingItems.sortOrder, pricing.pricingItems.name);
 
-      return ok({
+      return result.ok({
         serviceSlug: command.serviceSlug,
         ...(command.locationSlug === undefined
           ? {}
@@ -160,7 +155,7 @@ export const makeEffectivePricingCatalogFinder = (
         })),
       });
     } catch (error) {
-      return err(databaseFailure(error));
+      return result.err(databaseFailure(error));
     }
   },
 });

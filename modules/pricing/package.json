@@ -27,6 +27,7 @@
     "@pressly/db": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/http": "workspace:*",
+    "@pressly/kernel": "workspace:*",
     "express": "^5.2.1"
   },
   "devDependencies": {

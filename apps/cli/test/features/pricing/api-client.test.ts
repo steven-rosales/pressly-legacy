@@ -1,5 +1,6 @@
+import { result } from '@pressly/kernel';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ok } from '@pressly/errors';
+
 import { makeApiPricingClient } from '../../../src/features/pricing/adapters/api-client.ts';
 import type { SessionStore } from '../../../src/shell/session-store.ts';
 
@@ -9,7 +10,7 @@ const makeSessionStore = (
   token: string | null = 'token_12345678901234567890123456789012',
 ): SessionStore => ({
   read: async () =>
-    ok(
+    result.ok(
       token === null
         ? undefined
         : {
@@ -22,8 +23,8 @@ const makeSessionStore = (
             },
           },
     ),
-  write: async () => ok(undefined),
-  clear: async () => ok(undefined),
+  write: async () => result.ok(undefined),
+  clear: async () => result.ok(undefined),
 });
 
 afterEach(() => {
@@ -56,14 +57,14 @@ describe('pricing API client', () => {
       makeSessionStore(),
     );
 
-    expect(clientResult.ok).toBe(true);
-    if (!clientResult.ok) return;
+    expect(result.isOk(clientResult)).toBe(true);
+    if (result.isErr(clientResult)) return;
 
-    const result = await clientResult.value.loadCatalog({
+    const catalogResult = await clientResult.value.loadCatalog({
       serviceSlug: 'wash-fold',
     });
 
-    expect(result.ok).toBe(true);
+    expect(result.isOk(catalogResult)).toBe(true);
     expect(calls).toHaveLength(1);
 
     const call = calls[0];
@@ -93,17 +94,18 @@ describe('pricing API client', () => {
       makeSessionStore(null),
     );
 
-    expect(clientResult.ok).toBe(true);
-    if (!clientResult.ok) return;
+    expect(result.isOk(clientResult)).toBe(true);
+    if (result.isErr(clientResult)) return;
 
-    const result = await clientResult.value.planChange({
+    const planResult = await clientResult.value.planChange({
       serviceSlug: 'wash-fold',
       reason: 'Update delivery fee',
       items: [{ code: 'delivery_fee', priceCents: 100 }],
     });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe('missing_cli_session');
+    expect(result.isErr(planResult)).toBe(true);
+    if (result.isErr(planResult))
+      expect(planResult.error.code).toBe('missing_cli_session');
     expect(fetchCalled).toBe(false);
   });
 });

@@ -1,10 +1,11 @@
+import { result, type Result } from '@pressly/kernel';
 import type {
   LoginRequest,
   LoginResult,
   LogoutResult,
   SessionResult,
 } from '@pressly/contracts';
-import { err, ok, type AppError, type Result } from '@pressly/errors';
+import { type AppError } from '@pressly/errors';
 import {
   readApiUrl,
   requestApi,
@@ -25,30 +26,30 @@ export const makeApiAuthClient = (
 ): Result<AuthCliClient, AppError> => {
   const apiUrl = readApiUrl(env);
 
-  if (!apiUrl.ok) return apiUrl;
+  if (result.isErr(apiUrl)) return apiUrl;
 
-  return ok({
+  return result.ok({
     login: async (request: LoginRequest) => {
-      const result = await requestApi<LoginResult>({
+      const loginResult = await requestApi<LoginResult>({
         apiUrl: apiUrl.value,
         path: '/auth/login',
         method: 'POST',
         body: request,
       });
 
-      if (!result.ok) return result;
+      if (result.isErr(loginResult)) return loginResult;
 
-      const stored = await store.write(result.value);
-      if (!stored.ok) return err(stored.error);
+      const stored = await store.write(loginResult.value);
+      if (result.isErr(stored)) return result.err(stored.error);
 
-      return result;
+      return loginResult;
     },
 
     loadSession: async () => {
       const session = await store.read();
 
-      if (!session.ok) return err(session.error);
-      if (session.value === undefined) return err(missingCliSession());
+      if (result.isErr(session)) return result.err(session.error);
+      if (session.value === undefined) return result.err(missingCliSession());
 
       return requestApi<SessionResult>({
         apiUrl: apiUrl.value,
@@ -61,27 +62,27 @@ export const makeApiAuthClient = (
     logout: async () => {
       const session = await store.read();
 
-      if (!session.ok) return err(session.error);
+      if (result.isErr(session)) return result.err(session.error);
       if (session.value === undefined) {
         const cleared = await store.clear();
-        if (!cleared.ok) return err(cleared.error);
+        if (result.isErr(cleared)) return result.err(cleared.error);
 
-        return ok({ revoked: true });
+        return result.ok({ revoked: true });
       }
 
-      const result = await requestApi<LogoutResult>({
+      const logoutResult = await requestApi<LogoutResult>({
         apiUrl: apiUrl.value,
         path: '/auth/logout',
         method: 'POST',
         bearerToken: session.value.accessToken,
       });
 
-      if (!result.ok) return result;
+      if (result.isErr(logoutResult)) return logoutResult;
 
       const cleared = await store.clear();
-      if (!cleared.ok) return err(cleared.error);
+      if (result.isErr(cleared)) return result.err(cleared.error);
 
-      return result;
+      return logoutResult;
     },
 
     close: async () => undefined,

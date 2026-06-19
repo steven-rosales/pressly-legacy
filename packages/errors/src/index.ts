@@ -4,8 +4,6 @@ export {
   normalizeUnknownError,
 } from './app-error.js';
 
-export { andThen, err, mapError, mapResult, ok } from './result.js';
-
 export {
   conflictError,
   notFoundError,
@@ -20,5 +18,3 @@ export type {
   HttpStatusCode,
   MakeAppErrorInput,
 } from './app-error.js';
-
-export type { Err, Ok, Result } from './result.js';

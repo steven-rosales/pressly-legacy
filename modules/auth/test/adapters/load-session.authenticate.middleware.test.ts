@@ -1,7 +1,8 @@
+import { result } from '@pressly/kernel';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { Principal } from '@pressly/auth';
-import { err, makeAppError, ok } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
 import { makeAuthenticateMiddleware } from '../../src/adapters/load-session/http/authenticate.middleware.ts';
 import type { LoadSession } from '../../src/features/load-session/load-session.usecase.ts';
@@ -88,7 +89,9 @@ describe('authenticate middleware', () => {
       ...loadSessionResult,
       roles: ['operator', 'admin'],
     } satisfies Principal;
-    const loadSession = vi.fn<LoadSession>().mockResolvedValue(ok(principal));
+    const loadSession = vi
+      .fn<LoadSession>()
+      .mockResolvedValue(result.ok(principal));
     const authenticate = makeAuthenticateMiddleware(loadSession);
     const { req, header } = makeLoadSessionRequest();
     const res = makeResponse();
@@ -114,7 +117,7 @@ describe('authenticate middleware', () => {
   it('forwards missing bearer headers before loading a session', async () => {
     const loadSession = vi
       .fn<LoadSession>()
-      .mockResolvedValue(ok(loadSessionResult));
+      .mockResolvedValue(result.ok(loadSessionResult));
     const authenticate = makeAuthenticateMiddleware(loadSession);
     const { req } = makeLoadSessionRequest({ authorization: undefined });
     const res = makeResponse();
@@ -129,7 +132,9 @@ describe('authenticate middleware', () => {
 
   it('forwards load session failures to express', async () => {
     const error = invalidSessionError();
-    const loadSession = vi.fn<LoadSession>().mockResolvedValue(err(error));
+    const loadSession = vi
+      .fn<LoadSession>()
+      .mockResolvedValue(result.err(error));
     const authenticate = makeAuthenticateMiddleware(loadSession);
     const { req } = makeLoadSessionRequest();
     const res = makeResponse();
@@ -144,7 +149,9 @@ describe('authenticate middleware', () => {
 
   it('requires a usable role before writing auth locals', async () => {
     const principal = { ...loadSessionResult, roles: [] } satisfies Principal;
-    const loadSession = vi.fn<LoadSession>().mockResolvedValue(ok(principal));
+    const loadSession = vi
+      .fn<LoadSession>()
+      .mockResolvedValue(result.ok(principal));
     const authenticate = makeAuthenticateMiddleware(loadSession);
     const { req } = makeLoadSessionRequest();
     const res = makeResponse();

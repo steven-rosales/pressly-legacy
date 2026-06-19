@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import { result } from '@pressly/kernel';
 import { makeFetchRequestClient } from './fetch-request-client';
 
 const makeClient = () =>
@@ -43,7 +44,7 @@ describe('makeFetchRequestClient', () => {
     });
 
     expect(result).toEqual({
-      ok: true,
+      tag: 'ok',
       value: {
         status: 'alive',
       },
@@ -61,7 +62,7 @@ describe('makeFetchRequestClient', () => {
       ),
     );
 
-    const result = await makeClient().send({
+    const actual = await makeClient().send({
       method: 'GET',
       path: '/missing',
       response: z.object({
@@ -69,10 +70,10 @@ describe('makeFetchRequestClient', () => {
       }),
     });
 
-    expect(result.ok).toBe(false);
+    expect(result.isErr(actual)).toBe(true);
 
-    if (!result.ok)
-      expect(result.error).toMatchObject({
+    if (result.isErr(actual))
+      expect(actual.error).toMatchObject({
         tag: 'AppError',
         code: 'route_not_found',
         safeMessage: 'Route not found.',
@@ -90,7 +91,7 @@ describe('makeFetchRequestClient', () => {
       }),
     );
 
-    const result = await makeClient().send({
+    const actual = await makeClient().send({
       method: 'GET',
       path: '/health/live',
       response: z.object({
@@ -98,10 +99,10 @@ describe('makeFetchRequestClient', () => {
       }),
     });
 
-    expect(result.ok).toBe(false);
+    expect(result.isErr(actual)).toBe(true);
 
-    if (!result.ok) {
-      expect(result.error.code).toBe('invalid_api_response');
+    if (result.isErr(actual)) {
+      expect(actual.error.code).toBe('invalid_api_response');
     }
   });
 

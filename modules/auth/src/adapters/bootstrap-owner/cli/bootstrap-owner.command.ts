@@ -1,5 +1,6 @@
 import { createDatabaseRuntime } from '@pressly/db';
 import { makePasswordHasher } from '@pressly/auth';
+import { result } from '@pressly/kernel';
 import { makeAppError, normalizeUnknownError } from '@pressly/errors';
 import { makeBootstrapOwnerStore } from '../persistence/bootstrap-owner.repo.ts';
 import { makeBootstrapOwner } from '../../../features/bootstrap-owner/bootstrap-owner.usecase.ts';
@@ -74,15 +75,15 @@ const main = async (): Promise<void> => {
       passwordHasher: makePasswordHasher(),
     });
 
-    const result = await bootstrapOwner({
+    const bootstrapResult = await bootstrapOwner({
       email: readRequiredEnv('PRESSLY_BOOTSTRAP_OWNER_EMAIL'),
       password: await readPasswordFromStdin(),
       confirmation: readRequiredEnv('PRESSLY_BOOTSTRAP_OWNER_CONFIRM'),
     });
 
-    if (!result.ok) throw result.error;
+    if (result.isErr(bootstrapResult)) throw bootstrapResult.error;
 
-    console.log(`owner bootstrap completed for ${result.value.email}`);
+    console.log(`owner bootstrap completed for ${bootstrapResult.value.email}`);
   } finally {
     await database.close();
   }

@@ -1,8 +1,9 @@
+import type { Result } from '@pressly/kernel';
 import type {
   AuthAuditEventInput,
   RevokeSessionStoreResult,
 } from '@pressly/contracts';
-import type { AppError, Result } from '@pressly/errors';
+import type { AppError } from '@pressly/errors';
 
 export type RevokeSessionStore = Readonly<{
   revokeByTokenHash: (

@@ -1,4 +1,5 @@
-import type { AppError, Result } from '@pressly/errors';
+import type { Result } from '@pressly/kernel';
+import type { AppError } from '@pressly/errors';
 import type { z } from 'zod';
 
 export type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';

@@ -1,4 +1,5 @@
-import { ok, type AppError, type Result } from '@pressly/errors';
+import { result, type Result } from '@pressly/kernel';
+import { type AppError } from '@pressly/errors';
 import type {
   AuthAuditEventInput,
   CreatedSession,
@@ -56,28 +57,28 @@ export const makeFakeLoginStore = (options: FakeStoreOptions = {}) => {
       calls.countRecentFailedAttempts.push(input);
       return (
         options.countRecentFailedAttemptsResult ??
-        ok(options.failedAttempts ?? 0)
+        result.ok(options.failedAttempts ?? 0)
       );
     },
     async findIdentityByEmail(emailNormalized) {
       calls.findIdentityByEmail.push(emailNormalized);
-      return options.findIdentityByEmailResult ?? ok(identity);
+      return options.findIdentityByEmailResult ?? result.ok(identity);
     },
     async findPasswordCredential(identityId) {
       calls.findPasswordCredential.push(identityId);
-      return options.findPasswordCredentialResult ?? ok(credential);
+      return options.findPasswordCredentialResult ?? result.ok(credential);
     },
     async createSession(input) {
       calls.createSession.push(input);
-      return options.createSessionResult ?? ok(makeDefaultSession());
+      return options.createSessionResult ?? result.ok(makeDefaultSession());
     },
     async recordLoginAttempt(input) {
       calls.recordLoginAttempt.push(input);
-      return options.recordLoginAttemptResult ?? ok(undefined);
+      return options.recordLoginAttemptResult ?? result.ok(undefined);
     },
     async recordAuditEvent(input) {
       calls.recordAuditEvent.push(input);
-      return options.recordAuditEventResult ?? ok(undefined);
+      return options.recordAuditEventResult ?? result.ok(undefined);
     },
   };
 
@@ -106,11 +107,11 @@ export const makeFakeLoadSessionStore = (
   const store: LoadSessionStore = {
     async findByTokenHash(tokenHash) {
       calls.findByTokenHash.push(tokenHash);
-      return options.findByTokenHashResult ?? ok(principal);
+      return options.findByTokenHashResult ?? result.ok(principal);
     },
     async touchSession(sessionId, now) {
       calls.touchSession.push({ sessionId, now });
-      return options.touchSessionResult ?? ok(undefined);
+      return options.touchSessionResult ?? result.ok(undefined);
     },
   };
 
@@ -150,11 +151,11 @@ export const makeFakeRevokeSessionStore = (
   const store: RevokeSessionStore = {
     async revokeByTokenHash(tokenHash, revokedAt) {
       calls.revokeByTokenHash.push({ tokenHash, revokedAt });
-      return options.revokeByTokenHashResult ?? ok(revoked);
+      return options.revokeByTokenHashResult ?? result.ok(revoked);
     },
     async recordAuditEvent(input) {
       calls.recordAuditEvent.push(input);
-      return options.recordAuditEventResult ?? ok(undefined);
+      return options.recordAuditEventResult ?? result.ok(undefined);
     },
   };
 

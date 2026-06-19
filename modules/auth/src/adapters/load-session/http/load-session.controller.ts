@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'express';
+import { result } from '@pressly/kernel';
 import { apiFailure, apiSuccess } from '@pressly/http';
 import { catchAsync } from '@pressly/http/express';
 import { makeAppError } from '@pressly/errors';
@@ -9,16 +10,18 @@ export const makeLoadSessionController = (
   loadSession: LoadSession,
 ): RequestHandler =>
   catchAsync(async (req, res) => {
-    const result = await loadSession({
+    const loadSessionResult = await loadSession({
       bearerToken: readBearerToken(req.header('authorization') ?? undefined),
     });
 
-    if (!result.ok) {
-      res.status(result.error.status).json(apiFailure(result.error));
+    if (result.isErr(loadSessionResult)) {
+      res
+        .status(loadSessionResult.error.status)
+        .json(apiFailure(loadSessionResult.error));
       return;
     }
 
-    if (result.value.sessionExpiresAt === undefined)
+    if (loadSessionResult.value.sessionExpiresAt === undefined)
       throw makeAppError({
         kind: 'InvariantViolationError',
         code: 'loaded_session_missing_expiry',
@@ -30,14 +33,14 @@ export const makeLoadSessionController = (
     res.status(200).json(
       apiSuccess({
         principal: {
-          identityId: result.value.identityId,
-          displayName: result.value.displayName,
-          ...(result.value.email === undefined
+          identityId: loadSessionResult.value.identityId,
+          displayName: loadSessionResult.value.displayName,
+          ...(loadSessionResult.value.email === undefined
             ? {}
-            : { email: result.value.email }),
-          roles: [...result.value.roles],
+            : { email: loadSessionResult.value.email }),
+          roles: [...loadSessionResult.value.roles],
         },
-        expiresAt: result.value.sessionExpiresAt.toISOString(),
+        expiresAt: loadSessionResult.value.sessionExpiresAt.toISOString(),
       }),
     );
   });

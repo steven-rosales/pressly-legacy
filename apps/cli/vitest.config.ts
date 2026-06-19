@@ -7,6 +7,9 @@ const contractsSource = fileURLToPath(
 const errorsSource = fileURLToPath(
   new URL('../../packages/errors/src/index.ts', import.meta.url),
 );
+const kernelSource = fileURLToPath(
+  new URL('../../packages/kernel/src/index.ts', import.meta.url),
+);
 const presentersSource = fileURLToPath(
   new URL('../../packages/presenters/src/index.ts', import.meta.url),
 );
@@ -21,6 +24,10 @@ export default defineConfig({
       {
         find: '@pressly/errors',
         replacement: errorsSource,
+      },
+      {
+        find: '@pressly/kernel',
+        replacement: kernelSource,
       },
       {
         find: '@pressly/presenters',

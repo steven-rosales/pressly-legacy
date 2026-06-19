@@ -2,6 +2,7 @@ vi.mock('@/infra/pricing', () => ({
   loadPricingCatalog: vi.fn(),
 }));
 
+import { result } from '@pressly/kernel';
 import { loadPricingCatalog } from '@/infra/pricing';
 import {
   loadDryCleaningPricingViewModel,
@@ -16,9 +17,8 @@ describe('marketing pricing view models', () => {
   });
 
   it('uses wash and fold prices from the pricing catalog', async () => {
-    mockLoadPricingCatalog.mockResolvedValue({
-      ok: true,
-      value: {
+    mockLoadPricingCatalog.mockResolvedValue(
+      result.ok({
         serviceSlug: 'wash-fold',
         currency: 'USD',
         updatedAt: '2026-05-19T00:00:00.000Z',
@@ -60,8 +60,8 @@ describe('marketing pricing view models', () => {
             metadata: {},
           },
         ],
-      },
-    });
+      }),
+    );
 
     const model = await loadWashFoldPricingViewModel({
       locationSlug: 'wash-fold-pricing-test',
@@ -76,9 +76,8 @@ describe('marketing pricing view models', () => {
   });
 
   it('uses dry cleaning prices from the pricing catalog', async () => {
-    mockLoadPricingCatalog.mockResolvedValue({
-      ok: true,
-      value: {
+    mockLoadPricingCatalog.mockResolvedValue(
+      result.ok({
         serviceSlug: 'dry-cleaning',
         currency: 'USD',
         updatedAt: '2026-05-19T00:00:00.000Z',
@@ -120,8 +119,8 @@ describe('marketing pricing view models', () => {
             metadata: {},
           },
         ],
-      },
-    });
+      }),
+    );
 
     const model = await loadDryCleaningPricingViewModel({
       locationSlug: 'dry-cleaning-pricing-test',

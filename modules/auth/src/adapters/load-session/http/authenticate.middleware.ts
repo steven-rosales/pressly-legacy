@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'express';
+import { result } from '@pressly/kernel';
 import {
   actorFromPrincipal,
   selectHighestRole,
@@ -19,7 +20,7 @@ export const makeAuthenticateMiddleware = (
     const token = readBearerToken(req.header('authorization') ?? undefined);
     const principal = await loadSession({ bearerToken: token });
 
-    if (!principal.ok) throw principal.error;
+    if (result.isErr(principal)) throw principal.error;
 
     const role = selectHighestRole(principal.value.roles);
 

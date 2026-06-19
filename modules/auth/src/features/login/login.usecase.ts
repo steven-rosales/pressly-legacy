@@ -1,6 +1,7 @@
+import { result, type Result } from '@pressly/kernel';
 import { normalizeEmail } from '@pressly/auth';
 import type { LoginCommand, LoginResult } from '@pressly/contracts';
-import { err, ok, type AppError, type Result } from '@pressly/errors';
+import { type AppError } from '@pressly/errors';
 import { invalidCredentials, loginRateLimited } from './login.error.ts';
 import type {
   Clock,
@@ -66,14 +67,14 @@ export const makeLogin =
       since,
     });
 
-    if (!failedAttempts.ok) return failedAttempts;
+    if (result.isErr(failedAttempts)) return failedAttempts;
 
     if (failedAttempts.value >= deps.options.loginMaxFailures)
-      return err(loginRateLimited());
+      return result.err(loginRateLimited());
 
     const identity = await deps.store.findIdentityByEmail(emailNormalized);
 
-    if (!identity.ok) return identity;
+    if (result.isErr(identity)) return identity;
 
     if (identity.value === undefined || !identity.value.isActive) {
       await deps.store.recordLoginAttempt(
@@ -87,14 +88,14 @@ export const makeLogin =
             : { userAgent: command.userAgent }),
         }),
       );
-      return err(invalidCredentials());
+      return result.err(invalidCredentials());
     }
 
     const credential = await deps.store.findPasswordCredential(
       identity.value.id,
     );
 
-    if (!credential.ok) return credential;
+    if (result.isErr(credential)) return credential;
 
     if (credential.value === undefined) {
       await deps.store.recordLoginAttempt(
@@ -109,7 +110,7 @@ export const makeLogin =
             : { userAgent: command.userAgent }),
         }),
       );
-      return err(invalidCredentials());
+      return result.err(invalidCredentials());
     }
 
     const verified = await deps.passwordVerifier.verify(
@@ -117,7 +118,7 @@ export const makeLogin =
       command.password,
     );
 
-    if (!verified.ok) return verified;
+    if (result.isErr(verified)) return verified;
 
     if (!verified.value) {
       await deps.store.recordLoginAttempt(
@@ -132,7 +133,7 @@ export const makeLogin =
             : { userAgent: command.userAgent }),
         }),
       );
-      return err(invalidCredentials());
+      return result.err(invalidCredentials());
     }
 
     const accessToken = deps.tokenIssuer.issue();
@@ -145,7 +146,7 @@ export const makeLogin =
       expiresAt,
     });
 
-    if (!session.ok) return session;
+    if (result.isErr(session)) return session;
 
     await deps.store.recordLoginAttempt({
       emailNormalized,
@@ -167,7 +168,7 @@ export const makeLogin =
       metadata: { email: emailNormalized },
     });
 
-    return ok({
+    return result.ok({
       accessToken,
       expiresAt: session.value.expiresAt.toISOString(),
       principal: {

@@ -1,9 +1,10 @@
+import { result, type Result } from '@pressly/kernel';
 import type {
   LoginResult,
   LogoutResult,
   SessionResult,
 } from '@pressly/contracts';
-import { err, ok, type AppError, type Result } from '@pressly/errors';
+import { type AppError } from '@pressly/errors';
 import { commandError } from '../../../shell/command-error.ts';
 import type { AuthCliClient } from './ports.ts';
 
@@ -27,32 +28,32 @@ export const runAuthCommand = async (
 ): Promise<Result<AuthCliOutput, AppError>> => {
   if (command.action === 'login') {
     if (command.email === undefined || command.email.trim() === '')
-      return err(commandError('--email is required for auth login.'));
+      return result.err(commandError('--email is required for auth login.'));
 
     if (command.password === undefined || command.password.trim() === '')
-      return err(commandError('--password is required for auth login.'));
+      return result.err(commandError('--password is required for auth login.'));
 
-    const result = await client.login({
+    const loginResult = await client.login({
       email: command.email,
       password: command.password,
     });
 
-    return result.ok
-      ? ok({ tag: 'login', value: result.value })
-      : err(result.error);
+    return result.isOk(loginResult)
+      ? result.ok({ tag: 'login', value: loginResult.value })
+      : result.err(loginResult.error);
   }
 
   if (command.action === 'session') {
-    const result = await client.loadSession();
+    const sessionResult = await client.loadSession();
 
-    return result.ok
-      ? ok({ tag: 'session', value: result.value })
-      : err(result.error);
+    return result.isOk(sessionResult)
+      ? result.ok({ tag: 'session', value: sessionResult.value })
+      : result.err(sessionResult.error);
   }
 
-  const result = await client.logout();
+  const logoutResult = await client.logout();
 
-  return result.ok
-    ? ok({ tag: 'logout', value: result.value })
-    : err(result.error);
+  return result.isOk(logoutResult)
+    ? result.ok({ tag: 'logout', value: logoutResult.value })
+    : result.err(logoutResult.error);
 };

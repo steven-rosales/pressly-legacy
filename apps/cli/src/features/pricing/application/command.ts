@@ -1,3 +1,4 @@
+import { result, type Result } from '@pressly/kernel';
 import type {
   LoadPricingCatalogResult,
   PricingServiceSlug,
@@ -5,7 +6,7 @@ import type {
   PricingChangePlan,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
-import { err, ok, type AppError, type Result } from '@pressly/errors';
+import { type AppError } from '@pressly/errors';
 import { commandError } from '../../../shell/command-error.ts';
 import type { PricingChangeInput, PricingClient } from './ports.ts';
 
@@ -30,9 +31,11 @@ export const toPricingChangeInput = (
   command: PricingCliCommand,
 ): Result<PricingChangeInput, AppError> => {
   if (command.reason === undefined)
-    return err(commandError('--reason is required for pricing changes.'));
+    return result.err(
+      commandError('--reason is required for pricing changes.'),
+    );
 
-  return ok({
+  return result.ok({
     serviceSlug: command.serviceSlug,
     ...(command.locationSlug === undefined
       ? {}
@@ -47,36 +50,38 @@ export const runPricingCommand = async (
   client: PricingClient,
 ): Promise<Result<PricingCliOutput, AppError>> => {
   if (command.action === 'show') {
-    const result = await client.loadCatalog({
+    const catalogResult = await client.loadCatalog({
       serviceSlug: command.serviceSlug,
       ...(command.locationSlug === undefined
         ? {}
         : { locationSlug: command.locationSlug }),
     });
 
-    return result.ok
-      ? ok({ tag: 'catalog', value: result.value })
-      : err(result.error);
+    return result.isOk(catalogResult)
+      ? result.ok({ tag: 'catalog', value: catalogResult.value })
+      : result.err(catalogResult.error);
   }
 
   const input = toPricingChangeInput(command);
 
-  if (!input.ok) return input;
+  if (result.isErr(input)) return input;
 
   if (command.action === 'plan') {
-    const result = await client.planChange(input.value);
+    const planResult = await client.planChange(input.value);
 
-    return result.ok
-      ? ok({ tag: 'plan', value: result.value })
-      : err(result.error);
+    return result.isOk(planResult)
+      ? result.ok({ tag: 'plan', value: planResult.value })
+      : result.err(planResult.error);
   }
 
   if (!command.confirm)
-    return err(commandError('pricing publish requires --yes to commit.'));
+    return result.err(
+      commandError('pricing publish requires --yes to commit.'),
+    );
 
-  const result = await client.publishChange(input.value);
+  const publishResult = await client.publishChange(input.value);
 
-  return result.ok
-    ? ok({ tag: 'published', value: result.value })
-    : err(result.error);
+  return result.isOk(publishResult)
+    ? result.ok({ tag: 'published', value: publishResult.value })
+    : result.err(publishResult.error);
 };

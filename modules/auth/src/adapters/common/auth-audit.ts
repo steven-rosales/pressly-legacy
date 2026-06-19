@@ -1,6 +1,7 @@
+import type { Result } from '@pressly/kernel';
 import { auth, type Database } from '@pressly/db';
 import type { AuthAuditEventInput } from '@pressly/contracts';
-import type { AppError, Result } from '@pressly/errors';
+import type { AppError } from '@pressly/errors';
 import { toDatabaseResult } from './database-result.ts';
 
 export const recordAuthAuditEvent = (

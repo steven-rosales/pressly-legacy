@@ -1,11 +1,5 @@
-import {
-  err,
-  makeAppError,
-  ok,
-  validationError,
-  type AppError,
-  type Result,
-} from '@pressly/errors';
+import { result, type Result } from '@pressly/kernel';
+import { makeAppError, validationError, type AppError } from '@pressly/errors';
 
 type ApiSuccess<T> = Readonly<{
   ok: true;
@@ -30,9 +24,9 @@ export const readApiUrl = (env: ApiClientEnv): Result<URL, AppError> => {
   const raw = env['PRESSLY_API_URL']?.trim() || 'http://localhost:4000';
 
   try {
-    return ok(new URL(raw));
+    return result.ok(new URL(raw));
   } catch {
-    return err(
+    return result.err(
       validationError({
         code: 'invalid_api_url',
         message: `Invalid PRESSLY_API_URL: ${raw}.`,
@@ -119,7 +113,7 @@ export const requestApi = async <T>(input: {
       ...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
     });
   } catch (cause) {
-    return err(
+    return result.err(
       makeAppError({
         kind: 'ExternalServiceError',
         code: 'api_request_failed',
@@ -134,7 +128,7 @@ export const requestApi = async <T>(input: {
   const body = (await response.json().catch(() => undefined)) as unknown;
 
   if (!isApiResponse<T>(body))
-    return err(
+    return result.err(
       makeAppError({
         kind: 'ExternalServiceError',
         code: 'invalid_api_response',
@@ -145,7 +139,7 @@ export const requestApi = async <T>(input: {
       }),
     );
 
-  if (!body.ok) return err(apiFailureToError(response, body));
+  if (!body.ok) return result.err(apiFailureToError(response, body));
 
-  return ok(body.data);
+  return result.ok(body.data);
 };

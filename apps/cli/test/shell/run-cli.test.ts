@@ -1,7 +1,8 @@
+import { result } from '@pressly/kernel';
 import { createElement } from 'react';
 import { Text } from 'ink';
 import { describe, expect, it } from 'vitest';
-import { ok } from '@pressly/errors';
+
 import { makeCliFeature } from '../../src/shell/feature.ts';
 import { runCli } from '../../src/shell/run-cli.ts';
 import { makeTestIo } from '../support/io.ts';
@@ -9,9 +10,9 @@ import { makeTestIo } from '../support/io.ts';
 const testFeature = makeCliFeature({
   namespace: 'example',
   usage: 'example usage',
-  parse: () => ok({ json: false }),
-  makeClient: () => ok({ close: async () => undefined }),
-  run: async () => ok('worked'),
+  parse: () => result.ok({ json: false }),
+  makeClient: () => result.ok({ close: async () => undefined }),
+  run: async () => result.ok('worked'),
   present: (output) => output,
   createView: () => createElement(Text, null, 'worked'),
 });

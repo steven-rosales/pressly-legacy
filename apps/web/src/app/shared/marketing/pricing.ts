@@ -1,4 +1,5 @@
 import { cache } from 'react';
+import { result } from '@pressly/kernel';
 import type {
   PricingCatalogResult,
   PricingItemResult,
@@ -251,7 +252,7 @@ const loadCachedPricingCatalogViewModel = cache(
         : { serviceSlug, locationSlug };
     const pricing = await loadPricingCatalog(input);
 
-    if (pricing.ok && hasRequiredPricing(pricing.value))
+    if (result.isOk(pricing) && hasRequiredPricing(pricing.value))
       return {
         source: 'api',
         catalog: pricing.value,

@@ -100,9 +100,9 @@ describe('load session repository integration', () => {
     });
     const store = makeLoadSessionStore(testDb.db);
 
-    const result = await store.findByTokenHash('token-hash-1');
+    const actual = await store.findByTokenHash('token-hash-1');
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value).toMatchObject({
       sessionId: session.id,
@@ -122,9 +122,9 @@ describe('load session repository integration', () => {
   it('returns undefined when no session exists for the token hash', async () => {
     const store = makeLoadSessionStore(testDb.db);
 
-    const result = await store.findByTokenHash('missing-token-hash');
+    const actual = await store.findByTokenHash('missing-token-hash');
 
-    expect(expectOk(result)).toBeUndefined();
+    expect(expectOk(actual)).toBeUndefined();
   });
 
   it('loads service identities without email addresses', async () => {
@@ -143,9 +143,9 @@ describe('load session repository integration', () => {
     });
     const store = makeLoadSessionStore(testDb.db);
 
-    const result = await store.findByTokenHash('service-token-hash');
+    const actual = await store.findByTokenHash('service-token-hash');
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value).toMatchObject({
       sessionId: session.id,
@@ -171,9 +171,9 @@ describe('load session repository integration', () => {
     });
     const store = makeLoadSessionStore(testDb.db);
 
-    const result = await store.findByTokenHash('revoked-token-hash');
+    const actual = await store.findByTokenHash('revoked-token-hash');
 
-    expect(expectOk(result)).toMatchObject({
+    expect(expectOk(actual)).toMatchObject({
       sessionId: session.id,
       identityId: identity.id,
       isActive: false,
@@ -192,9 +192,9 @@ describe('load session repository integration', () => {
     const store = makeLoadSessionStore(testDb.db);
     const touchedAt = new Date('2026-05-29T12:15:00.000Z');
 
-    const result = await store.touchSession(session.id, touchedAt);
+    const actual = await store.touchSession(session.id, touchedAt);
 
-    expectOk(result);
+    expectOk(actual);
 
     const [updatedSession] = await testDb.db
       .select()
@@ -207,8 +207,8 @@ describe('load session repository integration', () => {
   it('returns database errors as result failures', async () => {
     const store = makeLoadSessionStore(testDb.db);
 
-    const result = await store.touchSession('not-a-session-id', new Date());
+    const actual = await store.touchSession('not-a-session-id', new Date());
 
-    expectErrCode(result, 'auth_database_failed');
+    expectErrCode(actual, 'auth_database_failed');
   });
 });

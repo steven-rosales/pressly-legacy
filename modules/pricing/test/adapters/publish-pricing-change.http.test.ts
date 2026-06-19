@@ -1,6 +1,7 @@
+import { result } from '@pressly/kernel';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import { err, makeAppError, ok } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
 import { makePublishPricingChangeRoute } from '../../src/adapters/publish-pricing/http/publish-pricing-change.route.ts';
 import { makePublishPricingChangeController } from '../../src/adapters/publish-pricing/http/publish-pricing-change.controller.ts';
@@ -33,7 +34,7 @@ describe('publish pricing change http controller', () => {
     const publishPricingChange = vi
       .fn<PublishPricingChange>()
       .mockResolvedValue(
-        ok({
+        result.ok({
           oldPricingSetId: 'set_1',
           newPricingSetId: 'set_2',
           auditEventId: 'event_1',
@@ -75,7 +76,7 @@ describe('publish pricing change http controller', () => {
     });
     const publishPricingChange = vi
       .fn<PublishPricingChange>()
-      .mockResolvedValue(err(error));
+      .mockResolvedValue(result.err(error));
     const controller = makePublishPricingChangeController({
       publishPricingChange,
       readAuthor: () => makePricingChangeAuthor(),
@@ -108,7 +109,7 @@ describe('publish pricing change http controller', () => {
 describe('publish pricing change http route', () => {
   it('registers protected plan and publish routes', () => {
     const planPricingChange = vi.fn<PlanPricingChange>().mockResolvedValue(
-      ok({
+      result.ok({
         serviceSlug: 'wash-fold',
         reason: 'Update delivery fee',
         oldPricingSetId: 'set_1',
@@ -119,7 +120,7 @@ describe('publish pricing change http route', () => {
     const publishPricingChange = vi
       .fn<PublishPricingChange>()
       .mockResolvedValue(
-        ok({
+        result.ok({
           oldPricingSetId: 'set_1',
           newPricingSetId: 'set_2',
           auditEventId: 'event_1',

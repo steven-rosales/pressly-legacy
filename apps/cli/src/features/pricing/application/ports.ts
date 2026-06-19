@@ -1,3 +1,4 @@
+import type { Result } from '@pressly/kernel';
 import type {
   LoadPricingCatalogCommand,
   LoadPricingCatalogResult,
@@ -5,7 +6,7 @@ import type {
   PublishPricingChangeItem,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
-import type { AppError, Result } from '@pressly/errors';
+import type { AppError } from '@pressly/errors';
 
 export type PricingChangeInput = Readonly<{
   serviceSlug: LoadPricingCatalogCommand['serviceSlug'];

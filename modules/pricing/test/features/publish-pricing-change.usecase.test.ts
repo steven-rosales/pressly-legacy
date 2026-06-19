@@ -1,5 +1,6 @@
+import { result } from '@pressly/kernel';
 import { describe, expect, it } from 'vitest';
-import { err, makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { makePublishPricingChange } from '../../src/features/publish-pricing/publish-pricing-change.usecase.ts';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import { makePublishPricingChangeCommand } from '../support/builders.ts';
@@ -12,11 +13,11 @@ describe('publish pricing change usecase', () => {
       now: () => new Date('2026-05-21T12:00:00.000Z'),
     });
 
-    const result = await publishPricingChange(
+    const actual = await publishPricingChange(
       makePublishPricingChangeCommand(),
     );
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value).toEqual({
       oldPricingSetId: 'set_1',
@@ -50,13 +51,13 @@ describe('publish pricing change usecase', () => {
     const { store, calls } = makeFakePricingChangeStore();
     const publishPricingChange = makePublishPricingChange(store);
 
-    const result = await publishPricingChange(
+    const actual = await publishPricingChange(
       makePublishPricingChangeCommand({
         items: [{ code: 'delivery_fee', priceCents: 0 }],
       }),
     );
 
-    expectErrCode(result, 'invalid_pricing_item_price');
+    expectErrCode(actual, 'invalid_pricing_item_price');
     expect(calls.load).toEqual([]);
     expect(calls.commit).toEqual([]);
   });
@@ -69,15 +70,15 @@ describe('publish pricing change usecase', () => {
       status: 404,
     });
     const { store, calls } = makeFakePricingChangeStore({
-      loadResult: err(loadError),
+      loadResult: result.err(loadError),
     });
     const publishPricingChange = makePublishPricingChange(store);
 
-    const result = await publishPricingChange(
+    const actual = await publishPricingChange(
       makePublishPricingChangeCommand(),
     );
 
-    expectErrCode(result, 'active_pricing_set_not_found');
+    expectErrCode(actual, 'active_pricing_set_not_found');
     expect(calls.load).toEqual([{ serviceSlug: 'wash-fold' }]);
     expect(calls.commit).toEqual([]);
   });
@@ -86,13 +87,13 @@ describe('publish pricing change usecase', () => {
     const { store, calls } = makeFakePricingChangeStore();
     const publishPricingChange = makePublishPricingChange(store);
 
-    const result = await publishPricingChange(
+    const actual = await publishPricingChange(
       makePublishPricingChangeCommand({
         items: [{ code: 'delivery_fee', priceCents: 495 }],
       }),
     );
 
-    expectErrCode(result, 'pricing_change_has_no_changes');
+    expectErrCode(actual, 'pricing_change_has_no_changes');
     expect(calls.load).toEqual([{ serviceSlug: 'wash-fold' }]);
     expect(calls.commit).toEqual([]);
   });
@@ -105,15 +106,15 @@ describe('publish pricing change usecase', () => {
       status: 500,
     });
     const { store, calls } = makeFakePricingChangeStore({
-      commitResult: err(commitError),
+      commitResult: result.err(commitError),
     });
     const publishPricingChange = makePublishPricingChange(store);
 
-    const result = await publishPricingChange(
+    const actual = await publishPricingChange(
       makePublishPricingChangeCommand(),
     );
 
-    expectErrCode(result, 'pricing_publish_failed');
+    expectErrCode(actual, 'pricing_publish_failed');
     expect(calls.load).toEqual([{ serviceSlug: 'wash-fold' }]);
     expect(calls.commit).toHaveLength(1);
   });

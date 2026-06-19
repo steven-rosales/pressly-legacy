@@ -1,11 +1,6 @@
+import { result, type Result } from '@pressly/kernel';
 import { parseArgs } from 'node:util';
-import {
-  err,
-  normalizeUnknownError,
-  ok,
-  type AppError,
-  type Result,
-} from '@pressly/errors';
+import { normalizeUnknownError, type AppError } from '@pressly/errors';
 import { commandError } from '../../shell/command-error.ts';
 import type { AuthCliCommand } from './application/command.ts';
 
@@ -62,25 +57,25 @@ export const parseAuthCliCommand = (
       },
     });
   } catch (error) {
-    return err(commandError(normalizeUnknownError(error).message));
+    return result.err(commandError(normalizeUnknownError(error).message));
   }
 
-  if (getBoolean(parsed.values, 'help')) return ok('help');
+  if (getBoolean(parsed.values, 'help')) return result.ok('help');
 
   const [namespace, action] = parsed.positionals;
 
   if (namespace !== 'auth')
-    return err(commandError('Expected command namespace: auth.'));
+    return result.err(commandError('Expected command namespace: auth.'));
 
   if (action !== 'login' && action !== 'session' && action !== 'logout')
-    return err(
+    return result.err(
       commandError('Expected auth action: login, session, or logout.'),
     );
 
   const email = getSingleString(parsed.values, 'email');
   const password = getSingleString(parsed.values, 'password');
 
-  return ok({
+  return result.ok({
     action,
     ...(email === undefined ? {} : { email }),
     ...(password === undefined ? {} : { password }),

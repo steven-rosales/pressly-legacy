@@ -1,3 +1,4 @@
+import { result, type Result } from '@pressly/kernel';
 import type {
   LoadCurrentPricingForPublishInput,
   PublishPricingChangeCommand,
@@ -17,13 +18,10 @@ import {
 } from '@pressly/db';
 import {
   conflictError,
-  err,
   isAppError,
   makeAppError,
   notFoundError,
-  ok,
   type AppError,
-  type Result,
 } from '@pressly/errors';
 import type { PricingChangeStore } from '../../../features/publish-pricing/publish-pricing-change.port.ts';
 
@@ -66,9 +64,9 @@ const toDatabaseResult = async <T>(
   work: () => Promise<T>,
 ): Promise<Result<T, AppError>> => {
   try {
-    return ok(await work());
+    return result.ok(await work());
   } catch (error) {
-    return err(isAppError(error) ? error : databaseFailure(error));
+    return result.err(isAppError(error) ? error : databaseFailure(error));
   }
 };
 
