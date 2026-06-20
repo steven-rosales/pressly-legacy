@@ -35,9 +35,9 @@ describe('time conversion', () => {
   });
 
   it('formats trusted Date objects as branded UTC ISO values', () => {
-    expect(utcIsoFromDate(new Date(Date.UTC(2026, 5, 19, 12, 30, 45, 123)))).toBe(
-      '2026-06-19T12:30:45.123Z',
-    );
+    expect(
+      utcIsoFromDate(new Date(Date.UTC(2026, 5, 19, 12, 30, 45, 123))),
+    ).toBe('2026-06-19T12:30:45.123Z');
   });
 
   it('checks strict UTC ISO strings', () => {

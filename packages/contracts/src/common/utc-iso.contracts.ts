@@ -3,7 +3,4 @@ import { isUtcIso } from '@pressly/time';
 
 export const utcIsoStringSchema = z
   .string()
-  .refine(
-    (value): boolean => isUtcIso(value),
-    'Expected a UTC ISO datetime.',
-  );
+  .refine((value): boolean => isUtcIso(value), 'Expected a UTC ISO datetime.');
