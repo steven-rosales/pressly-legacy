@@ -1,5 +1,4 @@
-import { presentAppError } from '@pressly/presenters';
-import type { AppError } from '@pressly/errors';
+import { presentAppError, type AppError } from '@pressly/errors';
 import type { CliIO } from './io.ts';
 
 export const writeCliOutput = (

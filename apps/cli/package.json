@@ -6,7 +6,7 @@
     "pressly-admin": "./dist/main.js"
   },
   "scripts": {
-    "build:workspace-deps": "pnpm --dir ../../packages/kernel run build && pnpm --dir ../../packages/errors run build && pnpm --dir ../../packages/contracts run build && pnpm --dir ../../packages/presenters run build",
+    "build:workspace-deps": "pnpm --dir ../../packages/kernel run build && pnpm --dir ../../packages/errors run build && pnpm --dir ../../packages/contracts run build && pnpm --dir ../../packages/money run build",
     "dev": "pnpm run build:workspace-deps && tsx src/main.ts",
     "start": "node dist/main.js",
     "build": "tsc -p tsconfig.json",
@@ -20,7 +20,7 @@
     "@pressly/contracts": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/kernel": "workspace:*",
-    "@pressly/presenters": "workspace:*",
+    "@pressly/money": "workspace:*",
     "dotenv": "^17.4.2",
     "ink": "^6.8.0",
     "react": "^19.2.6"

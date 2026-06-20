@@ -10,8 +10,8 @@ const errorsSource = fileURLToPath(
 const kernelSource = fileURLToPath(
   new URL('../../packages/kernel/src/index.ts', import.meta.url),
 );
-const presentersSource = fileURLToPath(
-  new URL('../../packages/presenters/src/index.ts', import.meta.url),
+const moneySource = fileURLToPath(
+  new URL('../../packages/money/src/index.ts', import.meta.url),
 );
 
 export default defineConfig({
@@ -30,8 +30,8 @@ export default defineConfig({
         replacement: kernelSource,
       },
       {
-        find: '@pressly/presenters',
-        replacement: presentersSource,
+        find: '@pressly/money',
+        replacement: moneySource,
       },
     ],
   },

@@ -11,6 +11,8 @@ export {
   validationError,
 } from './factories.js';
 
+export { presentAppError } from './presentation.js';
+
 export type {
   AppError,
   ErrorCode,

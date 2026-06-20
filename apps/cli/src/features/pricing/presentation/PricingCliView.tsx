@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { result } from '@pressly/kernel';
-import { normalizeUnknownError, type AppError } from '@pressly/errors';
-import { presentAppError } from '@pressly/presenters';
+import {
+  normalizeUnknownError,
+  presentAppError,
+  type AppError,
+} from '@pressly/errors';
 import type {
   LoadPricingCatalogResult,
   PricingChangePlan,

@@ -126,9 +126,9 @@ importers:
       '@pressly/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
-      '@pressly/presenters':
+      '@pressly/money':
         specifier: workspace:*
-        version: link:../../packages/presenters
+        version: link:../../packages/money
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -690,21 +690,17 @@ importers:
         specifier: latest
         version: 6.0.3
 
-  packages/presenters:
-    dependencies:
-      '@pressly/errors':
-        specifier: workspace:*
-        version: link:../errors
+  packages/money:
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      tsx:
-        specifier: latest
-        version: 4.22.3
       typescript:
         specifier: latest
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4))
 
   packages/testkit:
     dependencies:
@@ -6776,11 +6772,6 @@ packages:
 
   tsx@4.22.0:
     resolution: {integrity: sha512-8ccZMPD69s1AbKXx0C5ddTNZfNjwV04iIKgjZmKfKxMynEtSYcK0Lh7iQFh53fI5Yu4pb9usgAiqyPmEONaALg==}
-    engines: {node: '>=18.0.0'}
-    hasBin: true
-
-  tsx@4.22.3:
-    resolution: {integrity: sha512-mdoNxBC/cSQObGGVQ5Bpn5i+yv7j68gk3Nfm3wFjcJg3Z0Mix9jzAFfP12prmm5eVGmDKtp0yyArrs0Q+8gZHg==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -13006,12 +12997,6 @@ snapshots:
       fsevents: 2.3.3
 
   tsx@4.22.0:
-    dependencies:
-      esbuild: 0.28.0
-    optionalDependencies:
-      fsevents: 2.3.3
-
-  tsx@4.22.3:
     dependencies:
       esbuild: 0.28.0
     optionalDependencies:

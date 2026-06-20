@@ -1,5 +1,5 @@
 {
-  "name": "@pressly/presenters",
+  "name": "@pressly/money",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -16,15 +16,12 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --max-warnings=0",
-    "test": "tsx --test 'src/**/*.test.ts' 'src/**/*.spec.ts'",
+    "test": "vitest run src",
     "clean": "rm -rf dist"
-  },
-  "dependencies": {
-    "@pressly/errors": "workspace:*"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",
-    "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^4.1.5"
   }
 }
