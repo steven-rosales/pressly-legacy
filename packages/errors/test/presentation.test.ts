@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { makeAppError } from './app-error.js';
-import { presentAppError } from './presentation.js';
+import { makeAppError } from '../src/app-error.js';
+import { presentAppError } from '../src/presentation.js';
 
 describe('presentAppError', () => {
   it('formats the safe message and diagnostic fields', () => {

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Action } from './action.ts';
-import type { Actor } from './actor.ts';
-import type { Permission, Role } from './permission.ts';
-import type { AuthContext, PolicyCondition } from './policy.ts';
-import { allow, authorize, freshSession } from './policy.ts';
+import type { Action } from '../src/action.ts';
+import type { Actor } from '../src/actor.ts';
+import type { Permission, Role } from '../src/permission.ts';
+import type { AuthContext, PolicyCondition } from '../src/policy.ts';
+import { allow, authorize, freshSession } from '../src/policy.ts';
 
 const actor = (
   input: {

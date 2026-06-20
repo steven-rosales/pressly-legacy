@@ -1,8 +1,8 @@
 import { isAppError, type AppError } from '@pressly/errors';
 import { describe, expect, it } from 'vitest';
 
-import type { CliActorEnv } from './resolve-cli-actor.ts';
-import { resolveCliActor } from './resolve-cli-actor.ts';
+import type { CliActorEnv } from '../src/resolve-cli-actor.ts';
+import { resolveCliActor } from '../src/resolve-cli-actor.ts';
 
 const captureAppError = (action: () => unknown): AppError => {
   try {

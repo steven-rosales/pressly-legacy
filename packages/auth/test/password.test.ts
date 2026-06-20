@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { validatePasswordStrength } from './password.ts';
+import { validatePasswordStrength } from '../src/password.ts';
 
 describe('validatePasswordStrength', () => {
   it('accepts a long password with lowercase, uppercase, number, and symbol', () => {

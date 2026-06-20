@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Permission, Role } from './permission.ts';
-import { isRole, permissionsForRole, selectHighestRole } from './permission.ts';
+import type { Permission, Role } from '../src/permission.ts';
+import {
+  isRole,
+  permissionsForRole,
+  selectHighestRole,
+} from '../src/permission.ts';
 
 const rolePermissions: Record<Role, readonly Permission[]> = {
   owner: [

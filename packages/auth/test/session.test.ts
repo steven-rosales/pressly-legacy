@@ -4,7 +4,7 @@ import {
   isSessionExpired,
   isSessionRevoked,
   sessionAgeMinutes,
-} from './session.ts';
+} from '../src/session.ts';
 
 describe('isSessionExpired', () => {
   const now = new Date('2026-05-27T12:00:00.000Z');

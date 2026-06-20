@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Actor } from './actor.ts';
-import { allowDecision, denyDecision } from './decision.ts';
+import type { Actor } from '../src/actor.ts';
+import { allowDecision, denyDecision } from '../src/decision.ts';
 
 const actor: Actor = {
   id: 'actor_1',

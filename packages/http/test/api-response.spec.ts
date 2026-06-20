@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { makeAppError } from '@pressly/errors';
-import { apiFailure, apiSuccess } from './api-response.js';
+import { apiFailure, apiSuccess } from '../src/api-response.js';
 
 describe('api response', () => {
   it('creates success envelopes', () => {

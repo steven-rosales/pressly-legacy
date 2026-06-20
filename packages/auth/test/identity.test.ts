@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeEmail } from './identity.ts';
+import { normalizeEmail } from '../src/identity.ts';
 
 describe('normalizeEmail', () => {
   it('trims surrounding whitespace and lowercases email addresses', () => {

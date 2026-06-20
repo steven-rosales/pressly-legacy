@@ -1,8 +1,8 @@
 import { isAppError } from '@pressly/errors';
 import { describe, expect, it } from 'vitest';
 
-import type { Actor } from './actor.ts';
-import { assertCan, can } from './assert-can.ts';
+import type { Actor } from '../src/actor.ts';
+import { assertCan, can } from '../src/assert-can.ts';
 
 const actor: Actor = {
   id: 'actor_1',

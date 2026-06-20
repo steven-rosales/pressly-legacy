@@ -15,8 +15,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src --max-warnings=0",
-    "test": "tsx --test 'src/**/*.test.ts' 'src/**/*.spec.ts'",
+    "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
+    "test": "tsx --test 'test/**/*.test.ts' 'test/**/*.spec.ts'",
     "clean": "rm -rf dist"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@ import {
   isAppError,
   makeAppError,
   normalizeUnknownError,
-} from './app-error.js';
+} from '../src/app-error.js';
 
 describe('AppError', () => {
   it('creates a throwable structured app error', () => {

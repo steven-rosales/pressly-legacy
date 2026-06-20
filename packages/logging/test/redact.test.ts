@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { isSensitiveKey, redactLogFields } from './redact.js';
+import { isSensitiveKey, redactLogFields } from '../src/redact.js';
 
 describe('redactLogFields', () => {
   it('detects sensitive keys', () => {

@@ -1,8 +1,8 @@
 import { result } from '@pressly/kernel';
 import { describe, expect, it } from 'vitest';
 
-import { makePasswordVerifier } from './password-verifier.ts';
-import { makePasswordHasher } from './password-hasher.ts';
+import { makePasswordVerifier } from '../src/password-verifier.ts';
+import { makePasswordHasher } from '../src/password-hasher.ts';
 
 describe('make password hasher', () => {
   it('hashes a password that the verifier can verify', async () => {

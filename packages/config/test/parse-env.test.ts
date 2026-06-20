@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { isAppError } from '@pressly/errors';
 import { z } from 'zod';
-import { parseEnv } from './parse-env.js';
+import { parseEnv } from '../src/parse-env.js';
 
 describe('parseEnv', () => {
   it('returns frozen parsed env', () => {

@@ -7,8 +7,8 @@ import {
   instantFromWall,
   possibleInstantsFromWall,
   toUtcIso,
-} from './convert.ts';
-import type { InstantMs, TimeError } from './types.ts';
+} from '../src/convert.ts';
+import type { InstantMs, TimeError } from '../src/types.ts';
 
 const expectOk = <T>(actual: Result<T, TimeError>): T => {
   expect(actual.tag).toBe('ok');

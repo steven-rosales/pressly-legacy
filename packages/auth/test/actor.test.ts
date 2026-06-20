@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { actorFromPrincipal, makeActor } from './actor.ts';
-import type { Principal } from './principal.ts';
-import { principalLabel } from './principal.ts';
+import { actorFromPrincipal, makeActor } from '../src/actor.ts';
+import type { Principal } from '../src/principal.ts';
+import { principalLabel } from '../src/principal.ts';
 
 const principal = (input: Partial<Principal> = {}): Principal => ({
   identityId: input.identityId ?? 'identity_1',

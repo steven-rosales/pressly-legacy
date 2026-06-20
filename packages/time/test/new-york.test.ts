@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Result } from '@pressly/kernel';
-import type { TimeError } from './types.ts';
+import type { TimeError } from '../src/types.ts';
 import {
   formatUtcIsoInNewYork,
   newYorkWallToUtcIso,
   utcIsoToNewYorkWall,
-} from './new-york.ts';
+} from '../src/new-york.ts';
 
 const expectOk = <A>(actual: Result<A, TimeError>): A => {
   expect(actual.tag).toBe('ok');

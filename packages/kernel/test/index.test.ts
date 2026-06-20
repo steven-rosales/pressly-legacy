@@ -14,7 +14,7 @@ import {
   type Spec,
   type Step,
   type WorkflowEvent,
-} from './index.ts';
+} from '../src/index.ts';
 
 describe('kernel public API', () => {
   it('uses lower-case option and result namespaces', () => {
