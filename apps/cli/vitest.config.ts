@@ -13,6 +13,9 @@ const kernelSource = fileURLToPath(
 const moneySource = fileURLToPath(
   new URL('../../packages/money/src/index.ts', import.meta.url),
 );
+const timeSource = fileURLToPath(
+  new URL('../../packages/time/src/index.ts', import.meta.url),
+);
 
 export default defineConfig({
   resolve: {
@@ -32,6 +35,10 @@ export default defineConfig({
       {
         find: '@pressly/money',
         replacement: moneySource,
+      },
+      {
+        find: '@pressly/time',
+        replacement: timeSource,
       },
     ],
   },

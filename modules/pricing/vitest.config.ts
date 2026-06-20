@@ -13,6 +13,9 @@ const errorsSource = fileURLToPath(
 const kernelSource = fileURLToPath(
   new URL('../../packages/kernel/src/index.ts', import.meta.url),
 );
+const timeSource = fileURLToPath(
+  new URL('../../packages/time/src/index.ts', import.meta.url),
+);
 
 export default defineConfig({
   resolve: {
@@ -36,6 +39,10 @@ export default defineConfig({
       {
         find: '@pressly/kernel',
         replacement: kernelSource,
+      },
+      {
+        find: '@pressly/time',
+        replacement: timeSource,
       },
     ],
   },
