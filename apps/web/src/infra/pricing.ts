@@ -1,6 +1,7 @@
+import type { Result } from '@pressly/kernel';
 import 'server-only';
 
-import type { AppError, Result } from '@pressly/errors';
+import type { AppError } from '@pressly/errors';
 import {
   pricingCatalogSchema,
   type PricingCatalogResult,

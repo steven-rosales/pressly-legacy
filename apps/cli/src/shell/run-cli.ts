@@ -1,4 +1,5 @@
 import { render } from 'ink';
+import { result } from '@pressly/kernel';
 import { normalizeUnknownError, validationError } from '@pressly/errors';
 import type { AppError } from '@pressly/errors';
 import type { CliCommand, CliFeature, CliClient } from './feature.ts';
@@ -61,18 +62,18 @@ const runPlainCommand = async (
   client: CliClient,
   io: CliIO,
 ): Promise<number> => {
-  const result = await feature.run(command, client);
+  const commandResult = await feature.run(command, client);
 
-  if (!result.ok) {
-    writeCliError(io, result.error, command.json);
+  if (result.isErr(commandResult)) {
+    writeCliError(io, commandResult.error, command.json);
     return 1;
   }
 
   writeCliOutput(
     io,
     command.json
-      ? feature.serialize(result.value)
-      : feature.present(result.value),
+      ? feature.serialize(commandResult.value)
+      : feature.present(commandResult.value),
     command.json,
   );
 
@@ -130,7 +131,7 @@ export const runCli = async (input: RunCliInput): Promise<number> => {
 
   const parsed = feature.parse(input.argv);
 
-  if (!parsed.ok) {
+  if (result.isErr(parsed)) {
     writeCliError(input.io, parsed.error, false);
     input.io.stderr.write(`\n${feature.usage}\n`);
     return 1;
@@ -144,7 +145,7 @@ export const runCli = async (input: RunCliInput): Promise<number> => {
   const command = parsed.value;
   const client = feature.makeClient(input.env);
 
-  if (!client.ok) {
+  if (result.isErr(client)) {
     writeCliError(input.io, client.error, command.json);
     return 1;
   }

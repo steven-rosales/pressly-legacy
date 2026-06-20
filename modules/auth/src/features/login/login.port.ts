@@ -1,49 +1,13 @@
-import type { Principal, Role } from '@pressly/auth';
-import type { AppError, Result } from '@pressly/errors';
-
-export type LoginIdentityRecord = Readonly<{
-  id: string;
-  kind: 'human' | 'service';
-  displayName: string;
-  email?: string;
-  isActive: boolean;
-  roles: readonly Role[];
-}>;
-
-export type LoginPasswordCredentialRecord = Readonly<{
-  identityId: string;
-  passwordHash: string;
-}>;
-
-export type CreateSessionInput = Readonly<{
-  identityId: string;
-  tokenHash: string;
-  issuedAt: Date;
-  expiresAt: Date;
-}>;
-
-export type CreatedSession = Readonly<{
-  id: string;
-  issuedAt: Date;
-  expiresAt: Date;
-}>;
-
-export type LoginAttemptInput = Readonly<{
-  emailNormalized: string;
-  identityId?: string;
-  success: boolean;
-  failureCode?: string;
-  ipAddress?: string;
-  userAgent?: string;
-}>;
-
-export type AuthAuditEventInput = Readonly<{
-  actorIdentityId?: string;
-  eventType: string;
-  resourceType: string;
-  resourceId?: string;
-  metadata: Record<string, unknown>;
-}>;
+import type { Result } from '@pressly/kernel';
+import type {
+  AuthAuditEventInput,
+  CreatedSession,
+  CreateSessionInput,
+  LoginAttemptInput,
+  LoginIdentityRecord,
+  LoginPasswordCredentialRecord,
+} from '@pressly/contracts';
+import type { AppError } from '@pressly/errors';
 
 export type LoginStore = Readonly<{
   findIdentityByEmail: (
@@ -80,5 +44,3 @@ export type TokenIssuer = Readonly<{
 }>;
 
 export type Clock = Readonly<{ now: () => Date }>;
-
-export type LoginPrincipal = Principal;

@@ -1,5 +1,8 @@
 import type { Database } from '@pressly/db';
-import type { PricingChangeAuthor } from '@pressly/contracts';
+import type {
+  PricingChangeAuthor,
+  PricingModuleAuthorizationInput,
+} from '@pressly/contracts';
 import {
   Router,
   type RequestHandler,
@@ -22,16 +25,6 @@ import {
   makePublishPricingChange,
   type PublishPricingChange,
 } from './features/publish-pricing/publish-pricing-change.usecase.ts';
-
-export type PricingModuleAction = 'pricing:plan' | 'pricing:publish';
-
-export type PricingModuleRole = 'owner' | 'admin';
-
-export type PricingModuleAuthorizationInput = Readonly<{
-  action: PricingModuleAction;
-  roles: readonly PricingModuleRole[];
-  freshSessionMaxAgeMinutes?: number;
-}>;
 
 export type ReadPricingChangeAuthor = (res: Response) => PricingChangeAuthor;
 

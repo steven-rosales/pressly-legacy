@@ -1,28 +1,29 @@
+import { result, type Result } from '@pressly/kernel';
 import { expect } from 'vitest';
-import type { AppError, Result } from '@pressly/errors';
+import type { AppError } from '@pressly/errors';
 import { makeAppError } from '@pressly/errors';
 
-export const expectOk = <T>(result: Result<T, AppError>): T => {
-  expect(result.ok).toBe(true);
+export const expectOk = <T>(actual: Result<T, AppError>): T => {
+  expect(result.isOk(actual)).toBe(true);
 
-  if (!result.ok)
+  if (result.isErr(actual))
     throw makeAppError({
-      kind: result.error.kind,
-      code: result.error.code,
-      message: result.error.message,
-      status: result.error.status,
+      kind: actual.error.kind,
+      code: actual.error.code,
+      message: actual.error.message,
+      status: actual.error.status,
     });
 
-  return result.value;
+  return actual.value;
 };
 
 export const expectErrCode = <T>(
-  result: Result<T, AppError>,
+  actual: Result<T, AppError>,
   code: string,
 ): AppError => {
-  expect(result.ok).toBe(false);
+  expect(result.isErr(actual)).toBe(true);
 
-  if (result.ok)
+  if (result.isOk(actual))
     throw makeAppError({
       kind: 'UnexpectedError',
       code: 'expected_error_result',
@@ -30,7 +31,7 @@ export const expectErrCode = <T>(
       status: 400,
     });
 
-  expect(result.error.code).toBe(code);
+  expect(actual.error.code).toBe(code);
 
-  return result.error;
+  return actual.error;
 };

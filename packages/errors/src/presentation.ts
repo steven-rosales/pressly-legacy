@@ -1,4 +1,4 @@
-import type { AppError } from '@pressly/errors';
+import type { AppError } from './app-error.js';
 
 export const presentAppError = (error: AppError): string =>
   [

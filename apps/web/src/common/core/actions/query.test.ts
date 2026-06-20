@@ -1,21 +1,22 @@
-import { err, makeAppError, ok } from '@pressly/errors';
+import { result } from '@pressly/kernel';
+import { makeAppError } from '@pressly/errors';
 import { z } from 'zod';
 import { makeTestWebCore } from '@/common/testing/make-test-web-core';
 import type { RequestClient } from '../requests/request-client';
 
 describe('core.query', () => {
-  it('returns ok(value) on success', async () => {
+  it('returns result.ok(value) on success', async () => {
     const core = makeTestWebCore();
 
-    const result = await core.query.run({
+    const actual = await core.query.run({
       meta: { action: 'loading_pricing', rail: 'query', criticality: 'low' },
       work: async () => ({ price: 10 }),
     });
 
-    expect(result).toEqual({ ok: true, value: { price: 10 } });
+    expect(actual).toEqual({ tag: 'ok', value: { price: 10 } });
   });
 
-  it('return err(AppError) on failure', async () => {
+  it('return result.err(AppError) on failure', async () => {
     const core = makeTestWebCore();
 
     const appError = makeAppError({
@@ -26,17 +27,17 @@ describe('core.query', () => {
       status: 400,
     });
 
-    const result = await core.query.run({
+    const actual = await core.query.run({
       meta: { action: 'load_pricing', rail: 'query', criticality: 'low' },
       work: async () => {
         throw appError;
       },
     });
 
-    expect(result.ok).toBe(false);
+    expect(result.isErr(actual)).toBe(true);
 
-    if (!result.ok)
-      expect(result.error).toMatchObject({
+    if (result.isErr(actual))
+      expect(actual.error).toMatchObject({
         tag: 'AppError',
         code: 'invalid_pricing_request',
         safeMessage: 'Could not load pricing',
@@ -67,11 +68,11 @@ describe('core.query', () => {
 
   it('fetches through the request port without nesting Result inside Result', async () => {
     const request: RequestClient = {
-      send: async <A>() => ok({ price: 10 } as A),
+      send: async <A>() => result.ok({ price: 10 } as A),
     };
     const core = makeTestWebCore({}, { request });
 
-    const result = await core.query.fetch({
+    const actual = await core.query.fetch({
       meta: { action: 'load_pricing', rail: 'query', criticality: 'low' },
       request: {
         method: 'GET',
@@ -80,7 +81,7 @@ describe('core.query', () => {
       },
     });
 
-    expect(result).toEqual({ ok: true, value: { price: 10 } });
+    expect(actual).toEqual({ tag: 'ok', value: { price: 10 } });
   });
 
   it('returns request AppError failures directly', async () => {
@@ -92,11 +93,11 @@ describe('core.query', () => {
       status: 503,
     });
     const request: RequestClient = {
-      send: async () => err(appError),
+      send: async () => result.err(appError),
     };
     const core = makeTestWebCore({}, { request });
 
-    const result = await core.query.fetch({
+    const actual = await core.query.fetch({
       meta: { action: 'local_account', rail: 'query', criticality: 'high' },
       request: {
         method: 'GET',
@@ -105,7 +106,7 @@ describe('core.query', () => {
       },
     });
 
-    expect(result).toEqual({ ok: false, error: appError });
+    expect(actual).toEqual({ tag: 'err', error: appError });
     expect(core.calls.errors).toHaveLength(1);
   });
 });

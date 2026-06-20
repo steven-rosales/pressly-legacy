@@ -9,7 +9,9 @@
     "paths": {
       "@pressly/contracts": ["../../packages/contracts/src/index.ts"],
       "@pressly/errors": ["../../packages/errors/src/index.ts"],
-      "@pressly/presenters": ["../../packages/presenters/src/index.ts"]
+      "@pressly/kernel": ["../../packages/kernel/src/index.ts"],
+      "@pressly/money": ["../../packages/money/src/index.ts"],
+      "@pressly/time": ["../../packages/time/src/index.ts"]
     }
   },
   "include": [

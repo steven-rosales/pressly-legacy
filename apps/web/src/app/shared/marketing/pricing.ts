@@ -1,4 +1,5 @@
 import { cache } from 'react';
+import { result } from '@pressly/kernel';
 import type {
   PricingCatalogResult,
   PricingItemResult,
@@ -76,6 +77,9 @@ export type DryCleaningPricingModel = Readonly<{
 }>;
 
 const STATIC_PRICING_UPDATED_AT = '2026-01-01T00:00:00.000Z';
+
+const shouldUseStaticPricingOnly = (): boolean =>
+  process.env['PRESSLY_DOCKER_BUILD'] === 'true';
 
 const PRICING_FEATURES = [
   { text: 'Pickup & Delivery Available' },
@@ -245,13 +249,19 @@ const loadCachedPricingCatalogViewModel = cache(
     serviceSlug: PricingServiceSlug,
     locationSlug?: string,
   ): Promise<PricingCatalogViewModel> => {
+    if (shouldUseStaticPricingOnly())
+      return {
+        source: 'static-fallback',
+        catalog: buildStaticCatalog(serviceSlug, locationSlug),
+      };
+
     const input: PricingParamsRequestSchema =
       locationSlug === undefined
         ? { serviceSlug }
         : { serviceSlug, locationSlug };
     const pricing = await loadPricingCatalog(input);
 
-    if (pricing.ok && hasRequiredPricing(pricing.value))
+    if (result.isOk(pricing) && hasRequiredPricing(pricing.value))
       return {
         source: 'api',
         catalog: pricing.value,

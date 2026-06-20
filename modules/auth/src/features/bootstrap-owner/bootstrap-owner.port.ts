@@ -1,18 +1,9 @@
-import type { AppError, Result } from '@pressly/errors';
-
-export type CreateBootstrapOwnerInput = Readonly<{
-  email: string;
-  emailNormalized: string;
-  passwordHash: string;
-}>;
-
-export type BootstrapOwnerStoreResult =
-  | Readonly<{
-      status: 'created';
-      identityId: string;
-    }>
-  | Readonly<{ status: 'owner_exists' }>
-  | Readonly<{ status: 'identity_exists' }>;
+import type { Result } from '@pressly/kernel';
+import type {
+  BootstrapOwnerStoreResult,
+  CreateBootstrapOwnerInput,
+} from '@pressly/contracts';
+import type { AppError } from '@pressly/errors';
 
 export type BootstrapOwnerStore = Readonly<{
   createFirstOwner: (

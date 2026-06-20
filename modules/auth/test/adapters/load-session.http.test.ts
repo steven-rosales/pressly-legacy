@@ -1,7 +1,8 @@
+import { result } from '@pressly/kernel';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { Principal } from '@pressly/auth';
-import { err, makeAppError, ok } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
 import { makeLoadSessionController } from '../../src/adapters/load-session/http/load-session.controller.ts';
 import { makeLoadSessionRouter } from '../../src/adapters/load-session/http/load-session.route.ts';
@@ -80,7 +81,7 @@ describe('load session http controller', () => {
   it('returns a success envelope with a public principal and expiry', async () => {
     const loadSession = vi
       .fn<LoadSession>()
-      .mockResolvedValue(ok(loadSessionResult));
+      .mockResolvedValue(result.ok(loadSessionResult));
     const loadSessionController = makeLoadSessionController(loadSession);
     const { req, header } = makeLoadSessionRequest();
     const res = makeHttpResponse();
@@ -110,7 +111,7 @@ describe('load session http controller', () => {
     const { email: _email, ...principalWithoutEmail } = loadSessionResult;
     const loadSession = vi
       .fn<LoadSession>()
-      .mockResolvedValue(ok(principalWithoutEmail));
+      .mockResolvedValue(result.ok(principalWithoutEmail));
     const loadSessionController = makeLoadSessionController(loadSession);
     const { req } = makeLoadSessionRequest();
     const res = makeHttpResponse();
@@ -136,7 +137,7 @@ describe('load session http controller', () => {
   it('returns a failure envelope from load session errors', async () => {
     const loadSession = vi
       .fn<LoadSession>()
-      .mockResolvedValue(err(invalidSessionError()));
+      .mockResolvedValue(result.err(invalidSessionError()));
     const loadSessionController = makeLoadSessionController(loadSession);
     const { req } = makeLoadSessionRequest();
     const res = makeHttpResponse();
@@ -159,7 +160,7 @@ describe('load session http controller', () => {
   it('forwards missing bearer headers to express', async () => {
     const loadSession = vi
       .fn<LoadSession>()
-      .mockResolvedValue(ok(loadSessionResult));
+      .mockResolvedValue(result.ok(loadSessionResult));
     const loadSessionController = makeLoadSessionController(loadSession);
     const { req } = makeLoadSessionRequest({ authorization: undefined });
     const res = makeHttpResponse();
@@ -176,7 +177,7 @@ describe('load session http controller', () => {
   it('forwards malformed bearer headers to express', async () => {
     const loadSession = vi
       .fn<LoadSession>()
-      .mockResolvedValue(ok(loadSessionResult));
+      .mockResolvedValue(result.ok(loadSessionResult));
     const loadSessionController = makeLoadSessionController(loadSession);
     const { req } = makeLoadSessionRequest({ authorization: 'Bearer   ' });
     const res = makeHttpResponse();
@@ -210,7 +211,7 @@ describe('load session http controller', () => {
       loadSessionResult;
     const loadSession = vi
       .fn<LoadSession>()
-      .mockResolvedValue(ok(principalWithoutExpiry));
+      .mockResolvedValue(result.ok(principalWithoutExpiry));
     const loadSessionController = makeLoadSessionController(loadSession);
     const { req } = makeLoadSessionRequest();
     const res = makeHttpResponse();
@@ -228,7 +229,7 @@ describe('load session http router', () => {
   it('registers GET / for the load session controller', () => {
     const loadSession = vi
       .fn<LoadSession>()
-      .mockResolvedValue(ok(loadSessionResult));
+      .mockResolvedValue(result.ok(loadSessionResult));
     const router = makeLoadSessionRouter({ loadSession }) as unknown as {
       stack: Array<{
         route?: {

@@ -1,9 +1,14 @@
+import { result, type Result } from '@pressly/kernel';
 import {
   normalizeEmail,
   validatePasswordStrength,
   type PasswordHasher,
 } from '@pressly/auth';
-import { err, ok, type AppError, type Result } from '@pressly/errors';
+import type {
+  BootstrapOwnerCommand,
+  BootstrapOwnerResult,
+} from '@pressly/contracts';
+import { type AppError } from '@pressly/errors';
 import {
   bootstrapOwnerIdentityAlreadyExists,
   invalidBootstrapOwnerConfirmation,
@@ -15,18 +20,6 @@ import {
 import type { BootstrapOwnerStore } from './bootstrap-owner.port.ts';
 
 export const BOOTSTRAP_OWNER_CONFIRMATION = 'bootstrap-first-owner';
-
-export type BootstrapOwnerCommand = Readonly<{
-  email: string;
-  password: string;
-  confirmation: string;
-}>;
-
-export type BootstrapOwnerResult = Readonly<{
-  identityId: string;
-  email: string;
-  role: 'owner';
-}>;
 
 type MakeBootstrapOwnerDeps = Readonly<{
   store: BootstrapOwnerStore;
@@ -45,21 +38,22 @@ export const makeBootstrapOwner =
     const email = command.email.trim();
     const emailNormalized = normalizeEmail(command.email);
 
-    if (emailNormalized.length === 0) return err(missingBootstrapOwnerEmail());
+    if (emailNormalized.length === 0)
+      return result.err(missingBootstrapOwnerEmail());
     if (!emailPattern.test(emailNormalized))
-      return err(invalidBootstrapOwnerEmail());
+      return result.err(invalidBootstrapOwnerEmail());
 
     if (command.confirmation !== BOOTSTRAP_OWNER_CONFIRMATION)
-      return err(invalidBootstrapOwnerConfirmation());
+      return result.err(invalidBootstrapOwnerConfirmation());
 
     const passwordViolations = validatePasswordStrength(command.password);
 
     if (passwordViolations.length > 0)
-      return err(weakBootstrapOwnerPassword(passwordViolations));
+      return result.err(weakBootstrapOwnerPassword(passwordViolations));
 
     const passwordHash = await deps.passwordHasher.hash(command.password);
 
-    if (!passwordHash.ok) return passwordHash;
+    if (result.isErr(passwordHash)) return passwordHash;
 
     const created = await deps.store.createFirstOwner({
       email,
@@ -67,15 +61,15 @@ export const makeBootstrapOwner =
       passwordHash: passwordHash.value,
     });
 
-    if (!created.ok) return created;
+    if (result.isErr(created)) return created;
 
     if (created.value.status === 'owner_exists')
-      return err(ownerAlreadyBootstrapped());
+      return result.err(ownerAlreadyBootstrapped());
 
     if (created.value.status === 'identity_exists')
-      return err(bootstrapOwnerIdentityAlreadyExists());
+      return result.err(bootstrapOwnerIdentityAlreadyExists());
 
-    return ok({
+    return result.ok({
       identityId: created.value.identityId,
       email: emailNormalized,
       role: 'owner',

@@ -1,4 +1,6 @@
+import { result, type Result } from '@pressly/kernel';
 import type {
+  LoadCurrentPricingForPublishInput,
   PublishPricingChangeCommand,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
@@ -16,18 +18,12 @@ import {
 } from '@pressly/db';
 import {
   conflictError,
-  err,
   isAppError,
   makeAppError,
   notFoundError,
-  ok,
   type AppError,
-  type Result,
 } from '@pressly/errors';
-import type {
-  LoadCurrentPricingForPublishInput,
-  PricingChangeStore,
-} from '../../../features/publish-pricing/publish-pricing-change.port.ts';
+import type { PricingChangeStore } from '../../../features/publish-pricing/publish-pricing-change.port.ts';
 
 type PricingService = typeof pricing.pricingServices.$inferSelect;
 type PricingSet = typeof pricing.pricingSets.$inferSelect;
@@ -68,9 +64,9 @@ const toDatabaseResult = async <T>(
   work: () => Promise<T>,
 ): Promise<Result<T, AppError>> => {
   try {
-    return ok(await work());
+    return result.ok(await work());
   } catch (error) {
-    return err(isAppError(error) ? error : databaseFailure(error));
+    return result.err(isAppError(error) ? error : databaseFailure(error));
   }
 };
 

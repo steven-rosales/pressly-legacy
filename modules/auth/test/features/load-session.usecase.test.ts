@@ -1,6 +1,7 @@
+import { result } from '@pressly/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppError } from '@pressly/errors';
-import { err, makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import {
   makeFakeLoadSessionStore,
@@ -51,9 +52,9 @@ describe('loads principal session', () => {
   it('loads an active session, touches it, and returns a principal', async () => {
     const { loadSession, calls, tokenHasher } = makeSubject();
 
-    const result = await loadSession({ bearerToken: bearer });
+    const actual = await loadSession({ bearerToken: bearer });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(tokenHasher.hash).toHaveBeenCalledWith(bearer);
     expect(calls.findByTokenHash).toEqual([`hash:${bearer}`]);
@@ -79,9 +80,9 @@ describe('loads principal session', () => {
       store: { principal: undefined },
     });
 
-    const result = await loadSession({ bearerToken: bearer });
+    const actual = await loadSession({ bearerToken: bearer });
 
-    expectErrCode(result, 'invalid_session');
+    expectErrCode(actual, 'invalid_session');
     expect(calls.findByTokenHash).toEqual([`hash:${bearer}`]);
     expect(calls.touchSession).toEqual([]);
   });
@@ -93,9 +94,9 @@ describe('loads principal session', () => {
       },
     });
 
-    const result = await loadSession({ bearerToken: bearer });
+    const actual = await loadSession({ bearerToken: bearer });
 
-    expectErrCode(result, 'invalid_session');
+    expectErrCode(actual, 'invalid_session');
     expect(calls.findByTokenHash).toEqual([`hash:${bearer}`]);
     expect(calls.touchSession).toEqual([]);
   });
@@ -109,9 +110,9 @@ describe('loads principal session', () => {
       },
     });
 
-    const result = await loadSession({ bearerToken: bearer });
+    const actual = await loadSession({ bearerToken: bearer });
 
-    expectErrCode(result, 'invalid_session');
+    expectErrCode(actual, 'invalid_session');
     expect(calls.findByTokenHash).toEqual([`hash:${bearer}`]);
     expect(calls.touchSession).toEqual([]);
   });
@@ -123,9 +124,9 @@ describe('loads principal session', () => {
       },
     });
 
-    const result = await loadSession({ bearerToken: bearer });
+    const actual = await loadSession({ bearerToken: bearer });
 
-    expectErrCode(result, 'session_expired');
+    expectErrCode(actual, 'session_expired');
     expect(calls.findByTokenHash).toEqual([`hash:${bearer}`]);
     expect(calls.touchSession).toEqual([]);
   });
@@ -133,13 +134,15 @@ describe('loads principal session', () => {
   it('returns lookup failures before touching the session', async () => {
     const { loadSession, calls } = makeSubject({
       store: {
-        findByTokenHashResult: err(dependencyError('session_lookup_failed')),
+        findByTokenHashResult: result.err(
+          dependencyError('session_lookup_failed'),
+        ),
       },
     });
 
-    const result = await loadSession({ bearerToken: bearer });
+    const actual = await loadSession({ bearerToken: bearer });
 
-    expectErrCode(result, 'session_lookup_failed');
+    expectErrCode(actual, 'session_lookup_failed');
     expect(calls.findByTokenHash).toEqual([`hash:${bearer}`]);
     expect(calls.touchSession).toEqual([]);
   });
@@ -147,13 +150,13 @@ describe('loads principal session', () => {
   it('returns touch failures after the session passes validation', async () => {
     const { loadSession, calls } = makeSubject({
       store: {
-        touchSessionResult: err(dependencyError('touch_session_failed')),
+        touchSessionResult: result.err(dependencyError('touch_session_failed')),
       },
     });
 
-    const result = await loadSession({ bearerToken: bearer });
+    const actual = await loadSession({ bearerToken: bearer });
 
-    expectErrCode(result, 'touch_session_failed');
+    expectErrCode(actual, 'touch_session_failed');
     expect(calls.findByTokenHash).toEqual([`hash:${bearer}`]);
     expect(calls.touchSession).toEqual([
       { sessionId: makeDefaultSession().id, now },
@@ -167,9 +170,9 @@ describe('loads principal session', () => {
       store: { principal: principalWithoutEmail },
     });
 
-    const result = await loadSession({ bearerToken: bearer });
+    const actual = await loadSession({ bearerToken: bearer });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
     expect(value).toEqual({
       sessionId: '00000000-0000-4000-8000-000000000002',
       identityId: '00000000-0000-4000-8000-000000000001',
@@ -190,9 +193,9 @@ describe('loads principal session', () => {
       store: { principal: storedPrincipal },
     });
 
-    const result = await loadSession({ bearerToken: bearer });
+    const actual = await loadSession({ bearerToken: bearer });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
     expect(value.roles).toEqual(['admin']);
     expect(value.roles).not.toBe(storedPrincipal.roles);
   });
@@ -208,9 +211,9 @@ describe('loads principal session', () => {
       store: { principal: servicePrincipal },
     });
 
-    const result = await loadSession({ bearerToken: bearer });
+    const actual = await loadSession({ bearerToken: bearer });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
     expect(value).toMatchObject({
       kind: 'service',
       displayName: 'Background Worker',

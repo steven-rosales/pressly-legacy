@@ -44,13 +44,13 @@ describe('bootstrap owner repository integration', () => {
   it('creates the first owner identity, credential, role, and audit event', async () => {
     const store = makeBootstrapOwnerStore(testDb.db);
 
-    const result = await store.createFirstOwner({
+    const actual = await store.createFirstOwner({
       email: 'Steven@Pressly.COM',
       emailNormalized: 'steven@pressly.com',
       passwordHash: 'stored-password-hash',
     });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value).toMatchObject({ status: 'created' });
 
@@ -107,13 +107,13 @@ describe('bootstrap owner repository integration', () => {
 
     const store = makeBootstrapOwnerStore(testDb.db);
 
-    const result = await store.createFirstOwner({
+    const actual = await store.createFirstOwner({
       email: 'NewOwner@Pressly.COM',
       emailNormalized: 'newowner@pressly.com',
       passwordHash: 'stored-password-hash',
     });
 
-    expect(expectOk(result)).toEqual({ status: 'owner_exists' });
+    expect(expectOk(actual)).toEqual({ status: 'owner_exists' });
 
     const newIdentities = await testDb.db
       .select()
@@ -132,13 +132,13 @@ describe('bootstrap owner repository integration', () => {
     });
     const store = makeBootstrapOwnerStore(testDb.db);
 
-    const result = await store.createFirstOwner({
+    const actual = await store.createFirstOwner({
       email: 'Steven@Pressly.COM',
       emailNormalized: 'steven@pressly.com',
       passwordHash: 'stored-password-hash',
     });
 
-    expect(expectOk(result)).toEqual({ status: 'identity_exists' });
+    expect(expectOk(actual)).toEqual({ status: 'identity_exists' });
 
     const credentials = await testDb.db
       .select()

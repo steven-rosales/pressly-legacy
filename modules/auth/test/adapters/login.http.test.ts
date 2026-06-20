@@ -1,7 +1,8 @@
+import { result } from '@pressly/kernel';
 import type { NextFunction, Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { LoginResult } from '@pressly/contracts';
-import { err, makeAppError, ok } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
 import { makeLoginController } from '../../src/adapters/login/http/login.controller.ts';
 import { makeLoginRoute } from '../../src/adapters/login/http/login.route.ts';
@@ -43,7 +44,7 @@ const makeLoginRequest = (input?: {
 
 describe('login http controller', () => {
   it('returns a success envelope for login results', async () => {
-    const login = vi.fn<Login>().mockResolvedValue(ok(loginResult));
+    const login = vi.fn<Login>().mockResolvedValue(result.ok(loginResult));
 
     const loginController = makeLoginController(login);
     const { req } = makeLoginRequest();
@@ -66,7 +67,7 @@ describe('login http controller', () => {
   });
 
   it('passes optional request metadata to the login use case', async () => {
-    const login = vi.fn<Login>().mockResolvedValue(ok(loginResult));
+    const login = vi.fn<Login>().mockResolvedValue(result.ok(loginResult));
     const loginController = makeLoginController(login);
     const { req, header } = makeLoginRequest({
       ipAddress: '203.0.113.10',
@@ -97,7 +98,7 @@ describe('login http controller', () => {
       safeMessage: 'Invalid email or password.',
       status: 401,
     });
-    const login = vi.fn<Login>().mockResolvedValue(err(error));
+    const login = vi.fn<Login>().mockResolvedValue(result.err(error));
     const loginController = makeLoginController(login);
     const { req } = makeLoginRequest();
     const res = makeHttpResponse();
@@ -141,7 +142,7 @@ describe('login http controller', () => {
 
 describe('login http router', () => {
   it('registers POST / with validation and the login controller', () => {
-    const login = vi.fn<Login>().mockResolvedValue(ok(loginResult));
+    const login = vi.fn<Login>().mockResolvedValue(result.ok(loginResult));
     const router = makeLoginRoute(login) as unknown as {
       stack: Array<{
         route?: {

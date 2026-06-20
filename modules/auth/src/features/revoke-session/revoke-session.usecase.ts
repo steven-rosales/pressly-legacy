@@ -1,14 +1,11 @@
-import type { LogoutResult } from '@pressly/contracts';
-import { ok, type AppError, type Result } from '@pressly/errors';
+import { result, type Result } from '@pressly/kernel';
+import type { LogoutResult, RevokeSessionCommand } from '@pressly/contracts';
+import { type AppError } from '@pressly/errors';
 import type {
   Clock,
   RevokeSessionStore,
   TokenHasher,
 } from './revoke-session.port.ts';
-
-export type RevokeSessionCommand = Readonly<{
-  bearerToken: string;
-}>;
 
 type MakeRevokeSessionDeps = {
   store: RevokeSessionStore;
@@ -28,7 +25,7 @@ export const makeRevokeSession =
       deps.clock.now(),
     );
 
-    if (!revoked.ok) return revoked;
+    if (result.isErr(revoked)) return revoked;
 
     if (revoked.value.identityId && revoked.value.sessionId) {
       await deps.store.recordAuditEvent({
@@ -39,5 +36,5 @@ export const makeRevokeSession =
       });
     }
 
-    return ok({ revoked: true });
+    return result.ok({ revoked: true });
   };

@@ -82,9 +82,9 @@ describe('revoke session repository integration', () => {
     const store = makeRevokeSessionStore(testDb.db);
     const revokedAt = new Date('2026-05-29T12:15:00.000Z');
 
-    const result = await store.revokeByTokenHash('token-hash-1', revokedAt);
+    const actual = await store.revokeByTokenHash('token-hash-1', revokedAt);
 
-    expect(expectOk(result)).toEqual({
+    expect(expectOk(actual)).toEqual({
       sessionId: session.id,
       identityId: identity.id,
     });
@@ -100,12 +100,12 @@ describe('revoke session repository integration', () => {
   it('returns an empty revocation when no session matches the token hash', async () => {
     const store = makeRevokeSessionStore(testDb.db);
 
-    const result = await store.revokeByTokenHash(
+    const actual = await store.revokeByTokenHash(
       'missing-token-hash',
       new Date('2026-05-29T12:15:00.000Z'),
     );
 
-    expect(expectOk(result)).toEqual({});
+    expect(expectOk(actual)).toEqual({});
   });
 
   it('does not revoke an already revoked session again', async () => {
@@ -120,12 +120,12 @@ describe('revoke session repository integration', () => {
     });
     const store = makeRevokeSessionStore(testDb.db);
 
-    const result = await store.revokeByTokenHash(
+    const actual = await store.revokeByTokenHash(
       'already-revoked-token-hash',
       new Date('2026-05-29T12:15:00.000Z'),
     );
 
-    expect(expectOk(result)).toEqual({});
+    expect(expectOk(actual)).toEqual({});
 
     const [updatedSession] = await testDb.db
       .select()
@@ -145,12 +145,12 @@ describe('revoke session repository integration', () => {
     });
     const store = makeRevokeSessionStore(testDb.db);
 
-    const result = await store.revokeByTokenHash(
+    const actual = await store.revokeByTokenHash(
       'expired-token-hash',
       new Date('2026-05-29T12:15:00.000Z'),
     );
 
-    expect(expectOk(result)).toEqual({});
+    expect(expectOk(actual)).toEqual({});
 
     const [updatedSession] = await testDb.db
       .select()
@@ -164,7 +164,7 @@ describe('revoke session repository integration', () => {
     const identity = await insertIdentity(testDb.db);
     const store = makeRevokeSessionStore(testDb.db);
 
-    const result = await store.recordAuditEvent({
+    const actual = await store.recordAuditEvent({
       actorIdentityId: identity.id,
       eventType: 'auth.logout',
       resourceType: 'auth_session',
@@ -172,7 +172,7 @@ describe('revoke session repository integration', () => {
       metadata: { reason: 'user_logout' },
     });
 
-    expectOk(result);
+    expectOk(actual);
 
     const [auditEvent] = await testDb.db
       .select()
@@ -191,12 +191,12 @@ describe('revoke session repository integration', () => {
   it('returns database errors as result failures', async () => {
     const store = makeRevokeSessionStore(testDb.db);
 
-    const result = await store.recordAuditEvent({
+    const actual = await store.recordAuditEvent({
       actorIdentityId: 'not-a-uuid',
       eventType: 'auth.logout',
       resourceType: 'auth_session',
     });
 
-    expectErrCode(result, 'auth_database_failed');
+    expectErrCode(actual, 'auth_database_failed');
   });
 });

@@ -1,10 +1,8 @@
+import { result, type Result } from '@pressly/kernel';
 import {
-  err,
   makeAppError,
-  ok,
   type AppError,
   type HttpStatusCode,
-  type Result,
 } from '@pressly/errors';
 import { z } from 'zod';
 import type {
@@ -69,12 +67,12 @@ const readJson = async (
 ): Promise<Result<unknown, AppError>> => {
   const text = await response.text();
 
-  if (text.trim().length === 0) return ok(null);
+  if (text.trim().length === 0) return result.ok(null);
 
   try {
-    return ok(JSON.parse(text));
+    return result.ok(JSON.parse(text));
   } catch (error) {
-    return err(
+    return result.err(
       makeRequestError({
         code: 'invalid_json_response',
         message: 'API response body was not valid JSON.',
@@ -171,14 +169,14 @@ export const makeFetchRequestClient = ({
       });
 
       const jsonResult = await readJson(response);
-      if (!jsonResult.ok) return jsonResult;
+      if (result.isErr(jsonResult)) return jsonResult;
 
       const json = jsonResult.value;
 
       const failureResult = apiFailureSchema.safeParse(json);
 
       if (failureResult.success)
-        return err(
+        return result.err(
           makeRequestError({
             code: failureResult.data.error.code,
             message: failureResult.data.error.message,
@@ -189,7 +187,7 @@ export const makeFetchRequestClient = ({
         );
 
       if (!response.ok)
-        return err(
+        return result.err(
           makeRequestError({
             code: 'http_error_response',
             message: `API returned HTTP ${response.status}.`,
@@ -202,7 +200,7 @@ export const makeFetchRequestClient = ({
       const successResult = apiSuccessSchema(input.response).safeParse(json);
 
       if (!successResult.success)
-        return err(
+        return result.err(
           makeRequestError({
             code: 'invalid_api_response',
             message: 'API response did not match the expected contract.',
@@ -213,9 +211,9 @@ export const makeFetchRequestClient = ({
           }),
         );
 
-      return ok(successResult.data.data);
+      return result.ok(successResult.data.data);
     } catch (error) {
-      return err(
+      return result.err(
         makeRequestError({
           code: 'request_failed',
           message: 'Request failed.',

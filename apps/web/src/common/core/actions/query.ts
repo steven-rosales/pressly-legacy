@@ -1,10 +1,5 @@
-import {
-  err,
-  normalizeUnknownError,
-  ok,
-  type AppError,
-  type Result,
-} from '@pressly/errors';
+import { result, type Result } from '@pressly/kernel';
+import { normalizeUnknownError, type AppError } from '@pressly/errors';
 import type { RequestInput } from '../requests/request-client';
 import type { WebCorePorts } from '../runtime/core';
 import type { ActionMeta } from './action-meta';
@@ -83,13 +78,13 @@ export const createQueryRuntime = (core: WebCorePorts): QueryRuntime =>
 
         recordQuerySuccess(core, meta, startedAt);
 
-        return ok(value);
+        return result.ok(value);
       } catch (error) {
         const appError = normalizeUnknownError(error);
 
         recordQueryFailure(core, meta, appError);
 
-        return err(appError);
+        return result.err(appError);
       }
     },
 
@@ -100,21 +95,21 @@ export const createQueryRuntime = (core: WebCorePorts): QueryRuntime =>
       const startedAt = core.clock.now();
 
       try {
-        const result = await core.request.send(request);
+        const queryResult = await core.request.send(request);
 
-        if (result.ok) {
+        if (result.isOk(queryResult)) {
           recordQuerySuccess(core, meta, startedAt);
         } else {
-          recordQueryFailure(core, meta, result.error);
+          recordQueryFailure(core, meta, queryResult.error);
         }
 
-        return result;
+        return queryResult;
       } catch (error) {
         const appError = normalizeUnknownError(error);
 
         recordQueryFailure(core, meta, appError);
 
-        return err(appError);
+        return result.err(appError);
       }
     },
   });

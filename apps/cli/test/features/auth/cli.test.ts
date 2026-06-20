@@ -1,6 +1,7 @@
+import { result } from '@pressly/kernel';
 import { describe, expect, it } from 'vitest';
 import type { AuthPrincipalResult } from '@pressly/contracts';
-import { ok } from '@pressly/errors';
+
 import {
   makeAuthCli,
   type AuthCliClient,
@@ -30,7 +31,7 @@ const makeFakeClient = () => {
     login: async () => {
       calls.login += 1;
 
-      return ok({
+      return result.ok({
         accessToken: 'token_12345678901234567890123456789012',
         expiresAt: '2026-06-03T12:00:00.000Z',
         principal,
@@ -39,7 +40,7 @@ const makeFakeClient = () => {
     loadSession: async () => {
       calls.session += 1;
 
-      return ok({
+      return result.ok({
         expiresAt: '2026-06-03T12:00:00.000Z',
         principal,
       });
@@ -47,7 +48,7 @@ const makeFakeClient = () => {
     logout: async () => {
       calls.logout += 1;
 
-      return ok({ revoked: true });
+      return result.ok({ revoked: true });
     },
     close: async () => {
       calls.close += 1;
@@ -71,7 +72,7 @@ const runTestAuthCli = (
 
 describe('auth CLI', () => {
   it('parses login credentials', () => {
-    const result = parseAuthCliCommand([
+    const parseResult = parseAuthCliCommand([
       'auth',
       'login',
       '--email',
@@ -80,12 +81,12 @@ describe('auth CLI', () => {
       'password-123',
     ]);
 
-    expect(result.ok).toBe(true);
+    expect(result.isOk(parseResult)).toBe(true);
 
-    if (result.ok && result.value !== 'help') {
-      expect(result.value.action).toBe('login');
-      expect(result.value.email).toBe('steven@example.com');
-      expect(result.value.password).toBe('password-123');
+    if (result.isOk(parseResult) && parseResult.value !== 'help') {
+      expect(parseResult.value.action).toBe('login');
+      expect(parseResult.value.email).toBe('steven@example.com');
+      expect(parseResult.value.password).toBe('password-123');
     }
   });
 
@@ -102,7 +103,7 @@ describe('auth CLI', () => {
         'password-123',
       ],
       io,
-      { makeAuthClient: () => ok(fake.client) },
+      { makeAuthClient: () => result.ok(fake.client) },
     );
 
     expect(exitCode).toBe(0);
@@ -115,7 +116,7 @@ describe('auth CLI', () => {
     const fake = makeFakeClient();
     const io = makeTestIo();
     const exitCode = await runTestAuthCli(['auth', 'logout'], io, {
-      makeAuthClient: () => ok(fake.client),
+      makeAuthClient: () => result.ok(fake.client),
     });
 
     expect(exitCode).toBe(0);

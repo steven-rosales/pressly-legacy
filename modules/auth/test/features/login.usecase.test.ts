@@ -1,6 +1,7 @@
+import { result, type Result } from '@pressly/kernel';
 import { describe, expect, it, vi } from 'vitest';
-import type { AppError, Result } from '@pressly/errors';
-import { err, makeAppError, ok } from '@pressly/errors';
+import type { AppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import type {
   Clock,
@@ -43,7 +44,8 @@ const makeSubject = (
   const passwordVerifier: PasswordVerifier = {
     verify: vi.fn(
       async () =>
-        input.passwordVerifierResult ?? ok(input.passwordVerified ?? true),
+        input.passwordVerifierResult ??
+        result.ok(input.passwordVerified ?? true),
     ),
   };
 
@@ -69,11 +71,11 @@ describe('login user', () => {
   it('creates a session, records a successful attempt, and records an audit event', async () => {
     const { login, calls, passwordVerifier, tokenIssuer } = makeSubject();
 
-    const result = await login(
+    const actual = await login(
       makeLoginCommand({ ipAddress: '127.0.0.1', userAgent: 'vitest' }),
     );
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(calls.countRecentFailedAttempts).toEqual([
       {
@@ -139,9 +141,9 @@ describe('login user', () => {
       options: { loginMaxFailures: 5 },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'login_rate_limited');
+    expectErrCode(actual, 'login_rate_limited');
     expect(calls.countRecentFailedAttempts).toEqual([
       {
         emailNormalized: 'admin@pressly.com',
@@ -160,9 +162,9 @@ describe('login user', () => {
       store: { identity: undefined },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'invalid_credentials');
+    expectErrCode(actual, 'invalid_credentials');
     expect(calls.findPasswordCredential).toEqual([]);
     expect(calls.createSession).toEqual([]);
     expect(calls.recordLoginAttempt).toEqual([
@@ -185,9 +187,9 @@ describe('login user', () => {
       },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'invalid_credentials');
+    expectErrCode(actual, 'invalid_credentials');
     expect(calls.findPasswordCredential).toEqual([]);
     expect(calls.createSession).toEqual([]);
     expect(calls.recordLoginAttempt).toEqual([
@@ -205,9 +207,9 @@ describe('login user', () => {
       store: { credential: undefined },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'invalid_credentials');
+    expectErrCode(actual, 'invalid_credentials');
     expect(passwordVerifier.verify).not.toHaveBeenCalled();
     expect(calls.createSession).toEqual([]);
     expect(calls.recordLoginAttempt).toEqual([
@@ -226,9 +228,9 @@ describe('login user', () => {
       passwordVerified: false,
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'invalid_credentials');
+    expectErrCode(actual, 'invalid_credentials');
     expect(calls.createSession).toEqual([]);
     expect(calls.recordAuditEvent).toEqual([]);
     expect(calls.recordLoginAttempt).toEqual([
@@ -244,13 +246,15 @@ describe('login user', () => {
   it('returns create session failures without recording success side effects', async () => {
     const { login, calls } = makeSubject({
       store: {
-        createSessionResult: err(dependencyError('create_session_failed')),
+        createSessionResult: result.err(
+          dependencyError('create_session_failed'),
+        ),
       },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'create_session_failed');
+    expectErrCode(actual, 'create_session_failed');
     expect(calls.createSession).toHaveLength(1);
     expect(calls.recordLoginAttempt).toEqual([]);
     expect(calls.recordAuditEvent).toEqual([]);
@@ -259,15 +263,15 @@ describe('login user', () => {
   it('returns failed attempt count failures before identity lookup', async () => {
     const { login, calls, passwordVerifier } = makeSubject({
       store: {
-        countRecentFailedAttemptsResult: err(
+        countRecentFailedAttemptsResult: result.err(
           dependencyError('count_failed_attempts_failed'),
         ),
       },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'count_failed_attempts_failed');
+    expectErrCode(actual, 'count_failed_attempts_failed');
     expect(calls.findIdentityByEmail).toEqual([]);
     expect(calls.findPasswordCredential).toEqual([]);
     expect(passwordVerifier.verify).not.toHaveBeenCalled();
@@ -279,15 +283,15 @@ describe('login user', () => {
   it('returns identity lookup failures before credential lookup', async () => {
     const { login, calls, passwordVerifier } = makeSubject({
       store: {
-        findIdentityByEmailResult: err(
+        findIdentityByEmailResult: result.err(
           dependencyError('identity_lookup_failed'),
         ),
       },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'identity_lookup_failed');
+    expectErrCode(actual, 'identity_lookup_failed');
     expect(calls.findPasswordCredential).toEqual([]);
     expect(passwordVerifier.verify).not.toHaveBeenCalled();
     expect(calls.createSession).toEqual([]);
@@ -298,15 +302,15 @@ describe('login user', () => {
   it('returns credential lookup failures before password verification', async () => {
     const { login, calls, passwordVerifier } = makeSubject({
       store: {
-        findPasswordCredentialResult: err(
+        findPasswordCredentialResult: result.err(
           dependencyError('credential_lookup_failed'),
         ),
       },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'credential_lookup_failed');
+    expectErrCode(actual, 'credential_lookup_failed');
     expect(calls.findPasswordCredential).toEqual([makeDefaultIdentity().id]);
     expect(passwordVerifier.verify).not.toHaveBeenCalled();
     expect(calls.createSession).toEqual([]);
@@ -316,12 +320,14 @@ describe('login user', () => {
 
   it('returns password verifier failures before creating a session', async () => {
     const { login, calls } = makeSubject({
-      passwordVerifierResult: err(dependencyError('password_verify_failed')),
+      passwordVerifierResult: result.err(
+        dependencyError('password_verify_failed'),
+      ),
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'password_verify_failed');
+    expectErrCode(actual, 'password_verify_failed');
     expect(calls.createSession).toEqual([]);
     expect(calls.recordLoginAttempt).toEqual([]);
     expect(calls.recordAuditEvent).toEqual([]);
@@ -333,9 +339,9 @@ describe('login user', () => {
       options: { loginMaxFailures: 5 },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectOk(result);
+    expectOk(actual);
     expect(calls.findIdentityByEmail).toEqual(['admin@pressly.com']);
     expect(calls.createSession).toHaveLength(1);
     expect(calls.recordLoginAttempt).toEqual([
@@ -355,9 +361,9 @@ describe('login user', () => {
       },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectOk(result);
+    expectOk(actual);
     expect(calls.countRecentFailedAttempts).toEqual([
       {
         emailNormalized: 'admin@pressly.com',
@@ -382,9 +388,9 @@ describe('login user', () => {
       },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
     expect(value.principal).toEqual({
       identityId: makeDefaultIdentity().id,
       displayName: 'Admin User',
@@ -397,15 +403,15 @@ describe('login user', () => {
     const { login, calls } = makeSubject({
       store: {
         identity: undefined,
-        recordLoginAttemptResult: err(
+        recordLoginAttemptResult: result.err(
           dependencyError('record_login_attempt_failed'),
         ),
       },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectErrCode(result, 'invalid_credentials');
+    expectErrCode(actual, 'invalid_credentials');
     expect(calls.recordLoginAttempt).toEqual([
       {
         emailNormalized: 'admin@pressly.com',
@@ -419,13 +425,15 @@ describe('login user', () => {
   it('keeps successful login when audit recording fails', async () => {
     const { login, calls } = makeSubject({
       store: {
-        recordAuditEventResult: err(dependencyError('audit_record_failed')),
+        recordAuditEventResult: result.err(
+          dependencyError('audit_record_failed'),
+        ),
       },
     });
 
-    const result = await login(makeLoginCommand());
+    const actual = await login(makeLoginCommand());
 
-    expectOk(result);
+    expectOk(actual);
     expect(calls.recordLoginAttempt).toEqual([
       {
         emailNormalized: 'admin@pressly.com',

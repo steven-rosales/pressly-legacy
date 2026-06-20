@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
-import { normalizeUnknownError, type AppError } from '@pressly/errors';
-import { presentAppError } from '@pressly/presenters';
+import { result } from '@pressly/kernel';
+import {
+  normalizeUnknownError,
+  presentAppError,
+  type AppError,
+} from '@pressly/errors';
 import type {
   LoadPricingCatalogResult,
   PricingChangePlan,
@@ -83,7 +87,7 @@ export const PricingCliView = ({ command, client }: PricingCliViewProps) => {
     const run = async () => {
       try {
         if (command.action === 'show') {
-          const result = await client.loadCatalog({
+          const catalogResult = await client.loadCatalog({
             serviceSlug: command.serviceSlug,
             ...(command.locationSlug === undefined
               ? {}
@@ -91,14 +95,14 @@ export const PricingCliView = ({ command, client }: PricingCliViewProps) => {
           });
 
           setIfActive(
-            result.ok
-              ? { tag: 'catalog', catalog: result.value }
-              : { tag: 'error', error: result.error },
+            result.isOk(catalogResult)
+              ? { tag: 'catalog', catalog: catalogResult.value }
+              : { tag: 'error', error: catalogResult.error },
           );
           return;
         }
 
-        if (changeInput === undefined || !changeInput.ok) {
+        if (changeInput === undefined || result.isErr(changeInput)) {
           setIfActive({
             tag: 'error',
             error:
@@ -110,12 +114,12 @@ export const PricingCliView = ({ command, client }: PricingCliViewProps) => {
         }
 
         if (command.action === 'plan') {
-          const result = await client.planChange(changeInput.value);
+          const planResult = await client.planChange(changeInput.value);
 
           setIfActive(
-            result.ok
-              ? { tag: 'plan', plan: result.value }
-              : { tag: 'error', error: result.error },
+            result.isOk(planResult)
+              ? { tag: 'plan', plan: planResult.value }
+              : { tag: 'error', error: planResult.error },
           );
           return;
         }
@@ -126,12 +130,12 @@ export const PricingCliView = ({ command, client }: PricingCliViewProps) => {
             message: 'Publishing pricing change...',
           });
 
-          const result = await client.publishChange(changeInput.value);
+          const publishResult = await client.publishChange(changeInput.value);
 
           setIfActive(
-            result.ok
-              ? { tag: 'published', result: result.value }
-              : { tag: 'error', error: result.error },
+            result.isOk(publishResult)
+              ? { tag: 'published', result: publishResult.value }
+              : { tag: 'error', error: publishResult.error },
           );
           return;
         }
@@ -139,7 +143,7 @@ export const PricingCliView = ({ command, client }: PricingCliViewProps) => {
         const plan = await client.planChange(changeInput.value);
 
         setIfActive(
-          plan.ok
+          result.isOk(plan)
             ? { tag: 'confirm', input: changeInput.value, plan: plan.value }
             : { tag: 'error', error: plan.error },
         );
@@ -181,12 +185,12 @@ export const PricingCliView = ({ command, client }: PricingCliViewProps) => {
       setState({ tag: 'publishing', message: 'Publishing pricing change...' });
 
       try {
-        const result = await client.publishChange(state.input);
+        const publishResult = await client.publishChange(state.input);
 
         setState(
-          result.ok
-            ? { tag: 'published', result: result.value }
-            : { tag: 'error', error: result.error },
+          result.isOk(publishResult)
+            ? { tag: 'published', result: publishResult.value }
+            : { tag: 'error', error: publishResult.error },
         );
       } catch (error) {
         setState({ tag: 'error', error: asAppError(error) });

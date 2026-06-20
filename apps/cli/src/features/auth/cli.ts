@@ -1,6 +1,7 @@
+import type { Result } from '@pressly/kernel';
 import { createElement } from 'react';
 import { Text } from 'ink';
-import type { AppError, Result } from '@pressly/errors';
+import type { AppError } from '@pressly/errors';
 import { makeCliFeature } from '../../shell/feature.ts';
 import { authUsage, parseAuthCliCommand } from './args.ts';
 import {

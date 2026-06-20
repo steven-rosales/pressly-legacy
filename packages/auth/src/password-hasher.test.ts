@@ -1,3 +1,4 @@
+import { result } from '@pressly/kernel';
 import { describe, expect, it } from 'vitest';
 
 import { makePasswordVerifier } from './password-verifier.ts';
@@ -10,13 +11,13 @@ describe('make password hasher', () => {
 
     const hash = await hasher.hash('CorrectHorse1!Battery');
 
-    expect(hash.ok).toBe(true);
-    if (!hash.ok) throw hash.error;
+    expect(result.isOk(hash)).toBe(true);
+    if (result.isErr(hash)) throw hash.error;
 
     const verified = await verifier.verify(hash.value, 'CorrectHorse1!Battery');
 
-    expect(verified.ok).toBe(true);
-    if (!verified.ok) throw verified.error;
+    expect(result.isOk(verified)).toBe(true);
+    if (result.isErr(verified)) throw verified.error;
 
     expect(hash.value).not.toBe('CorrectHorse1!Battery');
     expect(verified.value).toBe(true);
@@ -29,11 +30,11 @@ describe('make password hasher', () => {
       },
     });
 
-    const result = await hasher.hash('CorrectHorse1!Battery');
+    const hashResult = await hasher.hash('CorrectHorse1!Battery');
 
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error('Expect hashing to fail.');
+    expect(result.isErr(hashResult)).toBe(true);
+    if (result.isOk(hashResult)) throw new Error('Expect hashing to fail.');
 
-    expect(result.error.code).toBe('password_hashing_failed');
+    expect(hashResult.error.code).toBe('password_hashing_failed');
   });
 });

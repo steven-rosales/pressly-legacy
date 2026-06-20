@@ -1,9 +1,10 @@
+import { result, type Result } from '@pressly/kernel';
 import type {
   LoadPricingCatalogResult,
   PricingChangePlan,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
-import { err, ok, type AppError, type Result } from '@pressly/errors';
+import { type AppError } from '@pressly/errors';
 import {
   readApiUrl,
   requestApi,
@@ -24,22 +25,22 @@ export const makeApiPricingClient = (
 ): Result<PricingClient, AppError> => {
   const apiUrl = readApiUrl(env);
 
-  if (!apiUrl.ok) return apiUrl;
+  if (result.isErr(apiUrl)) return apiUrl;
 
   const readToken = async (): Promise<Result<string, AppError>> => {
     const session = await store.read();
 
-    if (!session.ok) return err(session.error);
-    if (session.value === undefined) return err(missingCliSession());
+    if (result.isErr(session)) return result.err(session.error);
+    if (session.value === undefined) return result.err(missingCliSession());
 
-    return ok(session.value.accessToken);
+    return result.ok(session.value.accessToken);
   };
 
-  return ok({
+  return result.ok({
     loadCatalog: async (command) => {
       const token = await readToken();
 
-      if (!token.ok) return token;
+      if (result.isErr(token)) return token;
 
       const path =
         command.locationSlug === undefined
@@ -59,7 +60,7 @@ export const makeApiPricingClient = (
     planChange: async (input) => {
       const token = await readToken();
 
-      if (!token.ok) return token;
+      if (result.isErr(token)) return token;
 
       return requestApi<PricingChangePlan>({
         apiUrl: apiUrl.value,
@@ -73,7 +74,7 @@ export const makeApiPricingClient = (
     publishChange: async (input) => {
       const token = await readToken();
 
-      if (!token.ok) return token;
+      if (result.isErr(token)) return token;
 
       return requestApi<PublishPricingChangeResult>({
         apiUrl: apiUrl.value,

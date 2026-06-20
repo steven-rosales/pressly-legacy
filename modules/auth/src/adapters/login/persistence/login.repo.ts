@@ -1,8 +1,6 @@
 import { and, auth, eq, gt, sql, type Database } from '@pressly/db';
-import type {
-  LoginAttemptInput,
-  LoginStore,
-} from '../../../features/login/login.port.ts';
+import type { LoginAttemptInput } from '@pressly/contracts';
+import type { LoginStore } from '../../../features/login/login.port.ts';
 import { recordAuthAuditEvent } from '../../common/auth-audit.ts';
 import {
   databaseFailure,

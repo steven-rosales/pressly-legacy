@@ -11,8 +11,11 @@
       "@pressly/db": ["../../packages/db/src/index.ts"],
       "@pressly/errors": ["../../packages/errors/src/index.ts"],
       "@pressly/http": ["../../packages/http/src/index.ts"],
+      "@pressly/http/express": ["../../packages/http/src/express/index.ts"],
+      "@pressly/kernel": ["../../packages/kernel/src/index.ts"],
       "@pressly/testkit": ["../../packages/testkit/src/index.ts"],
-      "@pressly/testkit/*": ["../../packages/testkit/src/*.ts"]
+      "@pressly/testkit/*": ["../../packages/testkit/src/*.ts"],
+      "@pressly/time": ["../../packages/time/src/index.ts"]
     }
   },
   "include": [

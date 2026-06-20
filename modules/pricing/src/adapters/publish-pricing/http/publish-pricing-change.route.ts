@@ -2,6 +2,7 @@ import { Router, type RequestHandler, type Response } from 'express';
 import {
   pricingChangeRequestSchema,
   type PricingChangeAuthor,
+  type PricingModuleAuthorizationInput,
 } from '@pressly/contracts';
 import { validateRequest } from '@pressly/http/express';
 import type { PlanPricingChange } from '../../../features/publish-pricing/plan-pricing-change.usecase.ts';
@@ -9,17 +10,11 @@ import type { PublishPricingChange } from '../../../features/publish-pricing/pub
 import { makePlanPricingChangeController } from './plan-pricing-change.controller.ts';
 import { makePublishPricingChangeController } from './publish-pricing-change.controller.ts';
 
-type PricingChangeAuthorizationInput = Readonly<{
-  action: 'pricing:plan' | 'pricing:publish';
-  roles: readonly ('owner' | 'admin')[];
-  freshSessionMaxAgeMinutes?: number;
-}>;
-
 type ReadPricingChangeAuthor = (res: Response) => PricingChangeAuthor;
 
 type PricingChangeRouteAuth = Readonly<{
   authenticate: RequestHandler;
-  authorize: (input: PricingChangeAuthorizationInput) => RequestHandler;
+  authorize: (input: PricingModuleAuthorizationInput) => RequestHandler;
   readAuthor: ReadPricingChangeAuthor;
   freshSessionMaxAgeMinutes: number;
 }>;

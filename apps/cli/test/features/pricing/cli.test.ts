@@ -1,5 +1,6 @@
+import { result } from '@pressly/kernel';
 import { describe, expect, it } from 'vitest';
-import { ok } from '@pressly/errors';
+
 import {
   makePricingCli,
   type PricingClient,
@@ -22,7 +23,7 @@ const makeFakeClient = () => {
     loadCatalog: async (command) => {
       calls.load += 1;
 
-      return ok({
+      return result.ok({
         serviceSlug: command.serviceSlug,
         ...(command.locationSlug === undefined
           ? {}
@@ -45,7 +46,7 @@ const makeFakeClient = () => {
     planChange: async (command) => {
       calls.plan += 1;
 
-      return ok({
+      return result.ok({
         serviceSlug: command.serviceSlug,
         ...(command.locationSlug === undefined
           ? {}
@@ -66,7 +67,7 @@ const makeFakeClient = () => {
     publishChange: async () => {
       calls.publish += 1;
 
-      return ok({
+      return result.ok({
         oldPricingSetId: 'old_set',
         newPricingSetId: 'new_set',
         auditEventId: 'event_id',
@@ -95,7 +96,7 @@ const runTestPricingCli = (
 
 describe('pricing CLI', () => {
   it('parses a pricing show command', () => {
-    const result = parsePricingCliCommand([
+    const parseResult = parsePricingCliCommand([
       '--',
       'pricing',
       'show',
@@ -105,17 +106,17 @@ describe('pricing CLI', () => {
       'hoboken',
     ]);
 
-    expect(result.ok).toBe(true);
+    expect(result.isOk(parseResult)).toBe(true);
 
-    if (result.ok && result.value !== 'help') {
-      expect(result.value.action).toBe('show');
-      expect(result.value.serviceSlug).toBe('wash-fold');
-      expect(result.value.locationSlug).toBe('hoboken');
+    if (result.isOk(parseResult) && parseResult.value !== 'help') {
+      expect(parseResult.value.action).toBe('show');
+      expect(parseResult.value.serviceSlug).toBe('wash-fold');
+      expect(parseResult.value.locationSlug).toBe('hoboken');
     }
   });
 
   it('parses repeated pricing change items', () => {
-    const result = parsePricingCliCommand([
+    const parseResult = parsePricingCliCommand([
       'pricing',
       'plan',
       '--service',
@@ -128,16 +129,16 @@ describe('pricing CLI', () => {
       'Update tested CLI pricing',
     ]);
 
-    expect(result.ok).toBe(true);
+    expect(result.isOk(parseResult)).toBe(true);
 
-    if (result.ok && result.value !== 'help') {
-      expect(result.value.action).toBe('plan');
-      expect(result.value.items).toHaveLength(2);
-      expect(result.value.items[0]).toEqual({
+    if (result.isOk(parseResult) && parseResult.value !== 'help') {
+      expect(parseResult.value.action).toBe('plan');
+      expect(parseResult.value.items).toHaveLength(2);
+      expect(parseResult.value.items[0]).toEqual({
         code: 'delivery_fee',
         priceCents: 495,
       });
-      expect(result.value.items[1]).toEqual({
+      expect(parseResult.value.items[1]).toEqual({
         code: 'shirt',
         priceCents: 250,
       });
@@ -145,7 +146,7 @@ describe('pricing CLI', () => {
   });
 
   it('parses supported money input syntax from pricing changes', () => {
-    const result = parsePricingCliCommand([
+    const parseResult = parsePricingCliCommand([
       'pricing',
       'plan',
       '--service',
@@ -158,14 +159,14 @@ describe('pricing CLI', () => {
       'Update tested CLI pricing',
     ]);
 
-    expect(result.ok).toBe(true);
+    expect(result.isOk(parseResult)).toBe(true);
 
-    if (result.ok && result.value !== 'help') {
-      expect(result.value.items[0]).toEqual({
+    if (result.isOk(parseResult) && parseResult.value !== 'help') {
+      expect(parseResult.value.items[0]).toEqual({
         code: 'delivery_fee',
         priceCents: 495,
       });
-      expect(result.value.items[1]).toEqual({
+      expect(parseResult.value.items[1]).toEqual({
         code: 'shirt',
         priceCents: 495,
       });
@@ -173,7 +174,7 @@ describe('pricing CLI', () => {
   });
 
   it('requires explicit confirmation for publish at run time only', () => {
-    const result = parsePricingCliCommand([
+    const parseResult = parsePricingCliCommand([
       'pricing',
       'publish',
       '--service',
@@ -184,11 +185,11 @@ describe('pricing CLI', () => {
       'Update tested CLI pricing',
     ]);
 
-    expect(result.ok).toBe(true);
+    expect(result.isOk(parseResult)).toBe(true);
 
-    if (result.ok && result.value !== 'help') {
-      expect(result.value.action).toBe('publish');
-      expect(result.value.confirm).toBe(false);
+    if (result.isOk(parseResult) && parseResult.value !== 'help') {
+      expect(parseResult.value.action).toBe('publish');
+      expect(parseResult.value.confirm).toBe(false);
     }
   });
 
@@ -198,7 +199,7 @@ describe('pricing CLI', () => {
     const exitCode = await runTestPricingCli(
       ['pricing', 'show', '--service', 'wash-fold'],
       io,
-      { makePricingClient: () => ok(fake.client) },
+      { makePricingClient: () => result.ok(fake.client) },
     );
 
     expect(exitCode).toBe(0);
@@ -223,7 +224,7 @@ describe('pricing CLI', () => {
         '--json',
       ],
       io,
-      { makePricingClient: () => ok(fake.client) },
+      { makePricingClient: () => result.ok(fake.client) },
     );
 
     expect(exitCode).toBe(0);
@@ -260,7 +261,7 @@ describe('pricing CLI', () => {
         'Test confirmation',
       ],
       io,
-      { makePricingClient: () => ok(fake.client) },
+      { makePricingClient: () => result.ok(fake.client) },
     );
 
     expect(exitCode).toBe(1);

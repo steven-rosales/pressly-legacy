@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { utcIsoStringSchema } from '../common/utc-iso.contracts.ts';
 
 export const pricingServiceSlugSchema = z.enum(['wash-fold', 'dry-cleaning']);
 
@@ -24,7 +25,7 @@ export const pricingCatalogSchema = z.object({
   locationSlug: z.string().optional(),
   currency: z.string(),
   items: z.array(pricingItemSchema),
-  updatedAt: z.string(),
+  updatedAt: utcIsoStringSchema,
 });
 
 export const loadPricingCatalogCommandSchema = z.object({

@@ -1,6 +1,7 @@
+import { result } from '@pressly/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppError } from '@pressly/errors';
-import { err, makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import type {
   Clock,
@@ -51,9 +52,9 @@ describe('revoke session', () => {
   it('revokes a session by token hash and records a logout audit event', async () => {
     const { revokeSession, calls, tokenHasher, clock } = makeSubject();
 
-    const result = await revokeSession({ bearerToken: bearer });
+    const actual = await revokeSession({ bearerToken: bearer });
 
-    expectOk(result);
+    expectOk(actual);
 
     expect(tokenHasher.hash).toHaveBeenCalledWith(bearer);
     expect(clock.now).toHaveBeenCalledTimes(1);
@@ -73,9 +74,9 @@ describe('revoke session', () => {
   it('returns the logout result shape', async () => {
     const { revokeSession } = makeSubject();
 
-    const result = await revokeSession({ bearerToken: bearer });
+    const actual = await revokeSession({ bearerToken: bearer });
 
-    expect(expectOk(result)).toEqual({ revoked: true });
+    expect(expectOk(actual)).toEqual({ revoked: true });
   });
 
   it('keeps logout idempotent when no session is revoked', async () => {
@@ -83,9 +84,9 @@ describe('revoke session', () => {
       store: { revoked: {} },
     });
 
-    const result = await revokeSession({ bearerToken: bearer });
+    const actual = await revokeSession({ bearerToken: bearer });
 
-    expectOk(result);
+    expectOk(actual);
 
     expect(calls.revokeByTokenHash).toEqual([
       { tokenHash: `hash:${bearer}`, revokedAt: now },
@@ -102,9 +103,9 @@ describe('revoke session', () => {
       },
     });
 
-    const result = await revokeSession({ bearerToken: bearer });
+    const actual = await revokeSession({ bearerToken: bearer });
 
-    expectOk(result);
+    expectOk(actual);
     expect(calls.recordAuditEvent).toEqual([]);
   });
 
@@ -117,22 +118,24 @@ describe('revoke session', () => {
       },
     });
 
-    const result = await revokeSession({ bearerToken: bearer });
+    const actual = await revokeSession({ bearerToken: bearer });
 
-    expectOk(result);
+    expectOk(actual);
     expect(calls.recordAuditEvent).toEqual([]);
   });
 
   it('returns revoke failures before recording an audit event', async () => {
     const { revokeSession, calls } = makeSubject({
       store: {
-        revokeByTokenHashResult: err(dependencyError('session_revoke_failed')),
+        revokeByTokenHashResult: result.err(
+          dependencyError('session_revoke_failed'),
+        ),
       },
     });
 
-    const result = await revokeSession({ bearerToken: bearer });
+    const actual = await revokeSession({ bearerToken: bearer });
 
-    expectErrCode(result, 'session_revoke_failed');
+    expectErrCode(actual, 'session_revoke_failed');
     expect(calls.revokeByTokenHash).toEqual([
       { tokenHash: `hash:${bearer}`, revokedAt: now },
     ]);
@@ -142,13 +145,15 @@ describe('revoke session', () => {
   it('keeps logout successful when audit recording fails', async () => {
     const { revokeSession, calls } = makeSubject({
       store: {
-        recordAuditEventResult: err(dependencyError('audit_record_failed')),
+        recordAuditEventResult: result.err(
+          dependencyError('audit_record_failed'),
+        ),
       },
     });
 
-    const result = await revokeSession({ bearerToken: bearer });
+    const actual = await revokeSession({ bearerToken: bearer });
 
-    expectOk(result);
+    expectOk(actual);
     expect(calls.recordAuditEvent).toEqual([
       {
         actorIdentityId: makeDefaultIdentity().id,

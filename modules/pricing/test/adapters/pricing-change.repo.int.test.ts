@@ -39,13 +39,13 @@ describe('pricing change repo', () => {
     });
     const store = makePricingChangeStore({ db: testDb.db });
 
-    const result = await store.loadCurrentPricingForPublish({
+    const actual = await store.loadCurrentPricingForPublish({
       serviceSlug: 'wash-fold',
     });
 
-    expectOk(result);
-    expect(result).toEqual({
-      ok: true,
+    expectOk(actual);
+    expect(actual).toEqual({
+      tag: 'ok',
       value: {
         currentSet: {
           id: set.id,
@@ -90,7 +90,7 @@ describe('pricing change repo', () => {
     const store = makePricingChangeStore({ db: testDb.db });
     const publishedAt = new Date('2026-05-21T12:00:00.000Z');
 
-    const result = await store.commitPricingChangePlan({
+    const actual = await store.commitPricingChangePlan({
       publishedAt,
       command: {
         serviceSlug: 'wash-fold',
@@ -114,7 +114,7 @@ describe('pricing change repo', () => {
       },
     });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value.oldPricingSetId).toBe(set.id);
     expect(value.changeItemCount).toBe(1);
@@ -184,7 +184,7 @@ describe('pricing change repo', () => {
     });
     const store = makePricingChangeStore({ db: testDb.db });
 
-    const result = await store.commitPricingChangePlan({
+    const actual = await store.commitPricingChangePlan({
       publishedAt: new Date('2026-05-21T12:00:00.000Z'),
       command: {
         serviceSlug: 'wash-fold',
@@ -210,7 +210,7 @@ describe('pricing change repo', () => {
       },
     });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
     const [newSet] = await testDb.db
       .select()
       .from(pricing.pricingSets)
@@ -253,7 +253,7 @@ describe('pricing change repo', () => {
     });
     const store = makePricingChangeStore({ db: testDb.db });
 
-    const result = await store.commitPricingChangePlan({
+    const actual = await store.commitPricingChangePlan({
       publishedAt: new Date('2026-05-21T12:00:00.000Z'),
       command: {
         serviceSlug: 'wash-fold',
@@ -277,6 +277,6 @@ describe('pricing change repo', () => {
       },
     });
 
-    expectErrCode(result, 'pricing_state_changed');
+    expectErrCode(actual, 'pricing_state_changed');
   });
 });

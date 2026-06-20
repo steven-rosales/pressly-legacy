@@ -1,5 +1,6 @@
+import { result } from '@pressly/kernel';
 import { describe, expect, it } from 'vitest';
-import { err, makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { makePlanPricingChange } from '../../src/features/publish-pricing/plan-pricing-change.usecase.ts';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import {
@@ -32,7 +33,7 @@ describe('plan pricing change usecase', () => {
     });
     const planPricingChange = makePlanPricingChange(store);
 
-    const result = await planPricingChange(
+    const actual = await planPricingChange(
       makePublishPricingChangeCommand({
         locationSlug: 'fort-lee',
         items: [
@@ -42,7 +43,7 @@ describe('plan pricing change usecase', () => {
       }),
     );
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value).toEqual({
       serviceSlug: 'wash-fold',
@@ -72,13 +73,13 @@ describe('plan pricing change usecase', () => {
     const { store, calls } = makeFakePricingChangeStore();
     const planPricingChange = makePlanPricingChange(store);
 
-    const result = await planPricingChange(
+    const actual = await planPricingChange(
       makePublishPricingChangeCommand({
         reason: 'short',
       }),
     );
 
-    expectErrCode(result, 'pricing_change_reason_too_short');
+    expectErrCode(actual, 'pricing_change_reason_too_short');
     expect(calls.load).toEqual([]);
     expect(calls.commit).toEqual([]);
   });
@@ -91,13 +92,13 @@ describe('plan pricing change usecase', () => {
       status: 404,
     });
     const { store, calls } = makeFakePricingChangeStore({
-      loadResult: err(loadError),
+      loadResult: result.err(loadError),
     });
     const planPricingChange = makePlanPricingChange(store);
 
-    const result = await planPricingChange(makePublishPricingChangeCommand());
+    const actual = await planPricingChange(makePublishPricingChangeCommand());
 
-    expectErrCode(result, 'active_pricing_set_not_found');
+    expectErrCode(actual, 'active_pricing_set_not_found');
     expect(calls.load).toEqual([{ serviceSlug: 'wash-fold' }]);
     expect(calls.commit).toEqual([]);
   });
@@ -106,13 +107,13 @@ describe('plan pricing change usecase', () => {
     const { store, calls } = makeFakePricingChangeStore();
     const planPricingChange = makePlanPricingChange(store);
 
-    const result = await planPricingChange(
+    const actual = await planPricingChange(
       makePublishPricingChangeCommand({
         items: [{ code: 'missing_item', priceCents: 100 }],
       }),
     );
 
-    expectErrCode(result, 'pricing_item_code_not_found');
+    expectErrCode(actual, 'pricing_item_code_not_found');
     expect(calls.load).toEqual([{ serviceSlug: 'wash-fold' }]);
     expect(calls.commit).toEqual([]);
   });

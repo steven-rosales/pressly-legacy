@@ -7,8 +7,14 @@ const contractsSource = fileURLToPath(
 const errorsSource = fileURLToPath(
   new URL('../../packages/errors/src/index.ts', import.meta.url),
 );
-const presentersSource = fileURLToPath(
-  new URL('../../packages/presenters/src/index.ts', import.meta.url),
+const kernelSource = fileURLToPath(
+  new URL('../../packages/kernel/src/index.ts', import.meta.url),
+);
+const moneySource = fileURLToPath(
+  new URL('../../packages/money/src/index.ts', import.meta.url),
+);
+const timeSource = fileURLToPath(
+  new URL('../../packages/time/src/index.ts', import.meta.url),
 );
 
 export default defineConfig({
@@ -23,8 +29,16 @@ export default defineConfig({
         replacement: errorsSource,
       },
       {
-        find: '@pressly/presenters',
-        replacement: presentersSource,
+        find: '@pressly/kernel',
+        replacement: kernelSource,
+      },
+      {
+        find: '@pressly/money',
+        replacement: moneySource,
+      },
+      {
+        find: '@pressly/time',
+        replacement: timeSource,
       },
     ],
   },

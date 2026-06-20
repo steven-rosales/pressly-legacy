@@ -2,6 +2,7 @@ vi.mock('@/infra/pricing', () => ({
   loadPricingCatalog: vi.fn(),
 }));
 
+import { result } from '@pressly/kernel';
 import { loadPricingCatalog } from '@/infra/pricing';
 import {
   loadDryCleaningPricingViewModel,
@@ -13,12 +14,28 @@ const mockLoadPricingCatalog = vi.mocked(loadPricingCatalog);
 describe('marketing pricing view models', () => {
   beforeEach(() => {
     mockLoadPricingCatalog.mockReset();
+    vi.unstubAllEnvs();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('uses static fallback pricing without an API request during Docker builds', async () => {
+    vi.stubEnv('PRESSLY_DOCKER_BUILD', 'true');
+
+    const model = await loadWashFoldPricingViewModel({
+      locationSlug: 'wash-fold-docker-build-test',
+    });
+
+    expect(mockLoadPricingCatalog).not.toHaveBeenCalled();
+    expect(model.basePrice).toBe('$1.67');
+    expect(model.deliveryFee.shortCopy).toBe('$4.95 delivery fee');
   });
 
   it('uses wash and fold prices from the pricing catalog', async () => {
-    mockLoadPricingCatalog.mockResolvedValue({
-      ok: true,
-      value: {
+    mockLoadPricingCatalog.mockResolvedValue(
+      result.ok({
         serviceSlug: 'wash-fold',
         currency: 'USD',
         updatedAt: '2026-05-19T00:00:00.000Z',
@@ -60,8 +77,8 @@ describe('marketing pricing view models', () => {
             metadata: {},
           },
         ],
-      },
-    });
+      }),
+    );
 
     const model = await loadWashFoldPricingViewModel({
       locationSlug: 'wash-fold-pricing-test',
@@ -76,9 +93,8 @@ describe('marketing pricing view models', () => {
   });
 
   it('uses dry cleaning prices from the pricing catalog', async () => {
-    mockLoadPricingCatalog.mockResolvedValue({
-      ok: true,
-      value: {
+    mockLoadPricingCatalog.mockResolvedValue(
+      result.ok({
         serviceSlug: 'dry-cleaning',
         currency: 'USD',
         updatedAt: '2026-05-19T00:00:00.000Z',
@@ -120,8 +136,8 @@ describe('marketing pricing view models', () => {
             metadata: {},
           },
         ],
-      },
-    });
+      }),
+    );
 
     const model = await loadDryCleaningPricingViewModel({
       locationSlug: 'dry-cleaning-pricing-test',

@@ -1,6 +1,7 @@
+import { result } from '@pressly/kernel';
 import type { NextFunction, Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import { err, makeAppError, ok } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
 import { makeLoadPricingCatalogController } from '../../src/adapters/load-pricing-catalog/http/load-pricing-catalog.controller.ts';
 import { makeLoadPricingCatalogRoute } from '../../src/adapters/load-pricing-catalog/http/load-pricing-catalog.route.ts';
@@ -24,7 +25,7 @@ const getRoutes = (router: unknown): ExpressRoute[] =>
 describe('load pricing catalog http controller', () => {
   it('returns a success envelope for global pricing', async () => {
     const loadPricingCatalog = vi.fn<LoadPricingCatalog>().mockResolvedValue(
-      ok({
+      result.ok({
         serviceSlug: 'wash-fold',
         currency: 'USD',
         updatedAt: '2026-05-21T12:00:00.000Z',
@@ -62,7 +63,7 @@ describe('load pricing catalog http controller', () => {
 
   it('includes location scope when route params contain a location', async () => {
     const loadPricingCatalog = vi.fn<LoadPricingCatalog>().mockResolvedValue(
-      ok({
+      result.ok({
         serviceSlug: 'dry-cleaning',
         locationSlug: 'fort-lee',
         currency: 'USD',
@@ -100,7 +101,7 @@ describe('load pricing catalog http controller', () => {
     });
     const loadPricingCatalog = vi
       .fn<LoadPricingCatalog>()
-      .mockResolvedValue(err(error));
+      .mockResolvedValue(result.err(error));
     const controller = makeLoadPricingCatalogController(loadPricingCatalog);
     const req = {
       params: {
@@ -128,7 +129,7 @@ describe('load pricing catalog http controller', () => {
 describe('load pricing catalog http route', () => {
   it('registers public global and location-scoped pricing catalog routes', () => {
     const loadPricingCatalog = vi.fn<LoadPricingCatalog>().mockResolvedValue(
-      ok({
+      result.ok({
         serviceSlug: 'wash-fold',
         currency: 'USD',
         updatedAt: '2026-05-21T12:00:00.000Z',

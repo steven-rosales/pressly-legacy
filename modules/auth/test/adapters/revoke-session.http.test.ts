@@ -1,7 +1,8 @@
+import { result } from '@pressly/kernel';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { LogoutResult } from '@pressly/contracts';
-import { err, makeAppError, ok } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
 import { makeRevokeSessionController } from '../../src/adapters/revoke-session/http/revoke-session.controller.ts';
 import { makeRevokeSessionRouter } from '../../src/adapters/revoke-session/http/revoke-session.route.ts';
@@ -70,7 +71,7 @@ describe('revoke session http controller', () => {
   it('returns a success envelope for logout results', async () => {
     const revokeSession = vi
       .fn<RevokeSession>()
-      .mockResolvedValue(ok(logoutResult));
+      .mockResolvedValue(result.ok(logoutResult));
     const revokeSessionController = makeRevokeSessionController(revokeSession);
     const { req, header } = makeRevokeSessionRequest();
     const res = makeHttpResponse();
@@ -91,7 +92,7 @@ describe('revoke session http controller', () => {
   it('returns a failure envelope from revoke session errors', async () => {
     const revokeSession = vi
       .fn<RevokeSession>()
-      .mockResolvedValue(err(invalidSessionError()));
+      .mockResolvedValue(result.err(invalidSessionError()));
     const revokeSessionController = makeRevokeSessionController(revokeSession);
     const { req } = makeRevokeSessionRequest();
     const res = makeHttpResponse();
@@ -114,7 +115,7 @@ describe('revoke session http controller', () => {
   it('forwards missing bearer headers to express', async () => {
     const revokeSession = vi
       .fn<RevokeSession>()
-      .mockResolvedValue(ok(logoutResult));
+      .mockResolvedValue(result.ok(logoutResult));
     const revokeSessionController = makeRevokeSessionController(revokeSession);
     const { req } = makeRevokeSessionRequest({ authorization: undefined });
     const res = makeHttpResponse();
@@ -131,7 +132,7 @@ describe('revoke session http controller', () => {
   it('forwards malformed bearer headers to express', async () => {
     const revokeSession = vi
       .fn<RevokeSession>()
-      .mockResolvedValue(ok(logoutResult));
+      .mockResolvedValue(result.ok(logoutResult));
     const revokeSessionController = makeRevokeSessionController(revokeSession);
     const { req } = makeRevokeSessionRequest({ authorization: 'Basic token' });
     const res = makeHttpResponse();
@@ -165,7 +166,7 @@ describe('revoke session http router', () => {
   it('registers POST / for the revoke session controller', () => {
     const revokeSession = vi
       .fn<RevokeSession>()
-      .mockResolvedValue(ok(logoutResult));
+      .mockResolvedValue(result.ok(logoutResult));
     const router = makeRevokeSessionRouter({ revokeSession }) as unknown as {
       stack: Array<{
         route?: {

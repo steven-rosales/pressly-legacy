@@ -62,9 +62,9 @@ describe('login repository integration', () => {
     await insertRoles(testDb.db, identity.id, ['admin', 'operator']);
     const store = makeLoginStore(testDb.db);
 
-    const result = await store.findIdentityByEmail('admin@pressly.com');
+    const actual = await store.findIdentityByEmail('admin@pressly.com');
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value).toMatchObject({
       id: identity.id,
@@ -98,9 +98,9 @@ describe('login repository integration', () => {
     await insertRoles(testDb.db, identity.id, ['service', 'ci']);
     const store = makeLoginStore(testDb.db);
 
-    const result = await store.findIdentityByEmail('ci@pressly.com');
+    const actual = await store.findIdentityByEmail('ci@pressly.com');
 
-    expect(expectOk(result)).toMatchObject({
+    expect(expectOk(actual)).toMatchObject({
       id: identity.id,
       kind: 'service',
       displayName: 'CI Worker',
@@ -132,9 +132,9 @@ describe('login repository integration', () => {
     });
     const store = makeLoginStore(testDb.db);
 
-    const result = await store.findPasswordCredential(identity.id);
+    const actual = await store.findPasswordCredential(identity.id);
 
-    expect(expectOk(result)).toEqual({
+    expect(expectOk(actual)).toEqual({
       identityId: identity.id,
       passwordHash: 'stored-password-hash',
     });
@@ -172,12 +172,12 @@ describe('login repository integration', () => {
     ]);
     const store = makeLoginStore(testDb.db);
 
-    const result = await store.countRecentFailedAttempts({
+    const actual = await store.countRecentFailedAttempts({
       emailNormalized: 'admin@pressly.com',
       since: new Date('2026-05-29T12:00:00.000Z'),
     });
 
-    expect(expectOk(result)).toBe(1);
+    expect(expectOk(actual)).toBe(1);
   });
 
   it('creates sessions and returns persisted session timestamps', async () => {
@@ -186,14 +186,14 @@ describe('login repository integration', () => {
     const issuedAt = new Date('2026-05-29T12:00:00.000Z');
     const expiresAt = new Date('2026-05-29T12:30:00.000Z');
 
-    const result = await store.createSession({
+    const actual = await store.createSession({
       identityId: identity.id,
       tokenHash: 'token-hash-1',
       issuedAt,
       expiresAt,
     });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
     const [session] = await testDb.db
       .select()
       .from(auth.authSessions)
@@ -217,7 +217,7 @@ describe('login repository integration', () => {
     const identity = await insertIdentity(testDb.db);
     const store = makeLoginStore(testDb.db);
 
-    const result = await store.recordLoginAttempt({
+    const actual = await store.recordLoginAttempt({
       emailNormalized: 'admin@pressly.com',
       identityId: identity.id,
       success: false,
@@ -226,7 +226,7 @@ describe('login repository integration', () => {
       userAgent: 'PresslyTests/1.0',
     });
 
-    expectOk(result);
+    expectOk(actual);
 
     const [attempt] = await testDb.db
       .select()
@@ -247,7 +247,7 @@ describe('login repository integration', () => {
     const identity = await insertIdentity(testDb.db);
     const store = makeLoginStore(testDb.db);
 
-    const result = await store.recordAuditEvent({
+    const actual = await store.recordAuditEvent({
       actorIdentityId: identity.id,
       eventType: 'auth.login.succeeded',
       resourceType: 'auth_session',
@@ -255,7 +255,7 @@ describe('login repository integration', () => {
       metadata: { email: 'admin@pressly.com' },
     });
 
-    expectOk(result);
+    expectOk(actual);
 
     const [auditEvent] = await testDb.db
       .select()
@@ -286,13 +286,13 @@ describe('login repository integration', () => {
       }),
     );
 
-    const result = await store.createSession({
+    const actual = await store.createSession({
       identityId: identity.id,
       tokenHash: 'duplicate-token-hash',
       issuedAt,
       expiresAt,
     });
 
-    expectErrCode(result, 'auth_database_failed');
+    expectErrCode(actual, 'auth_database_failed');
   });
 });

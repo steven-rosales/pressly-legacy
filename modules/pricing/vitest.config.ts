@@ -4,11 +4,26 @@ import { fileURLToPath } from 'node:url';
 const testkitSource = fileURLToPath(
   new URL('../../packages/testkit/src', import.meta.url),
 );
+const contractsSource = fileURLToPath(
+  new URL('../../packages/contracts/src/index.ts', import.meta.url),
+);
 const dbSource = fileURLToPath(
   new URL('../../packages/db/src/index.ts', import.meta.url),
 );
 const errorsSource = fileURLToPath(
   new URL('../../packages/errors/src/index.ts', import.meta.url),
+);
+const httpSource = fileURLToPath(
+  new URL('../../packages/http/src/index.ts', import.meta.url),
+);
+const httpExpressSource = fileURLToPath(
+  new URL('../../packages/http/src/express/index.ts', import.meta.url),
+);
+const kernelSource = fileURLToPath(
+  new URL('../../packages/kernel/src/index.ts', import.meta.url),
+);
+const timeSource = fileURLToPath(
+  new URL('../../packages/time/src/index.ts', import.meta.url),
 );
 
 export default defineConfig({
@@ -23,12 +38,32 @@ export default defineConfig({
         replacement: `${testkitSource}/index.ts`,
       },
       {
+        find: '@pressly/contracts',
+        replacement: contractsSource,
+      },
+      {
         find: '@pressly/db',
         replacement: dbSource,
       },
       {
         find: '@pressly/errors',
         replacement: errorsSource,
+      },
+      {
+        find: /^@pressly\/http\/express$/,
+        replacement: httpExpressSource,
+      },
+      {
+        find: /^@pressly\/http$/,
+        replacement: httpSource,
+      },
+      {
+        find: '@pressly/kernel',
+        replacement: kernelSource,
+      },
+      {
+        find: '@pressly/time',
+        replacement: timeSource,
       },
     ],
   },

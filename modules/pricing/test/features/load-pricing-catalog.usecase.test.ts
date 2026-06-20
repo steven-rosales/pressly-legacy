@@ -1,5 +1,6 @@
+import { result } from '@pressly/kernel';
 import { describe, expect, it } from 'vitest';
-import { makeAppError, err } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors';
 import { makeLoadPricingCatalog } from '../../src/features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import { makeLoadPricingCatalogCommand } from '../support/builders.ts';
@@ -10,11 +11,11 @@ describe('load pricing catalog usecase', () => {
     const { finder, calls } = makeFakeEffectivePricingCatalogFinder();
     const loadPricingCatalog = makeLoadPricingCatalog(finder);
 
-    const result = await loadPricingCatalog(
+    const actual = await loadPricingCatalog(
       makeLoadPricingCatalogCommand({ locationSlug: 'fort-lee' }),
     );
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value).toMatchObject({
       serviceSlug: 'wash-fold',
@@ -42,12 +43,12 @@ describe('load pricing catalog usecase', () => {
       status: 404,
     });
     const { finder } = makeFakeEffectivePricingCatalogFinder({
-      result: err(expectedError),
+      result: result.err(expectedError),
     });
     const loadPricingCatalog = makeLoadPricingCatalog(finder);
 
-    const result = await loadPricingCatalog(makeLoadPricingCatalogCommand());
+    const actual = await loadPricingCatalog(makeLoadPricingCatalogCommand());
 
-    expectErrCode(result, 'pricing_not_found');
+    expectErrCode(actual, 'pricing_not_found');
   });
 });

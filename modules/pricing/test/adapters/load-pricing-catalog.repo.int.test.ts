@@ -47,11 +47,11 @@ describe('effective pricing catalog repo', () => {
 
     const finder = makeEffectivePricingCatalogFinder(testDb.db);
 
-    const result = await finder.findEffectivePricingCatalog({
+    const actual = await finder.findEffectivePricingCatalog({
       serviceSlug: 'wash-fold',
     });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value).toMatchObject({
       serviceSlug: 'wash-fold',
@@ -98,12 +98,12 @@ describe('effective pricing catalog repo', () => {
 
     const finder = makeEffectivePricingCatalogFinder(testDb.db);
 
-    const result = await finder.findEffectivePricingCatalog({
+    const actual = await finder.findEffectivePricingCatalog({
       serviceSlug: 'wash-fold',
       locationSlug: 'fort-lee',
     });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value.locationSlug).toBe('fort-lee');
     expect(value.items).toMatchObject([
@@ -129,12 +129,12 @@ describe('effective pricing catalog repo', () => {
 
     const finder = makeEffectivePricingCatalogFinder(testDb.db);
 
-    const result = await finder.findEffectivePricingCatalog({
+    const actual = await finder.findEffectivePricingCatalog({
       serviceSlug: 'wash-fold',
       locationSlug: 'hoboken',
     });
 
-    const value = expectOk(result);
+    const value = expectOk(actual);
 
     expect(value.locationSlug).toBe('hoboken');
     expect(value.items).toMatchObject([{ priceCents: 495 }]);
@@ -148,12 +148,12 @@ describe('effective pricing catalog repo', () => {
     });
     const finder = makeEffectivePricingCatalogFinder(testDb.db);
 
-    const result = await finder.findEffectivePricingCatalog({
+    const actual = await finder.findEffectivePricingCatalog({
       serviceSlug: 'wash-fold',
       locationSlug: 'missing-location',
     });
 
-    expectErrCode(result, 'pricing_not_found');
+    expectErrCode(actual, 'pricing_not_found');
   });
 
   it('does not read inactive, expired, or future pricing sets as current', async () => {

@@ -1,14 +1,9 @@
+import { result, type Result } from '@pressly/kernel';
 import { mkdir, readFile, rm, writeFile, chmod } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import type { LoginResult } from '@pressly/contracts';
-import {
-  err,
-  makeAppError,
-  ok,
-  type AppError,
-  type Result,
-} from '@pressly/errors';
+import { makeAppError, type AppError } from '@pressly/errors';
 
 export type CliSession = Readonly<LoginResult>;
 
@@ -57,11 +52,11 @@ export const makeSessionStore = (
         throw error;
       });
 
-      if (raw === undefined) return ok(undefined);
+      if (raw === undefined) return result.ok(undefined);
 
-      return ok(JSON.parse(raw) as CliSession);
+      return result.ok(JSON.parse(raw) as CliSession);
     } catch (cause) {
-      return err(sessionStoreError(cause));
+      return result.err(sessionStoreError(cause));
     }
   },
 
@@ -73,9 +68,9 @@ export const makeSessionStore = (
       });
       await chmod(path, 0o600);
 
-      return ok(undefined);
+      return result.ok(undefined);
     } catch (cause) {
-      return err(sessionStoreError(cause));
+      return result.err(sessionStoreError(cause));
     }
   },
 
@@ -83,9 +78,9 @@ export const makeSessionStore = (
     try {
       await rm(path, { force: true });
 
-      return ok(undefined);
+      return result.ok(undefined);
     } catch (cause) {
-      return err(sessionStoreError(cause));
+      return result.err(sessionStoreError(cause));
     }
   },
 });

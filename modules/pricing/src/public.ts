@@ -4,10 +4,12 @@ export type {
   PricingModule,
   PricingModuleActions,
   PricingModuleAuth,
-  PricingModuleAuthorizationInput,
   PricingModuleDeps,
 } from './main.ts';
 export type {
+  PricingModuleAction,
+  PricingModuleAuthorizationInput,
+  PricingModuleRole,
   LoadPricingCatalogCommand,
   LoadPricingCatalogResult,
   PricingChangePlan,

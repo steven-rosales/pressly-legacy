@@ -1,8 +1,9 @@
+import { result, type Result } from '@pressly/kernel';
 import type {
   PublishPricingChangeCommand,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
-import { err, type AppError, type Result } from '@pressly/errors';
+import { type AppError } from '@pressly/errors';
 import {
   makePricingChangePlan,
   validatePricingCommand,
@@ -23,7 +24,7 @@ export const makePublishPricingChange =
     const violations = validatePricingCommand(command);
 
     if (violations.length > 0)
-      return err(pricingPolicyViolationsToAppError(violations));
+      return result.err(pricingPolicyViolationsToAppError(violations));
 
     const current = await store.loadCurrentPricingForPublish({
       serviceSlug: command.serviceSlug,
@@ -32,7 +33,7 @@ export const makePublishPricingChange =
         : { locationSlug: command.locationSlug }),
     });
 
-    if (!current.ok) return current;
+    if (result.isErr(current)) return current;
 
     const plan = makePricingChangePlan({
       command,
@@ -41,7 +42,7 @@ export const makePublishPricingChange =
     });
 
     if (!plan.ok)
-      return err(pricingPolicyViolationsToAppError(plan.violations));
+      return result.err(pricingPolicyViolationsToAppError(plan.violations));
 
     const now = options.now ?? (() => new Date());
 
