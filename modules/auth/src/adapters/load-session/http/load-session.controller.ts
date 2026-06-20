@@ -3,6 +3,7 @@ import { result } from '@pressly/kernel';
 import { apiFailure, apiSuccess } from '@pressly/http';
 import { catchAsync } from '@pressly/http/express';
 import { makeAppError } from '@pressly/errors';
+import { utcIsoFromDate } from '@pressly/time';
 import type { LoadSession } from '../../../features/load-session/load-session.usecase.ts';
 import { readBearerToken } from '../../common/read-bearer.ts';
 
@@ -40,7 +41,7 @@ export const makeLoadSessionController = (
             : { email: loadSessionResult.value.email }),
           roles: [...loadSessionResult.value.roles],
         },
-        expiresAt: loadSessionResult.value.sessionExpiresAt.toISOString(),
+        expiresAt: utcIsoFromDate(loadSessionResult.value.sessionExpiresAt),
       }),
     );
   });

@@ -134,6 +134,12 @@ const UTC_ISO_PATTERN =
 export const toUtcIso = (instant: InstantMs): UtcIso =>
   new Date(instant).toISOString() as UtcIso;
 
+export const instantFromDate = (date: Date): InstantMs =>
+  date.getTime() as InstantMs;
+
+export const utcIsoFromDate = (date: Date): UtcIso =>
+  toUtcIso(instantFromDate(date));
+
 export const instantFromUtcIso = (
   value: string,
 ): Result<InstantMs, TimeError> => {
@@ -156,6 +162,9 @@ export const instantFromUtcIso = (
 
   return result.ok(wallToUtcMs(wall) as InstantMs);
 };
+
+export const isUtcIso = (value: string): value is UtcIso =>
+  result.isOk(instantFromUtcIso(value));
 
 export const possibleInstantsFromWall = (
   zone: ZoneId,

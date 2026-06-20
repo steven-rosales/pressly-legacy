@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Result } from '@pressly/kernel';
 import {
+  isUtcIso,
+  utcIsoFromDate,
   instantFromUtcIso,
   instantFromWall,
   possibleInstantsFromWall,
@@ -30,6 +32,17 @@ describe('time conversion', () => {
     const instant = expectOk(instantFromUtcIso('2026-06-19T12:30:45.123Z'));
 
     expect(toUtcIso(instant)).toBe('2026-06-19T12:30:45.123Z');
+  });
+
+  it('formats trusted Date objects as branded UTC ISO values', () => {
+    expect(utcIsoFromDate(new Date(Date.UTC(2026, 5, 19, 12, 30, 45, 123)))).toBe(
+      '2026-06-19T12:30:45.123Z',
+    );
+  });
+
+  it('checks strict UTC ISO strings', () => {
+    expect(isUtcIso('2026-06-19T12:30:45.123Z')).toBe(true);
+    expect(isUtcIso('2026-06-19T12:30:45.123-04:00')).toBe(false);
   });
 
   it('parses UTC ISO instants without fractional milliseconds', () => {

@@ -2,6 +2,7 @@ import { result, type Result } from '@pressly/kernel';
 import { normalizeEmail } from '@pressly/auth';
 import type { LoginCommand, LoginResult } from '@pressly/contracts';
 import { type AppError } from '@pressly/errors';
+import { utcIsoFromDate } from '@pressly/time';
 import { invalidCredentials, loginRateLimited } from './login.error.ts';
 import type {
   Clock,
@@ -170,7 +171,7 @@ export const makeLogin =
 
     return result.ok({
       accessToken,
-      expiresAt: session.value.expiresAt.toISOString(),
+      expiresAt: utcIsoFromDate(session.value.expiresAt),
       principal: {
         identityId: identity.value.id,
         displayName: identity.value.displayName,

@@ -8,6 +8,7 @@
     { "path": "./packages/contracts" },
     { "path": "./packages/errors" },
     { "path": "./packages/kernel" },
+    { "path": "./packages/time" },
     { "path": "./packages/logging" },
     { "path": "./packages/metrics" },
     { "path": "./packages/db" },

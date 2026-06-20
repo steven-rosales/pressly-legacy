@@ -457,6 +457,9 @@ importers:
       '@pressly/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       express:
         specifier: ^5.2.1
         version: 5.2.1
@@ -494,6 +497,9 @@ importers:
       '@pressly/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       express:
         specifier: ^5.2.1
         version: 5.2.1
@@ -560,6 +566,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../time
       zod:
         specifier: 4.3.6
         version: 4.3.6

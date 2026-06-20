@@ -1,5 +1,6 @@
 import { result, type Result } from '@pressly/kernel';
 import { makeAppError, type AppError } from '@pressly/errors';
+import { utcIsoFromDate } from '@pressly/time';
 import {
   and,
   desc,
@@ -143,7 +144,7 @@ export const makeEffectivePricingCatalogFinder = (
           ? {}
           : { locationSlug: command.locationSlug }),
         currency: defaultSet.currency,
-        updatedAt: defaultSet.updatedAt.toISOString(),
+        updatedAt: utcIsoFromDate(defaultSet.updatedAt),
         items: items.map((item) => ({
           service: item.service,
           unit: item.unit,

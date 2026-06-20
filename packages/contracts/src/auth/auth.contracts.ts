@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { utcIsoStringSchema } from '../common/utc-iso.contracts.ts';
 
 export const authRoleSchema = z.enum([
   'owner',
@@ -42,7 +43,7 @@ export const authPrincipalSchema = z
 export const loginResultSchema = z
   .object({
     accessToken: z.string().min(32),
-    expiresAt: z.iso.datetime(),
+    expiresAt: utcIsoStringSchema,
     principal: authPrincipalSchema,
   })
   .strict();
@@ -50,7 +51,7 @@ export const loginResultSchema = z
 export const sessionResultSchema = z
   .object({
     principal: authPrincipalSchema,
-    expiresAt: z.iso.datetime(),
+    expiresAt: utcIsoStringSchema,
   })
   .strict();
 
