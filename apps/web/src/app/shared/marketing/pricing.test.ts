@@ -14,6 +14,23 @@ const mockLoadPricingCatalog = vi.mocked(loadPricingCatalog);
 describe('marketing pricing view models', () => {
   beforeEach(() => {
     mockLoadPricingCatalog.mockReset();
+    vi.unstubAllEnvs();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('uses static fallback pricing without an API request during Docker builds', async () => {
+    vi.stubEnv('PRESSLY_DOCKER_BUILD', 'true');
+
+    const model = await loadWashFoldPricingViewModel({
+      locationSlug: 'wash-fold-docker-build-test',
+    });
+
+    expect(mockLoadPricingCatalog).not.toHaveBeenCalled();
+    expect(model.basePrice).toBe('$1.67');
+    expect(model.deliveryFee.shortCopy).toBe('$4.95 delivery fee');
   });
 
   it('uses wash and fold prices from the pricing catalog', async () => {

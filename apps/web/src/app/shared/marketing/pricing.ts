@@ -78,6 +78,9 @@ export type DryCleaningPricingModel = Readonly<{
 
 const STATIC_PRICING_UPDATED_AT = '2026-01-01T00:00:00.000Z';
 
+const shouldUseStaticPricingOnly = (): boolean =>
+  process.env['PRESSLY_DOCKER_BUILD'] === 'true';
+
 const PRICING_FEATURES = [
   { text: 'Pickup & Delivery Available' },
   { text: 'Cleaned to your preferences' },
@@ -246,6 +249,12 @@ const loadCachedPricingCatalogViewModel = cache(
     serviceSlug: PricingServiceSlug,
     locationSlug?: string,
   ): Promise<PricingCatalogViewModel> => {
+    if (shouldUseStaticPricingOnly())
+      return {
+        source: 'static-fallback',
+        catalog: buildStaticCatalog(serviceSlug, locationSlug),
+      };
+
     const input: PricingParamsRequestSchema =
       locationSlug === undefined
         ? { serviceSlug }

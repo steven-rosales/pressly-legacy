@@ -25,10 +25,12 @@ COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/errors/package.json packages/errors/package.json
 COPY packages/http/package.json packages/http/package.json
+COPY packages/kernel/package.json packages/kernel/package.json
 COPY packages/logging/package.json packages/logging/package.json
 COPY packages/metrics/package.json packages/metrics/package.json
-COPY packages/presenters/package.json packages/presenters/package.json
+COPY packages/money/package.json packages/money/package.json
 COPY packages/testkit/package.json packages/testkit/package.json
+COPY packages/time/package.json packages/time/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
 
 RUN pnpm install --frozen-lockfile
