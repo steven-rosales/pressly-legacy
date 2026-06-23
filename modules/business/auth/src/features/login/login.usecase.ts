@@ -1,6 +1,6 @@
 import { result, type Result } from '@pressly/kernel';
 import { normalizeEmail } from '@pressly/auth/authentication';
-import type { LoginCommand, LoginResult } from '@pressly/contracts';
+import type { LoginRequest, LoginResult } from '@pressly/contracts';
 import { type AppError } from '@pressly/errors';
 import { utcIsoFromDate } from '@pressly/time';
 import { invalidCredentials, loginRateLimited } from './login.error.ts';
@@ -16,6 +16,13 @@ export type LoginOptions = Readonly<{
   loginWindowMinutes: number;
   loginMaxFailures: number;
 }>;
+
+export type LoginCommand = Readonly<
+  LoginRequest & {
+    ipAddress?: string;
+    userAgent?: string;
+  }
+>;
 
 const addMinutes = (date: Date, minutes: number): Date =>
   new Date(date.getTime() + minutes * 60_000);

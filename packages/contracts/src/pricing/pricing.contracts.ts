@@ -35,28 +35,10 @@ export const loadPricingCatalogCommandSchema = z.object({
 
 export const pricingParamsRequestSchema = loadPricingCatalogCommandSchema;
 
-export const pricingChangeAuthorSchema = z
-  .object({
-    id: z.string().min(1),
-    kind: z.enum(['human', 'service']),
-    displayName: z.string().min(1),
-  })
-  .strict();
-
 export const publishPricingChangeItemSchema = z
   .object({
     code: z.string().min(1),
     priceCents: z.number().int().nonnegative(),
-  })
-  .strict();
-
-export const publishPricingChangeCommandSchema = z
-  .object({
-    serviceSlug: pricingServiceSlugSchema,
-    locationSlug: z.string().min(1).optional(),
-    reason: z.string().min(1),
-    requestedBy: pricingChangeAuthorSchema,
-    items: z.array(publishPricingChangeItemSchema).min(1),
   })
   .strict();
 

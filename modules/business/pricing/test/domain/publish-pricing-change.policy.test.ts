@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PublishPricingChangeCommand } from '@pressly/contracts';
+import type { PublishPricingChangeCommand } from '../../src/domain/publish-pricing-change.policy.ts';
 import {
   makePricingChangePlan,
   validatePricingCommand,

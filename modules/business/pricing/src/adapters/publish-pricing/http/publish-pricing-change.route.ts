@@ -1,15 +1,13 @@
-import { Router, type RequestHandler, type Response } from 'express';
-import {
-  pricingChangeRequestSchema,
-  type PricingChangeAuthor,
-} from '@pressly/contracts';
+import { Router, type RequestHandler } from 'express';
+import { pricingChangeRequestSchema } from '@pressly/contracts';
 import { validateRequest } from '@pressly/http/express';
 import type { PlanPricingChange } from '../../../features/publish-pricing/plan-pricing-change.usecase.ts';
 import type { PublishPricingChange } from '../../../features/publish-pricing/publish-pricing-change.usecase.ts';
-import { makePlanPricingChangeController } from './plan-pricing-change.controller.ts';
+import {
+  makePlanPricingChangeController,
+  type ReadPricingChangeAuthor,
+} from './plan-pricing-change.controller.ts';
 import { makePublishPricingChangeController } from './publish-pricing-change.controller.ts';
-
-type ReadPricingChangeAuthor = (res: Response) => PricingChangeAuthor;
 
 type PricingChangeRouteAuth = Readonly<{
   authenticate: RequestHandler;

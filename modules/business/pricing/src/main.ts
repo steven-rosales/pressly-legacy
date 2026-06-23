@@ -1,5 +1,4 @@
 import type { Database } from '@pressly/db';
-import type { PricingChangeAuthor } from '@pressly/contracts';
 import {
   Router,
   type RequestHandler,
@@ -23,7 +22,9 @@ import {
   type PublishPricingChange,
 } from './features/publish-pricing/publish-pricing-change.usecase.ts';
 
-export type ReadPricingChangeAuthor = (res: Response) => PricingChangeAuthor;
+export type ReadPricingChangeAuthor = (
+  res: Response,
+) => Parameters<PlanPricingChange>[0]['requestedBy'];
 
 export type PricingRouteSecurity = Readonly<{
   authenticate: RequestHandler;

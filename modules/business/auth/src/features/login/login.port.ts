@@ -1,13 +1,50 @@
 import type { Result } from '@pressly/kernel';
-import type {
-  AuthAuditEventInput,
-  CreatedSession,
-  CreateSessionInput,
-  LoginAttemptInput,
-  LoginIdentityRecord,
-  LoginPasswordCredentialRecord,
-} from '@pressly/contracts';
+import type { Role } from '@pressly/auth/authorization';
 import type { AppError } from '@pressly/errors';
+
+export type AuthAuditEventInput = Readonly<{
+  actorIdentityId?: string;
+  eventType: string;
+  resourceType: string;
+  resourceId?: string;
+  metadata?: Record<string, unknown>;
+}>;
+
+export type LoginIdentityRecord = Readonly<{
+  id: string;
+  kind: 'human' | 'service';
+  displayName: string;
+  email?: string;
+  isActive: boolean;
+  roles: readonly Role[];
+}>;
+
+export type LoginPasswordCredentialRecord = Readonly<{
+  identityId: string;
+  passwordHash: string;
+}>;
+
+export type CreateSessionInput = Readonly<{
+  identityId: string;
+  tokenHash: string;
+  issuedAt: Date;
+  expiresAt: Date;
+}>;
+
+export type CreatedSession = Readonly<{
+  id: string;
+  issuedAt: Date;
+  expiresAt: Date;
+}>;
+
+export type LoginAttemptInput = Readonly<{
+  emailNormalized: string;
+  identityId?: string;
+  success: boolean;
+  failureCode?: string;
+  ipAddress?: string;
+  userAgent?: string;
+}>;
 
 export type LoginStore = Readonly<{
   findIdentityByEmail: (

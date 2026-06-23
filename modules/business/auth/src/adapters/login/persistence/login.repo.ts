@@ -1,5 +1,4 @@
 import { and, auth, eq, gt, sql, type Database } from '@pressly/db';
-import type { LoginAttemptInput } from '@pressly/contracts';
 import type { LoginStore } from '../../../features/login/login.port.ts';
 import { recordAuthAuditEvent } from '../../common/auth-audit.ts';
 import {
@@ -83,7 +82,7 @@ export const makeLoginStore = (db: Database): LoginStore => ({
       };
     }),
 
-  recordLoginAttempt: async (input: LoginAttemptInput) =>
+  recordLoginAttempt: async (input) =>
     toDatabaseResult(async () => {
       await db.insert(auth.authLoginAttempts).values(input);
     }),

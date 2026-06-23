@@ -1,9 +1,7 @@
 import { result, type Result } from '@pressly/kernel';
-import type {
-  PublishPricingChangeCommand,
-  PublishPricingChangeResult,
-} from '@pressly/contracts';
+import type { PublishPricingChangeResult } from '@pressly/contracts';
 import { type AppError } from '@pressly/errors';
+import type { PublishPricingChangeCommand } from '../../domain/publish-pricing-change.policy.ts';
 import {
   makePricingChangePlan,
   validatePricingCommand,

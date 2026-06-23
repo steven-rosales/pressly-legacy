@@ -10,6 +10,9 @@ export type {
   LoadPricingCatalogCommand,
   LoadPricingCatalogResult,
   PricingChangePlan,
-  PublishPricingChangeCommand,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
+export type {
+  PricingChangeAuthor,
+  PublishPricingChangeCommand,
+} from './domain/publish-pricing-change.policy.ts';

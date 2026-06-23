@@ -7,7 +7,7 @@ import type {
   LoginAttemptInput,
   LoginIdentityRecord,
   LoginPasswordCredentialRecord,
-} from '@pressly/contracts';
+} from '../../src/features/login/login.port.ts';
 import type { LoginStore } from '../../src/features/login/login.port.ts';
 import type {
   LoadSessionStore,

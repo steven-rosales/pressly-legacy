@@ -4,10 +4,6 @@ import {
   validatePasswordStrength,
   type PasswordHasher,
 } from '@pressly/auth/credentials';
-import type {
-  BootstrapOwnerCommand,
-  BootstrapOwnerResult,
-} from '@pressly/contracts';
 import { type AppError } from '@pressly/errors';
 import {
   bootstrapOwnerIdentityAlreadyExists,
@@ -20,6 +16,18 @@ import {
 import type { BootstrapOwnerStore } from './bootstrap-owner.port.ts';
 
 export const BOOTSTRAP_OWNER_CONFIRMATION = 'bootstrap-first-owner';
+
+export type BootstrapOwnerCommand = Readonly<{
+  email: string;
+  password: string;
+  confirmation: string;
+}>;
+
+export type BootstrapOwnerResult = Readonly<{
+  identityId: string;
+  email: string;
+  role: 'owner';
+}>;
 
 type MakeBootstrapOwnerDeps = Readonly<{
   store: BootstrapOwnerStore;

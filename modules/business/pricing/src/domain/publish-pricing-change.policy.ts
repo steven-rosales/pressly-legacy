@@ -1,9 +1,34 @@
-import type {
-  CurrentPricingItem,
-  CurrentPricingSet,
-  PricingChangePlan,
-  PublishPricingChangeCommand,
-} from '@pressly/contracts';
+import type { PricingChangePlan, PricingServiceSlug } from '@pressly/contracts';
+
+export type PricingChangeAuthor = Readonly<{
+  id: string;
+  kind: 'human' | 'service';
+  displayName: string;
+}>;
+
+export type PublishPricingChangeItem = Readonly<{
+  code: string;
+  priceCents: number;
+}>;
+
+export type PublishPricingChangeCommand = Readonly<{
+  serviceSlug: PricingServiceSlug;
+  locationSlug?: string;
+  reason: string;
+  requestedBy: PricingChangeAuthor;
+  items: readonly PublishPricingChangeItem[];
+}>;
+
+export type CurrentPricingSet = Readonly<{
+  id: string;
+  currency: string;
+}>;
+
+export type CurrentPricingItem = Readonly<{
+  code: string;
+  name: string;
+  priceCents: number;
+}>;
 
 export type PricingPolicyViolation = DeepReadonly<
   | {

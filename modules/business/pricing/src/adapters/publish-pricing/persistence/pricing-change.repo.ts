@@ -1,9 +1,5 @@
 import { result, type Result } from '@pressly/kernel';
-import type {
-  LoadCurrentPricingForPublishInput,
-  PublishPricingChangeCommand,
-  PublishPricingChangeResult,
-} from '@pressly/contracts';
+import type { PublishPricingChangeResult } from '@pressly/contracts';
 import {
   and,
   eq,
@@ -23,7 +19,11 @@ import {
   notFoundError,
   type AppError,
 } from '@pressly/errors';
-import type { PricingChangeStore } from '../../../features/publish-pricing/publish-pricing-change.port.ts';
+import type {
+  LoadCurrentPricingForPublishInput,
+  PricingChangeStore,
+  PublishPricingChangeCommand,
+} from '../../../features/publish-pricing/publish-pricing-change.port.ts';
 
 type PricingService = typeof pricing.pricingServices.$inferSelect;
 type PricingSet = typeof pricing.pricingSets.$inferSelect;

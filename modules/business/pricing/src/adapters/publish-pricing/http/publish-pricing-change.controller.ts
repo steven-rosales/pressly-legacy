@@ -1,16 +1,13 @@
 import type { RequestHandler } from 'express';
 import { result } from '@pressly/kernel';
 import { apiFailure, apiSuccess } from '@pressly/http';
-import type {
-  PricingChangeAuthor,
-  PricingChangeRequest,
-} from '@pressly/contracts';
+import type { PricingChangeRequest } from '@pressly/contracts';
 import { catchAsync } from '@pressly/http/express';
 import type { PublishPricingChange } from '../../../features/publish-pricing/publish-pricing-change.usecase.ts';
 
 type ReadPricingChangeAuthor = (
   res: Parameters<RequestHandler>[1],
-) => PricingChangeAuthor;
+) => Parameters<PublishPricingChange>[0]['requestedBy'];
 
 export const makePublishPricingChangeController = (input: {
   publishPricingChange: PublishPricingChange;
@@ -20,7 +17,12 @@ export const makePublishPricingChangeController = (input: {
     const body = req.body as PricingChangeRequest;
     const requestedBy = input.readAuthor(res);
     const publishResult = await input.publishPricingChange({
-      ...body,
+      serviceSlug: body.serviceSlug,
+      ...(body.locationSlug === undefined
+        ? {}
+        : { locationSlug: body.locationSlug }),
+      reason: body.reason,
+      items: body.items,
       requestedBy,
     });
 

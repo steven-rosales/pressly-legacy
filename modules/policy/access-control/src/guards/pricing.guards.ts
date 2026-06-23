@@ -5,10 +5,7 @@ import type {
 } from '@pressly/auth/authorization';
 import type { Request, RequestHandler, Response } from 'express';
 import { makeAppError } from '@pressly/errors';
-import type {
-  PricingChangeAuthor,
-  PricingChangeRequest,
-} from '@pressly/contracts';
+import type { PricingChangeRequest } from '@pressly/contracts';
 import type { Principal } from '@pressly/auth/authentication';
 import { pricingCatalogResourceFromRequest } from '../resources/pricing.resources.ts';
 import {
@@ -17,6 +14,12 @@ import {
 } from '../policies/pricing.policy.ts';
 
 type AuthLocals = Readonly<{ principal: Principal }>;
+
+type PricingChangeAuthor = Readonly<{
+  id: string;
+  kind: 'human' | 'service';
+  displayName: string;
+}>;
 
 export type AccessControlAuthorize = <R extends AuthResource>(
   input: Readonly<{

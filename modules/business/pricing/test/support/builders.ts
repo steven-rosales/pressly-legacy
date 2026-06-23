@@ -1,11 +1,13 @@
 import type {
-  CurrentPricingItem,
-  CurrentPricingSet,
   LoadPricingCatalogCommand,
-  PricingChangeAuthor,
-  PublishPricingChangeCommand,
   PublishPricingChangeResult,
 } from '@pressly/contracts';
+import type {
+  CurrentPricingItem,
+  CurrentPricingSet,
+  PricingChangeAuthor,
+  PublishPricingChangeCommand,
+} from '../../src/domain/publish-pricing-change.policy.ts';
 
 export const makePricingChangeAuthor = (
   id = 'user_1',

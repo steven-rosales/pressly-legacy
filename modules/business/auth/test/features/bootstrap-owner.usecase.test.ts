@@ -5,7 +5,7 @@ import { makeAppError, type AppError } from '@pressly/errors';
 import type {
   BootstrapOwnerStoreResult,
   CreateBootstrapOwnerInput,
-} from '@pressly/contracts';
+} from '../../src/features/bootstrap-owner/bootstrap-owner.port.ts';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import type { BootstrapOwnerStore } from '../../src/features/bootstrap-owner/bootstrap-owner.port.ts';
 import {

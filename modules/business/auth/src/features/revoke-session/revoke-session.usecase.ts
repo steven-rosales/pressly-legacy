@@ -1,5 +1,5 @@
 import { result, type Result } from '@pressly/kernel';
-import type { LogoutResult, RevokeSessionCommand } from '@pressly/contracts';
+import type { LogoutResult } from '@pressly/contracts';
 import { type AppError } from '@pressly/errors';
 import type {
   Clock,
@@ -12,6 +12,8 @@ type MakeRevokeSessionDeps = {
   tokenHasher: TokenHasher;
   clock: Clock;
 };
+
+export type RevokeSessionCommand = Readonly<{ bearerToken: string }>;
 
 export type RevokeSession = (
   command: RevokeSessionCommand,
