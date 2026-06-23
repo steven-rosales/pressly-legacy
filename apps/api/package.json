@@ -23,6 +23,7 @@
     "typescript": "latest"
   },
   "dependencies": {
+    "@pressly/access-control": "workspace:*",
     "@pressly/config": "workspace:*",
     "@pressly/auth-module": "workspace:*",
     "@pressly/errors": "workspace:*",
