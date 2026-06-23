@@ -86,10 +86,16 @@ pressly/
     cli/              operator/developer CLI tools
 
   modules/
-    pricing/          business capability module
+    business/
+      auth/           authentication/session capability module
+      pricing/        business capability module
+    policy/
+      access-control/ planned authorization policy module
+    computation/
+      analytics/      future derived-view and calculation module
 
   packages/
-    auth/             shared auth types/capabilities
+    auth/             shared auth and authorization primitives
     config/           environment parsing and runtime config
     contracts/        shared protocol contracts, commands, and results
     db/               Drizzle schema, migrations, seeds, and db client
@@ -172,12 +178,43 @@ Rules:
 
 ## 5. Modules
 
-A module is a vertical business capability.
+A module is a bounded application capability.
 
-Current example:
+Modules are grouped by the kind of application capability they own:
+
+- `modules/business/*` owns product and stateful application capabilities.
+- `modules/policy/*` owns cross-cutting application policy.
+- `modules/computation/*` owns derived views, calculations, projections, and
+  analysis.
+
+Most modules are vertical business capabilities, but not all of them are. Some
+modules own policy, projections, computations, or other application-level
+capabilities that do not naturally have `domain/`, `features/`, and `adapters/`
+folders.
+
+The invariant is ownership, not folder ritual.
+
+All modules should keep these surfaces:
+
+- `main.ts` is the module composition root.
+- `public.ts` is the stable module surface.
+- `test/` holds module tests outside `src/`.
+- Cross-module imports go through `public.ts`.
+- Internal files under `src/` are not imported directly by other modules.
+
+### Business Modules
+
+A business module owns product or stateful application behavior.
+
+Current examples:
+
+- `modules/business/auth`
+- `modules/business/pricing`
+
+Typical shape:
 
 ```txt
-modules/pricing/
+modules/business/pricing/
   src/
     features/
       load-pricing-catalog/
@@ -197,9 +234,13 @@ modules/pricing/
     public.ts
 ```
 
-`public.ts` is the stable module surface.
+Business module rules:
 
-`main.ts` is the module composition root. It wires repositories, use cases, controllers, and routes.
+- Use cases own application behavior.
+- Domain folders own product invariants when the module has domain rules.
+- Adapters translate HTTP, persistence, vendors, jobs, or framework mechanisms.
+- Business modules should not own cross-cutting authorization policy.
+- Business modules should not import `@pressly/auth` authorization primitives unless the module itself is the auth module.
 
 Feature files should speak application language. For reads and lookups, prefer precise verbs:
 
@@ -209,6 +250,60 @@ Feature files should speak application language. For reads and lookups, prefer p
 - `createX`, `updateX`, and `deleteX` only when that is literally the business action.
 
 Avoid `getX` in application and module naming. It is too vague and collides mentally with HTTP `GET`. HTTP route methods can still use `router.get(...)`.
+
+### Policy Modules
+
+A policy module owns application policy that cuts across business capabilities.
+
+Primary planned example:
+
+```txt
+modules/policy/access-control/
+  src/
+    policies/
+    resources/
+    guards/
+    main.ts
+    public.ts
+  test/
+```
+
+Policy module rules:
+
+- Own Pressly authorization policy, not authentication.
+- Import pure authorization primitives from `@pressly/auth`.
+- Build resource mappers and guard bundles for business routes.
+- Depend on contracts or public module surfaces only.
+- Do not import business module internals.
+- Do not make `apps/api` define policy.
+
+This keeps the API app as a composition root and keeps business modules from
+becoming security modules by accident.
+
+### Projection and Computation Modules
+
+A projection or computation module owns derived views, analytics, rules, or
+calculations that are not naturally a CRUD business aggregate.
+
+Possible future example:
+
+```txt
+modules/computation/analytics/
+  src/
+    projections/
+    queries/
+    calculators/
+    main.ts
+    public.ts
+  test/
+```
+
+Projection/computation module rules:
+
+- Add `adapters/` only when the module talks to external mechanisms.
+- Add `features/` only when the module has application workflows.
+- Add `domain/` only when the module owns durable domain invariants.
+- A module may have no database if it computes over existing inputs or projections.
 
 ## 6. Contracts
 
@@ -348,6 +443,7 @@ Apps own runtime composition.
 - Create logger
 - Create database connection
 - Install HTTP middleware
+- Compose authentication, access-control, and business modules
 - Mount module routes
 - Map errors to HTTP responses
 - Expose health/readiness endpoints
@@ -368,6 +464,9 @@ Apps own runtime composition.
 - Fail loudly with structured errors
 
 Apps do not own business meaning. They assemble the program.
+
+`apps/api` may wire route guards produced by a policy module. It should not
+define application authorization policy itself.
 
 ## 10. Persistence
 

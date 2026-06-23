@@ -1,6 +1,6 @@
 # Module Test Guide
 
-This guide defines how tests should be written for `modules/*`.
+This guide defines how tests should be written for `modules/*/*`.
 
 It does not cover `apps/*` or `packages/*` yet.
 
@@ -28,7 +28,7 @@ If a test hides those answers, rewrite it.
 Modules follow this shape:
 
 ```txt
-modules/<name>/
+modules/<group>/<name>/
   src/
     domain/
       *.policy.ts

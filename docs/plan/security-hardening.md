@@ -1,4 +1,4 @@
-Below is the implementation I would write by hand in your repo. It keeps your existing architecture: apps compose, modules own business capability, packages provide stable primitives, adapters translate mechanisms, and route pipes stay `validate -> authenticate -> authorize -> controller`. Your current pricing routes already have that pipe shape.
+Below is the implementation I would write by hand in your repo. It keeps your existing architecture: apps compose, modules own application capability, packages provide stable primitives, adapters translate mechanisms, and route pipes stay `validate -> authenticate -> authorize -> controller`. Your current pricing routes already have that pipe shape.
 
 The change is conceptual:
 
@@ -18,17 +18,25 @@ Your current code still selects one highest role in auth middleware. That is the
 
 ```txt id="qv7q06"
 apps/api
-  composes auth module + pricing module
+  composes business/auth + policy/access-control + business/pricing
+  does not define authorization policy
 
-modules/auth
+modules/business/auth
   authenticates credentials/sessions
   loads trusted principal + principal attributes
-  provides generic HTTP authorize middleware
+  provides generic HTTP authentication/authorization middleware
 
-modules/pricing
-  defines pricing resources
-  defines pricing policies
-  declares route-level authorization
+modules/policy/access-control
+  owns Pressly application authorization policy
+  defines pricing resources and pricing policies
+  composes route guards for protected business capabilities
+  imports pure authorization primitives from @pressly/auth
+  does not import business module internals
+
+modules/business/pricing
+  owns pricing business capability
+  receives already-composed route security from module wiring
+  does not define roles, resources, policies, or authorization rules
 
 packages/auth
   existing auth primitives for identity/session/password
@@ -42,7 +50,7 @@ packages/db
   storage schema + migrations
 ```
 
-One boundary correction: `PricingModuleAuthorizationInput` and `AuthorizeMiddlewareInput` should not live in `@pressly/contracts`. They are internal module/middleware ports, not external protocol contracts. Right now they are exported from contracts. Keep request/response schemas in contracts. Move auth middleware input types into `modules/auth` or `@pressly/auth`.
+One boundary correction: `PricingModuleAuthorizationInput` and `AuthorizeMiddlewareInput` should not live in `@pressly/contracts`. They are internal module/middleware ports, not external protocol contracts. Right now they are exported from contracts. Keep request/response schemas in contracts. Move generic authorization middleware types into `modules/business/auth` or `@pressly/auth`, and move route-specific policy composition into `modules/policy/access-control`.
 
 One implementation correction: `packages/auth` already exists and is not purely authorization-only today. Do not block this hardening pass on purifying the whole package. Add a pure `authorization/` core inside it, export the primitives from `@pressly/auth`, and convert denied authorization decisions into `AppError` only at module/HTTP adapter edges.
 
@@ -69,7 +77,7 @@ packages/auth/src/
       same-identity.ts
   index.ts
 
-modules/auth/src/
+modules/business/auth/src/
   features/load-session/
     load-session.usecase.ts
     load-session.port.ts
@@ -79,9 +87,15 @@ modules/auth/src/
   adapters/load-session/persistence/
     load-session.repo.ts
 
-modules/pricing/src/auth/
-  pricing-resource.ts
-  pricing-policy.ts
+modules/policy/access-control/src/
+  resources/
+    pricing-resource.ts
+  policies/
+    pricing-policy.ts
+  guards/
+    pricing-guards.ts
+  main.ts
+  public.ts
 
 packages/db/src/schema/
   auth.schema.ts
@@ -710,7 +724,7 @@ Small hygiene note: the table name currently says `auth_identites`. Do not mix t
 
 The auth module should load a principal and authority-relevant attributes. The current load-session result returns roles. Change that to return `principal + principalAttributes`.
 
-## `modules/auth/src/features/load-session/load-session.port.ts`
+## `modules/business/auth/src/features/load-session/load-session.port.ts`
 
 Move storage-only types here. `StoredSessionPrincipal` should leave `@pressly/contracts`; it is persistence adapter language, not an HTTP/API contract.
 
@@ -746,7 +760,7 @@ export type TokenHasher = Readonly<{ hash: (rawToken: string) => string }>;
 export type Clock = Readonly<{ now: () => Date }>;
 ```
 
-## `modules/auth/src/features/load-session/load-session.usecase.ts`
+## `modules/business/auth/src/features/load-session/load-session.usecase.ts`
 
 ```ts id="adrryr"
 import { result, type Result } from '@pressly/kernel';
@@ -821,7 +835,7 @@ export const makeLoadSession =
 
 # 6. Persistence mapping
 
-## `modules/auth/src/adapters/common/assignments.ts`
+## `modules/business/auth/src/adapters/common/assignments.ts`
 
 ```ts id="s8m99s"
 import {
@@ -874,7 +888,7 @@ export const mapStoredAssignments = (
   });
 ```
 
-## `modules/auth/src/adapters/load-session/persistence/load-session.repo.ts`
+## `modules/business/auth/src/adapters/load-session/persistence/load-session.repo.ts`
 
 Change the role query to assignment query.
 
@@ -935,7 +949,7 @@ export const makeLoadSessionStore = (db: Database): LoadSessionStore => ({
 
 # 7. Auth HTTP middleware
 
-## `modules/auth/src/adapters/load-session/http/authenticate.middleware.ts`
+## `modules/business/auth/src/adapters/load-session/http/authenticate.middleware.ts`
 
 No highest-role selection.
 
@@ -970,7 +984,7 @@ export const makeAuthenticateMiddleware = (
   });
 ```
 
-## `modules/auth/src/adapters/load-session/http/authorize.middleware.ts`
+## `modules/business/auth/src/adapters/load-session/http/authorize.middleware.ts`
 
 This middleware stays generic. Pricing passes action, policies, and a resource reader.
 
@@ -1082,11 +1096,22 @@ export const makeAuthorizeMiddleware =
 
 ---
 
-# 8. Pricing-specific resource and policy
+# 8. Access-control pricing resource and policy
 
 Your pricing request already keeps `requestedBy` out of the HTTP body and injects it server-side in the controller. Keep that.
 
-## `modules/pricing/src/auth/pricing-resource.ts`
+Pricing authorization belongs in `modules/policy/access-control`, not in
+`modules/business/pricing` and not in `apps/api`.
+
+`modules/policy/access-control` may import:
+
+- `@pressly/auth` authorization primitives
+- `@pressly/contracts` protocol/request types
+- HTTP adapter types needed to build guards
+
+It must not import pricing module internals.
+
+## `modules/policy/access-control/src/resources/pricing-resource.ts`
 
 ```ts id="bb58wn"
 import {
@@ -1129,7 +1154,7 @@ export const pricingCatalogResourceFromRequest = (
 });
 ```
 
-## `modules/pricing/src/auth/pricing-policy.ts`
+## `modules/policy/access-control/src/policies/pricing-policy.ts`
 
 ```ts id="ln6ax6"
 import {
@@ -1138,7 +1163,7 @@ import {
   hasScopedRole,
   type PolicyRule,
 } from '@pressly/auth';
-import type { PricingCatalogResource } from './pricing-resource.ts';
+import type { PricingCatalogResource } from '../resources/pricing-resource.ts';
 
 export const pricingPolicies: readonly PolicyRule<PricingCatalogResource>[] = [
   allow<PricingCatalogResource>({
@@ -1165,60 +1190,28 @@ Your current route does this for publish. The new shape asks for a resource and 
 
 ---
 
-# 9. Pricing module route integration
+# 9. Access-control guard bundle and pricing route integration
 
-## `modules/pricing/src/main.ts`
+## `modules/policy/access-control/src/guards/pricing-guards.ts`
 
-Change auth port type to depend on a generic authorize function, not contracts.
+`modules/policy/access-control` composes concrete pricing guards from the generic auth
+middleware. It also owns the identity-to-audit-author translation.
 
 ```ts id="xctg7w"
 import type { AuthResource, PolicyRule, Action } from '@pressly/auth';
 import type { Request, RequestHandler, Response } from 'express';
-
-export type PricingModuleAuthorize = <R extends AuthResource>(
-  input: Readonly<{
-    action: Action;
-    policies: readonly PolicyRule<R>[];
-    readResource: (req: Request, res: Response) => R;
-  }>,
-) => RequestHandler;
-
-export type PricingModuleAuth = Readonly<{
-  authenticate: RequestHandler;
-  authorize: PricingModuleAuthorize;
-  readAuthor: ReadPricingChangeAuthor;
-}>;
-```
-
-Remove `freshSessionMaxAgeMinutes` from `PricingModuleAuth`. Freshness is now policy, not route wiring. Current `PricingModuleAuth` carries `freshSessionMaxAgeMinutes`.
-
-## `modules/pricing/src/adapters/publish-pricing/http/publish-pricing-change.route.ts`
-
-```ts id="e91yuw"
-import {
-  Router,
-  type RequestHandler,
-  type Request,
-  type Response,
-} from 'express';
-import {
-  pricingChangeRequestSchema,
-  type PricingChangeAuthor,
-  type PricingChangeRequest,
+import { makeAppError } from '@pressly/errors';
+import type {
+  PricingChangeAuthor,
+  PricingChangeRequest,
 } from '@pressly/contracts';
-import type { AuthResource, PolicyRule, Action } from '@pressly/auth';
-import { validateRequest } from '@pressly/http/express';
-import type { PlanPricingChange } from '../../../features/publish-pricing/plan-pricing-change.usecase.ts';
-import type { PublishPricingChange } from '../../../features/publish-pricing/publish-pricing-change.usecase.ts';
-import { makePlanPricingChangeController } from './plan-pricing-change.controller.ts';
-import { makePublishPricingChangeController } from './publish-pricing-change.controller.ts';
-import {
-  pricingCatalogResourceFromRequest,
-  type PricingCatalogResource,
-} from '../../../auth/pricing-resource.ts';
-import { pricingPolicies } from '../../../auth/pricing-policy.ts';
+import type { Principal } from '@pressly/auth';
+import { pricingCatalogResourceFromRequest } from '../resources/pricing-resource.ts';
+import { pricingPolicies } from '../policies/pricing-policy.ts';
 
-type ReadPricingChangeAuthor = (res: Response) => PricingChangeAuthor;
+type AuthLocals = Readonly<{
+  principal: Principal;
+}>;
 
 type Authorize = <R extends AuthResource>(
   input: Readonly<{
@@ -1228,83 +1221,19 @@ type Authorize = <R extends AuthResource>(
   }>,
 ) => RequestHandler;
 
-type PricingChangeRouteAuth = Readonly<{
+export type PricingAccessControl = Readonly<{
   authenticate: RequestHandler;
-  authorize: Authorize;
+  planPricingChange: RequestHandler;
+  publishPricingChange: RequestHandler;
   readAuthor: ReadPricingChangeAuthor;
 }>;
 
-const readPricingCatalogResource = (req: Request): PricingCatalogResource => {
-  const body = req.body as PricingChangeRequest;
-  return pricingCatalogResourceFromRequest(body);
-};
+type ReadPricingChangeAuthor = (res: Response) => PricingChangeAuthor;
 
-export const makePublishPricingChangeRoute = (input: {
-  planPricingChange: PlanPricingChange;
-  publishPricingChange: PublishPricingChange;
-  auth: PricingChangeRouteAuth;
-}): Router => {
-  const router = Router();
-  const validate = validateRequest({ body: pricingChangeRequestSchema });
-
-  const planPricingChangeController = makePlanPricingChangeController({
-    planPricingChange: input.planPricingChange,
-    readAuthor: input.auth.readAuthor,
-  });
-
-  const publishPricingChangeController = makePublishPricingChangeController({
-    publishPricingChange: input.publishPricingChange,
-    readAuthor: input.auth.readAuthor,
-  });
-
-  router.post(
-    '/changes/plan',
-    validate,
-    input.auth.authenticate,
-    input.auth.authorize({
-      action: 'pricing:plan',
-      policies: pricingPolicies,
-      readResource: readPricingCatalogResource,
-    }),
-    planPricingChangeController,
-  );
-
-  router.post(
-    '/changes/publish',
-    validate,
-    input.auth.authenticate,
-    input.auth.authorize({
-      action: 'pricing:publish',
-      policies: pricingPolicies,
-      readResource: readPricingCatalogResource,
-    }),
-    publishPricingChangeController,
-  );
-
-  return router;
-};
-```
-
-This preserves your route pipe. Validation comes before resource construction, so `req.body` is already a trusted protocol shape.
-
----
-
-# 10. App composition
-
-Your app already composes auth module and pricing module at the edge. Keep that.
-
-Change `readAuthenticatedPricingChangeAuthor` to read `principal`. This is business/audit attribution, not authorization authority.
-
-```ts id="my7y2a"
-const readAuthenticatedPricingChangeAuthor = (res: express.Response) => {
+const readAuthLocals = (res: Response): AuthLocals => {
   const auth = res.locals['auth'] as AuthLocals | undefined;
 
-  if (auth?.principal !== undefined)
-    return {
-      id: auth.principal.identityId,
-      kind: auth.principal.kind,
-      displayName: auth.principal.displayName,
-    };
+  if (auth?.principal !== undefined) return auth;
 
   throw makeAppError({
     kind: 'PermissionError',
@@ -1314,18 +1243,182 @@ const readAuthenticatedPricingChangeAuthor = (res: express.Response) => {
     status: 401,
   });
 };
+
+const readAuthenticatedPricingChangeAuthor: ReadPricingChangeAuthor = (res) => {
+  const { principal } = readAuthLocals(res);
+
+  return {
+    id: principal.identityId,
+    kind: principal.kind,
+    displayName: principal.displayName,
+  };
+};
+
+const readPricingCatalogResource = (req: Request) => {
+  const body = req.body as PricingChangeRequest;
+  return pricingCatalogResourceFromRequest(body);
+};
+
+export const makePricingAccessControl = (input: {
+  authenticate: RequestHandler;
+  authorize: Authorize;
+}): PricingAccessControl => ({
+  authenticate: input.authenticate,
+  planPricingChange: input.authorize({
+    action: 'pricing:plan',
+    policies: pricingPolicies,
+    readResource: readPricingCatalogResource,
+  }),
+  publishPricingChange: input.authorize({
+    action: 'pricing:publish',
+    policies: pricingPolicies,
+    readResource: readPricingCatalogResource,
+  }),
+  readAuthor: readAuthenticatedPricingChangeAuthor,
+});
 ```
 
-Then compose:
+Freshness is now policy, not route wiring. Current `PricingModuleAuth` carries
+`freshSessionMaxAgeMinutes`; remove it.
+
+## `modules/policy/access-control/src/main.ts`
+
+```ts id="gvc4sx"
+import type { RequestHandler } from 'express';
+import type { PricingAccessControl } from './guards/pricing-guards.ts';
+import { makePricingAccessControl } from './guards/pricing-guards.ts';
+
+type AccessControlAuthorize = Parameters<
+  typeof makePricingAccessControl
+>[0]['authorize'];
+
+export type AccessControlModule = Readonly<{
+  pricing: PricingAccessControl;
+}>;
+
+export const makeAccessControlModule = (input: {
+  auth: Readonly<{
+    authenticate: RequestHandler;
+    authorize: AccessControlAuthorize;
+  }>;
+}): AccessControlModule => ({
+  pricing: makePricingAccessControl({
+    authenticate: input.auth.authenticate,
+    authorize: input.auth.authorize,
+  }),
+});
+```
+
+## `modules/policy/access-control/src/public.ts`
+
+```ts id="rki98e"
+export type { AccessControlModule } from './main.ts';
+export { makeAccessControlModule } from './main.ts';
+export type { PricingAccessControl } from './guards/pricing-guards.ts';
+```
+
+## `modules/business/pricing/src/main.ts`
+
+Pricing receives route security as an input. It does not know how that security
+is implemented.
+
+```ts id="fwcdsf"
+import type { RequestHandler, Response } from 'express';
+import type { PricingChangeAuthor } from '@pressly/contracts';
+
+type ReadPricingChangeAuthor = (res: Response) => PricingChangeAuthor;
+
+export type PricingRouteSecurity = Readonly<{
+  authenticate: RequestHandler;
+  planPricingChange: RequestHandler;
+  publishPricingChange: RequestHandler;
+  readAuthor: ReadPricingChangeAuthor;
+}>;
+```
+
+## `modules/business/pricing/src/adapters/publish-pricing/http/publish-pricing-change.route.ts`
+
+```ts id="e91yuw"
+import { Router, type RequestHandler, type Response } from 'express';
+import {
+  pricingChangeRequestSchema,
+  type PricingChangeAuthor,
+} from '@pressly/contracts';
+import { validateRequest } from '@pressly/http/express';
+import type { PlanPricingChange } from '../../../features/publish-pricing/plan-pricing-change.usecase.ts';
+import type { PublishPricingChange } from '../../../features/publish-pricing/publish-pricing-change.usecase.ts';
+import { makePlanPricingChangeController } from './plan-pricing-change.controller.ts';
+import { makePublishPricingChangeController } from './publish-pricing-change.controller.ts';
+
+type ReadPricingChangeAuthor = (res: Response) => PricingChangeAuthor;
+
+type PricingChangeRouteSecurity = Readonly<{
+  authenticate: RequestHandler;
+  planPricingChange: RequestHandler;
+  publishPricingChange: RequestHandler;
+  readAuthor: ReadPricingChangeAuthor;
+}>;
+
+export const makePublishPricingChangeRoute = (input: {
+  planPricingChange: PlanPricingChange;
+  publishPricingChange: PublishPricingChange;
+  security: PricingChangeRouteSecurity;
+}): Router => {
+  const router = Router();
+  const validate = validateRequest({ body: pricingChangeRequestSchema });
+
+  const planPricingChangeController = makePlanPricingChangeController({
+    planPricingChange: input.planPricingChange,
+    readAuthor: input.security.readAuthor,
+  });
+
+  const publishPricingChangeController = makePublishPricingChangeController({
+    publishPricingChange: input.publishPricingChange,
+    readAuthor: input.security.readAuthor,
+  });
+
+  router.post(
+    '/changes/plan',
+    validate,
+    input.security.authenticate,
+    input.security.planPricingChange,
+    planPricingChangeController,
+  );
+
+  router.post(
+    '/changes/publish',
+    validate,
+    input.security.authenticate,
+    input.security.publishPricingChange,
+    publishPricingChangeController,
+  );
+
+  return router;
+};
+```
+
+This preserves your route pipe. Validation still comes before authorization, so
+the access-control guard reads an already validated protocol shape from
+`req.body`. Pricing still sees only route handlers and an audit author reader.
+
+---
+
+# 10. App composition
+
+Your app composes auth, access-control, and pricing. It does not define policy
+or read security locals itself.
 
 ```ts id="f0nj18"
-const pricingModule = makePricingModule({
-  db: runtime.database.db,
+const accessControlModule = makeAccessControlModule({
   auth: {
     authenticate: authModule.guards.authenticate,
     authorize: authModule.guards.authorize,
-    readAuthor: readAuthenticatedPricingChangeAuthor,
   },
+});
+
+const pricingModule = makePricingModule({
+  db: runtime.database.db,
+  security: accessControlModule.pricing,
 });
 ```
 
@@ -1395,7 +1488,7 @@ Keep these tests generic. `packages/auth` should not import pricing policy or pr
 Create:
 
 ```txt id="t2x7ja"
-modules/pricing/test/auth/pricing-policy.test.ts
+modules/policy/access-control/test/policies/pricing-policy.test.ts
 ```
 
 Cases:
@@ -1420,8 +1513,8 @@ import {
   type Principal,
   type PrincipalAttributes,
 } from '@pressly/auth';
-import { pricingPolicies } from '../../src/auth/pricing-policy.ts';
-import type { PricingCatalogResource } from '../../src/auth/pricing-resource.ts';
+import { pricingPolicies } from '../../src/policies/pricing-policy.ts';
+import type { PricingCatalogResource } from '../../src/resources/pricing-resource.ts';
 
 const principal: Principal = {
   identityId: 'identity_1',
@@ -1558,9 +1651,9 @@ Change `authenticate.middleware.ts` to write `{ principal, principalAttributes }
 
 Change middleware input from `{ action, roles, freshSessionMaxAgeMinutes }` to `{ action, policies, readResource }`.
 
-## Pass 6: Move pricing policy into pricing module
+## Pass 6: Add access-control pricing policy
 
-Add `modules/pricing/src/auth/pricing-resource.ts` and `pricing-policy.ts`. Change pricing routes to pass policy + resource reader.
+Add `modules/policy/access-control` with pricing resource mapping, pricing policy, and pricing guard composition. Change pricing routes to accept prebuilt route security handlers instead of policy inputs.
 
 ## Pass 7: Clean contracts
 
@@ -1601,7 +1694,7 @@ validate request
 authenticate session
 load principal + principal attributes
 construct resource from validated request
-authorize principal/principalAttributes/action/resource/environment against module policy
+authorize principal/principalAttributes/action/resource/environment against access-control policy
 execute use case with trusted requestedBy
 audit sensitive result
 ```
