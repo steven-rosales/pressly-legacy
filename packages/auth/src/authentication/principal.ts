@@ -1,11 +1,7 @@
-import type { IdentityKind } from './identity.ts';
-import type { Role } from './permission.ts';
-
 export type Principal = Readonly<{
   identityId: string;
-  kind: IdentityKind;
+  kind: 'human' | 'service';
   displayName: string;
-  roles: readonly Role[];
   email?: string;
   sessionId?: string;
   sessionIssuedAt?: Date;

@@ -7,6 +7,9 @@ import {
   text,
   timestamp,
   uuid,
+  index,
+  uniqueIndex,
+  check,
 } from 'drizzle-orm/pg-core';
 
 export const authRoleEnum = pgEnum('auth_role', [
@@ -18,6 +21,12 @@ export const authRoleEnum = pgEnum('auth_role', [
   'service',
   'developer',
   'ci',
+]);
+
+export const authScopeKindEnum = pgEnum('auth_scope_kind', [
+  'global',
+  'location',
+  'resource',
 ]);
 
 export const authIdentities = pgTable('auth_identites', {
@@ -113,3 +122,55 @@ export const authAuditEvents = pgTable('auth_audit_events', {
     .notNull()
     .defaultNow(),
 });
+
+export const authRoleAssignments = pgTable(
+  'auth_role_assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    identityId: uuid('identity_id')
+      .notNull()
+      .references(() => authIdentities.id),
+    role: authRoleEnum('role').notNull(),
+    scopeKind: authScopeKindEnum('scope_kind').notNull(),
+    scopeId: text('scope_id').notNull().default('*'),
+    scopeResourceType: text('scope_resource_type').notNull().default('*'),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdByIdentityId: uuid('created_by_identity_id').references(
+      () => authIdentities.id,
+    ),
+  },
+  (table) => ({
+    identityIdx: index('auth_role_assignments_identity_idx').on(
+      table.identityId,
+    ),
+    scopeIdx: index('auth_role_assignments_scope_idx').on(
+      table.scopeKind,
+      table.scopeId,
+    ),
+    uniqueAssignment: uniqueIndex('auth_role_assignments_unique_idx').on(
+      table.identityId,
+      table.role,
+      table.scopeKind,
+      table.scopeId,
+      table.scopeResourceType,
+    ),
+    scopeShape: check(
+      'auth_role_assignments_scope_shape_check',
+      sql`
+        (
+          ${table.scopeKind} = 'resource'
+          and ${table.scopeResourceType} <> '*'
+        )
+        or
+        (
+          ${table.scopeKind} <> 'resource'
+          and ${table.scopeResourceType} = '*'
+        )
+      `,
+    ),
+  }),
+);

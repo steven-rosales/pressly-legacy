@@ -20,9 +20,6 @@ export {
 export type {
   LoadCurrentPricingForPublishInput,
   LoadPricingCatalogCommand,
-  PricingModuleAction,
-  PricingModuleAuthorizationInput,
-  PricingModuleRole,
   PricingParamsRequestSchema,
   PricingChangeAuthor,
   PublishPricingChangeCommand,
@@ -66,7 +63,6 @@ export type {
   AuthIdentityKind,
   AuthPermission,
   AuthRole,
-  AuthorizeMiddlewareInput,
   BootstrapOwnerCommand,
   CreateBootstrapOwnerInput,
   CreateSessionInput,

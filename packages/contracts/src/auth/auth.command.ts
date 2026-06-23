@@ -58,9 +58,3 @@ export type CreateBootstrapOwnerInput = Readonly<{
   emailNormalized: string;
   passwordHash: string;
 }>;
-
-export type AuthorizeMiddlewareInput = Readonly<{
-  action: AuthPermission;
-  roles: readonly AuthRole[];
-  freshSessionMaxAgeMinutes?: number;
-}>;
