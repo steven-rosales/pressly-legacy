@@ -18,7 +18,7 @@ const AUTH_TEST_TABLES = [
   'auth_identity_roles',
   'auth_password_credentials',
   'auth_sessions',
-  'auth_identites',
+  'auth_identities',
 ] as const;
 
 export type AuthTestDatabase = TestDatabaseRuntime;

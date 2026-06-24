@@ -81,7 +81,7 @@ Check at least one known table:
 
 ```bash
 docker exec -i pressly-restore-drill-postgres \
-  psql -U pressly -d pressly_restore_drill -c 'select count(*) from auth_identites;'
+  psql -U pressly -d pressly_restore_drill -c 'select count(*) from auth_identities;'
 ```
 
 Use real table names from the restored output.
@@ -101,6 +101,6 @@ date: 2026-06-18
 backup object: s3://bucket-a5tjsz/postgres/pressly-20260616T220418Z.sql.gz.gpg
 restored into: pressly-restore-drill-postgres
 table listing: passed
-data check: select count(*) from auth_identites; returned 1
+data check: select count(*) from auth_identities; returned 1
 production volume touched: no
 ```

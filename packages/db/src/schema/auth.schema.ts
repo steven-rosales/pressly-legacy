@@ -29,7 +29,7 @@ export const authScopeKindEnum = pgEnum('auth_scope_kind', [
   'resource',
 ]);
 
-export const authIdentities = pgTable('auth_identites', {
+export const authIdentities = pgTable('auth_identities', {
   id: uuid('id').primaryKey().defaultRandom(),
   kind: text('kind').notNull(),
   displayName: text('display_name').notNull(),

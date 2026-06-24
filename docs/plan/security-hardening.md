@@ -716,7 +716,7 @@ from auth_identity_roles;
 
 Keep `auth_identity_roles` for one compatibility pass. Remove it after the middleware no longer reads it.
 
-Small hygiene note: the table name currently says `auth_identites`. Do not mix that repair into this refactor. Make it a separate migration after auth behavior is stable.
+Small hygiene note: the identity table spelling has been corrected with a dedicated migration. Keep future auth schema work on `auth_identities`.
 
 ---
 
