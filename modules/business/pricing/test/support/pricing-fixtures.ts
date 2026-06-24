@@ -2,7 +2,6 @@ import { pricing, type Database } from '@pressly/db';
 import { makeAppError } from '@pressly/errors';
 
 type PricingServiceRow = typeof pricing.pricingServices.$inferSelect;
-type PricingLocationRow = typeof pricing.pricingLocations.$inferSelect;
 type PricingSetRow = typeof pricing.pricingSets.$inferSelect;
 type PricingItemRow = typeof pricing.pricingItems.$inferSelect;
 
@@ -49,27 +48,10 @@ export const insertPricingService = async (
   return service ?? missingReturnedRow('Pricing service was not inserted.');
 };
 
-export const insertPricingLocation = async (
-  db: Database,
-  input: Partial<Pick<PricingLocationRow, 'slug' | 'label' | 'isActive'>> = {},
-): Promise<PricingLocationRow> => {
-  const [location] = await db
-    .insert(pricing.pricingLocations)
-    .values({
-      slug: input.slug ?? 'fort-lee',
-      label: input.label ?? 'Fort Lee',
-      isActive: input.isActive ?? true,
-    })
-    .returning();
-
-  return location ?? missingReturnedRow('Pricing location was not inserted.');
-};
-
 export const insertPricingSetWithItems = async (
   db: Database,
   input: Readonly<{
     serviceId: string;
-    locationId?: string;
     status?: string;
     currency?: string;
     effectiveFrom?: Date;
@@ -87,7 +69,6 @@ export const insertPricingSetWithItems = async (
     .insert(pricing.pricingSets)
     .values({
       serviceId: input.serviceId,
-      locationId: input.locationId ?? null,
       status: input.status ?? 'active',
       currency: input.currency ?? 'USD',
       effectiveFrom: input.effectiveFrom ?? now,

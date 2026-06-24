@@ -13,7 +13,6 @@ export type PublishPricingChangeItem = Readonly<{
 
 export type PublishPricingChangeCommand = Readonly<{
   serviceSlug: PricingServiceSlug;
-  locationSlug?: string;
   reason: string;
   requestedBy: PricingChangeAuthor;
   items: readonly PublishPricingChangeItem[];
@@ -150,9 +149,6 @@ export const makePricingChangePlan = (input: {
 
   const plan: PricingChangePlan = {
     serviceSlug: input.command.serviceSlug,
-    ...(input.command.locationSlug === undefined
-      ? {}
-      : { locationSlug: input.command.locationSlug }),
     reason: input.command.reason,
     oldPricingSetId: input.currentSet.id,
     currency: input.currentSet.currency,

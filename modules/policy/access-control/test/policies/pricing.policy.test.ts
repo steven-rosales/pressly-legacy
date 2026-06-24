@@ -2,7 +2,7 @@ import type { Principal } from '@pressly/auth/authentication';
 import {
   authorize,
   globalScope,
-  locationScope,
+  resourceScope,
   type Action,
   type PrincipalAttributes,
   type Role,
@@ -21,15 +21,12 @@ const principal: Principal = {
   sessionIssuedAt: new Date('2026-06-22T11:55:00.000Z'),
 };
 
-const locationResource = (
-  locationSlug = 'new-york',
-): PricingCatalogResource => ({
+const pricingResource = (): PricingCatalogResource => ({
   kind: 'pricing.catalog',
-  id: `pricing:wash-fold:location:${locationSlug}`,
-  scope: locationScope(locationSlug),
+  id: 'pricing:wash-fold:global',
+  scope: globalScope(),
   attributes: {
     serviceSlug: 'wash-fold',
-    locationSlug,
   },
 });
 
@@ -57,7 +54,7 @@ const decide = (input: {
     principal,
     principalAttributes,
     action: input.action,
-    resource: input.resource ?? locationResource(),
+    resource: input.resource ?? pricingResource(),
     environment: {
       now,
       sessionAgeMinutes: input.sessionAgeMinutes ?? 5,
@@ -71,7 +68,7 @@ describe('pricing access-control policy', () => {
     expect(
       decide({
         action: 'pricing:plan',
-        assignments: [assignment('admin', locationScope('new-york'))],
+        assignments: [assignment('admin')],
       }),
     ).toEqual({
       tag: 'allowed',
@@ -93,7 +90,12 @@ describe('pricing access-control policy', () => {
     expect(
       decide({
         action: 'pricing:plan',
-        assignments: [assignment('admin', locationScope('los-angeles'))],
+        assignments: [
+          assignment(
+            'admin',
+            resourceScope('pricing.catalog', 'pricing:dry-cleaning:global'),
+          ),
+        ],
       }),
     ).toMatchObject({
       tag: 'denied',

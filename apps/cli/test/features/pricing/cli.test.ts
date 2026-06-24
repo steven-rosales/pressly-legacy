@@ -25,9 +25,6 @@ const makeFakeClient = () => {
 
       return result.ok({
         serviceSlug: command.serviceSlug,
-        ...(command.locationSlug === undefined
-          ? {}
-          : { locationSlug: command.locationSlug }),
         currency: 'USD',
         updatedAt: '2026-05-22T00:00:00.000Z',
         items: [
@@ -48,9 +45,6 @@ const makeFakeClient = () => {
 
       return result.ok({
         serviceSlug: command.serviceSlug,
-        ...(command.locationSlug === undefined
-          ? {}
-          : { locationSlug: command.locationSlug }),
         reason: command.reason,
         oldPricingSetId: 'old_set',
         currency: 'USD',
@@ -102,8 +96,6 @@ describe('pricing CLI', () => {
       'show',
       '--service',
       'wash-fold',
-      '--location',
-      'hoboken',
     ]);
 
     expect(result.isOk(parseResult)).toBe(true);
@@ -111,7 +103,6 @@ describe('pricing CLI', () => {
     if (result.isOk(parseResult) && parseResult.value !== 'help') {
       expect(parseResult.value.action).toBe('show');
       expect(parseResult.value.serviceSlug).toBe('wash-fold');
-      expect(parseResult.value.locationSlug).toBe('hoboken');
     }
   });
 

@@ -36,6 +36,13 @@
       "when": 1782064444714,
       "tag": "0005_stale_lizard",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782240081284,
+      "tag": "0006_remove_pricing_location_scope",
+      "breakpoints": true
     }
   ]
 }

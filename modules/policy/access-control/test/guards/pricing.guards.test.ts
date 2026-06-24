@@ -100,7 +100,6 @@ describe('pricing access-control guards', () => {
       {
         body: {
           serviceSlug: 'wash-fold',
-          locationSlug: 'new-york',
           reason: 'Update delivery fee',
           items: [{ code: 'delivery_fee', priceCents: 100 }],
         },
@@ -110,11 +109,10 @@ describe('pricing access-control guards', () => {
 
     expect(resource).toEqual({
       kind: 'pricing.catalog',
-      id: 'pricing:wash-fold:location:new-york',
-      scope: { kind: 'location', id: 'new-york' },
+      id: 'pricing:wash-fold:global',
+      scope: { kind: 'global', id: '*' },
       attributes: {
         serviceSlug: 'wash-fold',
-        locationSlug: 'new-york',
       },
     });
   });

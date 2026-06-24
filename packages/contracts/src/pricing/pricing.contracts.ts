@@ -22,7 +22,6 @@ export const pricingItemSchema = z.object({
 
 export const pricingCatalogSchema = z.object({
   serviceSlug: pricingServiceSlugSchema,
-  locationSlug: z.string().optional(),
   currency: z.string(),
   items: z.array(pricingItemSchema),
   updatedAt: utcIsoStringSchema,
@@ -30,7 +29,6 @@ export const pricingCatalogSchema = z.object({
 
 export const loadPricingCatalogCommandSchema = z.object({
   serviceSlug: pricingServiceSlugSchema,
-  locationSlug: z.string().min(1).optional(),
 });
 
 export const pricingParamsRequestSchema = loadPricingCatalogCommandSchema;
@@ -45,7 +43,6 @@ export const publishPricingChangeItemSchema = z
 export const pricingChangeRequestSchema = z
   .object({
     serviceSlug: pricingServiceSlugSchema,
-    locationSlug: z.string().min(1).optional(),
     reason: z.string().min(1),
     items: z.array(publishPricingChangeItemSchema).min(1),
   })

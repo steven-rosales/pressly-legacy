@@ -15,7 +15,6 @@ export type PricingCliAction = 'show' | 'plan' | 'publish';
 export type PricingCliCommand = Readonly<{
   action: PricingCliAction;
   serviceSlug: PricingServiceSlug;
-  locationSlug?: string;
   reason?: string;
   items: readonly PublishPricingChangeItem[];
   confirm: boolean;
@@ -37,9 +36,6 @@ export const toPricingChangeInput = (
 
   return result.ok({
     serviceSlug: command.serviceSlug,
-    ...(command.locationSlug === undefined
-      ? {}
-      : { locationSlug: command.locationSlug }),
     reason: command.reason,
     items: [...command.items],
   });
@@ -52,9 +48,6 @@ export const runPricingCommand = async (
   if (command.action === 'show') {
     const catalogResult = await client.loadCatalog({
       serviceSlug: command.serviceSlug,
-      ...(command.locationSlug === undefined
-        ? {}
-        : { locationSlug: command.locationSlug }),
     });
 
     return result.isOk(catalogResult)

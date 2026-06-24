@@ -18,9 +18,6 @@ export const makePublishPricingChangeController = (input: {
     const requestedBy = input.readAuthor(res);
     const publishResult = await input.publishPricingChange({
       serviceSlug: body.serviceSlug,
-      ...(body.locationSlug === undefined
-        ? {}
-        : { locationSlug: body.locationSlug }),
       reason: body.reason,
       items: body.items,
       requestedBy,

@@ -10,13 +10,7 @@ export const makeLoadPricingCatalogController = (
 ): RequestHandler =>
   catchAsync(async (req, res) => {
     const params = req.params as PricingParamsRequestSchema;
-    const command =
-      params.locationSlug === undefined
-        ? { serviceSlug: params.serviceSlug }
-        : {
-            serviceSlug: params.serviceSlug,
-            locationSlug: params.locationSlug,
-          };
+    const command = { serviceSlug: params.serviceSlug };
 
     const catalogResult = await loadPricingCatalog(command);
 

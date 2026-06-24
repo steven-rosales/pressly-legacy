@@ -22,7 +22,7 @@ Goals:
   - The website should be optimized for SEO. This includes optimized text/keywords, fast rendering, and extensive metadata
   - The website should let the user explore as quickly as possible to create a pickup.
 - Implement the Cents interface (app.trycents.com/order/business/OGgz) in the website to let the users create and manage their account, create orders, and manage their preferences.
-- There may be two places where we do need to connect our API: The commercial page for the form and service & pricing page along with the locations due to the pricing. Although, we should simply hardcode constants for now which all these pages use, then we'll implement a smarter approach.
+- There may be two places where we do need to connect our API: the commercial page for the form and the service and pricing pages. Although, we should simply hardcode constants for now which all these pages use, then we'll implement a smarter approach.
 
 Non-goals:
 

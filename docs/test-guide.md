@@ -626,7 +626,7 @@ creates a pricing change plan from a valid command
 returns a permission error when actor cannot publish pricing
 does not commit when command validation fails
 selects the currently effective pricing set
-falls back to global pricing for a known location without scoped pricing
+returns not found when no active pricing set exists
 ```
 
 Weak:

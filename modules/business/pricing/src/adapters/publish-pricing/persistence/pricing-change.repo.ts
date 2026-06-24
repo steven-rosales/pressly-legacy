@@ -28,7 +28,6 @@ import type {
 type PricingService = typeof pricing.pricingServices.$inferSelect;
 type PricingSet = typeof pricing.pricingSets.$inferSelect;
 type PricingItem = typeof pricing.pricingItems.$inferSelect;
-type PricingLocation = typeof pricing.pricingLocations.$inferSelect;
 
 const databaseFailure = (cause: unknown): AppError =>
   makeAppError({
@@ -94,41 +93,9 @@ const findService = async (
   });
 };
 
-const findLocation = async (
-  db: DatabaseExecutor,
-  locationSlug: string | undefined,
-): Promise<PricingLocation | undefined> => {
-  if (locationSlug === undefined) return undefined;
-
-  const [location] = await db
-    .select()
-    .from(pricing.pricingLocations)
-    .where(
-      and(
-        eq(pricing.pricingLocations.slug, locationSlug),
-        eq(pricing.pricingLocations.isActive, true),
-      ),
-    )
-    .limit(1);
-
-  if (location !== undefined) return location;
-
-  throw notFoundError({
-    code: 'pricing_location_not_found',
-    message: `Pricing location not found: ${locationSlug}.`,
-    safeMessage: 'Pricing location was not found.',
-  });
-};
-
-const activePricingSetPredicate = (
-  serviceId: string,
-  locationId: string | undefined,
-) =>
+const activePricingSetPredicate = (serviceId: string) =>
   and(
     eq(pricing.pricingSets.serviceId, serviceId),
-    locationId === undefined
-      ? isNull(pricing.pricingSets.locationId)
-      : eq(pricing.pricingSets.locationId, locationId),
     eq(pricing.pricingSets.status, 'active'),
     lte(pricing.pricingSets.effectiveFrom, sql`now()`),
     or(
@@ -140,12 +107,11 @@ const activePricingSetPredicate = (
 const findSingleActivePricingSet = async (
   db: DatabaseExecutor,
   serviceId: string,
-  locationId: string | undefined,
 ): Promise<PricingSet> => {
   const sets = await db
     .select()
     .from(pricing.pricingSets)
-    .where(activePricingSetPredicate(serviceId, locationId))
+    .where(activePricingSetPredicate(serviceId))
     .limit(2);
 
   if (sets.length === 1) return sets[0] as PricingSet;
@@ -185,7 +151,6 @@ const findPricingItems = async (
 
 type PricingPlanReadModel = {
   service: PricingService;
-  location: PricingLocation | undefined;
   currentSet: PricingSet;
   currentItems: readonly PricingItem[];
 };
@@ -195,17 +160,11 @@ const loadPricingPlan = async (
   input: LoadCurrentPricingForPublishInput | PublishPricingChangeCommand,
 ): Promise<PricingPlanReadModel> => {
   const service = await findService(db, input.serviceSlug);
-  const location = await findLocation(db, input.locationSlug);
-  const currentSet = await findSingleActivePricingSet(
-    db,
-    service.id,
-    location?.id,
-  );
+  const currentSet = await findSingleActivePricingSet(db, service.id);
   const currentItems = await findPricingItems(db, currentSet.id);
 
   return {
     service,
-    location,
     currentSet,
     currentItems,
   };
@@ -240,18 +199,16 @@ export const makePricingChangeStore = (input: {
     toDatabaseResult(async () =>
       input.db.transaction(async (tx) => {
         const { command, plan, publishedAt } = publish;
-        const lockKey = [
-          'pricing',
-          command.serviceSlug,
-          command.locationSlug ?? 'global',
-        ].join(':');
+        const lockKey = ['pricing', command.serviceSlug].join(':');
 
         await tx.execute(
           sql`select pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`,
         );
 
-        const { service, location, currentSet, currentItems } =
-          await loadPricingPlan(tx, command);
+        const { service, currentSet, currentItems } = await loadPricingPlan(
+          tx,
+          command,
+        );
 
         if (currentSet.id !== plan.oldPricingSetId) {
           throw pricingStateChanged({
@@ -277,7 +234,6 @@ export const makePricingChangeStore = (input: {
           .insert(pricing.pricingSets)
           .values({
             serviceId: service.id,
-            locationId: location?.id ?? null,
             status: 'active',
             currency: currentSet.currency,
             effectiveFrom: publishedAt,
@@ -317,9 +273,6 @@ export const makePricingChangeStore = (input: {
             actorKind: command.requestedBy.kind,
             actorDisplayName: command.requestedBy.displayName,
             serviceSlug: command.serviceSlug,
-            ...(command.locationSlug === undefined
-              ? {}
-              : { locationSlug: command.locationSlug }),
             reason: command.reason,
             oldPricingSetId: currentSet.id,
             newPricingSetId: newSet.id,

@@ -9,12 +9,10 @@ import type { PricingCliOutput } from '../application/command.ts';
 export const renderPricingCatalog = (
   catalog: LoadPricingCatalogResult,
 ): string => {
-  const scope = catalog.locationSlug ?? 'global';
   const lines = [
     'Pricing catalog',
     '',
     `Service: ${catalog.serviceSlug}`,
-    `Scope: ${scope}`,
     `Updated: ${catalog.updatedAt}`,
     '',
     'Items:',
@@ -42,12 +40,10 @@ export const renderPricingPublishResult = (
   ].join('\n');
 
 export const renderPricingPlan = (plan: PricingChangePlan): string => {
-  const scope = plan.locationSlug ?? 'global';
   const lines = [
     'Pricing change plan',
     '',
     `Service: ${plan.serviceSlug}`,
-    `Scope: ${scope}`,
     `Reason: ${plan.reason}`,
     `Current pricing set: ${plan.oldPricingSetId}`,
     '',

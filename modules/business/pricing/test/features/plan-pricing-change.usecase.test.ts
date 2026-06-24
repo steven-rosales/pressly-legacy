@@ -35,7 +35,6 @@ describe('plan pricing change usecase', () => {
 
     const actual = await planPricingChange(
       makePublishPricingChangeCommand({
-        locationSlug: 'fort-lee',
         items: [
           { code: 'delivery_fee', priceCents: 595 },
           { code: 'hang_dry', priceCents: 295 },
@@ -47,7 +46,6 @@ describe('plan pricing change usecase', () => {
 
     expect(value).toEqual({
       serviceSlug: 'wash-fold',
-      locationSlug: 'fort-lee',
       reason: 'Update delivery fee',
       oldPricingSetId: 'set_1',
       currency: 'USD',
@@ -63,7 +61,6 @@ describe('plan pricing change usecase', () => {
     expect(calls.load).toEqual([
       {
         serviceSlug: 'wash-fold',
-        locationSlug: 'fort-lee',
       },
     ]);
     expect(calls.commit).toEqual([]);

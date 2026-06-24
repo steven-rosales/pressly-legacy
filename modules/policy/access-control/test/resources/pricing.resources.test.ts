@@ -18,23 +18,4 @@ describe('pricing access-control resources', () => {
       },
     });
   });
-
-  it('maps location pricing requests to a location-scoped catalog resource', () => {
-    const resource = pricingCatalogResourceFromRequest({
-      serviceSlug: 'dry-cleaning',
-      locationSlug: 'new-york',
-      reason: 'Update dry cleaning price',
-      items: [{ code: 'shirt', priceCents: 1295 }],
-    });
-
-    expect(resource).toEqual({
-      kind: 'pricing.catalog',
-      id: 'pricing:dry-cleaning:location:new-york',
-      scope: { kind: 'location', id: 'new-york' },
-      attributes: {
-        serviceSlug: 'dry-cleaning',
-        locationSlug: 'new-york',
-      },
-    });
-  });
 });

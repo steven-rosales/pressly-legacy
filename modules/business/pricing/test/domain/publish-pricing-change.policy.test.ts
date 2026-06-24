@@ -91,11 +91,10 @@ describe('publish pricing change policy', () => {
     });
   });
 
-  it('preserves location scope and returns only changed items', () => {
+  it('returns only changed items', () => {
     const command: PublishPricingChangeCommand = {
       serviceSlug: 'dry-cleaning',
-      locationSlug: 'fort-lee',
-      reason: 'Update local dry cleaning prices',
+      reason: 'Update dry cleaning prices',
       requestedBy: actor,
       items: [
         { code: 'delivery_fee', priceCents: 595 },
@@ -130,8 +129,7 @@ describe('publish pricing change policy', () => {
       ok: true,
       plan: {
         serviceSlug: 'dry-cleaning',
-        locationSlug: 'fort-lee',
-        reason: 'Update local dry cleaning prices',
+        reason: 'Update dry cleaning prices',
         oldPricingSetId: 'set_2',
         currency: 'USD',
         changes: [

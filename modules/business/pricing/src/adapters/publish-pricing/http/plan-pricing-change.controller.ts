@@ -18,9 +18,6 @@ export const makePlanPricingChangeController = (input: {
     const requestedBy = input.readAuthor(res);
     const planResult = await input.planPricingChange({
       serviceSlug: body.serviceSlug,
-      ...(body.locationSlug === undefined
-        ? {}
-        : { locationSlug: body.locationSlug }),
       reason: body.reason,
       items: body.items,
       requestedBy,

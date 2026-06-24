@@ -187,7 +187,7 @@ export const scopeCovers = (
 
 This is the core hardening move: authority is not global unless explicitly global.
 
-Do not add tenant scope in this first pass. The current pricing resource model is global/location/resource. Tenant authority only becomes correct when the system has a real tenant-to-location graph and resources carry enough ancestry to evaluate "tenant covers location" without guessing.
+Do not add tenant scope in this first pass. The current auth scope model is global/location/resource. Tenant authority only becomes correct when the system has a real tenant-to-location graph and resources carry enough ancestry to evaluate "tenant covers location" without guessing.
 
 ## `packages/auth/src/authorization/assignment.ts`
 
@@ -1114,12 +1114,7 @@ It must not import pricing module internals.
 ## `modules/policy/access-control/src/resources/pricing-resource.ts`
 
 ```ts id="bb58wn"
-import {
-  globalScope,
-  locationScope,
-  type AuthResource,
-  type Scope,
-} from '@pressly/auth';
+import { globalScope, type AuthResource } from '@pressly/auth';
 import type { PricingChangeRequest } from '@pressly/contracts';
 
 export type PricingCatalogResource = AuthResource &
@@ -1127,29 +1122,17 @@ export type PricingCatalogResource = AuthResource &
     kind: 'pricing.catalog';
     attributes: Readonly<{
       serviceSlug: string;
-      locationSlug?: string;
     }>;
   }>;
-
-const pricingScopeFromRequest = (request: PricingChangeRequest): Scope =>
-  request.locationSlug === undefined
-    ? globalScope()
-    : locationScope(request.locationSlug);
 
 export const pricingCatalogResourceFromRequest = (
   request: PricingChangeRequest,
 ): PricingCatalogResource => ({
   kind: 'pricing.catalog',
-  scope: pricingScopeFromRequest(request),
-  id:
-    request.locationSlug === undefined
-      ? `pricing:${request.serviceSlug}:global`
-      : `pricing:${request.serviceSlug}:location:${request.locationSlug}`,
+  scope: globalScope(),
+  id: `pricing:${request.serviceSlug}:global`,
   attributes: {
     serviceSlug: request.serviceSlug,
-    ...(request.locationSlug === undefined
-      ? {}
-      : { locationSlug: request.locationSlug }),
   },
 });
 ```
@@ -1495,8 +1478,7 @@ Cases:
 
 ```txt id="bsh429"
 global owner can publish any pricing catalog
-location owner can publish same location pricing catalog
-location owner cannot publish another location pricing catalog
+resource-scoped owner cannot publish global pricing catalog
 admin can plan pricing in scope
 admin cannot publish pricing
 owner cannot publish with stale session
@@ -1509,7 +1491,7 @@ import { describe, expect, it } from 'vitest';
 import {
   authorize,
   globalScope,
-  locationScope,
+  resourceScope,
   type Principal,
   type PrincipalAttributes,
 } from '@pressly/auth';
@@ -1529,22 +1511,22 @@ const attributes = (
   identityActive: true,
 });
 
-const pricingResource = (locationSlug: string): PricingCatalogResource => ({
+const pricingResource = (): PricingCatalogResource => ({
   kind: 'pricing.catalog',
-  scope: locationScope(locationSlug),
-  id: `pricing:wash-fold:location:${locationSlug}`,
-  attributes: { serviceSlug: 'wash-fold', locationSlug },
+  scope: globalScope(),
+  id: 'pricing:wash-fold:global',
+  attributes: { serviceSlug: 'wash-fold' },
 });
 
 describe('pricing authorization', () => {
-  it('allows a location owner to publish pricing for their location', () => {
+  it('allows a global owner to publish pricing', () => {
     const decision = authorize({
       principal,
       principalAttributes: attributes([
-        { role: 'owner', scope: locationScope('hoboken') },
+        { role: 'owner', scope: globalScope() },
       ]),
       action: 'pricing:publish',
-      resource: pricingResource('hoboken'),
+      resource: pricingResource(),
       environment: {
         now: new Date('2026-06-20T00:00:00.000Z'),
         sessionAgeMinutes: 3,
@@ -1558,14 +1540,20 @@ describe('pricing authorization', () => {
     });
   });
 
-  it('denies a location owner publishing another location', () => {
+  it('denies a resource-scoped owner publishing global pricing', () => {
     const decision = authorize({
       principal,
       principalAttributes: attributes([
-        { role: 'owner', scope: locationScope('hoboken') },
+        {
+          role: 'owner',
+          scope: resourceScope(
+            'pricing.catalog',
+            'pricing:dry-cleaning:global',
+          ),
+        },
       ]),
       action: 'pricing:publish',
-      resource: pricingResource('jersey-city'),
+      resource: pricingResource(),
       environment: {
         now: new Date('2026-06-20T00:00:00.000Z'),
         sessionAgeMinutes: 3,
@@ -1579,14 +1567,14 @@ describe('pricing authorization', () => {
     });
   });
 
-  it('allows global owner to publish any location', () => {
+  it('allows global owner to publish any service pricing', () => {
     const decision = authorize({
       principal,
       principalAttributes: attributes([
         { role: 'owner', scope: globalScope() },
       ]),
       action: 'pricing:publish',
-      resource: pricingResource('jersey-city'),
+      resource: pricingResource(),
       environment: {
         now: new Date('2026-06-20T00:00:00.000Z'),
         sessionAgeMinutes: 3,
@@ -1608,7 +1596,7 @@ Cases:
 ```txt id="t7z9y1"
 requires authenticate middleware first
 passes resource from validated request into authorization
-denies principal with assignment for different location
+denies principal whose assignment does not cover global pricing
 denies stale session
 attaches authorization decision to res.locals
 ```
@@ -1619,7 +1607,7 @@ Cases:
 
 ```txt id="gll509"
 maps global assignment
-maps location assignment
+maps resource assignment
 drops unknown role
 drops invalid resource assignment shape
 does not read auth_identity_roles after migration pass

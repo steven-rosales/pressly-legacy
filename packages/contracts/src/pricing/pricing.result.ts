@@ -20,7 +20,6 @@ export type PricingChangeDiffItem = Readonly<{
 
 export type PricingChangePlan = Readonly<{
   serviceSlug: PricingServiceSlug;
-  locationSlug?: string;
   reason: string;
   oldPricingSetId: string;
   currency: string;

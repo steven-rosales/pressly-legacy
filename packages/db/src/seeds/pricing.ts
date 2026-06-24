@@ -39,152 +39,14 @@ export const seedPricing = async (db: Database): Promise<void> => {
     `);
 
     await tx.execute(sql`
-      insert into pricing_locations (slug, label)
-      values
-        ('allendale', 'Allendale'),
-        ('bergenfield', 'Bergenfield'),
-        ('bogota', 'Bogota'),
-        ('carlstadt', 'Carlstadt'),
-        ('cliffside-park', 'Cliffside Park'),
-        ('closter', 'Closter'),
-        ('cresskill', 'Cresskill'),
-        ('demarest', 'Demarest'),
-        ('dumont', 'Dumont'),
-        ('east-rutherford', 'East Rutherford'),
-        ('edgewater', 'Edgewater'),
-        ('elmwood-park', 'Elmwood Park'),
-        ('emerson', 'Emerson'),
-        ('englewood', 'Englewood'),
-        ('englewood-cliffs', 'Englewood Cliffs'),
-        ('fair-lawn', 'Fair Lawn'),
-        ('fairview', 'Fairview'),
-        ('fort-lee', 'Fort Lee'),
-        ('franklin-lakes', 'Franklin Lakes'),
-        ('garfield', 'Garfield'),
-        ('glen-rock', 'Glen Rock'),
-        ('hackensack', 'Hackensack'),
-        ('harrington-park', 'Harrington Park'),
-        ('hasbrouck-heights', 'Hasbrouck Heights'),
-        ('hillsdale', 'Hillsdale'),
-        ('ho-ho-kus', 'Ho-Ho-Kus'),
-        ('leonia', 'Leonia'),
-        ('little-ferry', 'Little Ferry'),
-        ('lodi', 'Lodi'),
-        ('lyndhurst', 'Lyndhurst'),
-        ('maywood', 'Maywood'),
-        ('midland-park', 'Midland Park'),
-        ('montvale', 'Montvale'),
-        ('moonachie', 'Moonachie'),
-        ('new-milford', 'New Milford'),
-        ('north-arlington', 'North Arlington'),
-        ('northvale', 'Northvale'),
-        ('norwood', 'Norwood'),
-        ('oakland', 'Oakland'),
-        ('old-tappan', 'Old Tappan'),
-        ('oradell', 'Oradell'),
-        ('palisades-park', 'Palisades Park'),
-        ('paramus', 'Paramus'),
-        ('park-ridge', 'Park Ridge'),
-        ('ramsey', 'Ramsey'),
-        ('ridgefield', 'Ridgefield'),
-        ('ridgefield-park', 'Ridgefield Park'),
-        ('river-edge', 'River Edge'),
-        ('rochelle-park', 'Rochelle Park'),
-        ('rutherford', 'Rutherford'),
-        ('saddle-brook', 'Saddle Brook'),
-        ('saddle-river', 'Saddle River'),
-        ('south-hackensack', 'South Hackensack'),
-        ('teaneck', 'Teaneck'),
-        ('tenafly', 'Tenafly'),
-        ('upper-saddle-river', 'Upper Saddle River'),
-        ('waldwick', 'Waldwick'),
-        ('wallington', 'Wallington'),
-        ('washington-township', 'Washington Township'),
-        ('westwood', 'Westwood'),
-        ('wood-ridge', 'Wood Ridge'),
-        ('woodcliff-lake', 'Woodcliff Lake'),
-        ('wyckoff', 'Wyckoff'),
-        ('belleville', 'Belleville'),
-        ('bloomfield', 'Bloomfield'),
-        ('caldwell', 'Caldwell'),
-        ('cedar-grove', 'Cedar Grove'),
-        ('east-orange', 'East Orange'),
-        ('essex-fells', 'Essex Fells'),
-        ('fairfield', 'Fairfield'),
-        ('glen-ridge', 'Glen Ridge'),
-        ('irvington', 'Irvington'),
-        ('maplewood', 'Maplewood'),
-        ('millburn', 'Millburn'),
-        ('montclair', 'Montclair'),
-        ('newark', 'Newark'),
-        ('north-caldwell', 'North Caldwell'),
-        ('nutley', 'Nutley'),
-        ('orange', 'Orange'),
-        ('roseland', 'Roseland'),
-        ('short-hills', 'Short Hills'),
-        ('south-orange', 'South Orange'),
-        ('upper-montclair', 'Upper Montclair'),
-        ('verona', 'Verona'),
-        ('west-caldwell', 'West Caldwell'),
-        ('west-orange', 'West Orange'),
-        ('bayonne', 'Bayonne'),
-        ('east-newark', 'East Newark'),
-        ('guttenberg', 'Guttenberg'),
-        ('harrison', 'Harrison'),
-        ('hoboken', 'Hoboken'),
-        ('jersey-city', 'Jersey City'),
-        ('kearny', 'Kearny'),
-        ('north-bergen', 'North Bergen'),
-        ('secaucus', 'Secaucus'),
-        ('union-city', 'Union City'),
-        ('weehawken', 'Weehawken'),
-        ('west-new-york', 'West New York'),
-        ('boonton', 'Boonton'),
-        ('east-hanover', 'East Hanover'),
-        ('florham-park', 'Florham Park'),
-        ('hanover', 'Hanover'),
-        ('lincoln-park', 'Lincoln Park'),
-        ('montville', 'Montville'),
-        ('morris-township', 'Morris Township'),
-        ('morristown', 'Morristown'),
-        ('mountain-lakes', 'Mountain Lakes'),
-        ('parsippany', 'Parsippany'),
-        ('pequannock-township', 'Pequannock Township'),
-        ('clifton', 'Clifton'),
-        ('haledon', 'Haledon'),
-        ('hawthorne', 'Hawthorne'),
-        ('little-falls', 'Little Falls'),
-        ('north-haledon', 'North Haledon'),
-        ('passaic', 'Passaic'),
-        ('paterson', 'Paterson'),
-        ('pompton-lakes', 'Pompton Lakes'),
-        ('prospect-park', 'Prospect Park'),
-        ('totowa', 'Totowa'),
-        ('wayne', 'Wayne'),
-        ('woodland-park', 'Woodland Park'),
-        ('elizabeth', 'Elizabeth'),
-        ('hillside', 'Hillside'),
-        ('kenilworth', 'Kenilworth'),
-        ('roselle', 'Roselle'),
-        ('roselle-park', 'Roselle Park'),
-        ('union', 'Union')
-      on conflict (slug) do update
-      set
-        label = excluded.label,
-        is_active = true,
-        updated_at = now()
-    `);
-
-    await tx.execute(sql`
-      insert into pricing_sets (service_id, location_id, status, currency)
-      select service.id, null, 'active', 'USD'
+      insert into pricing_sets (service_id, status, currency)
+      select service.id, 'active', 'USD'
       from pricing_services service
       where service.slug in ('wash-fold', 'dry-cleaning')
         and not exists (
           select 1
           from pricing_sets active_set
           where active_set.service_id = service.id
-            and active_set.location_id is null
             and active_set.status = 'active'
         )
       on conflict do nothing
@@ -260,7 +122,6 @@ export const seedPricing = async (db: Database): Promise<void> => {
         sort_order,
         metadata
       ) on item.service_slug = s.slug
-      where ps.location_id is null
       on conflict (pricing_set_id, code) do nothing
     `);
   });

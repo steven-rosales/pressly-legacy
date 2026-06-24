@@ -15,7 +15,6 @@ const PRICING_TEST_TABLES = [
   'pricing_change_events',
   'pricing_items',
   'pricing_sets',
-  'pricing_locations',
   'pricing_services',
 ] as const;
 

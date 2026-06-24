@@ -5,7 +5,6 @@ import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import { makePricingChangeAuthor } from '../support/builders.ts';
 import { createPricingTestDatabase } from '../support/database.ts';
 import {
-  insertPricingLocation,
   insertPricingService,
   insertPricingSetWithItems,
 } from '../support/pricing-fixtures.ts';
@@ -173,57 +172,6 @@ describe('pricing change repo', () => {
     });
   });
 
-  it('publishes location-scoped pricing changes', async () => {
-    const service = await insertPricingService(testDb.db);
-    const location = await insertPricingLocation(testDb.db);
-    const { set } = await insertPricingSetWithItems(testDb.db, {
-      serviceId: service.id,
-      locationId: location.id,
-      effectiveFrom: new Date('2000-01-01T00:00:00.000Z'),
-      items: [{ code: 'delivery_fee', priceCents: 595 }],
-    });
-    const store = makePricingChangeStore({ db: testDb.db });
-
-    const actual = await store.commitPricingChangePlan({
-      publishedAt: new Date('2026-05-21T12:00:00.000Z'),
-      command: {
-        serviceSlug: 'wash-fold',
-        locationSlug: 'fort-lee',
-        reason: 'Update Fort Lee delivery fee',
-        requestedBy: makePricingChangeAuthor(),
-        items: [{ code: 'delivery_fee', priceCents: 695 }],
-      },
-      plan: {
-        serviceSlug: 'wash-fold',
-        locationSlug: 'fort-lee',
-        reason: 'Update Fort Lee delivery fee',
-        oldPricingSetId: set.id,
-        currency: 'USD',
-        changes: [
-          {
-            code: 'delivery_fee',
-            name: 'Delivery Fee',
-            oldPriceCents: 595,
-            newPriceCents: 695,
-          },
-        ],
-      },
-    });
-
-    const value = expectOk(actual);
-    const [newSet] = await testDb.db
-      .select()
-      .from(pricing.pricingSets)
-      .where(eq(pricing.pricingSets.id, value.newPricingSetId));
-    const [auditEvent] = await testDb.db
-      .select()
-      .from(pricing.pricingChangeEvents)
-      .where(eq(pricing.pricingChangeEvents.id, value.auditEventId));
-
-    expect(newSet?.locationId).toBe(location.id);
-    expect(auditEvent?.locationSlug).toBe('fort-lee');
-  });
-
   it('returns not found errors for missing publishing scope data', async () => {
     const service = await insertPricingService(testDb.db);
     await insertPricingSetWithItems(testDb.db, {
@@ -235,13 +183,8 @@ describe('pricing change repo', () => {
     const missingService = await store.loadCurrentPricingForPublish({
       serviceSlug: 'dry-cleaning',
     });
-    const missingLocation = await store.loadCurrentPricingForPublish({
-      serviceSlug: 'wash-fold',
-      locationSlug: 'missing-location',
-    });
 
     expectErrCode(missingService, 'pricing_service_not_found');
-    expectErrCode(missingLocation, 'pricing_location_not_found');
   });
 
   it('rejects stale publish plans when pricing changed after planning', async () => {

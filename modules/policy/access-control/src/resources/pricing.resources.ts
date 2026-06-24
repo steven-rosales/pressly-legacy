@@ -1,35 +1,19 @@
-import {
-  globalScope,
-  locationScope,
-  type AuthResource,
-  type Scope,
-} from '@pressly/auth/authorization';
+import { globalScope, type AuthResource } from '@pressly/auth/authorization';
 import type { PricingChangeRequest } from '@pressly/contracts';
 
 export type PricingCatalogResource = Omit<AuthResource, 'kind' | 'attributes'> &
   Readonly<{
     kind: 'pricing.catalog';
-    attributes: Readonly<{ serviceSlug: string; locationSlug?: string }>;
+    attributes: Readonly<{ serviceSlug: string }>;
   }>;
-
-const pricingScopeFromRequest = (request: PricingChangeRequest): Scope =>
-  request.locationSlug === undefined
-    ? globalScope()
-    : locationScope(request.locationSlug);
 
 export const pricingCatalogResourceFromRequest = (
   request: PricingChangeRequest,
 ): PricingCatalogResource => ({
   kind: 'pricing.catalog',
-  scope: pricingScopeFromRequest(request),
-  id:
-    request.locationSlug === undefined
-      ? `pricing:${request.serviceSlug}:global`
-      : `pricing:${request.serviceSlug}:location:${request.locationSlug}`,
+  scope: globalScope(),
+  id: `pricing:${request.serviceSlug}:global`,
   attributes: {
     serviceSlug: request.serviceSlug,
-    ...(request.locationSlug === undefined
-      ? {}
-      : { locationSlug: request.locationSlug }),
   },
 });

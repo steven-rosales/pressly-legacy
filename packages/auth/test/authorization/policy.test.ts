@@ -32,36 +32,39 @@ const attributes = (
     : { assuranceLevel: input.assuranceLevel }),
 });
 
-const pricingResource = (locationSlug: string): AuthResource => ({
-  kind: 'pricing.catalog',
-  scope: locationScope(locationSlug),
-  id: `pricing:wash-fold:location:${locationSlug}`,
-  attributes: { serviceSlug: 'wash-fold', locationSlug },
+const facilityResource = (locationId: string): AuthResource => ({
+  kind: 'facility.operations',
+  scope: locationScope(locationId),
+  id: `facility:${locationId}:operations`,
+  attributes: { locationId },
 });
+
+const manageFacilityAction = 'auth:user:manage';
+const revokeSessionAction = 'auth:session:revoke';
 
 describe('allow and deny policy builders', () => {
   it('builds immutable policy rules', () => {
     const condition = hasScopedRole(['owner']);
     const allowRule = allow({
-      id: 'pricing.publish.owner',
-      action: 'pricing:publish',
+      id: 'facility.manage.owner',
+      action: manageFacilityAction,
       when: [condition],
     });
     const denyRule = deny({
-      id: 'pricing.publish.blocked',
-      action: 'pricing:publish',
+      id: 'facility.manage.blocked',
+      action: manageFacilityAction,
       when: [condition],
     });
 
     expect(allowRule).toEqual({
-      id: 'pricing.publish.owner',
-      action: 'pricing:publish',
+      id: 'facility.manage.owner',
+      action: manageFacilityAction,
       effect: 'allow',
       conditions: [condition],
     });
     expect(denyRule).toEqual({
-      id: 'pricing.publish.blocked',
-      action: 'pricing:publish',
+      id: 'facility.manage.blocked',
+      action: manageFacilityAction,
       effect: 'deny',
       conditions: [condition],
     });
@@ -75,13 +78,13 @@ describe('authorize', () => {
       principalAttributes: attributes([
         { role: 'owner', scope: locationScope('hoboken') },
       ]),
-      action: 'pricing:publish',
-      resource: pricingResource('hoboken'),
+      action: manageFacilityAction,
+      resource: facilityResource('hoboken'),
       environment: { now },
       policies: [
         allow({
-          id: 'pricing.publish.owner',
-          action: 'pricing:publish',
+          id: 'facility.manage.owner',
+          action: manageFacilityAction,
           when: [hasScopedRole(['owner'])],
         }),
       ],
@@ -89,7 +92,7 @@ describe('authorize', () => {
 
     expect(decision).toEqual({
       tag: 'allowed',
-      policyId: 'pricing.publish.owner',
+      policyId: 'facility.manage.owner',
     });
   });
 
@@ -99,13 +102,13 @@ describe('authorize', () => {
     const decision = authorize({
       principal,
       principalAttributes: attributes([], { identityActive: false }),
-      action: 'pricing:publish',
-      resource: pricingResource('hoboken'),
+      action: manageFacilityAction,
+      resource: facilityResource('hoboken'),
       environment: { now },
       policies: [
         allow({
-          id: 'pricing.publish.owner',
-          action: 'pricing:publish',
+          id: 'facility.manage.owner',
+          action: manageFacilityAction,
           when: [
             {
               name: 'should_not_run',
@@ -133,23 +136,23 @@ describe('authorize', () => {
       principalAttributes: attributes([
         { role: 'owner', scope: globalScope() },
       ]),
-      action: 'pricing:publish',
-      resource: pricingResource('hoboken'),
+      action: manageFacilityAction,
+      resource: facilityResource('hoboken'),
       environment: { now },
       policies: [
         allow({
-          id: 'pricing.publish.owner',
-          action: 'pricing:publish',
+          id: 'facility.manage.owner',
+          action: manageFacilityAction,
           when: [hasScopedRole(['owner'])],
         }),
         deny({
-          id: 'pricing.publish.freeze',
-          action: 'pricing:publish',
+          id: 'facility.manage.freeze',
+          action: manageFacilityAction,
           when: [
             {
-              name: 'pricing_freeze',
+              name: 'facility_freeze',
               denyReason: 'policy_denied',
-              safeMessage: 'Pricing changes are frozen.',
+              safeMessage: 'Facility updates are frozen.',
               evaluate: () => true,
             },
           ],
@@ -161,7 +164,7 @@ describe('authorize', () => {
       tag: 'denied',
       reason: 'policy_denied',
       safeMessage: 'You do not have permission to perform this action.',
-      policyId: 'pricing.publish.freeze',
+      policyId: 'facility.manage.freeze',
     });
   });
 
@@ -171,13 +174,13 @@ describe('authorize', () => {
       principalAttributes: attributes([
         { role: 'owner', scope: locationScope('hoboken') },
       ]),
-      action: 'pricing:publish',
-      resource: pricingResource('jersey-city'),
+      action: manageFacilityAction,
+      resource: facilityResource('jersey-city'),
       environment: { now },
       policies: [
         allow({
-          id: 'pricing.publish.owner',
-          action: 'pricing:publish',
+          id: 'facility.manage.owner',
+          action: manageFacilityAction,
           when: [hasScopedRole(['owner'])],
         }),
       ],
@@ -187,7 +190,7 @@ describe('authorize', () => {
       tag: 'denied',
       reason: 'missing_assignment',
       safeMessage: 'You do not have permission to perform this action.',
-      policyId: 'pricing.publish.owner',
+      policyId: 'facility.manage.owner',
       details: { condition: 'has_scope_role' },
     });
   });
@@ -198,13 +201,13 @@ describe('authorize', () => {
       principalAttributes: attributes([
         { role: 'owner', scope: globalScope() },
       ]),
-      action: 'pricing:rollback',
-      resource: pricingResource('hoboken'),
+      action: revokeSessionAction,
+      resource: facilityResource('hoboken'),
       environment: { now },
       policies: [
         allow({
-          id: 'pricing.publish.owner',
-          action: 'pricing:publish',
+          id: 'facility.manage.owner',
+          action: manageFacilityAction,
           when: [hasScopedRole(['owner'])],
         }),
       ],
@@ -215,8 +218,8 @@ describe('authorize', () => {
       reason: 'missing_assignment',
       safeMessage: 'You do not have permission to perform this action.',
       details: {
-        action: 'pricing:rollback',
-        resource: 'pricing.catalog',
+        action: revokeSessionAction,
+        resource: 'facility.operations',
         scope: locationScope('hoboken'),
       },
     });
@@ -237,19 +240,19 @@ describe('authorize', () => {
     const principalAttributes = attributes([
       { role: 'owner', scope: globalScope() },
     ]);
-    const resource = pricingResource('hoboken');
+    const resource = facilityResource('hoboken');
     const environment = { now, sessionAgeMinutes: 3 };
 
     authorize({
       principal,
       principalAttributes,
-      action: 'pricing:publish',
+      action: manageFacilityAction,
       resource,
       environment,
       policies: [
         allow({
-          id: 'pricing.publish.capture',
-          action: 'pricing:publish',
+          id: 'facility.manage.capture',
+          action: manageFacilityAction,
           when: [condition],
         }),
       ],
@@ -259,7 +262,7 @@ describe('authorize', () => {
       {
         principal,
         principalAttributes,
-        action: 'pricing:publish',
+        action: manageFacilityAction,
         resource,
         environment,
       },
@@ -275,13 +278,13 @@ describe('authorize', () => {
       principalAttributes: attributes([
         { role: 'owner', scope: globalScope() },
       ]),
-      action: 'pricing:publish',
-      resource: pricingResource('hoboken'),
+      action: manageFacilityAction,
+      resource: facilityResource('hoboken'),
       environment: { now },
       policies: [
         allow({
-          id: 'pricing.publish.owner',
-          action: 'pricing:publish',
+          id: 'facility.manage.owner',
+          action: manageFacilityAction,
           when: [
             {
               name: 'first',

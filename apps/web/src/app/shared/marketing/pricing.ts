@@ -116,11 +116,8 @@ const parseDisplayPriceCents = (price: string): number => {
   return Number(dollars) * 100 + Number(cents);
 };
 
-const buildWashFoldStaticCatalog = (
-  locationSlug?: string,
-): PricingCatalogResult => ({
+const buildWashFoldStaticCatalog = (): PricingCatalogResult => ({
   serviceSlug: 'wash-fold',
-  ...(locationSlug === undefined ? {} : { locationSlug }),
   currency: 'USD',
   updatedAt: STATIC_PRICING_UPDATED_AT,
   items: [
@@ -173,11 +170,8 @@ const buildWashFoldStaticCatalog = (
   ],
 });
 
-const buildDryCleaningStaticCatalog = (
-  locationSlug?: string,
-): PricingCatalogResult => ({
+const buildDryCleaningStaticCatalog = (): PricingCatalogResult => ({
   serviceSlug: 'dry-cleaning',
-  ...(locationSlug === undefined ? {} : { locationSlug }),
   currency: 'USD',
   updatedAt: STATIC_PRICING_UPDATED_AT,
   items: [
@@ -222,11 +216,10 @@ const buildDryCleaningStaticCatalog = (
 
 const buildStaticCatalog = (
   serviceSlug: PricingServiceSlug,
-  locationSlug?: string,
 ): PricingCatalogResult =>
   serviceSlug === 'wash-fold'
-    ? buildWashFoldStaticCatalog(locationSlug)
-    : buildDryCleaningStaticCatalog(locationSlug);
+    ? buildWashFoldStaticCatalog()
+    : buildDryCleaningStaticCatalog();
 
 const hasRequiredPricing = (catalog: PricingCatalogResult): boolean => {
   if (catalog.serviceSlug === 'wash-fold') {
@@ -245,21 +238,14 @@ const hasRequiredPricing = (catalog: PricingCatalogResult): boolean => {
 };
 
 const loadCachedPricingCatalogViewModel = cache(
-  async (
-    serviceSlug: PricingServiceSlug,
-    locationSlug?: string,
-  ): Promise<PricingCatalogViewModel> => {
+  async (serviceSlug: PricingServiceSlug): Promise<PricingCatalogViewModel> => {
     if (shouldUseStaticPricingOnly())
       return {
         source: 'static-fallback',
-        catalog: buildStaticCatalog(serviceSlug, locationSlug),
+        catalog: buildStaticCatalog(serviceSlug),
       };
 
-    const input: PricingParamsRequestSchema =
-      locationSlug === undefined
-        ? { serviceSlug }
-        : { serviceSlug, locationSlug };
-    const pricing = await loadPricingCatalog(input);
+    const pricing = await loadPricingCatalog({ serviceSlug });
 
     if (result.isOk(pricing) && hasRequiredPricing(pricing.value))
       return {
@@ -269,7 +255,7 @@ const loadCachedPricingCatalogViewModel = cache(
 
     return {
       source: 'static-fallback',
-      catalog: buildStaticCatalog(serviceSlug, locationSlug),
+      catalog: buildStaticCatalog(serviceSlug),
     };
   },
 );
@@ -277,10 +263,7 @@ const loadCachedPricingCatalogViewModel = cache(
 export async function loadPricingCatalogViewModel(
   input: PricingParamsRequestSchema,
 ): Promise<PricingCatalogViewModel> {
-  return loadCachedPricingCatalogViewModel(
-    input.serviceSlug,
-    input.locationSlug,
-  );
+  return loadCachedPricingCatalogViewModel(input.serviceSlug);
 }
 
 export const selectItemsByCategory = (
@@ -395,14 +378,9 @@ export const toWashFoldPricingModel = (
   };
 };
 
-export async function loadWashFoldPricingViewModel(
-  input: { locationSlug?: string } = {},
-): Promise<WashFoldPricingModel> {
+export async function loadWashFoldPricingViewModel(): Promise<WashFoldPricingModel> {
   const pricing = await loadPricingCatalogViewModel({
     serviceSlug: 'wash-fold',
-    ...(input.locationSlug === undefined
-      ? {}
-      : { locationSlug: input.locationSlug }),
   });
 
   return toWashFoldPricingModel(pricing.catalog);
@@ -445,14 +423,9 @@ export const toDryCleaningPricingModel = (
   };
 };
 
-export async function loadDryCleaningPricingViewModel(
-  input: { locationSlug?: string } = {},
-): Promise<DryCleaningPricingModel> {
+export async function loadDryCleaningPricingViewModel(): Promise<DryCleaningPricingModel> {
   const pricing = await loadPricingCatalogViewModel({
     serviceSlug: 'dry-cleaning',
-    ...(input.locationSlug === undefined
-      ? {}
-      : { locationSlug: input.locationSlug }),
   });
 
   return toDryCleaningPricingModel(pricing.catalog);

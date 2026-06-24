@@ -14,7 +14,6 @@ export type { PublishPricingChangeCommand };
 
 export type LoadCurrentPricingForPublishInput = Readonly<{
   serviceSlug: PublishPricingChangeCommand['serviceSlug'];
-  locationSlug?: NonNullable<PublishPricingChangeCommand['locationSlug']>;
 }>;
 
 export type CurrentPricingForPublish = Readonly<{

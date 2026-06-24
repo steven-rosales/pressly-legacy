@@ -26,9 +26,6 @@ export const makePublishPricingChange =
 
     const current = await store.loadCurrentPricingForPublish({
       serviceSlug: command.serviceSlug,
-      ...(command.locationSlug === undefined
-        ? {}
-        : { locationSlug: command.locationSlug }),
     });
 
     if (result.isErr(current)) return current;

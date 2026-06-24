@@ -71,63 +71,21 @@ export const makeEffectivePricingCatalogFinder = (
           notFound(`Pricing service not found: ${command.serviceSlug}`),
         );
 
-      const location =
-        command.locationSlug === undefined
-          ? undefined
-          : (
-              await db
-                .select()
-                .from(pricing.pricingLocations)
-                .where(
-                  and(
-                    eq(pricing.pricingLocations.slug, command.locationSlug),
-                    eq(pricing.pricingLocations.isActive, true),
-                  ),
-                )
-                .limit(1)
-            )[0];
+      const activeSet = (
+        await db
+          .select()
+          .from(pricing.pricingSets)
+          .where(
+            and(
+              eq(pricing.pricingSets.serviceId, service.id),
+              isCurrentPricingSet(),
+            ),
+          )
+          .orderBy(desc(pricing.pricingSets.effectiveFrom))
+          .limit(1)
+      )[0];
 
-      if (command.locationSlug !== undefined && location === undefined)
-        return result.err(
-          notFound(`Pricing location not found: ${command.locationSlug}`),
-        );
-
-      const locationSet =
-        location === undefined
-          ? undefined
-          : (
-              await db
-                .select()
-                .from(pricing.pricingSets)
-                .where(
-                  and(
-                    eq(pricing.pricingSets.serviceId, service.id),
-                    eq(pricing.pricingSets.locationId, location.id),
-                    isCurrentPricingSet(),
-                  ),
-                )
-                .orderBy(desc(pricing.pricingSets.effectiveFrom))
-                .limit(1)
-            )[0];
-
-      const defaultSet =
-        locationSet ??
-        (
-          await db
-            .select()
-            .from(pricing.pricingSets)
-            .where(
-              and(
-                eq(pricing.pricingSets.serviceId, service.id),
-                isNull(pricing.pricingSets.locationId),
-                isCurrentPricingSet(),
-              ),
-            )
-            .orderBy(desc(pricing.pricingSets.effectiveFrom))
-            .limit(1)
-        )[0];
-
-      if (defaultSet === undefined)
+      if (activeSet === undefined)
         return result.err(
           notFound(`Active pricing set not found: ${command.serviceSlug}`),
         );
@@ -135,16 +93,13 @@ export const makeEffectivePricingCatalogFinder = (
       const items = await db
         .select()
         .from(pricing.pricingItems)
-        .where(eq(pricing.pricingItems.pricingSetId, defaultSet.id))
+        .where(eq(pricing.pricingItems.pricingSetId, activeSet.id))
         .orderBy(pricing.pricingItems.sortOrder, pricing.pricingItems.name);
 
       return result.ok({
         serviceSlug: command.serviceSlug,
-        ...(command.locationSlug === undefined
-          ? {}
-          : { locationSlug: command.locationSlug }),
-        currency: defaultSet.currency,
-        updatedAt: utcIsoFromDate(defaultSet.updatedAt),
+        currency: activeSet.currency,
+        updatedAt: utcIsoFromDate(activeSet.updatedAt),
         items: items.map((item) => ({
           service: item.service,
           unit: item.unit,

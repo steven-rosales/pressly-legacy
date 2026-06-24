@@ -13,11 +13,5 @@ export const makeLoadPricingCatalogRoute = (input: {
 
   router.get('/services/:serviceSlug/pricing', validate, controller);
 
-  router.get(
-    '/locations/:locationSlug/services/:serviceSlug/pricing',
-    validate,
-    controller,
-  );
-
   return router;
 };

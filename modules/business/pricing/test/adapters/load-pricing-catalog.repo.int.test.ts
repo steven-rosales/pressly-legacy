@@ -3,7 +3,6 @@ import { makeEffectivePricingCatalogFinder } from '../../src/adapters/load-prici
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import { createPricingTestDatabase } from '../support/database.ts';
 import {
-  insertPricingLocation,
   insertPricingService,
   insertPricingSetWithItems,
 } from '../support/pricing-fixtures.ts';
@@ -78,82 +77,6 @@ describe('effective pricing catalog repo', () => {
       ],
     });
     expect(new Date(value.updatedAt).toString()).not.toBe('Invalid Date');
-  });
-
-  it('loads location-specific pricing when a scoped set exists', async () => {
-    const service = await insertPricingService(testDb.db);
-    const location = await insertPricingLocation(testDb.db);
-
-    await insertPricingSetWithItems(testDb.db, {
-      serviceId: service.id,
-      effectiveFrom: new Date('2000-01-01T00:00:00.000Z'),
-      items: [{ code: 'delivery_fee', priceCents: 495 }],
-    });
-    await insertPricingSetWithItems(testDb.db, {
-      serviceId: service.id,
-      locationId: location.id,
-      effectiveFrom: new Date('2000-01-01T00:00:00.000Z'),
-      items: [{ code: 'delivery_fee', priceCents: 595 }],
-    });
-
-    const finder = makeEffectivePricingCatalogFinder(testDb.db);
-
-    const actual = await finder.findEffectivePricingCatalog({
-      serviceSlug: 'wash-fold',
-      locationSlug: 'fort-lee',
-    });
-
-    const value = expectOk(actual);
-
-    expect(value.locationSlug).toBe('fort-lee');
-    expect(value.items).toMatchObject([
-      {
-        name: 'Delivery Fee',
-        priceCents: 595,
-      },
-    ]);
-  });
-
-  it('falls back to global pricing when a known location has no scoped set', async () => {
-    const service = await insertPricingService(testDb.db);
-
-    await insertPricingLocation(testDb.db, {
-      slug: 'hoboken',
-      label: 'Hoboken',
-    });
-    await insertPricingSetWithItems(testDb.db, {
-      serviceId: service.id,
-      effectiveFrom: new Date('2000-01-01T00:00:00.000Z'),
-      items: [{ code: 'delivery_fee', priceCents: 495 }],
-    });
-
-    const finder = makeEffectivePricingCatalogFinder(testDb.db);
-
-    const actual = await finder.findEffectivePricingCatalog({
-      serviceSlug: 'wash-fold',
-      locationSlug: 'hoboken',
-    });
-
-    const value = expectOk(actual);
-
-    expect(value.locationSlug).toBe('hoboken');
-    expect(value.items).toMatchObject([{ priceCents: 495 }]);
-  });
-
-  it('returns not found for unknown locations', async () => {
-    const service = await insertPricingService(testDb.db);
-    await insertPricingSetWithItems(testDb.db, {
-      serviceId: service.id,
-      effectiveFrom: new Date('2000-01-01T00:00:00.000Z'),
-    });
-    const finder = makeEffectivePricingCatalogFinder(testDb.db);
-
-    const actual = await finder.findEffectivePricingCatalog({
-      serviceSlug: 'wash-fold',
-      locationSlug: 'missing-location',
-    });
-
-    expectErrCode(actual, 'pricing_not_found');
   });
 
   it('does not read inactive, expired, or future pricing sets as current', async () => {

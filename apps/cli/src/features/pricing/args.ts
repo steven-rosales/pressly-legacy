@@ -16,13 +16,12 @@ export const usage = [
   'Pressly pricing CLI',
   '',
   'Usage:',
-  '  pressly-admin pricing show --service wash-fold [--location hoboken]',
+  '  pressly-admin pricing show --service wash-fold',
   '  pressly-admin pricing plan --service wash-fold --set delivery_fee=4.95 --reason "Update delivery fee"',
   '  pressly-admin pricing publish --service wash-fold --set delivery_fee=4.95 --reason "Update delivery fee" --yes',
   '',
   'Options:',
   '  --service   Pricing service: wash-fold or dry-cleaning',
-  '  --location  Optional pricing location slug',
   '  --set       Item change as code=money. Repeat for multiple items',
   '  --reason    Required for plan/publish',
   '  --yes       Required to commit publish',
@@ -144,7 +143,6 @@ export const parsePricingCliCommand = (
       allowPositionals: true,
       options: {
         service: { type: 'string' },
-        location: { type: 'string' },
         set: { type: 'string', multiple: true },
         reason: { type: 'string' },
         yes: { type: 'boolean' },
@@ -191,12 +189,9 @@ export const parsePricingCliCommand = (
       commandError('--reason is required for pricing changes.'),
     );
 
-  const locationSlug = getSingleString(parsed.values, 'location');
-
   return result.ok({
     action,
     serviceSlug: service,
-    ...(locationSlug === undefined ? {} : { locationSlug }),
     ...(reason === undefined ? {} : { reason }),
     items: changes.value,
     confirm: getBoolean(parsed.values, 'yes'),

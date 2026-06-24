@@ -61,36 +61,6 @@ describe('load pricing catalog http controller', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('includes location scope when route params contain a location', async () => {
-    const loadPricingCatalog = vi.fn<LoadPricingCatalog>().mockResolvedValue(
-      result.ok({
-        serviceSlug: 'dry-cleaning',
-        locationSlug: 'fort-lee',
-        currency: 'USD',
-        updatedAt: '2026-05-21T12:00:00.000Z',
-        items: [],
-      }),
-    );
-    const controller = makeLoadPricingCatalogController(loadPricingCatalog);
-    const req = {
-      params: {
-        serviceSlug: 'dry-cleaning',
-        locationSlug: 'fort-lee',
-      },
-    } as unknown as Request;
-    const res = makeHttpResponse();
-    const next = vi.fn() as NextFunction;
-
-    controller(req, res as unknown as Response, next);
-    await waitForController();
-
-    expect(loadPricingCatalog).toHaveBeenCalledWith({
-      serviceSlug: 'dry-cleaning',
-      locationSlug: 'fort-lee',
-    });
-    expect(res.status).toHaveBeenCalledWith(200);
-  });
-
   it('returns a failure envelope from usecase errors', async () => {
     const error = makeAppError({
       kind: 'NotFoundError',
@@ -127,7 +97,7 @@ describe('load pricing catalog http controller', () => {
 });
 
 describe('load pricing catalog http route', () => {
-  it('registers public global and location-scoped pricing catalog routes', () => {
+  it('registers the public pricing catalog route', () => {
     const loadPricingCatalog = vi.fn<LoadPricingCatalog>().mockResolvedValue(
       result.ok({
         serviceSlug: 'wash-fold',
@@ -141,16 +111,11 @@ describe('load pricing catalog http route', () => {
     });
     const routes = getRoutes(router);
 
-    expect(routes).toHaveLength(2);
+    expect(routes).toHaveLength(1);
     expect(routes[0]).toMatchObject({
       path: '/services/:serviceSlug/pricing',
       methods: { get: true },
     });
-    expect(routes[1]).toMatchObject({
-      path: '/locations/:locationSlug/services/:serviceSlug/pricing',
-      methods: { get: true },
-    });
     expect(routes[0]?.stack).toHaveLength(2);
-    expect(routes[1]?.stack).toHaveLength(2);
   });
 });

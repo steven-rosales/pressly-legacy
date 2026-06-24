@@ -11,9 +11,7 @@ describe('load pricing catalog usecase', () => {
     const { finder, calls } = makeFakeEffectivePricingCatalogFinder();
     const loadPricingCatalog = makeLoadPricingCatalog(finder);
 
-    const actual = await loadPricingCatalog(
-      makeLoadPricingCatalogCommand({ locationSlug: 'fort-lee' }),
-    );
+    const actual = await loadPricingCatalog(makeLoadPricingCatalogCommand());
 
     const value = expectOk(actual);
 
@@ -30,7 +28,6 @@ describe('load pricing catalog usecase', () => {
     expect(calls.find).toEqual([
       {
         serviceSlug: 'wash-fold',
-        locationSlug: 'fort-lee',
       },
     ]);
   });
