@@ -2,7 +2,7 @@
 
 Use this for production recovery.
 
-For a safe practice restore, use `infra/aws/lightsail/restore-postgres-drill.md`
+For a safe practice restore, use `infra/aws/docs/restore-postgres-drill.md`
 instead. The drill restores into a disposable container and does not touch the
 production Postgres volume.
 
@@ -90,5 +90,5 @@ Before trusting production backups, test the drill against a disposable
 database:
 
 ```bash
-less /opt/pressly/repo/infra/aws/lightsail/restore-postgres-drill.md
+less /opt/pressly/repo/infra/aws/docs/restore-postgres-drill.md
 ```

@@ -48,7 +48,7 @@ sudo chown -R ubuntu:ubuntu /opt/pressly
 Create the production env file:
 
 ```bash
-cp /opt/pressly/repo/infra/aws/lightsail/.env.production.example /opt/pressly/.env.production
+cp /opt/pressly/repo/infra/aws/docs/.env.production.example /opt/pressly/.env.production
 nano /opt/pressly/.env.production
 chmod 600 /opt/pressly/.env.production
 ```
@@ -137,21 +137,108 @@ Snapshots are for machine recovery.
 Practice restores before trusting backups:
 
 ```bash
-less /opt/pressly/repo/infra/aws/lightsail/restore-postgres-drill.md
+less /opt/pressly/repo/infra/aws/docs/restore-postgres-drill.md
 ```
 
-Production recovery steps live in `infra/aws/lightsail/restore-postgres.md`.
+Production recovery steps live in `infra/aws/docs/restore-postgres.md`.
 
-## Rollback
+## Emergency Runbooks
 
-Rollback manually:
+Use this choice first:
+
+```txt
+bad release, database is okay -> rollback
+data corruption or machine loss -> S3 recovery
+```
+
+### Quickest Step By Step For Rollback
+
+Rollback redeploys the previous release.
+
+It does not undo destructive migrations or data corruption.
+
+1. SSH into the server.
+
+```bash
+ssh ubuntu@<server>
+```
+
+2. Run rollback.
 
 ```bash
 /opt/pressly/repo/infra/aws/lightsail/rollback.sh
 ```
 
-Rollback with an exact SHA:
+3. Check health.
+
+```bash
+curl --fail --silent --show-error https://api.trypressly.com/health/ready
+curl --fail --silent --show-error https://trypressly.com/health
+```
+
+Use an exact SHA when needed:
 
 ```bash
 DEPLOY_REF=<known-good-sha> /opt/pressly/repo/infra/aws/lightsail/deploy.sh
+```
+
+### Quickest Step By Step For S3 Recovery
+
+Production recovery is destructive.
+
+Prefer the full runbook when there is time:
+
+```bash
+less /opt/pressly/repo/infra/aws/docs/restore-postgres.md
+```
+
+1. Choose and copy the backup.
+
+```bash
+AWS_PROFILE=pressly-backup aws s3 ls s3://bucket-a5tjsz/postgres/
+
+AWS_PROFILE=pressly-backup aws s3 cp \
+  s3://bucket-a5tjsz/postgres/pressly-YYYYMMDDTHHMMSSZ.sql.gz.gpg \
+  /opt/pressly/backups/postgres/
+```
+
+2. Stop app writers.
+
+```bash
+cd /opt/pressly/repo
+
+docker compose \
+  --env-file /opt/pressly/.env.production \
+  -f infra/aws/lightsail/docker-compose.production.yml \
+  stop api web
+```
+
+3. Restore Postgres.
+
+```bash
+gpg --decrypt \
+  --batch \
+  --passphrase-file /opt/pressly/backup-passphrase.txt \
+  /opt/pressly/backups/postgres/pressly-YYYYMMDDTHHMMSSZ.sql.gz.gpg \
+  | gunzip \
+  | docker compose \
+      --env-file /opt/pressly/.env.production \
+      -f infra/aws/lightsail/docker-compose.production.yml \
+      exec -T postgres \
+      psql -U pressly -d pressly -v ON_ERROR_STOP=1 \
+        -c 'drop schema if exists public cascade;' \
+        -c 'create schema public;' \
+        -f -
+```
+
+4. Start and check.
+
+```bash
+docker compose \
+  --env-file /opt/pressly/.env.production \
+  -f infra/aws/lightsail/docker-compose.production.yml \
+  up -d --wait
+
+curl --fail --silent --show-error https://api.trypressly.com/health/ready
+curl --fail --silent --show-error https://trypressly.com/health
 ```
