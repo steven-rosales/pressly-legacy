@@ -10,13 +10,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js",
+      "default": "./dist/testing.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json",
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
-    "test": "tsx --test 'test/**/*.test.ts' 'test/**/*.spec.ts'",
+    "test": "vitest run --dir test",
     "migrate": "drizzle-kit migrate --config drizzle.config.ts",
     "generate": "drizzle-kit generate --config drizzle.config.ts",
     "seed:pricing": "tsx src/seeds/pricing.ts",
@@ -35,6 +40,7 @@
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
     "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^4.1.5"
   }
 }

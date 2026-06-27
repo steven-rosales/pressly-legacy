@@ -133,6 +133,29 @@ export default tseslint.config(
   },
 
   {
+    files: [
+      'apps/**/*.{ts,tsx}',
+      'modules/**/*.{ts,tsx}',
+      'packages/**/*.{ts,tsx}',
+    ],
+    ignores: ['packages/db/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^drizzle-orm(?:/.*)?$',
+              message:
+                'Import database primitives through @pressly/db so SQL safety constraints cannot be bypassed.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
     files: ['apps/web/**/*.{ts,tsx}'],
     plugins: {
       '@next/next': nextPlugin,

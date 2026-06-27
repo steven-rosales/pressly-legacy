@@ -1,4 +1,5 @@
-import { createDatabaseRuntime, sql, type Database } from '@pressly/db';
+import { createDatabaseRuntime, type Database } from '@pressly/db';
+import { truncateTestTables } from '@pressly/db/testing';
 import { makeAppError } from '@pressly/errors';
 
 export type TestDatabaseRuntime = Readonly<{
@@ -82,11 +83,7 @@ export const resetTestTables = async (
 
   for (const tableName of tableNames) assertSafeTableName(tableName);
 
-  await db.execute(
-    sql.raw(`truncate table
-    ${tableNames.join(',\n    ')}
-    restart identity cascade`),
-  );
+  await truncateTestTables(db, tableNames);
 };
 
 export const createTestDatabaseRuntime = (

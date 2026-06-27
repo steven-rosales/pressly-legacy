@@ -19,6 +19,9 @@ const contractsSource = fileURLToPath(
 const dbSource = fileURLToPath(
   new URL('../../../packages/db/src/index.ts', import.meta.url),
 );
+const dbTestingSource = fileURLToPath(
+  new URL('../../../packages/db/src/testing.ts', import.meta.url),
+);
 const errorsSource = fileURLToPath(
   new URL('../../../packages/errors/src/index.ts', import.meta.url),
 );
@@ -58,7 +61,11 @@ export default defineConfig({
         replacement: contractsSource,
       },
       {
-        find: '@pressly/db',
+        find: /^@pressly\/db\/testing$/,
+        replacement: dbTestingSource,
+      },
+      {
+        find: /^@pressly\/db$/,
         replacement: dbSource,
       },
       {
