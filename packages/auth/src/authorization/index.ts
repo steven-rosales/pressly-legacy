@@ -39,5 +39,6 @@ export {
 } from './scope.ts';
 
 export { freshSession } from './conditions/fresh-session.ts';
+export { hasAssuranceLevel } from './conditions/assurance-level.ts';
 export { hasScopedRole } from './conditions/scoped-role.ts';
 export { sameIdentity } from './conditions/same-identity.ts';

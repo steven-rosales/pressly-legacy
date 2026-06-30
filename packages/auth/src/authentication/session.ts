@@ -4,6 +4,7 @@ export type Session = Readonly<{
   issuedAt: Date;
   expiresAt: Date;
   revokedAt?: Date | null;
+  lastUsedAt: Date;
 }>;
 
 export const isSessionExpired = (
@@ -14,6 +15,13 @@ export const isSessionExpired = (
 export const isSessionRevoked = (
   session: Pick<Session, 'revokedAt'>,
 ): boolean => session.revokedAt !== undefined && session.revokedAt !== null;
+
+export const isSessionIdleExpired = (
+  session: Pick<Session, 'lastUsedAt'>,
+  now: Date,
+  idleTimeoutMinutes: number,
+): boolean =>
+  now.getTime() - session.lastUsedAt.getTime() >= idleTimeoutMinutes * 60_000;
 
 export const sessionAgeMinutes = (
   session: Pick<Session, 'issuedAt'>,

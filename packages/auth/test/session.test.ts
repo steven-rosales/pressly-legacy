@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isSessionExpired,
+  isSessionIdleExpired,
   isSessionRevoked,
   sessionAgeMinutes,
 } from '../src/authentication/index.ts';
@@ -24,6 +25,27 @@ describe('isSessionExpired', () => {
       isSessionExpired(
         { expiresAt: new Date('2026-05-27T12:00:00.001Z') },
         now,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('isSessionIdleExpired', () => {
+  const now = new Date('2026-05-27T12:00:00.000Z');
+
+  it('expires a session when its idle timeout is reached', () => {
+    expect(
+      isSessionIdleExpired(
+        { lastUsedAt: new Date('2026-05-27T11:30:00.000Z') },
+        now,
+        30,
+      ),
+    ).toBe(true);
+    expect(
+      isSessionIdleExpired(
+        { lastUsedAt: new Date('2026-05-27T11:30:00.001Z') },
+        now,
+        30,
       ),
     ).toBe(false);
   });

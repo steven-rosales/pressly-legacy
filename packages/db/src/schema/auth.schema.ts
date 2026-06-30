@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  bigint,
   jsonb,
   pgEnum,
   pgTable,
@@ -29,6 +30,17 @@ export const authScopeKindEnum = pgEnum('auth_scope_kind', [
   'resource',
 ]);
 
+export const authAssuranceLevelEnum = pgEnum('auth_assurance_level', [
+  'password',
+  'mfa',
+  'service_key',
+]);
+
+export const authMfaStatusEnum = pgEnum('auth_mfa_status', [
+  'pending',
+  'enabled',
+]);
+
 export const authIdentities = pgTable('auth_identities', {
   id: uuid('id').primaryKey().defaultRandom(),
   kind: text('kind').notNull(),
@@ -44,55 +56,124 @@ export const authIdentities = pgTable('auth_identities', {
     .defaultNow(),
 });
 
-export const authPasswordCredentials = pgTable('auth_password_credentials', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  identityId: uuid('identity_id')
-    .notNull()
-    .references(() => authIdentities.id),
-  passwordHash: text('password_hash').notNull(),
-  passwordUpdatedAt: timestamp('password_updated_at', {
-    withTimezone: true,
-  })
-    .notNull()
-    .defaultNow(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const authPasswordCredentials = pgTable(
+  'auth_password_credentials',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    identityId: uuid('identity_id')
+      .notNull()
+      .references(() => authIdentities.id),
+    passwordHash: text('password_hash').notNull(),
+    passwordUpdatedAt: timestamp('password_updated_at', {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    identityUnique: uniqueIndex('auth_password_credentials_identity_unique').on(
+      table.identityId,
+    ),
+  }),
+);
 
-export const authSessions = pgTable('auth_sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  identityId: uuid('identity_id')
-    .notNull()
-    .references(() => authIdentities.id),
-  tokenHash: text('token_hash').notNull().unique(),
-  issuedAt: timestamp('issued_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  revokedAt: timestamp('revoked_at', { withTimezone: true }),
-  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const authSessions = pgTable(
+  'auth_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    identityId: uuid('identity_id')
+      .notNull()
+      .references(() => authIdentities.id),
+    tokenHash: text('token_hash').notNull().unique(),
+    assuranceLevel: authAssuranceLevelEnum('assurance_level')
+      .notNull()
+      .default('password'),
+    issuedAt: timestamp('issued_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    identityIdx: index('auth_sessions_identity_idx').on(table.identityId),
+  }),
+);
 
-export const authIdentityRoles = pgTable('auth_identity_roles', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  identityId: uuid('identity_id')
-    .notNull()
-    .references(() => authIdentities.id),
-  role: authRoleEnum('role').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  createdByIdentityId: uuid('created_by_identity_id').references(
-    () => authIdentities.id,
-  ),
-});
+export const authMfaCredentials = pgTable(
+  'auth_mfa_credentials',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    identityId: uuid('identity_id')
+      .notNull()
+      .references(() => authIdentities.id),
+    encryptedSecret: text('encrypted_secret').notNull(),
+    status: authMfaStatusEnum('status').notNull().default('pending'),
+    lastUsedCounter: bigint('last_used_counter', { mode: 'number' }),
+    enabledAt: timestamp('enabled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    identityUnique: uniqueIndex('auth_mfa_credentials_identity_unique').on(
+      table.identityId,
+    ),
+  }),
+);
+
+export const authMfaRecoveryCodes = pgTable(
+  'auth_mfa_recovery_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    identityId: uuid('identity_id')
+      .notNull()
+      .references(() => authIdentities.id),
+    codeHash: text('code_hash').notNull().unique(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    identityIdx: index('auth_mfa_recovery_codes_identity_idx').on(
+      table.identityId,
+    ),
+  }),
+);
+
+export const authMfaChallenges = pgTable(
+  'auth_mfa_challenges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    identityId: uuid('identity_id')
+      .notNull()
+      .references(() => authIdentities.id),
+    tokenHash: text('token_hash').notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    identityIdx: index('auth_mfa_challenges_identity_idx').on(table.identityId),
+  }),
+);
 
 export const authLoginAttempts = pgTable('auth_login_attempts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -109,7 +190,7 @@ export const authLoginAttempts = pgTable('auth_login_attempts', {
 
 export const authAuditEvents = pgTable('auth_audit_events', {
   id: uuid('id').primaryKey().defaultRandom(),
-  actorIdentityId: uuid('actor_identity_id').references(
+  principalIdentityId: uuid('principal_identity_id').references(
     () => authIdentities.id,
   ),
   eventType: text('event_type').notNull(),

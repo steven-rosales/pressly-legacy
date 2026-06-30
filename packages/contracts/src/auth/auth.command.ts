@@ -1,4 +1,20 @@
 import type { z } from 'zod';
-import type { loginRequestSchema } from './auth.contracts.ts';
+import type {
+  completeMfaChallengeRequestSchema,
+  confirmMfaEnrollmentRequestSchema,
+  identitySessionParamsSchema,
+  identitySessionsParamsSchema,
+  loginRequestSchema,
+} from './auth.contracts.ts';
 
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
+export type IdentitySessionsParams = z.infer<
+  typeof identitySessionsParamsSchema
+>;
+export type IdentitySessionParams = z.infer<typeof identitySessionParamsSchema>;
+export type CompleteMfaChallengeRequest = z.infer<
+  typeof completeMfaChallengeRequestSchema
+>;
+export type ConfirmMfaEnrollmentRequest = z.infer<
+  typeof confirmMfaEnrollmentRequestSchema
+>;

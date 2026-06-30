@@ -39,19 +39,45 @@ AUTHENTICATION
 */
 
 export {
+  authenticatedLoginResultSchema,
   authPrincipalSchema,
   authRoleSchema,
+  completeMfaChallengeRequestSchema,
+  confirmMfaEnrollmentRequestSchema,
   loginRequestSchema,
   loginResultSchema,
   logoutResultSchema,
+  mfaChallengeResultSchema,
+  mfaEnrollmentResultSchema,
+  mfaMutationResultSchema,
+  mfaRecoveryCodesResultSchema,
+  identitySessionParamsSchema,
+  identitySessionsParamsSchema,
+  revokeIdentitySessionsResultSchema,
+  sessionInventoryItemSchema,
+  sessionInventoryResultSchema,
   sessionResultSchema,
 } from './auth/auth.contracts.ts';
 
-export type { LoginRequest } from './auth/auth.command.ts';
+export type {
+  CompleteMfaChallengeRequest,
+  ConfirmMfaEnrollmentRequest,
+  IdentitySessionParams,
+  IdentitySessionsParams,
+  LoginRequest,
+} from './auth/auth.command.ts';
 
 export type {
+  AuthenticatedLoginResult,
   AuthPrincipalResult,
   LoginResult,
   LogoutResult,
+  MfaChallengeResult,
+  MfaEnrollmentResult,
+  MfaMutationResult,
+  MfaRecoveryCodesResult,
+  RevokeIdentitySessionsResult,
+  SessionInventoryItem,
+  SessionInventoryResult,
   SessionResult,
 } from './auth/auth.result.ts';

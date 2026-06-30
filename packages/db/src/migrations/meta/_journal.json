@@ -50,6 +50,20 @@
       "when": 1782326715201,
       "tag": "0007_rename_auth_identities",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782751889744,
+      "tag": "0008_giant_cassandra_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782753174389,
+      "tag": "0009_daily_radioactive_man",
+      "breakpoints": true
     }
   ]
 }

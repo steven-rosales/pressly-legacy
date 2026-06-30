@@ -4,6 +4,8 @@ export type Action =
   | 'auth:session:read'
   | 'auth:session:revoke'
   | 'auth:user:manage'
+  | 'auth:mfa:enroll'
+  | 'auth:mfa:manage'
   | 'pricing:read'
   | 'pricing:plan'
   | 'pricing:publish'

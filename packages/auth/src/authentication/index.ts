@@ -7,6 +7,7 @@ export { principalLabel } from './principal.ts';
 export type { Session } from './session.ts';
 export {
   isSessionExpired,
+  isSessionIdleExpired,
   isSessionRevoked,
   sessionAgeMinutes,
 } from './session.ts';

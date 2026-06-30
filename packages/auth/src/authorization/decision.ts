@@ -5,6 +5,7 @@ export type AuthDenyReason =
   | 'missing_permission'
   | 'missing_context'
   | 'stale_session'
+  | 'insufficient_assurance'
   | 'invalid_session'
   | 'policy_denied';
 
