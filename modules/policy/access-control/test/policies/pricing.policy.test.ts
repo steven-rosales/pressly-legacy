@@ -44,10 +44,12 @@ const decide = (input: {
   assignments: readonly RoleAssignment[];
   sessionAgeMinutes?: number;
   identityActive?: boolean;
+  assuranceLevel?: 'password' | 'mfa';
 }) => {
   const principalAttributes: PrincipalAttributes = {
     assignments: input.assignments,
     identityActive: input.identityActive ?? true,
+    assuranceLevel: input.assuranceLevel ?? 'mfa',
   };
 
   return authorize({
@@ -142,6 +144,19 @@ describe('pricing access-control policy', () => {
       tag: 'denied',
       reason: 'stale_session',
       policyId: 'pricing.publish.owner_in_scope.fresh_session',
+    });
+  });
+
+  it('denies privileged pricing actions to password-only sessions', () => {
+    expect(
+      decide({
+        action: 'pricing:publish',
+        assignments: [assignment('owner')],
+        assuranceLevel: 'password',
+      }),
+    ).toMatchObject({
+      tag: 'denied',
+      reason: 'insufficient_assurance',
     });
   });
 });

@@ -2,10 +2,10 @@ import { result, type Result } from '@pressly/kernel';
 import { mkdir, readFile, rm, writeFile, chmod } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
-import type { LoginResult } from '@pressly/contracts';
+import type { AuthenticatedLoginResult } from '@pressly/contracts';
 import { makeAppError, type AppError } from '@pressly/errors';
 
-export type CliSession = Readonly<LoginResult>;
+export type CliSession = Readonly<AuthenticatedLoginResult>;
 
 export type SessionStore = Readonly<{
   read: () => Promise<Result<CliSession | undefined, AppError>>;

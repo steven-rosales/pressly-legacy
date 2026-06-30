@@ -17,6 +17,12 @@ describe('access-control module composition', () => {
         pricing: {
           freshSessionMaxAgeMinutes: 15,
         },
+        authSessions: {
+          freshSessionMaxAgeMinutes: 15,
+        },
+        mfa: {
+          freshSessionMaxAgeMinutes: 15,
+        },
       },
     });
 
@@ -25,6 +31,17 @@ describe('access-control module composition', () => {
       planPricingChange: expect.any(Function),
       publishPricingChange: expect.any(Function),
       readAuthor: expect.any(Function),
+    });
+    expect(module.authSessions).toEqual({
+      authenticate: expect.any(Function),
+      readSessions: expect.any(Function),
+      revokeSessions: expect.any(Function),
+      readPrincipalIdentityId: expect.any(Function),
+    });
+    expect(module.mfa).toEqual({
+      authenticate: expect.any(Function),
+      enroll: expect.any(Function),
+      manage: expect.any(Function),
     });
   });
 });

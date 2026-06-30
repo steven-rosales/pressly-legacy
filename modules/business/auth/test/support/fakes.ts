@@ -1,13 +1,14 @@
 import { result, type Result } from '@pressly/kernel';
 import { type AppError } from '@pressly/errors';
 import type {
-  AuthAuditEventInput,
   CreatedSession,
   CreateSessionInput,
+  CreateMfaChallengeInput,
   LoginAttemptInput,
   LoginIdentityRecord,
   LoginPasswordCredentialRecord,
 } from '../../src/features/login/login.port.ts';
+import type { LoginAuditEventInput } from '../../src/features/login/login.port.ts';
 import type { LoginStore } from '../../src/features/login/login.port.ts';
 import type {
   LoadSessionStore,
@@ -32,6 +33,7 @@ export type FakeStoreOptions = Readonly<{
     AppError
   >;
   createSessionResult?: Result<CreatedSession, AppError>;
+  createMfaChallengeResult?: Result<void, AppError>;
   recordLoginAttemptResult?: Result<void, AppError>;
   recordAuditEventResult?: Result<void, AppError>;
 }>;
@@ -50,8 +52,9 @@ export const makeFakeLoginStore = (options: FakeStoreOptions = {}) => {
     findIdentityByEmail: [] as string[],
     findPasswordCredential: [] as string[],
     createSession: [] as CreateSessionInput[],
+    createMfaChallenge: [] as CreateMfaChallengeInput[],
     recordLoginAttempt: [] as LoginAttemptInput[],
-    recordAuditEvent: [] as AuthAuditEventInput[],
+    recordAuditEvent: [] as LoginAuditEventInput[],
   };
 
   const store: LoginStore = {
@@ -73,6 +76,10 @@ export const makeFakeLoginStore = (options: FakeStoreOptions = {}) => {
     async createSession(input) {
       calls.createSession.push(input);
       return options.createSessionResult ?? result.ok(makeDefaultSession());
+    },
+    async createMfaChallenge(input) {
+      calls.createMfaChallenge.push(input);
+      return options.createMfaChallengeResult ?? result.ok(undefined);
     },
     async recordLoginAttempt(input) {
       calls.recordLoginAttempt.push(input);

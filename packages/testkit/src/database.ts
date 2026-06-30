@@ -13,6 +13,7 @@ export type TestDatabaseRuntimeInput = Readonly<{
   databaseUrl: string;
   tableNames: readonly string[];
   maxConnections?: number;
+  resetDatabaseUrl?: string;
 }>;
 
 export const assertTestRuntime = (): void => {
@@ -96,11 +97,20 @@ export const createTestDatabaseRuntime = (
     databaseUrl: input.databaseUrl,
     maxConnections: input.maxConnections ?? 1,
   });
+  const resetRuntime = input.resetDatabaseUrl
+    ? createDatabaseRuntime({
+        databaseUrl: input.resetDatabaseUrl,
+        maxConnections: 1,
+      })
+    : runtime;
 
   return {
     db: runtime.db,
     check: runtime.check,
-    reset: () => resetTestTables(runtime.db, input.tableNames),
-    close: runtime.close,
+    reset: () => resetTestTables(resetRuntime.db, input.tableNames),
+    close: async () => {
+      await runtime.close();
+      if (resetRuntime !== runtime) await resetRuntime.close();
+    },
   };
 };

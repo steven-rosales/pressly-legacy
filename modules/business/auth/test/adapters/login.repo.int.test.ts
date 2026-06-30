@@ -5,7 +5,7 @@ import { makeLoginStore } from '../../src/adapters/login/persistence/login.repo.
 import { createAuthTestDatabase } from '../support/database.ts';
 
 type AuthIdentityRow = typeof auth.authIdentities.$inferSelect;
-type AuthRole = typeof auth.authIdentityRoles.$inferInsert.role;
+type AuthRole = typeof auth.authRoleAssignments.$inferInsert.role;
 
 const testDb = createAuthTestDatabase();
 
@@ -48,10 +48,11 @@ const insertRoles = async (
 ): Promise<void> => {
   if (roles.length === 0) return;
 
-  await db.insert(auth.authIdentityRoles).values(
+  await db.insert(auth.authRoleAssignments).values(
     roles.map((role) => ({
       identityId,
       role,
+      scopeKind: 'global' as const,
     })),
   );
 };
@@ -82,8 +83,8 @@ describe('login repository integration', () => {
 
     await expect(
       testDb.db.execute(sql`
-        insert into auth_identity_roles (identity_id, role)
-        values (${identity.id}, ${'not-a-real-role'})
+        insert into auth_role_assignments (identity_id, role, scope_kind)
+        values (${identity.id}, ${'not-a-real-role'}, 'global')
       `),
     ).rejects.toThrow();
   });
@@ -191,6 +192,8 @@ describe('login repository integration', () => {
       tokenHash: 'token-hash-1',
       issuedAt,
       expiresAt,
+      lastUsedAt: issuedAt,
+      assuranceLevel: 'password',
     });
 
     const value = expectOk(actual);
@@ -248,7 +251,7 @@ describe('login repository integration', () => {
     const store = makeLoginStore(testDb.db);
 
     const actual = await store.recordAuditEvent({
-      actorIdentityId: identity.id,
+      principalIdentityId: identity.id,
       eventType: 'auth.login.succeeded',
       resourceType: 'auth_session',
       resourceId: 'session_1',
@@ -263,7 +266,7 @@ describe('login repository integration', () => {
       .where(eq(auth.authAuditEvents.eventType, 'auth.login.succeeded'));
 
     expect(auditEvent).toMatchObject({
-      actorIdentityId: identity.id,
+      principalIdentityId: identity.id,
       eventType: 'auth.login.succeeded',
       resourceType: 'auth_session',
       resourceId: 'session_1',
@@ -283,6 +286,8 @@ describe('login repository integration', () => {
         tokenHash: 'duplicate-token-hash',
         issuedAt,
         expiresAt,
+        lastUsedAt: issuedAt,
+        assuranceLevel: 'password',
       }),
     );
 
@@ -291,6 +296,8 @@ describe('login repository integration', () => {
       tokenHash: 'duplicate-token-hash',
       issuedAt,
       expiresAt,
+      lastUsedAt: issuedAt,
+      assuranceLevel: 'password',
     });
 
     expectErrCode(actual, 'auth_database_failed');

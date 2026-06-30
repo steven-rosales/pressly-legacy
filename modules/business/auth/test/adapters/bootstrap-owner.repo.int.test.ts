@@ -77,13 +77,6 @@ describe('bootstrap owner repository integration', () => {
 
     expect(credential?.passwordHash).toBe('stored-password-hash');
 
-    const [role] = await testDb.db
-      .select()
-      .from(auth.authIdentityRoles)
-      .where(eq(auth.authIdentityRoles.identityId, value.identityId));
-
-    expect(role?.role).toBe('owner');
-
     const [assignment] = await testDb.db
       .select()
       .from(auth.authRoleAssignments)
@@ -102,7 +95,7 @@ describe('bootstrap owner repository integration', () => {
       .where(eq(auth.authAuditEvents.eventType, 'auth.owner_bootstrapped'));
 
     expect(auditEvent).toMatchObject({
-      actorIdentityId: null,
+      principalIdentityId: null,
       resourceType: 'auth_identity',
       resourceId: value.identityId,
       metadata: { email: 'steven@pressly.com', role: 'owner' },
@@ -158,11 +151,6 @@ describe('bootstrap owner repository integration', () => {
       .from(auth.authPasswordCredentials)
       .where(eq(auth.authPasswordCredentials.identityId, identity.id));
 
-    const roles = await testDb.db
-      .select()
-      .from(auth.authIdentityRoles)
-      .where(eq(auth.authIdentityRoles.identityId, identity.id));
-
     const assignments = await testDb.db
       .select()
       .from(auth.authRoleAssignments)
@@ -174,7 +162,6 @@ describe('bootstrap owner repository integration', () => {
       .where(eq(auth.authIdentities.id, identity.id));
 
     expect(credentials).toHaveLength(0);
-    expect(roles).toHaveLength(0);
     expect(assignments).toHaveLength(0);
     expect(unchangedIdentity).toMatchObject({
       displayName: 'Existing User',

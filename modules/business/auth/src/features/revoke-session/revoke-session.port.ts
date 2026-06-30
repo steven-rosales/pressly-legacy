@@ -1,8 +1,8 @@
 import type { Result } from '@pressly/kernel';
 import type { AppError } from '@pressly/errors';
 
-export type AuthAuditEventInput = Readonly<{
-  actorIdentityId?: string;
+export type RevokeSessionAuditEventInput = Readonly<{
+  principalIdentityId?: string;
   eventType: string;
   resourceType: string;
   resourceId?: string;
@@ -20,7 +20,7 @@ export type RevokeSessionStore = Readonly<{
     revokedAt: Date,
   ) => Promise<Result<RevokeSessionStoreResult, AppError>>;
   recordAuditEvent: (
-    input: AuthAuditEventInput,
+    input: RevokeSessionAuditEventInput,
   ) => Promise<Result<void, AppError>>;
 }>;
 

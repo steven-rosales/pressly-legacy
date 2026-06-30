@@ -13,6 +13,8 @@ export type StoredSessionPrincipalRecord = Readonly<{
   issuedAt: Date;
   expiresAt: Date;
   revokedAt?: Date | null;
+  lastUsedAt: Date;
+  assuranceLevel: 'password' | 'mfa' | 'service_key';
 }>;
 
 export type LoadSessionStore = Readonly<{

@@ -1,6 +1,7 @@
 import { result, type Result } from '@pressly/kernel';
 import {
   isSessionExpired,
+  isSessionIdleExpired,
   isSessionRevoked,
   type Principal,
 } from '@pressly/auth/authentication';
@@ -25,6 +26,7 @@ type MakeLoadSessionDeps = {
   store: LoadSessionStore;
   tokenHasher: TokenHasher;
   clock: Clock;
+  idleTimeoutMinutes: number;
 };
 
 export type LoadSession = (
@@ -48,6 +50,8 @@ export const makeLoadSession =
     if (!found.value.isActive) return result.err(invalidSession());
     if (isSessionRevoked(found.value)) return result.err(invalidSession());
     if (isSessionExpired(found.value, now)) return result.err(expiredSession());
+    if (isSessionIdleExpired(found.value, now, deps.idleTimeoutMinutes))
+      return result.err(expiredSession());
 
     const touched = await deps.store.touchSession(found.value.sessionId, now);
     if (result.isErr(touched)) return touched;
@@ -67,6 +71,7 @@ export const makeLoadSession =
       principalAttributes: principalAttributesFromSession({
         assignments: found.value.assignments,
         identityActive: found.value.isActive,
+        assuranceLevel: found.value.assuranceLevel,
       }),
     });
   };

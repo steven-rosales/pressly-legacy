@@ -11,6 +11,9 @@ export const makeRevokeSessionController = (
   catchAsync(async (req, res) => {
     const revokeResult = await revokeSession({
       bearerToken: readBearerToken(req.header('authorization') ?? undefined),
+      ...((res.locals?.['requestId'] as string | undefined) === undefined
+        ? {}
+        : { requestId: res.locals?.['requestId'] as string }),
     });
 
     if (result.isErr(revokeResult)) {

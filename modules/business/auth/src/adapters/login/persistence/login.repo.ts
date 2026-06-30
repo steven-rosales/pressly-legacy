@@ -18,10 +18,17 @@ export const makeLoginStore = (db: Database): LoginStore => ({
 
       if (identity === undefined) return undefined;
 
-      const roles = await db
-        .select()
-        .from(auth.authIdentityRoles)
-        .where(eq(auth.authIdentityRoles.identityId, identity.id));
+      const [roles, mfaCredentials] = await Promise.all([
+        db
+          .select()
+          .from(auth.authRoleAssignments)
+          .where(eq(auth.authRoleAssignments.identityId, identity.id)),
+        db
+          .select({ status: auth.authMfaCredentials.status })
+          .from(auth.authMfaCredentials)
+          .where(eq(auth.authMfaCredentials.identityId, identity.id))
+          .limit(1),
+      ]);
 
       return {
         id: identity.id,
@@ -30,6 +37,7 @@ export const makeLoginStore = (db: Database): LoginStore => ({
         ...(identity.email === null ? {} : { email: identity.email }),
         isActive: identity.isActive,
         roles: mapStoredRoles(roles),
+        mfaEnabled: mfaCredentials[0]?.status === 'enabled',
       };
     }),
 
@@ -80,6 +88,11 @@ export const makeLoginStore = (db: Database): LoginStore => ({
         issuedAt: session.issuedAt,
         expiresAt: session.expiresAt,
       };
+    }),
+
+  createMfaChallenge: async (input) =>
+    toDatabaseResult(async () => {
+      await db.insert(auth.authMfaChallenges).values(input);
     }),
 
   recordLoginAttempt: async (input) =>

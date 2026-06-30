@@ -157,7 +157,7 @@ describe('recordAuthAuditEvent', () => {
     const db = { insert } as unknown as Database;
 
     const actual = await recordAuthAuditEvent(db, {
-      actorIdentityId: '11111111-1111-4111-8111-111111111111',
+      principalIdentityId: '11111111-1111-4111-8111-111111111111',
       eventType: 'auth.login.succeeded',
       resourceType: 'auth_session',
       resourceId: 'session-1',
@@ -166,7 +166,7 @@ describe('recordAuthAuditEvent', () => {
     expect(actual).toEqual({ tag: 'ok', value: undefined });
     expect(insert).toHaveBeenCalledWith(auth.authAuditEvents);
     expect(values).toHaveBeenCalledWith({
-      actorIdentityId: '11111111-1111-4111-8111-111111111111',
+      principalIdentityId: '11111111-1111-4111-8111-111111111111',
       eventType: 'auth.login.succeeded',
       resourceType: 'auth_session',
       resourceId: 'session-1',

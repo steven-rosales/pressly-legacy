@@ -34,6 +34,8 @@ export const makeLoadSessionStore = (db: Database): LoadSessionStore => ({
         issuedAt: row.session.issuedAt,
         expiresAt: row.session.expiresAt,
         revokedAt: row.session.revokedAt,
+        lastUsedAt: row.session.lastUsedAt,
+        assuranceLevel: row.session.assuranceLevel,
       };
     }),
 

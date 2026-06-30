@@ -2,14 +2,6 @@ import type { Result } from '@pressly/kernel';
 import type { Role } from '@pressly/auth/authorization';
 import type { AppError } from '@pressly/errors';
 
-export type AuthAuditEventInput = Readonly<{
-  actorIdentityId?: string;
-  eventType: string;
-  resourceType: string;
-  resourceId?: string;
-  metadata?: Record<string, unknown>;
-}>;
-
 export type LoginIdentityRecord = Readonly<{
   id: string;
   kind: 'human' | 'service';
@@ -17,6 +9,7 @@ export type LoginIdentityRecord = Readonly<{
   email?: string;
   isActive: boolean;
   roles: readonly Role[];
+  mfaEnabled: boolean;
 }>;
 
 export type LoginPasswordCredentialRecord = Readonly<{
@@ -29,11 +22,19 @@ export type CreateSessionInput = Readonly<{
   tokenHash: string;
   issuedAt: Date;
   expiresAt: Date;
+  lastUsedAt: Date;
+  assuranceLevel: 'password' | 'mfa' | 'service_key';
 }>;
 
 export type CreatedSession = Readonly<{
   id: string;
   issuedAt: Date;
+  expiresAt: Date;
+}>;
+
+export type CreateMfaChallengeInput = Readonly<{
+  identityId: string;
+  tokenHash: string;
   expiresAt: Date;
 }>;
 
@@ -44,6 +45,14 @@ export type LoginAttemptInput = Readonly<{
   failureCode?: string;
   ipAddress?: string;
   userAgent?: string;
+}>;
+
+export type LoginAuditEventInput = Readonly<{
+  principalIdentityId?: string;
+  eventType: string;
+  resourceType: string;
+  resourceId?: string;
+  metadata?: Record<string, unknown>;
 }>;
 
 export type LoginStore = Readonly<{
@@ -60,11 +69,14 @@ export type LoginStore = Readonly<{
   createSession: (
     input: CreateSessionInput,
   ) => Promise<Result<CreatedSession, AppError>>;
+  createMfaChallenge: (
+    input: CreateMfaChallengeInput,
+  ) => Promise<Result<void, AppError>>;
   recordLoginAttempt: (
     input: LoginAttemptInput,
   ) => Promise<Result<void, AppError>>;
   recordAuditEvent: (
-    input: AuthAuditEventInput,
+    input: LoginAuditEventInput,
   ) => Promise<Result<void, AppError>>;
 }>;
 

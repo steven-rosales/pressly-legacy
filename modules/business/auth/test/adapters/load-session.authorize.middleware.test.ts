@@ -180,7 +180,8 @@ describe('authorize middleware', () => {
   });
 
   it('denies principals without one of the allowed roles', async () => {
-    const authorize = makeAuthorizeMiddleware()({
+    const emit = vi.fn();
+    const authorize = makeAuthorizeMiddleware({ emit })({
       action: 'pricing:publish',
       policies: allowPolicy({
         id: 'pricing.publish.owner',
@@ -192,11 +193,24 @@ describe('authorize middleware', () => {
 
     const req = makeRequest();
     const res = makeResponse(makeAuthLocals({ role: 'admin' }));
+    res.locals['requestId'] = 'request-1';
     const next = vi.fn();
 
     await runHandler({ handler: authorize, req, res, next });
 
     expectNextErrorCode(next, 'missing_assignment');
+    expect(emit).toHaveBeenCalledWith({
+      name: 'authorization.denied',
+      occurredAt: expect.any(String),
+      outcome: 'denied',
+      requestId: 'request-1',
+      principalId: loadSessionResult.identityId,
+      sessionId: loadSessionResult.sessionId,
+      action: 'pricing:publish',
+      resourceType: 'http.route',
+      resourceId: 'pricing:publish',
+      reason: 'missing_assignment',
+    });
   });
 
   it('allows any configured action when the required role assignment matches', async () => {

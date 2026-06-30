@@ -15,6 +15,10 @@ import {
 } from '@pressly/auth/authorization';
 import { catchAsync } from '@pressly/http/express';
 import { makeAppError } from '@pressly/errors';
+import {
+  nullSecurityEventSink,
+  type SecurityEventSink,
+} from '@pressly/logging';
 
 type AuthLocals = Readonly<{
   principal: Principal;
@@ -70,7 +74,9 @@ const environmentFromRequest = (
 };
 
 export const makeAuthorizeMiddleware =
-  (): AuthorizeMiddlewareFactory =>
+  (
+    securityEvents: SecurityEventSink = nullSecurityEventSink,
+  ): AuthorizeMiddlewareFactory =>
   <R extends AuthResource>(input: AuthorizeMiddlewareInput<R>) =>
     catchAsync(async (req, res, next) => {
       const auth = readAuthLocals(res);
@@ -86,7 +92,24 @@ export const makeAuthorizeMiddleware =
         policies: input.policies,
       });
 
-      if (isDenied(decision))
+      if (isDenied(decision)) {
+        securityEvents.emit({
+          name: 'authorization.denied',
+          occurredAt: environment.now.toISOString(),
+          outcome: 'denied',
+          ...((res.locals['requestId'] as string | undefined) === undefined
+            ? {}
+            : { requestId: res.locals['requestId'] as string }),
+          principalId: auth.principal.identityId,
+          ...(auth.principal.sessionId === undefined
+            ? {}
+            : { sessionId: auth.principal.sessionId }),
+          action: input.action,
+          resourceType: resource.kind,
+          ...(resource.id === undefined ? {} : { resourceId: resource.id }),
+          reason: decision.reason,
+        });
+
         throw makeAppError({
           kind: 'PermissionError',
           code: decision.reason,
@@ -101,6 +124,7 @@ export const makeAuthorizeMiddleware =
             policyId: decision.policyId,
           },
         });
+      }
 
       res.locals['authorization'] = {
         action: input.action,

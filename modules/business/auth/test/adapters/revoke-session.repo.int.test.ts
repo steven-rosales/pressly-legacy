@@ -165,7 +165,7 @@ describe('revoke session repository integration', () => {
     const store = makeRevokeSessionStore(testDb.db);
 
     const actual = await store.recordAuditEvent({
-      actorIdentityId: identity.id,
+      principalIdentityId: identity.id,
       eventType: 'auth.logout',
       resourceType: 'auth_session',
       resourceId: 'session_1',
@@ -180,7 +180,7 @@ describe('revoke session repository integration', () => {
       .where(eq(auth.authAuditEvents.eventType, 'auth.logout'));
 
     expect(auditEvent).toMatchObject({
-      actorIdentityId: identity.id,
+      principalIdentityId: identity.id,
       eventType: 'auth.logout',
       resourceType: 'auth_session',
       resourceId: 'session_1',
@@ -192,7 +192,7 @@ describe('revoke session repository integration', () => {
     const store = makeRevokeSessionStore(testDb.db);
 
     const actual = await store.recordAuditEvent({
-      actorIdentityId: 'not-a-uuid',
+      principalIdentityId: 'not-a-uuid',
       eventType: 'auth.logout',
       resourceType: 'auth_session',
     });

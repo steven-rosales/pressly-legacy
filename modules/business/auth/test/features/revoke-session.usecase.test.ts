@@ -63,7 +63,7 @@ describe('revoke session', () => {
     ]);
     expect(calls.recordAuditEvent).toEqual([
       {
-        actorIdentityId: makeDefaultIdentity().id,
+        principalIdentityId: makeDefaultIdentity().id,
         eventType: 'auth.logout',
         resourceType: 'auth_session',
         resourceId: makeDefaultSession().id,
@@ -156,7 +156,7 @@ describe('revoke session', () => {
     expectOk(actual);
     expect(calls.recordAuditEvent).toEqual([
       {
-        actorIdentityId: makeDefaultIdentity().id,
+        principalIdentityId: makeDefaultIdentity().id,
         eventType: 'auth.logout',
         resourceType: 'auth_session',
         resourceId: makeDefaultSession().id,

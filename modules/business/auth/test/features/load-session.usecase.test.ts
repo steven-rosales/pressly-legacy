@@ -44,6 +44,7 @@ const makeSubject = (input: { store?: FakeLoadSessionStoreOptions } = {}) => {
     store,
     tokenHasher,
     clock,
+    idleTimeoutMinutes: 30,
   });
 
   return { loadSession, calls, tokenHasher, clock };
@@ -77,6 +78,7 @@ describe('loads principal session', () => {
       principalAttributes: {
         assignments: [{ role: 'admin', scope: globalScope() }],
         identityActive: true,
+        assuranceLevel: 'password',
       },
     });
   });
@@ -137,6 +139,21 @@ describe('loads principal session', () => {
     expect(calls.touchSession).toEqual([]);
   });
 
+  it('returns session_expired when the idle timeout is reached', async () => {
+    const { loadSession, calls } = makeSubject({
+      store: {
+        principal: makeDefaultStoredSessionPrincipal({
+          lastUsedAt: new Date('2026-05-29T11:30:00.000Z'),
+        }),
+      },
+    });
+
+    const actual = await loadSession({ bearerToken: bearer });
+
+    expectErrCode(actual, 'session_expired');
+    expect(calls.touchSession).toEqual([]);
+  });
+
   it('returns lookup failures before touching the session', async () => {
     const { loadSession, calls } = makeSubject({
       store: {
@@ -191,6 +208,7 @@ describe('loads principal session', () => {
       principalAttributes: {
         assignments: [{ role: 'admin', scope: globalScope() }],
         identityActive: true,
+        assuranceLevel: 'password',
       },
     });
     expect('email' in value.principal).toBe(false);

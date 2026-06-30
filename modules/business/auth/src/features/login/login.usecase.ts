@@ -3,6 +3,10 @@ import { normalizeEmail } from '@pressly/auth/authentication';
 import type { LoginRequest, LoginResult } from '@pressly/contracts';
 import { type AppError } from '@pressly/errors';
 import { utcIsoFromDate } from '@pressly/time';
+import {
+  nullSecurityEventSink,
+  type SecurityEventSink,
+} from '@pressly/logging';
 import { invalidCredentials, loginRateLimited } from './login.error.ts';
 import type {
   Clock,
@@ -15,12 +19,14 @@ export type LoginOptions = Readonly<{
   sessionTtlMinutes: number;
   loginWindowMinutes: number;
   loginMaxFailures: number;
+  mfaChallengeTtlMinutes: number;
 }>;
 
 export type LoginCommand = Readonly<
   LoginRequest & {
     ipAddress?: string;
     userAgent?: string;
+    requestId?: string;
   }
 >;
 
@@ -41,12 +47,52 @@ const failureAttempt = (input: {
   ...(input.userAgent === undefined ? {} : { userAgent: input.userAgent }),
 });
 
+const recordLoginFailure = async (
+  store: LoginStore,
+  securityEvents: SecurityEventSink,
+  input: {
+    emailNormalized: string;
+    identityId?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    requestId?: string;
+    occurredAt: Date;
+  },
+): Promise<void> => {
+  await store.recordLoginAttempt(failureAttempt(input));
+  await store.recordAuditEvent({
+    ...(input.identityId === undefined
+      ? {}
+      : { principalIdentityId: input.identityId }),
+    eventType: 'auth.login.failed',
+    resourceType: 'auth_identity',
+    ...(input.identityId === undefined ? {} : { resourceId: input.identityId }),
+    metadata: {
+      email: input.emailNormalized,
+      failureCode: 'invalid_credentials',
+    },
+  });
+  securityEvents.emit({
+    name: 'authentication.login_failed',
+    occurredAt: input.occurredAt.toISOString(),
+    outcome: 'denied',
+    ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
+    ...(input.identityId === undefined
+      ? {}
+      : { principalId: input.identityId }),
+    resourceType: 'auth.identity',
+    ...(input.identityId === undefined ? {} : { resourceId: input.identityId }),
+    reason: 'invalid_credentials',
+  });
+};
+
 type MakeLogin = {
   store: LoginStore;
   passwordVerifier: PasswordVerifier;
   tokenIssuer: TokenIssuer;
   clock: Clock;
   options: LoginOptions;
+  securityEvents?: SecurityEventSink;
 };
 
 export type Login = (
@@ -67,6 +113,7 @@ export type Login = (
 export const makeLogin =
   (deps: MakeLogin): Login =>
   async (command) => {
+    const securityEvents = deps.securityEvents ?? nullSecurityEventSink;
     const now = deps.clock.now();
     const emailNormalized = normalizeEmail(command.email);
     const since = addMinutes(now, -deps.options.loginWindowMinutes);
@@ -77,25 +124,61 @@ export const makeLogin =
 
     if (result.isErr(failedAttempts)) return failedAttempts;
 
-    if (failedAttempts.value >= deps.options.loginMaxFailures)
+    if (failedAttempts.value >= deps.options.loginMaxFailures) {
+      await deps.store.recordAuditEvent({
+        eventType: 'auth.login.rate_limited',
+        resourceType: 'auth_identity',
+        metadata: { email: emailNormalized },
+      });
+      securityEvents.emit({
+        name: 'authentication.login_rate_limited',
+        occurredAt: now.toISOString(),
+        outcome: 'denied',
+        ...(command.requestId === undefined
+          ? {}
+          : { requestId: command.requestId }),
+        resourceType: 'auth.identity',
+        reason: 'account_failure_window',
+      });
       return result.err(loginRateLimited());
+    }
 
     const identity = await deps.store.findIdentityByEmail(emailNormalized);
 
     if (result.isErr(identity)) return identity;
 
-    if (identity.value === undefined || !identity.value.isActive) {
-      await deps.store.recordLoginAttempt(
-        failureAttempt({
-          emailNormalized,
-          ...(command.ipAddress === undefined
-            ? {}
-            : { ipAddress: command.ipAddress }),
-          ...(command.userAgent === undefined
-            ? {}
-            : { userAgent: command.userAgent }),
-        }),
-      );
+    if (identity.value === undefined) {
+      await recordLoginFailure(deps.store, securityEvents, {
+        emailNormalized,
+        occurredAt: now,
+        ...(command.ipAddress === undefined
+          ? {}
+          : { ipAddress: command.ipAddress }),
+        ...(command.userAgent === undefined
+          ? {}
+          : { userAgent: command.userAgent }),
+        ...(command.requestId === undefined
+          ? {}
+          : { requestId: command.requestId }),
+      });
+      return result.err(invalidCredentials());
+    }
+
+    if (!identity.value.isActive) {
+      await recordLoginFailure(deps.store, securityEvents, {
+        emailNormalized,
+        identityId: identity.value.id,
+        occurredAt: now,
+        ...(command.ipAddress === undefined
+          ? {}
+          : { ipAddress: command.ipAddress }),
+        ...(command.userAgent === undefined
+          ? {}
+          : { userAgent: command.userAgent }),
+        ...(command.requestId === undefined
+          ? {}
+          : { requestId: command.requestId }),
+      });
       return result.err(invalidCredentials());
     }
 
@@ -106,18 +189,20 @@ export const makeLogin =
     if (result.isErr(credential)) return credential;
 
     if (credential.value === undefined) {
-      await deps.store.recordLoginAttempt(
-        failureAttempt({
-          emailNormalized,
-          identityId: identity.value.id,
-          ...(command.ipAddress === undefined
-            ? {}
-            : { ipAddress: command.ipAddress }),
-          ...(command.userAgent === undefined
-            ? {}
-            : { userAgent: command.userAgent }),
-        }),
-      );
+      await recordLoginFailure(deps.store, securityEvents, {
+        emailNormalized,
+        identityId: identity.value.id,
+        occurredAt: now,
+        ...(command.ipAddress === undefined
+          ? {}
+          : { ipAddress: command.ipAddress }),
+        ...(command.userAgent === undefined
+          ? {}
+          : { userAgent: command.userAgent }),
+        ...(command.requestId === undefined
+          ? {}
+          : { requestId: command.requestId }),
+      });
       return result.err(invalidCredentials());
     }
 
@@ -129,22 +214,66 @@ export const makeLogin =
     if (result.isErr(verified)) return verified;
 
     if (!verified.value) {
-      await deps.store.recordLoginAttempt(
-        failureAttempt({
-          emailNormalized,
-          identityId: identity.value.id,
-          ...(command.ipAddress === undefined
-            ? {}
-            : { ipAddress: command.ipAddress }),
-          ...(command.userAgent === undefined
-            ? {}
-            : { userAgent: command.userAgent }),
-        }),
-      );
+      await recordLoginFailure(deps.store, securityEvents, {
+        emailNormalized,
+        identityId: identity.value.id,
+        occurredAt: now,
+        ...(command.ipAddress === undefined
+          ? {}
+          : { ipAddress: command.ipAddress }),
+        ...(command.userAgent === undefined
+          ? {}
+          : { userAgent: command.userAgent }),
+        ...(command.requestId === undefined
+          ? {}
+          : { requestId: command.requestId }),
+      });
       return result.err(invalidCredentials());
     }
 
     const accessToken = deps.tokenIssuer.issue();
+    const requiresMfa =
+      identity.value.mfaEnabled &&
+      identity.value.roles.some((role) => role === 'owner' || role === 'admin');
+
+    if (requiresMfa) {
+      const challengeToken = accessToken;
+      const challengeExpiresAt = addMinutes(
+        now,
+        deps.options.mfaChallengeTtlMinutes,
+      );
+      const challenge = await deps.store.createMfaChallenge({
+        identityId: identity.value.id,
+        tokenHash: deps.tokenIssuer.hash(challengeToken),
+        expiresAt: challengeExpiresAt,
+      });
+      if (result.isErr(challenge)) return challenge;
+
+      await deps.store.recordLoginAttempt({
+        emailNormalized,
+        identityId: identity.value.id,
+        success: true,
+        ...(command.ipAddress === undefined
+          ? {}
+          : { ipAddress: command.ipAddress }),
+        ...(command.userAgent === undefined
+          ? {}
+          : { userAgent: command.userAgent }),
+      });
+      await deps.store.recordAuditEvent({
+        principalIdentityId: identity.value.id,
+        eventType: 'auth.mfa.challenge_created',
+        resourceType: 'auth_identity',
+        resourceId: identity.value.id,
+      });
+
+      return result.ok({
+        status: 'mfa_required',
+        challengeToken,
+        expiresAt: utcIsoFromDate(challengeExpiresAt),
+      });
+    }
+
     const issuedAt = now;
     const expiresAt = addMinutes(now, deps.options.sessionTtlMinutes);
     const session = await deps.store.createSession({
@@ -152,6 +281,8 @@ export const makeLogin =
       tokenHash: deps.tokenIssuer.hash(accessToken),
       issuedAt,
       expiresAt,
+      lastUsedAt: now,
+      assuranceLevel: 'password',
     });
 
     if (result.isErr(session)) return session;
@@ -169,11 +300,23 @@ export const makeLogin =
     });
 
     await deps.store.recordAuditEvent({
-      actorIdentityId: identity.value.id,
+      principalIdentityId: identity.value.id,
       eventType: 'auth.login.succeeded',
       resourceType: 'auth_session',
       resourceId: session.value.id,
       metadata: { email: emailNormalized },
+    });
+    securityEvents.emit({
+      name: 'authentication.login_succeeded',
+      occurredAt: now.toISOString(),
+      outcome: 'succeeded',
+      ...(command.requestId === undefined
+        ? {}
+        : { requestId: command.requestId }),
+      principalId: identity.value.id,
+      sessionId: session.value.id,
+      resourceType: 'auth.session',
+      resourceId: session.value.id,
     });
 
     return result.ok({

@@ -2,6 +2,7 @@ import {
   allow,
   freshSession,
   hasScopedRole,
+  hasAssuranceLevel,
   type PolicyRule,
 } from '@pressly/auth/authorization';
 import type { PricingCatalogResource } from '../resources/pricing.resources.ts';
@@ -16,7 +17,7 @@ export const makePricingPolicies = (
   allow({
     id: 'pricing.plan.owner_or_admin_in_scope',
     action: 'pricing:plan',
-    when: [hasScopedRole(['owner', 'admin'])],
+    when: [hasScopedRole(['owner', 'admin']), hasAssuranceLevel(['mfa'])],
   }),
 
   allow({
@@ -24,6 +25,7 @@ export const makePricingPolicies = (
     action: 'pricing:publish',
     when: [
       hasScopedRole(['owner']),
+      hasAssuranceLevel(['mfa']),
       freshSession(options.freshSessionMaxAgeMinutes),
     ],
   }),

@@ -100,6 +100,8 @@ describe('login user', () => {
         tokenHash: `hash:${accessToken}`,
         issuedAt: now,
         expiresAt: new Date('2026-05-29T12:30:00.000Z'),
+        lastUsedAt: now,
+        assuranceLevel: 'password',
       },
     ]);
 
@@ -115,7 +117,7 @@ describe('login user', () => {
 
     expect(calls.recordAuditEvent).toEqual([
       {
-        actorIdentityId: makeDefaultIdentity().id,
+        principalIdentityId: makeDefaultIdentity().id,
         eventType: 'auth.login.succeeded',
         resourceType: 'auth_session',
         resourceId: makeDefaultSession().id,
@@ -132,6 +134,39 @@ describe('login user', () => {
         email: 'admin@pressly.com',
         roles: ['admin'],
       },
+    });
+  });
+
+  it('creates a short-lived challenge instead of a session when privileged MFA is enabled', async () => {
+    const { login, calls } = makeSubject({
+      store: {
+        identity: makeDefaultIdentity({ mfaEnabled: true, roles: ['owner'] }),
+      },
+    });
+
+    const actual = await login(makeLoginCommand());
+
+    expect(actual).toEqual({
+      tag: 'ok',
+      value: {
+        status: 'mfa_required',
+        challengeToken: accessToken,
+        expiresAt: '2026-05-29T12:05:00.000Z',
+      },
+    });
+    expect(calls.createSession).toEqual([]);
+    expect(calls.createMfaChallenge).toEqual([
+      {
+        identityId: makeDefaultIdentity().id,
+        tokenHash: `hash:${accessToken}`,
+        expiresAt: new Date('2026-05-29T12:05:00.000Z'),
+      },
+    ]);
+    expect(calls.recordAuditEvent).toContainEqual({
+      principalIdentityId: makeDefaultIdentity().id,
+      eventType: 'auth.mfa.challenge_created',
+      resourceType: 'auth_identity',
+      resourceId: makeDefaultIdentity().id,
     });
   });
 
@@ -154,7 +189,13 @@ describe('login user', () => {
     expect(calls.findPasswordCredential).toEqual([]);
     expect(calls.createSession).toEqual([]);
     expect(calls.recordLoginAttempt).toEqual([]);
-    expect(calls.recordAuditEvent).toEqual([]);
+    expect(calls.recordAuditEvent).toEqual([
+      {
+        eventType: 'auth.login.rate_limited',
+        resourceType: 'auth_identity',
+        metadata: { email: 'admin@pressly.com' },
+      },
+    ]);
   });
 
   it('records a failed attempt when the identity does not exist', async () => {
@@ -174,7 +215,16 @@ describe('login user', () => {
         failureCode: 'invalid_credentials',
       },
     ]);
-    expect(calls.recordAuditEvent).toEqual([]);
+    expect(calls.recordAuditEvent).toEqual([
+      {
+        eventType: 'auth.login.failed',
+        resourceType: 'auth_identity',
+        metadata: {
+          email: 'admin@pressly.com',
+          failureCode: 'invalid_credentials',
+        },
+      },
+    ]);
   });
 
   it('records a failed attempt when the identity is inactive', async () => {
@@ -195,11 +245,23 @@ describe('login user', () => {
     expect(calls.recordLoginAttempt).toEqual([
       {
         emailNormalized: 'admin@pressly.com',
+        identityId: makeDefaultIdentity().id,
         success: false,
         failureCode: 'invalid_credentials',
       },
     ]);
-    expect(calls.recordAuditEvent).toEqual([]);
+    expect(calls.recordAuditEvent).toEqual([
+      {
+        principalIdentityId: makeDefaultIdentity().id,
+        eventType: 'auth.login.failed',
+        resourceType: 'auth_identity',
+        resourceId: makeDefaultIdentity().id,
+        metadata: {
+          email: 'admin@pressly.com',
+          failureCode: 'invalid_credentials',
+        },
+      },
+    ]);
   });
 
   it('records a failed attempt when no password credential exists', async () => {
@@ -220,7 +282,18 @@ describe('login user', () => {
         failureCode: 'invalid_credentials',
       },
     ]);
-    expect(calls.recordAuditEvent).toEqual([]);
+    expect(calls.recordAuditEvent).toEqual([
+      {
+        principalIdentityId: makeDefaultIdentity().id,
+        eventType: 'auth.login.failed',
+        resourceType: 'auth_identity',
+        resourceId: makeDefaultIdentity().id,
+        metadata: {
+          email: 'admin@pressly.com',
+          failureCode: 'invalid_credentials',
+        },
+      },
+    ]);
   });
 
   it('records a failed attempt when the password is wrong', async () => {
@@ -232,7 +305,18 @@ describe('login user', () => {
 
     expectErrCode(actual, 'invalid_credentials');
     expect(calls.createSession).toEqual([]);
-    expect(calls.recordAuditEvent).toEqual([]);
+    expect(calls.recordAuditEvent).toEqual([
+      {
+        principalIdentityId: makeDefaultIdentity().id,
+        eventType: 'auth.login.failed',
+        resourceType: 'auth_identity',
+        resourceId: makeDefaultIdentity().id,
+        metadata: {
+          email: 'admin@pressly.com',
+          failureCode: 'invalid_credentials',
+        },
+      },
+    ]);
     expect(calls.recordLoginAttempt).toEqual([
       {
         emailNormalized: 'admin@pressly.com',
@@ -376,6 +460,8 @@ describe('login user', () => {
         tokenHash: `hash:${accessToken}`,
         issuedAt: now,
         expiresAt: new Date('2026-05-29T12:05:00.000Z'),
+        lastUsedAt: now,
+        assuranceLevel: 'password',
       },
     ]);
   });
@@ -391,6 +477,7 @@ describe('login user', () => {
     const actual = await login(makeLoginCommand());
 
     const value = expectOk(actual);
+    if ('status' in value) throw new Error('Expected authenticated login.');
     expect(value.principal).toEqual({
       identityId: makeDefaultIdentity().id,
       displayName: 'Admin User',
@@ -419,7 +506,16 @@ describe('login user', () => {
         failureCode: 'invalid_credentials',
       },
     ]);
-    expect(calls.recordAuditEvent).toEqual([]);
+    expect(calls.recordAuditEvent).toEqual([
+      {
+        eventType: 'auth.login.failed',
+        resourceType: 'auth_identity',
+        metadata: {
+          email: 'admin@pressly.com',
+          failureCode: 'invalid_credentials',
+        },
+      },
+    ]);
   });
 
   it('keeps successful login when audit recording fails', async () => {

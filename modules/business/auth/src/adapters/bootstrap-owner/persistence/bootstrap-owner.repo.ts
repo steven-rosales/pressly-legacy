@@ -50,11 +50,6 @@ export const makeBootstrapOwnerStore = (db: Database): BootstrapOwnerStore => ({
           passwordHash: input.passwordHash,
         });
 
-        await tx.insert(auth.authIdentityRoles).values({
-          identityId: identity.id,
-          role: 'owner',
-        });
-
         await tx.insert(auth.authRoleAssignments).values({
           identityId: identity.id,
           role: 'owner',

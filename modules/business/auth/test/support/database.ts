@@ -7,6 +7,7 @@ import {
 } from '@pressly/testkit/database';
 
 const TEST_DATABASE_URL_ENV = 'PRESSLY_TEST_DATABASE_URL';
+const TEST_DATABASE_RESET_URL_ENV = 'PRESSLY_TEST_DATABASE_RESET_URL';
 
 export const DEFAULT_AUTH_TEST_DATABASE_URL =
   'postgres://pressly:pressly@localhost:55434/pressly_test';
@@ -14,8 +15,10 @@ export const DEFAULT_AUTH_TEST_DATABASE_URL =
 const AUTH_TEST_TABLES = [
   'auth_audit_events',
   'auth_login_attempts',
+  'auth_mfa_recovery_codes',
+  'auth_mfa_challenges',
+  'auth_mfa_credentials',
   'auth_role_assignments',
-  'auth_identity_roles',
   'auth_password_credentials',
   'auth_sessions',
   'auth_identities',
@@ -39,5 +42,8 @@ export const createAuthTestDatabase = (): AuthTestDatabase => {
     databaseUrl: getAuthTestDatabaseUrl(),
     tableNames: AUTH_TEST_TABLES,
     maxConnections: 1,
+    ...(process.env[TEST_DATABASE_RESET_URL_ENV] === undefined
+      ? {}
+      : { resetDatabaseUrl: process.env[TEST_DATABASE_RESET_URL_ENV] }),
   });
 };

@@ -16,6 +16,9 @@ export const makeLoginController = (login: Login): RequestHandler =>
       ...(req.header('user-agent')
         ? { userAgent: req.header('user-agent')! }
         : {}),
+      ...((res.locals?.['requestId'] as string | undefined) === undefined
+        ? {}
+        : { requestId: res.locals?.['requestId'] as string }),
     });
 
     if (result.isErr(loginResult)) {

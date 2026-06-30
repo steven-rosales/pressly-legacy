@@ -27,6 +27,7 @@ export const makeDefaultOptions = (
   sessionTtlMinutes: 30,
   loginWindowMinutes: 15,
   loginMaxFailures: 5,
+  mfaChallengeTtlMinutes: 5,
   ...overrides,
 });
 
@@ -39,6 +40,8 @@ export const makeDefaultIdentity = (
   email: 'admin@pressly.com',
   isActive: true,
   roles: ['admin'],
+  mfaEnabled: false,
+  ...overrides,
 });
 
 export const makeDefaultCredential = (
@@ -71,5 +74,7 @@ export const makeDefaultStoredSessionPrincipal = (
   issuedAt: new Date('2026-05-29T11:30:00.000Z'),
   expiresAt: new Date('2026-05-29T12:30:00.000Z'),
   revokedAt: null,
+  lastUsedAt: new Date('2026-05-29T11:55:00.000Z'),
+  assuranceLevel: 'password',
   ...overrides,
 });

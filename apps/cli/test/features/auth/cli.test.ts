@@ -17,6 +17,10 @@ const makeFakeClient = () => {
     login: 0,
     session: 0,
     logout: 0,
+    mfaEnroll: 0,
+    mfaConfirm: 0,
+    mfaRecoveryCodes: 0,
+    mfaRemove: 0,
     close: 0,
   };
 
@@ -49,6 +53,25 @@ const makeFakeClient = () => {
       calls.logout += 1;
 
       return result.ok({ revoked: true });
+    },
+    beginMfaEnrollment: async () => {
+      calls.mfaEnroll += 1;
+      return result.ok({
+        secret: 'BASE32SECRETVALUE',
+        enrollmentUri: 'otpauth://totp/Pressly:Steven?secret=BASE32SECRETVALUE',
+      });
+    },
+    confirmMfaEnrollment: async () => {
+      calls.mfaConfirm += 1;
+      return result.ok({ recoveryCodes: ['AAAA-BBBB-CCCC-DDDD-EEEE-FFFF'] });
+    },
+    regenerateMfaRecoveryCodes: async () => {
+      calls.mfaRecoveryCodes += 1;
+      return result.ok({ recoveryCodes: ['FFFF-EEEE-DDDD-CCCC-BBBB-AAAA'] });
+    },
+    removeMfa: async () => {
+      calls.mfaRemove += 1;
+      return result.ok({ updated: true });
     },
     close: async () => {
       calls.close += 1;
@@ -123,5 +146,33 @@ describe('auth CLI', () => {
     expect(fake.calls.logout).toBe(1);
     expect(fake.calls.close).toBe(1);
     expect(io.stdout.text()).toMatch(/Logged out/);
+  });
+
+  it('parses MFA login and enrollment commands', () => {
+    const login = parseAuthCliCommand([
+      'auth',
+      'login',
+      '--email',
+      'steven@example.com',
+      '--password',
+      'password-123',
+      '--mfa-code',
+      '123456',
+    ]);
+    const confirm = parseAuthCliCommand([
+      'auth',
+      'mfa-confirm',
+      '--code',
+      '123456',
+    ]);
+
+    expect(login).toMatchObject({
+      tag: 'ok',
+      value: { action: 'login', mfaCode: '123456' },
+    });
+    expect(confirm).toMatchObject({
+      tag: 'ok',
+      value: { action: 'mfa-confirm', code: '123456' },
+    });
   });
 });

@@ -3,8 +3,8 @@ import { auth, type Database } from '@pressly/db';
 import type { AppError } from '@pressly/errors';
 import { toDatabaseResult } from './database-result.ts';
 
-export type AuthAuditEventInput = Readonly<{
-  actorIdentityId?: string;
+type AuthAuditEventInput = Readonly<{
+  principalIdentityId?: string;
   eventType: string;
   resourceType: string;
   resourceId?: string;
