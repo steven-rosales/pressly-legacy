@@ -30,7 +30,8 @@
   "dependencies": {
     "@pressly/errors": "workspace:*",
     "@pressly/kernel": "workspace:*",
-    "argon2": "^0.44.0"
+    "argon2": "^0.44.0",
+    "otpauth": "^9.5.1"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",

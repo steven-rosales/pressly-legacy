@@ -31,6 +31,7 @@
     "@pressly/errors": "workspace:*",
     "@pressly/http": "workspace:*",
     "@pressly/kernel": "workspace:*",
+    "@pressly/logging": "workspace:*",
     "@pressly/time": "workspace:*",
     "express": "^5.2.1"
   },
