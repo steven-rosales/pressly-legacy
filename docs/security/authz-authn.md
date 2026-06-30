@@ -1,4 +1,4 @@
-# Security
+# Authz/Authn
 
 Pressly security is a request pipeline, not one generic "auth" step.
 
