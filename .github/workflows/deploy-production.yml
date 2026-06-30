@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Branch, tag, or git SHA to deploy
+        description: Full commit SHA with a successful CI run
         required: true
-        default: main
 
   workflow_run:
     workflows:
@@ -21,6 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -34,34 +34,96 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
 
     steps:
+      - name: Checkout deployment tooling
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
       - name: Resolve deploy ref
         id: deploy-ref
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MANUAL_REF: ${{ inputs.ref }}
-          WORKFLOW_RUN_REF: ${{ github.event.workflow_run.head_branch }}
+          MANUAL_SHA: ${{ inputs.ref }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          sha="$(node tooling/scripts/deployment-selection.mjs)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Deploying source commit: $sha"
+
+      - name: Verify manual commit passed CI
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_SHA: ${{ steps.deploy-ref.outputs.sha }}
         run: |
           set -euo pipefail
 
-          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
-            ref="$WORKFLOW_RUN_REF"
-          else
-            ref="$MANUAL_REF"
+          gh api "/repos/$GITHUB_REPOSITORY/commits/$DEPLOY_SHA" >/dev/null
+          successful_runs="$(
+            gh api \
+              "/repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$DEPLOY_SHA&branch=main&event=push&status=completed&per_page=100" \
+              --jq '[.workflow_runs[] | select(.conclusion == "success")] | length'
+          )"
+
+          if [[ "$successful_runs" -lt 1 ]]; then
+            echo "Commit $DEPLOY_SHA has no successful completed CI run." >&2
+            exit 1
           fi
 
-          case "$ref" in
-            "")
-              echo "Missing deploy ref" >&2
-              exit 1
-              ;;
-            -* | *[!a-zA-Z0-9._/-]*)
-              echo "Invalid deploy ref: $ref" >&2
-              exit 1
-              ;;
-          esac
+      - name: Resolve successful CI run
+        id: ci-run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_SHA: ${{ steps.deploy-ref.outputs.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            run_id="$WORKFLOW_RUN_ID"
+          else
+            run_id="$(
+              gh api \
+                "/repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$DEPLOY_SHA&branch=main&event=push&status=completed&per_page=100" \
+                --jq '.workflow_runs | map(select(.conclusion == "success")) | first | .id'
+            )"
+          fi
+          [[ "$run_id" =~ ^[0-9]+$ ]]
+          echo "id=$run_id" >> "$GITHUB_OUTPUT"
 
-          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - name: Checkout deployed release tooling
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ steps.deploy-ref.outputs.sha }}
+
+      - name: Download verified release evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ steps.ci-run.outputs.id }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          gh run download "$CI_RUN_ID" --name production-release --dir release
+
+      - name: Validate immutable release manifest
+        id: release
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: ${{ steps.deploy-ref.outputs.sha }}
+        run: |
+          set -euo pipefail
+          node tooling/scripts/release-manifest.mjs validate release/release.json >/dev/null
+          node - <<'NODE'
+          const manifest = require('./release/release.json');
+          const output = process.env.GITHUB_OUTPUT;
+          require('node:fs').appendFileSync(
+            output,
+            `api_image=${manifest.apiImage}\nweb_image=${manifest.webImage}\n`,
+          );
+          NODE
 
       - name: Install SSH key
         shell: bash
@@ -75,26 +137,51 @@ jobs:
           printf '%s\n' "$LIGHTSAIL_SSH_KEY" > ~/.ssh/lightsail
           chmod 600 ~/.ssh/lightsail
 
-      - name: Trust Lightsail host
+      - name: Install verified Lightsail host key
         shell: bash
         env:
           LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_SSH_KNOWN_HOSTS: ${{ secrets.LIGHTSAIL_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-
-          ssh-keyscan -H "$LIGHTSAIL_HOST" >> ~/.ssh/known_hosts
+          printf '%s\n' "$LIGHTSAIL_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          ssh-keygen -F "$LIGHTSAIL_HOST" -f ~/.ssh/known_hosts >/dev/null
 
       - name: Run deployment
         shell: bash
         env:
           LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
           LIGHTSAIL_USER: ${{ secrets.LIGHTSAIL_USER }}
-          DEPLOY_REF: ${{ steps.deploy-ref.outputs.ref }}
+          DEPLOY_SHA: ${{ steps.deploy-ref.outputs.sha }}
+          API_IMAGE: ${{ steps.release.outputs.api_image }}
+          WEB_IMAGE: ${{ steps.release.outputs.web_image }}
         run: |
           set -euo pipefail
 
           ssh \
             -i ~/.ssh/lightsail \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
             "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
-            "DEPLOY_REF='$DEPLOY_REF' /opt/pressly/repo/infra/aws/lightsail/deploy.sh"
+            "DEPLOY_SHA='$DEPLOY_SHA' PRESSLY_API_IMAGE='$API_IMAGE' PRESSLY_WEB_IMAGE='$WEB_IMAGE' /opt/pressly/repo/infra/aws/lightsail/deploy.sh"
+
+      - name: Record deployment result
+        if: always()
+        shell: bash
+        env:
+          DEPLOY_SHA: ${{ steps.deploy-ref.outputs.sha }}
+          DEPLOY_OUTCOME: ${{ job.status }}
+        run: |
+          if [[ "$DEPLOY_OUTCOME" == "success" ]]; then
+            event='deployment.succeeded'
+            outcome='succeeded'
+          else
+            event='deployment.failed'
+            outcome='failed'
+          fi
+          printf '{"name":"%s","outcome":"%s","sourceSha":"%s","occurredAt":"%s"}\n' \
+            "$event" \
+            "$outcome" \
+            "$DEPLOY_SHA" \
+            "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"

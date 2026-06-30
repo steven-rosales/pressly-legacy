@@ -1,4 +1,4 @@
-FROM node:24-alpine AS base
+FROM node:24.12.0-alpine@sha256:c921b97d4b74f51744057454b306b418cf693865e73b8100559189605f6955b8 AS base
 
 RUN apk add --no-cache libc6-compat
 
@@ -54,6 +54,11 @@ FROM builder AS runner
 
 ENV NODE_ENV=production
 
+RUN addgroup -S -g 1001 pressly \
+    && adduser -S -D -H -u 1001 -G pressly pressly
+
+USER pressly
+
 EXPOSE 4000
 
-CMD ["pnpm", "-F", "@pressly/api", "start"]
+CMD ["node", "apps/api/dist/index.js"]
