@@ -7,6 +7,7 @@ import {
 } from '@pressly/testkit/database';
 
 const TEST_DATABASE_URL_ENV = 'PRESSLY_TEST_DATABASE_URL';
+const TEST_DATABASE_RESET_URL_ENV = 'PRESSLY_TEST_DATABASE_RESET_URL';
 
 export const DEFAULT_PRICING_TEST_DATABASE_URL =
   'postgres://pressly:pressly@localhost:55434/pressly_test';
@@ -36,5 +37,8 @@ export const createPricingTestDatabase = (): PricingTestDatabase => {
     databaseUrl: getPricingTestDatabaseUrl(),
     tableNames: PRICING_TEST_TABLES,
     maxConnections: 1,
+    ...(process.env[TEST_DATABASE_RESET_URL_ENV] === undefined
+      ? {}
+      : { resetDatabaseUrl: process.env[TEST_DATABASE_RESET_URL_ENV] }),
   });
 };

@@ -3,76 +3,82 @@ set -euo pipefail
 
 APP_ROOT="${PRESSLY_APP_ROOT:-/opt/pressly}"
 REPO_DIR="${PRESSLY_REPO_DIR:-$APP_ROOT/repo}"
-ENV_FILE="${PRESSLY_ENV_FILE:-$APP_ROOT/.env.production}"
+ENV_DIR="${PRESSLY_ENV_DIR:-$APP_ROOT/env}"
+COMPOSE_ENV_FILE="${PRESSLY_COMPOSE_ENV_FILE:-$ENV_DIR/compose.env}"
+BACKUP_ENV_FILE="${PRESSLY_BACKUP_ENV_FILE:-$ENV_DIR/backup.env}"
 COMPOSE_FILE="${PRESSLY_COMPOSE_FILE:-$REPO_DIR/infra/aws/lightsail/docker-compose.production.yml}"
 BACKUP_DIR="${PRESSLY_BACKUP_DIR:-$APP_ROOT/backups/postgres}"
 PASSPHRASE_FILE="${PRESSLY_BACKUP_PASSPHRASE_FILE:-$APP_ROOT/backup-passphrase.txt}"
 RETENTION_DAYS="${PRESSLY_BACKUP_RETENTION_DAYS:-14}"
 S3_URI="${PRESSLY_BACKUP_S3_URI:-}"
 
-export PRESSLY_ENV_FILE="$ENV_FILE"
+export PRESSLY_BACKUP_ENV_FILE="$BACKUP_ENV_FILE"
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing env file: $ENV_FILE" >&2
+for file in "$COMPOSE_ENV_FILE" "$BACKUP_ENV_FILE" "$PASSPHRASE_FILE"; do
+  if [[ ! -f "$file" ]]; then
+    echo "Missing required file: $file" >&2
+    exit 1
+  fi
+  if [[ "$(stat -c '%a' "$file")" != "600" ]]; then
+    echo "Invalid permissions. Expected 600: $file" >&2
+    exit 1
+  fi
+done
+
+if [[ -z "$S3_URI" || ! "$S3_URI" =~ ^s3://[^/]+/.+ ]]; then
+  echo "PRESSLY_BACKUP_S3_URI must be an S3 bucket prefix." >&2
   exit 1
 fi
 
-if [[ "$(stat -c '%a' "$ENV_FILE")" != "600" ]]; then
-  echo "Invalid env file permissions. Expected 600: $ENV_FILE" >&2
-  exit 1
-fi
-
-if [[ ! -f "$PASSPHRASE_FILE" ]]; then
-  echo "Missing backup passphrase file: $PASSPHRASE_FILE" >&2
-  exit 1
-fi
-
-if [[ "$(stat -c '%a' "$PASSPHRASE_FILE")" != "600" ]]; then
-  echo "Invalid backup passphrase permissions. Expected 600: $PASSPHRASE_FILE" >&2
-  exit 1
-fi
-
-command -v gpg >/dev/null || {
-  echo "gpg is required for encrypted backups." >&2
-  exit 1
-}
-
-if [[ -n "$S3_URI" ]]; then
-  command -v aws >/dev/null || {
-    echo "aws CLI is required when PRESSLY_BACKUP_S3_URI is set." >&2
+for command in aws docker gpg sha256sum; do
+  command -v "$command" >/dev/null || {
+    echo "$command is required." >&2
     exit 1
   }
-fi
+done
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-backup_file="$BACKUP_DIR/pressly-$timestamp.sql.gz.gpg"
-
-postgres_db="$(
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T postgres printenv POSTGRES_DB \
-    | tr -d '\r'
-)"
-postgres_user="$(
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T postgres printenv POSTGRES_USER \
-    | tr -d '\r'
-)"
+created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+basename="pressly-$timestamp.dump.gpg"
+backup_file="$BACKUP_DIR/$basename"
+checksum_file="$backup_file.sha256"
+metadata_file="$backup_file.json"
+object_uri="${S3_URI%/}/$basename"
 
 docker compose \
-  --env-file "$ENV_FILE" \
+  --profile tools \
+  --env-file "$COMPOSE_ENV_FILE" \
   -f "$COMPOSE_FILE" \
-  exec -T postgres pg_dump --no-owner --no-privileges -U "$postgres_user" -d "$postgres_db" \
-  | gzip -9 \
+  run --rm -T backup \
+  pg_dump --format=custom --compress=9 --no-owner --no-privileges \
   | gpg --symmetric --cipher-algo AES256 --batch --passphrase-file "$PASSPHRASE_FILE" \
   > "$backup_file"
 
 chmod 600 "$backup_file"
+checksum="$(sha256sum "$backup_file" | cut -d' ' -f1)"
+size_bytes="$(stat -c '%s' "$backup_file")"
+printf '%s  %s\n' "$checksum" "$basename" > "$checksum_file"
+printf '{"createdAt":"%s","object":"%s","sha256":"%s","sizeBytes":%s}\n' \
+  "$created_at" "$object_uri" "$checksum" "$size_bytes" > "$metadata_file"
+chmod 600 "$checksum_file" "$metadata_file"
 
-if [[ -n "$S3_URI" ]]; then
-  aws s3 cp "$backup_file" "$S3_URI/"
+aws s3 cp "$backup_file" "$object_uri" --only-show-errors
+aws s3 cp "$checksum_file" "$object_uri.sha256" --only-show-errors
+aws s3 cp "$metadata_file" "$object_uri.json" --only-show-errors
+
+remote_checksum="$(aws s3 cp "$object_uri" - --only-show-errors | sha256sum | cut -d' ' -f1)"
+if [[ "$remote_checksum" != "$checksum" ]]; then
+  echo "Uploaded backup checksum does not match local backup." >&2
+  exit 1
 fi
 
-find "$BACKUP_DIR" -type f -name '*.sql.gz.gpg' -mtime +"$RETENTION_DAYS" -delete
+find "$BACKUP_DIR" -type f \( -name '*.dump.gpg' -o -name '*.dump.gpg.sha256' -o -name '*.dump.gpg.json' \) \
+  -mtime +"$RETENTION_DAYS" -delete
 
-echo "Created encrypted backup: $backup_file"
+echo "Backup object: $object_uri"
+echo "Recovery point: $created_at"
+echo "Encrypted bytes: $size_bytes"
+echo "SHA-256 verified after upload: $checksum"
