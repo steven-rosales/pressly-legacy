@@ -10,7 +10,6 @@ import type { AppError } from '@pressly/errors';
 
 export type PricingChangeInput = Readonly<{
   serviceSlug: LoadPricingCatalogCommand['serviceSlug'];
-  locationSlug?: string;
   reason: string;
   items: readonly PublishPricingChangeItem[];
 }>;

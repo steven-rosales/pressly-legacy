@@ -1,157 +1,96 @@
-# Pressly Lightsail Deployment
+# Pressly Lightsail Runtime
 
-This directory owns the low-cost AWS production setup.
-
-Runtime shape:
-
-```txt
-Lightsail VPS
-  -> Docker Compose
-  -> Caddy on 80/443
-  -> web and api on the private Compose network
-  -> Postgres on the private Compose network
-```
-
-Postgres is intentionally not exposed to the internet.
+Production runs Caddy, web, API, and Postgres on one private Compose network.
+Only Caddy publishes host ports. CI builds and scans images; the server pulls
+immutable GHCR digests and never rebuilds application source.
 
 ## Server Layout
 
-```txt
+```text
 /opt/pressly/
-  .env.production
-  backup-passphrase.txt
-  backups/
-  repo/
+  env/                       service-specific mode-600 files
+  repo/                      deployment tooling checkout
+  backups/postgres/          short-lived encrypted local copies
+  backup-passphrase.txt      mode 600; retain an offline recovery copy
+  current-release.json       active SHA and image digests
+  previous-release.json      rollback SHA and image digests
 ```
 
-`repo/` is the git checkout of this repository.
+## First Setup
 
-Secrets stay outside the repo.
-
-## First Server Setup
+1. Install Docker, Git, AWS CLI, GnuPG, and Python 3.
+2. Clone the repository to `/opt/pressly/repo`.
+3. Copy each `infra/aws/docs/env/*.example` file to `/opt/pressly/env/`
+   without `.example`, replace placeholders, then run:
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl git ufw gpg
+chmod 600 /opt/pressly/env/*.env
+chmod 700 /opt/pressly/env
 ```
 
-Install Docker using Docker's official Ubuntu install flow.
-
-Then:
+4. Configure the fixed database roles:
 
 ```bash
-sudo usermod -aG docker ubuntu
-sudo mkdir -p /opt/pressly/backups/postgres
-sudo chown -R ubuntu:ubuntu /opt/pressly
+/opt/pressly/repo/infra/aws/lightsail/configure-database-roles.sh
 ```
 
-Create the production env file:
+5. Authenticate Docker to the private GHCR packages using a read-only package
+   credential owned by the deployment operator:
 
 ```bash
-cp /opt/pressly/repo/infra/aws/lightsail/.env.production.example /opt/pressly/.env.production
-nano /opt/pressly/.env.production
-chmod 600 /opt/pressly/.env.production
+printf '%s' '<read-only-token>' | docker login ghcr.io -u '<github-user>' --password-stdin
 ```
 
-Required values:
-
-```txt
-NODE_ENV=production
-API_HOST=0.0.0.0
-API_PORT=4000
-DATABASE_URL=postgres://pressly:<postgres-password>@postgres:5432/pressly
-DATABASE_MAX_CONNECTIONS=10
-LOG_LEVEL=info
-CORS_ORIGIN=https://trypressly.com
-AUTH_SECRET=<strong-random-secret>
-AUTH_SESSION_TTL_MINUTES=720
-AUTH_LOGIN_WINDOW_MINUTES=15
-AUTH_LOGIN_MAX_FAILURES=8
-AUTH_FRESH_SESSION_MAX_AGE_MINUTES=15
-FEATURE_METRICS_ENABLED=false
-FEATURE_JOBS_ENABLED=false
-SENTRY_ENABLED=false
-POSTHOG_ENABLED=false
-POSTGRES_DB=pressly
-POSTGRES_USER=pressly
-POSTGRES_PASSWORD=<postgres-password>
-HOSTNAME=0.0.0.0
-PORT=3000
-API_BASE_URL=https://api.trypressly.com
-NEXT_PUBLIC_API_BASE_URL=https://api.trypressly.com
-NEXT_PUBLIC_ANALYTICS_ENABLED=false
-PRESSLY_WEB_DOMAIN=trypressly.com
-PRESSLY_API_DOMAIN=api.trypressly.com
-```
-
-Clone the repo:
-
-```bash
-git clone git@github.com:<owner>/<repo>.git /opt/pressly/repo
-```
-
-## Deploy Manually
-
-```bash
-/opt/pressly/repo/infra/aws/lightsail/deploy.sh
-```
-
-Deploy another branch:
-
-```bash
-DEPLOY_BRANCH=<branch-name> /opt/pressly/repo/infra/aws/lightsail/deploy.sh
-```
-
-Production deploys assume migrations are backward-compatible.
-Read `docs/ops/production-migrations.md` before generating destructive
-migrations.
-
-## Backups
-
-Create a server-only encryption passphrase:
+6. Generate and protect the backup passphrase:
 
 ```bash
 openssl rand -base64 48 > /opt/pressly/backup-passphrase.txt
 chmod 600 /opt/pressly/backup-passphrase.txt
 ```
 
-Run once:
+Deployment is driven by `.github/workflows/deploy-production.yml`. The workflow
+supplies the exact source SHA and API/web image digests to `deploy.sh`.
+
+## Quickest Step By Step For Rollback
+
+Rollback reuses the previous immutable image digests. It does not reverse a
+destructive migration.
 
 ```bash
-PRESSLY_BACKUP_S3_URI=s3://your-pressly-backups/postgres \
+ssh ubuntu@<server>
+/opt/pressly/repo/infra/aws/lightsail/rollback.sh
+curl --fail --silent --show-error https://api.trypressly.com/health/ready
+curl --fail --silent --show-error https://trypressly.com/health
+```
+
+## Backups
+
+Run one verified encrypted S3 backup:
+
+```bash
+PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres \
   /opt/pressly/repo/infra/aws/lightsail/backup-postgres.sh
 ```
 
 Cron example:
 
-```txt
-15 3 * * * PRESSLY_BACKUP_S3_URI=s3://your-pressly-backups/postgres /opt/pressly/repo/infra/aws/lightsail/backup-postgres.sh >> /var/log/pressly-backup.log 2>&1
+```text
+15 3 * * * PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres /opt/pressly/repo/infra/aws/lightsail/backup-postgres.sh >> /var/log/pressly-backup.log 2>&1
 ```
 
-Also enable Lightsail automatic snapshots.
+The script uploads the encrypted dump, checksum, and metadata, then downloads
+the encrypted object stream to verify its SHA-256 checksum.
 
-Database dumps are for database recovery.
+## Recovery
 
-Snapshots are for machine recovery.
-
-Practice restores before trusting backups:
-
-```bash
-less /opt/pressly/repo/infra/aws/lightsail/restore-postgres-drill.md
+```text
+bad application release, data is sound -> rollback.sh
+data corruption or machine loss        -> restore-postgres.md
+practice and evidence                   -> restore-postgres-drill.md
 ```
 
-Production recovery steps live in `infra/aws/lightsail/restore-postgres.md`.
+Read:
 
-## Rollback
-
-Rollback manually:
-
-```bash
-/opt/pressly/repo/infra/aws/lightsail/rollback.sh
-```
-
-Rollback with an exact SHA:
-
-```bash
-DEPLOY_REF=<known-good-sha> /opt/pressly/repo/infra/aws/lightsail/deploy.sh
-```
+- `infra/aws/docs/restore-postgres-drill.md`
+- `infra/aws/docs/restore-postgres.md`
+- `docs/security/incident-response.md`

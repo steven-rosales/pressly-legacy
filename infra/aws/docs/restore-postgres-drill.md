@@ -1,106 +1,37 @@
-# Backup Restore Drill
+# Postgres Restore Drill
 
-Use this to prove one encrypted S3 backup can restore into a disposable
-Postgres container.
+This proves an encrypted backup in an isolated disposable database. It never
+mounts the production volume.
 
-This must not touch the production Compose Postgres volume.
+## Quickest Step By Step For A Restore Drill
 
-## 1. Choose A Backup
-
-List backup objects:
+1. Download the backup, checksum, and metadata.
 
 ```bash
-AWS_PROFILE=pressly-backup aws s3 ls s3://bucket-a5tjsz/postgres/
+aws s3 cp s3://<bucket>/postgres/pressly-<timestamp>.dump.gpg /opt/pressly/backups/postgres/
+aws s3 cp s3://<bucket>/postgres/pressly-<timestamp>.dump.gpg.sha256 /opt/pressly/backups/postgres/
+aws s3 cp s3://<bucket>/postgres/pressly-<timestamp>.dump.gpg.json /opt/pressly/backups/postgres/
 ```
 
-Copy one backup to the server if it is not already present:
+2. Run the isolated drill.
 
 ```bash
-AWS_PROFILE=pressly-backup aws s3 cp \
-  s3://bucket-a5tjsz/postgres/pressly-YYYYMMDDTHHMMSSZ.sql.gz.gpg \
-  /opt/pressly/backups/postgres/
+/opt/pressly/repo/infra/aws/lightsail/restore-postgres-drill.sh \
+  /opt/pressly/backups/postgres/pressly-<timestamp>.dump.gpg
 ```
 
-S3 prefixes need the trailing slash.
+3. Retain this evidence:
 
-Use:
-
-```txt
-s3://bucket-a5tjsz/postgres/
-```
-
-Not:
-
-```txt
-s3://bucket-a5tjsz/postgres
-```
-
-## 2. Start Disposable Postgres
-
-Start a temporary container outside the production Compose stack:
-
-```bash
-docker run --rm --name pressly-restore-drill-postgres \
-  -e POSTGRES_DB=pressly_restore_drill \
-  -e POSTGRES_USER=pressly \
-  -e POSTGRES_PASSWORD=pressly_restore_drill \
-  -d postgres:18-bookworm
-```
-
-Wait until it accepts connections:
-
-```bash
-docker exec pressly-restore-drill-postgres \
-  pg_isready -U pressly -d pressly_restore_drill
-```
-
-## 3. Restore The Backup
-
-Replace the filename with the backup chosen in step 1:
-
-```bash
-gpg --decrypt \
-  --batch \
-  --passphrase-file /opt/pressly/backup-passphrase.txt \
-  /opt/pressly/backups/postgres/pressly-YYYYMMDDTHHMMSSZ.sql.gz.gpg \
-  | gunzip \
-  | docker exec -i pressly-restore-drill-postgres \
-      psql -U pressly -d pressly_restore_drill -v ON_ERROR_STOP=1
-```
-
-## 4. Prove The Restore
-
-Check that tables exist:
-
-```bash
-docker exec -i pressly-restore-drill-postgres \
-  psql -U pressly -d pressly_restore_drill -c '\dt'
-```
-
-Check at least one known table:
-
-```bash
-docker exec -i pressly-restore-drill-postgres \
-  psql -U pressly -d pressly_restore_drill -c 'select count(*) from auth_identites;'
-```
-
-Use real table names from the restored output.
-
-## 5. Clean Up
-
-Stop the disposable container:
-
-```bash
-docker stop pressly-restore-drill-postgres
-```
-
-## Last Verified Drill
-
-```txt
-date: 2026-06-18
-backup object: s3://bucket-a5tjsz/postgres/pressly-20260616T220418Z.sql.gz.gpg
-restored into: pressly-restore-drill-postgres
-table listing: passed
-data check: select count(*) from auth_identites; returned 1
+```text
+date:
+backup object:
+recovery point:
+recovery time seconds:
+checksum: passed
+schema smoke check: passed
 production volume touched: no
 ```
+
+The script verifies the encrypted checksum, restores with `pg_restore`, checks
+the public schema and `auth_identities`, reports recovery time, and destroys the
+disposable container and volume.

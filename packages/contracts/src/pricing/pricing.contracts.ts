@@ -22,7 +22,6 @@ export const pricingItemSchema = z.object({
 
 export const pricingCatalogSchema = z.object({
   serviceSlug: pricingServiceSlugSchema,
-  locationSlug: z.string().optional(),
   currency: z.string(),
   items: z.array(pricingItemSchema),
   updatedAt: utcIsoStringSchema,
@@ -30,18 +29,9 @@ export const pricingCatalogSchema = z.object({
 
 export const loadPricingCatalogCommandSchema = z.object({
   serviceSlug: pricingServiceSlugSchema,
-  locationSlug: z.string().min(1).optional(),
 });
 
 export const pricingParamsRequestSchema = loadPricingCatalogCommandSchema;
-
-export const pricingChangeAuthorSchema = z
-  .object({
-    id: z.string().min(1),
-    kind: z.enum(['human', 'service']),
-    displayName: z.string().min(1),
-  })
-  .strict();
 
 export const publishPricingChangeItemSchema = z
   .object({
@@ -50,20 +40,9 @@ export const publishPricingChangeItemSchema = z
   })
   .strict();
 
-export const publishPricingChangeCommandSchema = z
-  .object({
-    serviceSlug: pricingServiceSlugSchema,
-    locationSlug: z.string().min(1).optional(),
-    reason: z.string().min(1),
-    requestedBy: pricingChangeAuthorSchema,
-    items: z.array(publishPricingChangeItemSchema).min(1),
-  })
-  .strict();
-
 export const pricingChangeRequestSchema = z
   .object({
     serviceSlug: pricingServiceSlugSchema,
-    locationSlug: z.string().min(1).optional(),
     reason: z.string().min(1),
     items: z.array(publishPricingChangeItemSchema).min(1),
   })

@@ -1,0 +1,14 @@
+{
+  "extends": "../../packages/tsconfig/node.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": "../..",
+    "types": ["node", "vitest"],
+    "paths": {
+      "@pressly/errors": ["../../packages/errors/src/index.ts"]
+    }
+  },
+  "include": ["src/common/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

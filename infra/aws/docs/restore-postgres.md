@@ -1,94 +1,64 @@
-# Restore Postgres From Backup
+# Restore Production Postgres
 
-Use this for production recovery.
+Use this only for serious data corruption or machine loss. A code rollback does
+not reverse a destructive migration.
 
-For a safe practice restore, use `infra/aws/lightsail/restore-postgres-drill.md`
-instead. The drill restores into a disposable container and does not touch the
-production Postgres volume.
+## Before Restore
 
-The normal production rule is:
+- Obtain owner approval and record the expected data-loss window.
+- Choose an object whose checksum and isolated restore drill passed.
+- Record the current release manifest and incident request IDs.
+- Stop application writers before changing data.
 
-```txt
-prefer forward fixes for normal migration mistakes
-restore from backup for serious data corruption or machine loss
-```
+## Quickest Step By Step For Recovery
 
-## Before Production Restore
-
-Production restore is destructive.
-
-Before running it, confirm:
-
-```txt
-fresh backup object chosen
-restore drill has passed at least once
-api and web writers are stopped
-expected data loss window is understood
-current app release is known
-owner/operator approved the restore
-```
-
-## 1. Copy The Backup To The Server
-
-If the backup is in S3:
+1. Download and verify all three backup objects.
 
 ```bash
-AWS_PROFILE=pressly-backup aws s3 ls s3://bucket-a5tjsz/postgres/
-
-AWS_PROFILE=pressly-backup aws s3 cp \
-  s3://bucket-a5tjsz/postgres/pressly-YYYYMMDDTHHMMSSZ.sql.gz.gpg \
-  /opt/pressly/backups/postgres/
+aws s3 cp s3://<bucket>/postgres/pressly-<timestamp>.dump.gpg /opt/pressly/backups/postgres/
+aws s3 cp s3://<bucket>/postgres/pressly-<timestamp>.dump.gpg.sha256 /opt/pressly/backups/postgres/
+aws s3 cp s3://<bucket>/postgres/pressly-<timestamp>.dump.gpg.json /opt/pressly/backups/postgres/
+cd /opt/pressly/backups/postgres
+sha256sum --check pressly-<timestamp>.dump.gpg.sha256
 ```
 
-## 2. Stop Writers
+2. Stop API and web writers.
 
 ```bash
 cd /opt/pressly/repo
-
-docker compose \
-  --env-file /opt/pressly/.env.production \
-  -f infra/aws/lightsail/docker-compose.production.yml \
-  stop api web
+docker compose --env-file /opt/pressly/env/compose.env \
+  -f infra/aws/lightsail/docker-compose.production.yml stop api web
 ```
 
-## 3. Decrypt And Restore
-
-This drops and recreates the `public` schema.
+3. Drop the damaged public schema as the migration role.
 
 ```bash
-cd /opt/pressly/repo
+docker compose --profile tools --env-file /opt/pressly/env/compose.env \
+  -f infra/aws/lightsail/docker-compose.production.yml run --rm -T restore \
+  sh -c "psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 \
+    -c 'drop schema if exists public cascade' \
+    -c 'create schema public'"
+```
 
-gpg --decrypt \
-  --batch \
+4. Decrypt and restore through the migration container.
+
+```bash
+gpg --decrypt --batch \
   --passphrase-file /opt/pressly/backup-passphrase.txt \
-  /opt/pressly/backups/postgres/pressly-YYYYMMDDTHHMMSSZ.sql.gz.gpg \
-  | gunzip \
-  | docker compose \
-      --env-file /opt/pressly/.env.production \
-      -f infra/aws/lightsail/docker-compose.production.yml \
-      exec -T postgres \
-      psql -U pressly -d pressly -v ON_ERROR_STOP=1 \
-        -c 'drop schema if exists public cascade;' \
-        -c 'create schema public;' \
-        -f -
+  /opt/pressly/backups/postgres/pressly-<timestamp>.dump.gpg \
+  | docker compose --profile tools --env-file /opt/pressly/env/compose.env \
+      -f infra/aws/lightsail/docker-compose.production.yml run --rm -T restore \
+      sh -c "pg_restore --exit-on-error --no-owner --no-privileges \
+        --dbname=\"\$DATABASE_URL\""
 ```
 
-## 4. Start And Check
+5. Start services and verify health plus critical reads.
 
 ```bash
-docker compose \
-  --env-file /opt/pressly/.env.production \
-  -f infra/aws/lightsail/docker-compose.production.yml \
-  up -d --wait
-
+docker compose --env-file /opt/pressly/env/compose.env \
+  -f infra/aws/lightsail/docker-compose.production.yml up -d --wait
 curl --fail --silent --show-error https://api.trypressly.com/health/ready
+curl --fail --silent --show-error https://trypressly.com/health
 ```
 
-## 5. Practice Once
-
-Before trusting production backups, test the drill against a disposable
-database:
-
-```bash
-less /opt/pressly/repo/infra/aws/lightsail/restore-postgres-drill.md
-```
+Record the recovery point, recovery time, health result, and any missing data.

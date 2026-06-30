@@ -3,26 +3,35 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+    "./authentication": {
+      "types": "./dist/authentication/index.d.ts",
+      "import": "./dist/authentication/index.js",
+      "default": "./dist/authentication/index.js"
+    },
+    "./authorization": {
+      "types": "./dist/authorization/index.d.ts",
+      "import": "./dist/authorization/index.js",
+      "default": "./dist/authorization/index.js"
+    },
+    "./credentials": {
+      "types": "./dist/credentials/index.d.ts",
+      "import": "./dist/credentials/index.js",
+      "default": "./dist/credentials/index.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src --max-warnings=0",
-    "test": "vitest run src",
+    "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
+    "test": "vitest run --dir test",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@pressly/errors": "workspace:*",
     "@pressly/kernel": "workspace:*",
-    "argon2": "^0.44.0"
+    "argon2": "^0.44.0",
+    "otpauth": "^9.5.1"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",

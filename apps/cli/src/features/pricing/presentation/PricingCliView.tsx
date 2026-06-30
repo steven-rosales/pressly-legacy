@@ -89,9 +89,6 @@ export const PricingCliView = ({ command, client }: PricingCliViewProps) => {
         if (command.action === 'show') {
           const catalogResult = await client.loadCatalog({
             serviceSlug: command.serviceSlug,
-            ...(command.locationSlug === undefined
-              ? {}
-              : { locationSlug: command.locationSlug }),
           });
 
           setIfActive(

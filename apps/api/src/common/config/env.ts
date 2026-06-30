@@ -26,40 +26,56 @@ const envInteger = z.preprocess(
   z.coerce.number().int().positive(),
 );
 
-const apiEnvSchema = z.object({
-  NODE_ENV: nodeEnvSchema.default('development'),
-  SHUTDOWN_GRACE_PERIOD_MS: envInteger.default(30_000),
+const envRateLimit = z.coerce.number().int().positive();
 
-  API_HOST: z.string().min(1).default('0.0.0.0'),
-  API_PORT: envPort.default(4000),
+const apiEnvSchema = z
+  .object({
+    NODE_ENV: nodeEnvSchema.default('development'),
+    SHUTDOWN_GRACE_PERIOD_MS: envInteger.default(30_000),
 
-  DATABASE_URL: envUrl,
-  DATABASE_MAX_CONNECTIONS: envInteger.default(10),
+    API_HOST: z.string().min(1).default('0.0.0.0'),
+    API_PORT: envPort.default(4000),
 
-  LOG_LEVEL: z
-    .enum(['debug', 'info', 'warn', 'error', 'fatal'])
-    .default('info'),
+    DATABASE_URL: envUrl,
+    DATABASE_MAX_CONNECTIONS: envInteger.default(10),
 
-  CORS_ORIGIN: z.string().min(1).default('http://localhost:3000'),
+    LOG_LEVEL: z
+      .enum(['debug', 'info', 'warn', 'error', 'fatal'])
+      .default('info'),
 
-  AUTH_SECRET: secret,
-  AUTH_SESSION_TTL_MINUTES: envInteger.default(720),
-  AUTH_LOGIN_WINDOW_MINUTES: envInteger.default(15),
-  AUTH_LOGIN_MAX_FAILURES: envInteger.default(8),
-  AUTH_FRESH_SESSION_MAX_AGE_MINUTES: envInteger.default(15),
+    CORS_ORIGIN: z.string().min(1).default('http://localhost:3000'),
 
-  FEATURE_METRICS_ENABLED: featureFlag,
-  FEATURE_JOBS_ENABLED: featureFlag,
+    API_GLOBAL_RATE_LIMIT: envRateLimit.default(300),
+    API_GLOBAL_RATE_WINDOW_SECONDS: envRateLimit.default(60),
+    API_LOGIN_RATE_LIMIT: envRateLimit.default(20),
+    API_LOGIN_RATE_WINDOW_SECONDS: envRateLimit.default(900),
 
-  SENTRY_ENABLED: featureFlag,
-  SENTRY_DSN: z.url().optional(),
-  SENTRY_RELEASE: z.string().min(1).optional(),
-  SENTRY_TRACES_SAMPLE_RATE: envSampleRate.default(0.1),
+    AUTH_SECRET: secret,
+    AUTH_SESSION_TTL_MINUTES: envInteger.default(720),
+    AUTH_SESSION_IDLE_TIMEOUT_MINUTES: envInteger.default(60),
+    AUTH_LOGIN_WINDOW_MINUTES: envInteger.default(15),
+    AUTH_LOGIN_MAX_FAILURES: envInteger.default(8),
+    AUTH_FRESH_SESSION_MAX_AGE_MINUTES: envInteger.default(15),
+    AUTH_MFA_CHALLENGE_TTL_MINUTES: envInteger.default(5),
+    AUTH_MFA_ENCRYPTION_KEY: secret,
+    AUTH_MFA_ISSUER: z.string().min(1).default('Pressly'),
 
-  POSTHOG_ENABLED: featureFlag,
-  POSTHOG_PROJECT_API_KEY: secret.optional(),
-  POSTHOG_HOST: envUrl.default('https://us.i.posthog.com'),
-});
+    FEATURE_METRICS_ENABLED: featureFlag,
+    FEATURE_JOBS_ENABLED: featureFlag,
+
+    SENTRY_ENABLED: featureFlag,
+    SENTRY_DSN: z.url().optional(),
+    SENTRY_RELEASE: z.string().min(1).optional(),
+    SENTRY_TRACES_SAMPLE_RATE: envSampleRate.default(0.1),
+  })
+  .superRefine((env, context) => {
+    if (env.SENTRY_ENABLED && env.SENTRY_DSN === undefined)
+      context.addIssue({
+        code: 'custom',
+        path: ['SENTRY_DSN'],
+        message: 'SENTRY_DSN is required when SENTRY_ENABLED is true',
+      });
+  });
 
 export const rawApiEnv = parseEnv(apiEnvSchema, process.env);
 
@@ -74,12 +90,26 @@ export const apiEnv = {
   databaseMaxConnections: rawApiEnv.DATABASE_MAX_CONNECTIONS,
   logLevel: rawApiEnv.LOG_LEVEL,
   corsOrigin: rawApiEnv.CORS_ORIGIN,
+  rateLimits: {
+    global: {
+      limit: rawApiEnv.API_GLOBAL_RATE_LIMIT,
+      windowMs: rawApiEnv.API_GLOBAL_RATE_WINDOW_SECONDS * 1_000,
+    },
+    login: {
+      limit: rawApiEnv.API_LOGIN_RATE_LIMIT,
+      windowMs: rawApiEnv.API_LOGIN_RATE_WINDOW_SECONDS * 1_000,
+    },
+  },
   auth: {
     secret: rawApiEnv.AUTH_SECRET,
     sessionTtlMinutes: rawApiEnv.AUTH_SESSION_TTL_MINUTES,
+    sessionIdleTimeoutMinutes: rawApiEnv.AUTH_SESSION_IDLE_TIMEOUT_MINUTES,
     loginWindowMinutes: rawApiEnv.AUTH_LOGIN_WINDOW_MINUTES,
     loginMaxFailures: rawApiEnv.AUTH_LOGIN_MAX_FAILURES,
     freshSessionMaxAgeMinutes: rawApiEnv.AUTH_FRESH_SESSION_MAX_AGE_MINUTES,
+    mfaChallengeTtlMinutes: rawApiEnv.AUTH_MFA_CHALLENGE_TTL_MINUTES,
+    mfaEncryptionKey: rawApiEnv.AUTH_MFA_ENCRYPTION_KEY,
+    mfaIssuer: rawApiEnv.AUTH_MFA_ISSUER,
   },
   features: {
     metricsEnabled: rawApiEnv.FEATURE_METRICS_ENABLED,
@@ -91,11 +121,6 @@ export const apiEnv = {
       dsn: rawApiEnv.SENTRY_DSN,
       release: rawApiEnv.SENTRY_RELEASE,
       traceSampleRate: rawApiEnv.SENTRY_TRACES_SAMPLE_RATE,
-    },
-    posthog: {
-      enabled: rawApiEnv.POSTHOG_ENABLED,
-      projectApiKey: rawApiEnv.POSTHOG_PROJECT_API_KEY,
-      host: rawApiEnv.POSTHOG_HOST,
     },
   },
 } as const;

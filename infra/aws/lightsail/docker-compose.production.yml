@@ -1,13 +1,27 @@
 name: pressly-production
 
-x-production-env: &production-env
-  - ${PRESSLY_ENV_FILE:-/opt/pressly/.env.production}
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
 
 services:
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
     restart: unless-stopped
-    env_file: *production-env
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    pids_limit: 100
+    mem_limit: 128m
+    logging: *default-logging
+    env_file:
+      - ${PRESSLY_CADDY_ENV_FILE:-/opt/pressly/env/caddy.env}
     ports:
       - '80:80'
       - '443:443'
@@ -15,6 +29,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
     depends_on:
       web:
         condition: service_healthy
@@ -23,20 +39,22 @@ services:
 
   web:
     restart: unless-stopped
-    build:
-      context: ../../..
-      dockerfile: apps/web/Dockerfile
-      target: runner
-      args:
-        API_BASE_URL: ${API_BASE_URL}
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
-        NEXT_PUBLIC_ANALYTICS_ENABLED: ${NEXT_PUBLIC_ANALYTICS_ENABLED:-false}
-        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
-        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
-        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
-    env_file: *production-env
+    image: ${PRESSLY_WEB_IMAGE:?PRESSLY_WEB_IMAGE must be an immutable digest}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    mem_limit: 512m
+    logging: *default-logging
+    env_file:
+      - ${PRESSLY_WEB_ENV_FILE:-/opt/pressly/env/web.env}
     expose:
       - '3000'
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1001,gid=1001
+      - /app/apps/web/.next/cache:rw,nosuid,nodev,size=128m,uid=1001,gid=1001
     depends_on:
       api:
         condition: service_healthy
@@ -52,13 +70,21 @@ services:
 
   api:
     restart: unless-stopped
-    build:
-      context: ../../..
-      dockerfile: apps/api/Dockerfile
-      target: runner
-    env_file: *production-env
+    image: ${PRESSLY_API_IMAGE:?PRESSLY_API_IMAGE must be an immutable digest}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    mem_limit: 512m
+    logging: *default-logging
+    env_file:
+      - ${PRESSLY_API_ENV_FILE:-/opt/pressly/env/api.env}
     expose:
       - '4000'
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1001,gid=1001
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,20 +98,92 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    profiles: ['tools']
+    image: ${PRESSLY_API_IMAGE:?PRESSLY_API_IMAGE must be an immutable digest}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    mem_limit: 512m
+    logging: *default-logging
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1001,gid=1001
+    env_file:
+      - ${PRESSLY_MIGRATION_ENV_FILE:-/opt/pressly/env/migration.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backup:
+    profiles: ['tools']
+    image: postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 100
+    mem_limit: 512m
+    logging: *default-logging
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    env_file:
+      - ${PRESSLY_BACKUP_ENV_FILE:-/opt/pressly/env/backup.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  restore:
+    profiles: ['tools']
+    image: postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 100
+    mem_limit: 512m
+    logging: *default-logging
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    env_file:
+      - ${PRESSLY_MIGRATION_ENV_FILE:-/opt/pressly/env/migration.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
-    image: postgres:18-bookworm
+    image: postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-pressly}
-      POSTGRES_USER: ${POSTGRES_USER:-pressly}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    pids_limit: 200
+    mem_limit: 1g
+    logging: *default-logging
+    env_file:
+      - ${PRESSLY_POSTGRES_ENV_FILE:-/opt/pressly/env/postgres.env}
     volumes:
       - postgres_data:/var/lib/postgresql
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+      - /var/run/postgresql:rw,nosuid,nodev,size=16m,uid=999,gid=999
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'pg_isready -U ${POSTGRES_USER:-pressly} -d ${POSTGRES_DB:-pressly}',
+          'pg_isready -U $${POSTGRES_USER:-pressly} -d $${POSTGRES_DB:-pressly}',
         ]
       interval: 5s
       timeout: 5s

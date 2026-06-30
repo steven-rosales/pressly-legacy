@@ -42,16 +42,11 @@ export const makeApiPricingClient = (
 
       if (result.isErr(token)) return token;
 
-      const path =
-        command.locationSlug === undefined
-          ? `/pricing/services/${encodeURIComponent(command.serviceSlug)}/pricing`
-          : `/pricing/locations/${encodeURIComponent(
-              command.locationSlug,
-            )}/services/${encodeURIComponent(command.serviceSlug)}/pricing`;
-
       return requestApi<LoadPricingCatalogResult>({
         apiUrl: apiUrl.value,
-        path,
+        path: `/pricing/services/${encodeURIComponent(
+          command.serviceSlug,
+        )}/pricing`,
         method: 'GET',
         bearerToken: token.value,
       });

@@ -12,18 +12,6 @@ export const authRoleSchema = z.enum([
   'ci',
 ]);
 
-export const authIdentityKindSchema = z.enum(['human', 'service']);
-
-export const authPermissionSchema = z.enum([
-  'auth:session:read',
-  'auth:session:revoke',
-  'auth:user:manage',
-  'pricing:read',
-  'pricing:plan',
-  'pricing:publish',
-  'pricing:rollback',
-]);
-
 export const loginRequestSchema = z
   .object({
     email: z.email(),
@@ -40,13 +28,26 @@ export const authPrincipalSchema = z
   })
   .strict();
 
-export const loginResultSchema = z
+export const authenticatedLoginResultSchema = z
   .object({
     accessToken: z.string().min(32),
     expiresAt: utcIsoStringSchema,
     principal: authPrincipalSchema,
   })
   .strict();
+
+export const mfaChallengeResultSchema = z
+  .object({
+    status: z.literal('mfa_required'),
+    challengeToken: z.string().min(32),
+    expiresAt: utcIsoStringSchema,
+  })
+  .strict();
+
+export const loginResultSchema = z.union([
+  authenticatedLoginResultSchema,
+  mfaChallengeResultSchema,
+]);
 
 export const sessionResultSchema = z
   .object({
@@ -57,4 +58,69 @@ export const sessionResultSchema = z
 
 export const logoutResultSchema = z
   .object({ revoked: z.literal(true) })
+  .strict();
+
+export const identitySessionsParamsSchema = z
+  .object({ identityId: z.uuid() })
+  .strict();
+
+export const identitySessionParamsSchema = identitySessionsParamsSchema
+  .extend({ sessionId: z.uuid() })
+  .strict();
+
+export const sessionInventoryItemSchema = z
+  .object({
+    id: z.uuid(),
+    issuedAt: utcIsoStringSchema,
+    lastUsedAt: utcIsoStringSchema,
+    expiresAt: utcIsoStringSchema,
+    revokedAt: utcIsoStringSchema.nullable(),
+  })
+  .strict();
+
+export const sessionInventoryResultSchema = z
+  .object({ sessions: z.array(sessionInventoryItemSchema) })
+  .strict();
+
+export const revokeIdentitySessionsResultSchema = z
+  .object({ revokedCount: z.number().int().nonnegative() })
+  .strict();
+
+export const completeMfaChallengeRequestSchema = z.discriminatedUnion(
+  'method',
+  [
+    z
+      .object({
+        challengeToken: z.string().min(32),
+        method: z.literal('totp'),
+        code: z.string().regex(/^\d{6}$/),
+      })
+      .strict(),
+    z
+      .object({
+        challengeToken: z.string().min(32),
+        method: z.literal('recovery'),
+        code: z.string().min(16).max(40),
+      })
+      .strict(),
+  ],
+);
+
+export const confirmMfaEnrollmentRequestSchema = z
+  .object({ code: z.string().regex(/^\d{6}$/) })
+  .strict();
+
+export const mfaEnrollmentResultSchema = z
+  .object({
+    secret: z.string().min(16),
+    enrollmentUri: z.string().startsWith('otpauth://totp/'),
+  })
+  .strict();
+
+export const mfaRecoveryCodesResultSchema = z
+  .object({ recoveryCodes: z.array(z.string()).min(1) })
+  .strict();
+
+export const mfaMutationResultSchema = z
+  .object({ updated: z.literal(true) })
   .strict();

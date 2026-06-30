@@ -46,10 +46,11 @@
     "admin": "node ./tooling/scripts/run-admin-cli.mjs",
     "admin:docker": "node ./tooling/scripts/run-admin-cli.mjs --docker",
     "admin:env": "pnpm -F @pressly/cli dev --",
-    "db:test:migrate": "DATABASE_URL=${PRESSLY_TEST_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test} pnpm -F @pressly/db migrate",
-    "test:auth:int": "pnpm docker:test-db:up && pnpm db:test:migrate && PRESSLY_TEST_DATABASE_URL=${PRESSLY_TEST_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test} pnpm -F @pressly/auth-module test:integration",
-    "test:pricing:int": "pnpm docker:test-db:up && pnpm db:test:migrate && PRESSLY_TEST_DATABASE_URL=${PRESSLY_TEST_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test} pnpm -F @pressly/pricing test:integration",
-    "test:int": "pnpm test:auth:int && pnpm test:pricing:int"
+    "db:test:migrate": "DATABASE_URL=${PRESSLY_TEST_MIGRATION_DATABASE_URL:-postgres://pressly_migration:pressly_migration_test@localhost:55434/pressly_test} pnpm -F @pressly/db migrate",
+    "test:auth:int": "bash tooling/scripts/run-integration-tests.sh auth",
+    "test:pricing:int": "bash tooling/scripts/run-integration-tests.sh pricing",
+    "test:db-security:int": "bash tooling/scripts/run-integration-tests.sh db-security",
+    "test:int": "bash tooling/scripts/run-integration-tests.sh all"
   },
   "keywords": [],
   "author": "",

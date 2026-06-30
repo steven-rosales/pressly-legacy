@@ -8,10 +8,6 @@ Quick reference for the pricing schema and table relationships.
 pricing_services
   1 -> many pricing_sets
 
-pricing_locations
-  1 -> many pricing_sets
-  optional on pricing_sets
-
 pricing_sets
   1 -> many pricing_items
   1 -> many pricing_change_events as old_pricing_set_id
@@ -33,28 +29,15 @@ Key columns:
 - `label`
 - `is_active`
 
-### `pricing_locations`
-
-Stable location catalog for location-specific pricing.
-
-When `pricing_sets.location_id` is `null`, the set is the default service price.
-
-Key columns:
-
-- `slug`
-- `label`
-- `is_active`
-
 ### `pricing_sets`
 
-Versioned pricing snapshot for one service and optional location.
+Versioned pricing snapshot for one service.
 
 Publishing a price change creates a new set instead of mutating live item rows.
 
 Key columns:
 
 - `service_id`
-- `location_id`
 - `status`
 - `currency`
 - `effective_from`
@@ -91,7 +74,6 @@ Key columns:
 - `actor_kind`
 - `actor_display_name`
 - `service_slug`
-- `location_slug`
 - `reason`
 - `old_pricing_set_id`
 - `new_pricing_set_id`
@@ -102,10 +84,7 @@ Key columns:
 Load the current active set by:
 
 1. service
-2. optional location
-3. effective window
-
-If no location-specific set exists, use the default service set.
+2. effective window
 
 ## Write Rule
 

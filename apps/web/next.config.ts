@@ -2,10 +2,24 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
+import { buildContentSecurityPolicy } from './src/common/security/content-security-policy';
 
 const webRoot = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(webRoot, '../..');
 const isDockerBuild = process.env['PRESSLY_DOCKER_BUILD'] === 'true';
+const isDevelopment = process.env['NODE_ENV'] === 'development';
+
+const contentSecurityPolicy = buildContentSecurityPolicy({
+  apiBaseUrl:
+    process.env['NEXT_PUBLIC_API_BASE_URL'] ??
+    (isDevelopment ? 'http://localhost:4000' : 'https://api.trypressly.com'),
+  isDevelopment,
+  posthogHost:
+    process.env['NEXT_PUBLIC_POSTHOG_HOST'] ?? 'https://us.i.posthog.com',
+  ...(process.env['NEXT_PUBLIC_SENTRY_DSN']
+    ? { sentryDsn: process.env['NEXT_PUBLIC_SENTRY_DSN'] }
+    : {}),
+});
 
 const canonicalUrl = 'https://trypressly.com';
 const canonicalRedirectHosts = [
@@ -183,6 +197,10 @@ const nextConfig: NextConfig = {
       {
         source: '/:path*',
         headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: contentSecurityPolicy,
+          },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           {
             key: 'Referrer-Policy',

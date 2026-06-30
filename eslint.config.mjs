@@ -133,6 +133,29 @@ export default tseslint.config(
   },
 
   {
+    files: [
+      'apps/**/*.{ts,tsx}',
+      'modules/**/*.{ts,tsx}',
+      'packages/**/*.{ts,tsx}',
+    ],
+    ignores: ['packages/db/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^drizzle-orm(?:/.*)?$',
+              message:
+                'Import database primitives through @pressly/db so SQL safety constraints cannot be bypassed.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
     files: ['apps/web/**/*.{ts,tsx}'],
     plugins: {
       '@next/next': nextPlugin,
@@ -159,7 +182,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/*.policy.ts'],
+    files: ['**/domain/**/*.policy.ts'],
     rules: {
       'no-restricted-imports': 'off',
 
@@ -291,7 +314,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/*/src/main.ts'],
+    files: ['modules/*/*/src/main.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -304,9 +327,9 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.(?!.*\\.(?:repo|middleware|route|usecase)(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!.*\\.(?:repo|middleware|route|usecase|guard|guards)(?:\\.(?:ts|js))?$).*',
               message:
-                'Module main files may only use relative imports for *.repo, *.middleware, *.route, or *.usecase files.',
+                'Module main files may only use relative imports for *.repo, *.middleware, *.route, *.usecase, or guard files.',
             },
           ],
         },
@@ -400,11 +423,11 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/*/src/features/**/*.ts'],
+    files: ['modules/*/*/src/features/**/*.ts'],
     ignores: [
-      'modules/*/src/features/**/*.usecase.ts',
-      'modules/*/src/features/**/*.port.ts',
-      'modules/*/src/features/**/*.error.ts',
+      'modules/*/*/src/features/**/*.usecase.ts',
+      'modules/*/*/src/features/**/*.port.ts',
+      'modules/*/*/src/features/**/*.error.ts',
     ],
     rules: restrictedFileNameRule(
       'Feature files must end with .usecase.ts, .port.ts, or .error.ts.',

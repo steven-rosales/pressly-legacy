@@ -1,6 +1,6 @@
 # Module Test Guide
 
-This guide defines how tests should be written for `modules/*`.
+This guide defines how tests should be written for `modules/*/*`.
 
 It does not cover `apps/*` or `packages/*` yet.
 
@@ -28,7 +28,7 @@ If a test hides those answers, rewrite it.
 Modules follow this shape:
 
 ```txt
-modules/<name>/
+modules/<group>/<name>/
   src/
     domain/
       *.policy.ts
@@ -626,7 +626,7 @@ creates a pricing change plan from a valid command
 returns a permission error when actor cannot publish pricing
 does not commit when command validation fails
 selects the currently effective pricing set
-falls back to global pricing for a known location without scoped pricing
+returns not found when no active pricing set exists
 ```
 
 Weak:

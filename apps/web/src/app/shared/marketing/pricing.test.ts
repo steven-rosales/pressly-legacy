@@ -24,9 +24,7 @@ describe('marketing pricing view models', () => {
   it('uses static fallback pricing without an API request during Docker builds', async () => {
     vi.stubEnv('PRESSLY_DOCKER_BUILD', 'true');
 
-    const model = await loadWashFoldPricingViewModel({
-      locationSlug: 'wash-fold-docker-build-test',
-    });
+    const model = await loadWashFoldPricingViewModel();
 
     expect(mockLoadPricingCatalog).not.toHaveBeenCalled();
     expect(model.basePrice).toBe('$1.67');
@@ -80,9 +78,7 @@ describe('marketing pricing view models', () => {
       }),
     );
 
-    const model = await loadWashFoldPricingViewModel({
-      locationSlug: 'wash-fold-pricing-test',
-    });
+    const model = await loadWashFoldPricingViewModel();
 
     expect(model.basePrice).toBe('$1.75');
     expect(model.deliveryFee.price).toBe('$2');
@@ -139,9 +135,7 @@ describe('marketing pricing view models', () => {
       }),
     );
 
-    const model = await loadDryCleaningPricingViewModel({
-      locationSlug: 'dry-cleaning-pricing-test',
-    });
+    const model = await loadDryCleaningPricingViewModel();
 
     expect(model.deliveryFee.price).toBe('$3.50');
     expect(model.deliveryFee.shortCopy).toBe('$3.50 delivery fee');

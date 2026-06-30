@@ -18,11 +18,11 @@ export type PricingItemMetadata = Readonly<{
  * Pricing table dependency graph:
  *
  * pricing_services
- *   -> pricing_sets <- pricing_locations
+ *   -> pricing_sets
  *        -> pricing_items
  *        -> pricing_change_events
  *
- * Services and locations are stable catalogs. Pricing sets are versioned snapshots for a service, optionally scoped to one location. Pricing items are the actual money-bearing line items inside a pricing set. Pricing change events record publish actions from one pricing set to another.
+ * Services are stable catalogs. Pricing sets are versioned snapshots for a service. Pricing items are the actual money-bearing line items inside a pricing set. Pricing change events record publish actions from one pricing set to another.
  */
 
 /**
@@ -45,34 +45,15 @@ export const pricingServices = pgTable('pricing_services', {
 });
 
 /**
- * Stable location catalog for cities or service areas that may have custom pricing.
+ * Versioned pricing container for one service.
  *
- * A pricing set can reference a location when pricing differs by place. If a pricing set has no location, it acts as the default pricing for its service.
- */
-export const pricingLocations = pgTable('pricing_locations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  slug: text('slug').notNull().unique(),
-  label: text('label').notNull(),
-  isActive: boolean('is_active').notNull().default(true),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
-
-/**
- * Versioned pricing container for one service and optional location.
- *
- * Reads should choose the current active set by service/location and effective window, then fall back to the service default set when location-specific pricing does not exist. Price changes should publish a new set instead of mutating live item rows in place.
+ * Reads should choose the current active set by service and effective window. Price changes should publish a new set instead of mutating live item rows in place.
  */
 export const pricingSets = pgTable('pricing_sets', {
   id: uuid('id').primaryKey().defaultRandom(),
   serviceId: uuid('service_id')
     .notNull()
     .references(() => pricingServices.id),
-  locationId: uuid('location_id').references(() => pricingLocations.id),
   status: text('status').notNull().default('active'),
   currency: text('currency').notNull().default('USD'),
   effectiveFrom: timestamp('effective_from', { withTimezone: true })
@@ -128,7 +109,6 @@ export const pricingChangeEvents = pgTable('pricing_change_events', {
   actorKind: text('actor_kind').notNull(),
   actorDisplayName: text('actor_display_name').notNull(),
   serviceSlug: text('service_slug').notNull(),
-  locationSlug: text('location_slug'),
   reason: text('reason').notNull(),
   oldPricingSetId: uuid('old_pricing_set_id')
     .notNull()
