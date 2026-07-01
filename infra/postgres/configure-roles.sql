@@ -27,6 +27,7 @@ ALTER ROLE pressly_backup PASSWORD :'backup_password';
 
 ALTER DATABASE :"database_name" OWNER TO pressly_migration;
 ALTER SCHEMA public OWNER TO pressly_migration;
+CREATE SCHEMA IF NOT EXISTS drizzle AUTHORIZATION pressly_migration;
 
 SELECT format('ALTER SCHEMA %I OWNER TO pressly_migration', schema_name)
 FROM information_schema.schemata
