@@ -1,0 +1,11 @@
+{
+  "extends": "../packages/tsconfig/node.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "tooling",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["tooling/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}
