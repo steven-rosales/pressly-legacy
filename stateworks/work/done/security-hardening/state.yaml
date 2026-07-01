@@ -1,0 +1,34 @@
+work_id: security-hardening
+status: done
+updated: 2026-07-01
+
+current_focus:
+  - complete
+
+completed_subproofs:
+  - id: owner-mfa-enrollment
+    completed: 2026-07-01
+    evidence: stateworks/work/done/security-hardening/evidence.md
+  - id: restore-drill
+    completed: 2026-07-01
+    evidence: stateworks/work/done/security-hardening/evidence.md
+  - id: rollback-drill
+    completed: 2026-07-01
+    evidence: stateworks/work/done/security-hardening/evidence.md
+  - id: failed-deploy-guard
+    completed: 2026-07-01
+    evidence: stateworks/work/done/security-hardening/evidence.md
+  - id: public-surface-dns-tls
+    completed: 2026-07-01
+    evidence: stateworks/work/done/security-hardening/evidence.md
+  - id: lightsail-snapshot-check
+    completed: 2026-07-01
+    evidence: stateworks/work/done/security-hardening/evidence.md
+  - id: alert-delivery-test
+    completed: 2026-07-01
+    evidence: stateworks/work/done/security-hardening/evidence.md
+  - id: rollback-vs-restore-tabletop
+    completed: 2026-07-01
+    evidence: stateworks/work/done/security-hardening/evidence.md
+
+pending_subproofs: []

@@ -68,7 +68,7 @@ tasks:
       - GitHub secrets and branch settings
       - production service env files
     human_instructions:
-      - Follow the Human Category in stateworks/work/queued/security-hardening/brief.md.
+      - Follow the Human Category in this work item's brief.md.
       - Store only redacted evidence in the repository.
     expected_external_state:
       - Production deploys use verified SSH host keys.
