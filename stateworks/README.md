@@ -88,19 +88,19 @@ stop_on:
 Validate a network:
 
 ```bash
-pnpm stateworks:validate stateworks/work/queued/security-hardening/network.yaml
+pnpm stateworks:validate stateworks/work/queued/<work-id>/network.yaml
 ```
 
 Show the next compatible batch:
 
 ```bash
-pnpm stateworks:next stateworks/work/queued/security-hardening/network.yaml
+pnpm stateworks:next stateworks/work/queued/<work-id>/network.yaml
 ```
 
 Verify lifecycle state:
 
 ```bash
-pnpm stateworks:verify stateworks/work/queued/security-hardening/network.yaml
+pnpm stateworks:verify stateworks/work/queued/<work-id>/network.yaml
 ```
 
 Use `--state <path>` when a work item is active and has a separate `state.yaml`.
