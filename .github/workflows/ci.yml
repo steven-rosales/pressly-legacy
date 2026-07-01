@@ -36,10 +36,10 @@ jobs:
         run: pnpm typecheck
 
       - name: Unit tests
-        run: pnpm test
+        run: pnpm exec turbo test
 
       - name: Security script tests
-        run: node --test tooling/test/*.test.mjs
+        run: pnpm exec vitest run tooling/test
 
       - name: Build
         run: pnpm build
