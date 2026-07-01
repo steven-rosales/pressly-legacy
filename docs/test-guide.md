@@ -1,8 +1,13 @@
-# Module Test Guide
+# Test Guide
 
-This guide defines how tests should be written for `modules/*/*`.
+This guide defines how tests should be written across the repo.
 
-It does not cover `apps/*` or `packages/*` yet.
+It covers:
+
+- `apps/*`
+- `modules/*/*`
+- `packages/*`
+- `tooling/test`
 
 The goal is simple:
 
@@ -10,7 +15,20 @@ The goal is simple:
 - test usecases through ports
 - test repositories against real infrastructure
 - test HTTP adapters as translation code
+- test app composition at the process boundary
 - keep test setup small, typed, and readable
+
+Default rule:
+
+```txt
+production code lives in src.
+tests live in test.
+```
+
+Do not colocate first-party `*.test.ts`, `*.test.tsx`, or `*.spec.ts` files
+inside `src`.
+
+Use Vitest for repo tests.
 
 ## Three-Second Rule
 
@@ -22,6 +40,35 @@ When opening a test file, the reader should know these four things fast:
 4. What dependencies are fake.
 
 If a test hides those answers, rewrite it.
+
+## Repo Shape
+
+Apps and packages use the same test placement rule:
+
+```txt
+apps/<name>/
+  src/
+  test/
+
+packages/<name>/
+  src/
+  test/
+
+modules/<group>/<name>/
+  src/
+  test/
+```
+
+Mirror the production boundary inside `test/`.
+
+Examples:
+
+```txt
+apps/api/test/http/api-app.http.test.ts
+apps/web/test/contracts/pricing-api.contract.test.ts
+packages/logging/test/redact.test.ts
+modules/business/pricing/test/adapters/pricing-change.repo.int.test.ts
+```
 
 ## Module Shape
 
@@ -69,13 +116,16 @@ If production code says `repo` owns SQL, the test should use a real database.
 
 ## Testing Map
 
-| Layer               | File example                       | Dependency style       | What it proves                                  |
-| ------------------- | ---------------------------------- | ---------------------- | ----------------------------------------------- |
-| Domain              | `test/domain/*.test.ts`            | no IO                  | pure policy and state-machine rules             |
-| Feature usecase     | `test/features/*.usecase.test.ts`  | fake ports             | orchestration, permissions, error flow          |
-| HTTP adapter        | `test/adapters/*.http.test.ts`     | fake usecases          | request parsing and response envelopes          |
-| Persistence adapter | `test/adapters/*.repo.int.test.ts` | real Postgres          | SQL, transactions, effective dates, constraints |
-| Module composition  | `test/module.test.ts`              | minimal dependency box | `main.ts` exposes the intended module surface   |
+| Layer               | File example                        | Dependency style       | What it proves                                  |
+| ------------------- | ----------------------------------- | ---------------------- | ----------------------------------------------- |
+| Domain              | `test/domain/*.test.ts`             | no IO                  | pure policy and state-machine rules             |
+| Feature usecase     | `test/features/*.usecase.test.ts`   | fake ports             | orchestration, permissions, error flow          |
+| HTTP adapter        | `test/adapters/*.http.test.ts`      | fake usecases          | request parsing and response envelopes          |
+| Persistence adapter | `test/adapters/*.repo.int.test.ts`  | real Postgres          | SQL, transactions, effective dates, constraints |
+| Module composition  | `test/module.test.ts`               | minimal dependency box | `main.ts` exposes the intended module surface   |
+| App HTTP boundary   | `apps/api/test/http/*.test.ts`      | fake ports             | middleware, routing, envelopes, IO gates        |
+| Web/API contract    | `apps/web/test/contracts/*.test.ts` | fake request core      | shared path/schema agreements                   |
+| Package unit        | `packages/*/test/*.test.ts`         | no framework IO        | reusable library behavior                       |
 
 Use the smallest test type that can prove the behavior.
 
@@ -728,6 +778,39 @@ Rule:
 ```txt
 unit tests should not require Docker.
 repo integration tests may require Docker.
+```
+
+## Running Tests
+
+Run one app:
+
+```sh
+pnpm -F @pressly/api test
+pnpm -F @pressly/web test
+```
+
+Run one package:
+
+```sh
+pnpm -F @pressly/logging test
+```
+
+Run one module:
+
+```sh
+pnpm -F @pressly/pricing test
+```
+
+Run repo-level tooling tests:
+
+```sh
+pnpm exec vitest run tooling/test
+```
+
+Run the workspace fast gate:
+
+```sh
+pnpm test
 ```
 
 ## Running Module Tests

@@ -1,6 +1,7 @@
 import { checkDatabaseHealth } from '@pressly/db';
 import { apiFailure, apiSuccess } from '@pressly/http';
 import { makeAppError } from '@pressly/errors';
+import { redactLogFields, type LogFields } from '@pressly/logging';
 import { Router } from 'express';
 import type { ApiRuntime } from '../common/runtime/runtime.ts';
 
@@ -14,12 +15,15 @@ export const makeHealthRoutes = (runtime: ApiRuntime): Router => {
   router.get('/ready', async (_req, res) => {
     const dbReady = await checkDatabaseHealth(runtime.database.db).catch(
       (error: unknown) => {
-        runtime.logger.error('database readiness check failed', {
-          error:
-            error instanceof Error
-              ? { name: error.name, message: error.message }
-              : String(error),
-        });
+        runtime.logger.error(
+          'database readiness check failed',
+          redactLogFields({
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message }
+                : String(error),
+          }) as LogFields,
+        );
         return false;
       },
     );

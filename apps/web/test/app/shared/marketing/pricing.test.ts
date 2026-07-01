@@ -7,7 +7,7 @@ import { loadPricingCatalog } from '@/infra/pricing';
 import {
   loadDryCleaningPricingViewModel,
   loadWashFoldPricingViewModel,
-} from './pricing';
+} from '@/app/shared/marketing/pricing';
 
 const mockLoadPricingCatalog = vi.mocked(loadPricingCatalog);
 

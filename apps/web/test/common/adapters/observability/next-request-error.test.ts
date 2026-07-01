@@ -1,5 +1,5 @@
 import { makeAppError } from '@pressly/errors';
-import { observeNextRequestError } from './next-request-error';
+import { observeNextRequestError } from '@/common/adapters/observability/next-request-error';
 
 describe('observeNextRequestError', () => {
   it('reports Next request errors through the shared policy', () => {

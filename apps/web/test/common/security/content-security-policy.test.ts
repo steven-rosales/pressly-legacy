@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildContentSecurityPolicy } from './content-security-policy';
+import { buildContentSecurityPolicy } from '@/common/security/content-security-policy';
 
 describe('buildContentSecurityPolicy', () => {
   it('builds an enforced production policy for current browser dependencies', () => {

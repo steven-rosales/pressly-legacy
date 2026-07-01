@@ -2,10 +2,10 @@
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { publicEvents } from '../../core/analytics/events';
-import { makeTestWebCore } from '../../testing/make-test-web-core';
-import { InjectedWebCoreProvider } from '../runtime/web-core-context';
-import { TrackedAnchor } from './tracked-anchor';
+import { makeTestWebCore } from '@/common/testing/make-test-web-core';
+import { TrackedAnchor } from '@/common/adapters/analytics/tracked-anchor';
+import { InjectedWebCoreProvider } from '@/common/adapters/runtime/web-core-context';
+import { publicEvents } from '@/common/core/analytics/events';
 
 describe('TrackedAnchor', () => {
   it('tracks event on click', async () => {

@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import { makeSonnerFeedback } from './sonner-feedback';
+import { makeSonnerFeedback } from '@/common/adapters/feedback/sonner-feedback';
 
 vi.mock('sonner', () => ({
   toast: {

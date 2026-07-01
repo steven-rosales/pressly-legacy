@@ -4,16 +4,87 @@ import { defineConfig } from 'vitest/config';
 const errorsSource = fileURLToPath(
   new URL('../../packages/errors/src/index.ts', import.meta.url),
 );
+const accessControlSource = fileURLToPath(
+  new URL('../../modules/policy/access-control/src/public.ts', import.meta.url),
+);
+const authModuleSource = fileURLToPath(
+  new URL('../../modules/business/auth/src/public.ts', import.meta.url),
+);
+const authAuthenticationSource = fileURLToPath(
+  new URL('../../packages/auth/src/authentication/index.ts', import.meta.url),
+);
+const authAuthorizationSource = fileURLToPath(
+  new URL('../../packages/auth/src/authorization/index.ts', import.meta.url),
+);
+const authCredentialsSource = fileURLToPath(
+  new URL('../../packages/auth/src/credentials/index.ts', import.meta.url),
+);
+const configSource = fileURLToPath(
+  new URL('../../packages/config/src/index.ts', import.meta.url),
+);
+const contractsSource = fileURLToPath(
+  new URL('../../packages/contracts/src/index.ts', import.meta.url),
+);
+const dbSource = fileURLToPath(
+  new URL('../../packages/db/src/index.ts', import.meta.url),
+);
 const httpSource = fileURLToPath(
   new URL('../../packages/http/src/index.ts', import.meta.url),
 );
 const httpExpressSource = fileURLToPath(
   new URL('../../packages/http/src/express/index.ts', import.meta.url),
 );
+const kernelSource = fileURLToPath(
+  new URL('../../packages/kernel/src/index.ts', import.meta.url),
+);
+const loggingSource = fileURLToPath(
+  new URL('../../packages/logging/src/index.ts', import.meta.url),
+);
+const metricsSource = fileURLToPath(
+  new URL('../../packages/metrics/src/index.ts', import.meta.url),
+);
+const pricingSource = fileURLToPath(
+  new URL('../../modules/business/pricing/src/public.ts', import.meta.url),
+);
+const timeSource = fileURLToPath(
+  new URL('../../packages/time/src/index.ts', import.meta.url),
+);
 
 export default defineConfig({
   resolve: {
     alias: [
+      {
+        find: /^@pressly\/access-control$/,
+        replacement: accessControlSource,
+      },
+      {
+        find: /^@pressly\/auth-module$/,
+        replacement: authModuleSource,
+      },
+      {
+        find: /^@pressly\/auth\/authentication$/,
+        replacement: authAuthenticationSource,
+      },
+      {
+        find: /^@pressly\/auth\/authorization$/,
+        replacement: authAuthorizationSource,
+      },
+      {
+        find: /^@pressly\/auth\/credentials$/,
+        replacement: authCredentialsSource,
+      },
+      {
+        find: /^@pressly\/config$/,
+        replacement: configSource,
+      },
+      {
+        find: /^@pressly\/contracts$/,
+        replacement: contractsSource,
+      },
+      {
+        find: /^@pressly\/db$/,
+        replacement: dbSource,
+      },
       {
         find: /^@pressly\/errors$/,
         replacement: errorsSource,
@@ -25,6 +96,26 @@ export default defineConfig({
       {
         find: /^@pressly\/http$/,
         replacement: httpSource,
+      },
+      {
+        find: /^@pressly\/kernel$/,
+        replacement: kernelSource,
+      },
+      {
+        find: /^@pressly\/logging$/,
+        replacement: loggingSource,
+      },
+      {
+        find: /^@pressly\/metrics$/,
+        replacement: metricsSource,
+      },
+      {
+        find: /^@pressly\/pricing$/,
+        replacement: pricingSource,
+      },
+      {
+        find: /^@pressly\/time$/,
+        replacement: timeSource,
       },
     ],
   },

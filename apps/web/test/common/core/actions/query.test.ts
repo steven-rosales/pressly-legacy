@@ -2,7 +2,7 @@ import { result } from '@pressly/kernel';
 import { makeAppError } from '@pressly/errors';
 import { z } from 'zod';
 import { makeTestWebCore } from '@/common/testing/make-test-web-core';
-import type { RequestClient } from '../requests/request-client';
+import type { RequestClient } from '@/common/core/requests/request-client';
 
 describe('core.query', () => {
   it('returns result.ok(value) on success', async () => {

@@ -1,6 +1,6 @@
 import { makeTestWebCore } from '@/common/testing/make-test-web-core';
-import { publicEvents } from './events';
-import { trackPublicEvent } from './track';
+import { publicEvents } from '@/common/core/analytics/events';
+import { trackPublicEvent } from '@/common/core/analytics/track';
 
 describe('trackPublicEvent', () => {
   it('tracks product event with web context', () => {

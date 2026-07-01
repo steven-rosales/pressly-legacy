@@ -1,4 +1,4 @@
-import { getFaqsPageModel } from './model';
+import { getFaqsPageModel } from '@/app/(marketing)/faqs/model';
 
 describe('getFaqsPageModel', () => {
   it('builds visible FAQs and matching JSON-LD from the same model', () => {
