@@ -20,6 +20,31 @@ CURRENT_RELEASE_METADATA_FILE="${PRESSLY_CURRENT_RELEASE_METADATA_FILE:-$APP_ROO
 PREVIOUS_RELEASE_METADATA_FILE="${PRESSLY_PREVIOUS_RELEASE_METADATA_FILE:-$APP_ROOT/previous-release.json}"
 PRESSLY_API_IMAGE="${PRESSLY_API_IMAGE:-}"
 PRESSLY_WEB_IMAGE="${PRESSLY_WEB_IMAGE:-}"
+deployment_completed=false
+
+emit_deployment_event() {
+  local outcome="$1"
+  local exit_code="$2"
+  local occurred_at
+  occurred_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+  printf '{"event":"deployment.%s","outcome":"%s","sourceSha":"%s","exitCode":%s,"occurredAt":"%s"}\n' \
+    "$outcome" \
+    "$outcome" \
+    "${DEPLOY_SHA:-unknown}" \
+    "$exit_code" \
+    "$occurred_at"
+}
+
+on_exit() {
+  local exit_code="$?"
+
+  if [[ "$deployment_completed" != true && "$exit_code" -ne 0 ]]; then
+    emit_deployment_event "failed" "$exit_code" >&2
+  fi
+}
+
+trap on_exit EXIT
 
 export PRESSLY_CADDY_ENV_FILE="$CADDY_ENV_FILE"
 export PRESSLY_WEB_ENV_FILE="$WEB_ENV_FILE"
@@ -130,3 +155,5 @@ echo "Deployed source SHA: $target_sha"
 echo "API image: $PRESSLY_API_IMAGE"
 echo "Web image: $PRESSLY_WEB_IMAGE"
 echo "Deployment time: $deployed_at"
+deployment_completed=true
+emit_deployment_event "succeeded" 0
