@@ -13,25 +13,19 @@ export const makeRequestContext =
     res.locals['requestId'] = requestId;
     res.setHeader('X-Request-Id', requestId);
 
-    if (!isHealthCheck)
-      logger.info('api.request.started', {
-        requestId,
-        method: req.method,
-        route,
-      });
-
     res.once('finish', () => {
-      if (isHealthCheck && res.statusCode < 400) return;
+      if (res.statusCode < 500) return;
 
       const durationMs =
         Number(process.hrtime.bigint() - startedAt) / 1_000_000;
 
-      logger.info('api.request.completed', {
+      logger.error('api.request.failed', {
         requestId,
         method: req.method,
         route,
         status: res.statusCode,
         durationMs,
+        isHealthCheck,
       });
     });
 

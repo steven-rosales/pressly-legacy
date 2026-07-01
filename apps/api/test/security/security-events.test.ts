@@ -4,7 +4,7 @@ import type { CounterSink } from '@pressly/metrics';
 import { makeSecurityEventSink } from '../../src/common/logging/security-events.ts';
 
 describe('security event sink', () => {
-  it('logs stable event fields and emits the matching counter', () => {
+  it('suppresses routine singleton security events', () => {
     const info = vi.fn();
     const logger: Logger = {
       child: () => logger,
@@ -30,11 +30,8 @@ describe('security event sink', () => {
 
     sink.emit(event);
 
-    expect(info).toHaveBeenCalledWith('security.authorization.denied', event);
-    expect(increment).toHaveBeenCalledWith('security.authorization_denials', {
-      event: 'authorization.denied',
-      outcome: 'denied',
-    });
+    expect(info).not.toHaveBeenCalled();
+    expect(increment).not.toHaveBeenCalled();
   });
 
   it('alerts once when repeated denials cross the threshold', () => {
@@ -72,6 +69,52 @@ describe('security event sink', () => {
       'security.alert',
       expect.objectContaining({ event: 'authorization.denied' }),
     );
+  });
+
+  it('alerts auth login rate limits without logging generic rate limits', () => {
+    const warn = vi.fn();
+    const increment = vi.fn();
+    const logger: Logger = {
+      child: () => logger,
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn,
+      error: vi.fn(),
+      fatal: vi.fn(),
+    };
+    const sink = makeSecurityEventSink({
+      logger,
+      counters: { increment },
+    });
+
+    sink.emit({
+      name: 'request.rate_limited',
+      occurredAt: '2026-06-29T12:00:00.000Z',
+      outcome: 'denied',
+      reason: 'api_global',
+    });
+    expect(warn).not.toHaveBeenCalled();
+    expect(increment).not.toHaveBeenCalled();
+
+    sink.emit({
+      name: 'request.rate_limited',
+      occurredAt: '2026-06-29T12:00:00.000Z',
+      outcome: 'denied',
+      reason: 'auth_login',
+    });
+
+    expect(warn).toHaveBeenCalledWith(
+      'security.alert',
+      expect.objectContaining({
+        event: 'request.rate_limited',
+        reason: 'auth_login',
+      }),
+    );
+    expect(increment).toHaveBeenCalledWith('security.rate_limits', {
+      event: 'request.rate_limited',
+      outcome: 'denied',
+      reason: 'selected_security_signal',
+    });
   });
 
   it.each([

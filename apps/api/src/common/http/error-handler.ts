@@ -1,8 +1,12 @@
-import { makeAppError, normalizeUnknownError } from '@pressly/errors';
+import {
+  makeAppError,
+  normalizeUnknownError,
+  type AppError,
+} from '@pressly/errors';
 import { apiFailure } from '@pressly/http';
 import type { ErrorRequestHandler } from 'express';
 import type { ApiRuntime } from '../runtime/runtime.ts';
-import type { LogValue } from '@pressly/logging';
+import { observeApiError } from '../observability/api-observability.ts';
 
 type ExpressParserError = Error &
   Readonly<{
@@ -36,8 +40,30 @@ const normalizeParserError = (error: unknown): unknown => {
   return error;
 };
 
+const responseError = (
+  appError: AppError,
+  requestId: string | undefined,
+): AppError => {
+  const traceId = appError.traceId ?? requestId;
+
+  if (appError.status < 500 && traceId === appError.traceId) return appError;
+
+  return makeAppError({
+    kind: appError.kind,
+    code: appError.code,
+    message: appError.message,
+    safeMessage: appError.safeMessage,
+    status: appError.status,
+    ...(appError.status < 500 && appError.details !== undefined
+      ? { details: appError.details }
+      : {}),
+    ...(appError.cause === undefined ? {} : { cause: appError.cause }),
+    ...(traceId === undefined ? {} : { traceId }),
+  });
+};
+
 export const makeErrorHandler = (runtime: ApiRuntime): ErrorRequestHandler => {
-  return (err, _req, res, next): void => {
+  return (err, req, res, next): void => {
     if (res.headersSent) {
       next(err);
       return;
@@ -46,13 +72,7 @@ export const makeErrorHandler = (runtime: ApiRuntime): ErrorRequestHandler => {
     const appError = normalizeUnknownError(normalizeParserError(err));
     const requestId = res.locals['requestId'] as string | undefined;
 
-    runtime.logger.error(appError.message, {
-      kind: appError.kind,
-      code: appError.code,
-      status: appError.status,
-      details: appError.details as LogValue,
-      requestId,
-    });
+    observeApiError(runtime, { appError, request: req, requestId });
 
     if (
       appError.kind === 'ValidationError' ||
@@ -66,21 +86,12 @@ export const makeErrorHandler = (runtime: ApiRuntime): ErrorRequestHandler => {
         outcome: 'denied',
         ...(requestId === undefined ? {} : { requestId }),
         resourceType: 'http.route',
-        resourceId: _req.path,
+        resourceId: req.path,
         reason: appError.code,
       });
 
-    if (appError.status >= 500)
-      runtime.securityEvents.emit({
-        name: 'server.error',
-        occurredAt: new Date().toISOString(),
-        outcome: 'failed',
-        ...(requestId === undefined ? {} : { requestId }),
-        resourceType: 'http.route',
-        resourceId: _req.path,
-        reason: appError.code,
-      });
-
-    res.status(appError.status).json(apiFailure(appError));
+    res
+      .status(appError.status)
+      .json(apiFailure(responseError(appError, requestId)));
   };
 };

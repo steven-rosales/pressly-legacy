@@ -1,11 +1,15 @@
 import { createServer, type Server } from 'node:http';
 import express, { type Express } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
+import { makeAppError } from '@pressly/errors';
 import { requireJsonContentType } from '@pressly/http/express';
 import { makeErrorHandler } from '../../src/common/http/error-handler.ts';
 import { makeRequestContext } from '../../src/common/http/request-context.ts';
 
 const logEntries: Array<Readonly<Record<string, unknown>> | undefined> = [];
+const capturedErrors: unknown[] = [];
+const counterEntries: unknown[] = [];
+const securityEntries: unknown[] = [];
 const logger = {
   child: () => logger,
   debug: () => undefined,
@@ -31,6 +35,9 @@ const start = async (app: Express): Promise<string> => {
 
 afterEach(async () => {
   logEntries.length = 0;
+  capturedErrors.length = 0;
+  counterEntries.length = 0;
+  securityEntries.length = 0;
   await Promise.all(
     servers
       .splice(0)
@@ -54,10 +61,37 @@ const makeBoundaryApp = (): Express => {
       res.json({ ok: true });
     },
   );
+  app.get('/boom', (_req, _res, next) => {
+    next(
+      makeAppError({
+        kind: 'DatabaseError',
+        code: 'database_unavailable',
+        message: 'Database unavailable.',
+        safeMessage: 'The service is unavailable.',
+        status: 503,
+        details: {
+          databaseUrl: 'postgres://user:password@postgres:5432/pressly',
+        },
+      }),
+    );
+  });
   app.use(
     makeErrorHandler({
       logger,
-      securityEvents: { emit: () => undefined },
+      securityEvents: { emit: (event: unknown) => securityEntries.push(event) },
+      observability: {
+        errors: {
+          capture: (error: unknown, context: unknown) =>
+            capturedErrors.push({ error, context }),
+          shutdown: async () => undefined,
+        },
+        counters: {
+          increment: (
+            name: string,
+            labels?: Readonly<Record<string, string>>,
+          ) => counterEntries.push({ name, labels }),
+        },
+      },
     } as never),
   );
   return app;
@@ -86,9 +120,7 @@ describe('API request boundary', () => {
     const requestId = response.headers.get('x-request-id');
     expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
     expect(requestId).not.toBe('caller-controlled');
-    expect(logEntries.some((entry) => entry?.['requestId'] === requestId)).toBe(
-      true,
-    );
+    expect(logEntries).toEqual([]);
   });
 
   it('rejects a non-JSON content type', async () => {
@@ -103,6 +135,7 @@ describe('API request boundary', () => {
       ok: false,
       error: { code: 'unsupported_media_type' },
     });
+    expect(capturedErrors).toHaveLength(0);
   });
 
   it('rejects oversized and malformed JSON with safe errors', async () => {
@@ -128,6 +161,40 @@ describe('API request boundary', () => {
       ok: false,
       error: { code: 'malformed_json' },
     });
+    expect(capturedErrors).toHaveLength(0);
+    expect(counterEntries).toHaveLength(0);
+  });
+
+  it('reports server errors while returning bounded response details', async () => {
+    const response = await fetch(`${await start(makeBoundaryApp())}/boom`);
+    const requestId = response.headers.get('x-request-id');
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: 'database_unavailable',
+        traceId: requestId,
+      },
+    });
+
+    expect(capturedErrors).toHaveLength(1);
+    expect(counterEntries).toContainEqual({
+      name: 'api.server_errors',
+      labels: expect.objectContaining({
+        reason: 'server_error',
+        status: '503',
+        route: '/boom',
+      }),
+    });
+    expect(logEntries).toContainEqual(
+      expect.objectContaining({
+        kind: 'DatabaseError',
+        code: 'database_unavailable',
+        reason: 'server_error',
+        route: '/boom',
+      }),
+    );
   });
 
   it('does not log successful health checks', async () => {

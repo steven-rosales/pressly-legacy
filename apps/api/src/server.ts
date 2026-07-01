@@ -17,6 +17,7 @@ export const startServer = (input: {
   host: string;
   port: number;
   logger: Logger;
+  onServerError?: (error: Error) => void;
 }): Promise<StartedServer> =>
   new Promise((resolve, reject) => {
     const server = http.createServer(input.app);
@@ -26,7 +27,7 @@ export const startServer = (input: {
     server.keepAliveTimeout = 5_000;
 
     server.on('clientError', (error, socket) => {
-      input.logger.warn('api client socket error', { error });
+      input.logger.debug('api client socket error', { error });
 
       if (socket.writable) {
         socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
@@ -37,6 +38,8 @@ export const startServer = (input: {
 
     server.listen(input.port, input.host, () => {
       server.off('error', reject);
+      if (input.onServerError !== undefined)
+        server.on('error', input.onServerError);
 
       input.logger.info('api server started', {
         host: input.host,

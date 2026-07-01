@@ -3,20 +3,7 @@ import type {
   SecurityEvent,
   SecurityEventSink,
 } from '@pressly/logging';
-import type { CounterName, CounterSink } from '@pressly/metrics';
-
-const counterForEvent = (event: SecurityEvent): CounterName | undefined => {
-  if (
-    event.name === 'authentication.login_failed' ||
-    event.name === 'authentication.login_rate_limited'
-  )
-    return 'security.login_failures';
-  if (event.name === 'authorization.denied')
-    return 'security.authorization_denials';
-  if (event.name === 'request.rate_limited') return 'security.rate_limits';
-  if (event.name === 'server.error') return 'api.server_errors';
-  return undefined;
-};
+import { decideObservation, type CounterSink } from '@pressly/metrics';
 
 export const makeLogCounterSink = (logger: Logger): CounterSink => ({
   increment: (name, labels) => {
@@ -69,11 +56,21 @@ export const makeSecurityEventSink = (input: {
 
   return {
     emit(event) {
-      input.logger.info(`security.${event.name}`, { ...event });
-      if (shouldAlert(event))
+      const thresholdReached = shouldAlert(event);
+      const decision = decideObservation({
+        kind: 'security_event',
+        source: 'api',
+        name: event.name,
+        outcome: event.outcome,
+        reason: event.reason,
+        thresholdReached,
+      });
+
+      if (decision.alert)
         input.logger.warn('security.alert', {
           event: event.name,
           outcome: event.outcome,
+          reason: decision.reason,
           ...(event.requestId === undefined
             ? {}
             : { requestId: event.requestId }),
@@ -84,11 +81,11 @@ export const makeSecurityEventSink = (input: {
           ...(event.reason === undefined ? {} : { reason: event.reason }),
         });
 
-      const counter = counterForEvent(event);
-      if (counter !== undefined)
-        input.counters.increment(counter, {
+      if (decision.counter !== undefined)
+        input.counters.increment(decision.counter, {
           event: event.name,
           outcome: event.outcome,
+          reason: decision.reason,
         });
     },
   };

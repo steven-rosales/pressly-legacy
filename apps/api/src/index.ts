@@ -4,6 +4,7 @@
 
 import './instrument.ts';
 import { createDatabaseRuntime } from '@pressly/db';
+import { nullErrorReporter } from '@pressly/metrics';
 import { makeApiApp } from './app.ts';
 import { apiEnv } from './common/config/env.ts';
 import { makePinoLogger } from './common/logging/pino-logger.ts';
@@ -14,15 +15,20 @@ import {
   makeSecurityEventSink,
 } from './common/logging/security-events.ts';
 import {
-  captureSentryException,
   flushSentry,
+  makeSentryErrorReporter,
 } from './common/observability/sentry.ts';
+import { observeApiRuntimeFailure } from './common/observability/api-observability.ts';
 
 const main = async (): Promise<void> => {
   const logger = makePinoLogger({
     level: apiEnv.logLevel,
     environment: apiEnv.nodeEnv,
   });
+  const errors = apiEnv.observability.sentry.enabled
+    ? makeSentryErrorReporter()
+    : nullErrorReporter;
+  const counters = makeLogCounterSink(logger);
 
   const database = createDatabaseRuntime({
     databaseUrl: apiEnv.databaseUrl,
@@ -31,18 +37,37 @@ const main = async (): Promise<void> => {
     idleTimeoutSeconds: 30,
     maxLifetimeSeconds: 60 * 30,
   });
+
   const securityEvents = makeSecurityEventSink({
     logger,
-    counters: makeLogCounterSink(logger),
+    counters,
   });
 
-  const app = makeApiApp({ env: apiEnv, logger, securityEvents, database });
+  const runtime = {
+    env: apiEnv,
+    logger,
+    securityEvents,
+    observability: {
+      errors,
+      counters,
+    },
+    database,
+  };
+
+  const app = makeApiApp(runtime);
 
   const server = await startServer({
     app,
     host: apiEnv.host,
     port: apiEnv.port,
     logger,
+    onServerError: (error) => {
+      observeApiRuntimeFailure(runtime, {
+        error,
+        phase: 'server',
+        operation: 'http_server',
+      });
+    },
   });
 
   installShutdownHandlers({
@@ -54,13 +79,35 @@ const main = async (): Promise<void> => {
     close: async () => {
       await server.close();
       await database.close();
-      await flushSentry();
+      await errors.shutdown();
     },
   });
 };
 
 main().catch(async (error: unknown) => {
-  captureSentryException(error);
+  const logger = makePinoLogger({
+    level: apiEnv.logLevel,
+    environment: apiEnv.nodeEnv,
+  });
+  const errors = apiEnv.observability.sentry.enabled
+    ? makeSentryErrorReporter()
+    : nullErrorReporter;
+
+  observeApiRuntimeFailure(
+    {
+      logger,
+      observability: {
+        errors,
+        counters: makeLogCounterSink(logger),
+      },
+    },
+    {
+      error,
+      phase: 'startup',
+      operation: 'api_startup',
+    },
+  );
+
   await flushSentry();
   console.error(error);
   process.exitCode = 1;
