@@ -1,0 +1,36 @@
+id: T1
+title: Short task name
+type: primitive
+owner: agent
+surface: repo
+agent_can_verify: true
+
+description: >
+  What this task is supposed to accomplish.
+
+deps: []
+
+reads:
+  - repo/path/or/external-state
+
+writes:
+  - repo/path/or/external-state
+
+preconditions:
+  - What must be true before this starts.
+
+action:
+  - Concrete step to perform.
+
+postconditions:
+  - What must be true after completion.
+
+verifier:
+  - Concrete command, inspection, or external proof.
+
+rollback:
+  - How to undo, compensate, or isolate failure.
+
+secret_handling: none
+status: pending
+evidence: []

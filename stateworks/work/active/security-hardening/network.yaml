@@ -1,0 +1,75 @@
+work_id: security-hardening
+title: Security hardening queue
+status: active
+
+goal:
+  - Finish the remaining production security hardening proof without expanding scope.
+
+invariants:
+  - Keep production secrets out of repository files.
+  - Retain enough evidence to prove backup, deploy, rollback, and recovery.
+  - Do not implement trigger-based controls before their adoption gates exist.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: H1
+    title: Complete production human controls
+    type: human_action
+    owner: human
+    surface: aws
+    agent_can_verify: true
+    deps: []
+    reads:
+      - AWS Lightsail
+      - AWS S3
+      - GitHub repository settings
+      - production host env files
+    writes:
+      - production external configuration
+    human_instructions:
+      - Follow the Human Category in stateworks/work/queued/security-hardening/brief.md.
+      - Store only redacted proof in evidence.
+    expected_external_state:
+      - Production host has least-secret service env files.
+      - Backup bucket is private and accepts production backup uploads.
+      - GitHub deploy trust uses the verified known-host entry.
+    verifier:
+      - One real backup upload succeeds.
+      - One digest deployment succeeds.
+      - API and web health checks pass.
+    rollback:
+      - Revert only the external setting that failed, or document why rollback is unsafe.
+    secret_handling: never_show_agent
+    status: pending
+    evidence:
+      - stateworks/work/active/security-hardening/evidence.md#mfa-enrollment
+
+  - id: V1
+    title: Record recovery and rollback evidence
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: false
+    deps:
+      - H1
+    reads:
+      - production backup output
+      - deployment output
+      - health-check output
+    writes:
+      - docs/agents
+    action:
+      - Record backup ID, restore target, RPO/RTO, deployment SHA, image digest, rollback result, and health checks.
+    verifier:
+      - Evidence is sufficient for a future emergency operator to follow.
+    rollback:
+      - No rollback; this task records proof.
+    secret_handling: none
+    status: pending
+    evidence: []

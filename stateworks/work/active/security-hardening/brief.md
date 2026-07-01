@@ -32,7 +32,7 @@ public request boundary
 - Run the queue exit gate after all parallel work is merged.
 - Preserve current behavior unless a task explicitly changes a security policy.
 - Add tests for deny paths and failure paths, not only successful requests.
-- Move this file to `docs/work/archived/` only after every active queue and human task is complete.
+- Move this work item to `stateworks/work/archived/` only after every active queue and human task is complete.
 
 ## Not Active Yet
 
@@ -254,8 +254,8 @@ Create a new implementation plan only when one of these becomes real:
 | File uploads arrive                             | Type and size validation, isolated storage, malware scanning, and safe download headers                     |
 | External webhooks arrive                        | Signature verification, timestamp freshness, replay protection, and idempotency                             |
 | Real tenant ownership exists                    | Tenant-aware resources, authorization tests, and selective Postgres RLS                                     |
-| Services deploy independently                   | Follow `future-distributed-authentication.md`                                                               |
-| Browser workflows become materially sensitive   | Follow `future-distributed-content-security-policy.md`                                                      |
+| Services deploy independently                   | Follow `../future-distributed-authentication/brief.md`                                                      |
+| Browser workflows become materially sensitive   | Follow `../future-distributed-content-security-policy/brief.md`                                             |
 
 ---
 

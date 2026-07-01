@@ -1,0 +1,38 @@
+work_id: future-distributed-content-security-policy
+title: Future distributed content security policy
+status: queued
+
+goal:
+  - Preserve the current static CSP until a stricter distributed frontend policy is justified.
+
+invariants:
+  - Do not make static pages dynamic just to add nonce-based CSP before the adoption gate exists.
+  - The server returning browser HTML owns that page's CSP.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T1
+    title: Wait for adoption gate
+    type: human_gate
+    owner: human
+    surface: other
+    agent_can_verify: false
+    deps: []
+    reads:
+      - stateworks/work/queued/future-distributed-content-security-policy/brief.md
+    writes: []
+    human_instructions:
+      - Start this work only after the browser/frontend boundary becomes materially more sensitive or distributed.
+    verifier:
+      - The adoption gate in the brief is satisfied.
+    rollback:
+      - Keep the current static CSP.
+    secret_handling: none
+    status: pending
+    evidence: []

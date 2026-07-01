@@ -1,0 +1,35 @@
+id: H1
+title: Manual external-system change
+type: human_action
+owner: human
+surface: aws
+agent_can_verify: true
+
+description: >
+  A human must change operator-owned state outside the repository.
+
+deps: []
+
+reads:
+  - external-system/current-setting
+
+writes:
+  - external-system/target-setting
+
+human_instructions:
+  - Open the exact external system.
+  - Make the specific change.
+  - Retain the non-secret evidence listed below.
+
+expected_external_state:
+  - The external setting exists and is enabled.
+
+verifier:
+  - Run the exact command or check that proves the setting exists.
+
+rollback:
+  - Revert the external setting or document why rollback is not safe.
+
+secret_handling: never_show_agent
+status: pending
+evidence: []

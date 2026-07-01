@@ -147,7 +147,7 @@ Production adds `upgrade-insecure-requests`.
 **Current limitation:** the static policy still permits `'unsafe-inline'` for scripts and styles.
 It preserves static generation and current integrations, but it is not a strict nonce- or hash-based CSP.
 
-The migration path is documented in `docs/work/todo/future-distributed-content-security-policy.md`.
+The migration path is documented in `stateworks/work/queued/future-distributed-content-security-policy/brief.md`.
 
 ## SSRF
 
