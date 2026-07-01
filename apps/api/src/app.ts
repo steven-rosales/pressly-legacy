@@ -24,7 +24,6 @@ import {
 } from './common/security/rate-limit.ts';
 import { requireJsonContentType } from '@pressly/http/express';
 import { makeHealthRoutes } from './routes/health.routes.ts';
-import { setupSentryErrorHandler } from './common/observability/sentry.ts';
 
 export const makeApiApp = (runtime: ApiRuntime): express.Express => {
   const app = express();
@@ -135,7 +134,6 @@ export const makeApiApp = (runtime: ApiRuntime): express.Express => {
   app.use('/pricing', pricingModule.routes);
 
   app.use(makeNotFoundHandler());
-  setupSentryErrorHandler(app, runtime.env.observability.sentry.enabled);
   app.use(makeErrorHandler(runtime));
 
   return app;

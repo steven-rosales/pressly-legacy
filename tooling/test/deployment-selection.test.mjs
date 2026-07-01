@@ -1,37 +1,36 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 import { selectDeploySha } from '../scripts/deployment-selection.mjs';
 
 const sha = '0123456789abcdef0123456789abcdef01234567';
 
 describe('deployment selection', () => {
   it('selects the immutable SHA from a successful workflow run event', () => {
-    assert.equal(
+    expect(
       selectDeploySha({ eventName: 'workflow_run', workflowRunSha: sha }),
-      sha,
-    );
+    ).toBe(sha);
   });
 
   it('accepts a full commit SHA for an approved manual redeploy', () => {
-    assert.equal(
+    expect(
       selectDeploySha({ eventName: 'workflow_dispatch', manualSha: sha }),
-      sha,
-    );
+    ).toBe(sha);
   });
 
   it('rejects moving refs and malformed SHAs', () => {
-    assert.throws(() =>
+    expect(() =>
       selectDeploySha({ eventName: 'workflow_dispatch', manualSha: 'main' }),
-    );
-    assert.throws(() =>
+    ).toThrow();
+    expect(() =>
       selectDeploySha({
         eventName: 'workflow_run',
         workflowRunSha: `${sha}; touch /tmp/injected`,
       }),
-    );
+    ).toThrow();
   });
 
   it('rejects events that are not deployment entry points', () => {
-    assert.throws(() => selectDeploySha({ eventName: 'push', manualSha: sha }));
+    expect(() =>
+      selectDeploySha({ eventName: 'push', manualSha: sha }),
+    ).toThrow();
   });
 });

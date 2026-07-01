@@ -9,20 +9,20 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --max-warnings=0",
-    "test": "echo \"test pending: @pressly/worker\"",
+    "test": "vitest run --passWithNoTests",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",
     "@types/node": "^25.6.0",
     "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^4.1.5"
   },
   "dependencies": {
     "@pressly/config": "workspace:*",
     "@sentry/node": "^10.50.0",
     "dotenv": "^17.4.2",
-    "pino": "^10.3.1",
     "posthog-node": "^5.30.6",
     "zod": "^4.3.6"
   }

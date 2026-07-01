@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
-    "test": "tsx --test 'test/**/*.test.ts' 'test/**/*.spec.ts'",
+    "test": "vitest run --dir test",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -25,7 +25,7 @@
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",
-    "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^4.1.5"
   }
 }

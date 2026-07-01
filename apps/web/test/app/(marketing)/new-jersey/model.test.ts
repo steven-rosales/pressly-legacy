@@ -12,7 +12,7 @@ import {
   getCityServicePageModel,
   getCountyPageModel,
   getNewJerseyPageModel,
-} from './model';
+} from '@/app/(marketing)/new-jersey/model';
 
 describe('new jersey page models', () => {
   it('builds the state page model without route component logic', async () => {

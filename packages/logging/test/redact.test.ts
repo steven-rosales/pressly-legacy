@@ -1,13 +1,14 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 import { isSensitiveKey, redactLogFields } from '../src/redact.js';
 
 describe('redactLogFields', () => {
   it('detects sensitive keys', () => {
-    assert.equal(isSensitiveKey('password'), true);
-    assert.equal(isSensitiveKey('apiKey'), true);
-    assert.equal(isSensitiveKey('DATABASE_URL'), true);
-    assert.equal(isSensitiveKey('safeField'), false);
+    expect(isSensitiveKey('password')).toBe(true);
+    expect(isSensitiveKey('apiKey')).toBe(true);
+    expect(isSensitiveKey('DATABASE_URL')).toBe(true);
+    expect(isSensitiveKey('mfaEncryptionKey')).toBe(true);
+    expect(isSensitiveKey('recoveryCodes')).toBe(true);
+    expect(isSensitiveKey('safeField')).toBe(false);
   });
 
   it('redacts nested sensitive values', () => {
@@ -19,7 +20,7 @@ describe('redactLogFields', () => {
       },
     });
 
-    assert.deepEqual(result, {
+    expect(result).toEqual({
       email: 'user@example.com',
       token: '[REDACTED]',
       nested: {
@@ -31,13 +32,15 @@ describe('redactLogFields', () => {
   it('serializes errors safely', () => {
     const result = redactLogFields(new Error('boom'));
 
-    assert.equal(typeof result, 'object');
-    assert.equal((result as { message: string }).message, 'boom');
+    expect(typeof result).toBe('object');
+    expect((result as { message: string }).message).toBe('boom');
   });
 
   it('redacts nested credentials, bearer values, and URL passwords', () => {
     const result = redactLogFields({
       requestBody: { password: 'raw-password' },
+      mfaEnrollmentSecret: 'raw-mfa-secret',
+      recoveryCode: 'raw-recovery-code',
       nested: [
         { authorization: 'Bearer raw-token' },
         { message: 'failed postgres://user:password@postgres:5432/pressly' },
@@ -45,8 +48,10 @@ describe('redactLogFields', () => {
       error: new Error('request used Bearer another-token'),
     });
 
-    assert.deepEqual(result, {
+    expect(result).toEqual({
       requestBody: '[REDACTED]',
+      mfaEnrollmentSecret: '[REDACTED]',
+      recoveryCode: '[REDACTED]',
       nested: [
         { authorization: '[REDACTED]' },
         { message: 'failed postgres://[REDACTED]@postgres:5432/pressly' },

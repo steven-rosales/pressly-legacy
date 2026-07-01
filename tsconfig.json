@@ -4,6 +4,7 @@
     { "path": "./apps/api" },
     { "path": "./apps/web" },
     { "path": "./apps/worker" },
+    { "path": "./stateworks" },
     { "path": "./packages/config" },
     { "path": "./packages/contracts" },
     { "path": "./packages/errors" },

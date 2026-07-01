@@ -1,4 +1,4 @@
-import { getSchedulePageModel } from './model';
+import { getSchedulePageModel } from '@/app/schedule/model';
 
 describe('getSchedulePageModel', () => {
   it('builds schedule iframe, pricing, and FAQ data without UI logic', () => {

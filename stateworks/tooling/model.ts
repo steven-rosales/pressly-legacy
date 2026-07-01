@@ -50,6 +50,7 @@ export type StateworksTask = Readonly<{
   reads?: readonly string[];
   writes?: readonly string[];
   human_instructions?: readonly string[];
+  action?: string | readonly string[];
   expected_external_state?: readonly string[];
   verifier?: string | readonly string[];
   rollback?: string | readonly string[];
@@ -151,19 +152,23 @@ export const validateNetwork = (network: unknown): ValidationResult => {
     };
   }
 
-  if (typeof network.work_id !== 'string' || network.work_id.length === 0) {
+  const workId = network['work_id'];
+  const title = network['title'];
+  const goal = network['goal'];
+  const maxRepairAttempts = network['max_repair_attempts'];
+  const tasks = network['tasks'];
+
+  if (typeof workId !== 'string' || workId.length === 0) {
     addError('network.work_id is required');
   }
 
-  if (typeof network.title !== 'string' || network.title.length === 0) {
+  if (typeof title !== 'string' || title.length === 0) {
     addError('network.title is required');
   }
 
-  if (typeof network.goal !== 'string' && !isStringArray(network.goal)) {
+  if (typeof goal !== 'string' && !isStringArray(goal)) {
     addError('network.goal must be a string or string array');
   }
-
-  const maxRepairAttempts = network.max_repair_attempts;
 
   if (
     maxRepairAttempts !== undefined &&
@@ -174,19 +179,19 @@ export const validateNetwork = (network: unknown): ValidationResult => {
     addError('network.max_repair_attempts must be a non-negative integer');
   }
 
-  if (!Array.isArray(network.tasks)) {
+  if (!Array.isArray(tasks)) {
     addError('network.tasks must be an array');
     return splitIssues(issues);
   }
 
-  if (network.tasks.length === 0) {
+  if (tasks.length === 0) {
     addError('network.tasks must not be empty');
   }
 
   const ids = new Set<string>();
   const duplicateIds = new Set<string>();
 
-  for (const [index, task] of network.tasks.entries()) {
+  for (const [index, task] of tasks.entries()) {
     const label = `task[${index}]`;
 
     if (!isRecord(task)) {
@@ -194,83 +199,94 @@ export const validateNetwork = (network: unknown): ValidationResult => {
       continue;
     }
 
-    if (typeof task.id !== 'string' || task.id.length === 0) {
+    const taskId = task['id'];
+    const taskTitle = task['title'];
+    const taskType = task['type'];
+    const taskOwner = task['owner'];
+    const taskSurface = task['surface'];
+    const taskStatus = task['status'];
+    const deps = task['deps'];
+    const reads = task['reads'];
+    const writes = task['writes'];
+    const humanInstructions = task['human_instructions'];
+    const action = task['action'];
+    const verifier = task['verifier'];
+    const rollback = task['rollback'];
+
+    if (typeof taskId !== 'string' || taskId.length === 0) {
       addError(`${label}.id is required`);
-    } else if (ids.has(task.id)) {
-      duplicateIds.add(task.id);
+    } else if (ids.has(taskId)) {
+      duplicateIds.add(taskId);
     } else {
-      ids.add(task.id);
+      ids.add(taskId);
     }
 
-    if (typeof task.title !== 'string' || task.title.length === 0) {
+    if (typeof taskTitle !== 'string' || taskTitle.length === 0) {
       addError(`${label}.title is required`);
     }
 
-    if (typeof task.type !== 'string' || !taskTypeSet.has(task.type)) {
+    if (typeof taskType !== 'string' || !taskTypeSet.has(taskType)) {
       addError(`${label}.type must be one of ${taskTypes.join(', ')}`);
     }
 
     if (
-      task.owner !== undefined &&
-      (typeof task.owner !== 'string' || !ownerSet.has(task.owner))
+      taskOwner !== undefined &&
+      (typeof taskOwner !== 'string' || !ownerSet.has(taskOwner))
     ) {
       addError(`${label}.owner must be one of ${owners.join(', ')}`);
     }
 
     if (
-      task.surface !== undefined &&
-      (typeof task.surface !== 'string' || !surfaceSet.has(task.surface))
+      taskSurface !== undefined &&
+      (typeof taskSurface !== 'string' || !surfaceSet.has(taskSurface))
     ) {
       addError(`${label}.surface must be one of ${surfaces.join(', ')}`);
     }
 
     if (
-      task.status !== undefined &&
-      (typeof task.status !== 'string' || !taskStatusSet.has(task.status))
+      taskStatus !== undefined &&
+      (typeof taskStatus !== 'string' || !taskStatusSet.has(taskStatus))
     ) {
       addError(`${label}.status must be one of ${taskStatuses.join(', ')}`);
     }
 
-    if (task.deps !== undefined && !isStringArray(task.deps)) {
+    if (deps !== undefined && !isStringArray(deps)) {
       addError(`${label}.deps must be a string array`);
     }
 
-    if (task.reads !== undefined && !isStringArray(task.reads)) {
+    if (reads !== undefined && !isStringArray(reads)) {
       addError(`${label}.reads must be a string array`);
     }
 
-    if (task.writes !== undefined && !isStringArray(task.writes)) {
+    if (writes !== undefined && !isStringArray(writes)) {
       addError(`${label}.writes must be a string array`);
     }
 
-    if (task.type === 'human_action' && task.owner !== 'human') {
+    if (taskType === 'human_action' && taskOwner !== 'human') {
       addError(`${label} is a human_action and must have owner: human`);
     }
 
-    if (task.type === 'human_gate' && task.owner !== 'human') {
+    if (taskType === 'human_gate' && taskOwner !== 'human') {
       addError(`${label} is a human_gate and must have owner: human`);
     }
 
-    if (
-      task.type === 'human_action' &&
-      !isStringArray(task.human_instructions)
-    ) {
+    if (taskType === 'human_action' && !isStringArray(humanInstructions)) {
       addError(`${label} is a human_action and needs human_instructions`);
     }
 
     if (
-      (task.type === 'primitive' || task.type === 'verification') &&
-      task.owner !== 'human' &&
-      task.action === undefined
+      (taskType === 'primitive' || taskType === 'verification') &&
+      taskOwner !== 'human' &&
+      action === undefined
     ) {
       addWarning(`${label} has no action`);
     }
 
-    if (task.verifier === undefined) {
+    if (verifier === undefined) {
       addWarning(`${label} has no verifier`);
     }
 
-    if (task.rollback === undefined) {
+    if (rollback === undefined) {
       addWarning(`${label} has no rollback or compensation note`);
     }
   }
@@ -279,25 +295,26 @@ export const validateNetwork = (network: unknown): ValidationResult => {
     addError(`duplicate task id: ${duplicateId}`);
   }
 
-  for (const task of network.tasks) {
-    if (!isRecord(task) || typeof task.id !== 'string') {
+  for (const task of tasks) {
+    if (!isRecord(task) || typeof task['id'] !== 'string') {
       continue;
     }
 
-    const deps = isStringArray(task.deps) ? task.deps : [];
+    const taskId = task['id'];
+    const deps = isStringArray(task['deps']) ? task['deps'] : [];
 
     for (const dep of deps) {
       if (!ids.has(dep)) {
-        addError(`task ${task.id} depends on missing task ${dep}`);
+        addError(`task ${taskId} depends on missing task ${dep}`);
       }
 
-      if (dep === task.id) {
-        addError(`task ${task.id} depends on itself`);
+      if (dep === taskId) {
+        addError(`task ${taskId} depends on itself`);
       }
     }
   }
 
-  for (const cycle of findCycles(network.tasks as StateworksTask[])) {
+  for (const cycle of findCycles(tasks as StateworksTask[])) {
     addError(`dependency cycle: ${cycle.join(' -> ')}`);
   }
 

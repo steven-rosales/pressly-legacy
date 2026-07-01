@@ -3,6 +3,7 @@ import { normalizeUnknownError, type AppError } from '@pressly/errors';
 import type { RequestInput } from '../requests/request-client';
 import type { WebCorePorts } from '../runtime/core';
 import type { ActionMeta } from './action-meta';
+import { observeWebActionFailure } from './observability';
 
 export type QueryRunInput<A> = Readonly<{
   meta: ActionMeta;
@@ -19,36 +20,12 @@ export type QueryRuntime = Readonly<{
   fetch: <A>(input: QueryFetchInput<A>) => Promise<Result<A, AppError>>;
 }>;
 
-const shouldReportQueryFailure = (meta: ActionMeta): boolean =>
-  meta.criticality === 'medium' || meta.criticality === 'high';
-
 const recordQueryFailure = (
   core: WebCorePorts,
   meta: ActionMeta,
   appError: AppError,
 ): void => {
-  const context = core.context.get();
-
-  core.logger.warn('web query failed', {
-    action: meta.action,
-    kind: appError.kind,
-    code: appError.code,
-    status: appError.status,
-    route: context.route,
-  });
-
-  if (!shouldReportQueryFailure(meta)) return;
-
-  core.errors.capture(appError, {
-    source: 'web',
-    operation: meta.action,
-    route: context.route,
-    actorId: context.distinctId,
-    tags: {
-      rail: meta.rail,
-      criticality: meta.criticality,
-    },
-  });
+  observeWebActionFailure(core, meta, appError);
 };
 
 const recordQuerySuccess = (

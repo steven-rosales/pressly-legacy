@@ -1,8 +1,11 @@
 'use client';
 
 import { render, screen } from '@testing-library/react';
-import { makeTestWebCore } from '../../testing/make-test-web-core';
-import { InjectedWebCoreProvider, useWebCore } from './web-core-context';
+import {
+  InjectedWebCoreProvider,
+  useWebCore,
+} from '@/common/adapters/runtime/web-core-context';
+import { makeTestWebCore } from '@/common/testing/make-test-web-core';
 
 const Consumer = () => {
   const core = useWebCore();

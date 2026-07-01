@@ -39,10 +39,6 @@ const apiEnvSchema = z
     DATABASE_URL: envUrl,
     DATABASE_MAX_CONNECTIONS: envInteger.default(10),
 
-    LOG_LEVEL: z
-      .enum(['debug', 'info', 'warn', 'error', 'fatal'])
-      .default('info'),
-
     CORS_ORIGIN: z.string().min(1).default('http://localhost:3000'),
 
     API_GLOBAL_RATE_LIMIT: envRateLimit.default(300),
@@ -88,7 +84,6 @@ export const apiEnv = {
   port: rawApiEnv.API_PORT,
   databaseUrl: rawApiEnv.DATABASE_URL,
   databaseMaxConnections: rawApiEnv.DATABASE_MAX_CONNECTIONS,
-  logLevel: rawApiEnv.LOG_LEVEL,
   corsOrigin: rawApiEnv.CORS_ORIGIN,
   rateLimits: {
     global: {

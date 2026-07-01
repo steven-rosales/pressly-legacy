@@ -1,11 +1,10 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 import { makeAppError } from '@pressly/errors';
 import { apiFailure, apiSuccess } from '../src/api-response.js';
 
 describe('api response', () => {
   it('creates success envelopes', () => {
-    assert.deepEqual(apiSuccess({ status: 'ok' }), {
+    expect(apiSuccess({ status: 'ok' })).toEqual({
       ok: true,
       data: {
         status: 'ok',
@@ -23,7 +22,7 @@ describe('api response', () => {
       traceId: 'trace_123',
     });
 
-    assert.deepEqual(apiFailure(error), {
+    expect(apiFailure(error)).toEqual({
       ok: false,
       error: {
         code: 'invalid_request',

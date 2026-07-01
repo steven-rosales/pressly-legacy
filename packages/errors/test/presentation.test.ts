@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 import { makeAppError } from '../src/app-error.js';
 import { presentAppError } from '../src/presentation.js';
 
@@ -13,8 +12,7 @@ describe('presentAppError', () => {
       status: 400,
     });
 
-    assert.equal(
-      presentAppError(error),
+    expect(presentAppError(error)).toBe(
       [
         'Please check your input.',
         '',

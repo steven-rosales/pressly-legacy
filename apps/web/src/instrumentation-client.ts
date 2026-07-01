@@ -1,34 +1,31 @@
 import * as Sentry from '@sentry/nextjs';
 import posthog from 'posthog-js';
+import { filterPolicyReportedSentryEvent } from '../sentry-event-filter';
 
 const sentryDsn = process.env['NEXT_PUBLIC_SENTRY_DSN'];
+const sentryTraceSampleRate = Number(
+  process.env['NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE'] ?? '0.1',
+);
 const posthogKey = process.env['NEXT_PUBLIC_POSTHOG_KEY'];
 const posthogHost =
   process.env['NEXT_PUBLIC_POSTHOG_HOST'] ?? 'https://us.i.posthog.com';
+const traceSampleRate =
+  Number.isFinite(sentryTraceSampleRate) &&
+  sentryTraceSampleRate >= 0 &&
+  sentryTraceSampleRate <= 1
+    ? sentryTraceSampleRate
+    : 0.1;
 
 if (sentryDsn !== undefined && sentryDsn.length > 0) {
   Sentry.init({
     dsn: sentryDsn,
     environment: process.env['NODE_ENV'],
 
-    integrations: [Sentry.replayIntegration()],
+    tracesSampleRate: traceSampleRate,
+    enableLogs: false,
+    sendDefaultPii: false,
 
-    tracesSampleRate: 1,
-    enableLogs: true,
-
-    replaysSessionSampleRate: 0.1,
-
-    replaysOnErrorSampleRate: 1.0,
-
-    sendDefaultPii: true,
-
-    beforeSend: (event) => {
-      delete event.request?.cookies;
-      delete event.request?.headers?.['authorization'];
-      delete event.request?.headers?.['cookie'];
-
-      return event;
-    },
+    beforeSend: filterPolicyReportedSentryEvent,
   });
 }
 
@@ -44,5 +41,3 @@ if (posthogKey !== undefined && posthogKey.length > 0) {
     before_send: (event) => event,
   });
 }
-
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

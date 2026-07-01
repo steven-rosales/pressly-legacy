@@ -57,13 +57,12 @@ services:
       DATABASE_URL: postgres://pressly:pressly@postgres:5432/pressly
       DATABASE_MAX_CONNECTIONS: 10
       SHUTDOWN_GRACE_PERIOD_MS: 30000
-      LOG_LEVEL: info
       CORS_ORIGIN: http://localhost:3000
       AUTH_SECRET: local-dev-auth-secret
+      AUTH_MFA_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
       FEATURE_METRICS_ENABLED: false
       FEATURE_JOBS_ENABLED: false
       SENTRY_ENABLED: false
-      POSTHOG_ENABLED: false
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,6 +94,7 @@ services:
         NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
         NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: ${NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:-0.1}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     ports:
@@ -108,6 +108,7 @@ services:
       NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
       NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
       NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+      NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: ${NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:-0.1}
       PORT: 3000
     depends_on:
       api:

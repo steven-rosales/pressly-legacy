@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { result } from '@pressly/kernel';
-import { makeFetchRequestClient } from './fetch-request-client';
+import { makeFetchRequestClient } from '@/common/adapters/requests/fetch-request-client';
 
 const makeClient = () =>
   makeFetchRequestClient({

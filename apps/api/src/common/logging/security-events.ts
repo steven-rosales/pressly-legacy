@@ -1,31 +1,58 @@
-import type {
-  Logger,
-  SecurityEvent,
-  SecurityEventSink,
-} from '@pressly/logging';
-import type { CounterName, CounterSink } from '@pressly/metrics';
+import { makeAppError } from '@pressly/errors';
+import type { SecurityEvent, SecurityEventSink } from '@pressly/logging';
+import {
+  decideObservation,
+  type CounterSink,
+  type ErrorReporter,
+  type ObservationDecision,
+} from '@pressly/metrics';
 
-const counterForEvent = (event: SecurityEvent): CounterName | undefined => {
-  if (
-    event.name === 'authentication.login_failed' ||
-    event.name === 'authentication.login_rate_limited'
-  )
-    return 'security.login_failures';
-  if (event.name === 'authorization.denied')
-    return 'security.authorization_denials';
-  if (event.name === 'request.rate_limited') return 'security.rate_limits';
-  if (event.name === 'server.error') return 'api.server_errors';
-  return undefined;
+const alertCode = (event: SecurityEvent): string =>
+  `security_alert_${event.name.replaceAll('.', '_')}`;
+
+const routeFor = (event: SecurityEvent): string | undefined =>
+  event.resourceType === 'http.route' ? event.resourceId : undefined;
+
+const captureSecurityAlert = (
+  alerts: ErrorReporter,
+  event: SecurityEvent,
+  decision: ObservationDecision,
+): void => {
+  alerts.capture(
+    makeAppError({
+      kind: 'UnexpectedError',
+      code: alertCode(event),
+      message: `Security alert observed: ${event.name}.`,
+      safeMessage: 'Security alert observed.',
+      status: 500,
+      details: {
+        event: event.name,
+        outcome: event.outcome,
+        resourceType: event.resourceType,
+        resourceId: event.resourceId,
+        reason: event.reason,
+      },
+    }),
+    {
+      source: 'api',
+      operation: `security.${event.name}`,
+      ...(event.requestId === undefined ? {} : { requestId: event.requestId }),
+      ...(event.principalId === undefined
+        ? {}
+        : { actorId: event.principalId }),
+      ...(routeFor(event) === undefined ? {} : { route: routeFor(event) }),
+      tags: {
+        reason: decision.reason,
+        security_event: event.name,
+        outcome: event.outcome,
+        ...(event.reason === undefined ? {} : { event_reason: event.reason }),
+      },
+    },
+  );
 };
 
-export const makeLogCounterSink = (logger: Logger): CounterSink => ({
-  increment: (name, labels) => {
-    logger.info('metric.counter', { name, value: 1, ...labels });
-  },
-});
-
 export const makeSecurityEventSink = (input: {
-  logger: Logger;
+  alerts: ErrorReporter;
   counters: CounterSink;
   nowMs?: () => number;
   alertThreshold?: number;
@@ -69,26 +96,23 @@ export const makeSecurityEventSink = (input: {
 
   return {
     emit(event) {
-      input.logger.info(`security.${event.name}`, { ...event });
-      if (shouldAlert(event))
-        input.logger.warn('security.alert', {
-          event: event.name,
-          outcome: event.outcome,
-          ...(event.requestId === undefined
-            ? {}
-            : { requestId: event.requestId }),
-          ...(event.principalId === undefined
-            ? {}
-            : { principalId: event.principalId }),
-          ...(event.action === undefined ? {} : { action: event.action }),
-          ...(event.reason === undefined ? {} : { reason: event.reason }),
-        });
+      const thresholdReached = shouldAlert(event);
+      const decision = decideObservation({
+        kind: 'security_event',
+        source: 'api',
+        name: event.name,
+        outcome: event.outcome,
+        reason: event.reason,
+        thresholdReached,
+      });
 
-      const counter = counterForEvent(event);
-      if (counter !== undefined)
-        input.counters.increment(counter, {
+      if (decision.alert) captureSecurityAlert(input.alerts, event, decision);
+
+      if (decision.counter !== undefined)
+        input.counters.increment(decision.counter, {
           event: event.name,
           outcome: event.outcome,
+          reason: decision.reason,
         });
     },
   };

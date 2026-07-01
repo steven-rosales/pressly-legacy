@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 import { isAppError } from '@pressly/errors';
 import { z } from 'zod';
 import { parseEnv } from '../src/parse-env.js';
@@ -10,18 +9,23 @@ describe('parseEnv', () => {
       PORT: '4000',
     });
 
-    assert.equal(env.PORT, 4000);
-    assert.equal(Object.isFrozen(env), true);
+    expect(env.PORT).toBe(4000);
+    expect(Object.isFrozen(env)).toBe(true);
   });
 
   it('throws ConfigError for invalid env', () => {
-    assert.throws(
-      () => parseEnv(z.object({ API_URL: z.url() }), { API_URL: 'not-a-url' }),
-      (error) =>
-        isAppError(error) &&
-        error.kind === 'ConfigError' &&
-        error.code === 'invalid_environment' &&
-        error.status === 500,
-    );
+    let thrown: unknown;
+
+    try {
+      parseEnv(z.object({ API_URL: z.url() }), { API_URL: 'not-a-url' });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(isAppError(thrown)).toBe(true);
+    if (!isAppError(thrown)) return;
+    expect(thrown.kind).toBe('ConfigError');
+    expect(thrown.code).toBe('invalid_environment');
+    expect(thrown.status).toBe(500);
   });
 });

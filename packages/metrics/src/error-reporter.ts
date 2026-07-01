@@ -1,12 +1,12 @@
 export type ErrorReportContext = Readonly<{
   source: 'web' | 'api' | 'worker';
-  operation?: string;
-  requestId?: string;
-  traceId?: string;
-  actorId?: string;
-  route?: string;
-  tags?: Readonly<Record<string, string>>;
-  extra?: Readonly<Record<string, unknown>>;
+  operation?: string | undefined;
+  requestId?: string | undefined;
+  traceId?: string | undefined;
+  actorId?: string | undefined;
+  route?: string | undefined;
+  tags?: Readonly<Record<string, string>> | undefined;
+  extra?: Readonly<Record<string, unknown>> | undefined;
 }>;
 
 export type ErrorReporter = Readonly<{

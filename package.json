@@ -11,7 +11,7 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
-    "test": "turbo test",
+    "test": "turbo test && vitest run tooling/test",
     "clean": "turbo clean",
     "format": "prettier . --write",
     "format:check": "prettier . --check",

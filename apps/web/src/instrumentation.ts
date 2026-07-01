@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs';
+import { observeNextRequestError } from '@/common/adapters/observability/next-request-error';
 
 export async function register() {
   if (process.env['NEXT_RUNTIME'] === 'nodejs') {
@@ -10,4 +10,10 @@ export async function register() {
   }
 }
 
-export const onRequestError = Sentry.captureRequestError;
+export const onRequestError = (
+  error: unknown,
+  request: unknown,
+  context: unknown,
+) => {
+  observeNextRequestError({ error, request, context });
+};

@@ -1,11 +1,7 @@
 import { workerEnv } from './common/env.js';
 
 const main = () => {
-  console.log({
-    app: 'worker',
-    env: workerEnv.nodeEnv,
-    jobsEnabled: workerEnv.features.jobsEnabled,
-  });
+  if (!workerEnv.features.jobsEnabled) return;
 };
 
 main();

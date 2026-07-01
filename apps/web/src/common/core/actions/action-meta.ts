@@ -7,6 +7,7 @@ export type ActionMeta = Readonly<{
   rail: ActionRail;
   criticality: ActionCriticality;
   source?: string;
+  productCritical?: boolean;
 }>;
 
 export type CommandFeedback = Readonly<{

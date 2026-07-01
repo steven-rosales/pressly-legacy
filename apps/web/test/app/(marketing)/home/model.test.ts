@@ -1,4 +1,4 @@
-import { getHomePageModel } from './model';
+import { getHomePageModel } from '@/app/(marketing)/home/model';
 
 describe('getHomePageModel', () => {
   it('centralizes home page section copy and CTA specs', () => {

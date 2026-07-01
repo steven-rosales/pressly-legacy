@@ -36,10 +36,10 @@ jobs:
         run: pnpm typecheck
 
       - name: Unit tests
-        run: pnpm test
+        run: pnpm exec turbo test
 
       - name: Security script tests
-        run: node --test tooling/test/*.test.mjs
+        run: pnpm exec vitest run tooling/test
 
       - name: Build
         run: pnpm build
@@ -214,6 +214,8 @@ jobs:
             NEXT_PUBLIC_API_BASE_URL=https://api.trypressly.com
             NEXT_PUBLIC_ANALYTICS_ENABLED=false
             NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+            NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=${{ vars.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE || '0.1' }}
           cache-from: type=gha,scope=pressly-web
           cache-to: type=gha,mode=max,scope=pressly-web
 

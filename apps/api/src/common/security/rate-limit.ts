@@ -105,16 +105,6 @@ export const makeIpRateLimiter =
     }
 
     res.setHeader('Retry-After', String(decision.retryAfterSeconds));
-    input.logger.warn('security.rate_limit.exceeded', {
-      ...((res.locals['requestId'] as string | undefined) === undefined
-        ? {}
-        : { requestId: res.locals['requestId'] as string }),
-      limiter: input.name,
-      route: req.path,
-      method: req.method,
-      outcome: 'denied',
-      reason: 'rate_limit_exceeded',
-    });
     input.securityEvents.emit({
       name: 'request.rate_limited',
       occurredAt: new Date().toISOString(),

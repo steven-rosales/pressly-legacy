@@ -1,6 +1,6 @@
 import posthog from 'posthog-js';
 import { publicEvents } from '@/common/core/analytics/events';
-import { makeBrowserPostHogTracker } from './posthog-tracker';
+import { makeBrowserPostHogTracker } from '@/common/adapters/analytics/posthog-tracker';
 
 vi.mock('posthog-js', () => ({
   default: {

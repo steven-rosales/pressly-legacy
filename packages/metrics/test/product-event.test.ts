@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 import { defineEvent } from '../src/product-event.js';
 
 describe('defineEvent', () => {
@@ -8,7 +7,7 @@ describe('defineEvent', () => {
       source: 'hero',
     });
 
-    assert.deepEqual(event, {
+    expect(event).toEqual({
       name: 'schedule_clicked',
       schemaVersion: 1,
       properties: {
@@ -25,6 +24,6 @@ describe('defineEvent', () => {
       source: 'pricing',
     });
 
-    assert.equal(event.schemaVersion, 2);
+    expect(event.schemaVersion).toBe(2);
   });
 });

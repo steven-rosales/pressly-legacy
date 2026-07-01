@@ -2,7 +2,7 @@ import { result } from '@pressly/kernel';
 import { makeAppError } from '@pressly/errors';
 import { z } from 'zod';
 import { makeTestWebCore } from '@/common/testing/make-test-web-core';
-import type { RequestClient } from '../requests/request-client';
+import type { RequestClient } from '@/common/core/requests/request-client';
 
 describe('core.query', () => {
   it('returns result.ok(value) on success', async () => {
@@ -64,6 +64,25 @@ describe('core.query', () => {
     });
 
     expect(core.calls.errors).toHaveLength(1);
+  });
+
+  it('suppresses high-criticality routine client query failures', async () => {
+    const core = makeTestWebCore();
+
+    await core.query.run({
+      meta: { action: 'load_settings', rail: 'query', criticality: 'high' },
+      work: async () => {
+        throw makeAppError({
+          kind: 'NotFoundError',
+          code: 'settings_not_found',
+          message: 'Settings not found.',
+          safeMessage: 'Settings were not found.',
+          status: 404,
+        });
+      },
+    });
+
+    expect(core.calls.errors).toHaveLength(0);
   });
 
   it('fetches through the request port without nesting Result inside Result', async () => {
