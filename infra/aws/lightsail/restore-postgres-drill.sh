@@ -9,9 +9,10 @@ VOLUME="$CONTAINER-data"
 DATABASE='pressly_restore_drill'
 USER='pressly_restore'
 PASSWORD="$(openssl rand -hex 24)"
-RESTORE_DUMP="$(mktemp)"
-RESTORE_LIST="$(mktemp)"
-FILTERED_RESTORE_LIST="$(mktemp)"
+RESTORE_WORKDIR="$(mktemp -d)"
+RESTORE_DUMP="$RESTORE_WORKDIR/restore.dump"
+RESTORE_LIST="$RESTORE_WORKDIR/restore.list.raw"
+FILTERED_RESTORE_LIST="$RESTORE_WORKDIR/restore.list"
 started_at="$(date +%s)"
 
 if [[ -z "$BACKUP_FILE" || ! -f "$BACKUP_FILE" ]]; then
@@ -29,7 +30,7 @@ done
 cleanup() {
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
   docker volume rm "$VOLUME" >/dev/null 2>&1 || true
-  rm -f "$RESTORE_DUMP" "$RESTORE_LIST" "$FILTERED_RESTORE_LIST"
+  rm -rf "$RESTORE_WORKDIR"
 }
 trap cleanup EXIT
 
@@ -50,6 +51,7 @@ docker run --detach --name "$CONTAINER" \
   --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
   --tmpfs /var/run/postgresql:rw,nosuid,nodev,size=16m,uid=999,gid=999 \
   --volume "$VOLUME:/var/lib/postgresql" \
+  --volume "$RESTORE_WORKDIR:/restore:ro" \
   --env POSTGRES_DB="$DATABASE" \
   --env POSTGRES_USER="$USER" \
   --env POSTGRES_PASSWORD="$PASSWORD" \
@@ -66,16 +68,14 @@ docker exec "$CONTAINER" pg_isready -U "$USER" -d "$DATABASE" >/dev/null
 gpg --decrypt --batch --passphrase-file "$PASSPHRASE_FILE" "$BACKUP_FILE" > "$RESTORE_DUMP"
 chmod 600 "$RESTORE_DUMP"
 
-docker cp "$RESTORE_DUMP" "$CONTAINER:/tmp/restore.dump"
-docker exec "$CONTAINER" pg_restore --list /tmp/restore.dump > "$RESTORE_LIST"
+docker exec "$CONTAINER" pg_restore --list /restore/restore.dump > "$RESTORE_LIST"
 grep -v 'SEQUENCE SET drizzle __drizzle_migrations_id_seq' \
   "$RESTORE_LIST" > "$FILTERED_RESTORE_LIST"
 
-docker cp "$FILTERED_RESTORE_LIST" "$CONTAINER:/tmp/restore.list"
 docker exec "$CONTAINER" \
   pg_restore --exit-on-error --no-owner --no-privileges \
-    --use-list=/tmp/restore.list \
-    -U "$USER" -d "$DATABASE" /tmp/restore.dump
+    --use-list=/restore/restore.list \
+    -U "$USER" -d "$DATABASE" /restore/restore.dump
 
 docker exec "$CONTAINER" psql -v ON_ERROR_STOP=1 -U "$USER" -d "$DATABASE" <<'SQL'
 DO $$
