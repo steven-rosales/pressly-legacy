@@ -22,7 +22,6 @@
     "@pressly/config": "workspace:*",
     "@sentry/node": "^10.50.0",
     "dotenv": "^17.4.2",
-    "pino": "^10.3.1",
     "posthog-node": "^5.30.6",
     "zod": "^4.3.6"
   }

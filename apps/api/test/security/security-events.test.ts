@@ -1,22 +1,23 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Logger } from '@pressly/logging';
-import type { CounterSink } from '@pressly/metrics';
+import type { CounterSink, ErrorReporter } from '@pressly/metrics';
 import { makeSecurityEventSink } from '../../src/common/logging/security-events.ts';
+
+const makeAlerts = () => {
+  const capture = vi.fn();
+  const alerts: ErrorReporter = {
+    capture,
+    shutdown: async () => undefined,
+  };
+
+  return { alerts, capture };
+};
 
 describe('security event sink', () => {
   it('suppresses routine singleton security events', () => {
-    const info = vi.fn();
-    const logger: Logger = {
-      child: () => logger,
-      debug: vi.fn(),
-      info,
-      warn: vi.fn(),
-      error: vi.fn(),
-      fatal: vi.fn(),
-    };
+    const { alerts, capture } = makeAlerts();
     const increment = vi.fn();
     const counters: CounterSink = { increment };
-    const sink = makeSecurityEventSink({ logger, counters });
+    const sink = makeSecurityEventSink({ alerts, counters });
     const event = {
       name: 'authorization.denied',
       occurredAt: '2026-06-29T12:00:00.000Z',
@@ -30,22 +31,14 @@ describe('security event sink', () => {
 
     sink.emit(event);
 
-    expect(info).not.toHaveBeenCalled();
+    expect(capture).not.toHaveBeenCalled();
     expect(increment).not.toHaveBeenCalled();
   });
 
   it('alerts once when repeated denials cross the threshold', () => {
-    const warn = vi.fn();
-    const logger: Logger = {
-      child: () => logger,
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn,
-      error: vi.fn(),
-      fatal: vi.fn(),
-    };
+    const { alerts, capture } = makeAlerts();
     const sink = makeSecurityEventSink({
-      logger,
+      alerts,
       counters: { increment: vi.fn() },
       alertThreshold: 3,
     });
@@ -60,30 +53,32 @@ describe('security event sink', () => {
 
     sink.emit(event);
     sink.emit(event);
-    expect(warn).not.toHaveBeenCalled();
+    expect(capture).not.toHaveBeenCalled();
     sink.emit(event);
     sink.emit(event);
 
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(
-      'security.alert',
-      expect.objectContaining({ event: 'authorization.denied' }),
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'security_alert_authorization_denied',
+      }),
+      expect.objectContaining({
+        source: 'api',
+        operation: 'security.authorization.denied',
+        actorId: 'principal-1',
+        tags: expect.objectContaining({
+          security_event: 'authorization.denied',
+          reason: 'repeated_security_denial',
+        }),
+      }),
     );
   });
 
   it('alerts auth login rate limits without logging generic rate limits', () => {
-    const warn = vi.fn();
+    const { alerts, capture } = makeAlerts();
     const increment = vi.fn();
-    const logger: Logger = {
-      child: () => logger,
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn,
-      error: vi.fn(),
-      fatal: vi.fn(),
-    };
     const sink = makeSecurityEventSink({
-      logger,
+      alerts,
       counters: { increment },
     });
 
@@ -93,7 +88,7 @@ describe('security event sink', () => {
       outcome: 'denied',
       reason: 'api_global',
     });
-    expect(warn).not.toHaveBeenCalled();
+    expect(capture).not.toHaveBeenCalled();
     expect(increment).not.toHaveBeenCalled();
 
     sink.emit({
@@ -103,11 +98,18 @@ describe('security event sink', () => {
       reason: 'auth_login',
     });
 
-    expect(warn).toHaveBeenCalledWith(
-      'security.alert',
+    expect(capture).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: 'request.rate_limited',
-        reason: 'auth_login',
+        code: 'security_alert_request_rate_limited',
+      }),
+      expect.objectContaining({
+        source: 'api',
+        operation: 'security.request.rate_limited',
+        tags: expect.objectContaining({
+          event_reason: 'auth_login',
+          security_event: 'request.rate_limited',
+          reason: 'selected_security_signal',
+        }),
       }),
     );
     expect(increment).toHaveBeenCalledWith('security.rate_limits', {
@@ -123,17 +125,9 @@ describe('security event sink', () => {
     'deployment.failed',
     'authentication.login_rate_limited',
   ] as const)('alerts immediately for %s', (name) => {
-    const warn = vi.fn();
-    const logger: Logger = {
-      child: () => logger,
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn,
-      error: vi.fn(),
-      fatal: vi.fn(),
-    };
+    const { alerts, capture } = makeAlerts();
     const sink = makeSecurityEventSink({
-      logger,
+      alerts,
       counters: { increment: vi.fn() },
     });
 
@@ -144,9 +138,14 @@ describe('security event sink', () => {
       principalId: 'principal-1',
     });
 
-    expect(warn).toHaveBeenCalledWith(
-      'security.alert',
-      expect.objectContaining({ event: name }),
+    expect(capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: `security_alert_${name.replaceAll('.', '_')}`,
+      }),
+      expect.objectContaining({
+        operation: `security.${name}`,
+        tags: expect.objectContaining({ security_event: name }),
+      }),
     );
   });
 });

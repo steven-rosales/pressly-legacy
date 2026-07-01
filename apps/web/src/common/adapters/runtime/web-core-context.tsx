@@ -19,7 +19,6 @@ import type {
 } from '@/common/core/runtime/context';
 import { makeBrowserPostHogTracker } from '../analytics/posthog-tracker';
 import { makeSonnerFeedback } from '../feedback/sonner-feedback';
-import { makeBrowserLogger } from '../logging/browser-logger';
 import { makeSentryErrorReporter } from '../observability/sentry-reporter';
 import { makeFetchRequestClient } from '../requests/fetch-request-client';
 import { getOrCreateBrowserId } from './browser-ids';
@@ -61,11 +60,6 @@ export const WebCoreProvider = ({ children }: PropsWithChildren) => {
     const route = pathname ?? 'unknown';
     const context = makeBrowserContextProvider(route);
 
-    const logger =
-      webEnv.nodeEnv === 'test'
-        ? nullLogger
-        : makeBrowserLogger({ source: 'web', route });
-
     const analytics =
       webEnv.analyticsEnabled && webEnv.observability.posthog.key !== undefined
         ? makeBrowserPostHogTracker(true)
@@ -84,7 +78,7 @@ export const WebCoreProvider = ({ children }: PropsWithChildren) => {
     return createWebCore({
       clock: systemClock,
       context,
-      logger,
+      logger: nullLogger,
       analytics,
       errors,
       feedback: makeSonnerFeedback(),

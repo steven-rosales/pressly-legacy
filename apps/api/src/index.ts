@@ -4,16 +4,13 @@
 
 import './instrument.ts';
 import { createDatabaseRuntime } from '@pressly/db';
-import { nullErrorReporter } from '@pressly/metrics';
+import { nullLogger } from '@pressly/logging';
+import { nullCounterSink, nullErrorReporter } from '@pressly/metrics';
 import { makeApiApp } from './app.ts';
 import { apiEnv } from './common/config/env.ts';
-import { makePinoLogger } from './common/logging/pino-logger.ts';
 import { installShutdownHandlers } from './common/runtime/shutdown.ts';
 import { startServer } from './server.ts';
-import {
-  makeLogCounterSink,
-  makeSecurityEventSink,
-} from './common/logging/security-events.ts';
+import { makeSecurityEventSink } from './common/logging/security-events.ts';
 import {
   flushSentry,
   makeSentryErrorReporter,
@@ -21,14 +18,11 @@ import {
 import { observeApiRuntimeFailure } from './common/observability/api-observability.ts';
 
 const main = async (): Promise<void> => {
-  const logger = makePinoLogger({
-    level: apiEnv.logLevel,
-    environment: apiEnv.nodeEnv,
-  });
+  const logger = nullLogger;
   const errors = apiEnv.observability.sentry.enabled
     ? makeSentryErrorReporter()
     : nullErrorReporter;
-  const counters = makeLogCounterSink(logger);
+  const counters = nullCounterSink;
 
   const database = createDatabaseRuntime({
     databaseUrl: apiEnv.databaseUrl,
@@ -39,7 +33,7 @@ const main = async (): Promise<void> => {
   });
 
   const securityEvents = makeSecurityEventSink({
-    logger,
+    alerts: errors,
     counters,
   });
 
@@ -85,10 +79,7 @@ const main = async (): Promise<void> => {
 };
 
 main().catch(async (error: unknown) => {
-  const logger = makePinoLogger({
-    level: apiEnv.logLevel,
-    environment: apiEnv.nodeEnv,
-  });
+  const logger = nullLogger;
   const errors = apiEnv.observability.sentry.enabled
     ? makeSentryErrorReporter()
     : nullErrorReporter;
@@ -98,7 +89,7 @@ main().catch(async (error: unknown) => {
       logger,
       observability: {
         errors,
-        counters: makeLogCounterSink(logger),
+        counters: nullCounterSink,
       },
     },
     {
@@ -109,6 +100,5 @@ main().catch(async (error: unknown) => {
   );
 
   await flushSentry();
-  console.error(error);
   process.exitCode = 1;
 });

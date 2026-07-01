@@ -57,7 +57,6 @@ services:
       DATABASE_URL: postgres://pressly:pressly@postgres:5432/pressly
       DATABASE_MAX_CONNECTIONS: 10
       SHUTDOWN_GRACE_PERIOD_MS: 30000
-      LOG_LEVEL: info
       CORS_ORIGIN: http://localhost:3000
       AUTH_SECRET: local-dev-auth-secret
       AUTH_MFA_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=

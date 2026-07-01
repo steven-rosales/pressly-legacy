@@ -10,7 +10,6 @@ import type {
   ContextProvider,
   WebContext,
 } from '@/common/core/runtime/context';
-import { makeConsoleLogger } from '../logging/console-logger';
 import { makeSentryErrorReporter } from '../observability/sentry-reporter';
 import { makeFetchRequestClient } from '../requests/fetch-request-client';
 
@@ -34,11 +33,6 @@ export const makeServerWebCore = ({
 }: MakeServerWebCoreInput): WebCore => {
   const context = makeServerContextProvider(route);
 
-  const logger =
-    webEnv.nodeEnv === 'test'
-      ? nullLogger
-      : makeConsoleLogger({ source: 'web', route, runtime: 'server' });
-
   const errors =
     webEnv.observability.sentry.dsn === undefined
       ? nullErrorReporter
@@ -47,7 +41,7 @@ export const makeServerWebCore = ({
   return createWebCore({
     clock: systemClock,
     context,
-    logger,
+    logger: nullLogger,
     analytics: nullAnalyticsTracker,
     errors,
     feedback: nullFeedback,

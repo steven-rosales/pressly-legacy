@@ -2,7 +2,6 @@ import * as Sentry from '@sentry/node';
 import { normalizeUnknownError, type AppError } from '@pressly/errors';
 import { redactLogFields } from '@pressly/logging';
 import type { ErrorReportContext, ErrorReporter } from '@pressly/metrics';
-import type express from 'express';
 
 type SentryConfig = Readonly<{
   enabled: boolean;
@@ -36,16 +35,6 @@ export const initializeSentry = (config: SentryConfig): void => {
     ],
   });
 };
-
-export const setupSentryErrorHandler = (
-  app: express.Express,
-  enabled: boolean,
-): void => {
-  if (enabled) Sentry.setupExpressErrorHandler(app);
-};
-
-export const captureSentryException = (error: unknown): string =>
-  Sentry.captureException(error);
 
 export const flushSentry = (timeoutMs = 2_000): Promise<boolean> =>
   Sentry.flush(timeoutMs);

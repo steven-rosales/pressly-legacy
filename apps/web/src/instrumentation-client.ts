@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs';
 import posthog from 'posthog-js';
+import { filterPolicyReportedSentryEvent } from '../sentry-event-filter';
 
 const sentryDsn = process.env['NEXT_PUBLIC_SENTRY_DSN'];
 const sentryTraceSampleRate = Number(
@@ -24,13 +25,7 @@ if (sentryDsn !== undefined && sentryDsn.length > 0) {
     enableLogs: false,
     sendDefaultPii: false,
 
-    beforeSend: (event) => {
-      delete event.request?.cookies;
-      delete event.request?.headers?.['authorization'];
-      delete event.request?.headers?.['cookie'];
-
-      return event;
-    },
+    beforeSend: filterPolicyReportedSentryEvent,
   });
 }
 
@@ -46,5 +41,3 @@ if (posthogKey !== undefined && posthogKey.length > 0) {
     before_send: (event) => event,
   });
 }
-
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
