@@ -66,11 +66,11 @@ docker exec "$CONTAINER" pg_isready -U "$USER" -d "$DATABASE" >/dev/null
 gpg --decrypt --batch --passphrase-file "$PASSPHRASE_FILE" "$BACKUP_FILE" > "$RESTORE_DUMP"
 chmod 600 "$RESTORE_DUMP"
 
-pg_restore --list "$RESTORE_DUMP" > "$RESTORE_LIST"
+docker cp "$RESTORE_DUMP" "$CONTAINER:/tmp/restore.dump"
+docker exec "$CONTAINER" pg_restore --list /tmp/restore.dump > "$RESTORE_LIST"
 grep -v 'SEQUENCE SET drizzle __drizzle_migrations_id_seq' \
   "$RESTORE_LIST" > "$FILTERED_RESTORE_LIST"
 
-docker cp "$RESTORE_DUMP" "$CONTAINER:/tmp/restore.dump"
 docker cp "$FILTERED_RESTORE_LIST" "$CONTAINER:/tmp/restore.list"
 docker exec "$CONTAINER" \
   pg_restore --exit-on-error --no-owner --no-privileges \
