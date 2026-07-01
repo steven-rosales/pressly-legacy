@@ -9,6 +9,9 @@ VOLUME="$CONTAINER-data"
 DATABASE='pressly_restore_drill'
 USER='pressly_restore'
 PASSWORD="$(openssl rand -hex 24)"
+RESTORE_DUMP="$(mktemp)"
+RESTORE_LIST="$(mktemp)"
+FILTERED_RESTORE_LIST="$(mktemp)"
 started_at="$(date +%s)"
 
 if [[ -z "$BACKUP_FILE" || ! -f "$BACKUP_FILE" ]]; then
@@ -26,6 +29,7 @@ done
 cleanup() {
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
   docker volume rm "$VOLUME" >/dev/null 2>&1 || true
+  rm -f "$RESTORE_DUMP" "$RESTORE_LIST" "$FILTERED_RESTORE_LIST"
 }
 trap cleanup EXIT
 
@@ -59,9 +63,38 @@ for _ in $(seq 1 30); do
 done
 docker exec "$CONTAINER" pg_isready -U "$USER" -d "$DATABASE" >/dev/null
 
-gpg --decrypt --batch --passphrase-file "$PASSPHRASE_FILE" "$BACKUP_FILE" \
-  | docker exec -i "$CONTAINER" \
-      pg_restore --exit-on-error --no-owner --no-privileges -U "$USER" -d "$DATABASE"
+gpg --decrypt --batch --passphrase-file "$PASSPHRASE_FILE" "$BACKUP_FILE" > "$RESTORE_DUMP"
+chmod 600 "$RESTORE_DUMP"
+
+pg_restore --list "$RESTORE_DUMP" > "$RESTORE_LIST"
+grep -v 'SEQUENCE SET drizzle __drizzle_migrations_id_seq' \
+  "$RESTORE_LIST" > "$FILTERED_RESTORE_LIST"
+
+docker cp "$RESTORE_DUMP" "$CONTAINER:/tmp/restore.dump"
+docker cp "$FILTERED_RESTORE_LIST" "$CONTAINER:/tmp/restore.list"
+docker exec "$CONTAINER" \
+  pg_restore --exit-on-error --no-owner --no-privileges \
+    --use-list=/tmp/restore.list \
+    -U "$USER" -d "$DATABASE" /tmp/restore.dump
+
+docker exec "$CONTAINER" psql -v ON_ERROR_STOP=1 -U "$USER" -d "$DATABASE" <<'SQL'
+DO $$
+DECLARE
+  max_migration_id integer;
+BEGIN
+  IF to_regclass('drizzle.__drizzle_migrations') IS NOT NULL
+     AND to_regclass('drizzle.__drizzle_migrations_id_seq') IS NOT NULL THEN
+    SELECT max(id) INTO max_migration_id
+    FROM drizzle.__drizzle_migrations;
+
+    PERFORM setval(
+      'drizzle.__drizzle_migrations_id_seq'::regclass,
+      greatest(coalesce(max_migration_id, 1), 1),
+      max_migration_id IS NOT NULL
+    );
+  END IF;
+END $$;
+SQL
 
 table_count="$(
   docker exec "$CONTAINER" psql -At -U "$USER" -d "$DATABASE" \

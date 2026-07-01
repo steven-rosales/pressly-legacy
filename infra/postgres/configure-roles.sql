@@ -63,6 +63,31 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pressly_runtime;
 
 GRANT USAGE ON SCHEMA public TO pressly_backup;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO pressly_backup;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pressly_backup;
+
+SELECT 'GRANT USAGE ON SCHEMA drizzle TO pressly_backup'
+WHERE EXISTS (
+  SELECT 1
+  FROM information_schema.schemata
+  WHERE schema_name = 'drizzle'
+)
+\gexec
+
+SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA drizzle TO pressly_backup'
+WHERE EXISTS (
+  SELECT 1
+  FROM information_schema.schemata
+  WHERE schema_name = 'drizzle'
+)
+\gexec
+
+SELECT 'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA drizzle TO pressly_backup'
+WHERE EXISTS (
+  SELECT 1
+  FROM information_schema.schemata
+  WHERE schema_name = 'drizzle'
+)
+\gexec
 
 ALTER DEFAULT PRIVILEGES FOR ROLE pressly_migration IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO pressly_runtime;
@@ -70,6 +95,24 @@ ALTER DEFAULT PRIVILEGES FOR ROLE pressly_migration IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO pressly_runtime;
 ALTER DEFAULT PRIVILEGES FOR ROLE pressly_migration IN SCHEMA public
   GRANT SELECT ON TABLES TO pressly_backup;
+ALTER DEFAULT PRIVILEGES FOR ROLE pressly_migration IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO pressly_backup;
+
+SELECT 'ALTER DEFAULT PRIVILEGES FOR ROLE pressly_migration IN SCHEMA drizzle GRANT SELECT ON TABLES TO pressly_backup'
+WHERE EXISTS (
+  SELECT 1
+  FROM information_schema.schemata
+  WHERE schema_name = 'drizzle'
+)
+\gexec
+
+SELECT 'ALTER DEFAULT PRIVILEGES FOR ROLE pressly_migration IN SCHEMA drizzle GRANT USAGE, SELECT ON SEQUENCES TO pressly_backup'
+WHERE EXISTS (
+  SELECT 1
+  FROM information_schema.schemata
+  WHERE schema_name = 'drizzle'
+)
+\gexec
 
 ALTER ROLE pressly_runtime IN DATABASE :"database_name" SET statement_timeout = '15s';
 ALTER ROLE pressly_runtime IN DATABASE :"database_name" SET lock_timeout = '3s';
