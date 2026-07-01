@@ -1,5 +1,5 @@
 const sensitiveKeyPattern =
-  /(password|secret|token|credential|api[_-]?key|authorization|cookie|dsn|database[_-]?url|request[_-]?body)/i;
+  /(password|secret|token|credential|api[_-]?key|authorization|cookie|dsn|database[_-]?url|request[_-]?body|mfa|recovery[_-]?codes?)/i;
 
 const redacted = '[REDACTED]';
 

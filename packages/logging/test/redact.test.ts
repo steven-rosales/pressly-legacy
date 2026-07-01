@@ -7,6 +7,8 @@ describe('redactLogFields', () => {
     assert.equal(isSensitiveKey('password'), true);
     assert.equal(isSensitiveKey('apiKey'), true);
     assert.equal(isSensitiveKey('DATABASE_URL'), true);
+    assert.equal(isSensitiveKey('mfaEncryptionKey'), true);
+    assert.equal(isSensitiveKey('recoveryCodes'), true);
     assert.equal(isSensitiveKey('safeField'), false);
   });
 
@@ -38,6 +40,8 @@ describe('redactLogFields', () => {
   it('redacts nested credentials, bearer values, and URL passwords', () => {
     const result = redactLogFields({
       requestBody: { password: 'raw-password' },
+      mfaEnrollmentSecret: 'raw-mfa-secret',
+      recoveryCode: 'raw-recovery-code',
       nested: [
         { authorization: 'Bearer raw-token' },
         { message: 'failed postgres://user:password@postgres:5432/pressly' },
@@ -47,6 +51,8 @@ describe('redactLogFields', () => {
 
     assert.deepEqual(result, {
       requestBody: '[REDACTED]',
+      mfaEnrollmentSecret: '[REDACTED]',
+      recoveryCode: '[REDACTED]',
       nested: [
         { authorization: '[REDACTED]' },
         { message: 'failed postgres://[REDACTED]@postgres:5432/pressly' },

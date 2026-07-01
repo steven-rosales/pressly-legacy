@@ -2,7 +2,11 @@ export type CounterName =
   | 'security.login_failures'
   | 'security.authorization_denials'
   | 'security.rate_limits'
-  | 'api.server_errors';
+  | 'security.critical_events'
+  | 'api.server_errors'
+  | 'web.critical_failures'
+  | 'product.critical_failures'
+  | 'deployment.failures';
 
 export type CounterLabels = Readonly<Record<string, string>>;
 
