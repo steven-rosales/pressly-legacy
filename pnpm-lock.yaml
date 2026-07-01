@@ -448,6 +448,9 @@ importers:
       typescript:
         specifier: latest
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0))
 
   modules/business/auth:
     dependencies:
@@ -603,12 +606,12 @@ importers:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      tsx:
-        specifier: latest
-        version: 4.21.0
       typescript:
         specifier: latest
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/contracts:
     dependencies:
@@ -622,12 +625,12 @@ importers:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      tsx:
-        specifier: latest
-        version: 4.21.0
       typescript:
         specifier: latest
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/db:
     dependencies:
@@ -671,12 +674,12 @@ importers:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      tsx:
-        specifier: latest
-        version: 4.21.0
       typescript:
         specifier: latest
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/http:
     dependencies:
@@ -696,12 +699,12 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      tsx:
-        specifier: latest
-        version: 4.21.0
       typescript:
         specifier: latest
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/kernel:
     devDependencies:
@@ -720,24 +723,24 @@ importers:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      tsx:
-        specifier: latest
-        version: 4.21.0
       typescript:
         specifier: latest
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/metrics:
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      tsx:
-        specifier: latest
-        version: 4.21.0
       typescript:
         specifier: latest
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/money:
     devDependencies:
@@ -766,15 +769,12 @@ importers:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      tsx:
-        specifier: latest
-        version: 4.21.0
       typescript:
         specifier: latest
         version: 6.0.3
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/time:
     dependencies:
@@ -792,7 +792,11 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
-  packages/tsconfig: {}
+  packages/tsconfig:
+    devDependencies:
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@26.1.0)(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
 packages:
 

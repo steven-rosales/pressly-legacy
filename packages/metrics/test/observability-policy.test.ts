@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 import { decideObservation, shouldReportObservation } from '../src/index.js';
 
 describe('observability policy', () => {
@@ -16,7 +15,7 @@ describe('observability policy', () => {
       },
     });
 
-    assert.deepEqual(decision, {
+    expect(decision).toEqual({
       report: false,
       alert: false,
       reason: 'routine_client_failure',
@@ -36,8 +35,8 @@ describe('observability policy', () => {
       },
     } as const;
 
-    assert.equal(shouldReportObservation(observation), true);
-    assert.deepEqual(decideObservation(observation), {
+    expect(shouldReportObservation(observation)).toBe(true);
+    expect(decideObservation(observation)).toEqual({
       report: true,
       alert: true,
       logLevel: 'error',
@@ -61,7 +60,7 @@ describe('observability policy', () => {
       },
     });
 
-    assert.deepEqual(decision, {
+    expect(decision).toEqual({
       report: true,
       alert: true,
       logLevel: 'error',
@@ -85,10 +84,10 @@ describe('observability policy', () => {
       thresholdReached: true,
     });
 
-    assert.equal(routine.report, false);
-    assert.equal(routine.alert, false);
-    assert.equal(routine.reason, 'routine_security_event');
-    assert.deepEqual(repeated, {
+    expect(routine.report).toBe(false);
+    expect(routine.alert).toBe(false);
+    expect(routine.reason).toBe('routine_security_event');
+    expect(repeated).toEqual({
       report: false,
       alert: true,
       logLevel: 'warn',
@@ -98,7 +97,7 @@ describe('observability policy', () => {
   });
 
   it('keeps selected security and deployment signals high-signal', () => {
-    assert.deepEqual(
+    expect(
       decideObservation({
         kind: 'security_event',
         source: 'api',
@@ -106,28 +105,26 @@ describe('observability policy', () => {
         outcome: 'denied',
         reason: 'auth_login',
       }),
-      {
-        report: false,
-        alert: true,
-        logLevel: 'warn',
-        counter: 'security.rate_limits',
-        reason: 'selected_security_signal',
-      },
-    );
+    ).toEqual({
+      report: false,
+      alert: true,
+      logLevel: 'warn',
+      counter: 'security.rate_limits',
+      reason: 'selected_security_signal',
+    });
 
-    assert.deepEqual(
+    expect(
       decideObservation({
         kind: 'runtime_failure',
         source: 'deployment',
         phase: 'deployment',
       }),
-      {
-        report: true,
-        alert: true,
-        logLevel: 'error',
-        counter: 'deployment.failures',
-        reason: 'deployment_failure',
-      },
-    );
+    ).toEqual({
+      report: true,
+      alert: true,
+      logLevel: 'error',
+      counter: 'deployment.failures',
+      reason: 'deployment_failure',
+    });
   });
 });

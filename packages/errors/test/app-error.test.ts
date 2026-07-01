@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 import {
   isAppError,
   makeAppError,
@@ -17,14 +16,14 @@ describe('AppError', () => {
       details: { field: 'email' },
     });
 
-    assert.equal(error instanceof Error, true);
-    assert.equal(error.tag, 'AppError');
-    assert.equal(error.name, 'ValidationError');
-    assert.equal(error.code, 'invalid_input');
-    assert.equal(error.safeMessage, 'Please check your input.');
-    assert.equal(error.status, 400);
-    assert.deepEqual(error.details, { field: 'email' });
-    assert.equal(isAppError(error), true);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.tag).toBe('AppError');
+    expect(error.name).toBe('ValidationError');
+    expect(error.code).toBe('invalid_input');
+    expect(error.safeMessage).toBe('Please check your input.');
+    expect(error.status).toBe(400);
+    expect(error.details).toEqual({ field: 'email' });
+    expect(isAppError(error)).toBe(true);
   });
 
   it('returns existing AppError from normalizedUnknownError', () => {
@@ -35,23 +34,23 @@ describe('AppError', () => {
       status: 409,
     });
 
-    assert.equal(normalizeUnknownError(error), error);
+    expect(normalizeUnknownError(error)).toBe(error);
   });
 
   it('normalizes ordinary errors', () => {
     const error = normalizeUnknownError(new Error('boom'));
 
-    assert.equal(error.tag, 'AppError');
-    assert.equal(error.kind, 'UnexpectedError');
-    assert.equal(error.code, 'unexpected_error');
-    assert.equal(error.status, 500);
+    expect(error.tag).toBe('AppError');
+    expect(error.kind).toBe('UnexpectedError');
+    expect(error.code).toBe('unexpected_error');
+    expect(error.status).toBe(500);
   });
 
   it('normalizes non-error thrown values', () => {
     const error = normalizeUnknownError('boom');
 
-    assert.equal(error.tag, 'AppError');
-    assert.equal(error.kind, 'UnexpectedError');
-    assert.equal(error.code, 'unknown_thrown_value');
+    expect(error.tag).toBe('AppError');
+    expect(error.kind).toBe('UnexpectedError');
+    expect(error.code).toBe('unknown_thrown_value');
   });
 });
