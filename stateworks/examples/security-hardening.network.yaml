@@ -1,0 +1,108 @@
+work_id: security-hardening
+title: Security hardening queue
+status: queued
+
+goal:
+  - Harden the production boundary without turning Pressly into a security platform.
+  - Keep manual AWS, GitHub, Sentry, and secret work explicit and verifiable.
+
+invariants:
+  - Preserve current business behavior unless a task explicitly changes a security policy.
+  - Never commit production secrets or raw credentials.
+  - Every external control-plane task must have retained evidence.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T1
+    title: Close immediate API and deployment boundaries
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - apps/api
+      - packages/http
+      - .github/workflows
+      - infra/aws/lightsail
+    writes:
+      - apps/api
+      - packages/http
+      - .github/workflows
+      - infra/aws/lightsail
+    action:
+      - Implement ingress, deployment-selection, and service-env hardening.
+    verifier:
+      - pnpm format:check
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm test
+      - pnpm test:int
+    rollback:
+      - Revert the related commits before deployment.
+    secret_handling: none
+    status: committed
+    evidence:
+      - See docs/agents/06/29/security-hardening-handoff.md.
+
+  - id: H1
+    title: Configure production external controls
+    type: human_action
+    owner: human
+    surface: aws
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - AWS Lightsail
+      - GitHub repository settings
+      - production env files
+    writes:
+      - AWS Lightsail firewall and bucket attachment
+      - GitHub secrets and branch settings
+      - production service env files
+    human_instructions:
+      - Follow the Human Category in stateworks/work/queued/security-hardening/brief.md.
+      - Store only redacted evidence in the repository.
+    expected_external_state:
+      - Production deploys use verified SSH host keys.
+      - Backup bucket accepts writes from the production instance.
+      - Service-specific env files exist with restrictive permissions.
+    verifier:
+      - Run one backup upload.
+      - Run one digest deployment.
+      - Verify API and web health.
+    rollback:
+      - Revert external settings to the previous known-good configuration.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: V1
+    title: Prove recovery and rollback
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: false
+    deps:
+      - H1
+    reads:
+      - production backup evidence
+      - deployment release evidence
+    writes:
+      - docs/agents
+    action:
+      - Record backup, restore, rollback, and health-check evidence.
+    verifier:
+      - Evidence includes backup ID, restore target, RPO/RTO, release SHA, image digest, and health checks.
+    rollback:
+      - No rollback; this task records proof.
+    secret_handling: none
+    status: pending
+    evidence: []

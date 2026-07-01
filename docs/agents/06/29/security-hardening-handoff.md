@@ -91,7 +91,7 @@ Do these in order:
 8. Run one real backup plus isolated restore drill and record RPO/RTO evidence.
 9. Run one digest deployment and rollback, then verify API/web health.
 10. Complete the firewall, snapshot, DNS/TLS, and incident-tabletop checks in the
-    Human Category of `docs/work/todo/security-hardening-queue.md`.
+    Human Category of `stateworks/work/queued/security-hardening/brief.md`.
 
 Do not enable CSRF, SSRF, global HTML sanitization, tenant RLS, distributed JWTs,
 or nonce CSP until the adoption trigger listed in Queue 5 becomes real.

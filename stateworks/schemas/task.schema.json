@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trypressly.com/stateworks/task.schema.json",
+  "title": "Stateworks Task",
+  "type": "object",
+  "required": ["id", "title", "type"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "compound",
+        "primitive",
+        "verification",
+        "human_gate",
+        "human_action"
+      ]
+    },
+    "owner": {
+      "type": "string",
+      "enum": ["agent", "human"]
+    },
+    "surface": {
+      "type": "string",
+      "enum": [
+        "repo",
+        "database",
+        "aws",
+        "github",
+        "dns",
+        "sentry",
+        "local_secret_store",
+        "other"
+      ]
+    },
+    "agent_can_verify": {
+      "type": "boolean"
+    },
+    "description": {
+      "type": ["string", "array"],
+      "items": { "type": "string" }
+    },
+    "deps": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "reads": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "writes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "preconditions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "action": {
+      "type": ["string", "array"],
+      "items": { "type": "string" }
+    },
+    "human_instructions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "postconditions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "expected_external_state": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "verifier": {
+      "type": ["string", "array"],
+      "items": { "type": "string" }
+    },
+    "rollback": {
+      "type": ["string", "array"],
+      "items": { "type": "string" }
+    },
+    "secret_handling": {
+      "type": "string",
+      "enum": [
+        "none",
+        "never_show_agent",
+        "env_file_only",
+        "github_secret",
+        "local_only"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "latent",
+        "pending",
+        "ready",
+        "running",
+        "proposed",
+        "committed",
+        "failed",
+        "blocked",
+        "invalidated"
+      ]
+    },
+    "repair_attempts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

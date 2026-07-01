@@ -1,0 +1,38 @@
+work_id: example-work
+title: Example work item
+status: queued
+
+goal:
+  - State the observable outcome.
+
+invariants:
+  - Preserve current behavior unless the task explicitly changes it.
+  - Do not expose secrets in logs, docs, evidence, or commits.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T1
+    title: Read current implementation
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo
+    writes: []
+    action:
+      - Inspect the current files and identify the minimum change.
+    verifier:
+      - Report exact files read and the conclusion.
+    rollback:
+      - No rollback needed; read-only task.
+    secret_handling: none
+    status: pending
+    evidence: []

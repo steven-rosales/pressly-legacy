@@ -1,0 +1,38 @@
+work_id: future-distributed-authentication
+title: Future distributed authentication
+status: queued
+
+goal:
+  - Preserve the current opaque-session model until Pressly has real distributed authentication boundaries.
+
+invariants:
+  - Do not add JWTs for modules running inside the same process.
+  - Keep authorization facts outside long-lived token claims.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T1
+    title: Wait for adoption gate
+    type: human_gate
+    owner: human
+    surface: other
+    agent_can_verify: false
+    deps: []
+    reads:
+      - stateworks/work/queued/future-distributed-authentication/brief.md
+    writes: []
+    human_instructions:
+      - Start this work only after independent service authentication is a real deployment boundary.
+    verifier:
+      - The adoption gate in the brief is satisfied.
+    rollback:
+      - Keep the current opaque-session model.
+    secret_handling: none
+    status: pending
+    evidence: []

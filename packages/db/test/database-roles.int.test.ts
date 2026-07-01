@@ -59,6 +59,12 @@ describe('database roles', () => {
       backup`select count(*) from auth_identities`,
     ).resolves.toBeDefined();
     await expect(
+      backup`select count(*) from drizzle.__drizzle_migrations`,
+    ).resolves.toBeDefined();
+    await expect(
+      backup`select last_value from drizzle.__drizzle_migrations_id_seq`,
+    ).resolves.toBeDefined();
+    await expect(
       backup`
         insert into auth_login_attempts (email_normalized, success)
         values ('backup-role-write@pressly.test', false)

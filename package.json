@@ -50,7 +50,10 @@
     "test:auth:int": "bash tooling/scripts/run-integration-tests.sh auth",
     "test:pricing:int": "bash tooling/scripts/run-integration-tests.sh pricing",
     "test:db-security:int": "bash tooling/scripts/run-integration-tests.sh db-security",
-    "test:int": "bash tooling/scripts/run-integration-tests.sh all"
+    "test:int": "bash tooling/scripts/run-integration-tests.sh all",
+    "stateworks:validate": "tsx stateworks/tooling/validate-network.ts",
+    "stateworks:next": "tsx stateworks/tooling/next-batch.ts",
+    "stateworks:verify": "tsx stateworks/tooling/verify.ts"
   },
   "keywords": [],
   "author": "",
@@ -68,7 +71,8 @@
     "turbo": "^2.9.6",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.2",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.5",
+    "yaml": "^2.9.0"
   },
   "pnpm": {
     "overrides": {
