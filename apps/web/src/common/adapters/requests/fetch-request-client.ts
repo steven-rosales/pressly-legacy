@@ -89,6 +89,7 @@ const makeRequestError = (input: {
   message: string;
   safeMessage: string;
   status: HttpStatusCode;
+  traceId?: string | undefined;
   details?: unknown;
   cause?: unknown;
 }): AppError =>
@@ -98,6 +99,7 @@ const makeRequestError = (input: {
     message: input.message,
     safeMessage: input.safeMessage,
     status: input.status,
+    ...(input.traceId === undefined ? {} : { traceId: input.traceId }),
     ...(input.details === undefined ? {} : { details: input.details }),
     ...(input.cause === undefined ? {} : { cause: input.cause }),
   });
@@ -182,6 +184,7 @@ export const makeFetchRequestClient = ({
             message: failureResult.data.error.message,
             safeMessage: failureResult.data.error.message,
             status: statusFromResponse(response.status),
+            traceId: failureResult.data.error.traceId,
             details: failureResult.data.error.details,
           }),
         );

@@ -24,7 +24,7 @@ describe('core.command.run', () => {
     expect(core.calls.errors).toHaveLength(0);
   });
 
-  it('normalizes failure, reports it, shows feedback, and throws AppError', async () => {
+  it('normalizes routine client failure, shows feedback, and suppresses reporting', async () => {
     const core = makeTestWebCore();
 
     const appError = makeAppError({
@@ -57,10 +57,48 @@ describe('core.command.run', () => {
       code: 'invalid_contact_form',
     });
 
-    expect(core.calls.errors).toHaveLength(1);
     expect(core.calls.feedback).toContainEqual({
       kind: 'error',
       message: { title: 'Could not submit contract form.' },
+    });
+    expect(core.calls.errors).toHaveLength(0);
+  });
+
+  it('reports product-critical command failures', async () => {
+    const core = makeTestWebCore();
+
+    await expect(
+      core.command.run({
+        meta: {
+          action: 'publish_pricing',
+          rail: 'command',
+          criticality: 'high',
+          productCritical: true,
+        },
+        work: async () => {
+          throw makeAppError({
+            kind: 'ConflictError',
+            code: 'pricing_publish_invariant_failed',
+            message: 'Pricing publish invariant failed.',
+            safeMessage: 'Pricing could not be published.',
+            status: 409,
+          });
+        },
+      }),
+    ).rejects.toMatchObject({
+      tag: 'AppError',
+      code: 'pricing_publish_invariant_failed',
+    });
+
+    expect(core.calls.errors).toHaveLength(1);
+    expect(core.calls.errors[0]).toMatchObject({
+      context: {
+        source: 'web',
+        operation: 'publish_pricing',
+        tags: {
+          reason: 'product_critical_failure',
+        },
+      },
     });
   });
 });

@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { envBoolean, envUrl, nodeEnvSchema, parseEnv } from '@pressly/config';
+import {
+  envBoolean,
+  envSampleRate,
+  envUrl,
+  nodeEnvSchema,
+  parseEnv,
+} from '@pressly/config';
 
 const emptyStringToUndefined = (value: unknown) =>
   value === '' ? undefined : value;
@@ -21,6 +27,7 @@ const webEnvSchema = z.object({
   NEXT_PUBLIC_ANALYTICS_ENABLED: envBoolean.optional(),
 
   NEXT_PUBLIC_SENTRY_DSN: optionalUrl,
+  NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: envSampleRate.default(0.1),
 
   NEXT_PUBLIC_POSTHOG_KEY: optionalNonEmptyString,
   NEXT_PUBLIC_POSTHOG_HOST: envUrl.default('https://us.i.posthog.com'),
@@ -32,6 +39,8 @@ const rawWebEnv = parseEnv(webEnvSchema, {
   NEXT_PUBLIC_API_BASE_URL: process.env['NEXT_PUBLIC_API_BASE_URL'],
   NEXT_PUBLIC_ANALYTICS_ENABLED: process.env['NEXT_PUBLIC_ANALYTICS_ENABLED'],
   NEXT_PUBLIC_SENTRY_DSN: process.env['NEXT_PUBLIC_SENTRY_DSN'],
+  NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:
+    process.env['NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE'],
   NEXT_PUBLIC_POSTHOG_KEY: process.env['NEXT_PUBLIC_POSTHOG_KEY'],
   NEXT_PUBLIC_POSTHOG_HOST: process.env['NEXT_PUBLIC_POSTHOG_HOST'],
 });
@@ -47,7 +56,10 @@ export const webEnv = {
     rawWebEnv.NEXT_PUBLIC_ANALYTICS_ENABLED ??
     Boolean(rawWebEnv.NEXT_PUBLIC_POSTHOG_KEY),
   observability: {
-    sentry: { dsn: rawWebEnv.NEXT_PUBLIC_SENTRY_DSN },
+    sentry: {
+      dsn: rawWebEnv.NEXT_PUBLIC_SENTRY_DSN,
+      traceSampleRate: rawWebEnv.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,
+    },
     posthog: {
       key: rawWebEnv.NEXT_PUBLIC_POSTHOG_KEY,
       host: rawWebEnv.NEXT_PUBLIC_POSTHOG_HOST,

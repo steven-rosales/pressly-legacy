@@ -2,25 +2,27 @@ import * as Sentry from '@sentry/nextjs';
 import posthog from 'posthog-js';
 
 const sentryDsn = process.env['NEXT_PUBLIC_SENTRY_DSN'];
+const sentryTraceSampleRate = Number(
+  process.env['NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE'] ?? '0.1',
+);
 const posthogKey = process.env['NEXT_PUBLIC_POSTHOG_KEY'];
 const posthogHost =
   process.env['NEXT_PUBLIC_POSTHOG_HOST'] ?? 'https://us.i.posthog.com';
+const traceSampleRate =
+  Number.isFinite(sentryTraceSampleRate) &&
+  sentryTraceSampleRate >= 0 &&
+  sentryTraceSampleRate <= 1
+    ? sentryTraceSampleRate
+    : 0.1;
 
 if (sentryDsn !== undefined && sentryDsn.length > 0) {
   Sentry.init({
     dsn: sentryDsn,
     environment: process.env['NODE_ENV'],
 
-    integrations: [Sentry.replayIntegration()],
-
-    tracesSampleRate: 1,
-    enableLogs: true,
-
-    replaysSessionSampleRate: 0.1,
-
-    replaysOnErrorSampleRate: 1.0,
-
-    sendDefaultPii: true,
+    tracesSampleRate: traceSampleRate,
+    enableLogs: false,
+    sendDefaultPii: false,
 
     beforeSend: (event) => {
       delete event.request?.cookies;

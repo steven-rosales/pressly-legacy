@@ -1,38 +1,56 @@
 import * as Sentry from '@sentry/nextjs';
 import { normalizeUnknownError, type AppError } from '@pressly/errors';
+import { redactLogFields } from '@pressly/logging';
 import type { ErrorReporter, ErrorReportContext } from '@pressly/metrics';
 
-const setAppErrorContext = (appError: AppError): void => {
-  Sentry.setTag('error.kind', appError.kind);
-  Sentry.setTag('error.code', appError.code);
-  Sentry.setTag('error.status', String(appError.status));
+const toSentryContext = (value: unknown): Record<string, unknown> => {
+  const redacted = redactLogFields(value);
 
-  Sentry.setContext('app_error', {
+  if (
+    typeof redacted === 'object' &&
+    redacted !== null &&
+    !Array.isArray(redacted)
+  )
+    return redacted as Record<string, unknown>;
+
+  return { value: redacted };
+};
+
+const setAppErrorContext = (scope: Sentry.Scope, appError: AppError): void => {
+  scope.setTag('error.kind', appError.kind);
+  scope.setTag('error.code', appError.code);
+  scope.setTag('error.status', String(appError.status));
+
+  scope.setContext('app_error', {
     kind: appError.kind,
     code: appError.code,
     status: appError.status,
     safeMessage: appError.safeMessage,
-    details: appError.details,
+    details: redactLogFields(appError.details),
   });
 };
 
-const setReportContext = (context: ErrorReportContext): void => {
-  Sentry.setTag('source', context.source);
+const setReportContext = (
+  scope: Sentry.Scope,
+  context: ErrorReportContext,
+): void => {
+  scope.setTag('source', context.source);
 
   if (context.operation !== undefined)
-    Sentry.setTag('operation', context.operation);
+    scope.setTag('operation', context.operation);
   if (context.requestId !== undefined)
-    Sentry.setTag('request_id', context.requestId);
-  if (context.traceId !== undefined) Sentry.setTag('trace_id', context.traceId);
-  if (context.route !== undefined) Sentry.setTag('route', context.route);
+    scope.setTag('request_id', context.requestId);
+  if (context.traceId !== undefined) scope.setTag('trace_id', context.traceId);
+  if (context.route !== undefined) scope.setTag('route', context.route);
 
   for (const [key, value] of Object.entries(context.tags ?? {})) {
-    Sentry.setTag(key, value);
+    scope.setTag(key, value);
   }
 
-  if (context.actorId !== undefined) Sentry.setUser({ id: context.actorId });
+  if (context.actorId !== undefined) scope.setUser({ id: context.actorId });
 
-  if (context.extra !== undefined) Sentry.setContext('extra', context.extra);
+  if (context.extra !== undefined)
+    scope.setContext('extra', toSentryContext(context.extra));
 };
 
 export const makeSentryErrorReporter = (): ErrorReporter => ({
@@ -40,8 +58,8 @@ export const makeSentryErrorReporter = (): ErrorReporter => ({
     const appError = normalizeUnknownError(error);
 
     Sentry.withScope((scope) => {
-      setReportContext(context);
-      setAppErrorContext(appError);
+      setReportContext(scope, context);
+      setAppErrorContext(scope, appError);
 
       scope.setLevel(appError.status >= 500 ? 'error' : 'warning');
 

@@ -1,6 +1,7 @@
 import { normalizeUnknownError } from '@pressly/errors';
 import type { WebCorePorts } from '../runtime/core';
 import type { ActionMeta, CommandFeedback } from './action-meta';
+import { observeWebActionFailure } from './observability';
 
 export type CommandRunInput<A> = Readonly<{
   meta: ActionMeta;
@@ -32,14 +33,6 @@ export const createCommandRuntime = (core: WebCorePorts): CommandRuntime =>
           ? undefined
           : core.feedback.loading({ title: feedback?.loading });
 
-      core.logger.info('web command started', {
-        action: meta.action,
-        rail: meta.rail,
-        criticality: meta.criticality,
-        source: meta.source,
-        route: context.route,
-      });
-
       try {
         const value = await work();
 
@@ -47,7 +40,7 @@ export const createCommandRuntime = (core: WebCorePorts): CommandRuntime =>
         if (feedback?.success !== undefined)
           core.feedback.success({ title: feedback.success });
 
-        core.logger.info('web command succeeded', {
+        core.logger.debug('web command succeeded', {
           action: meta.action,
           durationMs: core.clock.now().getTime() - startedAt.getTime(),
           route: context.route,
@@ -63,24 +56,7 @@ export const createCommandRuntime = (core: WebCorePorts): CommandRuntime =>
             title: feedbackTitleForError(feedback.error, appError.safeMessage),
           });
 
-        core.errors.capture(appError, {
-          source: 'web',
-          operation: meta.action,
-          route: context.route,
-          actorId: context.distinctId,
-          tags: {
-            rail: meta.rail,
-            criticality: meta.criticality,
-          },
-        });
-
-        core.logger.error('web command failed', {
-          action: meta.action,
-          kind: appError.kind,
-          code: appError.code,
-          status: appError.status,
-          route: context.route,
-        });
+        observeWebActionFailure(core, meta, appError);
 
         throw appError;
       }

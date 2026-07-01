@@ -66,6 +66,25 @@ describe('core.query', () => {
     expect(core.calls.errors).toHaveLength(1);
   });
 
+  it('suppresses high-criticality routine client query failures', async () => {
+    const core = makeTestWebCore();
+
+    await core.query.run({
+      meta: { action: 'load_settings', rail: 'query', criticality: 'high' },
+      work: async () => {
+        throw makeAppError({
+          kind: 'NotFoundError',
+          code: 'settings_not_found',
+          message: 'Settings not found.',
+          safeMessage: 'Settings were not found.',
+          status: 404,
+        });
+      },
+    });
+
+    expect(core.calls.errors).toHaveLength(0);
+  });
+
   it('fetches through the request port without nesting Result inside Result', async () => {
     const request: RequestClient = {
       send: async <A>() => result.ok({ price: 10 } as A),
