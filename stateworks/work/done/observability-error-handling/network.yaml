@@ -1,0 +1,313 @@
+work_id: observability-error-handling
+title: Selective observability and error handling
+status: active
+
+goal:
+  - Give agents and operators enough whole-system visibility to catch important failures before customers churn.
+  - Keep observability selective, declarative, and lightweight.
+  - Treat Sentry as an injected adapter behind Pressly-owned ports and policy.
+
+invariants:
+  - Report server errors, product-critical failures, startup failures, deployment failures, and selected security signals.
+  - Do not report every request, every query, every user validation error, or every normal client mistake.
+  - Do not log or report credentials, bearer tokens, cookies, raw request bodies, database URLs, MFA material, or recovery codes.
+  - Keep business modules free of generic logging, Sentry, and analytics dependencies.
+  - Inject generic observability at runtime composition roots, not through business modules.
+  - API and Web may share policy vocabulary, but they must keep runtime-specific adapters and context.
+  - Every reported signal must have a bounded classification path, request/action context, and a testable suppression rule.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T1
+    title: Audit current observability and error surfaces
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - packages/errors
+      - packages/logging
+      - packages/metrics
+      - apps/api/src/common/runtime
+      - apps/api/src/common/http/error-handler.ts
+      - apps/api/src/common/observability
+      - apps/web/src/common/core
+      - apps/web/src/common/adapters/observability
+      - docs/security/application-controls.md
+    writes:
+      - stateworks/work/done/observability-error-handling/evidence.md
+    preconditions:
+      - The work item has been moved from queued to active before execution evidence is written.
+    action:
+      - Map current AppError, Result, Logger, SecurityEventSink, CounterSink, ErrorReporter, Sentry, API runtime, and WebCore usage.
+      - Identify which current emissions are too noisy, missing, duplicated, or tied to the wrong layer.
+      - Record the minimum viable target shape before editing implementation files.
+    postconditions:
+      - The active evidence file names the current ports, adapters, composition roots, gaps, and proposed first implementation slice.
+    verifier:
+      - Evidence references exact files read and states why the implementation starts at the API/Web boundaries.
+    rollback:
+      - No rollback needed; this task is read-only except for active-work evidence.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T2
+    title: Define declarative observability policy
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - packages/errors
+      - packages/logging
+      - packages/metrics
+      - stateworks/work/done/observability-error-handling/evidence.md
+    writes:
+      - packages/metrics
+      - packages/logging
+      - packages/metrics/test
+      - packages/logging/test
+    action:
+      - Define the shared observation vocabulary and policy decision shape.
+      - Encode allow/suppress decisions for server errors, product-critical failures, selected security events, and routine client failures.
+      - Keep Sentry, Pino, browser analytics, and transport choices outside the policy model.
+      - Add tests for classification, suppression, and redaction invariants.
+    postconditions:
+      - Policy code can classify an observation without importing API, Web, Express, Next.js, or Sentry.
+      - Tests prove noisy validation/client failures are suppressible while 5xx and critical failures are reportable.
+    verifier:
+      - pnpm --filter @pressly/metrics test
+      - pnpm --filter @pressly/logging test
+      - pnpm typecheck
+    rollback:
+      - Revert the policy package changes and tests.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T3
+    title: Wire API boundary observability
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - apps/api/src/index.ts
+      - apps/api/src/app.ts
+      - apps/api/src/server.ts
+      - apps/api/src/common/runtime/runtime.ts
+      - apps/api/src/common/http/error-handler.ts
+      - apps/api/src/common/http/request-context.ts
+      - apps/api/src/common/observability
+      - apps/api/src/common/logging
+      - packages/metrics
+      - packages/logging
+    writes:
+      - apps/api/src/common/runtime/runtime.ts
+      - apps/api/src/common/http/error-handler.ts
+      - apps/api/src/common/observability
+      - apps/api/src/index.ts
+      - apps/api/src/server.ts
+      - apps/api/src/**/*.test.ts
+    action:
+      - Add first-class API observability ports for error reporting and counters.
+      - Route API errors through the declarative policy before reporting to Sentry or counters.
+      - Keep request IDs, routes, status, AppError kind/code, and safe details as context.
+      - Capture startup/server failures without adding per-request success logs.
+    postconditions:
+      - API reports policy-approved 5xx and critical failures.
+      - API suppresses routine 4xx validation/client errors from Sentry.
+      - API modules still depend only on narrow semantic ports such as SecurityEventSink when needed.
+    verifier:
+      - API error-handler tests prove 5xx capture and 4xx suppression.
+      - pnpm --filter @pressly/api test
+      - pnpm typecheck
+    rollback:
+      - Revert API runtime, adapter, and test changes.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T4
+    title: Align Web core observability policy
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - apps/web/src/common/core/runtime/core.ts
+      - apps/web/src/common/core/actions
+      - apps/web/src/common/adapters/observability
+      - apps/web/src/common/testing
+      - packages/metrics
+    writes:
+      - apps/web/src/common/core/actions
+      - apps/web/src/common/adapters/observability
+      - apps/web/src/common/testing
+      - apps/web/src/**/*.test.ts
+    action:
+      - Keep WebCore as the Web composition factory.
+      - Make command/query failure reporting follow the shared policy vocabulary while preserving Web-specific context and feedback behavior.
+      - Keep user-facing feedback separate from server-side reporting decisions.
+    postconditions:
+      - Web command/query reporting remains declarative and context-rich.
+      - Low-criticality or expected client failures are not sent as high-signal incidents.
+      - Web code does not copy API request/error handling semantics.
+    verifier:
+      - Web core action tests prove critical failures report and expected low-criticality failures suppress.
+      - pnpm --filter @pressly/web test
+      - pnpm typecheck
+    rollback:
+      - Revert Web core, adapter, and test changes.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T5
+    title: Make local and deployment observability configuration explicit
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+      - T4
+    reads:
+      - apps/api/src/common/config/env.ts
+      - apps/web
+      - docker-compose.yml
+      - infra/aws/lightsail
+      - package.json
+    writes:
+      - apps/api/.env.example
+      - apps/web/.env.example
+      - docker-compose.yml
+      - infra/aws/lightsail
+      - package.json
+    action:
+      - Ensure Sentry and observability env variables are documented for API and Web without committing real secrets.
+      - Add or update lightweight env validation commands only if they fit the existing package scripts.
+      - Fix Compose env drift that prevents local verification from starting cleanly.
+    postconditions:
+      - A new agent can start local services with documented non-secret defaults.
+      - Sentry can remain disabled locally without code changes.
+    verifier:
+      - pnpm stateworks:validate stateworks/work/done/observability-error-handling/network.yaml
+      - Env examples load through the repo's env parsers or equivalent dependency-free checks.
+      - docker compose config
+    rollback:
+      - Revert env example, Compose, and script changes.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V1
+    title: Verify high-signal behavior locally
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+    reads:
+      - packages/metrics/test
+      - packages/logging/test
+      - apps/api/src/**/*.test.ts
+      - apps/web/src/**/*.test.ts
+      - stateworks/work/done/observability-error-handling/evidence.md
+    writes:
+      - stateworks/work/done/observability-error-handling/evidence.md
+      - stateworks/work/done/observability-error-handling/final-report.md
+    action:
+      - Run the targeted observability tests and the repo-level checks needed to trust the changed boundaries.
+      - Record outputs, failures, repairs, and the final behavior matrix in evidence.
+    postconditions:
+      - Evidence shows which failures are captured, counted, logged, alerted, or suppressed.
+      - The final report records any residual risk before external Sentry setup.
+    verifier:
+      - pnpm format:check
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm test
+      - pnpm stateworks:verify stateworks/work/done/observability-error-handling/network.yaml --state stateworks/work/done/observability-error-handling/state.yaml
+    rollback:
+      - Revert the work branch before merge if verification cannot be repaired within max attempts.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: H1
+    title: Configure Sentry projects, secrets, and alert destinations
+    type: human_action
+    owner: human
+    surface: sentry
+    agent_can_verify: false
+    deps:
+      - V1
+    reads:
+      - Sentry organization settings
+      - production deployment environment
+      - repository secret settings
+    writes:
+      - Sentry API project
+      - Sentry Web project
+      - Sentry alert rules
+      - production SENTRY_DSN values
+    human_instructions:
+      - Create or confirm separate API and Web Sentry projects.
+      - Store DSNs and release/environment values in the deployment secret system, not in repository files.
+      - Configure alerts only for server errors, product-critical failures, failed deployments, and explicitly selected security signals.
+      - Retain redacted screenshots or exported rule names as evidence.
+    expected_external_state:
+      - API and Web DSNs exist outside the repository.
+      - Alerts target the chosen operator channel without paging on routine client errors.
+      - Sentry PII and request-body collection are disabled or explicitly minimized.
+    verifier:
+      - Human records redacted Sentry project names, alert rule names, destination, and one test event result.
+    rollback:
+      - Disable the new alert rules or remove DSNs from deployment secrets.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: V2
+    title: Record external observability proof
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: false
+    deps:
+      - H1
+    reads:
+      - human-provided Sentry evidence
+      - deployment health output
+      - stateworks/work/done/observability-error-handling/evidence.md
+    writes:
+      - stateworks/work/done/observability-error-handling/evidence.md
+      - stateworks/work/done/observability-error-handling/final-report.md
+    action:
+      - Record redacted proof that API and Web critical failures reach Sentry and routine client failures do not page operators.
+      - Record the final signal matrix and unresolved follow-up items.
+    postconditions:
+      - Final report says whether the work is done, blocked on external setup, or intentionally deferred.
+    verifier:
+      - Evidence includes at least one API critical failure, one Web critical failure, and one suppressed routine failure with secrets redacted.
+    rollback:
+      - Remove or disable the external DSNs and alert rules if the signal policy is unsafe.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []

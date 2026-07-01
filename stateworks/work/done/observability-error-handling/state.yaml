@@ -1,0 +1,44 @@
+work_id: observability-error-handling
+status: complete
+updated: 2026-07-01
+
+current_focus:
+  - complete
+  - repo-side policy, API, Web, env, local verification, and human Sentry setup are complete
+
+tasks:
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/observability-error-handling/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/observability-error-handling/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/observability-error-handling/evidence.md
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/observability-error-handling/evidence.md
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/observability-error-handling/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/observability-error-handling/evidence.md
+      - stateworks/work/done/observability-error-handling/final-report.md
+  H1:
+    status: committed
+    evidence:
+      - stateworks/work/done/observability-error-handling/human-actions.md
+      - stateworks/work/done/observability-error-handling/evidence.md
+  V2:
+    status: committed
+    evidence:
+      - stateworks/work/done/observability-error-handling/evidence.md
+      - stateworks/work/done/observability-error-handling/final-report.md
