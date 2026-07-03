@@ -7,10 +7,12 @@ import type {
 import {
   CONTACT,
   DELIVERY_FEE_COPY,
+  DELIVERY_FEE_SHORT_COPY,
   DRY_CLEANING_PRICING,
   PRICING,
   SITE_URL,
   WASH_FOLD_SPECIALTY_ITEMS,
+  formatDeliveryFeeCopy,
   formatUsd,
 } from '@/app/shared/marketing/content';
 import type { LocationRecord } from '@/app/(marketing)/new-jersey/content/locations';
@@ -203,7 +205,7 @@ export function buildPageMetadata({
 export function buildStateMetadata(): Metadata {
   return buildPageMetadata({
     title: 'New Jersey Laundry Service & Dry Cleaning',
-    description: `Schedule laundry and dry cleaning pickup and delivery across Pressly service areas in New Jersey. Clear pricing with a ${formatUsd(PRICING.deliveryFeeCents)} delivery fee.`,
+    description: `Schedule laundry and dry cleaning pickup and delivery across Pressly service areas in New Jersey. Clear pricing with ${DELIVERY_FEE_SHORT_COPY}.`,
     path: '/new-jersey',
   });
 }
@@ -213,7 +215,7 @@ export function buildCountyMetadata(countySlug: string): Metadata {
 
   return buildPageMetadata({
     title: `${countyName} County Laundry & Dry Cleaning Pickup`,
-    description: `Schedule wash and fold laundry and dry cleaning pickup in ${countyName} County, NJ. Pressly offers transparent pricing, online scheduling, and a ${formatUsd(PRICING.deliveryFeeCents)} delivery fee.`,
+    description: `Schedule wash and fold laundry and dry cleaning pickup in ${countyName} County, NJ. Pressly offers transparent pricing, online scheduling, and ${DELIVERY_FEE_SHORT_COPY}.`,
     path: `/new-jersey/${countySlug}`,
   });
 }
@@ -242,7 +244,7 @@ export function buildCityServiceMetadata({
 
   return buildPageMetadata({
     title,
-    description: `Schedule ${service} in ${location.cityName}, NJ. Clear pricing, a ${formatUsd(PRICING.deliveryFeeCents)} delivery fee, and online ordering through Pressly.${zipText}`,
+    description: `Schedule ${service} in ${location.cityName}, NJ. Clear pricing, ${DELIVERY_FEE_SHORT_COPY}, and online ordering through Pressly.${zipText}`,
     path: `/new-jersey/${location.county}/${slug}`,
     image: location.heroImage,
   });
@@ -443,7 +445,7 @@ function buildWashFoldItemDescription(
   }
 
   if (item.category === 'Fee') {
-    return `Pickup and delivery are handled through a ${price} delivery fee per order.`;
+    return formatDeliveryFeeCopy(item.priceCents);
   }
 
   if (item.name === 'Hang Dry') {
@@ -461,7 +463,7 @@ function buildDryCleaningItemDescription(item: PricingItemResult) {
   }
 
   if (item.category === 'Fee') {
-    return `Pickup and delivery are handled through a ${price} delivery fee per order.`;
+    return formatDeliveryFeeCopy(item.priceCents);
   }
 
   if (item.category === 'Other Services') {

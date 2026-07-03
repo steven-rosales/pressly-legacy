@@ -48,6 +48,10 @@ describe('new jersey page models', () => {
 
     expect(model?.hero.heading).toBe('Fort Lee Wash & Fold Laundry Service');
     expect(model?.localProof?.cityName).toBe('Fort Lee');
+    expect(model?.localProof?.deliveryFeeShortCopy).toBe('free delivery');
+    expect(model?.localProof?.faqs[0]?.answer).toContain(
+      'Pickup and delivery are free per order.',
+    );
     await expect(
       getCityServicePageModel('bergen-county', 'unknown'),
     ).resolves.toBeNull();

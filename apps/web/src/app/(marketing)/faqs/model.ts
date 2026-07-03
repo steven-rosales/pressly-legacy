@@ -27,7 +27,7 @@ const faqs = [
       'Use any bag you have available. If you are sending dry cleaning too, separate those garments from wash and fold laundry.',
   },
   {
-    question: 'What is the pickup and delivery fee?',
+    question: 'Is pickup and delivery free?',
     answer: `${DELIVERY_FEE_COPY} Order minimums and item pricing still apply.`,
   },
   {
