@@ -21,16 +21,31 @@ export const PRICING = {
   washFoldMinimumCents: 3000,
   washFoldMinimumThresholdLbs: 18,
   dryCleaningMinimumCents: 3000,
-  deliveryFeeCents: 495,
+  deliveryFeeCents: 0,
   hangDryCents: 395,
   launderPressCents: 395,
 } as const;
 
 export const formatUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
+export const formatUsdShort = (cents: number) =>
+  cents % 100 === 0 ? `$${cents / 100}` : formatUsd(cents);
+
+export const formatDeliveryFeeShortCopy = (cents: number) =>
+  cents === 0 ? 'free delivery' : `${formatUsdShort(cents)} delivery fee`;
+
+export const formatDeliveryFeeCopy = (cents: number) =>
+  cents === 0
+    ? 'Pickup and delivery are free per order.'
+    : `Pickup and delivery are handled through a ${formatDeliveryFeeShortCopy(cents)} per order.`;
+
 export const DELIVERY_FEE_LABEL = 'Delivery Fee';
-export const DELIVERY_FEE_SHORT_COPY = `${formatUsd(PRICING.deliveryFeeCents)} delivery fee`;
-export const DELIVERY_FEE_COPY = `Pickup and delivery are handled through a ${DELIVERY_FEE_SHORT_COPY} per order.`;
+export const DELIVERY_FEE_SHORT_COPY = formatDeliveryFeeShortCopy(
+  PRICING.deliveryFeeCents,
+);
+export const DELIVERY_FEE_COPY = formatDeliveryFeeCopy(
+  PRICING.deliveryFeeCents,
+);
 
 export type ServiceKind = 'washFold' | 'dryCleaning';
 

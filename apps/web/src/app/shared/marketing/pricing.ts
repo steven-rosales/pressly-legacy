@@ -13,6 +13,8 @@ import {
   DRY_CLEANING_PRICING,
   PRICING,
   WASH_FOLD_SPECIALTY_ITEMS,
+  formatDeliveryFeeCopy,
+  formatDeliveryFeeShortCopy,
 } from '@/app/shared/marketing/content';
 import { loadPricingCatalog } from '@/infra/pricing';
 
@@ -296,14 +298,14 @@ const toDeliveryFeeModel = (
     name: DELIVERY_FEE_LABEL,
   });
   const priceCents = item?.priceCents ?? PRICING.deliveryFeeCents;
-  const price = formatUsdShortFromCents(priceCents);
-  const shortCopy = `${price} delivery fee`;
+  const price = priceCents === 0 ? 'Free' : formatUsdShortFromCents(priceCents);
+  const shortCopy = formatDeliveryFeeShortCopy(priceCents);
 
   return {
     title: DELIVERY_FEE_LABEL,
     price,
     shortCopy,
-    copy: `Pickup and delivery are handled through a ${shortCopy} per order.`,
+    copy: formatDeliveryFeeCopy(priceCents),
   };
 };
 

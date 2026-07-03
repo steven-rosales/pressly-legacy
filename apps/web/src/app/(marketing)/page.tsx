@@ -8,7 +8,7 @@ import HomePageView from './home/ui/HomePageView';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'Laundry & Dry Cleaning Pickup and Delivery',
-  description: `Pressly offers wash and fold laundry and dry cleaning pickup and delivery in New Jersey with clear pricing, a ${DELIVERY_FEE_SHORT_COPY}, and online scheduling.`,
+  description: `Pressly offers wash and fold laundry and dry cleaning pickup and delivery in New Jersey with clear pricing, ${DELIVERY_FEE_SHORT_COPY}, and online scheduling.`,
   path: '/',
 });
 

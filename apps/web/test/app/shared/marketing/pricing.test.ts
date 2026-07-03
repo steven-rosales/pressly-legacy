@@ -28,7 +28,11 @@ describe('marketing pricing view models', () => {
 
     expect(mockLoadPricingCatalog).not.toHaveBeenCalled();
     expect(model.basePrice).toBe('$1.67');
-    expect(model.deliveryFee.shortCopy).toBe('$4.95 delivery fee');
+    expect(model.deliveryFee.price).toBe('Free');
+    expect(model.deliveryFee.shortCopy).toBe('free delivery');
+    expect(model.deliveryFee.copy).toBe(
+      'Pickup and delivery are free per order.',
+    );
   });
 
   it('uses wash and fold prices from the pricing catalog', async () => {
@@ -142,5 +146,43 @@ describe('marketing pricing view models', () => {
     expect(model.launderPressPrice).toBe('$4.25');
     expect(model.minimumPrice).toBe('$22.00');
     expect(model.previewItems).toEqual([{ name: 'Shirt', price: '$6.25' }]);
+  });
+
+  it('renders free delivery from the pricing catalog', async () => {
+    mockLoadPricingCatalog.mockResolvedValue(
+      result.ok({
+        serviceSlug: 'wash-fold',
+        currency: 'USD',
+        updatedAt: '2026-05-19T00:00:00.000Z',
+        items: [
+          {
+            service: 'wash_fold',
+            unit: 'lb',
+            category: 'Base',
+            name: 'Wash & Fold',
+            priceCents: 175,
+            sortOrder: 10,
+            metadata: {},
+          },
+          {
+            service: 'wash_fold',
+            unit: 'order',
+            category: 'Fee',
+            name: 'Delivery Fee',
+            priceCents: 0,
+            sortOrder: 30,
+            metadata: {},
+          },
+        ],
+      }),
+    );
+
+    const model = await loadWashFoldPricingViewModel();
+
+    expect(model.deliveryFee.price).toBe('Free');
+    expect(model.deliveryFee.shortCopy).toBe('free delivery');
+    expect(model.deliveryFee.copy).toBe(
+      'Pickup and delivery are free per order.',
+    );
   });
 });

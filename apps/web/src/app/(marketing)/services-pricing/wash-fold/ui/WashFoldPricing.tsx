@@ -50,7 +50,7 @@ export default function WashFoldPricing({
             <div className="space-y-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
               <p>
                 Includes cleaning to your preferences and professional folding.
-                Pickup and delivery are available with a{' '}
+                Pickup and delivery are available with{' '}
                 {model.deliveryFee.shortCopy}.
               </p>
               <p>

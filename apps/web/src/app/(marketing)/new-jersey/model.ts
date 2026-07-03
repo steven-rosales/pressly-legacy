@@ -344,7 +344,7 @@ export const getNewJerseyPageModel = async (): Promise<LocationPageModel> => {
     testimonialsClassName: 'mx-auto max-w-[1440px] px-4 py-28 sm:px-6 lg:py-20',
     bottom: {
       title: 'All your garment care, one warm pickup away.',
-      description: `From everyday laundry to pressed dry cleaning, schedule one visit and we'll handle it all with a ${getDeliveryFeeShortCopy(servicePanels)}, returned fresh, and folded or pressed the way you like.`,
+      description: `From everyday laundry to pressed dry cleaning, schedule one visit and we'll handle it all with ${getDeliveryFeeShortCopy(servicePanels)}, returned fresh, and folded or pressed the way you like.`,
     },
   };
 };

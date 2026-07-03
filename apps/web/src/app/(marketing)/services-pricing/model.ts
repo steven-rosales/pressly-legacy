@@ -84,7 +84,7 @@ export async function getWashFoldServicePricingPageModel(): Promise<ServicePrici
     jsonLd: buildServicePricingPageJsonLd({
       name: 'Wash & Fold Laundry Service',
       description:
-        'Pressly wash and fold laundry pickup and delivery with clear per-pound pricing, a delivery fee, and online scheduling.',
+        'Pressly wash and fold laundry pickup and delivery with clear per-pound pricing, free delivery, and online scheduling.',
       path: '/services-pricing/wash-fold',
       areaName: 'New Jersey',
       serviceType: 'washFold',
@@ -209,7 +209,7 @@ export async function getDryCleaningServicePricingPageModel(): Promise<ServicePr
     jsonLd: buildServicePricingPageJsonLd({
       name: 'Dry Cleaning Pickup and Delivery',
       description:
-        'Pressly dry cleaning pickup and delivery with per-item pricing, a delivery fee, and online scheduling.',
+        'Pressly dry cleaning pickup and delivery with per-item pricing, free delivery, and online scheduling.',
       path: '/services-pricing/dry-cleaning',
       areaName: 'New Jersey',
       serviceType: 'dryCleaning',

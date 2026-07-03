@@ -23,7 +23,7 @@ export function LocationsLocalProof({ proof }: LocationsLocalProofProps) {
             in {proof.cityName}
           </h2>
           <p className="mt-4 text-base leading-7 text-muted-foreground">
-            Pressly serves {proof.cityName} with transparent pricing, a{' '}
+            Pressly serves {proof.cityName} with transparent pricing,{' '}
             {proof.deliveryFeeShortCopy}, and a single online ordering flow for
             laundry and dry cleaning.
           </p>
