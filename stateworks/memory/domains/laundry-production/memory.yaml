@@ -12,13 +12,15 @@ actors:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: manager
-    description: A person who can create, review, accept, and supervise production
+    description:
+      A person who can create, review, accept, and supervise production
       schedules and runs.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: employee
-    description: A production worker who performs sorting, washing, drying, folding,
+    description:
+      A production worker who performs sorting, washing, drying, folding,
       or packaging work.
     status: active
     sources:
@@ -32,19 +34,22 @@ external_systems:
       - memdelta-2026-07-08-laundry-production-core
 objects:
   - id: crm_order
-    description: The normalized projection of a Cents order; it is external demand,
+    description:
+      The normalized projection of a Cents order; it is external demand,
       not production truth.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: production_order
-    description: The internal LPMS view of a CRM order that may become eligible for
+    description:
+      The internal LPMS view of a CRM order that may become eligible for
       production scheduling.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: schedule_run
-    description: An immutable scheduler proposal containing input snapshot, output
+    description:
+      An immutable scheduler proposal containing input snapshot, output
       plan, hashes, score, and warnings.
     status: active
     sources:
@@ -72,13 +77,15 @@ objects:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: machine
-    description: A physical constrained production resource such as a washer, dryer,
+    description:
+      A physical constrained production resource such as a washer, dryer,
       or folding station.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: scheduler_config
-    description: Versioned configuration for production pulse, durations, fold rate,
+    description:
+      Versioned configuration for production pulse, durations, fold rate,
       and scheduler behavior.
     status: active
     sources:
@@ -150,13 +157,15 @@ workflows:
       - memdelta-2026-07-08-laundry-production-core
 invariants:
   - id: orders_do_not_split_across_batches
-    statement: A production_order can belong to at most one active production_batch,
+    statement:
+      A production_order can belong to at most one active production_batch,
       and all bags for one order must stay in that same production_batch.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: bags_not_assigned_to_machines
-    statement: Individual bags are not assigned to machines in v1; machine use is
+    statement:
+      Individual bags are not assigned to machines in v1; machine use is
       modeled at the stage level.
     status: active
     sources:
@@ -173,13 +182,15 @@ invariants:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: one_active_batch_per_stage_kind_v1
-    statement: For v1, at most one production_batch can have an active stage_run for
+    statement:
+      For v1, at most one production_batch can have an active stage_run for
       the same stage kind.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: stage_order_is_sequential
-    statement: A stage cannot start before the previous required stage for the same
+    statement:
+      A stage cannot start before the previous required stage for the same
       production_batch is completed.
     status: active
     sources:
@@ -223,7 +234,8 @@ invariants:
       - memdelta-2026-07-08-laundry-production-core
 policies:
   - id: cents_in_progress_is_eligible
-    statement: A Cents order is eligible for LPMS production only when the latest
+    statement:
+      A Cents order is eligible for LPMS production only when the latest
       projected CRM order status is IN_PROGRESS.
     status: active
     sources:
@@ -240,13 +252,15 @@ policies:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: heijunka_pulse_v1
-    statement: V1 uses a configurable heijunka-style production pulse with a default
+    statement:
+      V1 uses a configurable heijunka-style production pulse with a default
       batch duration of 56 minutes.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: washer_effective_capacity
-    statement: Washer scheduling uses effective capacity below manufacturer capacity
+    statement:
+      Washer scheduling uses effective capacity below manufacturer capacity
       to preserve cleaning quality.
     status: active
     sources:
@@ -258,7 +272,8 @@ policies:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: due_bucket_selection_v1
-    statement: V1 scheduling should expose due-today, due-tomorrow, and later order
+    statement:
+      V1 scheduling should expose due-today, due-tomorrow, and later order
       buckets for operator judgment.
     status: active
     sources:
@@ -293,19 +308,22 @@ decisions:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: work_event_not_full_event_sourcing_v1
-    statement: work_event is the authoritative mutation ledger and audit trail, but
+    statement:
+      work_event is the authoritative mutation ledger and audit trail, but
       LPMS is not full event sourcing in v1.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: typescript_scheduler_first
-    statement: Build the first scheduler in TypeScript behind a boundary that can
+    statement:
+      Build the first scheduler in TypeScript behind a boundary that can
       later be replaced by a Rust solver.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: memory_keeps_rules_docs_keep_schema
-    statement: Stateworks memory stores durable business rules; docs/plan/lpms.md
+    statement:
+      Stateworks memory stores durable business rules; docs/plan/lpms.md
       stores richer schema and modeling detail.
     status: active
     sources:
@@ -318,14 +336,16 @@ assumptions:
       - memdelta-2026-07-08-laundry-production-core
     confidence: medium
   - id: initial_fold_rate
-    statement: The initial folding rate is 1.5 pounds per employee minute, but it
+    statement:
+      The initial folding rate is 1.5 pounds per employee minute, but it
       must remain configurable.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
     confidence: high
   - id: commercial_orders_low_volume_v1
-    statement: Commercial orders are low enough volume in v1 to stay inside the same
+    statement:
+      Commercial orders are low enough volume in v1 to stay inside the same
       simple batching model.
     status: active
     sources:
@@ -340,13 +360,15 @@ assumptions:
     confidence: high
 open_questions:
   - id: exact_scheduler_ordering_rules
-    question: What exact deterministic ordering rules should the first scheduler use
+    question:
+      What exact deterministic ordering rules should the first scheduler use
       inside due-today, due-tomorrow, and later buckets?
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: exception_effects
-    question: How should rewash, canceled orders, damaged items, missing bags, and
+    question:
+      How should rewash, canceled orders, damaged items, missing bags, and
       manual holds affect an accepted production_run?
     status: active
     sources:
@@ -363,7 +385,8 @@ open_questions:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: replan_after_drift
-    question: When execution drifts from a schedule, should LPMS preserve the old
+    question:
+      When execution drifts from a schedule, should LPMS preserve the old
       plan, replan remaining batches, or create a new schedule_run?
     status: active
     sources:
