@@ -1,0 +1,374 @@
+domain_id: laundry-production
+name: Laundry Production
+version: 2
+status: active
+summary: >
+  Durable business memory for Pressly's wash-and-fold production process. LPMS
+  is the product/system being built; laundry-production is the business domain.
+actors:
+  - id: operator
+    description: A person using LPMS to execute or confirm production-floor work.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: manager
+    description: A person who can create, review, accept, and supervise production
+      schedules and runs.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: employee
+    description: A production worker who performs sorting, washing, drying, folding,
+      or packaging work.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+external_systems:
+  - id: cents
+    description: The v1 CRM/vendor system and external order authority for
+      webhook-driven order demand.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+objects:
+  - id: crm_order
+    description: The normalized projection of a Cents order; it is external demand,
+      not production truth.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: production_order
+    description: The internal LPMS view of a CRM order that may become eligible for
+      production scheduling.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: schedule_run
+    description: An immutable scheduler proposal containing input snapshot, output
+      plan, hashes, score, and warnings.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: production_run
+    description: The accepted execution instance created from a schedule proposal.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: production_batch
+    description: A real group of production orders moving together through the
+      floor; it is not a washer load.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: stage_run
+    description: The state-machine owner for one physical process step of one
+      production batch.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: stage_machine_assignment
+    description: A stage-level assignment of one physical machine to a stage run.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: machine
+    description: A physical constrained production resource such as a washer, dryer,
+      or folding station.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: scheduler_config
+    description: Versioned configuration for production pulse, durations, fold rate,
+      and scheduler behavior.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: work_event
+    description: The authoritative mutation ledger and audit trail for production changes.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+states:
+  schedule_run:
+    - draft
+    - accepted
+    - superseded
+    - rejected
+  production_run:
+    - planned
+    - started
+    - completed
+    - canceled
+  production_batch:
+    - queued
+    - sorting
+    - washing
+    - drying
+    - folding_packaging
+    - finished
+    - canceled
+    - blocked
+  stage_run:
+    - planned
+    - started
+    - completed
+    - blocked
+    - canceled
+workflows:
+  - id: production_batch_happy_path
+    steps:
+      - queued
+      - sorting
+      - washing
+      - drying
+      - folding_packaging
+      - finished
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: scheduling_to_execution
+    steps:
+      - Cents order reaches IN_PROGRESS
+      - LPMS marks production_order eligible
+      - scheduler creates schedule_run proposal
+      - operator accepts schedule_run
+      - LPMS creates production_run and production_batch records
+      - operators advance stage_run records through the floor
+      - production_batch finishes folding and packaging
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: production_command_write_path
+    steps:
+      - receive command
+      - validate invariants
+      - insert work_event
+      - update operational tables
+      - commit transaction
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+invariants:
+  - id: orders_do_not_split_across_batches
+    statement: A production_order can belong to at most one active production_batch,
+      and all bags for one order must stay in that same production_batch.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: bags_not_assigned_to_machines
+    statement: Individual bags are not assigned to machines in v1; machine use is
+      modeled at the stage level.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: batch_is_not_machine_load
+    statement: A production_batch is a group of orders moving together through
+      production, not a washer load or dryer load.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: batch_single_active_stage
+    statement: A production_batch can be active in only one stage at a time.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: one_active_batch_per_stage_kind_v1
+    statement: For v1, at most one production_batch can have an active stage_run for
+      the same stage kind.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: stage_order_is_sequential
+    statement: A stage cannot start before the previous required stage for the same
+      production_batch is completed.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: machines_do_not_overlap
+    statement: A machine cannot have overlapping active stage_machine_assignments.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: batch_minutes_minimum
+    statement: batch_minutes must be at least 50.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: schedule_run_is_immutable
+    statement: A schedule_run input snapshot, output plan, hashes, algorithm
+      version, score, and warnings are immutable after creation.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: one_production_run_per_schedule
+    statement: Accepting a schedule_run creates exactly one production_run.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: scheduler_does_not_mutate_execution
+    statement: The scheduler returns proposals and cannot mutate execution state directly.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: stage_completion_is_operator_confirmed
+    statement: stage_run completion is operator-confirmed operational truth, not
+      washer or dryer hardware-confirmed truth.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: webhooks_are_idempotent
+    statement: Inbound CRM webhook events must be idempotent.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+policies:
+  - id: cents_in_progress_is_eligible
+    statement: A Cents order is eligible for LPMS production only when the latest
+      projected CRM order status is IN_PROGRESS.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: cents_weight_derivation_v1
+    statement: For v1, LPMS derives production weight from Cents laundry service
+      pricing instead of measured bag-level weight.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: wash_fold_only_v1
+    statement: V1 is scoped to wash-and-fold production only.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: heijunka_pulse_v1
+    statement: V1 uses a configurable heijunka-style production pulse with a default
+      batch duration of 56 minutes.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: washer_effective_capacity
+    statement: Washer scheduling uses effective capacity below manufacturer capacity
+      to preserve cleaning quality.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: no_hardware_integration_v1
+    statement: V1 has no washer or dryer hardware integration; operators confirm
+      starts and completions manually.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: due_bucket_selection_v1
+    statement: V1 scheduling should expose due-today, due-tomorrow, and later order
+      buckets for operator judgment.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: consistency_over_availability
+    statement: Production writes prefer consistency over availability.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+decisions:
+  - id: domain_named_laundry_production
+    statement: The durable Stateworks memory domain is named laundry-production
+      instead of lpms because LPMS is the app/system name.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: schedule_run_is_proposal
+    statement: schedule_run represents a scheduler proposal, not real
+      production-floor execution.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: production_run_is_execution_truth
+    statement: production_run and its production_batch and stage_run records
+      represent accepted execution truth.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: stage_run_owns_floor_state
+    statement: stage_run owns the physical workflow state machine.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: work_event_not_full_event_sourcing_v1
+    statement: work_event is the authoritative mutation ledger and audit trail, but
+      LPMS is not full event sourcing in v1.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: typescript_scheduler_first
+    statement: Build the first scheduler in TypeScript behind a boundary that can
+      later be replaced by a Rust solver.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: memory_keeps_rules_docs_keep_schema
+    statement: Stateworks memory stores durable business rules; docs/plan/lpms.md
+      stores richer schema and modeling detail.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+assumptions:
+  - id: cents_price_weight_good_enough_v1
+    statement: Cents price-derived weight is good enough for first-version scheduling.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+    confidence: medium
+  - id: initial_fold_rate
+    statement: The initial folding rate is 1.5 pounds per employee minute, but it
+      must remain configurable.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+    confidence: high
+  - id: commercial_orders_low_volume_v1
+    statement: Commercial orders are low enough volume in v1 to stay inside the same
+      simple batching model.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+    confidence: medium
+  - id: manual_stage_confirmation_is_acceptable_v1
+    statement: Manual operator confirmation is acceptable as the source of stage
+      completion truth in v1.
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+    confidence: high
+open_questions:
+  - id: exact_scheduler_ordering_rules
+    question: What exact deterministic ordering rules should the first scheduler use
+      inside due-today, due-tomorrow, and later buckets?
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: exception_effects
+    question: How should rewash, canceled orders, damaged items, missing bags, and
+      manual holds affect an accepted production_run?
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: role_permission_mapping
+    question: Which actions belong to owner, manager, employee, and admin roles?
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: production_shift_boundaries
+    question: How should production shifts constrain schedule generation,
+      continuation, and completion?
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+  - id: replan_after_drift
+    question: When execution drifts from a schedule, should LPMS preserve the old
+      plan, replan remaining batches, or create a new schedule_run?
+    status: active
+    sources:
+      - memdelta-2026-07-08-laundry-production-core
+sources:
+  - id: memdelta-2026-07-08-laundry-production-core
+    path: stateworks/memory/domains/laundry-production/sessions/2026-07-08-domain-interrogation.md
+    type: interrogation_session
