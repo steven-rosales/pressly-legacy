@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trypressly.com/stateworks/memory-delta.schema.json",
+  "title": "Stateworks Memory Delta",
+  "type": "object",
+  "required": [
+    "id",
+    "domain_id",
+    "source",
+    "changes",
+    "verification",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "required": ["type", "path"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "changes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["op", "kind", "id"],
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": ["assert", "update", "deprecate"]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "actor",
+              "external_system",
+              "object",
+              "workflow",
+              "invariant",
+              "policy",
+              "decision",
+              "assumption",
+              "open_question"
+            ]
+          },
+          "id": { "type": "string", "minLength": 1 },
+          "statement": { "type": "string" },
+          "description": { "type": "string" },
+          "question": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "verification": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["proposed", "accepted", "applied", "rejected"]
+    }
+  },
+  "additionalProperties": true
+}

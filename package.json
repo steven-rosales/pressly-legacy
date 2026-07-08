@@ -53,7 +53,10 @@
     "test:int": "bash tooling/scripts/run-integration-tests.sh all",
     "stateworks:validate": "tsx stateworks/tooling/validate-network.ts",
     "stateworks:next": "tsx stateworks/tooling/next-batch.ts",
-    "stateworks:verify": "tsx stateworks/tooling/verify.ts"
+    "stateworks:verify": "tsx stateworks/tooling/verify.ts",
+    "stateworks:memory:validate": "tsx stateworks/tooling/validate-memory.ts",
+    "stateworks:memory:context": "tsx stateworks/tooling/build-context-pack.ts",
+    "stateworks:memory:apply": "tsx stateworks/tooling/apply-memory-delta.ts"
   },
   "keywords": [],
   "author": "",
