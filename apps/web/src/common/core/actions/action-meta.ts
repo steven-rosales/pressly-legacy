@@ -9,9 +9,3 @@ export type ActionMeta = Readonly<{
   source?: string;
   productCritical?: boolean;
 }>;
-
-export type CommandFeedback = Readonly<{
-  loading?: string;
-  success?: string;
-  error?: string;
-}>;

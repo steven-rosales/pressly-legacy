@@ -1,8 +1,8 @@
 import Image from 'next/image';
-import { OFFER_COPY } from '@/app/shared/marketing/content';
-import type { DryCleaningPricingModel } from '@/app/shared/marketing/pricing';
-import FetchErrorCallout from '@/app/shared/ui/components/FetchErrorCallout';
-import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
+import { ORDER_ENTRY_OFFER_COPY } from '@/features/order-entry/content';
+import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
+import type { DryCleaningPricingModel } from '@/features/pricing/model';
+import { PricingErrorCallout } from '@/features/pricing/ui/PricingErrorCallout';
 import { Shirt, Wind, User, Briefcase, Sparkles } from 'lucide-react';
 import { PricingDialog } from './PricingDialog';
 
@@ -78,7 +78,7 @@ export default function LocationsDryCleaning({
               </div>
             </>
           ) : (
-            <FetchErrorCallout
+            <PricingErrorCallout
               title={pricing.error.title}
               message={pricing.error.message}
               canRetry={pricing.error.canRetry}
@@ -94,7 +94,7 @@ export default function LocationsDryCleaning({
             Schedule a Pickup
           </SchedulePickupButton>
           <p className="text-center lg:text-left text-base font-medium text-primary">
-            {OFFER_COPY}
+            {ORDER_ENTRY_OFFER_COPY}
           </p>
         </div>
       </div>

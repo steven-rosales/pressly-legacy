@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import nextPlugin from '@next/eslint-plugin-next';
+import path from 'node:path';
 import prettier from 'eslint-config-prettier';
 import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
@@ -49,6 +50,296 @@ const restrictedFileNameRule = (message) => ({
   ],
 });
 
+const moduleFoundationTargets = new Map([
+  ['business/auth', new Set(['http', 'persistence'])],
+  ['policy/access-control', new Set(['identity'])],
+]);
+
+const isPathInside = (candidate, owner) =>
+  candidate === owner || candidate.startsWith(`${owner}/`);
+
+const importSpecifier = (node) => {
+  const specifier = node.source?.value;
+
+  return typeof specifier === 'string' ? specifier : undefined;
+};
+
+const importVisitors = (checkImport) => ({
+  ImportDeclaration: checkImport,
+  ImportExpression: checkImport,
+  ExportAllDeclaration: checkImport,
+  ExportNamedDeclaration: checkImport,
+});
+
+const architecturePlugin = {
+  rules: {
+    'module-capability-imports': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'Keep module capability imports inside the capability or an explicit foundation.',
+        },
+        schema: [],
+        messages: {
+          crossCapability:
+            'Capability "{{source}}" cannot import "{{target}}". Keep the dependency inside the capability or promote a narrow explicit foundation.',
+          outsideModule:
+            'Module internals cannot use relative imports outside their own module.',
+          rootInternal:
+            'Capability files may only import root-level module ports, not root composition or public files.',
+        },
+      },
+      create(context) {
+        const filename = path.resolve(context.filename);
+        const normalizedFilename = filename.replaceAll(path.sep, '/');
+        const match = normalizedFilename.match(
+          /\/modules\/(business|policy|computation)\/([^/]+)\/src\/([^/]+)\//,
+        );
+
+        if (match === null) return {};
+
+        const [, group, moduleName, sourceCapability] = match;
+        const moduleKey = `${group}/${moduleName}`;
+        const srcMarker = `/modules/${moduleKey}/src/`;
+        const srcRoot = normalizedFilename.slice(
+          0,
+          normalizedFilename.indexOf(srcMarker) + srcMarker.length,
+        );
+        const foundations = moduleFoundationTargets.get(moduleKey) ?? new Set();
+
+        const checkImport = (node) => {
+          const specifier = importSpecifier(node);
+
+          if (specifier === undefined || !specifier.startsWith('.')) return;
+
+          const target = path
+            .resolve(path.dirname(filename), specifier)
+            .replaceAll(path.sep, '/');
+
+          if (!target.startsWith(srcRoot)) {
+            context.report({ node, messageId: 'outsideModule' });
+            return;
+          }
+
+          const targetRelative = target.slice(srcRoot.length);
+          const [targetCapability] = targetRelative.split('/');
+
+          if (targetCapability === sourceCapability) return;
+
+          if (!targetRelative.includes('/')) {
+            if (/\.port\.(?:ts|js)$/.test(targetRelative)) return;
+
+            context.report({ node, messageId: 'rootInternal' });
+            return;
+          }
+
+          if (
+            foundations.has(targetCapability) &&
+            !foundations.has(sourceCapability)
+          )
+            return;
+
+          context.report({
+            node,
+            messageId: 'crossCapability',
+            data: {
+              source: sourceCapability,
+              target: targetCapability,
+            },
+          });
+        };
+
+        return importVisitors(checkImport);
+      },
+    },
+
+    'web-zone-imports': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'Enforce dependency direction between web routes, features, UI primitives, and technical infrastructure.',
+        },
+        schema: [],
+        messages: {
+          zoneDependency: '{{reason}} Imported web path: "{{target}}".',
+        },
+      },
+      create(context) {
+        const filename = path.resolve(context.filename);
+        const normalizedFilename = filename.replaceAll(path.sep, '/');
+        const webSrcMarker = '/apps/web/src/';
+        const webSrcIndex = normalizedFilename.indexOf(webSrcMarker);
+
+        if (webSrcIndex === -1) return {};
+
+        const webSrcRoot = normalizedFilename
+          .slice(0, webSrcIndex + webSrcMarker.length)
+          .replace(/\/$/, '');
+        const sourceRelative = normalizedFilename.slice(webSrcRoot.length + 1);
+        const sourceName = path.basename(normalizedFilename);
+        const isFeatureServer = /^(?:server|.+\.server)\.[jt]sx?$/.test(
+          sourceName,
+        );
+        const inZone = (relativePath, zone) =>
+          relativePath === zone || relativePath.startsWith(`${zone}/`);
+
+        const checkImport = (node) => {
+          const specifier = importSpecifier(node);
+
+          if (specifier === undefined) return;
+
+          let target;
+
+          if (specifier.startsWith('@/'))
+            target = path.resolve(webSrcRoot, specifier.slice(2));
+          else if (specifier.startsWith('.'))
+            target = path.resolve(path.dirname(filename), specifier);
+          else return;
+
+          const normalizedTarget = target.replaceAll(path.sep, '/');
+
+          if (!isPathInside(normalizedTarget, webSrcRoot)) return;
+
+          const targetRelative = normalizedTarget.slice(webSrcRoot.length + 1);
+          let reason;
+
+          if (inZone(sourceRelative, 'common/core')) {
+            if (
+              inZone(targetRelative, 'app') ||
+              inZone(targetRelative, 'features') ||
+              inZone(targetRelative, 'common/adapters')
+            )
+              reason =
+                'Web core cannot import routes, product features, or concrete adapters.';
+          } else if (inZone(sourceRelative, 'common/adapters')) {
+            if (
+              inZone(targetRelative, 'app') ||
+              inZone(targetRelative, 'features')
+            )
+              reason =
+                'Concrete web adapters cannot import routes or product features.';
+          } else if (inZone(sourceRelative, 'common')) {
+            if (
+              inZone(targetRelative, 'app') ||
+              inZone(targetRelative, 'features')
+            )
+              reason =
+                'Web common code cannot import routes or product features.';
+          } else if (inZone(sourceRelative, 'features')) {
+            if (inZone(targetRelative, 'app'))
+              reason = 'Product features cannot import the Next route tree.';
+            else if (
+              !isFeatureServer &&
+              inZone(targetRelative, 'common/adapters')
+            )
+              reason =
+                'Product feature logic cannot select concrete adapters. Compose them in server.ts or the route boundary.';
+          } else if (inZone(sourceRelative, 'components/ui')) {
+            const targetWithoutExtension = targetRelative.replace(
+              /\.[jt]sx?$/,
+              '',
+            );
+
+            if (
+              !inZone(targetWithoutExtension, 'components/ui') &&
+              targetWithoutExtension !== 'styles/utils'
+            )
+              reason =
+                'UI primitives may only import other UI primitives or the shared style utility.';
+          } else if (inZone(sourceRelative, 'config')) {
+            if (
+              inZone(targetRelative, 'app') ||
+              inZone(targetRelative, 'features') ||
+              inZone(targetRelative, 'common/adapters')
+            )
+              reason =
+                'Static web configuration cannot depend on routes, product behavior, or concrete adapters.';
+          }
+
+          if (reason !== undefined)
+            context.report({
+              node,
+              messageId: 'zoneDependency',
+              data: { reason, target: targetRelative },
+            });
+        };
+
+        return importVisitors(checkImport);
+      },
+    },
+
+    'web-private-route-imports': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'Keep Next private route folders inside the route subtree that owns them.',
+        },
+        schema: [],
+        messages: {
+          privateRoute:
+            'Private route code may only be imported from inside its owning route subtree.',
+        },
+      },
+      create(context) {
+        const filename = path.resolve(context.filename);
+        const normalizedFilename = filename.replaceAll(path.sep, '/');
+        const appMarker = '/apps/web/src/app/';
+        const appIndex = normalizedFilename.indexOf(appMarker);
+        const webSrcRoot =
+          appIndex === -1
+            ? normalizedFilename.slice(
+                0,
+                normalizedFilename.indexOf('/apps/web/src/') +
+                  '/apps/web/src/'.length,
+              )
+            : normalizedFilename.slice(0, appIndex + '/apps/web/src/'.length);
+
+        const checkImport = (node) => {
+          const specifier = importSpecifier(node);
+
+          if (specifier === undefined) return;
+
+          let target;
+
+          if (specifier.startsWith('@/'))
+            target = path.resolve(webSrcRoot, specifier.slice(2));
+          else if (specifier.startsWith('.'))
+            target = path.resolve(path.dirname(filename), specifier);
+          else return;
+
+          const normalizedTarget = target.replaceAll(path.sep, '/');
+          const targetAppIndex = normalizedTarget.indexOf(appMarker);
+
+          if (targetAppIndex === -1) return;
+
+          const targetSegments = normalizedTarget
+            .slice(targetAppIndex + appMarker.length)
+            .split('/');
+          const privateIndex = targetSegments.findIndex((segment) =>
+            /^_(?:components|lib|shared)$/.test(segment),
+          );
+
+          if (privateIndex === -1) return;
+
+          const owner =
+            `${normalizedTarget.slice(0, targetAppIndex + appMarker.length)}${targetSegments
+              .slice(0, privateIndex)
+              .join('/')}`.replace(/\/$/, '');
+
+          if (isPathInside(normalizedFilename, owner)) return;
+
+          context.report({ node, messageId: 'privateRoute' });
+        };
+
+        return importVisitors(checkImport);
+      },
+    },
+  },
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -62,6 +353,12 @@ export default tseslint.config(
       '**/*.config.mjs',
       '**/*.config.cjs',
     ],
+  },
+
+  {
+    plugins: {
+      architecture: architecturePlugin,
+    },
   },
 
   js.configs.recommended,
@@ -182,26 +479,23 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/domain/**/*.policy.ts'],
+    files: ['modules/**/*.policy.ts', 'modules/**/*.machine.ts'],
     rules: {
-      'no-restricted-imports': 'off',
-
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          paths: [
-            {
-              name: '@pressly/contracts',
-              allowTypeImports: true,
-              message:
-                'Policy files may only import types from @pressly/contracts.',
-            },
-          ],
           patterns: [
             {
-              regex: '^(?!@pressly/contracts$).*',
-              allowTypeImports: false,
-              message: 'Policy files may only import from @pressly/contracts.',
+              regex:
+                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
+              message:
+                'Intrinsic policy and state-machine files cannot import database, HTTP, or UI mechanisms.',
+            },
+            {
+              regex:
+                '^\\.(?!.*\\.(?:policy|machine|port|resource|resources)(?:\\.(?:ts|js))?$).*',
+              message:
+                'Intrinsic policy and state-machine files may only import sibling policy, machine, port, or resource files.',
             },
           ],
         },
@@ -218,17 +512,23 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/*.usecase.ts'],
+    files: ['modules/**/*.usecase.ts'],
     rules: {
-      'no-restricted-imports': [
+      '@typescript-eslint/no-restricted-imports': [
         'error',
         {
           patterns: [
             {
               regex:
-                '^(?!(?:@pressly/|.*\\.(?:policy|port|error)(?:\\.(?:ts|js))?$)).*',
+                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
               message:
-                'Usecase files may only import @pressly/* packages, *.policy, *.port, or *.error files.',
+                'Usecases cannot import database, HTTP, or UI mechanisms.',
+            },
+            {
+              regex:
+                '^\\.(?!/?[^/]+\\.(?:usecase|policy|machine|port|error)(?:\\.(?:ts|js))?$).*',
+              message:
+                'Usecases may only import sibling usecases, policies, state machines, ports, or errors.',
             },
           ],
         },
@@ -237,25 +537,16 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/*.port.ts'],
+    files: ['modules/**/*.port.ts'],
     rules: {
-      'no-restricted-imports': 'off',
-
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              regex: '^(?:@pressly\\/.*|.*\\.(?:policy)(?:\\.(?:ts|js))?)$',
+              regex: '.*',
               allowTypeImports: true,
-              message:
-                'Port files may only import types from @pressly/*, or *.policy files.',
-            },
-            {
-              regex:
-                '^(?!(?:@pressly\\/.*|.*\\.(?:policy)(?:\\.(?:ts|js))?$)).*',
-              message:
-                'Port files may only import from @pressly/* or *.policy files.',
+              message: 'Ports may only import types.',
             },
           ],
         },
@@ -272,21 +563,26 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/*.error.ts'],
+    files: [
+      'modules/business/**/*.port.ts',
+      'modules/computation/**/*.port.ts',
+    ],
     rules: {
-      'no-restricted-imports': [
+      '@typescript-eslint/no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              regex: '^(?!@pressly\\/|\\.).*',
+              regex:
+                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
               message:
-                'Error files may only import @pressly/* packages or *.policy files.',
+                'Business and computation ports cannot expose database, HTTP, or UI mechanism types.',
             },
             {
-              regex: '^\\.(?!.*\\.policy(?:\\.(?:ts|js))?$).*',
-              message:
-                'Relative imports in error files must target *.policy files.',
+              regex:
+                '^(?!(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)).*',
+              allowTypeImports: true,
+              message: 'Ports may only import types.',
             },
           ],
         },
@@ -295,17 +591,65 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/*.route.ts'],
+    files: ['modules/policy/access-control/src/auth.port.ts'],
     rules: {
-      'no-restricted-imports': [
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '.*',
+              allowTypeImports: true,
+              message:
+                'The access-control auth port may expose HTTP types but still cannot import runtime mechanisms.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['modules/**/*.error.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
         'error',
         {
           patterns: [
             {
               regex:
-                '^\\.(?!.*\\.(?:usecase|controller|middleware)(?:\\.(?:ts|js))?$).*',
+                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
               message:
-                'Route files may only use relative imports for *.usecase, *.controller, or *.middleware files.',
+                'Error mapping files cannot import database, HTTP, or UI mechanisms.',
+            },
+            {
+              regex:
+                '^\\.(?!/?[^/]+\\.(?:policy|machine|error)(?:\\.(?:ts|js))?$).*',
+              message:
+                'Error mapping files may only import sibling policy, state-machine, or error files.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['modules/**/*.route.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?:drizzle-orm(?:/.*)?$|@pressly/db(?:/.*)?$)',
+              message: 'Routes cannot import persistence mechanisms.',
+            },
+            {
+              regex:
+                '^\\.(?!/?[^/]+\\.(?:usecase|controller|middleware|guard|guards)(?:\\.(?:ts|js))?$).*',
+              message:
+                'Routes may only import sibling usecases, controllers, middleware, or guards.',
             },
           ],
         },
@@ -325,12 +669,6 @@ export default tseslint.config(
               message:
                 'Module main files may only import packages from express or @pressly/*.',
             },
-            {
-              regex:
-                '^\\.(?!.*\\.(?:repo|middleware|route|usecase|guard|guards)(?:\\.(?:ts|js))?$).*',
-              message:
-                'Module main files may only use relative imports for *.repo, *.middleware, *.route, *.usecase, or guard files.',
-            },
           ],
         },
       ],
@@ -338,24 +676,23 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/*.controller.ts', '**/*.middleware.ts'],
+    files: ['modules/**/*.controller.ts', 'modules/**/*.middleware.ts'],
+    ignores: ['modules/business/auth/src/http/**/*.middleware.ts'],
     rules: {
-      'no-restricted-imports': 'off',
-
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              regex: '^(?!express$|@pressly\\/|\\.).*',
+              regex: '^(?:drizzle-orm(?:/.*)?$|@pressly/db(?:/.*)?$)',
               message:
-                'Controller and middleware files may only import packages from express or @pressly/*.',
+                'Controllers and middleware cannot import persistence mechanisms.',
             },
             {
               regex:
-                '^\\.(?!.*(?:\\.usecase(?:\\.(?:ts|js))?$|\\/common\\/read-bearer(?:\\.(?:ts|js))?$)).*',
+                '^\\.(?!/[^/]+\\.(?:usecase|port|error)(?:\\.(?:ts|js))?$|\\./http/[^/]+(?:\\.(?:ts|js))?$).*',
               message:
-                'Controller and middleware files may only use relative imports for *.usecase files or the common bearer-token reader.',
+                'Controllers and middleware may only import sibling usecase, port, or error files, plus the explicit HTTP foundation.',
             },
             {
               regex: '^\\..*\\.usecase(?:\\.(?:ts|js))?$',
@@ -370,22 +707,21 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/*.repo.ts'],
+    files: ['modules/**/*.repo.ts'],
     rules: {
-      'no-restricted-imports': [
+      '@typescript-eslint/no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              regex: '^(?!@pressly\\/|\\.).*',
-              message:
-                'Repo files may only import @pressly/* packages, *.port files, or common adapter helpers.',
+              regex: '^(?:express$|@pressly/http(?:/.*)?$|next(?:/.*)?$)',
+              message: 'Repositories cannot import HTTP or UI mechanisms.',
             },
             {
               regex:
-                '^\\.(?!.*(?:\\.port(?:\\.(?:ts|js))?$|\\/common\\/[^/]+(?:\\.(?:ts|js))?$)).*',
+                '^\\.(?!.*\\.(?:port|policy|mapper)(?:\\.(?:ts|js))?$|\\./persistence/[^/]+(?:\\.(?:ts|js))?$).*',
               message:
-                'Relative imports in repo files must target *.port files or common adapter helpers.',
+                'Repositories may only import sibling ports or policies, plus the explicit persistence foundation.',
             },
           ],
         },
@@ -394,51 +730,151 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/adapters/**/http/**/*.ts', '**/adapter/**/http/**/*.ts'],
-    ignores: [
-      '**/adapters/**/http/**/*.controller.ts',
-      '**/adapters/**/http/**/*.route.ts',
-      '**/adapters/**/http/**/*.middleware.ts',
-      '**/adapter/**/http/**/*.controller.ts',
-      '**/adapter/**/http/**/*.route.ts',
-      '**/adapter/**/http/**/*.middleware.ts',
+    files: ['modules/business/auth/src/http/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?:drizzle-orm(?:/.*)?$|@pressly/db(?:/.*)?$)',
+              message:
+                'The auth HTTP foundation cannot import persistence mechanisms.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['modules/business/auth/src/persistence/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?:express$|@pressly/http(?:/.*)?$)',
+              message:
+                'The auth persistence foundation cannot import HTTP mechanisms.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['modules/**/*.{calculator,computation,projection}.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
+              message:
+                'Computation files must remain deterministic and mechanism-free.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['modules/*/*/src/**/*.{ts,tsx}'],
+    rules: {
+      'architecture/module-capability-imports': 'error',
+    },
+  },
+
+  {
+    files: [
+      'modules/*/*/src/features/**/*.{ts,tsx}',
+      'modules/*/*/src/adapters/**/*.{ts,tsx}',
     ],
     rules: restrictedFileNameRule(
-      'HTTP adapter files must end with .controller.ts, .route.ts, or .middleware.ts.',
+      'Module source is capability-first. Move this file into its owning top-level capability.',
     ),
   },
 
   {
     files: [
-      '**/adapters/**/persistence/**/*.ts',
-      '**/adapter/**/persistence/**/*.ts',
-    ],
-    ignores: [
-      '**/adapters/**/persistence/**/*.repo.ts',
-      '**/adapter/**/persistence/**/*.repo.ts',
+      'modules/*/*/src/**/common/**/*.{ts,tsx}',
+      'modules/*/*/src/**/shared/**/*.{ts,tsx}',
     ],
     rules: restrictedFileNameRule(
-      'Persistence adapter files must end with .repo.ts.',
+      'Module-local common/shared folders are forbidden. Name the capability or use an explicit technical foundation.',
     ),
   },
 
   {
-    files: ['modules/*/*/src/features/**/*.ts'],
+    files: ['modules/*/*/src/*/**/*.{ts,tsx}'],
     ignores: [
-      'modules/*/*/src/features/**/*.usecase.ts',
-      'modules/*/*/src/features/**/*.port.ts',
-      'modules/*/*/src/features/**/*.error.ts',
+      'modules/business/auth/src/http/**/*.{ts,tsx}',
+      'modules/business/auth/src/persistence/**/*.{ts,tsx}',
+      'modules/*/*/src/*/**/*.{usecase,port,error,controller,route,middleware,repo,command,policy,machine,guard,guards,resource,resources,mapper,calculator,computation,projection}.{ts,tsx}',
     ],
     rules: restrictedFileNameRule(
-      'Feature files must end with .usecase.ts, .port.ts, or .error.ts.',
+      'Capability files must use an architectural role suffix.',
     ),
   },
 
   {
-    files: ['**/domain/**/*.ts'],
-    ignores: ['**/domain/**/*.machine.ts', '**/domain/**/*.policy.ts'],
+    files: ['apps/web/src/common/core/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(?:next(?:/.*)?$|react(?:/.*)?$|react-dom(?:/.*)?$|@sentry/.*|posthog-js$|sonner$)',
+              message:
+                'Web core owns technical contracts and policies, not framework or vendor implementations.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['apps/web/src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?:@pressly/|next(?:/.*)?$)',
+              message:
+                'UI primitives cannot depend on application, protocol, or server capabilities.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['apps/web/src/**/*.{ts,tsx}'],
+    rules: {
+      'architecture/web-zone-imports': 'error',
+      'architecture/web-private-route-imports': 'error',
+    },
+  },
+
+  {
+    files: [
+      'apps/web/src/app/shared/**/*.{ts,tsx}',
+      'apps/web/src/infra/**/*.{ts,tsx}',
+    ],
     rules: restrictedFileNameRule(
-      'Domain files must end with .machine.ts or .policy.ts.',
+      'Web code is feature-oriented. Use a product feature, a bounded route-private folder, or common technical infrastructure.',
     ),
   },
 

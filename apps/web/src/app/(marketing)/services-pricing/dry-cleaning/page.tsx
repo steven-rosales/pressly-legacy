@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
-import { buildPageMetadata } from '@/app/shared/marketing/seo';
+import { buildPageMetadata } from '@/app/_lib/seo';
+import { serverPricingCatalogLoader } from '@/features/pricing/server';
 import { getDryCleaningServicePricingPageModel } from '../model';
 import ServicePricingPageView from '../ui/ServicePricingPageView';
 
@@ -15,7 +16,9 @@ export const metadata: Metadata = buildPageMetadata({
 });
 
 export default async function DryCleaningPage() {
-  const model = await getDryCleaningServicePricingPageModel();
+  const model = await getDryCleaningServicePricingPageModel(
+    serverPricingCatalogLoader,
+  );
 
   return <ServicePricingPageView model={model} />;
 }

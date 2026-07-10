@@ -6,8 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/app/shared/ui/shadcn/dialog';
-import type { DryCleaningPricingModel } from '@/app/shared/marketing/pricing';
+} from '@/components/ui/dialog';
+import type { DryCleaningPricingModel } from '@/features/pricing/model';
 import { Shirt, User, Sparkles, Home, Zap } from 'lucide-react';
 
 const getCategoryIcon = (category: string) => {

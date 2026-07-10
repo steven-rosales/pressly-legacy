@@ -3,7 +3,6 @@ import 'server-only';
 import { nullLogger } from '@pressly/logging';
 import { nullAnalyticsTracker, nullErrorReporter } from '@pressly/metrics';
 import { webEnv } from '@/common/config/env';
-import { nullFeedback } from '@/common/core/feedback/feedback';
 import { systemClock } from '@/common/core/runtime/clock';
 import { createWebCore, type WebCore } from '@/common/core/runtime/core';
 import type {
@@ -44,7 +43,6 @@ export const makeServerWebCore = ({
     logger: nullLogger,
     analytics: nullAnalyticsTracker,
     errors,
-    feedback: nullFeedback,
     request: makeFetchRequestClient({
       baseUrl: webEnv.serverApiBaseUrl,
       getContext: context.get,

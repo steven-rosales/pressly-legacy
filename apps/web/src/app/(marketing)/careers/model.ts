@@ -1,4 +1,4 @@
-import { CONTACT } from '@/app/shared/marketing/content';
+import { CONTACT } from '@/config/site';
 
 export type CareersPageModel = Readonly<{
   eyebrow: string;

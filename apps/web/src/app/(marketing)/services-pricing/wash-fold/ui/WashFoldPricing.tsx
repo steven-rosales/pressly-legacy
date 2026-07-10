@@ -1,6 +1,6 @@
-import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
-import FetchErrorCallout from '@/app/shared/ui/components/FetchErrorCallout';
-import type { WashFoldPricingModel } from '@/app/shared/marketing/pricing';
+import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
+import type { WashFoldPricingModel } from '@/features/pricing/model';
+import { PricingErrorCallout } from '@/features/pricing/ui/PricingErrorCallout';
 import { Check } from 'lucide-react';
 
 export default function WashFoldPricing({
@@ -10,7 +10,7 @@ export default function WashFoldPricing({
 }) {
   if (model.error !== undefined)
     return (
-      <FetchErrorCallout
+      <PricingErrorCallout
         title={model.error.title}
         message={model.error.message}
         canRetry={model.error.canRetry}

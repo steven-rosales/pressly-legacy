@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 
-import { NOINDEX_ROBOTS, buildPageMetadata } from '@/app/shared/marketing/seo';
+import { NOINDEX_ROBOTS, buildPageMetadata } from '@/app/_lib/seo';
 import { getSchedulePageModel } from './model';
 import ScheduleShell from './ui/ScheduleShell';
 

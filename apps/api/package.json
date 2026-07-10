@@ -8,7 +8,7 @@
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm typecheck:test",
-    "typecheck:test": "tsc -p tsconfig.test.json",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint src test vitest.config.ts --max-warnings=0",
     "test": "vitest run",
     "docker:build": "docker build --target dev -f Dockerfile -t pressly-api:local ../..",

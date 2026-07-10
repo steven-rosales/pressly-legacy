@@ -1,15 +1,17 @@
-import { PRICING } from '@/app/shared/marketing/content';
 import {
-  formatQuantity,
-  formatUsdFromCents,
-  formatUsdShortFromCents,
-  loadPricingCatalogViewModel,
+  type DryCleaningPricingModel,
+  type PricingCatalogLoader,
+  type WashFoldPricingModel,
+} from '@/features/pricing/model';
+import {
+  formatUsd,
+  formatUsdShort,
   toDryCleaningPricingModel,
   toWashFoldPricingModel,
-  type DryCleaningPricingModel,
-  type WashFoldPricingModel,
-} from '@/app/shared/marketing/pricing';
-import { buildServicePricingPageJsonLd } from '@/app/shared/marketing/seo';
+} from '@/features/pricing/presenter';
+import { PRICING } from '@/features/pricing/static-catalog';
+import { buildServicePricingPageJsonLd } from '@/app/_lib/seo';
+import { formatQuantity } from './presenter';
 
 export type ServicePricingSection = Readonly<{
   title: string;
@@ -68,14 +70,15 @@ export type ServicePricingPageModel = Readonly<{
   }>;
 }>;
 
-export async function getWashFoldServicePricingPageModel(): Promise<ServicePricingPageModel> {
-  const pricing = await loadPricingCatalogViewModel({
+export async function getWashFoldServicePricingPageModel(
+  loadPricing: PricingCatalogLoader,
+): Promise<ServicePricingPageModel> {
+  const pricing = await loadPricing({
     serviceSlug: 'wash-fold',
   });
   const pricingModel = toWashFoldPricingModel(pricing.catalog);
   const minimumPrice =
-    pricingModel.minimumPrice ??
-    formatUsdShortFromCents(PRICING.washFoldMinimumCents);
+    pricingModel.minimumPrice ?? formatUsdShort(PRICING.washFoldMinimumCents);
   const thresholdLbs =
     pricingModel.minimumThresholdQuantity ??
     PRICING.washFoldMinimumThresholdLbs;
@@ -158,9 +161,7 @@ export async function getWashFoldServicePricingPageModel(): Promise<ServicePrici
       services: [
         {
           title: 'Hang Dry',
-          price:
-            pricingModel.hangDryPrice ??
-            formatUsdFromCents(PRICING.hangDryCents),
+          price: pricingModel.hangDryPrice ?? formatUsd(PRICING.hangDryCents),
           description:
             'Priced per item. Perfect for everyday delicate items you want to have washed, hung to dry, and neatly folded.',
         },
@@ -196,14 +197,16 @@ export async function getWashFoldServicePricingPageModel(): Promise<ServicePrici
   };
 }
 
-export async function getDryCleaningServicePricingPageModel(): Promise<ServicePricingPageModel> {
-  const pricing = await loadPricingCatalogViewModel({
+export async function getDryCleaningServicePricingPageModel(
+  loadPricing: PricingCatalogLoader,
+): Promise<ServicePricingPageModel> {
+  const pricing = await loadPricing({
     serviceSlug: 'dry-cleaning',
   });
   const pricingModel = toDryCleaningPricingModel(pricing.catalog);
   const minimumPrice =
     pricingModel.minimumPrice ??
-    formatUsdShortFromCents(PRICING.dryCleaningMinimumCents);
+    formatUsdShort(PRICING.dryCleaningMinimumCents);
 
   return {
     jsonLd: buildServicePricingPageJsonLd({
@@ -285,7 +288,7 @@ export async function getDryCleaningServicePricingPageModel(): Promise<ServicePr
           title: 'Launder & Press',
           price:
             pricingModel.launderPressPrice ??
-            formatUsdFromCents(PRICING.launderPressCents),
+            formatUsd(PRICING.launderPressCents),
           description:
             'Priced per item. Perfect for shirts you want laundered and pressed. Our cleaning experts will separate what is best for dry cleaning and launder-press.',
         },

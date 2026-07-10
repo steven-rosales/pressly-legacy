@@ -7,11 +7,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { makeAccessControlModule } from '@pressly/access-control';
 import { revealSecret } from '@pressly/config';
-import {
-  makeAuthModule,
-  makeMfaAdministrationRouter,
-  makeSessionAdministrationRouter,
-} from '@pressly/auth-module';
+import { makeAuthModule } from '@pressly/auth-module';
 import { makePricingModule } from '@pressly/pricing';
 import { makeErrorHandler } from './common/http/error-handler.ts';
 import { makeNotFoundHandler } from './common/http/not-found.ts';
@@ -112,22 +108,9 @@ export const makeApiApp = (runtime: ApiRuntime): express.Express => {
 
   app.use(
     '/auth',
-    makeSessionAdministrationRouter({
-      listIdentitySessions: authModule.usecases.listIdentitySessions,
-      revokeIdentitySessions: authModule.usecases.revokeIdentitySessions,
-      security: accessControlModule.authSessions,
-    }),
-  );
-
-  app.use(
-    '/auth/mfa',
-    makeMfaAdministrationRouter({
-      beginMfaEnrollment: authModule.usecases.beginMfaEnrollment,
-      confirmMfaEnrollment: authModule.usecases.confirmMfaEnrollment,
-      regenerateMfaRecoveryCodes:
-        authModule.usecases.regenerateMfaRecoveryCodes,
-      removeMfa: authModule.usecases.removeMfa,
-      security: accessControlModule.mfa,
+    authModule.makeAdministrationRoutes({
+      sessions: accessControlModule.authSessions,
+      mfa: accessControlModule.mfa,
     }),
   );
 

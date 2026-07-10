@@ -11,57 +11,47 @@ import {
   type RequestHandler,
   type Router as ExpressRouter,
 } from 'express';
-import { makeLoginRoute } from './adapters/login/http/login.route.ts';
-import { makeLoginStore } from './adapters/login/persistence/login.repo.ts';
-import { makeAuthenticateMiddleware } from './adapters/load-session/http/authenticate.middleware.ts';
+import { makeLoginRoute } from './login/login.route.ts';
+import { makeLoginStore } from './login/login.repo.ts';
+import { makeAuthenticateMiddleware } from './load-session/authenticate.middleware.ts';
 import {
   makeAuthorizeMiddleware,
   type AuthorizeMiddlewareFactory,
-} from './adapters/load-session/http/authorize.middleware.ts';
-import { makeLoadSessionRouter } from './adapters/load-session/http/load-session.route.ts';
-import { makeLoadSessionStore } from './adapters/load-session/persistence/load-session.repo.ts';
-import { makeRevokeSessionRouter } from './adapters/revoke-session/http/revoke-session.route.ts';
-import { makeRevokeSessionStore } from './adapters/revoke-session/persistence/revoke-session.repo.ts';
-import { makeLogin, type Login } from './features/login/login.usecase.ts';
+} from './http/authorize.middleware.ts';
+import { readPrincipal } from './http/auth-context.ts';
+import { makeLoadSessionRouter } from './load-session/load-session.route.ts';
+import { makeLoadSessionStore } from './load-session/load-session.repo.ts';
+import { makeRevokeSessionRouter } from './revoke-session/revoke-session.route.ts';
+import { makeRevokeSessionStore } from './revoke-session/revoke-session.repo.ts';
+import { makeLogin } from './login/login.usecase.ts';
+import { makeLoadSession } from './load-session/load-session.usecase.ts';
+import { makeRevokeSession } from './revoke-session/revoke-session.usecase.ts';
+import { makeAdministerSessionsStore } from './administer-sessions/administer-sessions.repo.ts';
+import { makeListIdentitySessions } from './administer-sessions/list-identity-sessions.usecase.ts';
+import { makeRevokeIdentitySessions } from './administer-sessions/revoke-identity-sessions.usecase.ts';
 import {
-  makeLoadSession,
-  type LoadSession,
-} from './features/load-session/load-session.usecase.ts';
-import {
-  makeRevokeSession,
-  type RevokeSession,
-} from './features/revoke-session/revoke-session.usecase.ts';
-import { makeAdministerSessionsStore } from './adapters/administer-sessions/persistence/administer-sessions.repo.ts';
-import {
-  makeListIdentitySessions,
-  type ListIdentitySessions,
-} from './features/administer-sessions/list-identity-sessions.usecase.ts';
-import {
-  makeRevokeIdentitySessions,
-  type RevokeIdentitySessions,
-} from './features/administer-sessions/revoke-identity-sessions.usecase.ts';
+  makeSessionAdministrationRouter,
+  type SessionAdministrationSecurity,
+} from './administer-sessions/administer-sessions.route.ts';
 import {
   nullSecurityEventSink,
   type SecurityEventSink,
 } from '@pressly/logging';
-import { makeMfaStore } from './adapters/mfa/persistence/mfa.repo.ts';
-import { makeMfaChallengeRouter } from './adapters/mfa/http/mfa.route.ts';
+import { makeMfaRepository } from './mfa/mfa.repo.ts';
+import {
+  makeMfaAdministrationRouter,
+  makeMfaChallengeRouter,
+  type MfaRouteSecurity,
+} from './mfa/mfa.route.ts';
 import {
   makeBeginMfaEnrollment,
   makeConfirmMfaEnrollment,
-  type BeginMfaEnrollment,
-  type ConfirmMfaEnrollment,
-} from './features/mfa/enroll-mfa.usecase.ts';
-import {
-  makeCompleteMfaChallenge,
-  type CompleteMfaChallenge,
-} from './features/mfa/complete-mfa-challenge.usecase.ts';
+} from './mfa/enroll-mfa.usecase.ts';
+import { makeCompleteMfaChallenge } from './mfa/complete-mfa-challenge.usecase.ts';
 import {
   makeRegenerateMfaRecoveryCodes,
   makeRemoveMfa,
-  type RegenerateMfaRecoveryCodes,
-  type RemoveMfa,
-} from './features/mfa/manage-mfa.usecase.ts';
+} from './mfa/manage-mfa.usecase.ts';
 
 export type AuthModuleDeps = Readonly<{
   db: Database;
@@ -76,24 +66,23 @@ export type AuthModuleDeps = Readonly<{
   mfaIssuer: string;
 }>;
 
+export type AuthGuardBundle = Readonly<{
+  authenticate: RequestHandler;
+  authorize: AuthorizeMiddlewareFactory;
+  readPrincipal: typeof readPrincipal;
+}>;
+
+export type AuthAdministrationSecurity = Readonly<{
+  sessions: SessionAdministrationSecurity;
+  mfa: MfaRouteSecurity;
+}>;
+
 export type AuthModule = Readonly<{
   routes: ExpressRouter;
-  guards: Readonly<{
-    authenticate: RequestHandler;
-    authorize: AuthorizeMiddlewareFactory;
-  }>;
-  usecases: Readonly<{
-    login: Login;
-    loadSession: LoadSession;
-    revokeSession: RevokeSession;
-    listIdentitySessions: ListIdentitySessions;
-    revokeIdentitySessions: RevokeIdentitySessions;
-    completeMfaChallenge: CompleteMfaChallenge;
-    beginMfaEnrollment: BeginMfaEnrollment;
-    confirmMfaEnrollment: ConfirmMfaEnrollment;
-    regenerateMfaRecoveryCodes: RegenerateMfaRecoveryCodes;
-    removeMfa: RemoveMfa;
-  }>;
+  guards: AuthGuardBundle;
+  makeAdministrationRoutes: (
+    security: AuthAdministrationSecurity,
+  ) => ExpressRouter;
 }>;
 
 export const makeAuthModule = (deps: AuthModuleDeps): AuthModule => {
@@ -101,7 +90,7 @@ export const makeAuthModule = (deps: AuthModuleDeps): AuthModule => {
   const loadSessionStore = makeLoadSessionStore(deps.db);
   const revokeSessionStore = makeRevokeSessionStore(deps.db);
   const administerSessionsStore = makeAdministerSessionsStore(deps.db);
-  const mfaStore = makeMfaStore(deps.db);
+  const mfaRepository = makeMfaRepository(deps.db);
   const tokenIssuer = makeTokenIssuer(deps.tokenSecret);
   const clock = { now: () => new Date() };
   const totp = makeTotpAuthenticator();
@@ -145,7 +134,7 @@ export const makeAuthModule = (deps: AuthModuleDeps): AuthModule => {
     securityEvents,
   });
   const completeMfaChallenge = makeCompleteMfaChallenge({
-    store: mfaStore,
+    store: mfaRepository,
     tokenService: tokenIssuer,
     totp,
     secretBox,
@@ -155,7 +144,7 @@ export const makeAuthModule = (deps: AuthModuleDeps): AuthModule => {
     securityEvents,
   });
   const beginMfaEnrollment = makeBeginMfaEnrollment({
-    store: mfaStore,
+    store: mfaRepository,
     totp,
     secretBox,
     clock,
@@ -163,7 +152,7 @@ export const makeAuthModule = (deps: AuthModuleDeps): AuthModule => {
     securityEvents,
   });
   const confirmMfaEnrollment = makeConfirmMfaEnrollment({
-    store: mfaStore,
+    store: mfaRepository,
     totp,
     secretBox,
     recoveryCodes,
@@ -171,13 +160,13 @@ export const makeAuthModule = (deps: AuthModuleDeps): AuthModule => {
     securityEvents,
   });
   const regenerateMfaRecoveryCodes = makeRegenerateMfaRecoveryCodes({
-    store: mfaStore,
+    store: mfaRepository,
     recoveryCodes,
     clock,
     securityEvents,
   });
   const removeMfa = makeRemoveMfa({
-    store: mfaStore,
+    store: mfaRepository,
     clock,
     securityEvents,
   });
@@ -189,23 +178,40 @@ export const makeAuthModule = (deps: AuthModuleDeps): AuthModule => {
   routes.use('/logout', makeRevokeSessionRouter({ revokeSession }));
   routes.use('/mfa', makeMfaChallengeRouter(completeMfaChallenge));
 
+  const makeAdministrationRoutes = (
+    security: AuthAdministrationSecurity,
+  ): ExpressRouter => {
+    const administrationRoutes = Router();
+
+    administrationRoutes.use(
+      '/',
+      makeSessionAdministrationRouter({
+        listIdentitySessions,
+        revokeIdentitySessions,
+        security: security.sessions,
+      }),
+    );
+    administrationRoutes.use(
+      '/mfa',
+      makeMfaAdministrationRouter({
+        beginMfaEnrollment,
+        confirmMfaEnrollment,
+        regenerateMfaRecoveryCodes,
+        removeMfa,
+        security: security.mfa,
+      }),
+    );
+
+    return administrationRoutes;
+  };
+
   return {
     routes,
     guards: {
       authenticate: makeAuthenticateMiddleware(loadSession),
       authorize: makeAuthorizeMiddleware(securityEvents),
+      readPrincipal,
     },
-    usecases: {
-      login,
-      loadSession,
-      revokeSession,
-      listIdentitySessions,
-      revokeIdentitySessions,
-      completeMfaChallenge,
-      beginMfaEnrollment,
-      confirmMfaEnrollment,
-      regenerateMfaRecoveryCodes,
-      removeMfa,
-    },
+    makeAdministrationRoutes,
   };
 };

@@ -1,4 +1,4 @@
-import { JsonLd } from '@/app/shared/marketing/JsonLd';
+import { JsonLd } from '@/app/_components/JsonLd';
 
 import type { ServicePricingPageModel } from '../model';
 import DeliveryInfo from './DeliveryInfo';

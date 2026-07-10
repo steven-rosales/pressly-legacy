@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { SITE_URL } from '@/app/shared/marketing/content';
+import { SITE_URL } from '@/config/site';
 import {
   COUNTIES,
   buildCityServiceParams,

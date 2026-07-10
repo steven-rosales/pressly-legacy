@@ -1,5 +1,6 @@
-import { CONTACT, DELIVERY_FEE_COPY } from '@/app/shared/marketing/content';
-import { buildFaqJsonLd } from '@/app/shared/marketing/seo';
+import { buildFaqJsonLd } from '@/app/_lib/seo';
+import { CONTACT } from '@/config/site';
+import { DELIVERY_FEE_COPY } from '@/features/pricing/presenter';
 
 export type FaqsPageModel = Readonly<{
   jsonLd: Record<string, unknown>;

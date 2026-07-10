@@ -1,6 +1,6 @@
-import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
-import FetchErrorCallout from '@/app/shared/ui/components/FetchErrorCallout';
-import type { DryCleaningPricingModel } from '@/app/shared/marketing/pricing';
+import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
+import type { DryCleaningPricingModel } from '@/features/pricing/model';
+import { PricingErrorCallout } from '@/features/pricing/ui/PricingErrorCallout';
 
 export default function DryCleaningPricing({
   model,
@@ -9,7 +9,7 @@ export default function DryCleaningPricing({
 }) {
   if (model.error !== undefined)
     return (
-      <FetchErrorCallout
+      <PricingErrorCallout
         title={model.error.title}
         message={model.error.message}
         canRetry={model.error.canRetry}

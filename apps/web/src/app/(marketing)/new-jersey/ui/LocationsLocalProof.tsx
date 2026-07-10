@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
-import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
-import { OFFER_COPY } from '@/app/shared/marketing/content';
+import { ORDER_ENTRY_OFFER_COPY } from '@/features/order-entry/content';
+import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
 
 import type { LocalProof } from '../content/local-proof';
 
@@ -119,7 +119,7 @@ export function LocationsLocalProof({ proof }: LocationsLocalProofProps) {
             Schedule a Pickup
           </SchedulePickupButton>
           <p className="text-center text-base font-medium text-primary">
-            {OFFER_COPY}
+            {ORDER_ENTRY_OFFER_COPY}
           </p>
         </div>
       </div>

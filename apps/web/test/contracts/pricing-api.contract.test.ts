@@ -1,16 +1,8 @@
 import { result } from '@pressly/kernel';
 import { pricingCatalogSchema } from '@pressly/contracts';
+import { makePricingQueries } from '@/features/pricing/queries';
 
 const queryFetch = vi.hoisted(() => vi.fn());
-
-vi.mock('server-only', () => ({}));
-vi.mock('@/common/adapters/runtime/server-web-core', () => ({
-  makeServerWebCore: () => ({
-    query: {
-      fetch: queryFetch,
-    },
-  }),
-}));
 
 describe('pricing API contract', () => {
   beforeEach(() => {
@@ -37,8 +29,8 @@ describe('pricing API contract', () => {
 
     queryFetch.mockResolvedValue(result.ok(catalog));
 
-    const { loadPricingCatalog } = await import('@/infra/pricing');
-    const actual = await loadPricingCatalog({ serviceSlug: 'wash-fold' });
+    const queries = makePricingQueries({ fetch: queryFetch });
+    const actual = await queries.loadCatalog({ serviceSlug: 'wash-fold' });
 
     expect(actual).toEqual(result.ok(catalog));
     expect(queryFetch).toHaveBeenCalledWith({

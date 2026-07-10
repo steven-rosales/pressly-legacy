@@ -1,6 +1,8 @@
-import Footer from '@/app/shared/ui/public/Footer';
-import NavBar from '@/app/shared/ui/public/NavBar';
-import PrimaryButton from '@/app/shared/ui/components/PrimaryButton';
+import Link from 'next/link';
+
+import Footer from '@/app/_components/public/Footer';
+import NavBar from '@/app/_components/public/NavBar';
+import { Button } from '@/components/ui/button';
 
 export default function NotFound() {
   return (
@@ -18,7 +20,13 @@ export default function NotFound() {
             Sorry, we couldn&apos;t find the page you&apos;re looking for.
           </p>
           <div className="mt-8">
-            <PrimaryButton href="/">Go Home</PrimaryButton>
+            <Button
+              asChild
+              size="lg"
+              className="cursor-pointer bg-primary text-base text-primary-foreground"
+            >
+              <Link href="/">Go Home</Link>
+            </Button>
           </div>
         </section>
       </main>

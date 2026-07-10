@@ -1,5 +1,5 @@
 import posthog from 'posthog-js';
-import { publicEvents } from '@/common/core/analytics/events';
+import { orderEntryEvents } from '@/features/order-entry/events';
 import { makeBrowserPostHogTracker } from '@/common/adapters/analytics/posthog-tracker';
 
 vi.mock('posthog-js', () => ({
@@ -14,7 +14,7 @@ describe('makeBrowserPosthogTracker', () => {
     const tracker = makeBrowserPostHogTracker(false);
 
     tracker.track(
-      publicEvents.orderIntentStarted({ source: 'hero', vendor: 'cents' }),
+      orderEntryEvents.intentStarted({ source: 'hero', vendor: 'cents' }),
     );
 
     expect(posthog.capture).not.toHaveBeenCalled();
@@ -24,7 +24,7 @@ describe('makeBrowserPosthogTracker', () => {
     const tracker = makeBrowserPostHogTracker(true);
 
     tracker.track(
-      publicEvents.orderIntentStarted({ source: 'hero', vendor: 'cents' }),
+      orderEntryEvents.intentStarted({ source: 'hero', vendor: 'cents' }),
       {
         route: '/',
         sessionId: 'session_123',

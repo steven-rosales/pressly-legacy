@@ -4,7 +4,7 @@ import { ExternalLink } from 'lucide-react';
 
 import type { SchedulePageModel } from '../model';
 import { TrackedAnchor } from '@/common/adapters/analytics/tracked-anchor';
-import { publicEvents } from '@/common/core/analytics/events';
+import { orderEntryEvents } from '@/features/order-entry/events';
 import { cn } from '@/styles/utils';
 import { CentsFrame } from './ScheduleFrame';
 import { ScheduleFaqDialog, SchedulePricingDialog } from './ScheduleDialogs';
@@ -61,7 +61,7 @@ export default function ScheduleShell({ model }: { model: SchedulePageModel }) {
               href={model.orderUrl}
               target="_blank"
               rel="noreferrer"
-              event={publicEvents.orderIntentStarted({
+              event={orderEntryEvents.intentStarted({
                 source: 'schedule_open_new_tab',
                 vendor: 'cents',
               })}

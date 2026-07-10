@@ -1,5 +1,5 @@
-import { JsonLd } from '@/app/shared/marketing/JsonLd';
-import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
+import { JsonLd } from '@/app/_components/JsonLd';
+import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
 
 import type { LocationPageModel } from '../model';
 import { LocationsBottomSection } from './LocationsBottomSection';

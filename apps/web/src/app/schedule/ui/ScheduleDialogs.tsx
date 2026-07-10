@@ -4,10 +4,9 @@ import Link from 'next/link';
 import { CircleDollarSign, HelpCircle } from 'lucide-react';
 
 import type { SchedulePageModel } from '../model';
-import { useWebCore } from '@/common/adapters/runtime/web-core-context';
-import { publicEvents } from '@/common/core/analytics/events';
-import { trackPublicEvent } from '@/common/core/analytics/track';
-import { Button } from '@/app/shared/ui/shadcn/button';
+import { usePublicEventTracker } from '@/common/adapters/analytics/use-public-event-tracker';
+import { pricingEvents } from '@/features/pricing/events';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -15,8 +14,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/app/shared/ui/shadcn/dialog';
+} from '@/components/ui/dialog';
 import { cn } from '@/styles/utils';
+import { scheduleEvents } from '../events';
 
 const helperButtonClass =
   'h-11 rounded-full border-border bg-background/95 px-4 text-sm font-semibold text-foreground shadow-lg backdrop-blur transition hover:bg-background';
@@ -28,13 +28,12 @@ export function SchedulePricingDialog({
   className?: string;
   pricing: SchedulePageModel['pricing'];
 }) {
-  const core = useWebCore();
-  const track = trackPublicEvent(core);
+  const track = usePublicEventTracker();
 
   return (
     <Dialog
       onOpenChange={(open) => {
-        if (open) track(publicEvents.pricingViewed({ source: 'schedule' }));
+        if (open) track(pricingEvents.viewed({ source: 'schedule' }));
       }}
     >
       <DialogTrigger asChild>
@@ -111,15 +110,14 @@ export function ScheduleFaqDialog({
   className?: string;
   faqs: SchedulePageModel['faqs'];
 }) {
-  const core = useWebCore();
-  const track = trackPublicEvent(core);
+  const track = usePublicEventTracker();
 
   return (
     <Dialog
       onOpenChange={(open) => {
         if (open)
           track(
-            publicEvents.faqOpened({
+            scheduleEvents.faqOpened({
               questionId: 'schedule_pickup_dialog',
             }),
           );

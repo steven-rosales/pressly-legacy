@@ -6,7 +6,7 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from '@/app/shared/ui/shadcn/carousel';
+} from '@/components/ui/carousel';
 import type { HomePageModel } from '../model';
 
 function StarRating({ rating }: { rating: number }) {
