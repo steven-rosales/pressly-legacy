@@ -249,9 +249,13 @@ Rules:
 - Promote genuinely reused technical code into a narrow named foundation such
   as auth `http/` or `persistence/`; do not create module-local `common/` or
   `shared/` buckets.
-- Tests mirror capability names.
-- File suffixes still reveal role: `*.usecase.ts`, `*.port.ts`, `*.repo.ts`,
-  `*.controller.ts`, `*.route.ts`, `*.policy.ts`, and so on.
+- Tests mirror capability names under the module's `test/` tree. Tests never
+  live under module `src/`.
+- Business capability source uses a closed architectural vocabulary. A new
+  business role suffix requires an intentional architecture change, not a
+  local naming preference.
+- Explicit business `http/` and `persistence/` foundations may use descriptive
+  filenames because the directory already establishes their technical role.
 
 Auth has explicit `http/` and `persistence/` foundations. Access-control has an
 explicit `identity/` foundation. Those are directed dependencies, not
@@ -310,7 +314,7 @@ Policy module rules:
 
 - Own Pressly authorization policy, not authentication.
 - Import pure authorization primitives from `@pressly/auth`.
-- Build resource mappers and guard bundles for business routes.
+- Build resource mappers and policy guard bundles for business routes.
 - Depend on contracts or public module surfaces only.
 - Do not import business module internals.
 - Do not make `apps/api` define policy.
@@ -331,7 +335,6 @@ Possible future shape:
 modules/computation/<capability>/
   src/
     <calculation>/
-      *.calculator.ts
       *.computation.ts
       *.port.ts
     main.ts
@@ -676,26 +679,60 @@ Rules:
 
 ## 15. Naming
 
-Names should reveal architectural role.
+Names should reveal architectural role, but the naming contract follows the
+kind of module rather than forcing one global suffix list.
 
-Files:
+Business capability source uses this deliberately closed vocabulary:
+
+```txt
+*.command.ts      non-HTTP delivery entrypoint
+*.controller.ts   protocol-to-use-case adapter
+*.error.ts        expected error mapping
+*.mapper.ts       representation mapping
+*.middleware.ts   protocol middleware
+*.policy.ts       intrinsic business policy
+*.port.ts         required capability contract
+*.repo.ts         persistence adapter
+*.route.ts        route binding
+*.usecase.ts      application behavior
+```
+
+Within `modules/business/*/src/`, only `main.ts`, `public.ts`, and files inside
+an explicit `http/` or `persistence/` foundation may omit a role suffix.
+Foundation filenames should describe the narrow mechanism they centralize,
+such as `http/auth-context.ts` or `persistence/database-result.ts`.
+
+Policy modules do not inherit the business allowlist. Their current vocabulary
+is scoped to policy work:
+
+```txt
+*.guard.ts       framework-facing policy enforcement
+*.policy.ts      pure policy decisions and invariants
+*.resource.ts    policy resource representation
+*.port.ts        injected capability required to enforce policy
+```
+
+The policy `*.port.ts` role is retained because policy must receive runtime
+capabilities through dependency injection rather than import business module
+internals. Computation modules likewise use roles appropriate to computation,
+currently `*.computation.ts` and `*.port.ts`.
+
+Every module may use `main.ts` for composition and `public.ts` for its stable
+external surface.
+
+Module tests live under `test/`, where test-specific names such as
+`*.test.ts`, `*.fake.ts`, and `*.builder.ts` are allowed. Runtime boundary
+schemas belong in `packages/contracts`; persistence schemas belong in
+`packages/db`. Transport parsing belongs at the application adapter boundary.
+Module `src/` therefore does not contain `*.schema.ts`, `*.parser.ts`, or test
+files.
+
+Other repository areas use vocabulary appropriate to their boundary. For
+example, contracts use:
 
 ```txt
 *.contracts.ts   runtime boundary schemas
-*.command.ts     input to a use case
 *.result.ts      output from a use case
-*.usecase.ts     application behavior
-*.port.ts        required capability
-*.repo.ts        persistence adapter
-*.controller.ts  HTTP adapter
-*.route.ts       route binding
-*.presenter.ts   result-to-response or data-to-view mapping
-*.model.ts       page/view model composition
-*.schema.ts      protocol or persistence shape
-*.guard.ts       policy-to-framework guard
-*.resource.ts    policy input mapping
-*.mapper.ts      representation mapping
-*.calculator.ts  deterministic computation
 ```
 
 Functions:

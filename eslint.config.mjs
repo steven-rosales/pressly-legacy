@@ -55,6 +55,21 @@ const moduleFoundationTargets = new Map([
   ['policy/access-control', new Set(['identity'])],
 ]);
 
+const businessModuleSourceRoleSuffixes = [
+  'command',
+  'controller',
+  'error',
+  'mapper',
+  'middleware',
+  'policy',
+  'port',
+  'repo',
+  'route',
+  'usecase',
+];
+
+const businessModuleSourceRolePattern = `modules/business/*/src/**/*.{${businessModuleSourceRoleSuffixes.join(',')}}.ts`;
+
 const isPathInside = (candidate, owner) =>
   candidate === owner || candidate.startsWith(`${owner}/`);
 
@@ -493,7 +508,7 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.(?!.*\\.(?:policy|machine|port|resource|resources)(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!.*\\.(?:policy|machine|port|resource)(?:\\.(?:ts|js))?$).*',
               message:
                 'Intrinsic policy and state-machine files may only import sibling policy, machine, port, or resource files.',
             },
@@ -647,9 +662,9 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.(?!/?[^/]+\\.(?:usecase|controller|middleware|guard|guards)(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!/?[^/]+\\.(?:usecase|controller|middleware)(?:\\.(?:ts|js))?$).*',
               message:
-                'Routes may only import sibling usecases, controllers, middleware, or guards.',
+                'Routes may only import sibling usecases, controllers, or middleware.',
             },
           ],
         },
@@ -699,6 +714,23 @@ export default tseslint.config(
               allowTypeImports: true,
               message:
                 'Controller and middleware files may only type-import from *.usecase files.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['modules/policy/**/*.guard.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?:drizzle-orm(?:/.*)?$|@pressly/db(?:/.*)?$)',
+              message: 'Policy guards cannot import persistence mechanisms.',
             },
           ],
         },
@@ -766,7 +798,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/**/*.{calculator,computation,projection}.ts'],
+    files: ['modules/**/*.computation.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -785,7 +817,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/*/*/src/**/*.{ts,tsx}'],
+    files: ['modules/*/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
     rules: {
       'architecture/module-capability-imports': 'error',
     },
@@ -812,14 +844,37 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/*/*/src/*/**/*.{ts,tsx}'],
-    ignores: [
-      'modules/business/auth/src/http/**/*.{ts,tsx}',
-      'modules/business/auth/src/persistence/**/*.{ts,tsx}',
-      'modules/*/*/src/*/**/*.{usecase,port,error,controller,route,middleware,repo,command,policy,machine,guard,guards,resource,resources,mapper,calculator,computation,projection}.{ts,tsx}',
+    files: [
+      'modules/*/*/src/**/*.{schema,parser,test,spec}.{js,jsx,mjs,cjs,ts,tsx}',
+      'modules/*/*/src/**/__tests__/**/*.{js,jsx,mjs,cjs,ts,tsx}',
     ],
     rules: restrictedFileNameRule(
-      'Capability files must use an architectural role suffix.',
+      'Module src cannot contain tests, schemas, or parsers. Keep tests under test/, runtime schemas in @pressly/contracts, and parsing at the application adapter boundary.',
+    ),
+  },
+
+  {
+    files: ['modules/*/*/src/**/*.{js,jsx,mjs,cjs,tsx}'],
+    rules: restrictedFileNameRule(
+      'Module source files must use the .ts extension.',
+    ),
+  },
+
+  {
+    files: ['modules/business/*/src/**/*.ts'],
+    ignores: [
+      'modules/business/*/src/main.ts',
+      'modules/business/*/src/public.ts',
+      'modules/business/*/src/http/**/*.ts',
+      'modules/business/*/src/persistence/**/*.ts',
+      businessModuleSourceRolePattern,
+    ],
+    rules: restrictedFileNameRule(
+      `Business capability files must use one of these architectural role suffixes: ${businessModuleSourceRoleSuffixes
+        .map((suffix) => `*.${suffix}.ts`)
+        .join(
+          ', ',
+        )}. Descriptive filenames are reserved for explicit http/ and persistence/ foundations.`,
     ),
   },
 

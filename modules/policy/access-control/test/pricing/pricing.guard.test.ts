@@ -6,7 +6,7 @@ import type {
 } from '@pressly/auth/authorization';
 import type { Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import { makePricingAccessControl } from '../../src/pricing/pricing.guards.ts';
+import { makePricingAccessControl } from '../../src/pricing/pricing.guard.ts';
 import type { AccessControlAuthorize } from '../../src/auth.port.ts';
 
 const principal: Principal = {

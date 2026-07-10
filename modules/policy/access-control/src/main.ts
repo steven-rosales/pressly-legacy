@@ -1,15 +1,15 @@
 import {
   makePricingAccessControl,
   type PricingAccessControl,
-} from './pricing/pricing.guards.ts';
+} from './pricing/pricing.guard.ts';
 import {
   makeAuthSessionAccessControl,
   type AuthSessionAccessControl,
-} from './auth-sessions/auth-sessions.guards.ts';
+} from './auth-sessions/auth-sessions.guard.ts';
 import {
   makeMfaAccessControl,
   type MfaAccessControl,
-} from './mfa/mfa.guards.ts';
+} from './mfa/mfa.guard.ts';
 import type { AccessControlAuthPort } from './auth.port.ts';
 
 export type AccessControlModule = Readonly<{

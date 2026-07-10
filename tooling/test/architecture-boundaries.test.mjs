@@ -1,10 +1,32 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync, readdirSync } from 'node:fs';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const eslint = new ESLint({ cwd: repoRoot });
+
+const businessCapabilityRolePattern =
+  /\.(?:command|controller|error|mapper|middleware|policy|port|repo|route|usecase)\.ts$/;
+
+const readFiles = (directory) =>
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directory, entry.name);
+
+    return entry.isDirectory() ? readFiles(entryPath) : [entryPath];
+  });
+
+const businessSourceRoots = (() => {
+  const groupRoot = path.join(repoRoot, 'modules', 'business');
+
+  if (!existsSync(groupRoot)) return [];
+
+  return readdirSync(groupRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(groupRoot, entry.name, 'src'))
+    .filter(existsSync);
+})();
 
 const lint = async (filePath, source) => {
   const [result] = await eslint.lintText(source, {
@@ -25,6 +47,24 @@ const expectRejectedBy = async (filePath, source, ruleId) => {
 };
 
 describe('module architecture boundaries', () => {
+  it('keeps real business capability files inside the closed role vocabulary', () => {
+    const invalidFiles = businessSourceRoots.flatMap((sourceRoot) =>
+      readFiles(sourceRoot)
+        .map((filePath) => path.relative(sourceRoot, filePath))
+        .filter(
+          (relativePath) =>
+            relativePath !== 'main.ts' &&
+            relativePath !== 'public.ts' &&
+            !['http', 'persistence'].includes(
+              relativePath.split(path.sep)[0],
+            ) &&
+            !businessCapabilityRolePattern.test(relativePath),
+        ),
+    );
+
+    expect(invalidFiles).toEqual([]);
+  });
+
   it('allows a usecase to depend on a same-capability port', async () => {
     await expectAllowed(
       'modules/business/auth/src/login/login.usecase.ts',
@@ -82,6 +122,28 @@ describe('module architecture boundaries', () => {
     await expectAllowed(
       'modules/business/auth/src/login/internal/login.policy.ts',
       'export const canLogin = true;',
+    );
+  });
+
+  it('allows only the explicit module composition surface without a role suffix', async () => {
+    await expectAllowed(
+      'modules/business/auth/src/main.ts',
+      'export const composeModule = true;',
+    );
+    await expectAllowed(
+      'modules/business/auth/src/public.ts',
+      'export const publicSurface = true;',
+    );
+  });
+
+  it('allows test vocabulary under the module test tree', async () => {
+    await expectAllowed(
+      'modules/business/auth/test/login/login.fake.ts',
+      'export const fakeLogin = true;',
+    );
+    await expectAllowed(
+      'modules/business/auth/test/login/login.usecase.test.ts',
+      'export const usecaseTestFixture = true;',
     );
   });
 
@@ -172,6 +234,17 @@ describe('module architecture boundaries', () => {
     );
   });
 
+  it('rejects persistence mechanisms from policy guards', async () => {
+    await expectRejectedBy(
+      'modules/policy/access-control/src/pricing/pricing.guard.ts',
+      `
+        import { auth } from '@pressly/db';
+        export const leakedDatabase = auth;
+      `,
+      '@typescript-eslint/no-restricted-imports',
+    );
+  });
+
   it('rejects HTTP mechanisms from the auth persistence foundation', async () => {
     await expectRejectedBy(
       'modules/business/auth/src/persistence/database-result.ts',
@@ -194,6 +267,61 @@ describe('module architecture boundaries', () => {
   it('rejects arbitrary filenames at any depth inside a capability', async () => {
     await expectRejectedBy(
       'modules/business/auth/src/login/internal/arbitrary.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+  });
+
+  it('allows descriptive filenames inside explicit business foundations', async () => {
+    await expectAllowed(
+      'modules/business/auth/src/http/auth-context.ts',
+      'export const value = 1;',
+    );
+    await expectAllowed(
+      'modules/business/auth/src/persistence/database-result.ts',
+      'export const value = 1;',
+    );
+  });
+
+  it('rejects schemas and parsers from module source', async () => {
+    await expectRejectedBy(
+      'modules/business/auth/src/login/login.schema.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'modules/business/auth/src/login/login.parser.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'modules/business/auth/src/http/auth-context.schema.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'modules/business/auth/src/persistence/database-result.parser.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'modules/policy/access-control/src/pricing/pricing.schema.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+  });
+
+  it('rejects tests from module source', async () => {
+    await expectRejectedBy(
+      'modules/business/auth/src/login/login.usecase.test.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+  });
+
+  it('rejects non-TypeScript module source files', async () => {
+    await expectRejectedBy(
+      'modules/business/auth/src/login/login.usecase.js',
       'export const value = 1;',
       'no-restricted-syntax',
     );
