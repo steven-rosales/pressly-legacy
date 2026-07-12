@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { utcIsoStringSchema } from '../common/utc-iso.contracts.ts';
+import { utcIsoStringSchema } from '../utc-iso.contracts.ts';
 
 export const pricingServiceSlugSchema = z.enum(['wash-fold', 'dry-cleaning']);
 

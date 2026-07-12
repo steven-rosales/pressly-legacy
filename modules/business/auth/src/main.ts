@@ -18,7 +18,7 @@ import {
   makeAuthorizeMiddleware,
   type AuthorizeMiddlewareFactory,
 } from './http/authorize.middleware.ts';
-import { readPrincipal } from './http/auth-context.ts';
+import { readPrincipal, readPrincipalAttributes } from './http/auth-context.ts';
 import { makeLoadSessionRouter } from './load-session/load-session.route.ts';
 import { makeLoadSessionStore } from './load-session/load-session.repo.ts';
 import { makeRevokeSessionRouter } from './revoke-session/revoke-session.route.ts';
@@ -52,6 +52,10 @@ import {
   makeRegenerateMfaRecoveryCodes,
   makeRemoveMfa,
 } from './mfa/manage-mfa.usecase.ts';
+import type { Login } from './login/login.usecase.ts';
+import type { LoadSession } from './load-session/load-session.usecase.ts';
+import type { RevokeSession } from './revoke-session/revoke-session.usecase.ts';
+import type { CompleteMfaChallenge } from './mfa/complete-mfa-challenge.usecase.ts';
 
 export type AuthModuleDeps = Readonly<{
   db: Database;
@@ -70,6 +74,7 @@ export type AuthGuardBundle = Readonly<{
   authenticate: RequestHandler;
   authorize: AuthorizeMiddlewareFactory;
   readPrincipal: typeof readPrincipal;
+  readPrincipalAttributes: typeof readPrincipalAttributes;
 }>;
 
 export type AuthAdministrationSecurity = Readonly<{
@@ -80,6 +85,12 @@ export type AuthAdministrationSecurity = Readonly<{
 export type AuthModule = Readonly<{
   routes: ExpressRouter;
   guards: AuthGuardBundle;
+  application: Readonly<{
+    login: Login;
+    loadSession: LoadSession;
+    revokeSession: RevokeSession;
+    completeMfaChallenge: CompleteMfaChallenge;
+  }>;
   makeAdministrationRoutes: (
     security: AuthAdministrationSecurity,
   ) => ExpressRouter;
@@ -211,6 +222,13 @@ export const makeAuthModule = (deps: AuthModuleDeps): AuthModule => {
       authenticate: makeAuthenticateMiddleware(loadSession),
       authorize: makeAuthorizeMiddleware(securityEvents),
       readPrincipal,
+      readPrincipalAttributes,
+    },
+    application: {
+      login,
+      loadSession,
+      revokeSession,
+      completeMfaChallenge,
     },
     makeAdministrationRoutes,
   };

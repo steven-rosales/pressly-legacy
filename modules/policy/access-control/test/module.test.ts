@@ -54,5 +54,17 @@ describe('access-control module composition', () => {
       enroll: expect.any(Function),
       manage: expect.any(Function),
     });
+    expect(module.production).toEqual({
+      authenticate: expect.any(Function),
+      read: expect.any(Function),
+      schedule: expect.any(Function),
+      accept: expect.any(Function),
+      priority: expect.any(Function),
+      intake: expect.any(Function),
+      resources: expect.any(Function),
+      stage: expect.any(Function),
+      readActorId: expect.any(Function),
+      readAllowedLocationIds: expect.any(Function),
+    });
   });
 });

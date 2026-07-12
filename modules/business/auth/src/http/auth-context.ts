@@ -35,3 +35,6 @@ export const readPrincipal = (res: Response): Principal => {
     status: 401,
   });
 };
+
+export const readPrincipalAttributes = (res: Response): PrincipalAttributes =>
+  readAuthContext(res).principalAttributes;

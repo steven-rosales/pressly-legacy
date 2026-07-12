@@ -1,4 +1,3 @@
-import type { IdentityKind } from '@pressly/auth/authentication';
 import { globalScope } from '@pressly/auth/authorization';
 import type {
   CreatedSession,

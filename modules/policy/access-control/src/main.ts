@@ -11,11 +11,16 @@ import {
   type MfaAccessControl,
 } from './mfa/mfa.guard.ts';
 import type { AccessControlAuthPort } from './auth.port.ts';
+import {
+  makeProductionAccessControl,
+  type ProductionAccessControl,
+} from './production/production.guard.ts';
 
 export type AccessControlModule = Readonly<{
   pricing: PricingAccessControl;
   authSessions: AuthSessionAccessControl;
   mfa: MfaAccessControl;
+  production: ProductionAccessControl;
 }>;
 
 export type AccessControlModuleDeps = Readonly<{
@@ -49,4 +54,5 @@ export const makeAccessControlModule = (
     auth: input.auth,
     freshSessionMaxAgeMinutes: input.policies.mfa.freshSessionMaxAgeMinutes,
   }),
+  production: makeProductionAccessControl({ auth: input.auth }),
 });

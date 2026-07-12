@@ -96,6 +96,37 @@ describe('observability policy', () => {
     });
   });
 
+  it('counts every webhook authentication denial and alerts only at threshold', () => {
+    expect(
+      decideObservation({
+        kind: 'security_event',
+        source: 'api',
+        name: 'vendor.webhook_authentication_failed',
+        outcome: 'denied',
+      }),
+    ).toEqual({
+      report: false,
+      alert: false,
+      counter: 'security.webhook_authentication_failures',
+      reason: 'routine_security_event',
+    });
+    expect(
+      decideObservation({
+        kind: 'security_event',
+        source: 'api',
+        name: 'vendor.webhook_authentication_failed',
+        outcome: 'denied',
+        thresholdReached: true,
+      }),
+    ).toEqual({
+      report: false,
+      alert: true,
+      logLevel: 'warn',
+      counter: 'security.webhook_authentication_failures',
+      reason: 'repeated_security_denial',
+    });
+  });
+
   it('keeps selected security and deployment signals high-signal', () => {
     expect(
       decideObservation({

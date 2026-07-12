@@ -17,7 +17,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm run typecheck:test",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
-    "lint": "eslint src --max-warnings=0",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
     "bootstrap:owner": "pnpm run build:workspace-deps && pnpm --dir ../../.. exec tsx modules/business/auth/src/bootstrap-owner/bootstrap-owner.command.ts",
     "test": "vitest run --exclude 'test/**/*.int.test.ts'",
     "test:integration": "vitest run .repo.int.test.ts --no-file-parallelism",

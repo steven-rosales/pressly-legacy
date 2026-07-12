@@ -3,6 +3,7 @@ import type {
   Action,
   AuthResource,
   PolicyRule,
+  PrincipalAttributes,
 } from '@pressly/auth/authorization';
 import type { Request, RequestHandler, Response } from 'express';
 
@@ -18,4 +19,5 @@ export type AccessControlAuthPort = Readonly<{
   authenticate: RequestHandler;
   authorize: AccessControlAuthorize;
   readPrincipal: (res: Response) => Principal;
+  readPrincipalAttributes?: (res: Response) => PrincipalAttributes;
 }>;

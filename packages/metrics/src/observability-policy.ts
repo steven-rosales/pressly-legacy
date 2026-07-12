@@ -163,6 +163,7 @@ const selectedImmediateSecuritySignals = new Set([
 const thresholdSecuritySignals = new Set([
   'authentication.login_failed',
   'authorization.denied',
+  'vendor.webhook_authentication_failed',
 ]);
 
 const securityCounter = (
@@ -174,6 +175,8 @@ const securityCounter = (
     return 'security.login_failures';
   if (observation.name === 'authorization.denied')
     return 'security.authorization_denials';
+  if (observation.name === 'vendor.webhook_authentication_failed')
+    return 'security.webhook_authentication_failures';
   if (
     observation.name === 'authentication.login_rate_limited' ||
     (observation.name === 'request.rate_limited' &&
@@ -186,6 +189,20 @@ const securityCounter = (
 const decideSecurityObservation = (
   observation: SecurityObservation,
 ): ObservationDecision => {
+  if (observation.name === 'vendor.webhook_authentication_failed')
+    return {
+      report: false,
+      alert: observation.thresholdReached === true,
+      ...(observation.thresholdReached === true
+        ? { logLevel: 'warn' as const }
+        : {}),
+      counter: 'security.webhook_authentication_failures',
+      reason:
+        observation.thresholdReached === true
+          ? 'repeated_security_denial'
+          : 'routine_security_event',
+    };
+
   const selected =
     selectedImmediateSecuritySignals.has(observation.name) ||
     (observation.name === 'request.rate_limited' &&

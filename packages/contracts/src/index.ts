@@ -51,6 +51,10 @@ export {
   mfaEnrollmentResultSchema,
   mfaMutationResultSchema,
   mfaRecoveryCodesResultSchema,
+  processorAuthenticatedSessionSchema,
+  processorCompleteMfaChallengeRequestSchema,
+  processorLoginResultSchema,
+  processorMfaChallengeSchema,
   identitySessionParamsSchema,
   identitySessionsParamsSchema,
   revokeIdentitySessionsResultSchema,
@@ -65,6 +69,7 @@ export type {
   IdentitySessionParams,
   IdentitySessionsParams,
   LoginRequest,
+  ProcessorCompleteMfaChallengeRequest,
 } from './auth/auth.command.ts';
 
 export type {
@@ -76,8 +81,48 @@ export type {
   MfaEnrollmentResult,
   MfaMutationResult,
   MfaRecoveryCodesResult,
+  ProcessorAuthenticatedSession,
+  ProcessorLoginResult,
+  ProcessorMfaChallenge,
   RevokeIdentitySessionsResult,
   SessionInventoryItem,
   SessionInventoryResult,
   SessionResult,
 } from './auth/auth.result.ts';
+
+/*
+===============
+LPMS PRODUCTION
+===============
+*/
+
+export * from './production/production.contracts.ts';
+export type * from './production/production.command.ts';
+export type * from './production/production.result.ts';
+
+/*
+===============
+CENTS INTEGRATION
+===============
+*/
+
+export * from './cents/cents.contracts.ts';
+export type * from './cents/cents.command.ts';
+
+/*
+===============
+WEBHOOK INGESTION
+===============
+*/
+
+export * from './webhook-ingestion/webhook-ingestion.contracts.ts';
+export type * from './webhook-ingestion/webhook-ingestion.command.ts';
+export type * from './webhook-ingestion/webhook-ingestion.result.ts';
+
+/*
+===============
+LPMS COMPOSITION
+===============
+*/
+
+export * from './lpms/lpms.contracts.ts';

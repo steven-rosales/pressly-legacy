@@ -21,11 +21,19 @@ describe('auth module composition', () => {
       authenticate: expect.any(Function),
       authorize: expect.any(Function),
       readPrincipal: expect.any(Function),
+      readPrincipalAttributes: expect.any(Function),
     });
     expect(module.makeAdministrationRoutes).toEqual(expect.any(Function));
+    expect(module.application).toEqual({
+      login: expect.any(Function),
+      loadSession: expect.any(Function),
+      revokeSession: expect.any(Function),
+      completeMfaChallenge: expect.any(Function),
+    });
     expect(Object.keys(module)).toEqual([
       'routes',
       'guards',
+      'application',
       'makeAdministrationRoutes',
     ]);
   });

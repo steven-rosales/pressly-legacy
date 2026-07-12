@@ -8,6 +8,9 @@ import type {
   mfaEnrollmentResultSchema,
   mfaMutationResultSchema,
   mfaRecoveryCodesResultSchema,
+  processorAuthenticatedSessionSchema,
+  processorLoginResultSchema,
+  processorMfaChallengeSchema,
   revokeIdentitySessionsResultSchema,
   sessionInventoryItemSchema,
   sessionInventoryResultSchema,
@@ -34,3 +37,8 @@ export type SessionInventoryResult = z.infer<
 export type RevokeIdentitySessionsResult = z.infer<
   typeof revokeIdentitySessionsResultSchema
 >;
+export type ProcessorAuthenticatedSession = z.infer<
+  typeof processorAuthenticatedSessionSchema
+>;
+export type ProcessorMfaChallenge = z.infer<typeof processorMfaChallengeSchema>;
+export type ProcessorLoginResult = z.infer<typeof processorLoginResultSchema>;
