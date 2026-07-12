@@ -1,6 +1,6 @@
 domain_id: laundry-production
 name: Laundry Production
-version: 2
+version: 4
 status: active
 summary: >
   Durable business memory for Pressly's wash-and-fold production process. LPMS
@@ -85,11 +85,12 @@ objects:
       - memdelta-2026-07-08-laundry-production-core
   - id: scheduler_config
     description:
-      Versioned configuration for production pulse, durations, fold rate,
-      and scheduler behavior.
+      Versioned configuration for pulse duration, folding rate, algorithm
+      version, and scheduler behavior.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-10-fixed-pulse-scheduling
   - id: work_event
     description: The authoritative mutation ledger and audit trail for production changes.
     status: active
@@ -135,16 +136,20 @@ workflows:
       - memdelta-2026-07-08-laundry-production-core
   - id: scheduling_to_execution
     steps:
-      - Cents order reaches IN_PROGRESS
-      - LPMS marks production_order eligible
-      - scheduler creates schedule_run proposal
-      - operator accepts schedule_run
-      - LPMS creates production_run and production_batch records
-      - operators advance stage_run records through the floor
+      - API durably receives a verified Cents event
+      - worker projects the newest vendor source version
+      - eligible production_orders form an immutable scheduling snapshot
+      - deterministic scheduler creates a schedule_run proposal
+      - operator acknowledges blocking warnings and accepts the output hash
+      - LPMS creates one production_run and its batches, stages, assignments,
+        and work_event atomically
+      - operator starts the production_run
+      - operators advance server-authorized stage_run actions at pulse boundaries
       - production_batch finishes folding and packaging
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-10-lpms-v1-implementation
   - id: production_command_write_path
     steps:
       - receive command
@@ -155,6 +160,15 @@ workflows:
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+  - id: fixed_pulse_pipeline
+    steps:
+      - sorting for one pulse
+      - washing for one pulse
+      - drying for one pulse
+      - folding_packaging for one pulse
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
 invariants:
   - id: orders_do_not_split_across_batches
     statement:
@@ -202,7 +216,7 @@ invariants:
       - memdelta-2026-07-08-laundry-production-core
   - id: batch_minutes_minimum
     statement: batch_minutes must be at least 50.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: schedule_run_is_immutable
@@ -232,6 +246,60 @@ invariants:
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+  - id: every_stage_occupies_one_pulse
+    statement:
+      Sorting, washing, drying, and folding_packaging each occupy exactly
+      one scheduler_config.pulse_minutes slot for every production_batch.
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: batches_advance_only_on_pulse_boundaries
+    statement:
+      A production_batch advances only at pulse boundaries; early physical
+      completion does not shorten a stage or move downstream start times.
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: pulse_capacity_is_the_stage_bottleneck
+    statement: pulse_capacity_lbs equals the minimum of total active washer
+      effective capacity, total active dryer effective capacity, and
+      fold_lbs_per_folder_minute multiplied by effective_folder_count and
+      pulse_minutes.
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: empty_pipeline_makespan
+    statement: For the four-stage empty pipeline, makespan_minutes equals
+      (actual_batch_count + 4 - 1) multiplied by pulse_minutes.
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: oversized_orders_are_unplaced_v1
+    statement: A production_order heavier than pulse_capacity_lbs is returned as
+      unplaced in v1 and is never silently split.
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: schedule_proposals_are_deterministic
+    statement:
+      The same eligible-order snapshot, resource snapshot, scheduler_config
+      version, and operator directives produce the same schedule proposal.
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: production_run_starts_before_stages
+    statement: A stage_run cannot start until its owning production_run is started.
+    status: active
+    sources:
+      - memdelta-2026-07-10-lpms-v1-implementation
+  - id: cents_projection_source_version_serialized
+    statement:
+      Concurrent Cents projections for one external order are serialized,
+      and only a strictly newer vendor source version may replace the current
+      projection.
+    status: active
+    sources:
+      - memdelta-2026-07-10-lpms-v1-implementation
 policies:
   - id: cents_in_progress_is_eligible
     statement:
@@ -252,12 +320,13 @@ policies:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: heijunka_pulse_v1
-    statement:
-      V1 uses a configurable heijunka-style production pulse with a default
-      batch duration of 56 minutes.
+    statement: V1 uses deterministic heijunka-style leveling with configurable
+      pulse_minutes; initial planning uses 56 minutes rather than deriving a
+      stage duration.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-10-fixed-pulse-scheduling
   - id: washer_effective_capacity
     statement:
       Washer scheduling uses effective capacity below manufacturer capacity
@@ -283,6 +352,29 @@ policies:
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+  - id: greedy_scheduler_before_optimization_v1
+    statement: V1 uses a deterministic and explainable greedy packing heuristic
+      rather than claiming combinatorial optimality; deeper optimization
+      requires operational evidence.
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: priority_means_earliest_feasible_batch
+    statement:
+      A priority production_order is placed in its earliest feasible batch
+      ahead of non-priority peers, subject to eligibility, pulse capacity, and
+      whole-order constraints; priority does not guarantee batch one.
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: future_order_pull_forward_requires_horizon
+    statement:
+      Future-due production_orders may fill unused capacity only within an
+      explicit operator-selected planning horizon, and pulling them forward does
+      not change their due dates.
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
 decisions:
   - id: domain_named_laundry_production
     statement: The durable Stateworks memory domain is named laundry-production
@@ -328,6 +420,43 @@ decisions:
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+  - id: happy_path_delivery_before_exceptions
+    statement: Deliver the happy path through the API and scheduler, processor
+      integration, and UI before implementing manual holds, hard-confirmed
+      cancellation, recovery, and exception UX from observed workflows.
+    status: active
+    sources:
+      - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: fixed_pulse_scheduler_ordering_v1
+    statement:
+      V1 orders scheduling candidates by priority, due-date bucket, weight
+      descending, due timestamp, and stable production_order ID before
+      whole-order first-fit-decreasing packing.
+    status: active
+    sources:
+      - memdelta-2026-07-10-lpms-v1-implementation
+  - id: durable_inbox_worker_v1
+    statement: V1 processes Cents demand from a Postgres inbox with SKIP LOCKED
+      claims, expiring leases, bounded retry backoff, inspectable dead letters,
+      and an explicit reconciliation port.
+    status: active
+    sources:
+      - memdelta-2026-07-10-lpms-v1-implementation
+  - id: processor_uses_backend_action_availability
+    statement:
+      The LPMS processor renders stage actions returned by the production
+      API and does not recreate stage-transition policy in the browser.
+    status: active
+    sources:
+      - memdelta-2026-07-10-lpms-v1-implementation
+  - id: isolated_lpms_module_composition
+    statement:
+      Production business, production policy, and fixed-pulse scheduling
+      are isolated peer modules composed through narrow ports only in API and
+      worker apps.
+    status: active
+    sources:
+      - memdelta-2026-07-10-lpms-v1-implementation
 assumptions:
   - id: cents_price_weight_good_enough_v1
     statement: Cents price-derived weight is good enough for first-version scheduling.
@@ -337,12 +466,14 @@ assumptions:
     confidence: medium
   - id: initial_fold_rate
     statement:
-      The initial folding rate is 1.5 pounds per employee minute, but it
-      must remain configurable.
+      Initial planning uses 2 pounds per effective folder minute, but the
+      value remains configurable and must later be calibrated from observed
+      production data.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
-    confidence: high
+      - memdelta-2026-07-10-fixed-pulse-scheduling
+    confidence: medium
   - id: commercial_orders_low_volume_v1
     statement:
       Commercial orders are low enough volume in v1 to stay inside the same
@@ -361,18 +492,20 @@ assumptions:
 open_questions:
   - id: exact_scheduler_ordering_rules
     question:
-      What exact deterministic ordering rules should the first scheduler use
-      inside due-today, due-tomorrow, and later buckets?
-    status: active
+      What stable tie-breakers should order candidates with equal priority,
+      due-date bucket, and packing rank?
+    status: deprecated
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-10-fixed-pulse-scheduling
   - id: exception_effects
     question:
-      How should rewash, canceled orders, damaged items, missing bags, and
-      manual holds affect an accepted production_run?
+      How should manual holds, hard-confirmed cancellations, rewash, damaged
+      items, and missing bags affect an accepted production_run?
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-10-fixed-pulse-scheduling
   - id: role_permission_mapping
     question: Which actions belong to owner, manager, employee, and admin roles?
     status: active
@@ -395,3 +528,9 @@ sources:
   - id: memdelta-2026-07-08-laundry-production-core
     path: stateworks/memory/domains/laundry-production/sessions/2026-07-08-domain-interrogation.md
     type: interrogation_session
+  - id: memdelta-2026-07-10-fixed-pulse-scheduling
+    path: stateworks/memory/domains/laundry-production/sessions/2026-07-10-fixed-pulse-scheduling.md
+    type: interrogation_session
+  - id: memdelta-2026-07-10-lpms-v1-implementation
+    path: stateworks/work/done/lpms-v1-happy-path/evidence.md
+    type: implementation_evidence

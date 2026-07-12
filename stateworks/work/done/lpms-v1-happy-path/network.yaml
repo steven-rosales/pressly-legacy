@@ -1,0 +1,932 @@
+work_id: lpms-v1-happy-path
+title: LPMS v1 happy path end to end
+status: done
+
+goal:
+  - Deliver one usable flow from durable Cents demand through a deterministic schedule and operator-confirmed finished production.
+  - Make the processor UI the real operating surface for schedule review, acceptance, and floor execution.
+  - Preserve isolated modules by composing production, policy, and scheduling only in apps.
+
+invariants:
+  - No module imports, calls, or declares a package dependency on another module.
+  - Apps are composition roots; policy and computation modules are headless.
+  - Application authorization stays in access-control policy and is injected at the API boundary.
+  - The production business module owns operational state, transactions, idempotency, and narrow injected ports.
+  - Production policy injection is mandatory; a rejected invariant or transition cannot be bypassed by business or app code.
+  - Runtime schemas stay in packages/contracts, persistence schemas stay in packages/db, and module tests stay outside src.
+  - Every production stage uses the same positive scheduler_config.pulse_minutes value.
+  - Production batches advance only at pulse boundaries, even when physical work finishes early.
+  - Orders never split across production batches in v1, and bags are never assigned to machines.
+  - pulse_capacity_lbs is the minimum of active washer, dryer, and folding capacity per pulse.
+  - Schedule proposals are deterministic and immutable; accepting one creates exactly one production run.
+  - Production writes and their work_event rows commit atomically or not at all.
+  - CRM projection ordering uses vendor source version, not webhook arrival time.
+  - The processor does not duplicate backend policy or invariants.
+  - Existing user changes and unrelated worktree files are preserved.
+  - Exception workflows remain deferred until the happy path is operationally reviewed.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Stabilize architecture rails and kernel foundation
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo:docs/architecture.md
+      - repo:eslint.config.mjs
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:packages/kernel/test/state-machine.test.ts
+      - repo:packages/kernel/src/index.ts
+      - repo:modules/*/*/package.json
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:docs/architecture.md
+      - repo:eslint.config.mjs
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:packages/kernel/test/state-machine.test.ts
+      - repo:packages/kernel/src/index.ts
+    preconditions:
+      - Record and preserve the dirty worktree before editing.
+      - Treat the existing state-machine and architecture changes as inputs, not residue.
+    action:
+      - Reconcile docs with the accepted rule that modules are isolated peers and only apps compose them.
+      - Document that production policy owns pure transition and invariant definitions while the production business module owns durable state and invokes policy transactionally.
+      - Forbid module-to-module source imports and workspace package dependencies with executable architecture tests.
+      - Preserve the business, policy, computation, test, schema, parser, HTTP, persistence, and filename rails already accepted.
+      - Allow only explicitly named business http and persistence foundations, including the future production module, without creating common or shared buckets.
+      - Finish verification of the pure kernel state-machine factory used by production transition policy.
+    postconditions:
+      - A module cannot import or depend on another module even through public.ts.
+      - Apps can still import module public surfaces and inject narrow capabilities.
+      - Kernel state-machine behavior is exported, documented, and exhaustively tested.
+    verifier:
+      - pnpm --filter @pressly/kernel test
+      - pnpm --filter @pressly/kernel typecheck
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - pnpm lint
+    rollback:
+      - Revert only the T0 commit; never discard pre-existing user changes.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T1
+    title: Define LPMS protocol contracts
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:docs/plan/lpms.md
+      - repo:packages/contracts/src
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/src/cents
+      - repo:packages/contracts/src/index.ts
+      - repo:packages/contracts/test
+    preconditions:
+      - Architecture rails from T0 pass.
+    action:
+      - Add runtime schemas, commands, results, and event envelopes for the documented LPMS HTTP and webhook boundaries.
+      - Cover production shifts, scheduler-config publication with operational stage-fit assertions, schedule creation and loading, acceptance by output hash and acknowledged warnings, production board reads, priority and horizon directives, stage commands, and work-event idempotency.
+      - Keep policy and storage representations out of protocol contracts.
+      - Add positive, negative, boundary, and forward-compatibility contract tests.
+    postconditions:
+      - Unknown transport input is validated before it enters a module.
+      - Contracts expose the minimum stable language needed by API and processor.
+    verifier:
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/contracts typecheck
+      - pnpm --filter @pressly/contracts lint
+    rollback:
+      - Revert the production and Cents contract additions and their exports.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T2
+    title: Implement CRM and production persistence
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:docs/plan/lpms.md
+      - repo:packages/db/src/schema
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/schema.ts
+      - repo:packages/db/src/index.ts
+      - repo:packages/db/src/migrations/next-numbered-lpms-migration.sql
+      - repo:packages/db/src/migrations/meta
+      - repo:packages/db/test/lpms-persistence.int.test.ts
+    preconditions:
+      - The test database is isolated from production.
+    action:
+      - Add the minimal CRM inbox/projection and production planning/execution tables required by the happy path.
+      - Add keys, source-version ordering support, immutable schedule snapshots, optimistic versions, idempotency keys, and uniqueness constraints.
+      - Encode order cohesion, one-run-per-schedule, active assignment, and transactional locking requirements where Postgres can prove them.
+      - Add station, machine, and scheduler-config fixtures for tests without treating planning assumptions as permanent production truth.
+    postconditions:
+      - A clean database can migrate to the LPMS schema.
+      - Critical uniqueness and concurrency invariants fail closed.
+      - Raw webhook payloads remain durable and replayable.
+    verifier:
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/db test:integration
+      - pnpm --filter @pressly/db typecheck
+      - pnpm db:test:migrate
+      - LPMS database integration tests pass against a clean test database.
+    rollback:
+      - Revert the migration before it reaches shared environments; after deployment, add a forward corrective migration instead of rewriting history.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T3
+    title: Implement headless production policy
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:docs/plan/lpms.md
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:modules/policy/access-control
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:modules/policy/production
+      - repo:pnpm-lock.yaml
+    preconditions:
+      - The kernel state-machine factory is verified.
+    action:
+      - Create the @pressly/production-policy workspace with its first real policies and tests.
+      - Create a real production policy module with eligibility, whole-order, pulse-boundary, stage-transition, machine-overlap, and acceptance decisions.
+      - Express stage transitions with the kernel state-machine factory behind pure policy functions.
+      - Export data-in and decision-out capabilities only.
+      - Use only policy role filenames and keep tests under the module test tree.
+    postconditions:
+      - The policy module has no routes, controllers, repositories, database imports, HTTP imports, or module dependencies.
+      - Every rejected decision has a stable code suitable for business error mapping.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production-policy typecheck
+      - pnpm --filter @pressly/production-policy lint
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+    rollback:
+      - Remove the production policy workspace only if no dependent app composition has landed.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T4
+    title: Implement deterministic fixed-pulse scheduling
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:docs/plan/lpms.md
+      - repo:docs/agents/10
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:modules/computation/scheduling
+      - repo:pnpm-lock.yaml
+    preconditions:
+      - The accepted fixed-pulse calculations are available in domain memory and the canonical plan.
+    action:
+      - Create the @pressly/production-scheduling workspace with its first real computation and tests.
+      - Create a headless computation module that maps an immutable scheduling snapshot to an immutable proposal.
+      - Compute pulse capacity from washer, dryer, folding rate, effective folder count, and pulse minutes.
+      - Apply priority and explicit planning-horizon selection before stable whole-order first-fit-decreasing packing.
+      - Order candidates by priority, due bucket, weight descending, due time, and stable order ID.
+      - Build four fixed stage slots per batch, assign machine capacity at stage level, and calculate makespan, completion, overflow, warnings, and unplaced orders.
+      - Canonicalize output so equivalent inputs produce byte-equivalent plans and hashes.
+    postconditions:
+      - The scheduler performs no I/O and mutates no execution state.
+      - Infeasible and oversized work is explicit rather than silently altered.
+    verifier:
+      - Orders weighing 150, 74, 140, 84, 130, 94, and 128 lb at 224 lb capacity pack as 224, 224, 224, and 128 lb and yield a 392-minute makespan.
+      - Their variable bag counts remain attached to their orders throughout packing.
+      - Five 160 lb orders prove that an 800 lb total can require five batches.
+      - A 10:00 start forecasts 16:32 completion for the worked example.
+      - Identical inputs produce byte-equivalent output.
+      - Whole-order packing can exceed the weight-only lower bound.
+      - Oversized, priority, horizon, capacity, and machine-assignment tests pass.
+      - pnpm --filter @pressly/production-scheduling test
+      - pnpm --filter @pressly/production-scheduling typecheck
+      - pnpm --filter @pressly/production-scheduling lint
+    rollback:
+      - Remove the scheduling workspace only if no app composition depends on its public result.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T5
+    title: Establish production business ports and state ownership
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:docs/architecture.md
+      - repo:docs/plan/lpms.md
+      - repo:modules/business/auth
+      - repo:modules/business/pricing
+      - repo:packages/kernel
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:modules/business/production
+      - repo:pnpm-lock.yaml
+    preconditions:
+      - Module-isolation enforcement is active.
+    action:
+      - Create the @pressly/production workspace with its first real production behavior and tests.
+      - Create the production business module only with real happy-path behavior and tests.
+      - Define narrow production-owned policy, scheduler, clock, transaction, repository, and idempotency ports.
+      - Define operational state and expected errors without importing policy or computation modules.
+      - Keep persistence and HTTP mechanisms in explicit production foundations or capability adapters.
+    postconditions:
+      - The production package manifest has no dependency on any module package.
+      - Use cases can be tested with fake policy, scheduler, transaction, and repository ports.
+      - Missing injected policy or computation cannot be hidden by a global fallback.
+    verifier:
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production typecheck
+      - pnpm --filter @pressly/production lint
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+    rollback:
+      - Remove the production workspace only if no persisted LPMS data or app composition depends on it.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T3A
+    title: Define LPMS access-control policy
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:modules/policy/access-control
+      - repo:packages/auth/src/authorization
+      - repo:packages/contracts/src/auth
+      - repo:docs/plan/lpms.md
+    writes:
+      - repo:modules/policy/access-control/src/production
+      - repo:modules/policy/access-control/src/main.ts
+      - repo:modules/policy/access-control/src/public.ts
+      - repo:modules/policy/access-control/test/production
+    preconditions:
+      - Existing owner, admin, and operator roles remain the current authorization vocabulary.
+    action:
+      - Add scoped production resources, pure authorization policies, and API-facing guard bundles for LPMS actions.
+      - Allow authenticated owner, admin, and operator assignments to perform the v1 happy-path floor workflow within scope.
+      - Keep hard-confirmed cancellation and other exception permissions out of this slice.
+      - Deny unknown roles, missing scope, and unauthenticated access by default.
+    postconditions:
+      - The API can inject production authorization without defining policy itself.
+      - Access control imports no production business, production policy, or scheduling module.
+    verifier:
+      - Production read, scheduling, acceptance, priority, and stage-action authorization tests pass.
+      - Missing-role, wrong-scope, and unauthenticated tests deny.
+      - pnpm --filter @pressly/access-control test
+      - pnpm --filter @pressly/access-control typecheck
+      - pnpm --filter @pressly/access-control lint
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+    rollback:
+      - Remove only the production access-control capability and its public composition exports.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T6
+    title: Build durable Cents receipt and projection workflows
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+      - T3
+      - T5
+    reads:
+      - repo:packages/contracts/src/cents
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:modules/business/production
+      - repo:modules/policy/production
+      - repo:docs/plan/lpms.md
+    writes:
+      - repo:modules/business/production/src/receive-cents-event
+      - repo:modules/business/production/src/project-cents-order
+      - repo:modules/business/production/test/receive-cents-event
+      - repo:modules/business/production/test/project-cents-order
+      - repo:modules/business/production/src/main.ts
+      - repo:modules/business/production/src/public.ts
+    preconditions:
+      - Vendor authentication behavior is verified from an authoritative Cents contract before a concrete live verifier is enabled.
+      - No real secret or raw customer payload is committed as a fixture.
+    action:
+      - Persist a validated raw event before acknowledging receipt.
+      - Deduplicate delivery without losing auditability.
+      - Project only newer vendor snapshots and surface equal-version divergence.
+      - Derive v1 weight from normalized Cents laundry service pricing and evaluate eligibility through the injected policy port.
+      - Commit CRM projection changes and the inbox processed marker in the same transaction.
+      - Keep vendor verification behind an API adapter; fail closed when live verification is not configured.
+      - Keep the webhook controller and route adapter inside the receive-cents-event capability.
+    postconditions:
+      - Repeated delivery creates one effective projection.
+      - Out-of-order delivery preserves the newest vendor state.
+      - Permanent invalidity is classifiable for dead-letter handling.
+      - A projection is never visible while its inbox row remains processing, or vice versa.
+    verifier:
+      - Duplicate, out-of-order, equal-version conflict, weight, eligibility, and invalid-payload tests pass.
+      - A transaction-failure integration test proves projection and processed status roll back together.
+      - Production unit and database integration tests pass.
+    rollback:
+      - Disable the Cents route adapter and retain raw inbox rows for replay; do not delete received evidence.
+    secret_handling: never_show_agent
+    status: committed
+    evidence: []
+
+  - id: T7
+    title: Build schedule proposal and acceptance workflows
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+      - T3
+      - T4
+      - T5
+      - T6
+    reads:
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:modules/business/production
+      - repo:modules/policy/production
+      - repo:modules/computation/scheduling
+    writes:
+      - repo:modules/business/production/src/create-schedule
+      - repo:modules/business/production/src/load-schedule
+      - repo:modules/business/production/src/accept-schedule
+      - repo:modules/business/production/src/publish-scheduler-config
+      - repo:modules/business/production/src/manage-production-shift
+      - repo:modules/business/production/src/set-production-order-priority
+      - repo:modules/business/production/test/create-schedule
+      - repo:modules/business/production/test/load-schedule
+      - repo:modules/business/production/test/accept-schedule
+      - repo:modules/business/production/test/publish-scheduler-config
+      - repo:modules/business/production/test/manage-production-shift
+      - repo:modules/business/production/test/set-production-order-priority
+      - repo:modules/business/production/src/main.ts
+      - repo:modules/business/production/src/public.ts
+    preconditions:
+      - Policy and scheduling capabilities can be represented by production-owned ports without importing their modules.
+    action:
+      - Load and canonicalize the eligible-order, machine, station, active-stage, shift, and config snapshot.
+      - Add versioned scheduler-config publication, production-shift setup, and priority-directive workflows with positive-value validation.
+      - Make published scheduler configs immutable once referenced and record priority changes as versioned work events.
+      - Require an operator assertion that sorting, washing, and drying each fit within the configured pulse before publication.
+      - Invoke the injected scheduler and persist an immutable proposal with input and output hashes.
+      - Accept by expected output hash inside one transaction.
+      - Require explicit acknowledgement of shift-overflow and other blocking proposal warnings before acceptance.
+      - Revalidate policy, capacity, order cohesion, assignment, and uniqueness before creating execution rows and a work event.
+      - Keep schedule, config, shift, and priority controllers and route adapters in their owning production capability folders.
+    postconditions:
+      - Schedule creation is deterministic and side-effect free until proposal persistence.
+      - Acceptance creates exactly one production run or no partial execution state.
+      - Repeated acceptance returns the same committed outcome or a structured conflict.
+      - Shift, config, and priority state used by scheduling is persisted and auditable.
+    verifier:
+      - Same snapshot and config persist the same canonical plan and hash.
+      - Hash mismatch and stale-input tests fail safely.
+      - Concurrent acceptance produces one production run.
+      - Simulated database failure leaves no partial run, batch, stage, assignment, or work-event rows.
+      - Scheduler-config immutability and concurrent priority-version tests pass.
+      - Missing stage-fit assertions and unacknowledged overflow warnings reject safely.
+    rollback:
+      - Disable schedule acceptance while preserving immutable proposals for diagnosis.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T8
+    title: Build production execution and board workflows
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+      - T3
+      - T5
+      - T7
+    reads:
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:modules/business/production
+      - repo:modules/policy/production
+    writes:
+      - repo:modules/business/production/src/load-production-board
+      - repo:modules/business/production/src/start-production-run
+      - repo:modules/business/production/src/advance-production-stage
+      - repo:modules/business/production/src/assign-stage-machines
+      - repo:modules/business/production/test/load-production-board
+      - repo:modules/business/production/test/start-production-run
+      - repo:modules/business/production/test/advance-production-stage
+      - repo:modules/business/production/test/assign-stage-machines
+      - repo:modules/business/production/src/main.ts
+      - repo:modules/business/production/src/public.ts
+    preconditions:
+      - Accepted execution records exist only through T7 workflows.
+    action:
+      - Add versioned happy-path commands for starting runs, assigning machines, starting and completing stages, and finishing batches.
+      - Validate every transition through the injected production policy inside the transaction.
+      - Insert the idempotent work event and update current-state projections atomically.
+      - Add a board query that returns current stage slots, batches, machines, due buckets, versions, and safe action availability.
+      - Keep board and execution controllers and route adapters in their owning production capability folders.
+    postconditions:
+      - Stage order, pulse boundary, one-active-batch-per-stage-kind, machine overlap, version, and idempotency rules fail closed.
+      - The board reflects operational tables without inventing state from the proposal.
+    verifier:
+      - Early physical completion cannot advance a batch before its pulse boundary.
+      - Racing commands produce one valid winner.
+      - Replaying an idempotency key does not duplicate mutation or ledger rows.
+      - Stage order, machine overlap, board projection, and full happy-path tests pass.
+    rollback:
+      - Disable mutation routes and retain the ledger and current-state rows for repair; never edit work_event history in place.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T9
+    title: Compose LPMS HTTP boundaries in the API
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T3
+      - T3A
+      - T4
+      - T6
+      - T7
+      - T8
+    reads:
+      - repo:apps/api/src/app.ts
+      - repo:apps/api/src/common/runtime/runtime.ts
+      - repo:apps/api/src/common/security
+      - repo:modules/business/production/src/public.ts
+      - repo:modules/policy/production/src/public.ts
+      - repo:modules/policy/access-control/src/public.ts
+      - repo:modules/computation/scheduling/src/public.ts
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/src/cents
+    writes:
+      - repo:apps/api/src/common/runtime/runtime.ts
+      - repo:apps/api/src/common/config/env.ts
+      - repo:apps/api/src/app.ts
+      - repo:apps/api/package.json
+      - repo:apps/api/test/lpms
+      - repo:pnpm-lock.yaml
+    preconditions:
+      - Every module exposes a stable public surface and has no dependency on a sibling module.
+    action:
+      - Import production, production policy, and scheduling as peers in the API composition root.
+      - Adapt policy and scheduler functions into production-owned narrow ports and apply access-control guard bundles at the route boundary.
+      - Mount the production module route bundle for webhook receipt, schedules, acceptance, board reads, and happy-path commands; do not reimplement feature routes in apps/api.
+      - Apply raw-body vendor authentication at the correct boundary and operator authentication and authorization to processor routes.
+      - Validate contracts before invoking use cases and map expected errors consistently.
+    postconditions:
+      - Policy and computation modules expose no HTTP endpoints.
+      - Production controllers and routes remain colocated with their business capabilities.
+      - API composition is the only place connecting peer modules.
+      - The documented LPMS interfaces work through HTTP with safe errors and trace context.
+    verifier:
+      - LPMS HTTP contract, authentication, authorization, composition, idempotency, conflict, and error tests pass.
+      - pnpm --filter @pressly/api test
+      - pnpm --filter @pressly/api typecheck
+      - pnpm --filter @pressly/api lint
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+    rollback:
+      - Unmount LPMS routes and revert API composition without changing durable LPMS rows.
+    secret_handling: env_file_only
+    status: committed
+    evidence: []
+
+  - id: T10
+    title: Implement durable worker processing and reconciliation seam
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T6
+      - T9
+    reads:
+      - repo:apps/worker
+      - repo:modules/business/production/src/public.ts
+      - repo:packages/db
+      - repo:packages/config
+      - repo:packages/logging
+      - repo:packages/metrics
+      - repo:docs/plan/lpms.md
+    writes:
+      - repo:apps/worker/src
+      - repo:apps/worker/test
+      - repo:apps/worker/package.json
+      - repo:apps/worker/tsconfig.test.json
+      - repo:apps/worker/vitest.config.ts
+      - repo:pnpm-lock.yaml
+    preconditions:
+      - Projection behavior exists as a business use case callable from an app composition root.
+    action:
+      - Claim ready inbox rows with recoverable leases and SKIP LOCKED semantics.
+      - Reclaim expired work, apply bounded exponential backoff with jitter, and dead-letter permanent failures.
+      - Make crash-after-claim and crash-after-projection recovery explicit.
+      - Add graceful shutdown, cancellation, job IDs, high-signal metrics, and alert ports.
+      - Add a Cents read/reconciliation port that invokes the same projection use case when the vendor API supports it.
+      - Preserve the same transaction boundary between projection and the processed inbox marker.
+    postconditions:
+      - Worker retries cannot bypass projection idempotency or production invariants.
+      - Unsupported live reconciliation is reported explicitly rather than simulated as a guarantee.
+    verifier:
+      - Crash-after-claim rows become claimable after lease expiry.
+      - Crash-after-commit redelivery is an idempotent no-op.
+      - Permanent invalid input becomes dead and remains inspectable.
+      - Reconciliation drift tests use the same projection path.
+      - pnpm --filter @pressly/worker test
+      - pnpm --filter @pressly/worker typecheck
+      - pnpm --filter @pressly/worker lint
+    rollback:
+      - Stop the worker and leave pending/dead inbox rows intact for replay.
+    secret_handling: env_file_only
+    status: committed
+    evidence: []
+
+  - id: T12
+    title: Establish the processor design foundation
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:docs/agents/10
+      - repo:apps/processor/components.json
+      - repo:apps/processor/src/components/ui
+      - repo:apps/processor/src/index.css
+      - external:https://ui.elevenlabs.io/docs
+      - external:https://github.com/elevenlabs/ui
+    writes:
+      - repo:apps/processor/src/index.css
+      - repo:apps/processor/src/components/layout
+      - repo:apps/processor/src/components/ui
+      - repo:apps/processor/src/lib/design
+      - repo:apps/processor/test/design
+      - repo:apps/processor/package.json
+      - repo:apps/processor/tsconfig.test.json
+      - repo:apps/processor/vitest.config.ts
+      - repo:pnpm-lock.yaml
+      - repo:stateworks/work/done/lpms-v1-happy-path/artifacts/design-foundation-desktop.png
+      - repo:stateworks/work/done/lpms-v1-happy-path/artifacts/design-foundation-mobile.png
+    preconditions:
+      - All 20 local desktop and mobile references are available.
+      - Use the product-design image-to-code and shadcn workflows during implementation.
+    action:
+      - Translate the ElevenLabs product references into neutral processor tokens, typography, spacing, radius, border, shadow, status, and responsive layout rules.
+      - Build the app shell and reusable workspace primitives from the existing shadcn foundation.
+      - Preserve source ownership and install only registry components that materially help the product.
+      - Add keyboard, focus, reduced-motion, and contrast behavior at the foundation.
+      - Add the minimal processor test harness needed to verify design and later feature behavior.
+    postconditions:
+      - The processor has a coherent design system without product behavior hidden in generic primitives.
+      - Desktop and mobile shells match the visual language of the references.
+    verifier:
+      - pnpm --filter @pressly/processor exec vitest run test/design
+      - test -f stateworks/work/done/lpms-v1-happy-path/artifacts/design-foundation-desktop.png
+      - test -f stateworks/work/done/lpms-v1-happy-path/artifacts/design-foundation-mobile.png
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+      - pnpm --filter @pressly/processor build
+    rollback:
+      - Revert processor token and primitive changes without touching backend behavior.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T11
+    title: Build the processor API and session layer
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T9
+      - T12
+    reads:
+      - repo:apps/processor
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/src/auth
+      - repo:apps/api/test/lpms
+    writes:
+      - repo:apps/processor/src/common
+      - repo:apps/processor/src/features/session
+      - repo:apps/processor/src/features/production
+      - repo:apps/processor/test/api
+      - repo:apps/processor/package.json
+      - repo:pnpm-lock.yaml
+    preconditions:
+      - API contracts and authenticated LPMS endpoints are stable.
+    action:
+      - Add a compositional request client, current opaque-session handling, typed queries, typed commands, and normalized expected errors.
+      - Keep concrete transport selection at the processor app boundary.
+      - Add loading, stale-version conflict, retry, unauthorized, and unavailable states.
+      - Do not recreate scheduling or transition rules in the browser.
+    postconditions:
+      - Processor feature code speaks in protocol commands and results.
+      - Session handling does not introduce JWTs or a second authentication model.
+      - Feature tests can run with fake request ports.
+    verifier:
+      - Request, session, query, command, conflict, and error tests pass.
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+    rollback:
+      - Revert the processor API/session layer and leave the design foundation usable with fixtures.
+    secret_handling: never_show_agent
+    status: committed
+    evidence: []
+
+  - id: T13
+    title: Build the scheduling and proposal workflow
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T11
+    reads:
+      - repo:docs/agents/10
+      - repo:apps/processor/src/features/production
+      - repo:packages/contracts/src/production
+    writes:
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/App.tsx
+      - repo:apps/processor/test/scheduling
+      - repo:stateworks/work/done/lpms-v1-happy-path/artifacts/scheduling-desktop.png
+      - repo:stateworks/work/done/lpms-v1-happy-path/artifacts/scheduling-mobile.png
+    preconditions:
+      - The design foundation and typed API layer are verified.
+    action:
+      - Build shift and scheduler-config setup, due buckets, priority controls, and explicit future-order horizon selection.
+      - Require the stage-fit assertion when publishing config and explicit acknowledgement before accepting an overflow proposal.
+      - Present pulse capacity, batch composition, four-stage timeline, makespan, completion, overflow, warnings, and unplaced orders.
+      - Require an immutable output hash when accepting a proposal.
+      - Handle empty, loading, validation, stale, infeasible, and unavailable states responsively.
+      - Add interaction tests for the exact 800 lb forecast, warning acknowledgement, and keyboard-only acceptance.
+      - Capture and compare desktop and mobile scheduling screenshots with the local references.
+    postconditions:
+      - An operator can create, understand, and accept a schedule without reading raw JSON.
+      - Priority and future-order selection remain explicit operator directives.
+    verifier:
+      - pnpm --filter @pressly/processor exec vitest run test/scheduling
+      - test -f stateworks/work/done/lpms-v1-happy-path/artifacts/scheduling-desktop.png
+      - test -f stateworks/work/done/lpms-v1-happy-path/artifacts/scheduling-mobile.png
+    rollback:
+      - Hide the scheduling route and retain the verified API/client layer.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T14
+    title: Build the production floor board
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T8
+      - T13
+    reads:
+      - repo:docs/agents/10
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/features/production
+      - repo:packages/contracts/src/production
+    writes:
+      - repo:apps/processor/src/features/production-board
+      - repo:apps/processor/src/App.tsx
+      - repo:apps/processor/test/production-board
+      - repo:stateworks/work/done/lpms-v1-happy-path/artifacts/production-board-desktop.png
+      - repo:stateworks/work/done/lpms-v1-happy-path/artifacts/production-board-mobile.png
+    preconditions:
+      - Schedule acceptance and board APIs are integration-tested.
+    action:
+      - Build stage slots for sorting, washing, drying, and folding/packaging with queued and finished work visible.
+      - Show batch contents, weights, timing, machines, versions, and allowed happy-path actions.
+      - Add start and complete controls with optimistic-version and idempotency keys.
+      - Refresh safely on conflicts and show loading, empty, degraded, and action-failure states.
+      - Add interaction tests for conflict refresh, repeated commands, focus, status labels, and screen-reader output.
+      - Capture and compare desktop and mobile board screenshots with the local references.
+    postconditions:
+      - An operator can advance an accepted run through all four stages and see current operational truth.
+      - The UI never advances early or infers completion locally.
+    verifier:
+      - pnpm --filter @pressly/processor exec vitest run test/production-board
+      - test -f stateworks/work/done/lpms-v1-happy-path/artifacts/production-board-desktop.png
+      - test -f stateworks/work/done/lpms-v1-happy-path/artifacts/production-board-mobile.png
+    rollback:
+      - Disable mutation controls while retaining a read-only board.
+    secret_handling: none
+    status: committed
+    evidence: []
+
+  - id: T15
+    title: Integrate local runtime, CI, and operational signals
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T10
+      - T14
+    reads:
+      - repo:docker-compose.yml
+      - repo:.github/workflows/ci.yml
+      - repo:apps/api/.env.example
+      - repo:apps/worker
+      - repo:apps/processor
+      - repo:packages/metrics
+      - repo:docs/plan/lpms.md
+    writes:
+      - repo:docker-compose.yml
+      - repo:.github/workflows/ci.yml
+      - repo:apps/api/.env.example
+      - repo:apps/worker/.env.example
+      - repo:apps/worker/Dockerfile
+      - repo:apps/processor/.env.example
+      - repo:apps/processor/Dockerfile
+      - repo:tooling/scripts/run-integration.sh
+      - repo:package.json
+    preconditions:
+      - API, worker, and processor each pass focused tests independently.
+    action:
+      - Add local Postgres, API, worker, and processor composition with non-secret defaults.
+      - Add worker and processor build/test coverage to CI.
+      - Emit high-signal metrics for inbox receipt, retry, dead letters, oldest pending age, reconciliation lag, command conflicts, and invariant failures.
+      - Add deterministic local fixture tooling for end-to-end proof without production credentials.
+      - Add root test:lpms:int, test:lpms:e2e, and docker:lpms:build scripts with deterministic exit status.
+      - Keep production deployment outside this work item.
+    postconditions:
+      - A new agent can run and verify the happy path locally.
+      - CI proves the new modules, integration tests, worker, processor, and architecture boundaries.
+    verifier:
+      - docker compose config
+      - pnpm docker:lpms:build
+      - pnpm test:lpms:int
+    rollback:
+      - Remove worker and processor services from local composition while preserving application code and database migrations.
+    secret_handling: env_file_only
+    status: committed
+    evidence: []
+
+  - id: V1
+    title: Prove the LPMS happy path end to end
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T15
+    reads:
+      - repo:docs/plan/lpms.md
+      - repo:docs/agents/10
+      - repo:stateworks/work/done/lpms-v1-happy-path/brief.md
+      - repo:all-lpms-implementation
+    writes:
+      - repo:stateworks/work/done/lpms-v1-happy-path/evidence.md
+      - repo:stateworks/work/done/lpms-v1-happy-path/artifacts/scheduling-desktop.png
+      - repo:stateworks/work/done/lpms-v1-happy-path/artifacts/scheduling-mobile.png
+      - repo:stateworks/work/done/lpms-v1-happy-path/artifacts/production-board-desktop.png
+      - repo:stateworks/work/done/lpms-v1-happy-path/artifacts/production-board-mobile.png
+    preconditions:
+      - Local runtime composition starts from a clean migrated test database.
+      - Test fixtures contain no production customer data or secrets.
+      - A production-owned injected test clock is available only in test composition; there is no production clock-override endpoint.
+    action:
+      - Run a contract-compatible synthetic Cents event through durable receipt, worker projection, eligibility, schedule creation, acceptance, board loading, four operator-confirmed stage transitions, and finished production.
+      - Advance the injected test clock across planned pulse boundaries so the proof completes without waiting 224 real minutes or weakening production checks.
+      - Exercise every applicable failure case in the canonical Operational Proof section.
+      - Capture desktop and mobile scheduling and board screenshots and compare them with the design references.
+      - Run focused, integration, architecture, root quality, build, and container checks.
+    postconditions:
+      - Evidence links every happy-path requirement and failure proof to a passing test, command, database assertion, or screenshot.
+      - Any unsupported live-vendor behavior is named as residual external risk rather than reported as complete.
+    verifier:
+      - pnpm format:check
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm test
+      - pnpm build
+      - docker compose config
+      - pnpm docker:lpms:build
+      - pnpm test:lpms:int
+      - pnpm test:lpms:e2e
+      - test -f stateworks/work/done/lpms-v1-happy-path/artifacts/scheduling-desktop.png
+      - test -f stateworks/work/done/lpms-v1-happy-path/artifacts/scheduling-mobile.png
+      - test -f stateworks/work/done/lpms-v1-happy-path/artifacts/production-board-desktop.png
+      - test -f stateworks/work/done/lpms-v1-happy-path/artifacts/production-board-mobile.png
+    rollback:
+      - Stop local services and retain failed evidence for repair; do not mark the work done.
+    secret_handling: never_show_agent
+    status: committed
+    evidence: []
+
+  - id: T16
+    title: Reconcile documentation, evidence, and durable memory
+    type: verification
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:docs/architecture.md
+      - repo:docs/plan/lpms.md
+      - repo:stateworks/work/done/lpms-v1-happy-path/evidence.md
+      - memory:domain:laundry-production/current
+      - repo:implemented-lpms-public-surfaces
+    writes:
+      - repo:docs/architecture.md
+      - repo:docs/plan/lpms.md
+      - repo:apps/processor/README.md
+      - repo:apps/worker/README.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/lpms-v1-implementation.memory-delta.yaml
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:stateworks/work/done/lpms-v1-happy-path/evidence.md
+      - repo:stateworks/work/done/lpms-v1-happy-path/final-report.md
+      - repo:stateworks/work/done/lpms-v1-happy-path/state.yaml
+    preconditions:
+      - V1 evidence is complete and contains no secret or production customer material.
+    action:
+      - Update documentation only where implementation changed or resolved the canonical design.
+      - Record commands, commits, visual evidence, residual external risks, and explicitly deferred exception work.
+      - Propose and apply a source-backed memory delta only for durable facts proven by implementation.
+      - Mark the verified delta accepted, run pnpm stateworks:memory:apply stateworks/memory/domains/laundry-production/deltas/lpms-v1-implementation.memory-delta.yaml, then mark the applied artifact status applied.
+      - Mark every task committed only when its verifier and evidence are present.
+      - Leave T16 uncommitted during its own verification; the executor commits it only after these checks pass.
+    postconditions:
+      - Docs describe current behavior rather than aspiration.
+      - Stateworks memory contains no unverified implementation claim.
+      - The final report states complete, blocked, or intentionally deferred with exact residual risk.
+      - After T16 is committed, lifecycle closure can verify done and move the whole work item from active to done as an external close procedure.
+    verifier:
+      - rg -n '^status: applied$' stateworks/memory/domains/laundry-production/deltas/lpms-v1-implementation.memory-delta.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - pnpm stateworks:memory:context laundry-production
+      - pnpm stateworks:validate stateworks/work/done/lpms-v1-happy-path/network.yaml
+      - git diff --check
+    rollback:
+      - Revert unverified documentation or memory delta changes and keep the work active.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-v1-happy-path/evidence.md
+      - stateworks/work/done/lpms-v1-happy-path/final-report.md

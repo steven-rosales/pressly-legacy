@@ -87,16 +87,19 @@ pressly/
 
     api/              Express HTTP process
     worker/           background and scheduled process
+    processor/        LPMS operator interface and protocol adapter
     cli/              operator/developer CLI tools
 
   modules/
     business/
       auth/           authentication/session capability module
       pricing/        business capability module
+      production/     LPMS state, transactions, routes, and use cases
     policy/
       access-control/ authorization policy module
-    # Future only: computation/ does not exist in the current repository.
-    # Add computation/<capability>/ with its first real calculation and tests.
+      production/     headless production invariants and transitions
+    computation/
+      scheduling/     deterministic fixed-pulse schedule proposals
 
   packages/
     auth/             shared auth and authorization primitives
@@ -132,6 +135,7 @@ Allowed direction:
 
 ```txt
 apps -> modules -> packages
+apps -> multiple peer modules through dependency injection
 module main.ts -> capability files
 capability adapters -> same-capability use cases and ports
 web app -> features, UI primitives, and common runtime
@@ -143,6 +147,7 @@ Disallowed direction:
 
 ```txt
 modules -> apps
+one module -> another module
 one module capability -> a sibling capability
 use cases -> HTTP details
 use cases -> SQL details
@@ -153,7 +158,10 @@ apps/web -> backend module internals
 packages -> apps
 ```
 
-Cross-module imports should go through `public.ts`. Cross-package imports should go through package exports.
+Modules are isolated peers. A module cannot import, call, or declare a package
+dependency on another module, including through `public.ts`. Apps import stable
+module surfaces and connect them through narrow dependency injection. Cross-package
+imports go through package exports.
 
 ## 4. Packages
 
@@ -204,7 +212,8 @@ All modules should keep these surfaces:
 - `main.ts` is the module composition root.
 - `public.ts` is the stable module surface.
 - `test/` holds module tests outside `src/`.
-- Cross-module imports go through `public.ts`.
+- Other modules never import this module; apps consume `public.ts` and compose
+  peer modules.
 - Internal files under `src/` are not imported directly by other modules.
 
 ### Capability-First Module Shape
@@ -269,18 +278,25 @@ Current examples:
 
 - `modules/business/auth`
 - `modules/business/pricing`
+- `modules/business/production`
 
 Business module rules:
 
 - Use cases own application behavior.
-- Intrinsic business invariants and state machines stay in the business
-  capability that owns the state.
+- Business modules own durable state and transactionally enforce every
+  invariant supplied through their required policy ports.
 - Repositories and controllers are mechanism adapters colocated with that
   capability.
+- Repository ports are shaped around one capability's use case, not around an
+  entire module or database. Do not create module-wide stores that accumulate
+  unrelated persistence operations.
+- Reuse transaction runners, row mappers, and stable persistence primitives
+  through the explicit `persistence/` foundation. DRY persistence mechanics
+  must not erase feature ownership.
 - Business modules should not own cross-cutting authorization policy.
 - Business modules should not import `@pressly/auth` authorization primitives unless the module itself is the auth module.
-- Injected policy or computation may advise or authorize a command, but it
-  cannot bypass intrinsic invariants.
+- Injected policy or computation is mandatory when the capability declares
+  that dependency; there is no global or permissive fallback.
 
 Capability files should speak application language. For reads and lookups, prefer precise verbs:
 
@@ -295,7 +311,7 @@ Avoid `getX` in application and module naming. It is too vague and collides ment
 
 A policy module owns application policy that cuts across business capabilities.
 
-Current example:
+Current examples:
 
 ```txt
 modules/policy/access-control/
@@ -310,16 +326,24 @@ modules/policy/access-control/
   test/
 ```
 
+`modules/policy/production` is the headless LPMS policy peer. It exports pure
+eligibility, acceptance, machine-assignment, and state-transition decisions.
+
 Policy module rules:
 
 - Own Pressly authorization policy, not authentication.
 - Import pure authorization primitives from `@pressly/auth`.
 - Build resource mappers and policy guard bundles for business routes.
-- Depend on contracts or public module surfaces only.
-- Do not import business module internals.
+- Depend on stable packages only, never another module surface or its internals.
 - Do not make `apps/api` define policy.
-- Remain replaceable at the composition boundary; policy modules do not own
-  durable business state or business state-machine transitions.
+- Remain headless and replaceable at the composition boundary.
+- May own pure domain invariants and transition definitions when that policy is
+  injected into the business module that owns durable state.
+
+For LPMS specifically, `modules/policy/production` owns the pure production
+transition and invariant definitions. `modules/business/production` owns the
+durable execution state and must invoke the injected policy inside the same
+transaction as every protected mutation.
 
 This keeps the API app as a composition root and keeps business modules from
 becoming security modules by accident.
@@ -329,12 +353,12 @@ becoming security modules by accident.
 A projection or computation module owns deterministic derived views,
 calculations, proposals, or analysis that are not authoritative business state.
 
-Possible future shape:
+Current shape:
 
 ```txt
-modules/computation/<capability>/
+modules/computation/scheduling/
   src/
-    <calculation>/
+    propose-schedule/
       *.computation.ts
       *.port.ts
     main.ts
@@ -347,7 +371,8 @@ Projection/computation module rules:
 - Add adapter-suffixed files only when the capability talks to an external
   mechanism.
 - Add use cases and ports only when the capability has application workflow.
-- Add policy or state-machine files only for durable intrinsic invariants.
+- Return explicit infeasibility and warnings instead of mutating input or
+  operational state.
 - A module may have no database if it computes over existing inputs or projections.
 - Receive immutable input and return a result or proposal.
 - Never mutate another module's operational state.
@@ -361,10 +386,10 @@ These responsibilities are deliberately different:
 
 ```txt
 business module
-  owns durable state, invariants, transactions, and state machines
+  owns durable state, transactions, idempotency, and enforcement
 
 policy module
-  supplies replaceable cross-cutting decisions such as authorization
+  owns pure decisions, invariants, and transition definitions
 
 computation module
   supplies replaceable calculations or proposals from stable input
@@ -373,19 +398,16 @@ app
   injects concrete policy and computation into the business boundary
 ```
 
-A business command validates its invariants even when policy and computation
-have already approved or proposed the operation. An injected dependency is
-never a way to outsource the truth of the state being changed.
+A business command invokes its injected policy inside the transaction and
+revalidates a computation proposal against current durable state. An injected
+dependency does not own state, and the business capability cannot bypass it.
 
-For the future LPMS, the business capability will own production eligibility,
-order cohesion, stage transitions, optimistic concurrency, idempotency, and
-the transaction that records operational changes. A scheduler may propose
-batches and machine assignments, but accepting that proposal must revalidate
-business invariants before creating execution records.
-
-This architecture refactor does not scaffold an LPMS business module or a
-computation module. Those modules should be created only when their first real
-behavior and tests are implemented.
+For LPMS, production policy owns eligibility, order-cohesion, stage-transition,
+pulse-boundary, and machine-overlap decisions. The production business module
+owns optimistic concurrency, idempotency, and the transaction that records
+operational changes. A scheduler may propose batches and machine assignments,
+but accepting that proposal invokes production policy against current state
+before creating execution records.
 
 ## 6. Contracts
 
@@ -540,6 +562,67 @@ Apps own runtime composition.
 - Run scheduled/background work
 - Enforce timeouts and cancellation
 - Keep retries and idempotency visible
+- Reclaim expired inbox leases and preserve dead-letter evidence
+- Invoke production use cases through injected module capabilities
+- Emit sparse heartbeat, lag, retry, dead-letter, and fatal signals without a
+  public HTTP route
+
+`apps/processor` responsibilities:
+
+- Use the existing opaque server session through a same-origin Secure,
+  HttpOnly, SameSite=Strict cookie and CSRF protection
+- Restore authentication, authorized location, and active production workspace
+  from server truth after refresh
+- Present schedule proposals, warnings, hashes, and operational board state
+- Submit versioned, idempotent operator commands
+- Display only backend-provided allowed actions; never duplicate policy
+
+The processor is a client-only Vite SPA. It uses `main.tsx` and `app/` as its
+runtime boundary instead of copying the Next.js route and server conventions
+from `apps/web`:
+
+```txt
+apps/processor/src/
+  app/          bootstrap composition, providers, navigation, and app chrome
+  ports/        framework-free capabilities and expected failure values
+  adapters/     same-origin fetch, live API, and non-secret browser preferences
+  features/     product slices expressed as model/view pairs
+  components/   app-neutral layout and shadcn UI primitives
+```
+
+Processor dependency direction is closed:
+
+```txt
+main -> app
+app -> features + adapters + ports + components
+features -> own feature + ports + components
+adapters -> ports + contracts
+ports -> contracts only
+components/ui -> components/ui
+```
+
+Rules:
+
+- Feature models own local view state, asynchronous orchestration, and expected
+  error presentation. Views remain declarative.
+- Features receive ports from app composition and cannot import adapters or
+  peer features.
+- Adapters cannot import app composition, product features, or UI.
+- Ports cannot import React, browser APIs, or concrete implementations.
+- Runtime source contains no demo adapter or production fixture. Deterministic
+  synthetic data belongs under `test/` only.
+- Browser storage may hold non-secret presentation preferences such as theme or
+  last-selected location. It must never hold a session credential.
+- `components/ui` contains mechanisms and cannot import Pressly protocols.
+- `shared/`, `common/`, generic `hooks/`, and `lib/` buckets are forbidden.
+  The shadcn-only class-name merger belongs to `components/ui/class-names.ts`.
+- Feature files declare a real role with `*.model.ts`, `*.presenter.ts`, or
+  `*.view.tsx`.
+- Port files use `*.port.ts` or `*.error.ts`; adapter files use
+  `*.adapter.ts`. Test fixtures remain under `test/`.
+
+These rules are enforced by the processor ESLint configuration and repository
+architecture-boundary tests, including relative and aliased imports.
 
 `apps/cli` responsibilities:
 
@@ -549,6 +632,20 @@ Apps own runtime composition.
 - Fail loudly with structured errors
 
 Apps do not own business meaning. They assemble the program.
+
+For Cents ingress, `apps/api` owns the vendor wire adapter: exact raw-byte HMAC
+verification, event classification, alias normalization, decimal-money
+conversion, and payload minimization. It submits a source-neutral command to
+`modules/business/webhook-ingestion`, which owns the durable inbox, claims,
+retries, dead letters, and source-location bindings.
+
+`apps/worker` is the asynchronous composition root. A vendor consumer translates
+one claimed event into a canonical `ApplyOrderDemand` command and injects that
+command into `modules/business/production`. Production owns order-demand and
+physical-production rules; it has no knowledge of Cents, HTTP webhooks, inbox
+receipts, or worker leases. Modules remain isolated peers and never import or
+declare package dependencies on one another. API and worker applications are
+the only places that connect their public ports.
 
 `apps/api` may wire route guards produced by a policy module. It should not
 define application authorization policy itself.
@@ -606,17 +703,20 @@ Preferred shape:
 
 ```txt
 use case
-  -> transactor.run(...)
-    -> repo operation
-    -> repo operation
+  -> feature repo transaction(...)
+    -> feature repo operation
+    -> feature repo operation
     -> result
 ```
 
 Rules:
 
 - A use case owns the transaction boundary.
-- A transaction context is passed explicitly.
-- Cross-repository consistency happens inside one transaction.
+- The feature repository supplies transaction-scoped operations without
+  exposing a database executor to the use case.
+- Multi-table consistency for one capability happens inside one transaction.
+- Shared transaction execution belongs in a narrow persistence foundation;
+  it is not a reason to create one repository for the whole module.
 - External network calls should not happen inside database transactions unless explicitly required.
 - Idempotency should wrap risky operations at the application boundary.
 
@@ -702,8 +802,7 @@ an explicit `http/` or `persistence/` foundation may omit a role suffix.
 Foundation filenames should describe the narrow mechanism they centralize,
 such as `http/auth-context.ts` or `persistence/database-result.ts`.
 
-Policy modules do not inherit the business allowlist. Their current vocabulary
-is scoped to policy work:
+Policy modules use this closed policy vocabulary:
 
 ```txt
 *.guard.ts       framework-facing policy enforcement
@@ -714,11 +813,20 @@ is scoped to policy work:
 
 The policy `*.port.ts` role is retained because policy must receive runtime
 capabilities through dependency injection rather than import business module
-internals. Computation modules likewise use roles appropriate to computation,
-currently `*.computation.ts` and `*.port.ts`.
+internals. Computation modules use their own closed vocabulary:
+
+```txt
+*.computation.ts  pure deterministic calculation
+*.port.ts         typed capability boundary when composition requires one
+```
 
 Every module may use `main.ts` for composition and `public.ts` for its stable
 external surface.
+
+A module may also expose a narrowly named root `*.port.ts` or `*.error.ts` as
+mechanism-free language shared by its own capabilities. These files are not a
+route around capability ownership: root composition and generic shared/common
+buckets remain forbidden.
 
 Module tests live under `test/`, where test-specific names such as
 `*.test.ts`, `*.fake.ts`, and `*.builder.ts` are allowed. Runtime boundary

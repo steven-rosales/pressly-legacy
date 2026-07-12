@@ -8,16 +8,28 @@ queued -> sorting -> washing -> drying -> folding + packaging -> finished
 
 The system is primarily a production flow-leveling system. For v1, it should behave more like a deterministic heijunka scheduler than a deep combinatorial optimizer. `laundry-production` is the business domain; LPMS is the application that operates it.
 
-CRM/vendor webhook data is external demand. The LPMS production model is the internal authority for scheduling and physical execution.
+External order systems provide demand. The LPMS production model is the
+source-neutral internal authority for scheduling and physical execution.
 
 ## Modeling Principles
 
-- Store every inbound CRM webhook payload for auditability and replay.
-- Acknowledge a webhook only after its raw payload is stored durably.
-- Process webhooks at least once and make projection idempotent.
-- Normalize only the CRM fields the system actually needs.
-- Treat CRM data as external demand, not production truth.
-- Treat a Cents order with latest status `IN_PROGRESS` as eligible for LPMS production.
+- Authenticate every inbound vendor webhook against the exact raw body bytes
+  before JSON parsing or durable ingestion.
+- Persist only the canonical LPMS input and a raw-body digest. Do not retain a
+  customer-bearing raw payload merely for replay convenience.
+- Acknowledge an order webhook only after its minimized canonical event is
+  durable. Authenticated non-production events retain source metadata and a
+  digest, but no customer payload.
+- Process ingested events at least once and make downstream commands
+  idempotent.
+- Normalize only the source fields the target capability actually needs.
+- Treat source-system data as external demand, not production truth.
+- Translate source-specific statuses into a canonical demand state before
+  calling Production. A `ready_for_production` demand becomes schedulable only
+  after its location is known, positive production weight is supplied, and
+  required intake facts such as bag count have been recorded.
+- Keep all modules isolated. Application composition roots inject public
+  capabilities; modules never import or declare dependencies on one another.
 - Treat scheduler output as a proposal.
 - Treat `schedule_run` as an immutable proposal.
 - Treat `production_run`, `production_batch`, `stage_run`, and versioned production records as operational truth.
@@ -70,256 +82,197 @@ This gives auditability, idempotency, replay potential, and current-state reads 
 
 Consistency and availability are chosen per operation.
 
-| Operation                      | Model                                  | Failure behavior                                                 |
-| ------------------------------ | -------------------------------------- | ---------------------------------------------------------------- |
-| Receive a Cents webhook        | Durable, availability-oriented receipt | Return a non-success response unless the event is durably stored |
-| Project Cents order data       | Eventually consistent                  | Retry safely; dead-letter permanent failures                     |
-| Generate a schedule proposal   | Pure and deterministic                 | Retry without changing execution state                           |
-| Accept a schedule proposal     | Strongly consistent transaction        | Commit once or fail without creating partial execution records   |
-| Advance or override production | Strongly consistent transaction        | Validate versions and invariants, then commit once or fail       |
-| Read the production board      | Current-state projection               | Slight read staleness is acceptable; invented state is not       |
+| Operation                      | Model                                | Failure behavior                                                 |
+| ------------------------------ | ------------------------------------ | ---------------------------------------------------------------- |
+| Ingest a verified webhook      | Durable, availability-oriented inbox | Return a non-success response unless the event is durably stored |
+| Apply canonical order demand   | Idempotent Production transaction    | Retry safely; reject conflicting revisions                       |
+| Generate a schedule proposal   | Pure and deterministic               | Retry without changing execution state                           |
+| Accept a schedule proposal     | Strongly consistent transaction      | Commit once or fail without creating partial execution records   |
+| Advance or override production | Strongly consistent transaction      | Validate versions and invariants, then commit once or fail       |
+| Read the production board      | Current-state projection             | Slight read staleness is acceptable; invented state is not       |
 
 Commands that start, advance, assign, or override physical production must not be queued for later success. If the database cannot prove the command is valid, the command fails and the operator retries.
 
-## CRM Webhook Mirror
+## External Demand Ingestion
 
-These tables represent data received from the CRM/vendor. They should remain separate from the production scheduling model.
+Webhook delivery is an integration concern, not a Production capability. The
+generic `webhook-ingestion` module owns durable receipt, deduplication, claims,
+leases, retries, dead letters, replay, and external-location bindings. It does
+not know how any downstream module interprets an event.
 
-For v1, Cents is the external order authority. The LPMS should treat the latest projected Cents order state as production-eligible only when:
+Cents-specific authentication and wire translation live under
+`apps/api/src/vendors/cents`. Cents-specific event interpretation lives in a
+Worker adapter. Production receives only a canonical order-demand command and
+therefore does not know whether demand arrived from Cents, a commercial-order
+system, an operator import, or a future adapter.
 
-```text
-crm_orders.status = IN_PROGRESS
-```
+### Delivery And Dispatch Flow
 
-This is an LPMS policy over the CRM projection. It is not the same thing as trusting one webhook delivery in isolation.
-
-### Delivery And Projection Flow
-
-For v1, `webhook_events` is a Postgres-backed durable inbox and logical queue. A separate message broker is not required for expected volume.
+For v1, `webhook_events` is a Postgres-backed durable inbox and logical queue.
+A separate message broker is not required for expected volume.
 
 ```text
 Cents webhook
--> API verifies the vendor request and validates the envelope
--> insert webhook_events(status = pending)
+-> API verifies the timestamped HMAC against exact raw bytes
+-> API parses, classifies, minimizes, and normalizes the Cents wire payload
+-> webhook-ingestion.ingestEvent(source = cents, status = pending)
 -> commit
 -> return a success response
 
 apps/worker
--> claim pending events with a recoverable lease
--> invoke the CRM projection use case
--> update crm_orders and derived production eligibility
--> mark the event processed in the same transaction
+-> webhook-ingestion claims a pending event with a recoverable lease
+-> the source/subject dispatcher selects the Cents order consumer
+-> the consumer resolves the source-location binding
+-> the consumer derives estimated weight and canonical demand state
+-> production.applyOrderDemand(..., idempotencyKey = webhook:<event-id>)
+-> webhook-ingestion marks the event processed with lease compare-and-set
 ```
 
-The API must not decide whether an event is a useful state change before durable receipt. Status, due date, weight inputs, or other scheduling data can change independently.
+The Production transaction and inbox-completion transaction are intentionally
+separate because isolated modules do not share repositories or transactions.
+The cross-module guarantee comes from stable idempotency: if the Worker dies
+after Production commits but before inbox completion, the lease expires, the
+same event is reclaimed, and the same Production command becomes a no-op before
+the inbox event is completed.
+
+Authenticated customer and marketing events are recorded as ignored without
+persisting customer payloads. Processable events retain only the canonical
+adapter payload required for deterministic downstream translation.
 
 The worker provides at-least-once processing:
 
 - Claim ready events with `FOR UPDATE SKIP LOCKED`.
 - Reclaim an event after its worker lease expires.
-- Retry transient database, network, and lock failures with bounded exponential backoff and jitter.
+- Retry transient database, network, and lock failures with bounded
+  exponential backoff and jitter.
 - Mark permanently invalid events as `dead` and alert for manual review.
-- Keep projection logic in an application use case. The worker is a runtime adapter, not the owner of business rules.
+- Dispatch through injected consumers; neither `webhook-ingestion` nor
+  Production imports the other module.
 
-An independent reconciliation job should periodically read Cents orders updated since a stored watermark and send newer snapshots through the same projection use case. This closes the gap when a webhook was never delivered. If Cents does not expose the required read API, the system cannot promise automatic recovery from an event it never received; manual replay and operational review become the fallback.
+An independent reconciliation job should periodically read Cents orders updated
+since a stored watermark and submit recovered snapshots through the same
+generic ingestion command. If Cents does not expose the required read API, the
+system cannot promise automatic recovery from an event it never received;
+manual replay and operational review become the fallback.
 
-Request authentication must follow the actual Cents contract. If Cents supplies a signing secret, verify the signature against the raw request body before JSON parsing and use constant-time comparison. IP allowlisting is defense in depth, not the primary authenticity guarantee.
+The required Pressly ingress contract is:
+
+```text
+X-Cents-Timestamp: <unix-seconds>
+X-Cents-Signature: v1=<hex HMAC-SHA256>
+
+signed bytes = timestamp + "." + exact raw HTTP body bytes
+```
+
+The API accepts timestamps only inside a five-minute past/future window,
+compares fixed-length signature bytes in constant time, and supports a current
+and previous key for bounded rotation. A missing, malformed, stale, future, or
+body-mismatched signature creates no event. The key is never sent as a raw
+header value. IP allowlisting is optional defense in depth, not authenticity.
+Live delivery remains blocked until Cents confirms it can emit this exact
+contract and signs retries without reserializing the body.
 
 ### `webhook_events`
 
-Stores every inbound webhook event.
+Stores source-neutral inbound events.
 
 ```text
 webhook_events
 - id
-- vendor
-- action
-- external_event_id
+- source
+- event_type
 - dedupe_key
-- external_order_id
-- external_updated_at
-- payload_jsonb
-- received_at
+- subject_type
+- subject_id
+- source_location_id
+- source_occurred_at
+- payload_json
+- payload_hash
+- raw_body_sha256
+- status
+- attempts
 - available_at
-- locked_until
-- locked_by
-- attempt_count
+- lease_owner
+- lease_expires_at
+- last_error_code
+- last_error_message
+- received_at
 - processed_at
-- dead_lettered_at
-- status
-- last_error
 ```
 
-Valid statuses:
+Valid statuses are `pending`, `processing`, `processed`, and `dead`.
 
 ```text
-pending
-processing
-processed
-dead
+unique(source, dedupe_key)
+index(status, available_at, lease_expires_at)
 ```
 
-Recommended constraints:
+When the wire payload has no reliable event ID, the vendor adapter computes a
+stable SHA-256 deduplication key from source, event type, subject identity,
+source occurrence time, and the exact raw-body digest. Equal deduplication keys
+with different payloads are rejected as divergence rather than overwritten.
+
+### `source_location_bindings`
+
+Maps a source's location vocabulary into Pressly's location vocabulary without
+teaching Production about that source.
 
 ```text
-unique(vendor, dedupe_key)
-index(status, available_at)
-```
-
-If the vendor does not provide a reliable event id, compute:
-
-```text
-dedupe_key = hash(vendor + action + external_order_id + external_updated_at + payload_hash)
-```
-
-### `crm_orders`
-
-Normalized projection of the vendor order.
-
-```text
-crm_orders
-- id
-- external_order_id
-- store_id
-- customer_id
-- status
-- order_code
-- order_type
-- order_total_cents
-- tip_amount_cents
-- credit_amount_cents
-- promotion_amount_cents
-- balance_due_cents
-- return_method
-- pickup_delivery_fee_cents
-- return_delivery_fee_cents
-- due_at
-- placed_at
-- source_updated_at
-- projected_at
-- completed_at
-- raw_jsonb
-```
-
-Recommended constraints:
-
-```text
-unique(external_order_id)
-```
-
-Projection ordering is based on vendor state, not arrival order:
-
-```text
-Apply an incoming snapshot only when its source_updated_at is newer.
-received_at never decides which vendor state wins.
-Equal source versions with different payloads require reconciliation.
-```
-
-The CRM mirror may move across statuses that would be invalid in the internal production state machine. Preserve the latest canonical external fact, then apply LPMS eligibility policy over it. Strict transition enforcement belongs to `production_run`, `production_batch`, and `stage_run`.
-
-### `crm_order_services`
-
-Normalized projection of `services[]`.
-
-```text
-crm_order_services
-- id
-- crm_order_id
-- external_service_id
-- name
-- quantity
-- total_price_cents
-- unit_price_cents
-- service_category
-- service_category_type
-- customer_selection
-```
-
-For v1, LPMS derives production weight from Cents laundry service pricing:
-
-```text
-derived_weight_lbs = service.total_price / service.unit_price
-```
-
-If the payload uses a vendor-specific name such as `unitCost`, map it into the normalized unit price field before deriving weight. Bag-level weighing can be added later, but v1 should not pretend that bag-level measured weights exist.
-
-### `crm_order_service_modifiers`
-
-Normalized projection of `services[].modifiers[]`.
-
-```text
-crm_order_service_modifiers
-- id
-- crm_order_service_id
-- external_modifier_id
-- name
-- pricing_type
-- quantity
-- total_price_cents
-- unit_price_cents
-```
-
-### `crm_customers`
-
-Normalized projection of customer identity.
-
-```text
-crm_customers
-- id
-- external_customer_id
-- cents_customer_id
-- first_name
-- last_name
-- phone_number
-- email
-- business_name
-- is_commercial
-- is_invoice_enabled
-- referral_code
+source_location_bindings
+- source
+- external_location_id
+- location_id
+- is_active
+- created_at
 - updated_at
+
+primary key(source, external_location_id)
 ```
 
-Recommended constraints:
+Bindings are bootstrapped at an application composition root. Existing bindings
+cannot be silently reassigned, deactivated, or removed by a convergence run.
 
-```text
-unique(external_customer_id)
-```
+### Deliberately Excluded Customer Data
 
-### `crm_customer_metrics_snapshot`
-
-Point-in-time customer metrics captured from the webhook.
-
-```text
-crm_customer_metrics_snapshot
-- id
-- crm_order_id
-- num_orders
-- total_order_value_cents
-- last_order_at
-- credit_balance_cents
-- loyalty_points_balance
-- captured_at
-```
-
-### `crm_order_windows`
-
-Pickup and return windows from the vendor.
-
-```text
-crm_order_windows
-- id
-- crm_order_id
-- pickup_start_at
-- pickup_end_at
-- return_start_at
-- return_end_at
-- formatted_pickup_window
-- formatted_return_window
-```
+LPMS does not need customer identity, contact details, marketing preferences,
+attribution, or customer metrics to schedule and execute laundry. Those fields
+are discarded at the Cents adapter. A future CRM product may own a separate,
+purpose-limited projection; LPMS does not create one incidentally.
 
 ## LPMS Production Model
 
-These tables represent internal production planning and physical execution. Planning records describe what the scheduler proposed. Execution records describe what operators are actually doing.
+These tables represent source-neutral demand, internal production planning, and
+physical execution. Planning records describe what the scheduler proposed.
+Execution records describe what operators are actually doing.
+
+### `order_demands`
+
+The canonical demand accepted by Production. This is not a webhook or CRM
+mirror; it is the smallest source-neutral input required to create and maintain
+a production order.
+
+```text
+order_demands
+- id
+- demand_key
+- display_reference
+- location_id
+- revision_hash
+- revision_at
+- status
+- due_at
+- created_at
+- updated_at
+```
+
+`demand_key` is a globally unique adapter-owned identity such as
+`cents:order:<external-id>`. `display_reference` is the operator-facing label.
+Valid v1 demand states are `ready_for_production` and `not_ready`.
+
+Production applies revisions by source occurrence time, never arrival time. An
+older revision is ignored, an equal revision with the same hash is a no-op, and
+an equal timestamp with a different hash is rejected for reconciliation. A
+location change or mutation after production work is committed is rejected.
 
 ### `production_shift`
 
@@ -328,6 +281,7 @@ Represents a production window.
 ```text
 production_shift
 - id
+- location_id
 - starts_at
 - ends_at
 - timezone
@@ -343,17 +297,21 @@ machine loading, movement, and packaging support for the forecast to hold.
 
 ### `production_order`
 
-Internal LPMS view of a CRM order that can be scheduled for production.
+Internal LPMS order that can be scheduled for production.
 
 ```text
 production_order
 - id
-- crm_order_id
+- order_demand_id
+- location_id
 - due_at
 - priority
 - status
 - derived_weight_lbs
 - derived_weight_source
+- bag_count
+- bag_count_source
+- intake_recorded_at
 - must_stay_together
 - eligible_at
 - finished_at
@@ -364,20 +322,27 @@ production_order
 Recommended constraints:
 
 ```text
-unique(crm_order_id)
+unique(order_demand_id)
 ```
 
 For v1:
 
 ```text
-crm_orders.status must be IN_PROGRESS before the production_order can be scheduled.
+order_demands.status must be ready_for_production before the production_order
+can be scheduled.
+order_demands.location_id must equal production_order.location_id.
+bag_count must be recorded by an authoritative external field or a versioned
+operator intake command; absence is not zero.
 must_stay_together = true
-derived_weight_source = cents_service_price
+derived_weight_source = external_estimate for the initial Cents adapter
 ```
 
 ### `bag`
 
-A logical production unit under an order. This is not an RFID-tracked or individually machine-assigned object. V1 can keep this lightweight because order weight is derived from Cents, not from bag-level weighing.
+A logical production unit under an order. This is not an RFID-tracked or
+individually machine-assigned object. Bags are created only after an operator
+intake command records the observed count; the documented Cents payload does
+not establish that fact.
 
 ```text
 bag
@@ -747,6 +712,7 @@ Append-only mutation ledger for production changes.
 In v1, `work_event` is authoritative for auditability, idempotency, and explaining why a production record changed. Operational tables remain the current-state projections used by normal reads.
 
 Every production mutation should insert a `work_event` and update the affected operational table in the same database transaction.
+An idempotency key replays only when its canonical command identity matches the original operation, location, actor, target, expected version, and payload. Reusing a key for any different command is a conflict; it must never return another mutation's result.
 
 ```text
 work_event
@@ -809,9 +775,14 @@ manual_override
 
 ```text
 webhook_events
-  -> crm_orders
-    -> production_order
-      -> bag[]
+  -> Worker source adapter
+    -> ApplyOrderDemand command
+      -> order_demands
+        -> production_order
+          -> bag[]
+
+source_location_bindings
+  -> Worker source adapter
 
 production_shift
   -> schedule_run
@@ -829,7 +800,10 @@ production_batch
 
 ## Runtime Boundaries
 
-The API is the composition boundary. It authenticates the caller or vendor request, validates transport input, and invokes the correct application use case. It does not own production rules.
+The API and Worker are application composition roots. They connect isolated
+module peers through public ports; modules never call one another. The API
+authenticates callers and vendor requests, validates transport input, and
+invokes the correct application use case. It does not own production rules.
 
 ```text
 Laundry Processor
@@ -841,25 +815,33 @@ Laundry Processor
 -> Postgres
 
 Cents
--> API webhook authentication and validation
--> webhook_events durable inbox
--> apps/worker
--> CRM projection use case
+-> API Cents authentication and normalization
+-> webhook-ingestion durable inbox
+-> Worker Cents order consumer
+-> Production ApplyOrderDemand use case
 -> Postgres
 
 apps/worker reconciliation timer
 -> Cents read API, when available
--> CRM projection use case
+-> webhook-ingestion ingest use case
+-> the same Worker Cents order consumer
 -> Postgres
 ```
 
 Boundary responsibilities:
 
-- `production workflow` owns transactional production commands and orchestration.
+- `webhook-ingestion` owns generic inbox lifecycle and source-location
+  bindings; it owns no downstream interpretation.
+- `production workflow` owns canonical demand and transactional production
+  commands without vendor or webhook vocabulary.
 - `production policies` are pure decisions over explicit inputs.
-- `optimization` is pure computation that returns a proposal and performs no database writes.
-- `apps/worker` executes eventual work such as CRM projection, retries, reconciliation, and alerts.
-- Postgres is the durable authority for webhook receipt, CRM projections, schedule proposals, and accepted production execution.
+- `optimization` is pure computation that returns a proposal and performs no
+  database writes.
+- `apps/api/vendors` owns vendor authentication and wire normalization.
+- `apps/worker` owns source consumers, module composition, reconciliation
+  adapters, and runtime polling.
+- Postgres is the durable authority for ingested events, canonical order
+  demand, schedule proposals, and accepted production execution.
 
 The worker may call the same transactional application use cases used by synchronous paths. It must not bypass invariant validation or invent a second production write model.
 
@@ -883,11 +865,15 @@ Then:
 events/day = 100 * 10 = 1,000
 average events/second = 1,000 / 86,400 = 0.012
 100x burst = about 1.2 events/second
-raw storage/day = 1,000 * 25 KB = about 25 MB
-raw storage/90 days = about 2.25 GB before indexes and backups
+canonical event storage/day <= 1,000 * 25 KB = about 25 MB
+canonical event storage/90 days <= about 2.25 GB before indexes and backups
 ```
 
-A single worker processing 20 events/second would drain a six-hour average backlog of 250 events in about 13 seconds. Throughput does not justify a separate broker for v1; durability and recovery semantics justify the inbox and worker.
+The estimate is an upper bound using wire-payload size; raw bodies are not
+retained. A single worker processing 20 events/second would drain a six-hour
+average backlog of 250 events in about 13 seconds. Throughput does not justify
+a separate broker for v1; durability and recovery semantics justify the inbox
+and worker.
 
 ### Production Throughput
 
@@ -985,10 +971,10 @@ scheduler_config
 production_shift
 ```
 
-Eligible orders are orders whose latest CRM projection is:
+Eligible orders are orders whose latest canonical demand is:
 
 ```text
-crm_orders.status = IN_PROGRESS
+order_demands.status = ready_for_production
 ```
 
 The v1 scheduler should:
@@ -1193,20 +1179,60 @@ manual_override is a WorkEvent.
 stage_run completion is operator-confirmed.
 Every stage occupies one full configured pulse.
 Physical work finishing early does not advance the batch before the next pulse boundary.
+A late physical start moves that stage's earliest completion to actual_start_at + pulse_minutes; it can never compress the pulse back to the original planned end.
 There is no washer/dryer hardware integration in v1.
 ```
 
 ## Operational Proof
 
+### Implemented V1 Happy-Path Slice
+
+The current repository implements the happy-path slice described above:
+
+- `modules/computation/scheduling` produces deterministic fixed-pulse
+  first-fit-decreasing proposals without I/O.
+- `modules/policy/production` owns eligibility, schedule acceptance, machine
+  assignment, and stage-transition decisions.
+- `modules/business/webhook-ingestion` owns source-neutral durable ingestion,
+  deduplication, leases, retries, dead letters, replay, and source-location
+  bindings.
+- `modules/business/production` owns canonical order demand, planning,
+  acceptance, execution, idempotency, transactions, controllers, and routes.
+  Its source contains no vendor, webhook, receipt, lease, or CRM concepts.
+- `apps/api` owns Cents HMAC verification and wire normalization, composes the
+  isolated modules, and applies authentication, authorization, validation, and
+  HTTP error mapping.
+- `apps/worker` composes webhook ingestion with Production through a declarative
+  source/subject consumer registry. The Cents consumer derives the canonical
+  demand command; stable event-based idempotency closes the crash window between
+  the two module transactions. Until a Cents read API is verified, supported
+  recovery is bounded manual replay through the normal ingestion path.
+- `apps/processor` is an authenticated, live-only operator surface for location
+  discovery, intake, configuration, resumable workspace reads, proposal review,
+  overflow acknowledgement, acceptance, machine assignment, and
+  server-authorized floor actions.
+
+Production readiness requires the timestamped-HMAC contract above. The current
+API adapter implements that contract and fails startup in production when its
+current key is absent. Live delivery remains disabled until the contract is
+verified with Cents. Automatic read/reconciliation also remains disabled until
+Cents proves an authoritative updated-since API. Manual holds, hard-confirmed
+cancellation, rewash, damaged-item, and missing-bag workflows remain
+intentionally deferred to a separate exception-work item.
+
 The implementation is correct enough for v1 only when these failure cases are tested:
 
 ```text
-Deliver the same webhook repeatedly -> one effective projection.
-Deliver order snapshots out of order -> newest vendor state wins.
+Deliver the same webhook repeatedly -> one durable event and one effective
+Production demand application.
+Deliver order snapshots out of order -> newest source revision wins.
 Stop a worker after it claims an event -> the expired lease makes the event claimable again.
-Stop a worker after projection commit -> redelivery is an idempotent no-op.
+Stop a worker after Production commits but before inbox completion -> redelivery
+uses the same idempotency key, becomes a Production no-op, and completes the
+inbox event.
 Deliver a permanently invalid payload -> the event becomes dead and raises an alert.
-Omit a webhook -> reconciliation restores the missing vendor state.
+Omit a webhook -> reconciliation restores the missing vendor state only when a
+verified Cents updated-since API exists; otherwise alert and use bounded manual replay.
 Race two production commands -> optimistic concurrency and constraints allow only one valid write.
 Make Postgres unavailable -> production commands fail without partial state.
 Schedule the same snapshot with the same config twice -> byte-equivalent plans.
@@ -1229,10 +1255,13 @@ production command conflicts and invariant failures
 ## Core Invariants
 
 ```text
-A production_order is schedulable only when latest crm_orders.status is IN_PROGRESS.
+A production_order is schedulable only when its latest order_demand is
+ready_for_production, its location matches, its derived weight is positive, and
+bag intake is complete.
 A production_order can belong to at most one active production_batch.
 All bags for one production_order must stay in the same production_batch.
-Orders and bags can split across machines inside a production batch stage.
+A production batch stage may use multiple machines, but v1 does not persist a
+bag-to-machine assignment.
 A bag is not assigned to a machine.
 A production batch stage can be assigned to many machines.
 A production batch is not a washer load.
@@ -1249,18 +1278,23 @@ folding capacity is fold_lbs_per_folder_minute * effective_folder_count * pulse_
 The same scheduler_config version and input snapshot produce the same schedule proposal.
 The weight-based minimum batch count does not override whole-order packing.
 An order heavier than pulse_capacity_lbs is unplaced in v1; it is never silently split.
-Weight is derived from Cents service pricing in v1.
+The v1 Cents Worker adapter derives estimated weight from service pricing before
+calling Production; Production accepts the source-neutral positive estimate.
 Finished means folding and packaging are complete.
 Stage completion is operator-confirmed, not hardware-confirmed.
 schedule_run input and output snapshots are immutable after creation.
 Accepting a schedule_run creates exactly one production_run.
 production_run execution records are mutable only through versioned commands.
 Manual overrides require expected version checks.
-Webhook receipt is acknowledged only after durable commit.
-Webhook processing is at least once and projection is idempotent.
-CRM projection ordering uses vendor source version, not arrival time.
+Webhook ingress is acknowledged only after durable commit.
+Webhook processing is at least once and Production demand application is
+idempotent.
+Order-demand revision ordering uses source occurrence time, not inbox arrival
+time or an invented numeric source version.
 Dead webhook events remain available for inspection and replay.
 Workers cannot bypass production command invariants.
+Modules never import or declare dependencies on other modules; apps compose
+their public ports.
 The scheduler cannot mutate execution state directly.
 work_event is the authoritative mutation ledger and audit trail.
 Operational tables are the current-state projections for reads.

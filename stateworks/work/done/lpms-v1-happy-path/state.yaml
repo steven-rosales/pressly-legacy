@@ -1,0 +1,39 @@
+work_id: lpms-v1-happy-path
+status: complete
+updated: 2026-07-10T18:03:00-04:00
+
+current_focus:
+  - complete
+  - LPMS v1 happy path is implemented and locally verified.
+
+tasks:
+  T0: &verified
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-v1-happy-path/evidence.md
+  T1: *verified
+  T2: *verified
+  T3: *verified
+  T4: *verified
+  T5: *verified
+  T3A: *verified
+  T6: *verified
+  T7: *verified
+  T8: *verified
+  T9: *verified
+  T10: *verified
+  T12: *verified
+  T11: *verified
+  T13: *verified
+  T14: *verified
+  T15: *verified
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-v1-happy-path/evidence.md
+      - stateworks/work/done/lpms-v1-happy-path/final-report.md
+  T16:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-v1-happy-path/evidence.md
+      - stateworks/work/done/lpms-v1-happy-path/final-report.md

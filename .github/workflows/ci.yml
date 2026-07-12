@@ -41,6 +41,16 @@ jobs:
       - name: Tooling and architecture tests
         run: pnpm exec vitest run tooling/test
 
+      - name: Validate LPMS Stateworks records
+        run: |
+          pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+          pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/2026-07-10-fixed-pulse-scheduling.memory-delta.yaml
+          pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/lpms-v1-implementation.memory-delta.yaml
+          pnpm stateworks:validate stateworks/work/done/lpms-v1-happy-path/network.yaml
+          pnpm stateworks:verify stateworks/work/done/lpms-v1-happy-path/network.yaml --state stateworks/work/done/lpms-v1-happy-path/state.yaml
+          pnpm stateworks:validate stateworks/work/active/lpms-production-readiness/network.yaml
+          pnpm stateworks:verify stateworks/work/active/lpms-production-readiness/network.yaml --state stateworks/work/active/lpms-production-readiness/state.yaml
+
       - name: Build
         run: pnpm build
 
