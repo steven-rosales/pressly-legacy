@@ -52,7 +52,7 @@
     "test:pricing:int": "bash tooling/scripts/run-integration-tests.sh pricing",
     "test:db-security:int": "bash tooling/scripts/run-integration-tests.sh db-security",
     "test:lpms:int": "bash tooling/scripts/run-integration.sh",
-    "test:lpms:e2e": "pnpm --filter @pressly/api exec vitest run test/cents test/lpms/lpms-happy-path.e2e.test.ts && pnpm --filter @pressly/processor test",
+    "test:lpms:e2e": "pnpm --filter @pressly/api exec vitest run test/cents test/lpms/lpms-happy-path.e2e.test.ts && pnpm exec turbo test --filter=@pressly/processor",
     "docker:lpms:build": "docker compose build api worker processor",
     "docker:production:smoke": "bash tooling/scripts/production-topology-smoke.sh",
     "test:int": "bash tooling/scripts/run-integration-tests.sh all",
