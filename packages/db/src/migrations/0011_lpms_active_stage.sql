@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "stage_runs_one_active_station_unique" ON "stage_runs" USING btree ("station_id") WHERE "stage_runs"."status" = 'started';

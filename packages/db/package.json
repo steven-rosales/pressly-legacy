@@ -22,7 +22,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json",
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
     "test": "vitest run --dir test --exclude '**/*.int.test.ts'",
-    "test:integration": "vitest run test/database-roles.int.test.ts --no-file-parallelism",
+    "test:integration": "vitest run --dir test --no-file-parallelism",
     "migrate": "drizzle-kit migrate --config drizzle.config.ts",
     "generate": "drizzle-kit generate --config drizzle.config.ts",
     "seed:pricing": "tsx src/seeds/pricing.ts",

@@ -1,9 +1,27 @@
 export * as pricing from './schema/pricing.schema.ts';
 export * as auth from './schema/auth.schema.ts';
+export * as laundryProduction from './schema/laundry-production.schema.ts';
+export * as webhookIngestion from './schema/webhook-ingestion.schema.ts';
 
 export { createDatabaseRuntime } from './client.ts';
 export { checkDatabaseHealth } from './health.ts';
-export { and, desc, eq, gt, isNull, lt, lte, ne, or, sql } from './query.ts';
+export {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableName,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  min,
+  ne,
+  or,
+  sql,
+} from './query.ts';
 
 export type {
   Database,

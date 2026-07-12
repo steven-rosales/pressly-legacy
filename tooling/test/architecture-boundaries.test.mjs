@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
@@ -9,6 +9,25 @@ const eslint = new ESLint({ cwd: repoRoot });
 
 const businessCapabilityRolePattern =
   /\.(?:command|controller|error|mapper|middleware|policy|port|repo|route|usecase)\.ts$/;
+
+const moduleGroups = ['business', 'policy', 'computation'];
+
+const moduleManifests = moduleGroups.flatMap((group) => {
+  const groupRoot = path.join(repoRoot, 'modules', group);
+
+  if (!existsSync(groupRoot)) return [];
+
+  return readdirSync(groupRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(groupRoot, entry.name, 'package.json'))
+    .filter(existsSync);
+});
+
+const modulePackageNames = new Set(
+  moduleManifests.map(
+    (manifestPath) => JSON.parse(readFileSync(manifestPath, 'utf8')).name,
+  ),
+);
 
 const readFiles = (directory) =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -118,6 +137,18 @@ describe('module architecture boundaries', () => {
     );
   });
 
+  it('allows a capability to use narrow root ports and errors', async () => {
+    await expectAllowed(
+      'modules/business/production/src/create-schedule/create-schedule.usecase.ts',
+      `
+        import type { ProductionSchedulerPort } from '../production.port.ts';
+        import { productionError } from '../production.error.ts';
+        export const dependencies = { productionError };
+        export type Scheduler = ProductionSchedulerPort;
+      `,
+    );
+  });
+
   it('allows recursively nested capability files when their role is explicit', async () => {
     await expectAllowed(
       'modules/business/auth/src/login/internal/login.policy.ts',
@@ -198,6 +229,111 @@ describe('module architecture boundaries', () => {
         export type ScheduleProposal = ReactNode;
       `,
       '@typescript-eslint/no-restricted-imports',
+    );
+  });
+
+  it('rejects module package imports from every module group', async () => {
+    await expectRejectedBy(
+      'modules/business/auth/src/login/login.usecase.ts',
+      `import type { PricingModule } from '@pressly/pricing'; export type Leak = PricingModule;`,
+      'architecture/module-isolation',
+    );
+    await expectRejectedBy(
+      'modules/policy/access-control/src/pricing/pricing.policy.ts',
+      `import type { PricingModule } from '@pressly/pricing'; export type Leak = PricingModule;`,
+      'architecture/module-isolation',
+    );
+    await expectRejectedBy(
+      'modules/computation/scheduling/src/propose/propose.computation.ts',
+      `import type { PricingModule } from '@pressly/pricing'; export type Leak = PricingModule;`,
+      'architecture/module-isolation',
+    );
+  });
+
+  it('rejects module package dependencies in manifests', () => {
+    const violations = moduleManifests.flatMap((manifestPath) => {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      const dependencyEntries = Object.entries({
+        ...(manifest.dependencies ?? {}),
+        ...(manifest.devDependencies ?? {}),
+        ...(manifest.optionalDependencies ?? {}),
+        ...(manifest.peerDependencies ?? {}),
+      });
+
+      return dependencyEntries
+        .filter(([dependency]) => modulePackageNames.has(dependency))
+        .map(
+          ([dependency]) =>
+            `${path.relative(repoRoot, manifestPath)} -> ${dependency}`,
+        );
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it('includes every module manifest in cached API and Worker Docker installs', () => {
+    for (const dockerfile of [
+      'apps/api/Dockerfile',
+      'apps/worker/Dockerfile',
+    ]) {
+      const source = readFileSync(path.join(repoRoot, dockerfile), 'utf8');
+      const missing = moduleManifests
+        .map((manifestPath) => path.relative(repoRoot, manifestPath))
+        .filter(
+          (manifestPath) =>
+            !source.includes(`COPY ${manifestPath} ${manifestPath}`),
+        );
+
+      expect(missing, dockerfile).toEqual([]);
+    }
+  });
+
+  it('keeps production source neutral to vendors and ingestion mechanics', () => {
+    const productionSourceRoot = path.join(
+      repoRoot,
+      'modules',
+      'business',
+      'production',
+      'src',
+    );
+    const forbiddenVocabulary =
+      /\b(?:cents|webhooks?|receipts?|leases?|crm)\b|crm_/gi;
+    const violations = readFiles(productionSourceRoot).flatMap((filePath) => {
+      const source = readFileSync(filePath, 'utf8');
+      const matches = [...source.matchAll(forbiddenVocabulary)].map(
+        (match) => match[0],
+      );
+
+      return matches.length === 0
+        ? []
+        : [
+            `${path.relative(repoRoot, filePath)} -> ${[
+              ...new Set(matches.map((match) => match.toLowerCase())),
+            ].join(', ')}`,
+          ];
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it('enforces closed policy and computation filename vocabularies', async () => {
+    await expectAllowed(
+      'modules/policy/production/src/stage/stage.policy.ts',
+      'export const transition = true;',
+    );
+    await expectAllowed(
+      'modules/computation/scheduling/src/propose/propose.computation.ts',
+      'export const propose = true;',
+    );
+    await expectRejectedBy(
+      'modules/policy/production/src/stage/stage.machine.ts',
+      'export const transition = true;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'modules/computation/scheduling/src/propose/propose.service.ts',
+      'export const propose = true;',
+      'no-restricted-syntax',
     );
   });
 
@@ -459,6 +595,149 @@ describe('web architecture boundaries', () => {
   it('rejects legacy app-wide shared buckets', async () => {
     await expectRejectedBy(
       'apps/web/src/app/shared/marketing/pricing.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+  });
+});
+
+describe('processor architecture boundaries', () => {
+  it('allows app composition to select adapters and compose features', async () => {
+    await expectAllowed(
+      'apps/processor/src/app/app.composition.ts',
+      `
+        import { makeApiProductionAdapter } from '@/adapters/production/api-production.adapter';
+        import { SchedulingWorkspace } from '@/features/scheduling/scheduling.view';
+        export const dependencies = { makeApiProductionAdapter, SchedulingWorkspace };
+      `,
+    );
+  });
+
+  it('allows feature models to depend on framework-free ports', async () => {
+    await expectAllowed(
+      'apps/processor/src/features/scheduling/scheduling.model.ts',
+      `
+        import type { ProductionPort } from '@/ports/production.port';
+        export type SchedulingDependencies = { production: ProductionPort };
+      `,
+    );
+  });
+
+  it('allows a feature view to use its own model and UI primitives', async () => {
+    await expectAllowed(
+      'apps/processor/src/features/scheduling/scheduling.view.tsx',
+      `
+        import { useSchedulingModel } from './scheduling.model';
+        import { Button } from '@/components/ui/button';
+        export const dependencies = { useSchedulingModel, Button };
+      `,
+    );
+  });
+
+  it('keeps shadcn styling mechanics inside the UI boundary', async () => {
+    await expectAllowed(
+      'apps/processor/src/components/ui/button.tsx',
+      `
+        import { cn } from '@/components/ui/class-names';
+        export const classes = cn('rounded');
+      `,
+    );
+  });
+
+  it('rejects outward dependencies from processor ports', async () => {
+    await expectRejectedBy(
+      'apps/processor/src/ports/production.port.ts',
+      `
+        import { makeApiProductionAdapter } from '@/adapters/production/api-production.adapter';
+        export const leakedAdapter = makeApiProductionAdapter;
+      `,
+      'architecture/processor-zone-imports',
+    );
+  });
+
+  it('rejects product feature dependencies from adapters', async () => {
+    await expectRejectedBy(
+      'apps/processor/src/adapters/production/api-production.adapter.ts',
+      `
+        import { useSchedulingModel } from '@/features/scheduling/scheduling.model';
+        export const leakedFeature = useSchedulingModel;
+      `,
+      'architecture/processor-zone-imports',
+    );
+  });
+
+  it('rejects concrete adapter selection from processor features', async () => {
+    await expectRejectedBy(
+      'apps/processor/src/features/scheduling/scheduling.model.ts',
+      `
+        import { makeApiProductionAdapter } from '@/adapters/production/api-production.adapter';
+        export const leakedAdapter = makeApiProductionAdapter;
+      `,
+      'architecture/processor-zone-imports',
+    );
+  });
+
+  it('rejects imports between peer processor features', async () => {
+    await expectRejectedBy(
+      'apps/processor/src/features/scheduling/scheduling.view.tsx',
+      `
+        import { ProductionBoardWorkspace } from '../production-board/production-board.view';
+        export const leakedPeer = ProductionBoardWorkspace;
+      `,
+      'architecture/processor-zone-imports',
+    );
+  });
+
+  it('rejects application and product dependencies from UI primitives', async () => {
+    await expectRejectedBy(
+      'apps/processor/src/components/ui/button.tsx',
+      `
+        import { SchedulingWorkspace } from '@/features/scheduling/scheduling.view';
+        export const leakedFeature = SchedulingWorkspace;
+      `,
+      'architecture/processor-zone-imports',
+    );
+  });
+
+  it('keeps the Vite entrypoint limited to app bootstrap', async () => {
+    await expectRejectedBy(
+      'apps/processor/src/main.tsx',
+      `
+        import { SchedulingWorkspace } from '@/features/scheduling/scheduling.view';
+        export const leakedFeature = SchedulingWorkspace;
+      `,
+      'architecture/processor-zone-imports',
+    );
+  });
+
+  it('rejects generic processor catch-all folders and unnamed feature roles', async () => {
+    await expectRejectedBy(
+      'apps/processor/src/shared/production.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'apps/processor/src/lib/utils.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'apps/processor/src/features/scheduling/helpers.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'apps/processor/src/adapters/production/helpers.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'apps/processor/src/adapters/production/demo.fixture.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'apps/processor/src/ports/helpers.ts',
       'export const value = 1;',
       'no-restricted-syntax',
     );

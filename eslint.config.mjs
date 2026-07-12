@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import nextPlugin from '@next/eslint-plugin-next';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import prettier from 'eslint-config-prettier';
 import reactHooks from 'eslint-plugin-react-hooks';
@@ -52,6 +53,7 @@ const restrictedFileNameRule = (message) => ({
 
 const moduleFoundationTargets = new Map([
   ['business/auth', new Set(['http', 'persistence'])],
+  ['business/production', new Set(['http', 'persistence'])],
   ['policy/access-control', new Set(['identity'])],
 ]);
 
@@ -70,6 +72,44 @@ const businessModuleSourceRoleSuffixes = [
 
 const businessModuleSourceRolePattern = `modules/business/*/src/**/*.{${businessModuleSourceRoleSuffixes.join(',')}}.ts`;
 
+const policyModuleSourceRoleSuffixes = ['guard', 'policy', 'port', 'resource'];
+const policyModuleSourceRolePattern = `modules/policy/*/src/**/*.{${policyModuleSourceRoleSuffixes.join(',')}}.ts`;
+
+const computationModuleSourceRoleSuffixes = ['computation', 'port'];
+const computationModuleSourceRolePattern = `modules/computation/*/src/**/*.{${computationModuleSourceRoleSuffixes.join(',')}}.ts`;
+
+const modulePackageNames = (() => {
+  const moduleRoot = path.resolve('modules');
+
+  if (!existsSync(moduleRoot)) return new Set();
+
+  return new Set(
+    readdirSync(moduleRoot, { withFileTypes: true }).flatMap((group) => {
+      if (!group.isDirectory()) return [];
+
+      const groupRoot = path.join(moduleRoot, group.name);
+
+      return readdirSync(groupRoot, { withFileTypes: true }).flatMap(
+        (module) => {
+          if (!module.isDirectory()) return [];
+
+          const manifestPath = path.join(
+            groupRoot,
+            module.name,
+            'package.json',
+          );
+
+          if (!existsSync(manifestPath)) return [];
+
+          const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+
+          return typeof manifest.name === 'string' ? [manifest.name] : [];
+        },
+      );
+    }),
+  );
+})();
+
 const isPathInside = (candidate, owner) =>
   candidate === owner || candidate.startsWith(`${owner}/`);
 
@@ -86,8 +126,66 @@ const importVisitors = (checkImport) => ({
   ExportNamedDeclaration: checkImport,
 });
 
-const architecturePlugin = {
+export const architecturePlugin = {
   rules: {
+    'module-isolation': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'Keep modules isolated peers; only application composition roots may connect them.',
+        },
+        schema: [],
+        messages: {
+          moduleDependency:
+            'Module source cannot import sibling module package "{{target}}". Inject its capability from an app composition root.',
+          outsideModule:
+            'Module source cannot import another module by relative path. Inject its public capability from an app composition root.',
+        },
+      },
+      create(context) {
+        const filename = path
+          .resolve(context.filename)
+          .replaceAll(path.sep, '/');
+        const match = filename.match(
+          /^(.*\/modules\/(?:business|policy|computation)\/[^/]+)\/src(?:\/|$)/,
+        );
+
+        if (match === null) return {};
+
+        const ownerRoot = match[1];
+        const checkImport = (node) => {
+          const specifier = importSpecifier(node);
+
+          if (specifier === undefined) return;
+
+          const moduleDependency = [...modulePackageNames].find(
+            (name) => specifier === name || specifier.startsWith(`${name}/`),
+          );
+
+          if (moduleDependency !== undefined) {
+            context.report({
+              node,
+              messageId: 'moduleDependency',
+              data: { target: moduleDependency },
+            });
+            return;
+          }
+
+          if (!specifier.startsWith('.')) return;
+
+          const target = path
+            .resolve(path.dirname(filename), specifier)
+            .replaceAll(path.sep, '/');
+
+          if (!isPathInside(target, ownerRoot))
+            context.report({ node, messageId: 'outsideModule' });
+        };
+
+        return importVisitors(checkImport);
+      },
+    },
+
     'module-capability-imports': {
       meta: {
         type: 'problem',
@@ -102,7 +200,7 @@ const architecturePlugin = {
           outsideModule:
             'Module internals cannot use relative imports outside their own module.',
           rootInternal:
-            'Capability files may only import root-level module ports, not root composition or public files.',
+            'Capability files may only import root-level module ports, policies, or errors, not root composition or public files.',
         },
       },
       create(context) {
@@ -143,7 +241,8 @@ const architecturePlugin = {
           if (targetCapability === sourceCapability) return;
 
           if (!targetRelative.includes('/')) {
-            if (/\.port\.(?:ts|js)$/.test(targetRelative)) return;
+            if (/\.(?:port|policy|error)\.(?:ts|js)$/.test(targetRelative))
+              return;
 
             context.report({ node, messageId: 'rootInternal' });
             return;
@@ -352,6 +451,126 @@ const architecturePlugin = {
         return importVisitors(checkImport);
       },
     },
+
+    'processor-zone-imports': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'Enforce dependency direction between processor composition, feature, port, adapter, and UI zones.',
+        },
+        schema: [],
+        messages: {
+          zoneDependency: '{{reason}} Imported processor path: "{{target}}".',
+        },
+      },
+      create(context) {
+        const filename = path.resolve(context.filename);
+        const normalizedFilename = filename.replaceAll(path.sep, '/');
+        const srcMarker = '/apps/processor/src/';
+        const srcIndex = normalizedFilename.indexOf(srcMarker);
+
+        if (srcIndex === -1) return {};
+
+        const srcRoot = normalizedFilename
+          .slice(0, srcIndex + srcMarker.length)
+          .replace(/\/$/, '');
+        const sourceRelative = normalizedFilename.slice(srcRoot.length + 1);
+        const inZone = (relativePath, zone) =>
+          relativePath === zone || relativePath.startsWith(`${zone}/`);
+        const featureName = (relativePath) =>
+          inZone(relativePath, 'features')
+            ? relativePath.slice('features/'.length).split('/')[0]
+            : undefined;
+
+        const checkImport = (node) => {
+          const specifier = importSpecifier(node);
+
+          if (specifier === undefined) return;
+
+          let target;
+
+          if (specifier.startsWith('@/'))
+            target = path.resolve(srcRoot, specifier.slice(2));
+          else if (specifier.startsWith('.'))
+            target = path.resolve(path.dirname(filename), specifier);
+          else return;
+
+          const normalizedTarget = target.replaceAll(path.sep, '/');
+
+          if (!isPathInside(normalizedTarget, srcRoot)) return;
+
+          const targetRelative = normalizedTarget.slice(srcRoot.length + 1);
+          let reason;
+
+          if (inZone(sourceRelative, 'ports')) {
+            if (
+              inZone(targetRelative, 'app') ||
+              inZone(targetRelative, 'adapters') ||
+              inZone(targetRelative, 'features') ||
+              inZone(targetRelative, 'components')
+            )
+              reason =
+                'Processor ports are framework-free inward contracts and cannot depend on composition, adapters, features, or UI.';
+          } else if (inZone(sourceRelative, 'adapters')) {
+            if (
+              inZone(targetRelative, 'app') ||
+              inZone(targetRelative, 'features') ||
+              inZone(targetRelative, 'components')
+            )
+              reason =
+                'Processor adapters implement ports and cannot depend on app composition, product features, or UI.';
+          } else if (inZone(sourceRelative, 'features')) {
+            if (inZone(targetRelative, 'app'))
+              reason =
+                'Processor features cannot import the app composition root.';
+            else if (inZone(targetRelative, 'adapters'))
+              reason =
+                'Processor features cannot select concrete adapters; receive ports from app composition.';
+            else if (
+              inZone(targetRelative, 'features') &&
+              featureName(sourceRelative) !== featureName(targetRelative)
+            )
+              reason =
+                'Processor feature slices cannot import peer features; compose them in app.';
+          } else if (inZone(sourceRelative, 'components/ui')) {
+            const targetWithoutExtension = targetRelative.replace(
+              /\.[jt]sx?$/,
+              '',
+            );
+
+            if (!inZone(targetWithoutExtension, 'components/ui'))
+              reason =
+                'Processor UI primitives may only import other UI primitives.';
+          } else if (inZone(sourceRelative, 'components/layout')) {
+            if (
+              inZone(targetRelative, 'app') ||
+              inZone(targetRelative, 'adapters') ||
+              inZone(targetRelative, 'features') ||
+              inZone(targetRelative, 'ports')
+            )
+              reason =
+                'Processor layout primitives cannot depend on app composition, adapters, product features, or protocols.';
+          } else if (sourceRelative === 'main.tsx') {
+            if (
+              targetRelative !== 'index.css' &&
+              !inZone(targetRelative, 'app')
+            )
+              reason =
+                'The Vite entrypoint may only load global CSS and invoke the app composition root.';
+          }
+
+          if (reason !== undefined)
+            context.report({
+              node,
+              messageId: 'zoneDependency',
+              data: { reason, target: targetRelative },
+            });
+        };
+
+        return importVisitors(checkImport);
+      },
+    },
   },
 };
 
@@ -452,6 +671,7 @@ export default tseslint.config(
     ],
     ignores: ['packages/db/src/**/*.{ts,tsx}'],
     rules: {
+      'architecture/module-isolation': 'error',
       'no-restricted-imports': [
         'error',
         {
@@ -494,7 +714,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/**/*.policy.ts', 'modules/**/*.machine.ts'],
+    files: ['modules/**/*.policy.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -504,13 +724,13 @@ export default tseslint.config(
               regex:
                 '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
               message:
-                'Intrinsic policy and state-machine files cannot import database, HTTP, or UI mechanisms.',
+                'Policy files cannot import database, HTTP, or UI mechanisms.',
             },
             {
               regex:
-                '^\\.(?!.*\\.(?:policy|machine|port|resource)(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!.*\\.(?:policy|port|resource)(?:\\.(?:ts|js))?$).*',
               message:
-                'Intrinsic policy and state-machine files may only import sibling policy, machine, port, or resource files.',
+                'Policy files may only import sibling policy, port, or resource files.',
             },
           ],
         },
@@ -541,9 +761,9 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.(?!/?[^/]+\\.(?:usecase|policy|machine|port|error)(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!(?:/[^/]+\\.(?:usecase|policy|port|error)|\\./[^/]+\\.(?:policy|port|error))(?:\\.(?:ts|js))?$).*',
               message:
-                'Usecases may only import sibling usecases, policies, state machines, ports, or errors.',
+                'Usecases may only import sibling usecases, policies, ports, or errors.',
             },
           ],
         },
@@ -638,10 +858,9 @@ export default tseslint.config(
                 'Error mapping files cannot import database, HTTP, or UI mechanisms.',
             },
             {
-              regex:
-                '^\\.(?!/?[^/]+\\.(?:policy|machine|error)(?:\\.(?:ts|js))?$).*',
+              regex: '^\\.(?!/?[^/]+\\.(?:policy|error)(?:\\.(?:ts|js))?$).*',
               message:
-                'Error mapping files may only import sibling policy, state-machine, or error files.',
+                'Error mapping files may only import sibling policy or error files.',
             },
           ],
         },
@@ -875,6 +1094,34 @@ export default tseslint.config(
         .join(
           ', ',
         )}. Descriptive filenames are reserved for explicit http/ and persistence/ foundations.`,
+    ),
+  },
+
+  {
+    files: ['modules/policy/*/src/**/*.ts'],
+    ignores: [
+      'modules/policy/*/src/main.ts',
+      'modules/policy/*/src/public.ts',
+      policyModuleSourceRolePattern,
+    ],
+    rules: restrictedFileNameRule(
+      `Policy capability files must use one of these architectural role suffixes: ${policyModuleSourceRoleSuffixes
+        .map((suffix) => `*.${suffix}.ts`)
+        .join(', ')}.`,
+    ),
+  },
+
+  {
+    files: ['modules/computation/*/src/**/*.ts'],
+    ignores: [
+      'modules/computation/*/src/main.ts',
+      'modules/computation/*/src/public.ts',
+      computationModuleSourceRolePattern,
+    ],
+    rules: restrictedFileNameRule(
+      `Computation capability files must use one of these architectural role suffixes: ${computationModuleSourceRoleSuffixes
+        .map((suffix) => `*.${suffix}.ts`)
+        .join(', ')}.`,
     ),
   },
 
