@@ -1,22 +1,75 @@
 import { readFile } from 'node:fs/promises';
 
 const shaPattern = /^[0-9a-f]{40}$/;
-const imagePattern = /^ghcr\.io\/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$/;
+const imagePattern = /^(ghcr\.io\/[a-z0-9._/-]+)@sha256:([0-9a-f]{64})$/;
+const builtAtPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+const imageApplications = Object.freeze({
+  apiImage: 'api',
+  webImage: 'web',
+  workerImage: 'worker',
+  processorImage: 'processor',
+});
+const manifestFields = Object.freeze([
+  'sourceSha',
+  ...Object.keys(imageApplications),
+  'builtAt',
+]);
 
-const assertReleaseManifest = (value, expectedSourceSha) => {
+const hasExactFields = (value) => {
+  const keys = Object.keys(value).sort();
+  return (
+    keys.length === manifestFields.length &&
+    [...manifestFields].sort().every((field, index) => field === keys[index])
+  );
+};
+
+const isCanonicalBuiltAt = (value) => {
+  if (typeof value !== 'string' || !builtAtPattern.test(value)) return false;
+  const parsed = new Date(value);
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().replace('.000Z', 'Z') === value
+  );
+};
+
+export const validateReleaseManifest = (value, expectedSourceSha) => {
   if (
     typeof value !== 'object' ||
     value === null ||
+    Array.isArray(value) ||
+    !hasExactFields(value) ||
     !shaPattern.test(value.sourceSha) ||
-    !imagePattern.test(value.apiImage) ||
-    !imagePattern.test(value.webImage) ||
-    typeof value.builtAt !== 'string' ||
-    Number.isNaN(Date.parse(value.builtAt))
+    !isCanonicalBuiltAt(value.builtAt)
   ) {
     throw new Error('Release manifest is malformed.');
   }
 
-  if (expectedSourceSha && value.sourceSha !== expectedSourceSha) {
+  const repositories = new Set();
+  const digests = new Set();
+  for (const [field, application] of Object.entries(imageApplications)) {
+    const match = imagePattern.exec(value[field]);
+    const repository = match?.[1];
+    const digest = match?.[2];
+    const repositoryName = repository?.split('/').at(-1);
+    if (
+      repository === undefined ||
+      digest === undefined ||
+      (repositoryName !== application &&
+        repositoryName !== `pressly-${application}`)
+    )
+      throw new Error('Release manifest is malformed.');
+    repositories.add(repository);
+    digests.add(digest);
+  }
+
+  if (repositories.size !== 4 || digests.size !== 4)
+    throw new Error('Release manifest is malformed.');
+
+  if (
+    expectedSourceSha !== undefined &&
+    (!shaPattern.test(expectedSourceSha) ||
+      value.sourceSha !== expectedSourceSha)
+  ) {
     throw new Error(
       'Release manifest source SHA does not match deployment SHA.',
     );
@@ -26,15 +79,17 @@ const assertReleaseManifest = (value, expectedSourceSha) => {
 };
 
 export const createReleaseManifest = (input) =>
-  assertReleaseManifest({
+  validateReleaseManifest({
     sourceSha: input.sourceSha,
     apiImage: input.apiImage,
     webImage: input.webImage,
+    workerImage: input.workerImage,
+    processorImage: input.processorImage,
     builtAt: input.builtAt,
   });
 
 export const readReleaseManifest = async (path, expectedSourceSha) =>
-  assertReleaseManifest(
+  validateReleaseManifest(
     JSON.parse(await readFile(path, 'utf8')),
     expectedSourceSha,
   );
@@ -49,6 +104,8 @@ const main = async () => {
           sourceSha: process.env['SOURCE_SHA'],
           apiImage: process.env['API_IMAGE'],
           webImage: process.env['WEB_IMAGE'],
+          workerImage: process.env['WORKER_IMAGE'],
+          processorImage: process.env['PROCESSOR_IMAGE'],
           builtAt: process.env['BUILT_AT'],
         }),
         null,

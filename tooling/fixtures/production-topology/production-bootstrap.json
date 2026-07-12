@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "location": {
+    "id": "offline-smoke-location",
+    "name": "Offline Smoke Facility",
+    "timezone": "America/New_York",
+    "isActive": true
+  },
+  "sourceLocationBindings": [
+    {
+      "source": "cents",
+      "externalLocationId": "offline-smoke-store",
+      "locationId": "offline-smoke-location",
+      "isActive": true
+    }
+  ],
+  "stations": [
+    {
+      "locationId": "offline-smoke-location",
+      "kind": "sorting",
+      "label": "Sorting",
+      "sortOrder": 1,
+      "isActive": true
+    },
+    {
+      "locationId": "offline-smoke-location",
+      "kind": "washing",
+      "label": "Washing",
+      "sortOrder": 2,
+      "isActive": true
+    },
+    {
+      "locationId": "offline-smoke-location",
+      "kind": "drying",
+      "label": "Drying",
+      "sortOrder": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "offline-smoke-location",
+      "kind": "folding_packaging",
+      "label": "Folding and packaging",
+      "sortOrder": 4,
+      "isActive": true
+    }
+  ],
+  "machines": [
+    {
+      "locationId": "offline-smoke-location",
+      "stationKind": "washing",
+      "label": "Offline Washer",
+      "manufacturerCapacityLbs": 60,
+      "effectiveCapacityLbs": 54,
+      "capacitySafetyMarginLbs": 6,
+      "isActive": true
+    },
+    {
+      "locationId": "offline-smoke-location",
+      "stationKind": "drying",
+      "label": "Offline Dryer",
+      "manufacturerCapacityLbs": 60,
+      "effectiveCapacityLbs": 54,
+      "capacitySafetyMarginLbs": 6,
+      "isActive": true
+    }
+  ],
+  "schedulerConfig": {
+    "locationId": "offline-smoke-location",
+    "pulseMinutes": 56,
+    "foldLbsPerFolderMinute": 2,
+    "algorithmVersion": "fixed-pulse-ffd-v1",
+    "stageFitAssertion": {
+      "sortingFits": true,
+      "washingFits": true,
+      "dryingFits": true
+    }
+  }
+}

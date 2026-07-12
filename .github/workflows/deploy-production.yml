@@ -121,7 +121,7 @@ jobs:
           const output = process.env.GITHUB_OUTPUT;
           require('node:fs').appendFileSync(
             output,
-            `api_image=${manifest.apiImage}\nweb_image=${manifest.webImage}\n`,
+            `api_image=${manifest.apiImage}\nweb_image=${manifest.webImage}\nworker_image=${manifest.workerImage}\nprocessor_image=${manifest.processorImage}\n`,
           );
           NODE
 
@@ -156,15 +156,45 @@ jobs:
           DEPLOY_SHA: ${{ steps.deploy-ref.outputs.sha }}
           API_IMAGE: ${{ steps.release.outputs.api_image }}
           WEB_IMAGE: ${{ steps.release.outputs.web_image }}
+          WORKER_IMAGE: ${{ steps.release.outputs.worker_image }}
+          PROCESSOR_IMAGE: ${{ steps.release.outputs.processor_image }}
         run: |
           set -euo pipefail
 
+          ssh_args=(
+            -i ~/.ssh/lightsail
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+          )
+          remote_dir=''
+          cleanup_remote() {
+            if [[ -n "$remote_dir" ]]; then
+              ssh "${ssh_args[@]}" \
+                "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
+                "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup_remote EXIT
+
+          remote_dir="$(
+            ssh "${ssh_args[@]}" \
+              "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
+              'umask 077; mktemp -d /tmp/pressly-deploy.XXXXXXXX'
+          )"
+          [[ "$remote_dir" =~ ^/tmp/pressly-deploy\.[A-Za-z0-9]+$ ]]
+
+          local_deploy_script='infra/aws/lightsail/deploy.sh'
+          remote_deploy_script="$remote_dir/deploy.sh"
+          deploy_script_digest="$(sha256sum "$local_deploy_script" | cut -d' ' -f1)"
+
+          scp "${ssh_args[@]}" \
+            "$local_deploy_script" \
+            "$LIGHTSAIL_USER@$LIGHTSAIL_HOST:$remote_deploy_script"
+
           ssh \
-            -i ~/.ssh/lightsail \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
+            "${ssh_args[@]}" \
             "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
-            "DEPLOY_SHA='$DEPLOY_SHA' PRESSLY_API_IMAGE='$API_IMAGE' PRESSLY_WEB_IMAGE='$WEB_IMAGE' /opt/pressly/repo/infra/aws/lightsail/deploy.sh"
+            "set -euo pipefail; test \"\$(stat -c '%a' '$remote_dir')\" = 700; chmod 700 '$remote_deploy_script'; printf '%s  %s\\n' '$deploy_script_digest' '$remote_deploy_script' | sha256sum --check --status; DEPLOY_SHA='$DEPLOY_SHA' PRESSLY_API_IMAGE='$API_IMAGE' PRESSLY_WEB_IMAGE='$WEB_IMAGE' PRESSLY_WORKER_IMAGE='$WORKER_IMAGE' PRESSLY_PROCESSOR_IMAGE='$PROCESSOR_IMAGE' '$remote_deploy_script'"
 
       - name: Record deployment result
         if: always()

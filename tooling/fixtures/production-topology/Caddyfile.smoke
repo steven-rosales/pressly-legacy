@@ -1,0 +1,26 @@
+{$PRESSLY_WEB_DOMAIN:web.pressly.test} {
+	tls internal
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+{$PRESSLY_API_DOMAIN:api.pressly.test} {
+	tls internal
+	encode zstd gzip
+	reverse_proxy api:4000
+}
+
+{$PRESSLY_PROCESSOR_DOMAIN:processor.pressly.test} {
+	tls internal
+	encode zstd gzip
+
+	@processor_api path /api /api/*
+	handle @processor_api {
+		uri strip_prefix /api
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy processor:80
+	}
+}

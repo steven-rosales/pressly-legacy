@@ -1,0 +1,83 @@
+services:
+  caddy:
+    env_file: !override
+      - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/caddy.env.example
+        required: true
+    ports: !override
+      - 127.0.0.1:${PRESSLY_SMOKE_CADDY_PORT:?}:443
+    volumes: !override
+      - ${PRESSLY_SMOKE_FIXTURE_DIR:?}/Caddyfile.smoke:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  web:
+    pull_policy: never
+    build:
+      context: ${PRESSLY_SMOKE_REPO_ROOT:?}
+      dockerfile: apps/web/Dockerfile
+      args:
+        API_BASE_URL: http://api:4000
+        NEXT_PUBLIC_API_BASE_URL: https://api.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?}
+        NEXT_PUBLIC_ANALYTICS_ENABLED: 'false'
+        NEXT_PUBLIC_POSTHOG_KEY: ''
+        NEXT_PUBLIC_SENTRY_DSN: ''
+    env_file: !override
+      - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/web.env.example
+        required: true
+
+  api:
+    pull_policy: never
+    build:
+      context: ${PRESSLY_SMOKE_REPO_ROOT:?}
+      dockerfile: apps/api/Dockerfile
+      target: runner
+    env_file: !override
+      - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/api.env.example
+        required: true
+    environment:
+      CORS_ORIGIN: https://web.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?},https://processor.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?}
+      DATABASE_URL: postgres://pressly:${PRESSLY_SMOKE_DATABASE_PASSWORD:?}@postgres:5432/pressly
+      AUTH_SECRET: ${PRESSLY_SMOKE_AUTH_SECRET:?}
+      AUTH_MFA_ENCRYPTION_KEY: ${PRESSLY_SMOKE_MFA_ENCRYPTION_KEY:?}
+      PROCESSOR_ORIGIN: https://processor.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?}
+      PROCESSOR_CSRF_SECRET: ${PRESSLY_SMOKE_CSRF_SECRET:?}
+      CENTS_WEBHOOK_HMAC_CURRENT_KEY: ${PRESSLY_SMOKE_CENTS_HMAC_KEY:?}
+
+  worker:
+    pull_policy: never
+    build:
+      context: ${PRESSLY_SMOKE_REPO_ROOT:?}
+      dockerfile: apps/worker/Dockerfile
+      target: runner
+    env_file: !override
+      - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/worker.env.example
+        required: true
+    environment:
+      DATABASE_URL: postgres://pressly:${PRESSLY_SMOKE_DATABASE_PASSWORD:?}@postgres:5432/pressly
+
+  processor:
+    pull_policy: never
+    build:
+      context: ${PRESSLY_SMOKE_REPO_ROOT:?}
+      dockerfile: apps/processor/Dockerfile
+      target: runner
+      args:
+        VITE_API_URL: /api
+    env_file: !override
+      - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/processor.env.example
+        required: true
+
+  migrate:
+    pull_policy: never
+    env_file: !override
+      - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/migration.env.example
+        required: true
+    environment:
+      DATABASE_URL: postgres://pressly:${PRESSLY_SMOKE_DATABASE_PASSWORD:?}@postgres:5432/pressly
+
+  postgres:
+    env_file: !override
+      - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/postgres.env.example
+        required: true
+    environment:
+      POSTGRES_PASSWORD: ${PRESSLY_SMOKE_DATABASE_PASSWORD:?}
