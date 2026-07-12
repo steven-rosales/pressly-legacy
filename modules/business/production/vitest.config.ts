@@ -5,6 +5,7 @@ const source = (path: string) =>
   fileURLToPath(new URL(`../../../packages/${path}`, import.meta.url));
 
 const testkitSource = source('testkit/src');
+const timeSource = source('time/src/index.ts');
 
 export default defineConfig({
   resolve: {
@@ -35,6 +36,7 @@ export default defineConfig({
         find: /^@pressly\/kernel$/,
         replacement: source('kernel/src/index.ts'),
       },
+      { find: /^@pressly\/time$/, replacement: timeSource },
     ],
   },
   test: {
