@@ -4,8 +4,8 @@
 
 import './instrument.ts';
 import { createDatabaseRuntime } from '@pressly/db';
-import { nullLogger } from '@pressly/logging';
-import { nullCounterSink, nullErrorReporter } from '@pressly/metrics';
+import { makeJsonLogger } from '@pressly/logging';
+import { nullErrorReporter } from '@pressly/metrics';
 import { makeApiApp } from './app.ts';
 import { apiEnv } from './common/config/env.ts';
 import { installShutdownHandlers } from './common/runtime/shutdown.ts';
@@ -16,13 +16,23 @@ import {
   makeSentryErrorReporter,
 } from './common/observability/sentry.ts';
 import { observeApiRuntimeFailure } from './common/observability/api-observability.ts';
+import { makeLoggingCounterSink } from './common/observability/production-signals.ts';
+
+const makeRuntimeLogger = () =>
+  makeJsonLogger({
+    service: 'pressly-api',
+    environment: apiEnv.nodeEnv,
+    ...(apiEnv.observability.sentry.release === undefined
+      ? {}
+      : { release: apiEnv.observability.sentry.release }),
+  }).child({ runtime: 'api' });
 
 const main = async (): Promise<void> => {
-  const logger = nullLogger;
+  const logger = makeRuntimeLogger();
   const errors = apiEnv.observability.sentry.enabled
     ? makeSentryErrorReporter()
     : nullErrorReporter;
-  const counters = nullCounterSink;
+  const counters = makeLoggingCounterSink(logger);
 
   const database = createDatabaseRuntime({
     databaseUrl: apiEnv.databaseUrl,
@@ -79,7 +89,7 @@ const main = async (): Promise<void> => {
 };
 
 main().catch(async (error: unknown) => {
-  const logger = nullLogger;
+  const logger = makeRuntimeLogger();
   const errors = apiEnv.observability.sentry.enabled
     ? makeSentryErrorReporter()
     : nullErrorReporter;
@@ -89,7 +99,7 @@ main().catch(async (error: unknown) => {
       logger,
       observability: {
         errors,
-        counters: nullCounterSink,
+        counters: makeLoggingCounterSink(logger),
       },
     },
     {

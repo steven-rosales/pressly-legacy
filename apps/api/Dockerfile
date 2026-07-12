@@ -20,6 +20,10 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
 COPY modules/business/pricing/package.json modules/business/pricing/package.json
+COPY modules/business/production/package.json modules/business/production/package.json
+COPY modules/business/webhook-ingestion/package.json modules/business/webhook-ingestion/package.json
+COPY modules/policy/production/package.json modules/policy/production/package.json
+COPY modules/computation/scheduling/package.json modules/computation/scheduling/package.json
 COPY packages/auth/package.json packages/auth/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/contracts/package.json packages/contracts/package.json

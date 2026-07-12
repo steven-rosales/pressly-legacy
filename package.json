@@ -43,6 +43,7 @@
     "db:seed:pricing": "pnpm -F @pressly/db seed:pricing",
     "db:setup": "pnpm db:migrate && pnpm db:seed:pricing",
     "auth:bootstrap:owner": "pnpm -F @pressly/auth-module bootstrap:owner",
+    "production:bootstrap": "pnpm -F @pressly/api bootstrap:production --",
     "admin": "node ./tooling/scripts/run-admin-cli.mjs",
     "admin:docker": "node ./tooling/scripts/run-admin-cli.mjs --docker",
     "admin:env": "pnpm -F @pressly/cli dev --",
@@ -50,6 +51,10 @@
     "test:auth:int": "bash tooling/scripts/run-integration-tests.sh auth",
     "test:pricing:int": "bash tooling/scripts/run-integration-tests.sh pricing",
     "test:db-security:int": "bash tooling/scripts/run-integration-tests.sh db-security",
+    "test:lpms:int": "bash tooling/scripts/run-integration.sh",
+    "test:lpms:e2e": "pnpm --filter @pressly/api exec vitest run test/cents test/lpms/lpms-happy-path.e2e.test.ts && pnpm --filter @pressly/processor test",
+    "docker:lpms:build": "docker compose build api worker processor",
+    "docker:production:smoke": "bash tooling/scripts/production-topology-smoke.sh",
     "test:int": "bash tooling/scripts/run-integration-tests.sh all",
     "stateworks:validate": "tsx stateworks/tooling/validate-network.ts",
     "stateworks:next": "tsx stateworks/tooling/next-batch.ts",
@@ -79,6 +84,7 @@
   },
   "pnpm": {
     "overrides": {
+      "typescript": "6.0.3",
       "zod": "4.3.6"
     }
   }

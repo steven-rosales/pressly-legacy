@@ -74,7 +74,8 @@ export const makeSecurityEventSink = (input: {
 
     if (
       event.name !== 'authentication.login_failed' &&
-      event.name !== 'authorization.denied'
+      event.name !== 'authorization.denied' &&
+      event.name !== 'vendor.webhook_authentication_failed'
     )
       return false;
 
@@ -82,6 +83,7 @@ export const makeSecurityEventSink = (input: {
       event.name,
       event.principalId ?? 'unknown',
       event.action ?? '',
+      event.resourceId ?? '',
     ].join(':');
     const now = nowMs();
     const current = alertCounts.get(key);

@@ -74,6 +74,43 @@ describe('security event sink', () => {
     );
   });
 
+  it('counts redacted webhook denials and alerts only at the threshold', () => {
+    const { alerts, capture } = makeAlerts();
+    const increment = vi.fn();
+    const sink = makeSecurityEventSink({
+      alerts,
+      counters: { increment },
+      alertThreshold: 3,
+    });
+    const event = {
+      name: 'vendor.webhook_authentication_failed',
+      occurredAt: '2026-07-12T16:00:00.000Z',
+      outcome: 'denied',
+      resourceType: 'http.route',
+      resourceId: '/webhooks/cents',
+      reason: 'invalid_cents_webhook_authentication',
+    } as const;
+
+    sink.emit(event);
+    sink.emit(event);
+    expect(capture).not.toHaveBeenCalled();
+    sink.emit(event);
+
+    expect(increment).toHaveBeenCalledTimes(3);
+    expect(increment).toHaveBeenLastCalledWith(
+      'security.webhook_authentication_failures',
+      {
+        event: 'vendor.webhook_authentication_failed',
+        outcome: 'denied',
+        reason: 'repeated_security_denial',
+      },
+    );
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(capture.mock.calls)).not.toMatch(
+      /signature|hmac[_-]?key/i,
+    );
+  });
+
   it('alerts auth login rate limits without logging generic rate limits', () => {
     const { alerts, capture } = makeAlerts();
     const increment = vi.fn();
