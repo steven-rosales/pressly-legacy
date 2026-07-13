@@ -105,9 +105,7 @@ export const sourceLocationBindingResourceInputSchema = z
 
 export const sourceLocationBindingsManifestSchema = z
   .object({
-    sourceLocationBindings: z
-      .array(sourceLocationBindingResourceInputSchema)
-      .min(1),
+    sourceLocationBindings: z.array(sourceLocationBindingResourceInputSchema),
   })
   .strict()
   .superRefine((manifest, context) => {

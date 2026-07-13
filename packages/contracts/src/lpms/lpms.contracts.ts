@@ -6,7 +6,7 @@ export const lpmsBootstrapManifestSchema = productionBootstrapManifestSchema
   .safeExtend({
     sourceLocationBindings: z
       .array(sourceLocationBindingResourceInputSchema)
-      .min(1),
+      .default([]),
   })
   .superRefine((manifest, context) => {
     manifest.sourceLocationBindings.forEach((binding, index) => {

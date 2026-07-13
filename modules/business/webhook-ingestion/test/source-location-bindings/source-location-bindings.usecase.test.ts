@@ -24,6 +24,26 @@ const setup = (existing: readonly (typeof binding)[] = []) => {
 };
 
 describe('source-location binding bootstrap', () => {
+  it('treats an empty manifest as a non-destructive no-op', async () => {
+    const { manage, insert } = setup([binding]);
+
+    await expect(
+      manage({
+        manifest: { sourceLocationBindings: [] },
+        dryRun: false,
+      }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: {
+        status: 'converged',
+        applied: true,
+        operations: [],
+        rejections: [],
+      },
+    });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
   it('dry-runs and applies one new generic binding', async () => {
     const dryRun = setup();
     await expect(
