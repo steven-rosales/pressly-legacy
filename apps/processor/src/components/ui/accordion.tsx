@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Accordion as AccordionPrimitive } from "radix-ui"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/components/ui/class-names"
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-react"
 
 function Accordion({

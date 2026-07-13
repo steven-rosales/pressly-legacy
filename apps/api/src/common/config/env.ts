@@ -28,6 +28,15 @@ const envInteger = z.preprocess(
 
 const envRateLimit = z.coerce.number().int().positive();
 
+const hmacKey = secret.refine(
+  (value) => Buffer.byteLength(value, 'utf8') >= 32,
+  'HMAC keys must contain at least 32 bytes.',
+);
+
+const localProcessorCsrfSecret = hmacKey.parse(
+  'local-dev-processor-csrf-key-32-bytes-minimum',
+);
+
 const apiEnvSchema = z
   .object({
     NODE_ENV: nodeEnvSchema.default('development'),
@@ -56,6 +65,13 @@ const apiEnvSchema = z
     AUTH_MFA_ENCRYPTION_KEY: secret,
     AUTH_MFA_ISSUER: z.string().min(1).default('Pressly'),
 
+    PROCESSOR_ORIGIN: z.url().optional(),
+    PROCESSOR_CSRF_SECRET: hmacKey.optional(),
+
+    CENTS_WEBHOOK_HMAC_CURRENT_KEY: hmacKey.optional(),
+    CENTS_WEBHOOK_HMAC_PREVIOUS_KEY: hmacKey.optional(),
+    CENTS_WEBHOOK_CLOCK_WINDOW_SECONDS: envInteger.default(300),
+
     FEATURE_METRICS_ENABLED: featureFlag,
     FEATURE_JOBS_ENABLED: featureFlag,
 
@@ -71,13 +87,51 @@ const apiEnvSchema = z
         path: ['SENTRY_DSN'],
         message: 'SENTRY_DSN is required when SENTRY_ENABLED is true',
       });
+
+    if (
+      env.NODE_ENV === 'production' &&
+      env.CENTS_WEBHOOK_HMAC_CURRENT_KEY === undefined
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['CENTS_WEBHOOK_HMAC_CURRENT_KEY'],
+        message: 'CENTS_WEBHOOK_HMAC_CURRENT_KEY is required in production.',
+      });
+
+    if (env.NODE_ENV === 'production' && env.PROCESSOR_ORIGIN === undefined)
+      context.addIssue({
+        code: 'custom',
+        path: ['PROCESSOR_ORIGIN'],
+        message: 'PROCESSOR_ORIGIN is required in production.',
+      });
+
+    if (
+      env.NODE_ENV === 'production' &&
+      env.PROCESSOR_ORIGIN !== undefined &&
+      new URL(env.PROCESSOR_ORIGIN).protocol !== 'https:'
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['PROCESSOR_ORIGIN'],
+        message: 'PROCESSOR_ORIGIN must use HTTPS in production.',
+      });
+
+    if (
+      env.NODE_ENV === 'production' &&
+      env.PROCESSOR_CSRF_SECRET === undefined
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['PROCESSOR_CSRF_SECRET'],
+        message: 'PROCESSOR_CSRF_SECRET is required in production.',
+      });
   });
 
 export const rawApiEnv = parseEnv(apiEnvSchema, process.env);
 
 export type ApiEnv = typeof rawApiEnv;
 
-export const apiEnv = {
+const configuredApiEnv = {
   nodeEnv: rawApiEnv.NODE_ENV,
   shutdownGracePeriodMs: rawApiEnv.SHUTDOWN_GRACE_PERIOD_MS,
   host: rawApiEnv.API_HOST,
@@ -106,6 +160,18 @@ export const apiEnv = {
     mfaEncryptionKey: rawApiEnv.AUTH_MFA_ENCRYPTION_KEY,
     mfaIssuer: rawApiEnv.AUTH_MFA_ISSUER,
   },
+  processor: {
+    origin: new URL(rawApiEnv.PROCESSOR_ORIGIN ?? 'http://localhost:4173')
+      .origin,
+    csrfSecret: rawApiEnv.PROCESSOR_CSRF_SECRET ?? localProcessorCsrfSecret,
+  },
+  centsWebhook: {
+    hmac: {
+      currentKey: rawApiEnv.CENTS_WEBHOOK_HMAC_CURRENT_KEY,
+      previousKey: rawApiEnv.CENTS_WEBHOOK_HMAC_PREVIOUS_KEY,
+      clockWindowSeconds: rawApiEnv.CENTS_WEBHOOK_CLOCK_WINDOW_SECONDS,
+    },
+  },
   features: {
     metricsEnabled: rawApiEnv.FEATURE_METRICS_ENABLED,
     jobsEnabled: rawApiEnv.FEATURE_JOBS_ENABLED,
@@ -119,3 +185,5 @@ export const apiEnv = {
     },
   },
 } as const;
+
+export const apiEnv = configuredApiEnv;

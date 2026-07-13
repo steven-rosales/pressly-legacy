@@ -1,7 +1,7 @@
 import { makeAppError } from '@pressly/errors';
 import type { CorsOptions } from 'cors';
 
-const allowedMethods = 'GET,HEAD,POST,OPTIONS';
+const allowedMethods = 'GET,HEAD,POST,PUT,PATCH,OPTIONS';
 const allowedHeaders = [
   'Accept',
   'Authorization',

@@ -1,0 +1,427 @@
+{
+  "info": {
+    "_postman_id": "f0790ee4-744a-4d1b-9976-13b2626ea101",
+    "name": "Pressly Cents Webhook Proof",
+    "description": "Local-only, synthetic proof cases for the Pressly Cents webhook boundary. Run the requests in collection order against a clean local environment. Never place a production URL, customer payload, or shared secret in this collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const CryptoJS = pm.require('npm:crypto-js@4.2.0');",
+          "",
+          "const proofModeHeader = 'X-Pressly-Proof-Mode';",
+          "const proofMode = pm.request.headers.get(proofModeHeader) || 'valid';",
+          "pm.request.headers.remove(proofModeHeader);",
+          "",
+          "const supportedModes = ['valid', 'wrong_key', 'modified_body', 'stale'];",
+          "if (!supportedModes.includes(proofMode)) {",
+          "  throw new Error(`Unsupported Pressly proof mode: ${proofMode}`);",
+          "}",
+          "",
+          "if (!pm.request.body || pm.request.body.mode !== 'raw') {",
+          "  throw new Error('Cents proof requests must use a raw body.');",
+          "}",
+          "",
+          "const rawBody = pm.variables.replaceIn(pm.request.body.raw || '');",
+          "const currentKey = pm.environment.get('cents_hmac_key');",
+          "if (typeof currentKey !== 'string' || CryptoJS.enc.Utf8.parse(currentKey).sigBytes < 32) {",
+          "  throw new Error('Set a local cents_hmac_key of at least 32 UTF-8 bytes before running this collection.');",
+          "}",
+          "",
+          "const nowSeconds = Math.floor(Date.now() / 1000);",
+          "const timestamp = String(proofMode === 'stale' ? nowSeconds - 301 : nowSeconds);",
+          "const signingKey = proofMode === 'wrong_key'",
+          "  ? 'postman-negative-fixture-key-not-a-secret-0001'",
+          "  : currentKey;",
+          "const bodyToSign = proofMode === 'modified_body' ? `${rawBody} ` : rawBody;",
+          "const signature = CryptoJS.HmacSHA256(`${timestamp}.${bodyToSign}`, signingKey)",
+          "  .toString(CryptoJS.enc.Hex);",
+          "",
+          "pm.request.headers.upsert({ key: 'X-Cents-Timestamp', value: timestamp });",
+          "pm.request.headers.upsert({ key: 'X-Cents-Signature', value: `v1=${signature}` });"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Valid signature baseline",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('accepts a correctly signed request', () => {",
+              "  pm.response.to.have.status(202);",
+              "  const response = pm.response.json();",
+              "  pm.expect(response.ok).to.eql(true);",
+              "  pm.expect(response.data.status).to.eql('pending');",
+              "  pm.expect(response.data.duplicate).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Pressly-Proof-Mode",
+            "value": "valid"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-valid-signature\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"IN_PROGRESS\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:00:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/cents",
+          "host": ["{{base_url}}"],
+          "path": ["webhooks", "cents"]
+        },
+        "description": "Proof case: valid_signature\nAutomated equivalent: apps/api/test/cents/cents-webhook.security.test.ts :: authenticates the timestamp, period, and exact raw body bytes\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: authenticates and normalizes a documented Cents order before durable ingestion"
+      }
+    },
+    {
+      "name": "02 - Reject wrong key",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects a signature made with the wrong key', () => {",
+              "  pm.response.to.have.status(401);",
+              "  pm.expect(pm.response.json().error.code).to.eql('invalid_cents_webhook_authentication');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Pressly-Proof-Mode",
+            "value": "wrong_key"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-wrong-key\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"IN_PROGRESS\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:01:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/cents",
+          "host": ["{{base_url}}"],
+          "path": ["webhooks", "cents"]
+        },
+        "description": "Proof case: wrong_key\nAutomated equivalent: apps/api/test/cents/cents-webhook.security.test.ts :: rejects wrong keys and body mutation with one indistinguishable result\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: rejects $name before any durable write"
+      }
+    },
+    {
+      "name": "03 - Reject modified body",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects a body different from the signed bytes', () => {",
+              "  pm.response.to.have.status(401);",
+              "  pm.expect(pm.response.json().error.code).to.eql('invalid_cents_webhook_authentication');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Pressly-Proof-Mode",
+            "value": "modified_body"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-modified-body\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"IN_PROGRESS\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:02:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/cents",
+          "host": ["{{base_url}}"],
+          "path": ["webhooks", "cents"]
+        },
+        "description": "Proof case: modified_body\nAutomated equivalent: apps/api/test/cents/cents-webhook.security.test.ts :: rejects wrong keys and body mutation with one indistinguishable result\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: rejects $name before any durable write"
+      }
+    },
+    {
+      "name": "04 - Reject stale timestamp",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects a timestamp outside the five-minute window', () => {",
+              "  pm.response.to.have.status(401);",
+              "  pm.expect(pm.response.json().error.code).to.eql('invalid_cents_webhook_authentication');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Pressly-Proof-Mode",
+            "value": "stale"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-stale-timestamp\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"IN_PROGRESS\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:03:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/cents",
+          "host": ["{{base_url}}"],
+          "path": ["webhooks", "cents"]
+        },
+        "description": "Proof case: stale_timestamp\nAutomated equivalent: apps/api/test/cents/cents-webhook.security.test.ts :: enforces the symmetric five-minute clock window\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: rejects $name before any durable write"
+      }
+    },
+    {
+      "name": "05 - Accept order event",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('stores the first order delivery as pending', () => {",
+              "  pm.response.to.have.status(202);",
+              "  const response = pm.response.json();",
+              "  pm.expect(response.ok).to.eql(true);",
+              "  pm.expect(response.data.status).to.eql('pending');",
+              "  pm.expect(response.data.duplicate).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Pressly-Proof-Mode",
+            "value": "valid"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-duplicate-1001\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"IN_PROGRESS\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:04:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/cents",
+          "host": ["{{base_url}}"],
+          "path": ["webhooks", "cents"]
+        },
+        "description": "Proof case: order_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: normalizes documented fields and strips unrelated customer PII\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: authenticates and normalizes a documented Cents order before durable ingestion"
+      }
+    },
+    {
+      "name": "06 - Accept duplicate order delivery",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('acknowledges an exact duplicate without a second event', () => {",
+              "  pm.response.to.have.status(202);",
+              "  const response = pm.response.json();",
+              "  pm.expect(response.ok).to.eql(true);",
+              "  pm.expect(response.data.status).to.eql('pending');",
+              "  pm.expect(response.data.duplicate).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Pressly-Proof-Mode",
+            "value": "valid"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-duplicate-1001\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"IN_PROGRESS\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:04:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/cents",
+          "host": ["{{base_url}}"],
+          "path": ["webhooks", "cents"]
+        },
+        "description": "Proof case: duplicate_delivery\nAutomated equivalent: modules/business/webhook-ingestion/test/ingest-event/ingest-event.usecase.test.ts :: hashes opaque canonical payload and acknowledges only after storage"
+      }
+    },
+    {
+      "name": "07 - Accept and minimize customer event",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('acknowledges the customer event as ignored', () => {",
+              "  pm.response.to.have.status(202);",
+              "  const response = pm.response.json();",
+              "  pm.expect(response.ok).to.eql(true);",
+              "  pm.expect(response.data.status).to.eql('ignored');",
+              "  pm.expect(response.data.duplicate).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Pressly-Proof-Mode",
+            "value": "valid"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"event\":\"customer_updated\",\"customer\":{\"id\":\"synthetic-customer-1001\",\"updatedAt\":\"2030-01-15T14:05:00.000Z\"}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/cents",
+          "host": ["{{base_url}}"],
+          "path": ["webhooks", "cents"]
+        },
+        "description": "Proof case: customer_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: minimizes %s as an ignored %s receipt\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: stores only a minimal ignored event for an authenticated $name"
+      }
+    },
+    {
+      "name": "08 - Accept and minimize marketing event",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('acknowledges the marketing event as ignored', () => {",
+              "  pm.response.to.have.status(202);",
+              "  const response = pm.response.json();",
+              "  pm.expect(response.ok).to.eql(true);",
+              "  pm.expect(response.data.status).to.eql('ignored');",
+              "  pm.expect(response.data.duplicate).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Pressly-Proof-Mode",
+            "value": "valid"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"event\":\"customer_marketing_optin\",\"customer\":{\"id\":\"synthetic-customer-1002\",\"updatedAt\":\"2030-01-15T14:06:00.000Z\"}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/cents",
+          "host": ["{{base_url}}"],
+          "path": ["webhooks", "cents"]
+        },
+        "description": "Proof case: marketing_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: minimizes %s as an ignored %s receipt\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: stores only a minimal ignored event for an authenticated $name"
+      }
+    }
+  ]
+}

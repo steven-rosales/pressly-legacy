@@ -8,6 +8,7 @@ goal:
 invariants:
   - Preserve current behavior unless the task explicitly changes it.
   - Do not expose secrets in logs, docs, evidence, or commits.
+  - Do not update domain memory without a verified memory delta.
 
 max_repair_attempts: 3
 stop_on:
@@ -26,6 +27,7 @@ tasks:
     deps: []
     reads:
       - repo
+      - memory:domain:example/context-pack
     writes: []
     action:
       - Inspect the current files and identify the minimum change.

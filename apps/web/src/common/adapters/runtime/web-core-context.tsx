@@ -18,7 +18,6 @@ import type {
   WebContext,
 } from '@/common/core/runtime/context';
 import { makeBrowserPostHogTracker } from '../analytics/posthog-tracker';
-import { makeSonnerFeedback } from '../feedback/sonner-feedback';
 import { makeSentryErrorReporter } from '../observability/sentry-reporter';
 import { makeFetchRequestClient } from '../requests/fetch-request-client';
 import { getOrCreateBrowserId } from './browser-ids';
@@ -81,7 +80,6 @@ export const WebCoreProvider = ({ children }: PropsWithChildren) => {
       logger: nullLogger,
       analytics,
       errors,
-      feedback: makeSonnerFeedback(),
       request: request ?? makeUnavailableRequestClient(),
     });
   }, [pathname]);

@@ -50,15 +50,24 @@ const waitForApi = async () => {
   process.exit(1);
 };
 
-const buildWeb = async () => {
+const startApi = async () => {
   runCompose(['up', '-d', '--build', 'postgres', 'api']);
   await waitForApi();
+};
+
+const buildWeb = async () => {
+  await startApi();
   runCompose(['build', 'web']);
 };
 
+const buildStack = async () => {
+  await startApi();
+  runCompose(['build', 'web', 'worker', 'processor']);
+};
+
 const up = async () => {
-  await buildWeb();
-  runCompose(['up', '--no-build', 'api', 'web']);
+  await buildStack();
+  runCompose(['up', '--no-build', 'api', 'web', 'worker', 'processor']);
 };
 
 switch (command) {

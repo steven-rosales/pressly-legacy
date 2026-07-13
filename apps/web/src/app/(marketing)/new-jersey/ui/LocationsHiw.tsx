@@ -1,11 +1,11 @@
 import Image from 'next/image';
 
-import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
-import { OFFER_COPY } from '@/app/shared/marketing/content';
 import {
   HiwTimeline,
   type HiwTimelineStep,
-} from '@/app/shared/ui/public/HiwTimeline';
+} from '@/app/(marketing)/_components/HiwTimeline';
+import { ORDER_ENTRY_OFFER_COPY } from '@/features/order-entry/content';
+import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
 
 interface LocationsHiwProps {
   heading: string;
@@ -63,7 +63,7 @@ export function LocationsHiw({ heading, steps }: LocationsHiwProps) {
             Schedule a Pickup
           </SchedulePickupButton>
           <p className="text-center text-base font-medium text-primary">
-            {OFFER_COPY}
+            {ORDER_ENTRY_OFFER_COPY}
           </p>
         </div>
       </div>

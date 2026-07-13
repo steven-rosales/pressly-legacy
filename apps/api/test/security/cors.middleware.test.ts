@@ -73,7 +73,7 @@ describe('makeCorsOptions', () => {
     const options = makeCorsOptions('https://trypressly.com', 'production');
 
     expect(options).toMatchObject({
-      methods: 'GET,HEAD,POST,OPTIONS',
+      methods: 'GET,HEAD,POST,PUT,PATCH,OPTIONS',
       allowedHeaders:
         'Accept,Authorization,Content-Type,X-CSRF-Token,X-Pressly-Route,X-Pressly-Session-Id',
       maxAge: 600,

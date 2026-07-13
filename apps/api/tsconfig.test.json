@@ -29,6 +29,18 @@
       "@pressly/logging": ["../../packages/logging/src/index.ts"],
       "@pressly/metrics": ["../../packages/metrics/src/index.ts"],
       "@pressly/pricing": ["../../modules/business/pricing/src/public.ts"],
+      "@pressly/production": [
+        "../../modules/business/production/src/public.ts"
+      ],
+      "@pressly/production/testing": [
+        "../../modules/business/production/test/support/memory-production-repositories.ts"
+      ],
+      "@pressly/production-policy": [
+        "../../modules/policy/production/src/public.ts"
+      ],
+      "@pressly/production-scheduling": [
+        "../../modules/computation/scheduling/src/public.ts"
+      ],
       "@pressly/time": ["../../packages/time/src/index.ts"]
     }
   },

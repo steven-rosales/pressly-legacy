@@ -31,6 +31,7 @@ export const surfaces = [
   'dns',
   'sentry',
   'local_secret_store',
+  'memory',
   'other',
 ] as const;
 

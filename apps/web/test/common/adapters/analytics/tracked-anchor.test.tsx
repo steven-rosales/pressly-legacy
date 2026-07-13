@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { makeTestWebCore } from '@/common/testing/make-test-web-core';
 import { TrackedAnchor } from '@/common/adapters/analytics/tracked-anchor';
 import { InjectedWebCoreProvider } from '@/common/adapters/runtime/web-core-context';
-import { publicEvents } from '@/common/core/analytics/events';
+import { orderEntryEvents } from '@/features/order-entry/events';
 
 describe('TrackedAnchor', () => {
   it('tracks event on click', async () => {
@@ -16,7 +16,7 @@ describe('TrackedAnchor', () => {
       <InjectedWebCoreProvider core={core}>
         <TrackedAnchor
           href="https://vendor.example.com"
-          event={publicEvents.orderIntentStarted({
+          event={orderEntryEvents.intentStarted({
             source: 'hero',
             vendor: 'cents',
           })}

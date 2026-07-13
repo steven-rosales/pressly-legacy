@@ -1,6 +1,8 @@
 import Image from 'next/image';
-import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
-import SecondaryButton from '@/app/shared/ui/components/SecondaryButton';
+import Link from 'next/link';
+
+import { Button } from '@/components/ui/button';
+import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
 import type { HomePageModel } from '../model';
 
 export default function HomeHero({ model }: { model: HomePageModel['hero'] }) {
@@ -18,12 +20,14 @@ export default function HomeHero({ model }: { model: HomePageModel['hero'] }) {
             source={model.primaryCtaSource}
             className="w-full lg:w-auto"
           />
-          <SecondaryButton
-            href={model.secondaryHref}
-            className="w-full lg:w-auto"
+          <Button
+            asChild
+            variant="outline"
+            size="lg"
+            className="w-full cursor-pointer bg-primary-foreground text-base text-foreground lg:w-auto"
           >
-            {model.secondaryLabel}
-          </SecondaryButton>
+            <Link href={model.secondaryHref}>{model.secondaryLabel}</Link>
+          </Button>
         </div>
       </div>
       <div className="relative w-full lg:w-1/2 max-w-[480px] sm:max-w-[540px] lg:max-w-[500px] aspect-4/3 mx-auto lg:mx-0">

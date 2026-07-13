@@ -64,6 +64,48 @@
       "when": 1782753174389,
       "tag": "0009_daily_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783712208251,
+      "tag": "0010_lpms_v1",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1783712245089,
+      "tag": "0011_lpms_active_stage",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1783870308304,
+      "tag": "0012_lpms-production-readiness",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783870568245,
+      "tag": "0013_lpms-location-closure",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783871543131,
+      "tag": "0014_lpms-receipt-classification",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1783883793077,
+      "tag": "0015_lpms-module-boundaries",
+      "breakpoints": true
     }
   ]
 }

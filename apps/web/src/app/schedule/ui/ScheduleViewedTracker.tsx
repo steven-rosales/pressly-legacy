@@ -2,18 +2,15 @@
 
 import { useEffect } from 'react';
 
-import { useWebCore } from '@/common/adapters/runtime/web-core-context';
-import { publicEvents } from '@/common/core/analytics/events';
-import { trackPublicEvent } from '@/common/core/analytics/track';
+import { usePublicEventTracker } from '@/common/adapters/analytics/use-public-event-tracker';
+import { orderEntryEvents } from '@/features/order-entry/events';
 
 export function ScheduleViewedTracker() {
-  const core = useWebCore();
+  const track = usePublicEventTracker();
 
   useEffect(() => {
-    trackPublicEvent(core)(
-      publicEvents.orderScheduleShellViewed({ vendor: 'cents' }),
-    );
-  }, [core]);
+    track(orderEntryEvents.scheduleShellViewed({ vendor: 'cents' }));
+  }, [track]);
 
   return null;
 }

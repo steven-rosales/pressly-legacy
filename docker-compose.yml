@@ -57,7 +57,7 @@ services:
       DATABASE_URL: postgres://pressly:pressly@postgres:5432/pressly
       DATABASE_MAX_CONNECTIONS: 10
       SHUTDOWN_GRACE_PERIOD_MS: 30000
-      CORS_ORIGIN: http://localhost:3000
+      CORS_ORIGIN: http://localhost:3000,http://localhost:4173
       AUTH_SECRET: local-dev-auth-secret
       AUTH_MFA_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
       FEATURE_METRICS_ENABLED: false
@@ -66,7 +66,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "pnpm install --frozen-lockfile && pnpm -F @pressly/db migrate && pnpm -F @pressly/db seed:pricing && pnpm -F @pressly/api dev"
+    command: >-
+      sh -c "pnpm install --frozen-lockfile
+      && pnpm -F @pressly/db migrate
+      && pnpm -F @pressly/db seed:pricing
+      && pnpm -F @pressly/api bootstrap:production --
+      --file /repo/tooling/fixtures/pressly-one.production-bootstrap.json
+      --actor-id 00000000-0000-4000-8000-000000000001
+      --idempotency-key local-pressly-one-topology-v1
+      --apply
+      && pnpm -F @pressly/api dev"
     volumes:
       - .:/repo
       - pressly_node_modules:/repo/node_modules
@@ -113,6 +122,46 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+  worker:
+    image: pressly-worker:local
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+      target: runner
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://pressly:pressly@postgres:5432/pressly
+      FEATURE_JOBS_ENABLED: 'true'
+      WORKER_POLL_INTERVAL_MS: 1000
+      WORKER_LEASE_MS: 30000
+      WORKER_BATCH_SIZE: 20
+      WORKER_MAX_ATTEMPTS: 8
+      WORKER_RETRY_BASE_MS: 1000
+      WORKER_RETRY_MAX_MS: 300000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  processor:
+    image: pressly-processor:local
+    build:
+      context: .
+      dockerfile: apps/processor/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    ports:
+      - '${PROCESSOR_PORT:-4173}:80'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'wget -qO- http://127.0.0.1/health >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   pressly_postgres_data:

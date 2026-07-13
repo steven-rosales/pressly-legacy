@@ -5,22 +5,16 @@ import {
   type Response,
   type Router as ExpressRouter,
 } from 'express';
-import { makeLoadPricingCatalogRoute } from './adapters/load-pricing-catalog/http/load-pricing-catalog.route.ts';
-import { makePublishPricingChangeRoute } from './adapters/publish-pricing/http/publish-pricing-change.route.ts';
-import { makeEffectivePricingCatalogFinder } from './adapters/load-pricing-catalog/persistence/effective-pricing-catalog.repo.ts';
-import { makePricingChangeStore } from './adapters/publish-pricing/persistence/pricing-change.repo.ts';
-import {
-  makeLoadPricingCatalog,
-  type LoadPricingCatalog,
-} from './features/load-pricing-catalog/load-pricing-catalog.usecase.ts';
+import { makeLoadPricingCatalogRoute } from './load-pricing-catalog/load-pricing-catalog.route.ts';
+import { makePublishPricingChangeRoute } from './publish-pricing/publish-pricing-change.route.ts';
+import { makeEffectivePricingCatalogFinder } from './load-pricing-catalog/effective-pricing-catalog.repo.ts';
+import { makePricingChangeStore } from './publish-pricing/pricing-change.repo.ts';
+import { makeLoadPricingCatalog } from './load-pricing-catalog/load-pricing-catalog.usecase.ts';
 import {
   makePlanPricingChange,
   type PlanPricingChange,
-} from './features/publish-pricing/plan-pricing-change.usecase.ts';
-import {
-  makePublishPricingChange,
-  type PublishPricingChange,
-} from './features/publish-pricing/publish-pricing-change.usecase.ts';
+} from './publish-pricing/plan-pricing-change.usecase.ts';
+import { makePublishPricingChange } from './publish-pricing/publish-pricing-change.usecase.ts';
 
 export type ReadPricingChangeAuthor = (
   res: Response,
@@ -38,15 +32,8 @@ export type PricingModuleDeps = Readonly<{
   auth: PricingRouteSecurity;
 }>;
 
-export type PricingModuleActions = Readonly<{
-  loadCatalog: LoadPricingCatalog;
-  planChange: PlanPricingChange;
-  publishChange: PublishPricingChange;
-}>;
-
 export type PricingModule = Readonly<{
   routes: ExpressRouter;
-  actions: PricingModuleActions;
 }>;
 
 export const makePricingModule = (deps: PricingModuleDeps): PricingModule => {
@@ -59,11 +46,6 @@ export const makePricingModule = (deps: PricingModuleDeps): PricingModule => {
   const pricingChangeStore = makePricingChangeStore({ db: deps.db });
   const planPricingChange = makePlanPricingChange(pricingChangeStore);
   const publishPricingChange = makePublishPricingChange(pricingChangeStore);
-  const actions: PricingModuleActions = {
-    loadCatalog: loadPricingCatalog,
-    planChange: planPricingChange,
-    publishChange: publishPricingChange,
-  };
   const routes = Router();
 
   routes.use('/', makeLoadPricingCatalogRoute({ loadPricingCatalog }));
@@ -77,8 +59,5 @@ export const makePricingModule = (deps: PricingModuleDeps): PricingModule => {
     }),
   );
 
-  return {
-    actions,
-    routes,
-  };
+  return { routes };
 };

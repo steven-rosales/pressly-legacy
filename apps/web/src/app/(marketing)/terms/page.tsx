@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
-import { buildPageMetadata } from '@/app/shared/marketing/seo';
-import { getTermsOfServiceModel } from '@/app/shared/legal/model';
-import { LegalDocumentView } from '@/app/shared/legal/ui/LegalDocumentView';
+import { buildPageMetadata } from '@/app/_lib/seo';
+import { LegalDocumentView } from '../_legal/LegalDocumentView';
+import { getTermsOfServiceModel } from '../_legal/model';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'Terms of Service',

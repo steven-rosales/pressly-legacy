@@ -1,0 +1,261 @@
+id: memdelta-2026-07-08-laundry-production-core
+domain_id: laundry-production
+
+source:
+  type: interrogation_session
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-08-domain-interrogation.md
+
+changes:
+  - op: assert
+    kind: actor
+    id: operator
+    description: A person using LPMS to execute or confirm production-floor work.
+  - op: assert
+    kind: actor
+    id: manager
+    description: A person who can create, review, accept, and supervise production schedules and runs.
+  - op: assert
+    kind: actor
+    id: employee
+    description: A production worker who performs sorting, washing, drying, folding, or packaging work.
+
+  - op: assert
+    kind: external_system
+    id: cents
+    description: The v1 CRM/vendor system and external order authority for webhook-driven order demand.
+
+  - op: assert
+    kind: object
+    id: crm_order
+    description: The normalized projection of a Cents order; it is external demand, not production truth.
+  - op: assert
+    kind: object
+    id: production_order
+    description: The internal LPMS view of a CRM order that may become eligible for production scheduling.
+  - op: assert
+    kind: object
+    id: schedule_run
+    description: An immutable scheduler proposal containing input snapshot, output plan, hashes, score, and warnings.
+  - op: assert
+    kind: object
+    id: production_run
+    description: The accepted execution instance created from a schedule proposal.
+  - op: assert
+    kind: object
+    id: production_batch
+    description: A real group of production orders moving together through the floor; it is not a washer load.
+  - op: assert
+    kind: object
+    id: stage_run
+    description: The state-machine owner for one physical process step of one production batch.
+  - op: assert
+    kind: object
+    id: stage_machine_assignment
+    description: A stage-level assignment of one physical machine to a stage run.
+  - op: assert
+    kind: object
+    id: machine
+    description: A physical constrained production resource such as a washer, dryer, or folding station.
+  - op: assert
+    kind: object
+    id: scheduler_config
+    description: Versioned configuration for production pulse, durations, fold rate, and scheduler behavior.
+  - op: assert
+    kind: object
+    id: work_event
+    description: The authoritative mutation ledger and audit trail for production changes.
+
+  - op: assert
+    kind: workflow
+    id: production_batch_happy_path
+    steps:
+      - queued
+      - sorting
+      - washing
+      - drying
+      - folding_packaging
+      - finished
+  - op: assert
+    kind: workflow
+    id: scheduling_to_execution
+    steps:
+      - Cents order reaches IN_PROGRESS
+      - LPMS marks production_order eligible
+      - scheduler creates schedule_run proposal
+      - operator accepts schedule_run
+      - LPMS creates production_run and production_batch records
+      - operators advance stage_run records through the floor
+      - production_batch finishes folding and packaging
+  - op: assert
+    kind: workflow
+    id: production_command_write_path
+    steps:
+      - receive command
+      - validate invariants
+      - insert work_event
+      - update operational tables
+      - commit transaction
+
+  - op: assert
+    kind: invariant
+    id: orders_do_not_split_across_batches
+    statement: A production_order can belong to at most one active production_batch, and all bags for one order must stay in that same production_batch.
+  - op: assert
+    kind: invariant
+    id: bags_not_assigned_to_machines
+    statement: Individual bags are not assigned to machines in v1; machine use is modeled at the stage level.
+  - op: assert
+    kind: invariant
+    id: batch_is_not_machine_load
+    statement: A production_batch is a group of orders moving together through production, not a washer load or dryer load.
+  - op: assert
+    kind: invariant
+    id: batch_single_active_stage
+    statement: A production_batch can be active in only one stage at a time.
+  - op: assert
+    kind: invariant
+    id: one_active_batch_per_stage_kind_v1
+    statement: For v1, at most one production_batch can have an active stage_run for the same stage kind.
+  - op: assert
+    kind: invariant
+    id: stage_order_is_sequential
+    statement: A stage cannot start before the previous required stage for the same production_batch is completed.
+  - op: assert
+    kind: invariant
+    id: machines_do_not_overlap
+    statement: A machine cannot have overlapping active stage_machine_assignments.
+  - op: assert
+    kind: invariant
+    id: batch_minutes_minimum
+    statement: batch_minutes must be at least 50.
+  - op: assert
+    kind: invariant
+    id: schedule_run_is_immutable
+    statement: A schedule_run input snapshot, output plan, hashes, algorithm version, score, and warnings are immutable after creation.
+  - op: assert
+    kind: invariant
+    id: one_production_run_per_schedule
+    statement: Accepting a schedule_run creates exactly one production_run.
+  - op: assert
+    kind: invariant
+    id: scheduler_does_not_mutate_execution
+    statement: The scheduler returns proposals and cannot mutate execution state directly.
+  - op: assert
+    kind: invariant
+    id: stage_completion_is_operator_confirmed
+    statement: stage_run completion is operator-confirmed operational truth, not washer or dryer hardware-confirmed truth.
+  - op: assert
+    kind: invariant
+    id: webhooks_are_idempotent
+    statement: Inbound CRM webhook events must be idempotent.
+
+  - op: assert
+    kind: policy
+    id: cents_in_progress_is_eligible
+    statement: A Cents order is eligible for LPMS production only when the latest projected CRM order status is IN_PROGRESS.
+  - op: assert
+    kind: policy
+    id: cents_weight_derivation_v1
+    statement: For v1, LPMS derives production weight from Cents laundry service pricing instead of measured bag-level weight.
+  - op: assert
+    kind: policy
+    id: wash_fold_only_v1
+    statement: V1 is scoped to wash-and-fold production only.
+  - op: assert
+    kind: policy
+    id: heijunka_pulse_v1
+    statement: V1 uses a configurable heijunka-style production pulse with a default batch duration of 56 minutes.
+  - op: assert
+    kind: policy
+    id: washer_effective_capacity
+    statement: Washer scheduling uses effective capacity below manufacturer capacity to preserve cleaning quality.
+  - op: assert
+    kind: policy
+    id: no_hardware_integration_v1
+    statement: V1 has no washer or dryer hardware integration; operators confirm starts and completions manually.
+  - op: assert
+    kind: policy
+    id: due_bucket_selection_v1
+    statement: V1 scheduling should expose due-today, due-tomorrow, and later order buckets for operator judgment.
+  - op: assert
+    kind: policy
+    id: consistency_over_availability
+    statement: Production writes prefer consistency over availability.
+
+  - op: assert
+    kind: decision
+    id: domain_named_laundry_production
+    statement: The durable Stateworks memory domain is named laundry-production instead of lpms because LPMS is the app/system name.
+  - op: assert
+    kind: decision
+    id: schedule_run_is_proposal
+    statement: schedule_run represents a scheduler proposal, not real production-floor execution.
+  - op: assert
+    kind: decision
+    id: production_run_is_execution_truth
+    statement: production_run and its production_batch and stage_run records represent accepted execution truth.
+  - op: assert
+    kind: decision
+    id: stage_run_owns_floor_state
+    statement: stage_run owns the physical workflow state machine.
+  - op: assert
+    kind: decision
+    id: work_event_not_full_event_sourcing_v1
+    statement: work_event is the authoritative mutation ledger and audit trail, but LPMS is not full event sourcing in v1.
+  - op: assert
+    kind: decision
+    id: typescript_scheduler_first
+    statement: Build the first scheduler in TypeScript behind a boundary that can later be replaced by a Rust solver.
+  - op: assert
+    kind: decision
+    id: memory_keeps_rules_docs_keep_schema
+    statement: Stateworks memory stores durable business rules; docs/plan/lpms.md stores richer schema and modeling detail.
+
+  - op: assert
+    kind: assumption
+    id: cents_price_weight_good_enough_v1
+    statement: Cents price-derived weight is good enough for first-version scheduling.
+    confidence: medium
+  - op: assert
+    kind: assumption
+    id: initial_fold_rate
+    statement: The initial folding rate is 1.5 pounds per employee minute, but it must remain configurable.
+    confidence: high
+  - op: assert
+    kind: assumption
+    id: commercial_orders_low_volume_v1
+    statement: Commercial orders are low enough volume in v1 to stay inside the same simple batching model.
+    confidence: medium
+  - op: assert
+    kind: assumption
+    id: manual_stage_confirmation_is_acceptable_v1
+    statement: Manual operator confirmation is acceptable as the source of stage completion truth in v1.
+    confidence: high
+
+  - op: assert
+    kind: open_question
+    id: exact_scheduler_ordering_rules
+    question: What exact deterministic ordering rules should the first scheduler use inside due-today, due-tomorrow, and later buckets?
+  - op: assert
+    kind: open_question
+    id: exception_effects
+    question: How should rewash, canceled orders, damaged items, missing bags, and manual holds affect an accepted production_run?
+  - op: assert
+    kind: open_question
+    id: role_permission_mapping
+    question: Which actions belong to owner, manager, employee, and admin roles?
+  - op: assert
+    kind: open_question
+    id: production_shift_boundaries
+    question: How should production shifts constrain schedule generation, continuation, and completion?
+  - op: assert
+    kind: open_question
+    id: replan_after_drift
+    question: When execution drifts from a schedule, should LPMS preserve the old plan, replan remaining batches, or create a new schedule_run?
+
+verification:
+  - User explicitly confirmed the production flow, eligibility policy, batching behavior, machine split behavior, and v1 scope in conversation.
+  - docs/plan/lpms.md contains the corresponding current planning model.
+  - No active Stateworks memory entry contradicts this delta.
+
+status: accepted

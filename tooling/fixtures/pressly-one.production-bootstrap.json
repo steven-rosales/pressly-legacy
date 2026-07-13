@@ -1,0 +1,456 @@
+{
+  "schemaVersion": 1,
+  "location": {
+    "id": "pressly-one",
+    "name": "Pressly One",
+    "timezone": "America/New_York",
+    "isActive": true
+  },
+  "sourceLocationBindings": [
+    {
+      "source": "cents",
+      "externalLocationId": "tooling-store-001",
+      "locationId": "pressly-one",
+      "isActive": true
+    }
+  ],
+  "stations": [
+    {
+      "locationId": "pressly-one",
+      "kind": "sorting",
+      "label": "Sorting",
+      "sortOrder": 1,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "kind": "washing",
+      "label": "Washing",
+      "sortOrder": 2,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "kind": "drying",
+      "label": "Drying",
+      "sortOrder": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "kind": "folding_packaging",
+      "label": "Folding and packaging",
+      "sortOrder": 4,
+      "isActive": true
+    }
+  ],
+  "machines": [
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 01",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 02",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 03",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 04",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 05",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 06",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 07",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 08",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 09",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 10",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 11",
+      "manufacturerCapacityLbs": 20,
+      "effectiveCapacityLbs": 17,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 12",
+      "manufacturerCapacityLbs": 40,
+      "effectiveCapacityLbs": 37,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 13",
+      "manufacturerCapacityLbs": 40,
+      "effectiveCapacityLbs": 37,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 14",
+      "manufacturerCapacityLbs": 40,
+      "effectiveCapacityLbs": 37,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 15",
+      "manufacturerCapacityLbs": 40,
+      "effectiveCapacityLbs": 37,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 16",
+      "manufacturerCapacityLbs": 40,
+      "effectiveCapacityLbs": 37,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 17",
+      "manufacturerCapacityLbs": 40,
+      "effectiveCapacityLbs": 37,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 18",
+      "manufacturerCapacityLbs": 40,
+      "effectiveCapacityLbs": 37,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 19",
+      "manufacturerCapacityLbs": 60,
+      "effectiveCapacityLbs": 57,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 20",
+      "manufacturerCapacityLbs": 60,
+      "effectiveCapacityLbs": 57,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 21",
+      "manufacturerCapacityLbs": 60,
+      "effectiveCapacityLbs": 57,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "washing",
+      "label": "Washer 22",
+      "manufacturerCapacityLbs": 60,
+      "effectiveCapacityLbs": 57,
+      "capacitySafetyMarginLbs": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 01",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 02",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 03",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 04",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 05",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 06",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 07",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 08",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 09",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 10",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 11",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 12",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 13",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 14",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 15",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 16",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 17",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 18",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 19",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 20",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 21",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    },
+    {
+      "locationId": "pressly-one",
+      "stationKind": "drying",
+      "label": "Dryer 22",
+      "manufacturerCapacityLbs": 30,
+      "effectiveCapacityLbs": 30,
+      "capacitySafetyMarginLbs": 0,
+      "isActive": true
+    }
+  ],
+  "schedulerConfig": {
+    "locationId": "pressly-one",
+    "pulseMinutes": 56,
+    "foldLbsPerFolderMinute": 2,
+    "algorithmVersion": "fixed-pulse-ffd-v1",
+    "stageFitAssertion": {
+      "sortingFits": true,
+      "washingFits": true,
+      "dryingFits": true
+    }
+  }
+}

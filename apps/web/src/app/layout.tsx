@@ -2,9 +2,10 @@ import type { Metadata } from 'next';
 import { Lexend_Deca } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { WebCoreProvider } from '@/common/adapters/runtime/web-core-context';
-import { SITE_URL } from '@/app/shared/marketing/content';
-import { JsonLd } from '@/app/shared/marketing/JsonLd';
-import { buildOrganizationJsonLd } from '@/app/shared/marketing/seo';
+import { JsonLd } from '@/app/_components/JsonLd';
+import { OrderEntryTrackingProvider } from '@/app/_components/OrderEntryTrackingProvider';
+import { buildOrganizationJsonLd } from '@/app/_lib/seo';
+import { SITE_URL } from '@/config/site';
 import '@/styles/globals.css';
 import { SonnerToaster } from '@/common/adapters/feedback/sonner-toaster';
 
@@ -51,8 +52,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="antialiased">
         <JsonLd data={buildOrganizationJsonLd()} />
         <WebCoreProvider>
-          {children}
-          <SonnerToaster />
+          <OrderEntryTrackingProvider>
+            {children}
+            <SonnerToaster />
+          </OrderEntryTrackingProvider>
         </WebCoreProvider>
       </body>
     </html>

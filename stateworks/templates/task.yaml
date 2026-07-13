@@ -11,10 +11,12 @@ description: >
 deps: []
 
 reads:
-  - repo/path/or/external-state
+  - repo:path/or/external-state
+  - memory:domain:example/context-pack
 
 writes:
-  - repo/path/or/external-state
+  - repo:path/or/external-state
+  - memory:domain:example/deltas/yyyy-mm-dd-topic.memory-delta.yaml
 
 preconditions:
   - What must be true before this starts.

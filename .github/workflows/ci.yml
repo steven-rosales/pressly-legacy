@@ -38,8 +38,18 @@ jobs:
       - name: Unit tests
         run: pnpm exec turbo test
 
-      - name: Security script tests
+      - name: Tooling and architecture tests
         run: pnpm exec vitest run tooling/test
+
+      - name: Validate LPMS Stateworks records
+        run: |
+          pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+          pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/2026-07-10-fixed-pulse-scheduling.memory-delta.yaml
+          pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/lpms-v1-implementation.memory-delta.yaml
+          pnpm stateworks:validate stateworks/work/done/lpms-v1-happy-path/network.yaml
+          pnpm stateworks:verify stateworks/work/done/lpms-v1-happy-path/network.yaml --state stateworks/work/done/lpms-v1-happy-path/state.yaml
+          pnpm stateworks:validate stateworks/work/active/lpms-production-readiness/network.yaml
+          pnpm stateworks:verify stateworks/work/active/lpms-production-readiness/network.yaml --state stateworks/work/active/lpms-production-readiness/state.yaml
 
       - name: Build
         run: pnpm build
@@ -104,6 +114,15 @@ jobs:
       - name: Pricing integration tests
         run: pnpm -F @pressly/pricing test:integration
 
+      - name: Webhook-ingestion lease integration tests
+        run: pnpm -F @pressly/webhook-ingestion test:integration
+
+      - name: LPMS production repository integration tests
+        run: pnpm -F @pressly/production test:integration
+
+      - name: LPMS composed happy-path proof
+        run: pnpm test:lpms:e2e
+
   web-docker-build:
     name: ci web docker build
     if: github.ref != 'refs/heads/main'
@@ -155,6 +174,36 @@ jobs:
           cache-from: type=gha,scope=pressly-api
           cache-to: type=gha,mode=max,scope=pressly-api
 
+  lpms-docker-build:
+    name: ci lpms docker build (${{ matrix.app }})
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs:
+      - integration-tests
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - worker
+          - processor
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build LPMS image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          target: runner
+          push: false
+          cache-from: type=gha,scope=pressly-${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=pressly-${{ matrix.app }}
+
   production-artifacts:
     name: ci production artifacts
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -172,13 +221,6 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Resolve image names
         id: images
         shell: bash
@@ -187,6 +229,8 @@ jobs:
           repository="${GITHUB_REPOSITORY,,}"
           echo "api_tag=ghcr.io/$repository/api:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           echo "web_tag=ghcr.io/$repository/web:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "worker_tag=ghcr.io/$repository/worker:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "processor_tag=ghcr.io/$repository/processor:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Build API image once
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
@@ -219,6 +263,52 @@ jobs:
           cache-from: type=gha,scope=pressly-web
           cache-to: type=gha,mode=max,scope=pressly-web
 
+      - name: Build Worker image once
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: apps/worker/Dockerfile
+          target: runner
+          load: true
+          tags: ${{ steps.images.outputs.worker_tag }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=pressly-worker
+          cache-to: type=gha,mode=max,scope=pressly-worker
+
+      - name: Build Processor image once
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: apps/processor/Dockerfile
+          target: runner
+          load: true
+          tags: ${{ steps.images.outputs.processor_tag }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          build-args: VITE_API_URL=/api
+          cache-from: type=gha,scope=pressly-processor
+          cache-to: type=gha,mode=max,scope=pressly-processor
+
+      - name: Verify all images carry the release source SHA
+        shell: bash
+        env:
+          API_TAG: ${{ steps.images.outputs.api_tag }}
+          WEB_TAG: ${{ steps.images.outputs.web_tag }}
+          WORKER_TAG: ${{ steps.images.outputs.worker_tag }}
+          PROCESSOR_TAG: ${{ steps.images.outputs.processor_tag }}
+        run: |
+          set -euo pipefail
+          for image in "$API_TAG" "$WEB_TAG" "$WORKER_TAG" "$PROCESSOR_TAG"; do
+            revision="$(
+              docker image inspect \
+                --format='{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+                "$image"
+            )"
+            if [[ "$revision" != "$GITHUB_SHA" ]]; then
+              echo "Image $image was built from $revision, expected $GITHUB_SHA." >&2
+              exit 1
+            fi
+          done
+
       - name: Create artifact directory
         run: mkdir -p artifacts
 
@@ -236,6 +326,22 @@ jobs:
           image: ${{ steps.images.outputs.web_tag }}
           format: spdx-json
           output-file: artifacts/web.spdx.json
+          upload-artifact: false
+
+      - name: Generate Worker SBOM
+        uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
+        with:
+          image: ${{ steps.images.outputs.worker_tag }}
+          format: spdx-json
+          output-file: artifacts/worker.spdx.json
+          upload-artifact: false
+
+      - name: Generate Processor SBOM
+        uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
+        with:
+          image: ${{ steps.images.outputs.processor_tag }}
+          format: spdx-json
+          output-file: artifacts/processor.spdx.json
           upload-artifact: false
 
       - name: Block critical API vulnerabilities
@@ -256,29 +362,98 @@ jobs:
           severity: CRITICAL
           vuln-type: os,library
 
+      - name: Block critical Worker vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.images.outputs.worker_tag }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL
+          vuln-type: os,library
+
+      - name: Block critical Processor vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.images.outputs.processor_tag }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL
+          vuln-type: os,library
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Publish verified images
         shell: bash
         env:
           API_TAG: ${{ steps.images.outputs.api_tag }}
           WEB_TAG: ${{ steps.images.outputs.web_tag }}
+          WORKER_TAG: ${{ steps.images.outputs.worker_tag }}
+          PROCESSOR_TAG: ${{ steps.images.outputs.processor_tag }}
         run: |
           set -euo pipefail
           docker push "$API_TAG"
           docker push "$WEB_TAG"
+          docker push "$WORKER_TAG"
+          docker push "$PROCESSOR_TAG"
 
       - name: Record immutable release manifest
         shell: bash
         env:
           API_TAG: ${{ steps.images.outputs.api_tag }}
           WEB_TAG: ${{ steps.images.outputs.web_tag }}
+          WORKER_TAG: ${{ steps.images.outputs.worker_tag }}
+          PROCESSOR_TAG: ${{ steps.images.outputs.processor_tag }}
         run: |
           set -euo pipefail
+          resolve_digest() {
+            local tag="$1"
+            local repository="${tag%:*}"
+            local digest
+            digest="$(
+              docker buildx imagetools inspect \
+                "$tag" \
+                --format '{{.Manifest.Digest}}'
+            )"
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "Registry returned an invalid digest for $tag." >&2
+              exit 1
+            fi
+            printf '%s@%s' "$repository" "$digest"
+          }
+
           export SOURCE_SHA="$GITHUB_SHA"
-          export API_IMAGE="$(docker inspect --format='{{index .RepoDigests 0}}' "$API_TAG")"
-          export WEB_IMAGE="$(docker inspect --format='{{index .RepoDigests 0}}' "$WEB_TAG")"
+          export API_IMAGE="$(resolve_digest "$API_TAG")"
+          export WEB_IMAGE="$(resolve_digest "$WEB_TAG")"
+          export WORKER_IMAGE="$(resolve_digest "$WORKER_TAG")"
+          export PROCESSOR_IMAGE="$(resolve_digest "$PROCESSOR_TAG")"
+
+          verify_registry_revision() {
+            local image="$1"
+            local revision
+            docker pull "$image" >/dev/null
+            revision="$(
+              docker image inspect \
+                --format='{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+                "$image"
+            )"
+            if [[ "$revision" != "$GITHUB_SHA" ]]; then
+              echo "Registry image $image was built from $revision, expected $GITHUB_SHA." >&2
+              exit 1
+            fi
+          }
+          for image in "$API_IMAGE" "$WEB_IMAGE" "$WORKER_IMAGE" "$PROCESSOR_IMAGE"; do
+            verify_registry_revision "$image"
+          done
+
           export BUILT_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           node tooling/scripts/release-manifest.mjs create > artifacts/release.json
-          node tooling/scripts/release-manifest.mjs validate artifacts/release.json
+          EXPECTED_SOURCE_SHA="$GITHUB_SHA" \
+            node tooling/scripts/release-manifest.mjs validate artifacts/release.json
 
       - name: Upload release evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

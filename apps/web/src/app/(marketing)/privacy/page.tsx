@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
-import { buildPageMetadata } from '@/app/shared/marketing/seo';
-import { getPrivacyPolicyModel } from '@/app/shared/legal/model';
-import { LegalDocumentView } from '@/app/shared/legal/ui/LegalDocumentView';
+import { buildPageMetadata } from '@/app/_lib/seo';
+import { LegalDocumentView } from '../_legal/LegalDocumentView';
+import { getPrivacyPolicyModel } from '../_legal/model';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'Privacy Policy',

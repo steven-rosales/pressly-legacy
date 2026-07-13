@@ -1,29 +1,30 @@
-import type { RequestHandler } from 'express';
 import {
   makePricingAccessControl,
-  type AccessControlAuthorize,
   type PricingAccessControl,
-} from './guards/pricing.guards.ts';
+} from './pricing/pricing.guard.ts';
 import {
   makeAuthSessionAccessControl,
   type AuthSessionAccessControl,
-} from './guards/auth-sessions.guards.ts';
+} from './auth-sessions/auth-sessions.guard.ts';
 import {
   makeMfaAccessControl,
   type MfaAccessControl,
-} from './guards/mfa.guards.ts';
+} from './mfa/mfa.guard.ts';
+import type { AccessControlAuthPort } from './auth.port.ts';
+import {
+  makeProductionAccessControl,
+  type ProductionAccessControl,
+} from './production/production.guard.ts';
 
 export type AccessControlModule = Readonly<{
   pricing: PricingAccessControl;
   authSessions: AuthSessionAccessControl;
   mfa: MfaAccessControl;
+  production: ProductionAccessControl;
 }>;
 
-export const makeAccessControlModule = (input: {
-  auth: Readonly<{
-    authenticate: RequestHandler;
-    authorize: AccessControlAuthorize;
-  }>;
+export type AccessControlModuleDeps = Readonly<{
+  auth: AccessControlAuthPort;
   policies: Readonly<{
     pricing: Readonly<{
       freshSessionMaxAgeMinutes: number;
@@ -35,21 +36,23 @@ export const makeAccessControlModule = (input: {
       freshSessionMaxAgeMinutes: number;
     }>;
   }>;
-}): AccessControlModule => ({
+}>;
+
+export const makeAccessControlModule = (
+  input: AccessControlModuleDeps,
+): AccessControlModule => ({
   pricing: makePricingAccessControl({
-    authenticate: input.auth.authenticate,
-    authorize: input.auth.authorize,
+    auth: input.auth,
     policies: input.policies.pricing,
   }),
   authSessions: makeAuthSessionAccessControl({
-    authenticate: input.auth.authenticate,
-    authorize: input.auth.authorize,
+    auth: input.auth,
     freshSessionMaxAgeMinutes:
       input.policies.authSessions.freshSessionMaxAgeMinutes,
   }),
   mfa: makeMfaAccessControl({
-    authenticate: input.auth.authenticate,
-    authorize: input.auth.authorize,
+    auth: input.auth,
     freshSessionMaxAgeMinutes: input.policies.mfa.freshSessionMaxAgeMinutes,
   }),
+  production: makeProductionAccessControl({ auth: input.auth }),
 });

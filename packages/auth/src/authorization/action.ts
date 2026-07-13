@@ -9,4 +9,11 @@ export type Action =
   | 'pricing:read'
   | 'pricing:plan'
   | 'pricing:publish'
-  | 'pricing:rollback';
+  | 'pricing:rollback'
+  | 'production:read'
+  | 'production:schedule'
+  | 'production:accept'
+  | 'production:priority'
+  | 'production:intake'
+  | 'production:resources'
+  | 'production:stage';

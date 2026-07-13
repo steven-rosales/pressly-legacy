@@ -67,7 +67,7 @@ Examples:
 apps/api/test/http/api-app.http.test.ts
 apps/web/test/contracts/pricing-api.contract.test.ts
 packages/logging/test/redact.test.ts
-modules/business/pricing/test/adapters/pricing-change.repo.int.test.ts
+modules/business/pricing/test/publish-pricing/pricing-change.repo.int.test.ts
 ```
 
 ## Module Shape
@@ -77,55 +77,68 @@ Modules follow this shape:
 ```txt
 modules/<group>/<name>/
   src/
-    domain/
+    <capability>/
+      *.usecase.ts
+      *.port.ts
+      *.error.ts
       *.policy.ts
       *.machine.ts
-
-    features/
-      <feature>/
-        *.usecase.ts
-        *.port.ts
-        *.error.ts
-
-    adapters/
-      <feature>/
-        http/
-          *.controller.ts
-          *.route.ts
-
-        persistence/
-          *.repo.ts
+      *.mapper.ts
+      *.repo.ts
+      *.controller.ts
+      *.route.ts
 
     main.ts
     public.ts
 
   test/
-    domain/
-    features/
-    adapters/
+    <capability>/
     support/
     module.test.ts
 ```
 
 Tests should mirror the production boundary.
 
-If production code says `features` depends on a `port`, the test should use a
-fake `port`.
+If a capability use case depends on a `port`, its test should use a fake
+`port`.
 
 If production code says `repo` owns SQL, the test should use a real database.
 
+Module-local `common/` and `shared/` test folders are not substitutes for a
+capability. `test/support` is reserved for genuinely cross-capability builders,
+fakes, assertions, database setup, and fixtures.
+
+## Web Test Shape
+
+Web tests mirror the production zone:
+
+```txt
+apps/web/test/
+  app/                 route composition and route-private behavior
+  features/            pricing, order-entry, and later product capabilities
+  components/ui/       reusable UI primitive behavior
+  common/core/         technical runtime policy
+  common/adapters/     vendor and framework translation
+  contracts/           web/API protocol agreement
+```
+
+Feature tests own product behavior. Route tests prove Next composition. Common
+tests prove technical runtime behavior. Do not recreate an app-wide
+`test/shared` bucket.
+
 ## Testing Map
 
-| Layer               | File example                        | Dependency style       | What it proves                                  |
-| ------------------- | ----------------------------------- | ---------------------- | ----------------------------------------------- |
-| Domain              | `test/domain/*.test.ts`             | no IO                  | pure policy and state-machine rules             |
-| Feature usecase     | `test/features/*.usecase.test.ts`   | fake ports             | orchestration, permissions, error flow          |
-| HTTP adapter        | `test/adapters/*.http.test.ts`      | fake usecases          | request parsing and response envelopes          |
-| Persistence adapter | `test/adapters/*.repo.int.test.ts`  | real Postgres          | SQL, transactions, effective dates, constraints |
-| Module composition  | `test/module.test.ts`               | minimal dependency box | `main.ts` exposes the intended module surface   |
-| App HTTP boundary   | `apps/api/test/http/*.test.ts`      | fake ports             | middleware, routing, envelopes, IO gates        |
-| Web/API contract    | `apps/web/test/contracts/*.test.ts` | fake request core      | shared path/schema agreements                   |
-| Package unit        | `packages/*/test/*.test.ts`         | no framework IO        | reusable library behavior                       |
+| Boundary             | File example                           | Dependency style       | What it proves                                  |
+| -------------------- | -------------------------------------- | ---------------------- | ----------------------------------------------- |
+| Intrinsic rule       | `test/<capability>/*.policy.test.ts`   | no IO                  | policy and state-machine invariants             |
+| Capability use case  | `test/<capability>/*.usecase.test.ts`  | fake ports             | orchestration, permissions, error flow          |
+| HTTP adapter         | `test/<capability>/*.http.test.ts`     | fake usecases          | request parsing and response envelopes          |
+| Persistence adapter  | `test/<capability>/*.repo.int.test.ts` | real Postgres          | SQL, transactions, effective dates, constraints |
+| Module composition   | `test/module.test.ts`                  | minimal dependency box | `public.ts` exposes the intended module surface |
+| App HTTP boundary    | `apps/api/test/http/*.test.ts`         | fake ports             | middleware, routing, envelopes, IO gates        |
+| Web/API contract     | `apps/web/test/contracts/*.test.ts`    | fake request core      | shared path/schema agreements                   |
+| Architecture fixture | `tooling/test/architecture-*.test.mjs` | ESLint `lintText`      | forbidden and allowed dependency edges          |
+| Package unit         | `packages/*/test/*.test.ts`            | no framework IO        | reusable library behavior                       |
 
 Use the smallest test type that can prove the behavior.
 
@@ -136,11 +149,12 @@ Do not prove the same rule at every layer.
 Test the boundary that owns the behavior.
 
 ```txt
-domain owns rules.
+capability policy and state machines own intrinsic rules.
 usecases own orchestration.
 repos own storage behavior.
 controllers own HTTP translation.
-main.ts owns composition.
+main.ts owns internal composition.
+public.ts owns the external module surface.
 ```
 
 The test should enter through that layer's public function.
@@ -153,8 +167,8 @@ implementation detail is the unit being tested.
 Fake the nearest dependency outside the unit.
 
 ```txt
-domain test
-  calls domain function directly
+intrinsic rule test
+  calls policy or state-machine function directly
 
 usecase test
   usecase + fake port
@@ -349,9 +363,9 @@ Bad:
 await seedEverythingForTheWholeApp(db);
 ```
 
-## Domain Tests
+## Intrinsic Rule And State-Machine Tests
 
-Domain tests are pure.
+Intrinsic policy and state-machine tests are pure.
 
 They call policy or machine functions directly.
 
@@ -365,7 +379,7 @@ They should not import:
 - clocks
 - loggers
 
-Domain tests should cover:
+Intrinsic rule tests should cover:
 
 - valid state
 - invalid state
@@ -375,7 +389,7 @@ Domain tests should cover:
 - no-op changes
 - generated transition shape
 
-Good domain test:
+Good intrinsic policy test:
 
 ```ts
 it('creates a plan when a known item price changes', () => {
@@ -407,11 +421,11 @@ it('creates a plan when a known item price changes', () => {
 });
 ```
 
-Domain tests are where you should be exhaustive.
+Intrinsic rule tests are where you should be exhaustive.
 
 They are fast, stable, and cheap.
 
-## Feature Usecase Tests
+## Capability Usecase Tests
 
 Usecase tests prove orchestration.
 
@@ -508,7 +522,7 @@ Repo tests prove storage behavior:
 File naming:
 
 ```txt
-test/adapters/<feature>.repo.int.test.ts
+test/<capability>/<capability>.repo.int.test.ts
 ```
 
 Repo test shape:
@@ -598,25 +612,46 @@ Do not retest all controller behavior at the route layer.
 
 It should stay small.
 
-It verifies the module exposes the expected public surface from `main.ts`.
+It imports through `public.ts` and verifies the module exposes the expected
+stable surface.
 
 Good:
 
 ```ts
-it('exposes http routes and admin usecases', () => {
-  const module = makePricingModule({ db: {} as Database });
+import type { Database } from '@pressly/db';
+import { makePricingModule, type PricingRouteSecurity } from '../src/public.ts';
+
+it('exposes only pricing routes', () => {
+  const module = makePricingModule({
+    db: {} as Database,
+    auth: {} as PricingRouteSecurity,
+  });
 
   expect(module.routes).toBeDefined();
-  expect(module.admin).toEqual({
-    loadCatalog: expect.any(Function),
-    planChange: expect.any(Function),
-    publishChange: expect.any(Function),
-  });
+  expect(Object.keys(module)).toEqual(['routes']);
 });
 ```
 
 Composition tests should not need real infrastructure unless composition itself
 creates infrastructure.
+
+## Architecture Boundary Tests
+
+Architecture rules use ESLint `lintText` fixtures in
+`tooling/test/architecture-boundaries.test.mjs`.
+
+Each enforced boundary should have:
+
+- one representative allowed import
+- one representative rejected import
+- an assertion on the architectural rule id
+
+These tests prove the configuration itself. Normal source lint then proves the
+repository follows it. Keep fixtures as source strings; do not add intentionally
+invalid files under `apps/` or `modules/`.
+
+For path-based rules, include alias, relative-path, and dynamic-import fixtures
+so alternate syntax cannot bypass the same boundary.
 
 ## Error Testing
 
@@ -870,10 +905,12 @@ Use this order:
 Start with this structure:
 
 ```txt
-modules/<name>/test/
-  domain/
-  features/
-  adapters/
+modules/<group>/<name>/test/
+  <capability>/
+    <capability>.policy.test.ts
+    <capability>.usecase.test.ts
+    <capability>.http.test.ts
+    <capability>.repo.int.test.ts
   support/
     assertions.ts
     builders.ts
@@ -889,12 +926,12 @@ Coverage should come from behavior, not line count.
 
 Minimum coverage for a module:
 
-- every domain policy has valid and invalid tests
+- every intrinsic policy or state machine has valid and invalid tests
 - every usecase has happy path and each stop condition
 - every repo has one current-read test and one not-found/error test
 - every write repo has a transaction/audit test if writes are transactional
 - every controller has success and error-envelope tests
-- `main.ts` has one composition smoke test
+- `public.ts` has one module composition smoke test
 
 Do not chase 100 percent coverage by testing implementation noise.
 
@@ -907,7 +944,7 @@ Avoid these:
 - testing private helper functions directly
 - mocking Drizzle in repo tests
 - importing repos into usecase tests
-- importing usecases into domain tests
+- importing usecases into intrinsic rule tests
 - using fake data names like `foo`
 - asserting every property when only one property matters
 - repeating the same behavior assertion at domain, usecase, controller, and repo

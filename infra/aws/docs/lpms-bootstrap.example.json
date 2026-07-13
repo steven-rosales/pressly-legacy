@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "location": {
+    "id": "replace-with-location-id",
+    "name": "Replace with facility name",
+    "timezone": "America/New_York",
+    "isActive": true
+  },
+  "sourceLocationBindings": [
+    {
+      "source": "cents",
+      "externalLocationId": "replace-with-cents-store-id",
+      "locationId": "replace-with-location-id",
+      "isActive": true
+    }
+  ],
+  "stations": [
+    {
+      "locationId": "replace-with-location-id",
+      "kind": "sorting",
+      "label": "Sorting",
+      "sortOrder": 1,
+      "isActive": true
+    },
+    {
+      "locationId": "replace-with-location-id",
+      "kind": "washing",
+      "label": "Washing",
+      "sortOrder": 2,
+      "isActive": true
+    },
+    {
+      "locationId": "replace-with-location-id",
+      "kind": "drying",
+      "label": "Drying",
+      "sortOrder": 3,
+      "isActive": true
+    },
+    {
+      "locationId": "replace-with-location-id",
+      "kind": "folding_packaging",
+      "label": "Folding and packaging",
+      "sortOrder": 4,
+      "isActive": true
+    }
+  ],
+  "machines": [
+    {
+      "locationId": "replace-with-location-id",
+      "stationKind": "washing",
+      "label": "Replace with washer label",
+      "manufacturerCapacityLbs": null,
+      "effectiveCapacityLbs": null,
+      "capacitySafetyMarginLbs": null,
+      "isActive": false
+    },
+    {
+      "locationId": "replace-with-location-id",
+      "stationKind": "drying",
+      "label": "Replace with dryer label",
+      "manufacturerCapacityLbs": null,
+      "effectiveCapacityLbs": null,
+      "capacitySafetyMarginLbs": null,
+      "isActive": false
+    }
+  ],
+  "schedulerConfig": {
+    "locationId": "replace-with-location-id",
+    "pulseMinutes": 56,
+    "foldLbsPerFolderMinute": 2,
+    "algorithmVersion": "fixed-pulse-ffd-v1",
+    "stageFitAssertion": {
+      "sortingFits": true,
+      "washingFits": true,
+      "dryingFits": true
+    }
+  }
+}

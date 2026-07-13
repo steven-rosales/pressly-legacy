@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
+import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
 
 interface ServiceBottomSectionProps {
   title: string;

@@ -1,7 +1,6 @@
 import type { Logger } from '@pressly/logging';
 import type { AnalyticsTracker, ErrorReporter } from '@pressly/metrics';
 import { createWebCore, type WebCore } from '../core/runtime/core';
-import type { FeedbackPort } from '../core/feedback/feedback';
 import type { RequestClient } from '../core/requests/request-client';
 import type { WebContext } from '../core/runtime/context';
 
@@ -10,7 +9,6 @@ export type TestWebCore = WebCore & {
     logs: unknown[];
     analytics: unknown[];
     errors: unknown[];
-    feedback: unknown[];
     requests: unknown[];
   };
 };
@@ -27,7 +25,6 @@ export const makeTestWebCore = (
     logs: [] as unknown[],
     analytics: [] as unknown[],
     errors: [] as unknown[],
-    feedback: [] as unknown[],
     requests: [] as unknown[],
   };
 
@@ -59,17 +56,6 @@ export const makeTestWebCore = (
     shutdown: async () => undefined,
   };
 
-  const feedback: FeedbackPort = {
-    loading: (message) => {
-      calls.feedback.push({ kind: 'loading', message });
-      return 'loading-id';
-    },
-    success: (message) => calls.feedback.push({ kind: 'success', message }),
-    error: (message) => calls.feedback.push({ kind: 'error', message }),
-    info: (message) => calls.feedback.push({ kind: 'info', message }),
-    dismiss: (id) => calls.feedback.push({ kind: 'dismiss', id }),
-  };
-
   const request: RequestClient = {
     send: async (input) => {
       calls.requests.push(input);
@@ -93,7 +79,6 @@ export const makeTestWebCore = (
     logger,
     analytics,
     errors,
-    feedback,
     request: options.request ?? request,
   });
 

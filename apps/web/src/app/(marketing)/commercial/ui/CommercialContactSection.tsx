@@ -1,8 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
 import {
   Form,
   FormControl,
@@ -10,54 +7,21 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/app/shared/ui/shadcn/form';
-import { Input } from '@/app/shared/ui/shadcn/input';
-import { Textarea } from '@/app/shared/ui/shadcn/textarea';
-import { useWebCore } from '@/common/adapters/runtime/web-core-context';
-import { publicEvents } from '@/common/core/analytics/events';
-import { trackPublicEvent } from '@/common/core/analytics/track';
-import PrimaryButton from '@/app/shared/ui/components/PrimaryButton';
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { usePublicEventTracker } from '@/common/adapters/analytics/use-public-event-tracker';
+import { Button } from '@/components/ui/button';
 import type { CommercialPageModel } from '../model';
-
-const formSchema = z.object({
-  companyName: z.string().min(1, 'Company name is required'),
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-  email: z.string().email('Invalid email address'),
-  phone: z.string().min(10, 'Phone number is required'),
-  location: z.string().min(1, 'Location is required'),
-  needs: z.string().min(10, 'Please tell us more about your needs'),
-});
+import { useCommercialInquiryViewModel } from '../view-model';
 
 export default function CommercialContactSection({
   model,
 }: {
   model: CommercialPageModel;
 }) {
-  const core = useWebCore();
-  const track = trackPublicEvent(core);
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      companyName: '',
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      location: '',
-      needs: '',
-    },
-  });
-
-  function onSubmit(_values: z.infer<typeof formSchema>) {
-    track(
-      publicEvents.commercialInquiryFormCompleted({
-        source: 'commercial_form',
-      }),
-    );
-    // TODO: Handle form submission
-  }
+  const track = usePublicEventTracker();
+  const { form, submit } = useCommercialInquiryViewModel(track);
 
   return (
     <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-start w-full">
@@ -70,7 +34,7 @@ export default function CommercialContactSection({
         </p>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
             <FormField
               control={form.control}
               name="companyName"
@@ -199,9 +163,13 @@ export default function CommercialContactSection({
               )}
             />
 
-            <PrimaryButton type="submit" className="w-full">
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full cursor-pointer bg-primary text-base text-primary-foreground"
+            >
               {model.contact.submitLabel}
-            </PrimaryButton>
+            </Button>
           </form>
         </Form>
       </div>

@@ -1,0 +1,65 @@
+id: memdelta-2026-07-10-lpms-v1-implementation
+domain_id: laundry-production
+
+source:
+  type: implementation_evidence
+  path: stateworks/work/done/lpms-v1-happy-path/evidence.md
+
+changes:
+  - op: update
+    kind: workflow
+    id: scheduling_to_execution
+    steps:
+      - API durably receives a verified Cents event
+      - worker projects the newest vendor source version
+      - eligible production_orders form an immutable scheduling snapshot
+      - deterministic scheduler creates a schedule_run proposal
+      - operator acknowledges blocking warnings and accepts the output hash
+      - LPMS creates one production_run and its batches, stages, assignments, and work_event atomically
+      - operator starts the production_run
+      - operators advance server-authorized stage_run actions at pulse boundaries
+      - production_batch finishes folding and packaging
+
+  - op: assert
+    kind: invariant
+    id: production_run_starts_before_stages
+    statement: A stage_run cannot start until its owning production_run is started.
+
+  - op: assert
+    kind: invariant
+    id: cents_projection_source_version_serialized
+    statement: Concurrent Cents projections for one external order are serialized, and only a strictly newer vendor source version may replace the current projection.
+
+  - op: assert
+    kind: decision
+    id: fixed_pulse_scheduler_ordering_v1
+    statement: V1 orders scheduling candidates by priority, due-date bucket, weight descending, due timestamp, and stable production_order ID before whole-order first-fit-decreasing packing.
+
+  - op: deprecate
+    kind: open_question
+    id: exact_scheduler_ordering_rules
+
+  - op: assert
+    kind: decision
+    id: durable_inbox_worker_v1
+    statement: V1 processes Cents demand from a Postgres inbox with SKIP LOCKED claims, expiring leases, bounded retry backoff, inspectable dead letters, and an explicit reconciliation port.
+
+  - op: assert
+    kind: decision
+    id: processor_uses_backend_action_availability
+    statement: The LPMS processor renders stage actions returned by the production API and does not recreate stage-transition policy in the browser.
+
+  - op: assert
+    kind: decision
+    id: isolated_lpms_module_composition
+    statement: Production business, production policy, and fixed-pulse scheduling are isolated peer modules composed through narrow ports only in API and worker apps.
+
+verification:
+  - The composed API end-to-end test processes seven synthetic Cents orders totaling 800 pounds into 224, 224, 224, and 128 pound batches with a 392-minute makespan and completes all four pulse stages.
+  - Production policy tests prove run-start, stage-order, machine, schedule acceptance, and pulse-boundary rejections.
+  - Postgres integration tests prove receipt uniqueness, one run per schedule, machine exclusion, one active station, positive pulse, and capacity constraints.
+  - Worker integration tests prove lease-expiry recovery and distinct concurrent SKIP LOCKED claims.
+  - Processor interaction tests prove overflow acknowledgement, priority controls, server-action rendering, conflict refresh, keyboard operation, and assistive status output.
+  - Architecture tests prove module source and manifest isolation plus closed business, policy, and computation vocabularies.
+
+status: applied

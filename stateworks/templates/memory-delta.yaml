@@ -1,0 +1,18 @@
+id: memdelta-yyyy-mm-dd-domain-001
+domain_id: example
+
+source:
+  type: interrogation_session
+  path: stateworks/memory/domains/example/sessions/yyyy-mm-dd-topic.md
+
+changes:
+  - op: assert
+    kind: invariant
+    id: example_invariant
+    statement: Example invariant statement.
+
+verification:
+  - Source includes explicit user confirmation.
+  - No active memory entry contradicts this delta.
+
+status: proposed

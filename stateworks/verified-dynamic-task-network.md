@@ -11,7 +11,7 @@ The goal is to turn high-level instructions into a task network that can be exec
 A VDTN is:
 
 $$
-\mathcal{N} = \langle T, E, G, I, S, X, H \rangle
+\mathcal{N} = \langle T, E, G, I, S, X, H, M \rangle
 $$
 
 Where:
@@ -23,6 +23,19 @@ Where:
 - $S$ = current project/world state
 - $X$ = external operator-owned state
 - $H$ = execution history and evidence log
+- $M$ = durable project/domain memory
+
+Do not merge $H$ and $M$.
+
+- $H$ is what happened.
+- $M$ is what the agent should now believe and use.
+
+Memory is consolidated from evidence, interrogation, decisions, and accepted
+memory deltas:
+
+$$
+M_t = Consolidate(H_0...H_t, accepted\_memory\_deltas)
+$$
 
 A dependency edge:
 
@@ -45,7 +58,7 @@ id: T1
 title: Short task name
 type: compound | primitive | verification | human_gate | human_action
 owner: agent | human
-surface: repo | database | aws | github | dns | sentry | local_secret_store | other
+surface: repo | database | aws | github | dns | sentry | local_secret_store | memory | other
 agent_can_verify: true | false
 
 description: >
@@ -55,10 +68,10 @@ deps:
   - T0
 
 reads:
-  - files, APIs, configs, docs, database tables, contracts
+  - files, APIs, configs, docs, database tables, contracts, memory resources
 
 writes:
-  - files, configs, schemas, generated artifacts
+  - files, configs, schemas, generated artifacts, memory deltas
 
 preconditions:
   - Conditions that must be true before the task starts.
@@ -187,21 +200,46 @@ secret_handling:
 
 ---
 
-## 4. Readiness Rule
+## 4. Memory Model
+
+Stateworks memory is typed, versioned, and source-backed.
+
+```text
+working memory    -> context-pack.md
+episodic memory   -> sessions/*.md
+semantic memory   -> memory.yaml
+procedural memory -> policies, invariants, playbooks, and operating rules
+```
+
+Memory retrieval happens before planning. Memory consolidation happens only
+after verified learning.
+
+Memory updates should be proposed as deltas, verified against their source and
+the current memory model, then applied.
+
+---
+
+## 5. Readiness Rule
 
 A task is ready when all dependencies are committed and its preconditions hold.
 
 $$
-Ready(t) \iff status(t)=pending \land \forall u \in deps(t),\ committed(u) \land P_t(S, X)
+Ready(t) \iff
+status(t)=pending
+\land \forall u \in deps(t),\ committed(u)
+\land P_t(S, X, M)
+\land RequiredMemoryAvailable(t, M)
+\land InputsNotInvalidated(t)
 $$
 
 In plain English:
 
-> A task can run only when its required predecessors are done, verified, and committed.
+> A task can run only when its required predecessors are done, verified, committed,
+> required memory is available, and its inputs remain valid.
 
 ---
 
-## 5. Parallel Compatibility Rule
+## 6. Parallel Compatibility Rule
 
 Two tasks can run in parallel only if they are unordered and do not conflict on reads/writes.
 
@@ -225,9 +263,13 @@ In plain English:
 
 > Two tasks are parallel-safe only if neither depends on the other and neither writes something the other reads or writes.
 
+Memory is just another resource in this rule. A task that writes
+`memory:domain:laundry-production/invariants` is not parallel-safe with a task
+that reads `memory:domain:laundry-production/invariants`.
+
 ---
 
-## 6. Execution Batch
+## 7. Execution Batch
 
 At each step, choose a compatible subset of ready tasks.
 
@@ -254,13 +296,14 @@ But the real structure is the dependency graph, not the matrix.
 
 ---
 
-## 7. Commit Invariant
+## 8. Commit Invariant
 
 At all times, committed work must be verified and globally safe.
 
 $$
 Inv(S, X) \equiv
 I(S, X)
+\land MemInv(M,H)
 \land
 \forall t,\ committed(t) \Rightarrow Verified(t)
 \land
@@ -271,52 +314,69 @@ In plain English:
 
 > The project must remain globally valid, and every committed task must have verified evidence.
 
+Memory invariant:
+
+```text
+MemInv(M,H) =
+  every active memory entry has kind, id, statement, source, and status
+  and every invariant, policy, and decision has provenance
+  and deprecated entries are not used in context packs by default
+  and secrets are never stored in memory
+  and context packs stay within the configured budget
+```
+
 ---
 
-## 8. Execution Loop
+## 9. Execution Loop
 
 ```text
 while not G(S):
 
-    1. Decompose compound tasks if needed.
+    1. Load memory index and select relevant domain memory.
 
-    2. Find all ready tasks:
+    2. Build a bounded context pack.
+
+    3. Decompose compound tasks if needed.
+
+    4. Find all ready tasks:
        - dependencies committed
        - preconditions satisfied
+       - required memory available
        - inputs not invalidated
        - required external state exists
 
-    3. Select a compatible batch:
+    5. Select a compatible batch:
        - no dependency conflicts
        - no read/write conflicts
        - no unsafe external side effects
 
-    4. Execute batch in isolation.
+    6. Execute batch in isolation.
 
-    5. For each result:
+    7. For each result:
        - verify postconditions
        - verify external state when applicable
        - check evidence
        - check global invariant
 
-    6. If valid:
+    8. If valid:
        - commit result
        - update state S
        - update external state X if the task changed it
        - append evidence to H
+       - apply verified memory deltas to M
 
-    7. If invalid:
+    9. If invalid:
        - reject result
        - rollback, retry, repair, or replan
 
-    8. Invalidate downstream tasks if their inputs changed.
+    10. Invalidate downstream tasks if their inputs changed.
 
 return success only if G(S, X) and I(S, X) both hold
 ```
 
 ---
 
-## 9. Failure Handling
+## 10. Failure Handling
 
 A task failure can trigger one of four outcomes:
 
@@ -333,7 +393,7 @@ Only the affected subgraph should be repaired unless the global invariant is bro
 
 ---
 
-## 10. Minimal Example
+## 11. Minimal Example
 
 Goal:
 
@@ -491,7 +551,7 @@ If two tasks touch the same middleware file or unstable auth contract, they shou
 
 ---
 
-## 11. Practical Rule of Thumb
+## 12. Practical Rule of Thumb
 
 For v0, every task must answer:
 
@@ -506,21 +566,25 @@ If those six fields are missing, the task is not ready for agentic execution.
 
 ---
 
-## 12. VDTN v0 Summary
+## 13. VDTN v0 Summary
 
 The v0 model is:
 
 ```text
-goal
+memory retrieval
+→ bounded context pack
+→ goal
 → decomposed task graph
 → ready frontier
 → compatible execution batch
 → isolated execution
 → verification
 → commit
+→ apply verified memory deltas
 → repair/replan if needed
 ```
 
 The main invariant is:
 
-> Never commit unverified work, and never let committed work violate the global invariant.
+> Never commit unverified work, never let committed work violate the global
+> invariant, and never let durable memory update without provenance.

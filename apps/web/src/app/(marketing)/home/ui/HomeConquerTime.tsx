@@ -1,6 +1,8 @@
 import Image from 'next/image';
-import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
-import SecondaryButton from '@/app/shared/ui/components/SecondaryButton';
+import Link from 'next/link';
+
+import { Button } from '@/components/ui/button';
+import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
 import type { HomePageModel } from '../model';
 
 export default function HomeConquerTime({
@@ -34,12 +36,14 @@ export default function HomeConquerTime({
         >
           Schedule a Pickup
         </SchedulePickupButton>
-        <SecondaryButton
-          href={model.secondaryHref}
-          className="w-full lg:w-auto"
+        <Button
+          asChild
+          variant="outline"
+          size="lg"
+          className="w-full cursor-pointer bg-primary-foreground text-base text-foreground lg:w-auto"
         >
-          {model.secondaryLabel}
-        </SecondaryButton>
+          <Link href={model.secondaryHref}>{model.secondaryLabel}</Link>
+        </Button>
       </div>
 
       <div className="relative w-full max-w-[600px] aspect-4/3 lg:aspect-video">

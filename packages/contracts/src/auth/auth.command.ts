@@ -5,6 +5,7 @@ import type {
   identitySessionParamsSchema,
   identitySessionsParamsSchema,
   loginRequestSchema,
+  processorCompleteMfaChallengeRequestSchema,
 } from './auth.contracts.ts';
 
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
@@ -17,4 +18,7 @@ export type CompleteMfaChallengeRequest = z.infer<
 >;
 export type ConfirmMfaEnrollmentRequest = z.infer<
   typeof confirmMfaEnrollmentRequestSchema
+>;
+export type ProcessorCompleteMfaChallengeRequest = z.infer<
+  typeof processorCompleteMfaChallengeRequestSchema
 >;

@@ -1,5 +1,6 @@
+import { defineEvent } from '@pressly/metrics';
+
 import { makeTestWebCore } from '@/common/testing/make-test-web-core';
-import { publicEvents } from '@/common/core/analytics/events';
 import { trackPublicEvent } from '@/common/core/analytics/track';
 
 describe('trackPublicEvent', () => {
@@ -11,7 +12,7 @@ describe('trackPublicEvent', () => {
     });
 
     trackPublicEvent(core)(
-      publicEvents.locationPageViewed({ locationSlug: 'hero' }),
+      defineEvent('location_page_viewed')({ location_slug: 'hero' }),
     );
 
     expect(core.calls.analytics).toEqual([

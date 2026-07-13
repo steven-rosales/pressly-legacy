@@ -1,0 +1,16 @@
+domains:
+  - id: laundry-production
+    path: domains/laundry-production/memory.yaml
+    default_context_pack: domains/laundry-production/context-pack.md
+
+context_budget:
+  max_tokens: 3000
+  priority_order:
+    - invariants
+    - policies
+    - decisions
+    - workflows
+    - vocabulary
+    - assumptions
+    - examples
+    - open_questions

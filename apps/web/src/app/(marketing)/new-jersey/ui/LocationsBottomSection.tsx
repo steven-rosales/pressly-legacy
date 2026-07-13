@@ -1,7 +1,7 @@
 import Image from 'next/image';
 
-import SchedulePickupButton from '@/app/shared/ui/components/SchedulePickupButton';
-import { OFFER_COPY } from '@/app/shared/marketing/content';
+import { ORDER_ENTRY_OFFER_COPY } from '@/features/order-entry/content';
+import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
 
 interface LocationsBottomSectionProps {
   title: string;
@@ -45,7 +45,7 @@ export function LocationsBottomSection({
             Schedule a Pickup
           </SchedulePickupButton>
           <p className="mt-4 text-center text-base font-medium text-primary">
-            {OFFER_COPY}
+            {ORDER_ENTRY_OFFER_COPY}
           </p>
         </div>
       </div>

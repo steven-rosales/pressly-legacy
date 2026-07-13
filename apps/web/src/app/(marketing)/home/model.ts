@@ -1,4 +1,4 @@
-import { OFFER_COPY } from '@/app/shared/marketing/content';
+import { ORDER_ENTRY_OFFER_COPY } from '@/features/order-entry/content';
 
 export type HomeFeature = Readonly<{ title: string }>;
 
@@ -120,7 +120,7 @@ export const getHomePageModel = (): HomePageModel => ({
       { title: 'Fast 1 Day Turnaround' },
     ],
     ctaSource: 'home_wash_fold',
-    offerText: OFFER_COPY,
+    offerText: ORDER_ENTRY_OFFER_COPY,
     image: {
       src: '/graphic-img/wash-fold.webp',
       alt: 'Wash and fold laundry service',
@@ -139,7 +139,7 @@ export const getHomePageModel = (): HomePageModel => ({
       { title: 'Convenient Pickup & Delivery' },
     ],
     ctaSource: 'home_dry_cleaning',
-    offerText: OFFER_COPY,
+    offerText: ORDER_ENTRY_OFFER_COPY,
     image: {
       src: '/graphic-img/dry-cleaning.webp',
       alt: 'Dry cleaning service',

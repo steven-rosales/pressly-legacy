@@ -1,22 +1,17 @@
-vi.mock('@/infra/pricing', () => ({
-  loadPricingCatalog: vi.fn().mockResolvedValue({
-    ok: false,
-    error: {
-      code: 'pricing_unavailable',
-      message: 'Pricing unavailable in tests.',
-    },
-  }),
-}));
+import { getNewJerseyPageModel } from '@/app/(marketing)/new-jersey/model';
+import { getCountyPageModel } from '@/app/(marketing)/new-jersey/[county]/model';
+import { getCityServicePageModel } from '@/app/(marketing)/new-jersey/[county]/[slug]/model';
+import type { PricingCatalogLoader } from '@/features/pricing/model';
+import { buildStaticCatalog } from '@/features/pricing/static-catalog';
 
-import {
-  getCityServicePageModel,
-  getCountyPageModel,
-  getNewJerseyPageModel,
-} from '@/app/(marketing)/new-jersey/model';
+const loadPricing: PricingCatalogLoader = async ({ serviceSlug }) => ({
+  source: 'static-fallback',
+  catalog: buildStaticCatalog(serviceSlug),
+});
 
 describe('new jersey page models', () => {
   it('builds the state page model without route component logic', async () => {
-    const model = await getNewJerseyPageModel();
+    const model = await getNewJerseyPageModel(loadPricing);
 
     expect(model.hero.heading).toBe(
       'New Jersey Laundry Service & Dry Cleaning',
@@ -29,7 +24,7 @@ describe('new jersey page models', () => {
   });
 
   it('builds county links for both laundry and dry cleaning city pages', async () => {
-    const model = await getCountyPageModel('bergen-county');
+    const model = await getCountyPageModel(loadPricing, 'bergen-county');
 
     expect(model?.hero.heading).toContain('Bergen County');
     expect(model?.linksGrid?.items[0]).toEqual(
@@ -42,6 +37,7 @@ describe('new jersey page models', () => {
 
   it('builds city service proof and rejects unknown city service routes', async () => {
     const model = await getCityServicePageModel(
+      loadPricing,
       'bergen-county',
       'laundry-service-in-fort-lee',
     );
@@ -53,7 +49,7 @@ describe('new jersey page models', () => {
       'Pickup and delivery are free per order.',
     );
     await expect(
-      getCityServicePageModel('bergen-county', 'unknown'),
+      getCityServicePageModel(loadPricing, 'bergen-county', 'unknown'),
     ).resolves.toBeNull();
   });
 });

@@ -74,6 +74,17 @@ export const makeErrorHandler = (runtime: ApiRuntime): ErrorRequestHandler => {
 
     observeApiError(runtime, { appError, request: req, requestId });
 
+    if (appError.code === 'invalid_cents_webhook_authentication')
+      runtime.securityEvents.emit({
+        name: 'vendor.webhook_authentication_failed',
+        occurredAt: new Date().toISOString(),
+        outcome: 'denied',
+        ...(requestId === undefined ? {} : { requestId }),
+        resourceType: 'http.route',
+        resourceId: req.path,
+        reason: appError.code,
+      });
+
     if (
       appError.kind === 'ValidationError' ||
       appError.status === 413 ||

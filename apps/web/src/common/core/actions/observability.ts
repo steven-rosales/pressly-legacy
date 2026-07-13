@@ -6,8 +6,10 @@ import {
   type ObservationLogLevel,
 } from '@pressly/metrics';
 import type { Logger, LogFields } from '@pressly/logging';
-import type { WebCorePorts } from '../runtime/core';
+import type { WebCorePorts } from '../runtime/ports';
 import type { ActionMeta } from './action-meta';
+
+type ObservationPorts = Pick<WebCorePorts, 'context' | 'errors' | 'logger'>;
 
 const logWithLevel = (
   logger: Logger,
@@ -45,7 +47,7 @@ const reportContext = (input: {
 });
 
 export const observeWebActionFailure = (
-  core: WebCorePorts,
+  core: ObservationPorts,
   meta: ActionMeta,
   appError: AppError,
 ): ObservationDecision => {

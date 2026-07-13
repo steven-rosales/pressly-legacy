@@ -6,8 +6,7 @@ import type {
   PropsWithChildren,
 } from 'react';
 import type { ProductEvent } from '@pressly/metrics';
-import { trackPublicEvent } from '@/common/core/analytics/track';
-import { useWebCore } from '../runtime/web-core-context';
+import { usePublicEventTracker } from './use-public-event-tracker';
 
 type TrackedAnchorProps = PropsWithChildren<
   AnchorHTMLAttributes<HTMLAnchorElement> & {
@@ -22,13 +21,13 @@ export const TrackedAnchor = ({
   children,
   ...props
 }: TrackedAnchorProps) => {
-  const core = useWebCore();
+  const track = usePublicEventTracker();
 
   return (
     <a
       {...props}
       onClick={(clickEvent) => {
-        trackPublicEvent(core)(event);
+        track(event);
         onClick?.(clickEvent);
       }}
     >

@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +16,11 @@ import type {
 } from '@pressly/logging';
 import { makeApiApp } from '../../src/app.ts';
 import type { ApiRuntime } from '../../src/common/runtime/runtime.ts';
+import {
+  documentedCentsCustomerWebhook,
+  documentedCentsOrderWebhook,
+  unsupportedCentsWebhook,
+} from '../cents/cents-webhook.fixtures.ts';
 
 type LogEntry = Readonly<{
   level: LogLevel;
@@ -48,6 +54,61 @@ const start = async (app: ReturnType<typeof makeApiApp>): Promise<string> => {
 
 const secretValue = (value: string): Secret => value as Secret;
 
+const centsClock = new Date('2026-07-12T16:00:00.000Z');
+const centsHmacKey = 'test-cents-hmac-key-with-at-least-32-bytes';
+
+const signCentsBody = (
+  rawBody: string,
+  timestamp: string,
+  key = centsHmacKey,
+): string =>
+  `v1=${createHmac('sha256', key)
+    .update(timestamp, 'utf8')
+    .update('.', 'utf8')
+    .update(Buffer.from(rawBody))
+    .digest('hex')}`;
+
+const centsHeaders = (input: {
+  rawBody: string;
+  timestamp?: string;
+  key?: string;
+  signedBody?: string;
+}) => {
+  const timestamp =
+    input.timestamp ?? String(Math.floor(centsClock.getTime() / 1_000));
+  return {
+    'Content-Type': 'application/json',
+    'X-Cents-Timestamp': timestamp,
+    'X-Cents-Signature': signCentsBody(
+      input.signedBody ?? input.rawBody,
+      timestamp,
+      input.key,
+    ),
+  };
+};
+
+const makeCentsReceiptDatabase = (input: { fail?: boolean } = {}) => {
+  const receipts: Record<string, unknown>[] = [];
+  const returning = vi.fn(async () => {
+    if (input.fail) throw new Error('receipt database unavailable');
+    return [{ id: '00000000-0000-4000-8000-000000000901' }];
+  });
+  const onConflictDoNothing = vi.fn(() => ({ returning }));
+  const values = vi.fn((receipt: Record<string, unknown>) => {
+    receipts.push(receipt);
+    return { onConflictDoNothing };
+  });
+  const insert = vi.fn(() => ({ values }));
+  const execute = vi.fn(async () => [{ ok: 1 }]);
+
+  return {
+    db: { execute, insert } as unknown as ApiRuntime['database']['db'],
+    execute,
+    insert,
+    receipts,
+  };
+};
+
 const makeLogger = (): {
   logger: Logger;
   entries: LogEntry[];
@@ -73,6 +134,9 @@ const makeLogger = (): {
 const makeRuntime = (
   input: {
     execute?: ReturnType<typeof vi.fn>;
+    db?: ApiRuntime['database']['db'];
+    centsWebhookCurrentKey?: Secret;
+    centsWebhookPreviousKey?: Secret;
   } = {},
 ): {
   runtime: ApiRuntime;
@@ -112,6 +176,19 @@ const makeRuntime = (
         mfaEncryptionKey: secretValue(Buffer.alloc(32, 1).toString('base64')),
         mfaIssuer: 'Pressly Test',
       },
+      processor: {
+        origin: 'http://localhost:4173',
+        csrfSecret: secretValue(
+          'test-processor-csrf-key-with-at-least-32-bytes',
+        ),
+      },
+      centsWebhook: {
+        hmac: {
+          currentKey: input.centsWebhookCurrentKey,
+          previousKey: input.centsWebhookPreviousKey,
+          clockWindowSeconds: 300,
+        },
+      },
       features: {
         metricsEnabled: false,
         jobsEnabled: false,
@@ -139,7 +216,7 @@ const makeRuntime = (
       },
     },
     database: {
-      db: { execute } as unknown as ApiRuntime['database']['db'],
+      db: input.db ?? ({ execute } as unknown as ApiRuntime['database']['db']),
       check: async () => undefined,
       close: async () => undefined,
     },
@@ -285,6 +362,388 @@ describe('API app HTTP boundary', () => {
     expect(harness.capturedErrors).toEqual([]);
     expect(harness.counters).toEqual([]);
     expect(harness.logs.filter((entry) => entry.level === 'error')).toEqual([]);
+  });
+
+  it('fails closed when live Cents verification is not configured', async () => {
+    const harness = makeRuntime();
+    const rawBody = JSON.stringify(documentedCentsOrderWebhook);
+    const response = await fetch(
+      `${await start(makeApiApp(harness.runtime))}/webhooks/cents`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: rawBody,
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: 'cents_webhook_verification_unavailable',
+        message: 'Vendor webhook receipt is not configured.',
+      },
+    });
+    expect(harness.execute).not.toHaveBeenCalled();
+  });
+
+  it('classifies verifier failures as unavailable without exposing their cause', async () => {
+    const harness = makeRuntime();
+    const rawBody = JSON.stringify(documentedCentsOrderWebhook);
+    const response = await fetch(
+      `${await start(
+        makeApiApp(harness.runtime, {
+          centsWebhookVerifier: async () => {
+            throw new Error('vendor verifier secret endpoint unavailable');
+          },
+        }),
+      )}/webhooks/cents`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: rawBody,
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({
+      ok: false,
+      error: {
+        code: 'cents_webhook_verification_unavailable',
+        message: 'Vendor webhook receipt is not configured.',
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain('secret endpoint');
+    expect(harness.execute).not.toHaveBeenCalled();
+  });
+
+  it('protects LPMS operator routes before production persistence', async () => {
+    const harness = makeRuntime();
+    const response = await fetch(
+      `${await start(makeApiApp(harness.runtime))}/production/locations/location-1/shifts`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startsAt: '2026-07-10T14:00:00.000Z',
+          endsAt: '2026-07-10T20:00:00.000Z',
+          timezone: 'America/New_York',
+          effectiveFolderCount: 2,
+          idempotencyKey: 'create-shift-command-1',
+        }),
+      },
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: 'missing_bearer_token',
+        message: 'Authentication is required.',
+      },
+    });
+    expect(harness.execute).not.toHaveBeenCalled();
+  });
+
+  it('authenticates and normalizes a documented Cents order before durable ingestion', async () => {
+    const database = makeCentsReceiptDatabase();
+    const harness = makeRuntime({
+      db: database.db,
+      centsWebhookCurrentKey: secretValue(centsHmacKey),
+    });
+    const rawBody = JSON.stringify(documentedCentsOrderWebhook);
+    const response = await fetch(
+      `${await start(
+        makeApiApp(harness.runtime, { clock: { now: () => centsClock } }),
+      )}/webhooks/cents`,
+      {
+        method: 'POST',
+        headers: centsHeaders({ rawBody }),
+        body: rawBody,
+      },
+    );
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      data: {
+        eventId: '00000000-0000-4000-8000-000000000901',
+        duplicate: false,
+        status: 'pending',
+      },
+    });
+    expect(database.insert).toHaveBeenCalledOnce();
+    expect(database.receipts).toHaveLength(1);
+    expect(database.receipts[0]).toMatchObject({
+      source: 'cents',
+      subjectType: 'order',
+      eventType: 'order_updated',
+      subjectId: '12345',
+      sourceLocationId: '24',
+      payload: {
+        externalOrderId: '12345',
+        externalStoreId: '24',
+        status: 'IN_PROGRESS',
+        dueAt: '2026-07-12T21:00:00.000Z',
+        sourceUpdatedAt: '2026-07-12T15:59:00.000Z',
+        bagCount: null,
+        services: [
+          {
+            externalServiceId: '43',
+            totalPriceCents: 2999,
+            unitPriceCents: 200,
+          },
+        ],
+      },
+      status: 'pending',
+    });
+    const durableReceipt = JSON.stringify(database.receipts[0]);
+    expect(durableReceipt).not.toContain('private@example.invalid');
+    expect(durableReceipt).not.toContain('+15550000001');
+    expect(durableReceipt).not.toContain('Private Fixture');
+  });
+
+  it.each([
+    {
+      name: 'wrong key',
+      headers: (rawBody: string) =>
+        centsHeaders({
+          rawBody,
+          key: 'wrong-cents-hmac-key-with-at-least-32-bytes',
+        }),
+    },
+    {
+      name: 'missing signature',
+      headers: (rawBody: string) => {
+        const { 'X-Cents-Signature': _signature, ...headers } = centsHeaders({
+          rawBody,
+        });
+        return headers;
+      },
+    },
+    {
+      name: 'stale timestamp',
+      headers: (rawBody: string) =>
+        centsHeaders({
+          rawBody,
+          timestamp: String(Math.floor(centsClock.getTime() / 1_000) - 301),
+        }),
+    },
+    {
+      name: 'future timestamp',
+      headers: (rawBody: string) =>
+        centsHeaders({
+          rawBody,
+          timestamp: String(Math.floor(centsClock.getTime() / 1_000) + 301),
+        }),
+    },
+    {
+      name: 'mutated body',
+      headers: (rawBody: string) =>
+        centsHeaders({
+          rawBody,
+          signedBody: JSON.stringify(documentedCentsOrderWebhook),
+        }),
+    },
+  ])('rejects $name before any durable write', async ({ name, headers }) => {
+    const database = makeCentsReceiptDatabase();
+    const harness = makeRuntime({
+      db: database.db,
+      centsWebhookCurrentKey: secretValue(centsHmacKey),
+    });
+    const rawBody =
+      name === 'mutated body'
+        ? `${JSON.stringify(documentedCentsOrderWebhook)} `
+        : JSON.stringify(documentedCentsOrderWebhook);
+    const response = await fetch(
+      `${await start(
+        makeApiApp(harness.runtime, { clock: { now: () => centsClock } }),
+      )}/webhooks/cents`,
+      {
+        method: 'POST',
+        headers: headers(rawBody),
+        body: rawBody,
+      },
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid_cents_webhook_authentication' },
+    });
+    expect(database.insert).not.toHaveBeenCalled();
+    expect(database.receipts).toEqual([]);
+    expect(harness.securityEvents).toContainEqual(
+      expect.objectContaining({
+        name: 'vendor.webhook_authentication_failed',
+        outcome: 'denied',
+        resourceType: 'http.route',
+        resourceId: '/webhooks/cents',
+        reason: 'invalid_cents_webhook_authentication',
+      }),
+    );
+  });
+
+  it('rejects authenticated malformed JSON before normalization or persistence and redacts PII', async () => {
+    const database = makeCentsReceiptDatabase();
+    const harness = makeRuntime({
+      db: database.db,
+      centsWebhookCurrentKey: secretValue(centsHmacKey),
+    });
+    const rawBody = '{"customer":{"email":"private@example.invalid"}';
+    const response = await fetch(
+      `${await start(
+        makeApiApp(harness.runtime, { clock: { now: () => centsClock } }),
+      )}/webhooks/cents`,
+      {
+        method: 'POST',
+        headers: centsHeaders({ rawBody }),
+        body: rawBody,
+      },
+    );
+    const responseBody = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(responseBody).toMatchObject({
+      ok: false,
+      error: { code: 'invalid_cents_webhook_body' },
+    });
+    expect(database.insert).not.toHaveBeenCalled();
+    expect(JSON.stringify(responseBody)).not.toContain(
+      'private@example.invalid',
+    );
+    expect(JSON.stringify(harness.logs)).not.toContain(
+      'private@example.invalid',
+    );
+    expect(JSON.stringify(harness.capturedErrors)).not.toContain(
+      'private@example.invalid',
+    );
+  });
+
+  it('rejects an authenticated malformed documented order without writing it', async () => {
+    const database = makeCentsReceiptDatabase();
+    const harness = makeRuntime({
+      db: database.db,
+      centsWebhookCurrentKey: secretValue(centsHmacKey),
+    });
+    const rawBody = JSON.stringify({
+      action: 'order_updated',
+      customer: { email: 'private@example.invalid' },
+    });
+    const response = await fetch(
+      `${await start(
+        makeApiApp(harness.runtime, { clock: { now: () => centsClock } }),
+      )}/webhooks/cents`,
+      {
+        method: 'POST',
+        headers: centsHeaders({ rawBody }),
+        body: rawBody,
+      },
+    );
+    const responseBody = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(responseBody).toMatchObject({
+      ok: false,
+      error: { code: 'invalid_cents_order_payload' },
+    });
+    expect(database.insert).not.toHaveBeenCalled();
+    expect(JSON.stringify(responseBody)).not.toContain(
+      'private@example.invalid',
+    );
+  });
+
+  it.each([
+    {
+      name: 'documented customer event',
+      payload: documentedCentsCustomerWebhook,
+      classification: 'customer',
+      eventKind: 'customer_updated',
+    },
+    {
+      name: 'unsupported future event',
+      payload: unsupportedCentsWebhook,
+      classification: 'unknown',
+      eventKind: 'order_rescheduled_v2',
+    },
+  ])(
+    'stores only a minimal ignored event for an authenticated $name',
+    async ({ payload, classification, eventKind }) => {
+      const database = makeCentsReceiptDatabase();
+      const harness = makeRuntime({
+        db: database.db,
+        centsWebhookCurrentKey: secretValue(centsHmacKey),
+      });
+      const rawBody = JSON.stringify(payload);
+      const response = await fetch(
+        `${await start(
+          makeApiApp(harness.runtime, { clock: { now: () => centsClock } }),
+        )}/webhooks/cents`,
+        {
+          method: 'POST',
+          headers: centsHeaders({ rawBody }),
+          body: rawBody,
+        },
+      );
+      const responseBody = await response.json();
+
+      expect(response.status).toBe(202);
+      expect(responseBody).toMatchObject({
+        ok: true,
+        data: { status: 'ignored', duplicate: false },
+      });
+      expect(database.receipts).toHaveLength(1);
+      expect(database.receipts[0]).toMatchObject({
+        source: 'cents',
+        subjectType: classification,
+        eventType: eventKind,
+        subjectId: null,
+        sourceLocationId: null,
+        payload: null,
+        payloadHash: null,
+        status: 'processed',
+      });
+      const observable = JSON.stringify({
+        receipt: database.receipts[0],
+        response: responseBody,
+        logs: harness.logs,
+      });
+      expect(observable).not.toContain('private@example.invalid');
+      expect(observable).not.toContain('+15550000001');
+      expect(observable).not.toContain('must-not-survive');
+      expect(observable).not.toContain('customerMetrics');
+    },
+  );
+
+  it('returns unavailable without leaking the authenticated body when durable ingestion fails', async () => {
+    const database = makeCentsReceiptDatabase({ fail: true });
+    const harness = makeRuntime({
+      db: database.db,
+      centsWebhookCurrentKey: secretValue(centsHmacKey),
+    });
+    const rawBody = JSON.stringify(documentedCentsOrderWebhook);
+    const response = await fetch(
+      `${await start(
+        makeApiApp(harness.runtime, { clock: { now: () => centsClock } }),
+      )}/webhooks/cents`,
+      {
+        method: 'POST',
+        headers: centsHeaders({ rawBody }),
+        body: rawBody,
+      },
+    );
+    const responseBody = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(responseBody).toMatchObject({
+      ok: false,
+      error: { code: 'webhook_event_ingestion_failed' },
+    });
+    expect(JSON.stringify(responseBody)).not.toContain(
+      'private@example.invalid',
+    );
+    expect(JSON.stringify(responseBody)).not.toContain('database unavailable');
   });
 
   it('keeps database readiness failures bounded at the HTTP boundary', async () => {

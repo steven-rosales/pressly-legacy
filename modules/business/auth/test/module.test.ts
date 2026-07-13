@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Database } from '@pressly/db';
-import { makeAuthModule } from '../src/main.ts';
+import { makeAuthModule } from '../src/public.ts';
 
 describe('auth module composition', () => {
-  it('exposes auth routes, guards, and usecases', () => {
+  it('exposes auth routes, guards, and protected route composition', () => {
     const module = makeAuthModule({
       db: {} as Database,
       tokenSecret: 'test-token-secret',
@@ -20,18 +20,21 @@ describe('auth module composition', () => {
     expect(module.guards).toEqual({
       authenticate: expect.any(Function),
       authorize: expect.any(Function),
+      readPrincipal: expect.any(Function),
+      readPrincipalAttributes: expect.any(Function),
     });
-    expect(module.usecases).toEqual({
+    expect(module.makeAdministrationRoutes).toEqual(expect.any(Function));
+    expect(module.application).toEqual({
       login: expect.any(Function),
       loadSession: expect.any(Function),
       revokeSession: expect.any(Function),
-      listIdentitySessions: expect.any(Function),
-      revokeIdentitySessions: expect.any(Function),
       completeMfaChallenge: expect.any(Function),
-      beginMfaEnrollment: expect.any(Function),
-      confirmMfaEnrollment: expect.any(Function),
-      regenerateMfaRecoveryCodes: expect.any(Function),
-      removeMfa: expect.any(Function),
     });
+    expect(Object.keys(module)).toEqual([
+      'routes',
+      'guards',
+      'application',
+      'makeAdministrationRoutes',
+    ]);
   });
 });

@@ -7,9 +7,9 @@
     "dev": "pnpm run build:workspace-deps && tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src --max-warnings=0",
-    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "vitest run --exclude 'test/**/*.int.test.ts' --passWithNoTests",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
@@ -21,6 +21,15 @@
   },
   "dependencies": {
     "@pressly/config": "workspace:*",
+    "@pressly/contracts": "workspace:*",
+    "@pressly/db": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/logging": "workspace:*",
+    "@pressly/metrics": "workspace:*",
+    "@pressly/production": "workspace:*",
+    "@pressly/production-policy": "workspace:*",
+    "@pressly/production-scheduling": "workspace:*",
+    "@pressly/webhook-ingestion": "workspace:*",
     "@sentry/node": "^10.50.0",
     "dotenv": "^17.4.2",
     "posthog-node": "^5.30.6",

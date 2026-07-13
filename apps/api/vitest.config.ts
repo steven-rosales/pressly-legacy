@@ -46,6 +46,24 @@ const metricsSource = fileURLToPath(
 const pricingSource = fileURLToPath(
   new URL('../../modules/business/pricing/src/public.ts', import.meta.url),
 );
+const productionSource = fileURLToPath(
+  new URL('../../modules/business/production/src/public.ts', import.meta.url),
+);
+const productionTestingSource = fileURLToPath(
+  new URL(
+    '../../modules/business/production/test/support/memory-production-repositories.ts',
+    import.meta.url,
+  ),
+);
+const productionPolicySource = fileURLToPath(
+  new URL('../../modules/policy/production/src/public.ts', import.meta.url),
+);
+const productionSchedulingSource = fileURLToPath(
+  new URL(
+    '../../modules/computation/scheduling/src/public.ts',
+    import.meta.url,
+  ),
+);
 const timeSource = fileURLToPath(
   new URL('../../packages/time/src/index.ts', import.meta.url),
 );
@@ -112,6 +130,22 @@ export default defineConfig({
       {
         find: /^@pressly\/pricing$/,
         replacement: pricingSource,
+      },
+      {
+        find: /^@pressly\/production\/testing$/,
+        replacement: productionTestingSource,
+      },
+      {
+        find: /^@pressly\/production$/,
+        replacement: productionSource,
+      },
+      {
+        find: /^@pressly\/production-policy$/,
+        replacement: productionPolicySource,
+      },
+      {
+        find: /^@pressly\/production-scheduling$/,
+        replacement: productionSchedulingSource,
       },
       {
         find: /^@pressly\/time$/,

@@ -3,6 +3,7 @@ export type SecurityEventName =
   | 'authentication.login_failed'
   | 'authentication.login_rate_limited'
   | 'authorization.denied'
+  | 'vendor.webhook_authentication_failed'
   | 'request.validation_rejected'
   | 'request.rate_limited'
   | 'session.revoked'

@@ -7,3 +7,17 @@
 	encode zstd gzip
 	reverse_proxy api:4000
 }
+
+{$PRESSLY_PROCESSOR_DOMAIN:processor.trypressly.com} {
+	encode zstd gzip
+
+	@processor_api path /api /api/*
+	handle @processor_api {
+		uri strip_prefix /api
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy processor:80
+	}
+}

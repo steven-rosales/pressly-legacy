@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 
-import { buildPageMetadata } from '@/app/shared/marketing/seo';
+import { buildPageMetadata } from '@/app/_lib/seo';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'Services & Pricing',

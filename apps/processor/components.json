@@ -14,10 +14,10 @@
   "rtl": true,
   "aliases": {
     "components": "@/components",
-    "utils": "@/lib/utils",
+    "utils": "@/components/ui/class-names",
     "ui": "@/components/ui",
-    "lib": "@/lib",
-    "hooks": "@/hooks"
+    "lib": "@/components/ui",
+    "hooks": "@/components/ui"
   },
   "menuColor": "inverted-translucent",
   "menuAccent": "subtle",

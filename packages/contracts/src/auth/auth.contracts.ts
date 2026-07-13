@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { utcIsoStringSchema } from '../common/utc-iso.contracts.ts';
+import { utcIsoStringSchema } from '../utc-iso.contracts.ts';
 
 export const authRoleSchema = z.enum([
   'owner',
@@ -59,6 +59,45 @@ export const sessionResultSchema = z
 export const logoutResultSchema = z
   .object({ revoked: z.literal(true) })
   .strict();
+
+export const processorAuthenticatedSessionSchema = z
+  .object({
+    status: z.literal('authenticated'),
+    principal: authPrincipalSchema,
+    expiresAt: utcIsoStringSchema,
+    csrfToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  })
+  .strict();
+
+export const processorMfaChallengeSchema = z
+  .object({
+    status: z.literal('mfa_required'),
+    expiresAt: utcIsoStringSchema,
+  })
+  .strict();
+
+export const processorLoginResultSchema = z.discriminatedUnion('status', [
+  processorAuthenticatedSessionSchema,
+  processorMfaChallengeSchema,
+]);
+
+export const processorCompleteMfaChallengeRequestSchema = z.discriminatedUnion(
+  'method',
+  [
+    z
+      .object({
+        method: z.literal('totp'),
+        code: z.string().regex(/^\d{6}$/),
+      })
+      .strict(),
+    z
+      .object({
+        method: z.literal('recovery'),
+        code: z.string().min(16).max(40),
+      })
+      .strict(),
+  ],
+);
 
 export const identitySessionsParamsSchema = z
   .object({ identityId: z.uuid() })

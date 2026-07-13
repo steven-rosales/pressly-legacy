@@ -2,7 +2,7 @@ import Image from 'next/image';
 import {
   HiwTimeline,
   type HiwTimelineStep,
-} from '@/app/shared/ui/public/HiwTimeline';
+} from '@/app/(marketing)/_components/HiwTimeline';
 import type { ServiceHiwStepModel } from '../model';
 
 interface ServicesHiwProps {

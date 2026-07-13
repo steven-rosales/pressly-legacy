@@ -1,9 +1,14 @@
 import { result, type Result } from '@pressly/kernel';
 import { normalizeUnknownError, type AppError } from '@pressly/errors';
 import type { RequestInput } from '../requests/request-client';
-import type { WebCorePorts } from '../runtime/core';
+import type { WebCorePorts } from '../runtime/ports';
 import type { ActionMeta } from './action-meta';
 import { observeWebActionFailure } from './observability';
+
+type QueryRuntimePorts = Pick<
+  WebCorePorts,
+  'clock' | 'context' | 'errors' | 'logger' | 'request'
+>;
 
 export type QueryRunInput<A> = Readonly<{
   meta: ActionMeta;
@@ -21,7 +26,7 @@ export type QueryRuntime = Readonly<{
 }>;
 
 const recordQueryFailure = (
-  core: WebCorePorts,
+  core: QueryRuntimePorts,
   meta: ActionMeta,
   appError: AppError,
 ): void => {
@@ -29,7 +34,7 @@ const recordQueryFailure = (
 };
 
 const recordQuerySuccess = (
-  core: WebCorePorts,
+  core: QueryRuntimePorts,
   meta: ActionMeta,
   startedAt: Date,
 ): void => {
@@ -42,7 +47,7 @@ const recordQuerySuccess = (
   });
 };
 
-export const createQueryRuntime = (core: WebCorePorts): QueryRuntime =>
+export const createQueryRuntime = (core: QueryRuntimePorts): QueryRuntime =>
   Object.freeze({
     run: async <A>({
       meta,

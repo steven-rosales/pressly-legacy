@@ -4,6 +4,7 @@
 
 Stateworks defines the format.
 This directory holds actual Pressly work.
+Durable domain facts belong in `stateworks/memory/`, not in work evidence alone.
 
 ## Folders
 
@@ -33,3 +34,5 @@ final-report.md
 
 Do not mark work done because code changed.
 Mark it done only after verification and evidence exist.
+If work changes what agents should believe about a domain, record a verified
+memory delta before relying on that belief in later work.

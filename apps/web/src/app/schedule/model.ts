@@ -1,9 +1,9 @@
 import {
-  CENTS_ORDER_URL,
   DRY_CLEANING_PRICING,
   PRICING,
-  formatUsd,
-} from '@/app/shared/marketing/content';
+} from '@/features/pricing/static-catalog';
+import { CENTS_ORDER_URL } from '@/features/order-entry/config';
+import { formatUsd } from '@/features/pricing/presenter';
 
 export type SchedulePageModel = Readonly<{
   orderUrl: string;

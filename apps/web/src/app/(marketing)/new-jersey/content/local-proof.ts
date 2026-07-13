@@ -1,4 +1,6 @@
-import { CONTACT, PRICING, formatUsd } from '@/app/shared/marketing/content';
+import { CONTACT } from '@/config/site';
+import { formatUsd } from '@/features/pricing/presenter';
+import { PRICING } from '@/features/pricing/static-catalog';
 
 import type { LocationRecord } from './locations';
 import { COUNTY_CITIES } from './county-cities';

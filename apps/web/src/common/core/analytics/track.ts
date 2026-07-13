@@ -1,9 +1,11 @@
 import type { ProductEvent } from '@pressly/metrics';
-import type { WebCore } from '../runtime/core';
+import type { WebCorePorts } from '../runtime/ports';
+
+export type TrackPublicEvent = (event: ProductEvent) => void;
 
 export const trackPublicEvent =
-  (core: WebCore) =>
-  (event: ProductEvent): void => {
+  (core: Pick<WebCorePorts, 'analytics' | 'context'>): TrackPublicEvent =>
+  (event): void => {
     const context = core.context.get();
 
     core.analytics.track(event, {

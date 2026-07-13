@@ -1,0 +1,94 @@
+id: memdelta-2026-07-10-fixed-pulse-scheduling
+domain_id: laundry-production
+
+source:
+  type: interrogation_session
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-10-fixed-pulse-scheduling.md
+
+changes:
+  - op: update
+    kind: object
+    id: scheduler_config
+    description: Versioned configuration for pulse duration, folding rate, algorithm version, and scheduler behavior.
+
+  - op: assert
+    kind: workflow
+    id: fixed_pulse_pipeline
+    steps:
+      - sorting for one pulse
+      - washing for one pulse
+      - drying for one pulse
+      - folding_packaging for one pulse
+
+  - op: deprecate
+    kind: invariant
+    id: batch_minutes_minimum
+  - op: assert
+    kind: invariant
+    id: every_stage_occupies_one_pulse
+    statement: Sorting, washing, drying, and folding_packaging each occupy exactly one scheduler_config.pulse_minutes slot for every production_batch.
+  - op: assert
+    kind: invariant
+    id: batches_advance_only_on_pulse_boundaries
+    statement: A production_batch advances only at pulse boundaries; early physical completion does not shorten a stage or move downstream start times.
+  - op: assert
+    kind: invariant
+    id: pulse_capacity_is_the_stage_bottleneck
+    statement: pulse_capacity_lbs equals the minimum of total active washer effective capacity, total active dryer effective capacity, and fold_lbs_per_folder_minute multiplied by effective_folder_count and pulse_minutes.
+  - op: assert
+    kind: invariant
+    id: empty_pipeline_makespan
+    statement: For the four-stage empty pipeline, makespan_minutes equals (actual_batch_count + 4 - 1) multiplied by pulse_minutes.
+  - op: assert
+    kind: invariant
+    id: oversized_orders_are_unplaced_v1
+    statement: A production_order heavier than pulse_capacity_lbs is returned as unplaced in v1 and is never silently split.
+  - op: assert
+    kind: invariant
+    id: schedule_proposals_are_deterministic
+    statement: The same eligible-order snapshot, resource snapshot, scheduler_config version, and operator directives produce the same schedule proposal.
+
+  - op: update
+    kind: policy
+    id: heijunka_pulse_v1
+    statement: V1 uses deterministic heijunka-style leveling with configurable pulse_minutes; initial planning uses 56 minutes rather than deriving a stage duration.
+  - op: assert
+    kind: policy
+    id: greedy_scheduler_before_optimization_v1
+    statement: V1 uses a deterministic and explainable greedy packing heuristic rather than claiming combinatorial optimality; deeper optimization requires operational evidence.
+  - op: assert
+    kind: policy
+    id: priority_means_earliest_feasible_batch
+    statement: A priority production_order is placed in its earliest feasible batch ahead of non-priority peers, subject to eligibility, pulse capacity, and whole-order constraints; priority does not guarantee batch one.
+  - op: assert
+    kind: policy
+    id: future_order_pull_forward_requires_horizon
+    statement: Future-due production_orders may fill unused capacity only within an explicit operator-selected planning horizon, and pulling them forward does not change their due dates.
+
+  - op: assert
+    kind: decision
+    id: happy_path_delivery_before_exceptions
+    statement: Deliver the happy path through the API and scheduler, processor integration, and UI before implementing manual holds, hard-confirmed cancellation, recovery, and exception UX from observed workflows.
+
+  - op: update
+    kind: assumption
+    id: initial_fold_rate
+    statement: Initial planning uses 2 pounds per effective folder minute, but the value remains configurable and must later be calibrated from observed production data.
+    confidence: medium
+
+  - op: update
+    kind: open_question
+    id: exact_scheduler_ordering_rules
+    question: What stable tie-breakers should order candidates with equal priority, due-date bucket, and packing rank?
+  - op: update
+    kind: open_question
+    id: exception_effects
+    question: How should manual holds, hard-confirmed cancellations, rewash, damaged items, and missing bags affect an accepted production_run?
+
+verification:
+  - Steven explicitly confirmed the fixed four-stage pulse model, configurable scheduler inputs, capacity formula, makespan calculation, and 800-pound example.
+  - Steven agreed that priority and future-order pull-forward are scheduling directives and accepted the happy-path-first delivery order.
+  - docs/plan/lpms.md contains the corresponding fixed-pulse capacity, makespan, deterministic scheduling, and unplaced-order model.
+  - No active Stateworks memory entry contradicts this delta after deprecating batch_minutes_minimum and updating initial_fold_rate.
+
+status: accepted

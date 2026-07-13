@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trypressly.com/stateworks/memory.schema.json",
+  "title": "Stateworks Domain Memory",
+  "type": "object",
+  "required": ["domain_id", "name", "version", "status"],
+  "properties": {
+    "domain_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "active", "deprecated", "archived"]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "actors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/describedEntry" }
+    },
+    "external_systems": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/describedEntry" }
+    },
+    "objects": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/describedEntry" }
+    },
+    "states": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "workflows": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/workflowEntry" }
+    },
+    "invariants": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/statementEntry" }
+    },
+    "policies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/statementEntry" }
+    },
+    "decisions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/statementEntry" }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/assumptionEntry" }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/questionEntry" }
+    },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sourceEntry" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "entryStatus": {
+      "type": "string",
+      "enum": ["active", "proposed", "deprecated", "conflicted"]
+    },
+    "sourceRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "describedEntry": {
+      "type": "object",
+      "required": ["id", "description"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/entryStatus" },
+        "sources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sourceRef" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "statementEntry": {
+      "type": "object",
+      "required": ["id", "statement", "sources"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "statement": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/entryStatus" },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/sourceRef" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "assumptionEntry": {
+      "allOf": [
+        { "$ref": "#/$defs/statementEntry" },
+        {
+          "type": "object",
+          "properties": {
+            "confidence": {
+              "type": "string",
+              "enum": ["low", "medium", "high"]
+            }
+          }
+        }
+      ]
+    },
+    "questionEntry": {
+      "type": "object",
+      "required": ["id", "question", "sources"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "question": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/entryStatus" },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/sourceRef" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "workflowEntry": {
+      "type": "object",
+      "required": ["id", "steps", "sources"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "status": { "$ref": "#/$defs/entryStatus" },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/sourceRef" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "sourceEntry": {
+      "type": "object",
+      "required": ["id", "path"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "type": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

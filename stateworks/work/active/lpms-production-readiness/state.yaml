@@ -1,0 +1,47 @@
+work_id: lpms-production-readiness
+status: active
+updated: 2026-07-12T15:48:21-04:00
+
+current_focus:
+  - H1
+  - Human confirmation of the live Cents contract and identifiers is required.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/active/lpms-production-readiness/evidence.md
+  T1: &implemented
+    status: committed
+    evidence:
+      - stateworks/work/active/lpms-production-readiness/evidence.md
+  T2: *implemented
+  T3: *implemented
+  T4: *implemented
+  T5: *implemented
+  T6: *implemented
+  T7: *implemented
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/active/lpms-production-readiness/evidence.md
+  T8:
+    status: committed
+    evidence:
+      - stateworks/work/active/lpms-production-readiness/evidence.md
+  T9:
+    status: committed
+    evidence:
+      - stateworks/work/active/lpms-production-readiness/evidence.md
+  V2:
+    status: committed
+    evidence:
+      - stateworks/work/active/lpms-production-readiness/evidence.md
+  R1:
+    status: committed
+    evidence:
+      - stateworks/work/active/lpms-production-readiness/evidence.md
+  RV1:
+    status: committed
+    evidence:
+      - stateworks/work/active/lpms-production-readiness/evidence.md

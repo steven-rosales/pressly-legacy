@@ -1,15 +1,14 @@
-import type { IdentityKind } from '@pressly/auth/authentication';
 import { globalScope } from '@pressly/auth/authorization';
 import type {
   CreatedSession,
   LoginIdentityRecord,
   LoginPasswordCredentialRecord,
-} from '../../src/features/login/login.port.ts';
+} from '../../src/login/login.port.ts';
 import type {
   LoginCommand,
   LoginOptions,
-} from '../../src/features/login/login.usecase.ts';
-import type { StoredSessionPrincipalRecord } from '../../src/features/load-session/load-session.port.ts';
+} from '../../src/login/login.usecase.ts';
+import type { StoredSessionPrincipalRecord } from '../../src/load-session/load-session.port.ts';
 
 export const now = new Date('2026-05-29T12:00:00.000Z');
 

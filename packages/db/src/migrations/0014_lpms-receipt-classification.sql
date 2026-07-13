@@ -1,0 +1,2 @@
+ALTER TABLE "webhook_events" DROP CONSTRAINT "webhook_events_known_classification";--> statement-breakpoint
+ALTER TABLE "webhook_events" ADD CONSTRAINT "webhook_events_known_classification" CHECK ("webhook_events"."classification" in ('order', 'customer', 'marketing', 'unknown'));
