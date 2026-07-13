@@ -106,6 +106,18 @@ describe('production bootstrap command', () => {
     });
   });
 
+  it('defaults omitted source bindings to an empty composition manifest', async () => {
+    const file = await writeManifest({
+      ...manifest,
+      sourceLocationBindings: undefined,
+    });
+
+    await expect(readProductionBootstrapManifest(file)).resolves.toMatchObject({
+      location: manifest.location,
+      sourceLocationBindings: [],
+    });
+  });
+
   it('validates the local Pressly One topology and its known capacity', async () => {
     const local = await readProductionBootstrapManifest(
       resolve(

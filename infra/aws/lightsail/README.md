@@ -107,6 +107,12 @@ deployment operator. Mount only that file into an ephemeral API-image tool
 container, first as a dry run and then with the same stable idempotency key for
 apply:
 
+The facility can be bootstrapped with `sourceLocationBindings: []` before a
+vendor store identifier is confirmed. An empty binding manifest is a
+non-destructive no-op: it neither invents a vendor identifier nor removes an
+existing binding. Add a real binding in a later reviewed convergence run before
+enabling that vendor's delivery.
+
 ```bash
 bootstrap_file=/opt/pressly/config/lpms-bootstrap.json
 actor_id='<authorized-operator-uuid>'

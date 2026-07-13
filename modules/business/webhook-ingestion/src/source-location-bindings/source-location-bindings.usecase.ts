@@ -98,13 +98,11 @@ export const makeManageSourceLocationBindings =
           });
 
       const status = rejections.length === 0 ? 'converged' : 'rejected';
-      if (status === 'converged' && !dryRun)
-        await deps.repo.insert(
-          manifest.sourceLocationBindings.filter(
-            (binding) => !existingByKey.has(naturalKey(binding)),
-          ),
-          deps.clock.now(),
-        );
+      const additions = manifest.sourceLocationBindings.filter(
+        (binding) => !existingByKey.has(naturalKey(binding)),
+      );
+      if (status === 'converged' && !dryRun && additions.length > 0)
+        await deps.repo.insert(additions, deps.clock.now());
 
       return result.ok({
         mode: dryRun ? 'dry_run' : 'apply',

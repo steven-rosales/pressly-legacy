@@ -897,10 +897,10 @@ tasks:
       - Generate at least 32 random bytes for the current Cents HMAC key in the approved secret boundary and place it only in the API env file; do not paste it into chat, Git, Stateworks, shell history, or screenshots.
       - Leave the previous-key slot empty for first launch and document the rotation procedure that temporarily accepts current and previous keys.
       - Configure the Processor same-origin API path, Worker runtime settings, database URLs, existing auth and observability values, and feature flags using the documented production names.
-      - Prepare /opt/pressly/config/lpms-bootstrap.json from the repo example with actual location, timezone, Cents store mapping, stations, machines, effective capacities, folding configuration, and initial pulse settings.
+      - Prepare /opt/pressly/config/lpms-bootstrap.json from the repo example with actual location, timezone, stations, machines, effective capacities, folding configuration, and initial pulse settings. Keep sourceLocationBindings empty until the Cents store identifier is confirmed; never use a placeholder binding in production.
       - Validate files through the deployment preflight without printing values and record only file names, modes, owner, bootstrap hash, and pass/fail outcome in human-actions.md.
     expected_external_state:
-      - Required env and bootstrap files exist outside the repository with 0600 permissions and correct ownership.
+      - Required env and bootstrap files exist outside the repository with 0600 permissions and correct ownership; the facility manifest does not require an unconfirmed vendor binding.
       - A current HMAC key exists in the API secret boundary but Cents delivery is not enabled.
       - Bootstrap input reflects operator-reviewed facility facts.
     verifier:
@@ -1035,12 +1035,12 @@ tasks:
       - Run the deployed bootstrap command in dry-run mode with /opt/pressly/config/lpms-bootstrap.json and review every create, update, no-op, and rejection.
       - Run the same command in apply mode only when the dry-run matches the physical facility.
       - Run it a second time and require an idempotent no-op result.
-      - Verify location timezone, Cents store mapping, stations, machine identifiers, effective capacities, folding inputs, pulse minutes, and initial scheduler configuration against the actual floor.
+      - Verify location timezone, stations, machine identifiers, effective capacities, folding inputs, pulse minutes, and initial scheduler configuration against the actual floor. Verify the Cents store mapping only after H1 confirms its identifier, and require it before H5 enables delivery.
       - Create or confirm the least-privileged processor operator assignment through the existing auth administration path, enroll MFA, and store recovery codes offline.
       - Sign in to the Processor and confirm only authorized locations are visible; do not submit production commands yet.
       - Record redacted counts, natural identifiers, configuration hash, operator role, MFA completion, and no-op result in human-actions.md.
     expected_external_state:
-      - The production facility and Cents store mapping exist exactly once.
+      - The production facility exists exactly once; the Cents store mapping exists exactly once before vendor delivery is enabled.
       - Machine and scheduling capacities match operator-reviewed physical facts.
       - One least-privileged operator can authenticate with MFA and see only allowed scope.
     verifier:

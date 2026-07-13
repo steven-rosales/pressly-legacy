@@ -229,7 +229,9 @@ source_location_bindings
 primary key(source, external_location_id)
 ```
 
-Bindings are bootstrapped at an application composition root. Existing bindings
+Bindings are bootstrapped at an application composition root. Facility
+bootstrap may use an empty binding manifest until a vendor location identifier
+is confirmed; the empty manifest is a non-destructive no-op. Existing bindings
 cannot be silently reassigned, deactivated, or removed by a convergence run.
 
 ### Deliberately Excluded Customer Data

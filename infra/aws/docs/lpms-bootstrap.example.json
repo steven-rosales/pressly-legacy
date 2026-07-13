@@ -6,14 +6,7 @@
     "timezone": "America/New_York",
     "isActive": true
   },
-  "sourceLocationBindings": [
-    {
-      "source": "cents",
-      "externalLocationId": "replace-with-cents-store-id",
-      "locationId": "replace-with-location-id",
-      "isActive": true
-    }
-  ],
+  "sourceLocationBindings": [],
   "stations": [
     {
       "locationId": "replace-with-location-id",

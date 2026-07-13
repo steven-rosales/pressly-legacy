@@ -73,4 +73,12 @@ describe('webhook ingestion contracts', () => {
       }).success,
     ).toBe(false);
   });
+
+  it('accepts an empty binding manifest as a non-destructive no-op', () => {
+    expect(
+      sourceLocationBindingsManifestSchema.parse({
+        sourceLocationBindings: [],
+      }),
+    ).toEqual({ sourceLocationBindings: [] });
+  });
 });
