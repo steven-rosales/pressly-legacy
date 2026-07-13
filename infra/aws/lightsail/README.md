@@ -67,6 +67,12 @@ immediately preceding release as its rollback target instead of an older
 N-minus-one release. Successful normal deploys write a `four-image-v1` current
 record containing all four immutable digests from one source SHA.
 
+After Compose reports the private services healthy, deploy polls the public
+API, Web, and Processor routes with bounded timeouts and retries. This absorbs
+the normal TLS-certificate convergence window after Caddy restarts without
+declaring an unverified release successful. Current release metadata is written
+only after every public route passes.
+
 The first four-image cutover has one narrower compatibility path. The deploy
 preflight recognizes only the exact unmarked two-image metadata written by the
 old deploy script, normalizes it to a marked `legacy-two-image-v1` rollback
@@ -210,8 +216,12 @@ do not hand-edit release metadata.
 
 Use at least a 4 GB Lightsail instance for the LPMS pilot unless an offline
 measurement of the complete stack proves a smaller host has safe headroom.
-Allow public ports 80 and 443 plus restricted administrative SSH only; never
-publish Postgres, API, Processor, or Worker container ports.
+Allow public ports 80 and 443. The current GitHub-hosted deploy runner also
+requires rate-limited public SSH because it has no stable egress address; keep
+SSH key-only, disable root login, pin the host key in GitHub, and allow only the
+deployment user. Replace this with static egress or a private deployment channel
+when one is available. Never publish Postgres, API, Processor, or Worker
+container ports.
 
 ## Backups
 

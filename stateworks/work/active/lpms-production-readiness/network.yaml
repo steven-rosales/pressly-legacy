@@ -829,12 +829,12 @@ tasks:
     human_instructions:
       - Confirm or resize the production Lightsail instance to at least 4 GB RAM unless V2 measurements prove the current size has safe headroom.
       - Attach and verify a static IP without removing the current Web or API address.
-      - Allow public 80 and 443 and restricted administrative SSH only; do not expose Postgres, API container, Processor container, or Worker ports directly.
+      - Allow public 80 and 443. While the GitHub-hosted deploy runner has no stable egress, rate-limit public SSH, require keys, disable root login, pin the host key, and allow only the deployment user. Do not expose Postgres, API container, Processor container, or Worker ports directly.
       - Confirm disk headroom, encrypted backup access, host time synchronization, Docker availability, and the existing deployment user's restricted access.
       - Record only redacted instance size, static IP suffix, firewall rules, disk headroom, and time-sync result in human-actions.md.
     expected_external_state:
       - The host has capacity for the four applications plus Caddy and Postgres.
-      - One stable static IP is attached and only Caddy ingress plus restricted SSH can reach the host.
+      - One stable static IP is attached and only Caddy ingress plus the hardened deployment SSH boundary can reach the host.
       - Host time and backup prerequisites are healthy.
     verifier:
       - Human provides redacted instance, static-IP, firewall, disk, time-sync, and backup-access evidence.
