@@ -12,7 +12,7 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm exec turbo build --filter=@pressly/processor...
 
-FROM nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 AS runner
+FROM nginx:1.30.3-alpine@sha256:0d3b80406a13a767339fbe2f41406d6c7da727ab89cf8fae399e81f780f814d1 AS runner
 COPY apps/processor/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /repo/apps/processor/dist /usr/share/nginx/html
 EXPOSE 80
