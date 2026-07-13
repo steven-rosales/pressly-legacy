@@ -28,6 +28,9 @@ DEPLOY_SHA="${DEPLOY_SHA:-}"
 API_HEALTH_URL="${PRESSLY_API_HEALTH_URL:-https://api.trypressly.com/health/ready}"
 WEB_HEALTH_URL="${PRESSLY_WEB_HEALTH_URL:-https://trypressly.com/health}"
 PROCESSOR_HEALTH_URL="${PRESSLY_PROCESSOR_HEALTH_URL:-https://processor.trypressly.com/health}"
+HEALTH_MAX_ATTEMPTS="${PRESSLY_HEALTH_MAX_ATTEMPTS:-30}"
+HEALTH_RETRY_DELAY_SECONDS="${PRESSLY_HEALTH_RETRY_DELAY_SECONDS:-2}"
+HEALTH_REQUEST_TIMEOUT_SECONDS="${PRESSLY_HEALTH_REQUEST_TIMEOUT_SECONDS:-10}"
 CURRENT_RELEASE_FILE="${PRESSLY_CURRENT_RELEASE_FILE:-$APP_ROOT/current-release}"
 PREVIOUS_RELEASE_FILE="${PRESSLY_PREVIOUS_RELEASE_FILE:-$APP_ROOT/previous-release}"
 CURRENT_RELEASE_METADATA_FILE="${PRESSLY_CURRENT_RELEASE_METADATA_FILE:-$APP_ROOT/current-release.json}"
@@ -55,6 +58,53 @@ emit_deployment_event() {
     "$occurred_at"
 }
 
+require_positive_integer() {
+  local name="$1"
+  local value="$2"
+
+  if [[ ! "$value" =~ ^[1-9][0-9]*$ ]]; then
+    echo "$name must be a positive integer." >&2
+    exit 1
+  fi
+}
+
+require_non_negative_integer() {
+  local name="$1"
+  local value="$2"
+
+  if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+    echo "$name must be a non-negative integer." >&2
+    exit 1
+  fi
+}
+
+wait_for_health() {
+  local application="$1"
+  local url="$2"
+  local attempt
+
+  for ((attempt = 1; attempt <= HEALTH_MAX_ATTEMPTS; attempt += 1)); do
+    if curl \
+      --fail \
+      --silent \
+      --show-error \
+      --max-time "$HEALTH_REQUEST_TIMEOUT_SECONDS" \
+      --output /dev/null \
+      "$url"; then
+      echo "$application health check passed after $attempt attempt(s)."
+      return 0
+    fi
+
+    if ((attempt < HEALTH_MAX_ATTEMPTS)); then
+      echo "$application health check attempt $attempt/$HEALTH_MAX_ATTEMPTS failed; retrying." >&2
+      sleep "$HEALTH_RETRY_DELAY_SECONDS"
+    fi
+  done
+
+  echo "$application health check failed after $HEALTH_MAX_ATTEMPTS attempts." >&2
+  return 1
+}
+
 on_exit() {
   local exit_code="$?"
 
@@ -72,6 +122,14 @@ on_exit() {
 }
 
 trap on_exit EXIT
+
+require_positive_integer PRESSLY_HEALTH_MAX_ATTEMPTS "$HEALTH_MAX_ATTEMPTS"
+require_non_negative_integer \
+  PRESSLY_HEALTH_RETRY_DELAY_SECONDS \
+  "$HEALTH_RETRY_DELAY_SECONDS"
+require_positive_integer \
+  PRESSLY_HEALTH_REQUEST_TIMEOUT_SECONDS \
+  "$HEALTH_REQUEST_TIMEOUT_SECONDS"
 
 export PRESSLY_CADDY_ENV_FILE="$CADDY_ENV_FILE"
 export PRESSLY_WEB_ENV_FILE="$WEB_ENV_FILE"
@@ -496,10 +554,10 @@ docker compose \
   -f "$COMPOSE_FILE" \
   ps
 
-curl --fail --silent --show-error "$API_HEALTH_URL"
-curl --fail --silent --show-error "$WEB_HEALTH_URL"
+wait_for_health "API" "$API_HEALTH_URL"
+wait_for_health "Web" "$WEB_HEALTH_URL"
 if [[ "$TARGET_RELEASE_FORMAT" == "four-image-v1" ]]; then
-  curl --fail --silent --show-error "$PROCESSOR_HEALTH_URL"
+  wait_for_health "Processor" "$PROCESSOR_HEALTH_URL"
 fi
 
 deployed_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"

@@ -137,7 +137,9 @@ checks out the selected commit without building application images
 pulls the API, Web, Worker, and Processor release set
 runs migrations
 starts services
-checks API, Web, Processor, and private Worker health
+checks private API, Web, Processor, and Worker health
+polls public API, Web, and Processor readiness with bounded retries
+records current release metadata only after public readiness passes
 ```
 
 Host release metadata is discriminated. Normal current and rollback records use
@@ -187,8 +189,13 @@ Public traffic should only reach Caddy:
 ```txt
 80/tcp
 443/tcp
-22/tcp restricted to your IP
+22/tcp rate-limited for the current GitHub-hosted deploy runner
 ```
+
+SSH is key-only, root-disabled, limited to the deployment user, and pinned by
+host key in GitHub. An explicit workstation allow can coexist with the
+rate-limited rule. Move deployment SSH behind static egress or a private
+channel when one is available.
 
 Do not expose:
 

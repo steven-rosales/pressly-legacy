@@ -93,7 +93,7 @@ const writeCommandStubs = (directory) => {
   );
   writeFileSync(
     join(binDirectory, 'curl'),
-    '#!/bin/sh\nset -eu\nprintf "curl %s\\n" "$*" >> "$COMMAND_LOG"\n',
+    '#!/bin/sh\nset -eu\nprintf "curl %s\\n" "$*" >> "$COMMAND_LOG"\nif [ -n "${CURL_FAILURE_COUNTER_FILE:-}" ]; then count=0; if [ -f "$CURL_FAILURE_COUNTER_FILE" ]; then count="$(cat "$CURL_FAILURE_COUNTER_FILE")"; fi; count=$((count + 1)); printf "%s\\n" "$count" > "$CURL_FAILURE_COUNTER_FILE"; if [ "$count" -le "${FAIL_CURL_ATTEMPTS:-0}" ]; then exit 35; fi; fi\n',
   );
   for (const command of ['git', 'docker', 'curl'])
     chmodSync(join(binDirectory, command), 0o700);
@@ -447,6 +447,88 @@ describe('four-image deployment identity', () => {
     ).toHaveLength(4);
   });
 
+  it('retries transient public readiness before committing release metadata', () => {
+    const current = fourImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const counter = join(fixture.directory, 'curl-attempts');
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        CURL_FAILURE_COUNTER_FILE: counter,
+        FAIL_CURL_ATTEMPTS: '2',
+        PRESSLY_HEALTH_MAX_ATTEMPTS: '4',
+        PRESSLY_HEALTH_RETRY_DELAY_SECONDS: '0',
+      }),
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      'API health check passed after 3 attempt(s).',
+    );
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      releaseFormat: 'four-image-v1',
+      sourceSha: sha,
+    });
+
+    const curls = readFileSync(fixture.commandLog, 'utf8')
+      .trim()
+      .split('\n')
+      .filter((line) => line.startsWith('curl '));
+    expect(curls).toEqual([
+      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://api.example.test/health/ready',
+      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://api.example.test/health/ready',
+      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://api.example.test/health/ready',
+      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://web.example.test/health',
+      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://processor.example.test/health',
+    ]);
+  });
+
+  it('leaves current release metadata unchanged when readiness never converges', () => {
+    const current = fourImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const counter = join(fixture.directory, 'curl-attempts');
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        CURL_FAILURE_COUNTER_FILE: counter,
+        FAIL_CURL_ATTEMPTS: '99',
+        PRESSLY_HEALTH_MAX_ATTEMPTS: '3',
+        PRESSLY_HEALTH_RETRY_DELAY_SECONDS: '0',
+      }),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'API health check failed after 3 attempts.',
+    );
+    expect(result.stderr).toContain('"event":"deployment.failed"');
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toEqual(current);
+    expect(
+      readFileSync(fixture.commandLog, 'utf8').match(
+        /https:\/\/api\.example\.test\/health\/ready/g,
+      ),
+    ).toHaveLength(3);
+    expect(readFileSync(fixture.commandLog, 'utf8')).not.toContain(
+      'https://web.example.test/health',
+    );
+  });
+
   it('fails before migration when a pulled image revision label mismatches', () => {
     const current = fourImageMetadata({
       sourceSha: currentSha,
@@ -552,10 +634,10 @@ describe('four-image deployment identity', () => {
     expect(checkoutIndex).toBeGreaterThan(-1);
     expect(upIndex).toBeGreaterThan(checkoutIndex);
     expect(commands).toContain(
-      'curl --fail --silent --show-error https://api.example.test/health/ready',
+      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://api.example.test/health/ready',
     );
     expect(commands).toContain(
-      'curl --fail --silent --show-error https://web.example.test/health',
+      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://web.example.test/health',
     );
     expect(commands).not.toContain('https://processor.example.test/health');
     expect(commands.match(/^docker image inspect /gm)).toHaveLength(2);
