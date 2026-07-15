@@ -284,7 +284,16 @@ jobs:
           load: true
           tags: ${{ steps.images.outputs.processor_tag }}
           labels: org.opencontainers.image.revision=${{ github.sha }}
-          build-args: VITE_API_URL=/api
+          build-args: |
+            VITE_API_URL=/api
+            VITE_SENTRY_DSN=${{ secrets.PROCESSOR_SENTRY_DSN }}
+            VITE_SENTRY_ENVIRONMENT=production
+            VITE_SENTRY_RELEASE=${{ github.sha }}
+            VITE_SENTRY_TRACES_SAMPLE_RATE=${{ vars.PROCESSOR_SENTRY_TRACES_SAMPLE_RATE || '0.1' }}
+            SENTRY_ORG=${{ vars.SENTRY_ORG || 'pressly-laundry-service-dry-cl' }}
+            SENTRY_PROJECT=${{ vars.PROCESSOR_SENTRY_PROJECT || 'pressly-processor' }}
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
           cache-from: type=gha,scope=pressly-processor
           cache-to: type=gha,mode=max,scope=pressly-processor
 

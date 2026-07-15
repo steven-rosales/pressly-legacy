@@ -327,7 +327,8 @@ modules/policy/access-control/
 ```
 
 `modules/policy/production` is the headless LPMS policy peer. It exports pure
-eligibility, acceptance, machine-assignment, and state-transition decisions.
+eligibility, current-plan acceptance, Start, live-placement,
+membership-control, machine-assignment, and stage-transition decisions.
 
 Policy module rules:
 
@@ -402,12 +403,42 @@ A business command invokes its injected policy inside the transaction and
 revalidates a computation proposal against current durable state. An injected
 dependency does not own state, and the business capability cannot bypass it.
 
-For LPMS, production policy owns eligibility, order-cohesion, stage-transition,
-pulse-boundary, and machine-overlap decisions. The production business module
-owns optimistic concurrency, idempotency, and the transaction that records
-operational changes. A scheduler may propose batches and machine assignments,
-but accepting that proposal invokes production policy against current state
-before creating execution records.
+For LPMS, production policy owns eligibility, order-cohesion, plan acceptance,
+Start, membership, placement, stage-transition, pulse-boundary, and
+machine-overlap decisions. The production business module owns optimistic
+concurrency, idempotency, run-first locking, and the transaction that records
+operational changes.
+
+LPMS deliberately has two computation modes:
+
+```txt
+before Start: fixed-pulse-ffd-v2 computes one immutable global plan
+after Start:  online-stable-insertion-v1 places one arrival into one run
+```
+
+Accept persists the manager's preference for the current immutable plan; it
+does not create execution. Start revalidates that accepted plan and the exact
+eligible-order snapshot, then atomically creates the shift's sole started
+production run. Post-start placement may change only the arriving order and a
+mutable queued suffix. Frozen or in-flight batches are anchors, hard pulse
+capacity is universal, and every queue mutation is guarded by the run's
+separate `queue_version`.
+
+The Processor projects this durable state. It keeps explicit `shiftId` and
+`runId` navigation identifiers and refreshes authoritatively after commands,
+but it does not poll workspace state on a timer. Each committed `work_events`
+insert advances the owning location's durable `live_revision` and emits a
+transactional PostgreSQL notification. One API listener fans those revisions
+out through an authenticated, location-authorized SSE stream. The stream
+subscribes before reading its initial revision, so a commit during connection
+setup is buffered instead of lost. On ready, reconnect, or revision, the
+Processor coalesces invalidations and performs one ordinary workspace GET;
+SSE never becomes a second source of production truth.
+
+The SSE heartbeat only keeps the connection alive, and the board's local
+countdown only advances presentation time; neither reads server state. The
+Processor does not own acceptance, pending overtime proposals, queue identity,
+or batch membership in temporary React state.
 
 ## 6. Contracts
 

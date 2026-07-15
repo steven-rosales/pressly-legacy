@@ -1,0 +1,37 @@
+work_id: lpms-operator-workspace-live-sync
+status: complete
+updated: 2026-07-15T11:41:41-04:00
+
+current_focus:
+  - complete
+  - Operator workspace, live synchronization, living documentation, and memory v7 are verified and reconciled.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+  V2:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md

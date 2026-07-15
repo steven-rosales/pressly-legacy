@@ -57,6 +57,13 @@ describe('production topology', () => {
     expect(services.processor.expose).toEqual(['80']);
     expect(services.processor.read_only).toBe(true);
     expect(services.processor.cap_drop).toContain('ALL');
+    expect(services.api.environment.SENTRY_RELEASE).toBe('e'.repeat(40));
+    expect(services.worker.environment.SENTRY_RELEASE).toBe('e'.repeat(40));
+    expect(services.api.environment.NODE_ENV).toBe('production');
+    expect(services.worker.environment.NODE_ENV).toBe('production');
+    expect(services.api.environment.SENTRY_ENABLED).toBe('true');
+    expect(services.api.environment.FEATURE_METRICS_ENABLED).toBe('true');
+    expect(services.worker.environment.SENTRY_ENABLED).toBe('true');
 
     for (const name of ['api', 'web', 'worker', 'processor'])
       expect(services[name].image).toMatch(/@sha256:[0-9a-f]{64}$/);
@@ -75,5 +82,17 @@ describe('production topology', () => {
     expect(caddyfile).toContain('uri strip_prefix /api');
     expect(caddyfile).toContain('reverse_proxy api:4000');
     expect(caddyfile).toContain('reverse_proxy processor:80');
+  });
+
+  it('redirects the www web hostname to the canonical hostname', () => {
+    const caddyfile = readFileSync(
+      resolve(root, 'infra/aws/lightsail/Caddyfile'),
+      'utf8',
+    );
+
+    expect(caddyfile).toContain('www.{$PRESSLY_WEB_DOMAIN:trypressly.com}');
+    expect(caddyfile).toContain(
+      'redir https://{$PRESSLY_WEB_DOMAIN:trypressly.com}{uri} permanent',
+    );
   });
 });

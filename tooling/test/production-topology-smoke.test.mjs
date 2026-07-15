@@ -47,6 +47,7 @@ const renderSmokeCompose = () =>
         env: {
           ...process.env,
           ...imageEnvironment,
+          PRESSLY_RELEASE_SHA: 'a'.repeat(40),
           PRESSLY_SMOKE_REPO_ROOT: root,
           PRESSLY_SMOKE_FIXTURE_DIR: fixtureDirectory,
           PRESSLY_SMOKE_CADDY_PORT: port,
@@ -83,6 +84,11 @@ describe('offline production topology smoke harness', () => {
       "docker inspect --format '{{.Config.Image}}'",
       'X-Cents-Signature',
       '/api/processor/auth/login',
+      'X-CSRF-Token',
+      'login_lpms_processor_session',
+      'prepare_lpms_before_api_restart',
+      'resume_lpms_after_api_restart',
+      'finish_lpms_live_flow',
       'processor_csrf_rejected',
       'invalid_session',
       'docker stats --no-stream',
@@ -142,13 +148,23 @@ describe('offline production topology smoke harness', () => {
     expect(config.services.api.environment).toMatchObject({
       NODE_ENV: 'production',
       PROCESSOR_ORIGIN: `https://processor.pressly.test:${port}`,
+      FEATURE_METRICS_ENABLED: 'false',
+      SENTRY_ENABLED: 'false',
     });
     expect(config.services.web.build.args).toMatchObject({
       NEXT_PUBLIC_API_BASE_URL: `https://api.pressly.test:${port}`,
     });
     expect(config.services.processor.build.args).toMatchObject({
       VITE_API_URL: '/api',
+      VITE_SENTRY_DSN: '',
+      VITE_SENTRY_ENVIRONMENT: 'offline-smoke',
+      VITE_SENTRY_RELEASE: 'pressly-offline-smoke',
+      VITE_SENTRY_TRACES_SAMPLE_RATE: '0',
     });
+    expect(config.services.api.environment.SENTRY_RELEASE).toBe('a'.repeat(40));
+    expect(config.services.worker.environment.SENTRY_RELEASE).toBe(
+      'a'.repeat(40),
+    );
     expect(config.services.worker.ports).toBeUndefined();
     expect(config.services.worker.expose).toBeUndefined();
 
@@ -181,6 +197,59 @@ describe('offline production topology smoke harness', () => {
       '[[ "$REPORT_CREATED" == true ]] && rm -f "$REPORT_PATH"\n    exit_code=1',
     );
     expect(script.match(/offline topology proof passed/g)).toHaveLength(1);
+  });
+
+  it('proves the run-centered LPMS lifecycle through authenticated Processor commands', () => {
+    const script = readFileSync(smokeScript, 'utf8');
+    const execution = script.slice(
+      script.indexOf("echo '[v2] starting a clean Postgres volume"),
+    );
+
+    const preStartIndex = execution.indexOf('prepare_lpms_before_api_restart');
+    const apiRestartIndex = execution.indexOf('compose restart api');
+    const resumeIndex = execution.indexOf('resume_lpms_after_api_restart');
+    const workerRestartIndex = execution.indexOf('compose restart worker');
+    const liveFlowIndex = execution.indexOf('finish_lpms_live_flow');
+    const releaseRotationIndex = execution.indexOf('set_release release-b');
+
+    expect(preStartIndex).toBeGreaterThan(-1);
+    expect(apiRestartIndex).toBeGreaterThan(preStartIndex);
+    expect(resumeIndex).toBeGreaterThan(apiRestartIndex);
+    expect(workerRestartIndex).toBeGreaterThan(resumeIndex);
+    expect(liveFlowIndex).toBeGreaterThan(workerRestartIndex);
+    expect(releaseRotationIndex).toBeGreaterThan(liveFlowIndex);
+
+    for (const proofBoundary of [
+      'offline-smoke-order-prestart',
+      'offline-smoke-order-live',
+      '/orders/${LPMS_FIRST_ORDER_ID}/priority',
+      '/orders/${LPMS_FIRST_ORDER_ID}/intake',
+      '/schedules/${LPMS_SCHEDULE_RUN_ID}/accept',
+      '/schedules/${LPMS_SCHEDULE_RUN_ID}/start',
+      '/runs/${LPMS_PRODUCTION_RUN_ID}/board',
+      '/orders/${LPMS_LIVE_ORDER_ID}/priority',
+      '/orders/${LPMS_LIVE_ORDER_ID}/intake',
+      '/batches/${batch_id}/freeze',
+      '/stages/${stage_id}/start',
+      '/stages/${stage_id}/complete',
+      'set actual_start_at = planned_start_at',
+      "'2|2|2|2|1|1|1|4|2|1|4|4'",
+      "'2|2|2|1|4'",
+    ])
+      expect(script).toContain(proofBoundary);
+
+    expect(script).toContain('signedReceiptCount: 2');
+    expect(script).toContain('projectedOrderCount: 2');
+    expect(script).toContain('completedStageCount: 4');
+    expect(script).toContain('stageTransitionCommandCount: 8');
+    expect(script).toContain('directRunIdBoardResume: true');
+
+    const report = script.slice(
+      script.indexOf("proof: 'lpms-v2-offline-production-topology'"),
+    );
+    expect(report).not.toContain('OWNER_PASSWORD');
+    expect(report).not.toContain('PRESSLY_SMOKE_CENTS_HMAC_KEY');
+    expect(report).not.toContain('LPMS_CSRF_TOKEN');
   });
 
   it('uses internal TLS and secret-free synthetic fixtures', () => {

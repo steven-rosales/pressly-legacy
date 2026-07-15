@@ -73,7 +73,8 @@ services:
       && pnpm -F @pressly/api bootstrap:production --
       --file /repo/tooling/fixtures/pressly-one.production-bootstrap.json
       --actor-id 00000000-0000-4000-8000-000000000001
-      --idempotency-key local-pressly-one-topology-v1
+      --idempotency-key local-pressly-one-topology-$$(sha256sum
+      /repo/tooling/fixtures/pressly-one.production-bootstrap.json | cut -c1-16)
       --apply
       && pnpm -F @pressly/api dev"
     volumes:
@@ -151,6 +152,10 @@ services:
       dockerfile: apps/processor/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+        VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-development}
+        VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE:-pressly-development}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}
     ports:
       - '${PROCESSOR_PORT:-4173}:80'
     depends_on:

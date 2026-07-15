@@ -2,21 +2,23 @@
 
 This document describes application-level controls against malicious or malformed input.
 
-It does not cover authentication, authorization, secrets management, infrastructure security, or incident response.
+It does not replace the dedicated authentication, authorization, secrets,
+infrastructure, or incident-response references. It does document the browser
+session and CSRF boundary where those concerns determine request safety.
 
 ## Control Status
 
-| Control                   | Status            | Enforcement point                          |
-| ------------------------- | ----------------- | ------------------------------------------ |
-| CORS                      | Active            | API middleware                             |
-| Browser security headers  | Active            | API Helmet middleware and web CSP          |
-| HTML sanitization         | Available, unused | Feature boundary when rich HTML is added   |
-| SSRF protection           | Not triggered     | Add before user-directed outbound requests |
-| CSRF protection           | Not triggered     | Add before cookie authentication           |
-| Request validation        | Active            | HTTP adapters and API body parsers         |
-| SQL injection prevention  | Active            | `@pressly/db` query boundary and CI        |
-| Rate limiting             | Active            | API ingress                                |
-| Safe errors and telemetry | Active            | API error boundary and security event sink |
+| Control                   | Status                        | Enforcement point                          |
+| ------------------------- | ----------------------------- | ------------------------------------------ |
+| CORS                      | Active                        | API middleware                             |
+| Browser security headers  | Active                        | API Helmet middleware and web CSP          |
+| HTML sanitization         | Available, unused             | Feature boundary when rich HTML is added   |
+| SSRF protection           | Not triggered                 | Add before user-directed outbound requests |
+| CSRF protection           | Active for Processor sessions | Processor browser boundary                 |
+| Request validation        | Active                        | HTTP adapters and API body parsers         |
+| SQL injection prevention  | Active                        | `@pressly/db` query boundary and CI        |
+| Rate limiting             | Active                        | API ingress                                |
+| Safe errors and telemetry | Active                        | API error boundary and security event sink |
 
 "Not triggered" means the vulnerable capability does not exist today.
 It does not mean that an empty middleware file protects the application.
@@ -63,7 +65,7 @@ The policy:
 
 - Compares browser origins against an exact allowlist.
 - Allows requests without an `Origin` header because CLI and server clients are not governed by browser CORS.
-- Allows only `GET`, `HEAD`, `POST`, and `OPTIONS`.
+- Allows only `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, and `OPTIONS`.
 - Allows only the declared request headers, including Pressly's route and session headers.
 - Returns `204` for successful preflight requests.
 - Allows browsers to cache preflight results for 600 seconds.
@@ -198,28 +200,34 @@ Cross-Site Request Forgery (CSRF) abuses credentials that a browser attaches aut
 CORS is not sufficient CSRF protection.
 Some browser requests do not require a CORS preflight, and the server must protect state changes based on how credentials are transported.
 
-### Current Status
+### Processor Browser Boundary
 
-Pressly authentication currently uses a bearer token supplied explicitly in the `Authorization` header.
-The browser does not automatically attach that token, and the current web application does not use authenticated cookie sessions.
+The Processor uses an opaque server-side session token in an `HttpOnly`,
+`SameSite=Strict` cookie. Production cookies are `Secure` and use the `__Host-`
+prefix. Local HTTP development uses an explicitly non-secure local cookie name.
 
-For that reason, CSRF middleware is not composed.
-`apps/api/src/common/security/csrf.middleware.ts` is only a reserved location and currently provides no protection.
-The allowed `X-CSRF-Token` CORS header reserves a future protocol; it does not activate CSRF validation.
+JavaScript never receives the reusable session token. A successful login or
+session restore returns a session-bound CSRF proof. The Processor keeps that
+proof in memory and sends it in `X-CSRF-Token` on unsafe requests.
 
-### Activation Trigger
+`apps/api/src/common/security/processor-session.ts` enforces the protocol:
 
-Introduce CSRF protection before the first authenticated cookie-backed mutation.
-The minimum design is:
+1. Login requires the exact configured Processor `Origin`.
+2. `POST`, `PUT`, `PATCH`, `DELETE`, and any other unsafe method require both
+   that exact origin and the derived CSRF proof.
+3. The API derives the expected proof from the opaque session token and a
+   separate CSRF secret, then compares it without timing-dependent equality.
+4. `GET`, `HEAD`, and `OPTIONS` remain free of state changes. Authenticated safe
+   requests still require a valid session cookie.
+5. Session responses use `Cache-Control: no-store`.
 
-1. Set session cookies with `Secure`, `HttpOnly`, and an appropriate `SameSite` policy.
-2. Reject state-changing requests whose `Origin` is absent or not explicitly trusted, except for documented non-browser flows.
-3. Require and verify a CSRF token bound to the session for unsafe methods.
-4. Keep `GET`, `HEAD`, and `OPTIONS` free of state changes.
-5. Test cross-origin form posts, missing and mismatched tokens, login CSRF, and token rotation.
+The zero-byte `apps/api/src/common/security/csrf.middleware.ts` file is a
+reserved generic location. It is not the active Processor control; the composed
+control is the Processor browser boundary above.
 
-Choose one session transport deliberately.
-Do not silently support both bearer and cookie authentication on the same route without defining how each route selects its CSRF policy.
+Other non-browser API boundaries may use explicit bearer authentication. Do not
+add cookie support to one of those routes without defining its origin and CSRF
+policy first.
 
 ## Request Validation
 

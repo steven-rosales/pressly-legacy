@@ -4,6 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 const workflowPath = new URL('../../.github/workflows/ci.yml', import.meta.url);
 const workflowSource = await readFile(workflowPath, 'utf8');
+const processorDockerfile = await readFile(
+  new URL('../../apps/processor/Dockerfile', import.meta.url),
+  'utf8',
+);
 const workflow = parse(workflowSource);
 const production = workflow.jobs['production-artifacts'];
 const productionSteps = production.steps;
@@ -126,6 +130,29 @@ describe('four-image CI release', () => {
     expect(stepIndex(verifySource.name)).toBeLessThan(
       stepIndex('Generate API SBOM'),
     );
+  });
+
+  it('builds Processor telemetry for the release without embedding the upload token', () => {
+    const processorBuild = step('Build Processor image once').with;
+    expect(processorBuild['build-args']).toContain(
+      'VITE_SENTRY_RELEASE=${{ github.sha }}',
+    );
+    expect(processorBuild['build-args']).toContain(
+      'VITE_SENTRY_ENVIRONMENT=production',
+    );
+    expect(processorBuild['build-args']).toContain('VITE_SENTRY_DSN=');
+    expect(processorBuild['build-args']).toContain('SENTRY_ORG=');
+    expect(processorBuild['build-args']).toContain('SENTRY_PROJECT=');
+    expect(processorBuild.secrets).toContain(
+      'sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}',
+    );
+    expect(processorBuild['build-args']).not.toContain('SENTRY_AUTH_TOKEN=');
+
+    expect(processorDockerfile).toContain(
+      '--mount=type=secret,id=sentry_auth_token',
+    );
+    expect(processorDockerfile).not.toMatch(/ARG SENTRY_AUTH_TOKEN/);
+    expect(processorDockerfile).not.toMatch(/ENV SENTRY_AUTH_TOKEN/);
   });
 
   it('generates four SBOMs and blocks every critical scan before publishing', () => {

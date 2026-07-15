@@ -261,8 +261,9 @@ not advance until those findings are repaired and the exact gate is rerun.
 - Stage completion now enforces a full pulse from the actual start, and folding
   completion atomically terminalizes assignments, order, bags, active links,
   batch, run, and shift with affected-row assertions.
-- Processor stage-fit assertions are explicit operator inputs. Workspace refresh
-  uses generation fencing so an older success or error cannot overwrite newer
+- Stage-fit assertions remain explicit operator-owned configuration inputs and
+  are never fabricated by schedule computation. Workspace refresh uses
+  generation fencing so an older success or error cannot overwrite newer
   same-location or cross-location state.
 - Invalid Cents authentication emits a redacted security event and counter.
   Worker signals export through Sentry Metrics and a Cron heartbeat while
@@ -469,3 +470,47 @@ summary: API, Worker, and Processor images built; the six-container private topo
 The refactor proof supersedes historical V2 for repository behavior. Work may
 return to `H1`; live vendor contract, cloud, secret placement, alert routing,
 deployment, and pilot claims remain explicit human gates.
+
+## 2026-07-14 — Run-centered scheduling implementation proof
+
+Status: reference appended; `H1` remains the current human gate
+
+The affected local/RV1 repository and disposable-topology proof was rerun after
+`lpms-run-centered-online-scheduling`. The canonical evidence is
+`stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md`; its
+terminal summary is
+`stateworks/work/done/lpms-run-centered-online-scheduling/final-report.md`.
+
+Root typecheck (43/43), lint (24/24), tests (149 files/814 tests), and build
+(24/24) passed. The canonical LPMS integration gate passed 36 files/153 tests,
+and the LPMS end-to-end gate passed 13 files/86 tests. The disposable Docker
+proof completed two signed synthetic Cents orders in one production run through
+automatic placement, explicit freeze, run-ID resume, all four stages, rollback,
+durability, and zero-resource teardown.
+
+This appended proof updates repository behavior only. It does not rewrite the
+historical V2/RV1 evidence above and does not claim or advance the live Cents
+contract, cloud, secret placement, alert routing, deployment, or pilot gates.
+Work remains stopped at `H1` under `human-actions.md`.
+
+## 2026-07-15 — Operator workspace and live synchronization checkpoint
+
+Status: reference appended; `H1` remains the current human gate
+
+The verified repository checkpoint is recorded in
+`stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md`; its
+terminal summary is
+`stateworks/work/done/lpms-operator-workspace-live-sync/final-report.md`.
+
+It covers versioned pre-start shift and folder changes, run-provenance-aware
+history, explicit early-completion confirmation, atomic final run/shift closure,
+resource routes without automatic invalid-path redirects, authenticated SSE
+invalidation with authoritative reload, and the intentionally separate Worker
+inbox claim loop. Focused, isolated migration/integration, LPMS end-to-end,
+root, Stateworks, and read-only local-runtime checks passed. Laundry-production
+memory advanced from v6 to v7.
+
+The runtime snapshot preserved the active synthetic run and its 15 scheduled
+orders totaling 800.000 pounds and 34 bags; no production command was issued.
+This checkpoint does not establish live Cents, cloud, secret placement, alert
+routing, deployment, or pilot facts and therefore does not advance `H1`.

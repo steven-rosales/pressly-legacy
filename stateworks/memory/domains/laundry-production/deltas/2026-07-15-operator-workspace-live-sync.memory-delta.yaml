@@ -1,0 +1,114 @@
+id: memdelta-2026-07-15-operator-workspace-live-sync
+domain_id: laundry-production
+
+source:
+  type: implementation_checkpoint
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-15-operator-workspace-live-sync.md
+
+changes:
+  - op: update
+    kind: workflow
+    id: scheduling_to_execution
+    steps:
+      - API durably receives and projects canonical external order demand
+      - eligible production_orders form the complete immutable scheduling snapshot for one shift
+      - Compute creates a new immutable schedule_run revision and supersedes the prior current revision
+      - manager reviews warnings and accepts the current output hash without creating execution
+      - Start revalidates the current accepted revision, exact eligible-order snapshot, and active shift window
+      - LPMS creates the shift's sole started production_run and its initial batches, stages, assignments, order transitions, and work_event atomically
+      - operators advance server-authorized stage_run actions at pulse boundaries or explicitly confirm an early physical completion without pulling downstream starts forward
+      - post-start arrivals are placed into the existing production_run without moving existing orders automatically
+      - final folding and packaging completion terminalizes the remaining floor facts, completes the run, and closes the shift atomically
+
+  - op: assert
+    kind: workflow
+    id: prestart_shift_revision
+    steps:
+      - manager edits shift start, end, or effective folder count before execution exists
+      - LPMS locks the location scheduling scope and compares the shift version
+      - LPMS persists the complete shift settings and records one idempotent work_event
+      - a material change supersedes the current schedule revision and revokes acceptance
+      - a no-op preserves the current schedule revision
+      - manager computes a new immutable plan from the persisted shift facts
+
+  - op: assert
+    kind: workflow
+    id: production_workspace_live_refresh
+    steps:
+      - a committed production work_event advances the owning location's durable live revision
+      - PostgreSQL notification wakes the authenticated location-authorized SSE stream
+      - the Processor coalesces the invalidation with any in-flight or post-command refresh
+      - the Processor reloads the authoritative workspace or board through its ordinary HTTP read
+      - initial connection, reconnect, or upstream-listener recovery also forces an authoritative resync
+
+  - op: update
+    kind: invariant
+    id: every_stage_occupies_one_pulse
+    statement: The scheduler reserves exactly one scheduler_config.pulse_minutes slot for sorting, washing, drying, and folding_packaging for every production_batch; confirmed early physical completion does not shorten that planned reservation.
+
+  - op: update
+    kind: invariant
+    id: batches_advance_only_on_pulse_boundaries
+    statement: A production_batch cannot begin its next stage before that stage's planned pulse boundary; confirmed early physical completion may record the prior stage's truth but cannot pull downstream start times forward.
+
+  - op: assert
+    kind: invariant
+    id: shift_planning_commands_respect_operating_window_v1
+    statement: Compute and Accept are allowed only before the production shift ends, while Start is allowed only at or after shift start and before shift end.
+
+  - op: assert
+    kind: invariant
+    id: prestart_shift_changes_revoke_current_plan_v1
+    statement: Before a production run exists, a versioned material change to shift start, end, or effective folder count atomically supersedes the current schedule and revokes acceptance; after a run exists the shift is not mutable.
+
+  - op: assert
+    kind: invariant
+    id: early_stage_completion_is_confirmation_bound_v1
+    statement: Completing a started stage before the later of its planned end and actual start plus one pulse requires an actor-bound, stage-version-bound, timing-bound confirmation that is revalidated and audited with the transition.
+
+  - op: assert
+    kind: invariant
+    id: final_batch_completion_closes_run_and_shift_v1
+    statement: Completing the final folding_packaging stage terminalizes its assignments, orders, bags, active memberships, and batch and, when every run batch is finished, completes the production_run and closes its production shift in the same transaction.
+
+  - op: assert
+    kind: invariant
+    id: production_live_revision_is_work_event_bound_v1
+    statement: Every committed location-owned production work_event advances that location's durable live revision exactly once in the same transaction; notification is an invalidation hint rather than production truth.
+
+  - op: assert
+    kind: policy
+    id: schedule_actionability_is_run_provenance_aware_v1
+    statement: A draft or accepted schedule is actionable only while its shift is open and unexpired and no production_run uses that schedule as provenance; run-owned, closed, and expired contexts are read-only history.
+
+  - op: update
+    kind: decision
+    id: backend_owns_workspace_identity
+    statement: Shift, current-plan, production-run, queue-version, action availability, and historical status come from backend state and explicit resource identifiers rather than temporary Processor state, query-owned navigation, automatic invalid-path redirects, or arbitrary overlapping-shift selection.
+
+  - op: deprecate
+    kind: decision
+    id: defer_sse_until_state_contract_is_stable
+
+  - op: deprecate
+    kind: decision
+    id: processor_run_centered_polling_v1
+
+  - op: assert
+    kind: decision
+    id: processor_uses_sse_invalidation_v1
+    statement: The Processor uses an authenticated per-location SSE revision stream to invalidate and coalesce authoritative workspace or board reads; streamed payloads never become a second source of production state and timer polling is not used for production synchronization.
+
+  - op: assert
+    kind: decision
+    id: worker_inbox_polling_remains_intentional_v1
+    statement: The private Worker continues bounded durable-inbox claim polling with idle waits, retry backoff, lease fencing, heartbeat, and separately throttled backlog sampling; this job-execution loop is independent of Processor live synchronization.
+
+verification:
+  - The source session records the exact implementation paths inspected for shift windows, shift updates, schedule actionability, final closure, early completion, SSE invalidation, and Worker polling.
+  - The proposed changes explicitly deprecate the two active v6 decisions contradicted by the current SSE implementation.
+  - Existing exception, role-mapping, and queued-unfreeze questions remain active and no live Cents, cloud, deployment, alert-routing, or pilot fact is asserted.
+  - This checkpoint validation is not sufficient for acceptance; the delta must remain proposed until V1 and V2 evidence is recorded under lpms-operator-workspace-live-sync.
+  - Applying this accepted delta to current memory v6 would advance laundry-production memory to v7 and require context-pack regeneration.
+
+status: applied

@@ -88,12 +88,21 @@ Every image value is a digest-qualified GHCR reference. The validator rejects
 missing, mutable, duplicate, cross-wired, or extra application images and can
 bind validation to an expected full source SHA.
 
-The main image job uses the scoped `GITHUB_TOKEN` to publish to GHCR and a
-public browser telemetry DSN at build time when configured. Database, auth,
-Cents HMAC, SSH, and other runtime secrets must never enter image builds.
+The main image job uses the scoped `GITHUB_TOKEN` to publish to GHCR and public
+browser telemetry DSNs at build time when configured. Processor source-map
+upload receives its project-scoped Sentry token through a BuildKit secret; the
+token is not a build argument or image value. Database, auth, Cents HMAC, SSH,
+and other runtime secrets must never enter image builds.
 
 The integration database is a GitHub Actions Postgres service. It is separate
 from local Docker and production Docker.
+
+The run-centered LPMS migration, API, Worker, and Processor are one coordinated
+release unit. The contracts intentionally separate Compute, Accept, and Start
+and replace shift-derived board lookup with explicit run IDs, so deploying any
+one of those surfaces alone is unsupported. CI must prove the forward
+migration, the signed synthetic Cents path, run-centered API/Processor tests,
+and all three LPMS images before that release is eligible for deployment.
 
 Repository tests prove workflow structure and manifest validation offline. A
 successful main-branch run is still required to prove GitHub runner, action,
@@ -168,12 +177,14 @@ server, not in GitHub:
 /opt/pressly/env/{compose,caddy,web,api,worker,processor,postgres,migration,backup}.env
 ```
 
-GitHub should only need the SSH deploy credentials:
+The deploy workflow needs only its SSH boundary credentials; image-building
+telemetry configuration is separate and documented below:
 
 ```txt
 LIGHTSAIL_HOST
 LIGHTSAIL_USER
 LIGHTSAIL_SSH_KEY
+LIGHTSAIL_SSH_KNOWN_HOSTS
 ```
 
 ## Runtime
@@ -229,11 +240,26 @@ The API connects to it with:
 postgres://pressly_runtime:<password>@postgres:5432/pressly
 ```
 
+## Observability
+
+Processor, API, and Worker report the same validated Git SHA as their Sentry
+release. CI compiles Processor browser telemetry and uploads source maps with a
+BuildKit secret; deploy injects that SHA into the API and Worker runtime without
+editing host env files. Production API metrics require
+`FEATURE_METRICS_ENABLED=true`; production Compose enforces that and Sentry for
+API and Worker.
+
+The current signals, required dashboards and alerts, privacy boundary, and
+floor incident procedure are maintained in [Observability](./observability.md).
+Sentry notification routes are still an operator-owned production setup step
+and must be exercised in staging before the pilot.
+
 ## Local Docker
 
 Local Docker still uses the root `docker-compose.yml`.
 
-`pnpm docker:up` builds and starts the complete local application stack:
+`pnpm docker:up` builds and starts the complete local application stack in the
+background, waits for its health gates, and then returns control to the shell:
 
 - Postgres
 - API
@@ -256,17 +282,40 @@ The worker runs as its own long-lived container. It depends on Postgres, not on
 the API process, so HTTP availability and background processing have independent
 failure and restart boundaries.
 
+In WSL, the startup command fails before touching Compose unless it sees the
+native WSL Docker daemon through the `default` context, with the daemon data at
+`/var/lib/docker`. This prevents silently switching between Docker Desktop and
+native WSL volumes. Use `pnpm docker:logs` when attached logs are useful; closing
+that log stream does not stop the application. `pnpm docker:down` is the
+deliberate command that stops the stack.
+
 Useful commands:
 
 ```bash
 pnpm docker:up
+pnpm docker:logs
 pnpm docker:down
 pnpm docker:web:build
 pnpm docker:web:run
 pnpm docker:api:up
 pnpm docker:test-db:up
+pnpm test:lpms:int
+pnpm test:lpms:e2e
+pnpm docker:lpms:build
 pnpm test:int
 ```
+
+The LPMS proof uses only synthetic demand. It covers demand projection,
+priority intake, automatic placement into the existing run, explicit
+membership freeze, all four pulse stages, and completion. It must also prove
+that accepted-plan and active-run navigation survive refresh. No production
+Cents key, customer payload, or production connection string belongs in this
+proof.
+
+Use [Local LPMS Production-Run Simulation](./runbooks/lpms-local-production-run.md)
+for the manual 15-order floor workflow and
+[Cents Webhook Local Proof](./runbooks/cents-webhook.md) for the focused ingress
+authentication cases.
 
 Local Docker is for development and integration testing.
 

@@ -1,0 +1,493 @@
+work_id: lpms-run-centered-online-scheduling
+title: LPMS run-centered online scheduling
+status: complete
+
+goal:
+  - Separate immutable pre-start planning from execution commitment through Compute, Review/Accept, and Start.
+  - Enforce one stable production run per shift and place post-start arrivals without silently moving existing orders.
+  - Make backend state and explicit shift/run identities authoritative across refresh, concurrency, and overtime confirmation.
+
+invariants:
+  - Exactly one production_run may exist for one production shift, and only Start creates it.
+  - Accept persists preference for the current immutable schedule revision but creates no execution graph or scheduled-order transitions.
+  - Compute includes every currently eligible shift order, supersedes the previous current revision, and revokes its acceptance.
+  - Start requires the accepted revision to remain current and its complete eligible-order snapshot to remain unchanged.
+  - After Start, newly eligible orders enter the existing run and never create a sibling run.
+  - Automatic live placement never relocates an existing order in v1.
+  - Batch execution state and membership freeze are orthogonal; every non-queued batch is permanently frozen.
+  - Hard pulse capacity cannot be overridden by automatic placement, exact placement, or overtime acceptance.
+  - Every queue or membership mutation is expected-version guarded, atomically audited, and follows one run-first lock order.
+  - Overtime acceptance is bound to the exact proposal hash and queue version reviewed by the manager.
+  - Production business and policy remain headless; computation remains pure; apps remain the composition roots.
+  - Existing user changes, historical evidence, and deployed migration history are preserved.
+  - No secret, customer payload, bearer credential, or production connection string enters Stateworks or test evidence.
+  - SSE, drag-and-drop, silent live reoptimization, split orders, and exception workflows remain outside this work.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconcile memory and implementation baseline
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/memory/domains/laundry-production/sessions/2026-07-14-run-centered-online-scheduling.md
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/done/lpms-v1-happy-path
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:modules/computation/scheduling
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:apps/api
+      - repo:apps/worker
+      - repo:apps/processor
+    writes:
+      - repo:stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+    preconditions:
+      - Inventory the dirty worktree and preserve unrelated user or concurrent-agent changes.
+      - Treat the v5 context pack as the approved business model and implementation code as the baseline to migrate, not as contrary domain authority.
+    action:
+      - Recheck the current schema, migrations, schedule contracts, Compute, Accept, Start, workspace, board, stage transition, order eligibility, Worker composition, and Processor navigation behavior.
+      - Record a baseline matrix covering current identifiers, state transitions, uniqueness constraints, lock order, idempotency, URL state, and existing test seams.
+      - Query only local development data needed to verify migration assumptions and record counts or synthetic identifiers rather than customer data.
+      - Confirm the active production-readiness work remains stopped at its human gate and identify the exact local or RV1 proof that must be rerun after this work.
+      - If repository drift invalidates a planned interface or migration assumption, update this network before implementation and record the reason.
+    postconditions:
+      - Every downstream task references current code boundaries and executable verification commands.
+      - The migration baseline names all legacy planned runs, duplicate shift-run conflicts, and inconsistent started execution without mutating data.
+      - No historical production-readiness evidence is rewritten.
+    verifier:
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - pnpm stateworks:validate stateworks/work/done/lpms-run-centered-online-scheduling/network.yaml
+      - The evidence baseline names the inspected paths, current lifecycle, database compatibility result, and any plan repair.
+      - git diff --check
+    rollback:
+      - No application rollback is needed; revert only an unverified network repair and retain the read-only baseline evidence.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+
+  - id: T1
+    title: Define contracts, schema, and forward migration
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/test
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+      - repo:modules/business/production/src/production.port.ts
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/test
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/src/migrations/meta
+      - repo:packages/db/test
+    preconditions:
+      - T0 confirms the real deployed migration head and local legacy-run shape.
+      - Migration tests run against isolated clean and representative pre-migration databases.
+      - Existing migration files that may have shipped are never rewritten.
+    action:
+      - Replace schedule creation input with shift ID, scheduler-config ID, and idempotency key; remove horizonEnd and define all-eligible snapshot semantics.
+      - Change Accept output to accepted schedule identity and timestamp only, and define Start input and output with schedule ID, expected hash, idempotency, run ID, batch IDs, and initial queue version.
+      - Add discriminated contracts for placement committed, confirmation required, capacity rejection, stale queue, unavailable target, and retryable pending outcomes.
+      - Add expected queue and batch versions to automatic retry, exact placement, freeze, queued-only unfreeze, and overtime-confirmed commands.
+      - Extend schedule_runs with supersession, accepting actor, and acknowledged-warning facts; remove canonical-proposal uniqueness and enforce one current draft or accepted revision per shift.
+      - Enforce one production_run per shift, add positive queue_version, projected completion, and proposal-hash plus version-bound overtime acknowledgment while keeping lifecycle version separate.
+      - Add paired batch membership freeze facts and validate that every non-queued batch is frozen.
+      - Add membership placement provenance and manager-exact pin facts without introducing order splitting or a second membership table.
+      - Write one forward migration that aborts before mutation on duplicate shift runs or inconsistent started execution.
+      - Normalize never-started legacy planned runs back to accepted plans, restore their orders to eligible, remove only their unstarted execution graph, and preserve schedule and work-event history.
+      - Preserve started and completed runs, backfill queue and freeze facts, supersede non-current schedule revisions deterministically, and clone each location's latest config as fixed-pulse-ffd-v2.
+    postconditions:
+      - Database constraints enforce one current plan and one execution run per shift.
+      - Legacy v1 schedules and configurations remain readable.
+      - Contract types encode every expected lifecycle, placement, capacity, conflict, and overtime result without exceptions for expected failure.
+      - Migration abort and normalization behavior are deterministic and independently tested.
+    verifier:
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/contracts typecheck
+      - pnpm --filter @pressly/contracts lint
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/db test:integration
+      - pnpm db:test:migrate
+      - Migration tests prove clean install, compatible legacy normalization, duplicate-run abort, inconsistent-started abort, and started/completed preservation.
+      - git diff --check
+    rollback:
+      - Before shared deployment, revert contract and migration code together; after migration, disable changed writes and ship only a forward corrective migration without deleting preserved history.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+
+  - id: T2
+    title: Implement pure planning, insertion, and production policies
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:modules/computation/scheduling
+      - repo:modules/policy/production
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:modules/computation/scheduling
+      - repo:modules/policy/production
+    preconditions:
+      - T0 confirms fixed-pulse resource, ordering, and stage-window representations.
+      - Pure computation receives values and returns decisions without database, HTTP, clock, random-ID, or logging dependencies.
+    action:
+      - Add fixed-pulse-ffd-v2 global planning over the complete eligible-order snapshot while preserving deterministic hashes, stable tie-breakers, whole-order capacity, and v1 historical readability.
+      - Add online-stable-insertion-v1 as a pure sibling computation over an ordered versioned queue, arriving order, fixed resource snapshot, and optional exact target.
+      - Place priority arrivals in the earliest feasible mutable batch or create a positioned priority batch after all frozen or in-flight anchors and existing priority work.
+      - Place ordinary arrivals in the best-fitting mutable batch with earliest-sequence tie-break, or append a new batch.
+      - Reject an unavailable, frozen, non-queued, or over-capacity exact target without selecting a fallback.
+      - Preserve every existing order membership and all frozen stage windows; reproject only the affected mutable suffix when a new batch changes sequence.
+      - Return a canonical placement hash, proposed queue version, affected suffix, projected completion, and overtime state.
+      - Add policy decisions for current-plan acceptance, Start preconditions, freeze and queued-only unfreeze, implicit freeze on batch start, hard capacity, and manager-only overtime or exact placement capabilities.
+      - Use discriminated unions for valid decisions and expected rejections; do not add generic factories, managers, solver registries, or framework dependencies.
+    postconditions:
+      - The pure core cannot mutate execution and has no framework or persistence imports.
+      - Automatic placement has zero recourse over existing memberships.
+      - Frozen or in-flight work is an irrevocable anchor and hard capacity is universal.
+      - Identical inputs produce identical plans, insertion proposals, hashes, and overtime results.
+    verifier:
+      - pnpm --filter @pressly/production-scheduling test
+      - pnpm --filter @pressly/production-scheduling typecheck
+      - pnpm --filter @pressly/production-scheduling lint
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production-policy typecheck
+      - pnpm --filter @pressly/production-policy lint
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - Tests cover all-eligible determinism, priority and ordinary insertion, batch positioning, frozen anchors, exact rejection, no movement, suffix reprojection, hard capacity, and overtime hashing.
+      - git diff --check
+    rollback:
+      - Revert v2 computation and new policy exports; historical fixed-pulse-ffd-v1 remains intact and no persistence has changed in this task.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+
+  - id: T3
+    title: Implement the pre-start plan lifecycle
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+    reads:
+      - repo:modules/business/production/src/create-schedule
+      - repo:modules/business/production/src/accept-schedule
+      - repo:modules/business/production/src/start-schedule
+      - repo:modules/business/production/src/load-schedule
+      - repo:modules/business/production/src/persistence
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:modules/computation/scheduling
+      - repo:modules/policy/production
+    writes:
+      - repo:modules/business/production/src/create-schedule
+      - repo:modules/business/production/src/accept-schedule
+      - repo:modules/business/production/src/start-schedule
+      - repo:modules/business/production/src/load-schedule
+      - repo:modules/business/production/src/persistence
+      - repo:modules/business/production/test
+    preconditions:
+      - T1 migrations and contracts pass on clean and representative legacy databases.
+      - T2 exposes pure planning and lifecycle decisions through narrow public exports.
+    action:
+      - Make Compute lock the shift, read every eligible order in location and shift scope, create a v2 immutable revision, supersede the previous current revision, revoke acceptance, and record one work event in one transaction.
+      - Preserve command idempotency so a retry returns the original revision while a new command creates a new revision even when canonical plan hashes match.
+      - Make Accept lock the shift and plan, validate current identity, output hash, complete eligible-order snapshot, warnings, and actor, then persist preference only.
+      - Ensure Accept leaves production orders eligible and creates no run, batch, stage, machine assignment, or scheduled transition.
+      - Make Start lock shift and plan, require current accepted identity, re-read and compare the exact eligible-order snapshot, and reject any drift with a recompute-required result.
+      - Make Start create the shift's one started run, initial queue version, batches, stage windows, assignments, scheduled-order transitions, and work event atomically.
+      - Resolve concurrent Start through locking plus one-run-per-shift uniqueness and return one stable idempotent result.
+      - Keep expected domain failures typed and reserve exceptions for broken invariants or unavailable infrastructure.
+    postconditions:
+      - Compute, Accept, and Start are distinct transactional use cases with no HTTP concerns.
+      - Refresh after Accept can reconstruct acceptance entirely from persistence.
+      - A stale accepted plan or changed eligible-order set cannot start.
+      - Exactly one run is created directly in started execution for one shift.
+    verifier:
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production typecheck
+      - pnpm --filter @pressly/production lint
+      - pnpm --filter @pressly/db test:integration
+      - Integration tests prove recompute revocation, same-hash new revision, Accept without execution, acceptance refresh, input drift, idempotent retry, concurrent Start, and atomic rollback.
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - git diff --check
+    rollback:
+      - Disable Compute, Accept, and Start writes together and preserve immutable plan and work-event history; correct shared data only through a forward migration.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+
+  - id: T4
+    title: Implement live queue placement and membership workflows
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T3
+    reads:
+      - repo:modules/business/production/src/apply-order-demand
+      - repo:modules/business/production/src/record-order-intake
+      - repo:modules/business/production/src/set-production-order-priority
+      - repo:modules/business/production/src/advance-production-stage
+      - repo:modules/business/production/src/assign-stage-machines
+      - repo:modules/business/production/src/load-production-board
+      - repo:modules/business/production/src/persistence
+      - repo:modules/computation/scheduling
+      - repo:modules/policy/production
+    writes:
+      - repo:modules/business/production/src/apply-order-demand
+      - repo:modules/business/production/src/record-order-intake
+      - repo:modules/business/production/src/set-production-order-priority
+      - repo:modules/business/production/src/advance-production-stage
+      - repo:modules/business/production/src/assign-stage-machines
+      - repo:modules/business/production/src/load-production-board
+      - repo:modules/business/production/src/persistence
+      - repo:modules/business/production/src/place-production-order
+      - repo:modules/business/production/src/manage-batch-membership
+      - repo:modules/business/production/test
+      - repo:packages/db/test
+    preconditions:
+      - T3 creates one started run with an initial positive queue version and accepted resource snapshot.
+      - All queue mutation paths can acquire the production run before batch or membership rows.
+    action:
+      - Add one transactional placement use case that loads and locks the run, checks expected queue version, calls the pure insertion computation, and commits only the returned placement and affected mutable suffix.
+      - Persist placement provenance, manager pin facts, rebuilt planned windows and assignments, projected completion, incremented queue version, and one work event atomically.
+      - Add idempotent automatic retry and manager-exact commands; exact placement rejects invalid targets and never falls back silently.
+      - When order demand or bag intake makes an order eligible after Start, immediately attempt automatic placement using the order's already-recorded priority.
+      - Keep the eligibility transaction successful when placement requires overtime or hits a recoverable conflict, and expose the order as pending with a stable retry reason.
+      - Ensure later priority changes never silently relocate a placed order.
+      - Add employee freeze, owner/admin queued-only unfreeze, and implicit permanent freeze when a batch starts; record actor, reason where required, versions, and work events.
+      - Make placement, freeze, unfreeze, stage transition, and run completion use the same run-first lock order and expected versions.
+      - Return confirmation_required before overtime; recompute under lock on confirmation and commit only when proposal hash and queue version remain exact.
+      - Invalidate any prior overtime acknowledgment on every later queue-composition mutation.
+      - Add sparse counters for placement outcomes, queue conflicts, freezes, and overtime confirmations without order or customer identifiers.
+    postconditions:
+      - Every post-start eligible order is either placed once into the existing run or remains visibly pending with a typed reason.
+      - Existing order membership never moves automatically and frozen work never changes.
+      - Capacity, queue versions, pins, lock order, overtime confirmation, and audit facts remain correct under concurrency.
+      - Run completion cannot race past a new placement.
+    verifier:
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production typecheck
+      - pnpm --filter @pressly/production lint
+      - pnpm --filter @pressly/db test:integration
+      - Tests prove priority and ordinary commits, positioned and appended batches, exact pinning, hard-capacity rejection, pending recovery, no relocation, suffix-only reprojection, and idempotent retry.
+      - Concurrency tests prove placement versus freeze, placement versus stage start, completion versus arrival, stale queue rejection, and stale overtime confirmation.
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - git diff --check
+    rollback:
+      - Disable live-placement and membership command routes at composition roots; preserve committed memberships and work events and correct them only through explicit forward commands.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+
+  - id: T5
+    title: Expose run-centered API, workspace, and Processor behavior
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T4
+    reads:
+      - repo:apps/api/src/app.ts
+      - repo:apps/api/test/lpms
+      - repo:apps/worker
+      - repo:modules/business/production/src/load-production-workspace
+      - repo:modules/business/production/src/load-production-board
+      - repo:apps/processor/src/app
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/features/production-board
+      - repo:packages/contracts/src/production
+    writes:
+      - repo:apps/api/src
+      - repo:apps/api/test/lpms
+      - repo:apps/worker/src
+      - repo:apps/worker/test
+      - repo:modules/business/production/src/load-production-workspace
+      - repo:modules/business/production/src/load-production-board
+      - repo:modules/business/production/test
+      - repo:apps/processor/src/app
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/features/production-board
+      - repo:apps/processor/test
+    preconditions:
+      - T4 exposes all commands and reads as framework-free production capabilities.
+      - Existing session and access-control boundaries remain authoritative.
+    action:
+      - Expose schedule Compute, Accept, and Start routes with the new contracts and keep validation, authentication, and capability composition at the API edge.
+      - Add run-ID board lookup and versioned automatic retry, exact placement, freeze, queued-only unfreeze, and overtime-confirmed routes.
+      - Make workspace honor an explicit shift ID; without one, select only a unique started run or accepted plan and otherwise return candidate shifts rather than an arbitrary overlapping row.
+      - Expose current-plan status, candidate contexts, active run, queue version, frozen and pinned membership, projected completion, overtime state, pending arrivals, previews, and backend-authorized actions.
+      - Ensure Worker demand application invokes the same production eligibility and automatic-placement capability without importing policy or computation modules directly.
+      - Replace separate Processor scheduling cards with one server-derived Compute, Review/Accept, and Start block.
+      - Remove accepted, acceptedShiftId, and workspace timestamp remount ownership from local React state.
+      - Persist shiftId in the scheduling URL and runId in the board URL; await command refresh before navigation and restore both views from backend data after reload.
+      - Show pending arrivals, placement outcomes, membership freeze, exact-batch selection, conflicts, and version-bound overtime confirmation with accessible status output.
+      - Permit operators to freeze and retry automatic placement; permit owner/admin to Accept, Start, unfreeze, place exactly, and confirm overtime according to server actions.
+      - Refresh immediately after commands and poll a visible online workspace every ten seconds; do not add SSE.
+    postconditions:
+      - API routes are thin adapters and Processor state is a projection of backend truth.
+      - Accepted scheduling and active production survive refresh, restart, and direct URL navigation.
+      - Ambiguous overlapping shifts are visible choices rather than hidden heuristic selection.
+      - Every mutation uses a server-issued expected version and refreshes on conflict.
+    verifier:
+      - pnpm --filter @pressly/api test
+      - pnpm --filter @pressly/api typecheck
+      - pnpm --filter @pressly/api lint
+      - pnpm --filter @pressly/worker test
+      - pnpm --filter @pressly/worker typecheck
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+      - Processor tests prove acceptance refresh, recompute revocation, Start navigation by run ID, board resume, pending arrivals, expected-version commands, conflict refresh, exact selection, and stale overtime UI.
+      - API tests prove explicit shift scope, candidate ambiguity, run board scope, role enforcement, malformed input rejection, and composition isolation.
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - git diff --check
+    rollback:
+      - Roll back API, Worker, and Processor together before shared deployment; after migration, disable new writes and preserve backend state for a forward-compatible repair.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+
+  - id: V1
+    title: Verify the complete run-centered production path
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+    reads:
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:modules/computation/scheduling
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:apps/api
+      - repo:apps/worker
+      - repo:apps/processor
+      - repo:docker-compose.yml
+      - repo:stateworks/work/active/lpms-production-readiness
+    writes:
+      - repo:stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+    preconditions:
+      - T5 package-level tests pass and all migrations are forward-only.
+      - Docker verification uses synthetic Cents-shaped demand and no production secrets or customer data.
+    action:
+      - Run package tests, typechecks, lint, migration, integration, architecture-boundary, root build, and root test suites from a clean dependency state.
+      - Run the LPMS Docker topology and prove signed synthetic Cents-shaped demand through projection, priority intake, automatic placement, explicit freeze, all four pulse stages, and completed run.
+      - Prove refresh between Accept and Start, refresh during a live run, direct run-ID resume, and overlapping-shift ambiguity behavior.
+      - Exercise migration normalization on a representative v1 fixture and the fail-before-mutation paths for duplicate runs and inconsistent started execution.
+      - Rerun the local or RV1 production-readiness checks affected by scheduling, workspace, Worker, API, Processor, and database changes without rewriting historical evidence.
+      - Record exact commands, exit codes, timestamps, migration version, synthetic fixture identifiers, and redacted output summaries.
+    postconditions:
+      - One reproducible proof covers the new lifecycle, persistence, concurrency, UI resumability, and live-order path.
+      - Every verifier passes or the work stops with the failed invariant and retained evidence.
+      - Production-readiness remains at its human gate until its affected proof is green against this checkout.
+    verifier:
+      - pnpm --filter @pressly/contracts test && pnpm --filter @pressly/contracts typecheck && pnpm --filter @pressly/contracts lint
+      - pnpm --filter @pressly/db test && pnpm --filter @pressly/db test:integration && pnpm db:test:migrate
+      - pnpm --filter @pressly/production-scheduling test && pnpm --filter @pressly/production-policy test && pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/api test && pnpm --filter @pressly/worker test && pnpm --filter @pressly/processor test
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - pnpm typecheck && pnpm lint && pnpm build && pnpm test
+      - Docker LPMS end-to-end verifier exits zero and its redacted evidence covers demand through completed run.
+      - pnpm stateworks:validate stateworks/work/done/lpms-run-centered-online-scheduling/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-run-centered-online-scheduling/network.yaml --state stateworks/work/done/lpms-run-centered-online-scheduling/state.yaml
+      - git diff --check
+    rollback:
+      - Stop the local topology and retain failure evidence; do not deploy or advance the production-readiness gate until the failed verifier is repaired and rerun.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+      - stateworks/work/done/lpms-run-centered-online-scheduling/final-report.md
+
+  - id: T6
+    title: Reconcile canonical docs, evidence, and implementation memory
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+      - repo:docs/plan/lpms.md
+      - repo:docs/architecture.md
+      - repo:docs/devops.md
+    writes:
+      - repo:docs/plan/lpms.md
+      - repo:docs/architecture.md
+      - repo:docs/devops.md
+      - repo:stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+      - repo:stateworks/work/done/lpms-run-centered-online-scheduling/final-report.md
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-14-run-centered-online-scheduling-implementation.memory-delta.yaml
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+    preconditions:
+      - V1 evidence independently proves every implementation claim added to canonical docs or durable memory.
+      - Conversation-backed v5 memory remains the intent baseline; implementation evidence is recorded in a separate delta.
+    action:
+      - Update the canonical LPMS, architecture, and deployment documents to describe Compute, Accept, Start, one run per shift, live insertion, membership freeze, queue versions, overtime confirmation, explicit identifiers, polling, and coordinated release requirements.
+      - Create a separate implementation-evidence memory delta that records only verified implementation facts and does not silently upgrade role or queued-unfreeze assumptions into confirmed business truth.
+      - Validate and apply the accepted implementation delta, mark it applied, and regenerate the bounded laundry-production context pack.
+      - Complete the work evidence and final report with exact verification results, migration behavior, known assumptions, rollback posture, and deliberately omitted complexity.
+      - Append a reference to the new V1 proof in production-readiness evidence and name the remaining human gate; preserve all historical evidence text.
+    postconditions:
+      - Canonical documentation, verified implementation, and durable memory agree without claiming deferred behavior.
+      - The implementation delta is source-backed, applied, and independently distinguishable from the conversation-backed intent delta.
+      - Production-readiness has current proof available before its pilot gate resumes.
+    verifier:
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/2026-07-14-run-centered-online-scheduling-implementation.memory-delta.yaml
+      - pnpm stateworks:memory:context laundry-production --stdout
+      - pnpm stateworks:validate stateworks/work/done/lpms-run-centered-online-scheduling/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-run-centered-online-scheduling/network.yaml --state stateworks/work/done/lpms-run-centered-online-scheduling/state.yaml
+      - rg -n "Compute|Accept|Start|queue_version|membership|overtime|poll" docs/plan/lpms.md docs/architecture.md docs/devops.md
+      - git diff --check
+    rollback:
+      - Revert only unverified documentation and implementation-memory edits; retain V1 evidence and the already-applied conversation-backed v5 intent memory.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+      - stateworks/work/done/lpms-run-centered-online-scheduling/final-report.md

@@ -1,0 +1,214 @@
+id: memdelta-2026-07-14-run-centered-online-scheduling
+domain_id: laundry-production
+
+source:
+  type: interrogation_session
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-14-run-centered-online-scheduling.md
+
+changes:
+  - op: update
+    kind: object
+    id: production_run
+    description: The sole execution aggregate for one production shift, created only when its current accepted schedule plan is started.
+
+  - op: update
+    kind: workflow
+    id: scheduling_to_execution
+    steps:
+      - API durably receives and projects canonical external order demand
+      - eligible production_orders form the complete immutable scheduling snapshot for one shift
+      - Compute creates a new immutable schedule_run revision and supersedes the prior current revision
+      - manager reviews warnings and accepts the current output hash without creating execution
+      - Start revalidates the current accepted revision and exact eligible-order snapshot
+      - LPMS creates the shift's sole started production_run and its initial batches, stages, assignments, order transitions, and work_event atomically
+      - operators advance server-authorized stage_run actions at pulse boundaries
+      - post-start arrivals are placed into the existing production_run without moving existing orders automatically
+      - production_batch finishes folding and packaging
+
+  - op: assert
+    kind: workflow
+    id: live_order_placement
+    steps:
+      - an order becomes eligible after its shift's production_run has started
+      - LPMS reads the versioned ordered batch queue and immutable resource snapshot
+      - pure online insertion computes an automatic or manager-exact placement proposal
+      - LPMS rejects hard-capacity violations and requests version-bound confirmation for overtime
+      - LPMS commits the placement and affected mutable suffix under the expected queue version
+      - LPMS records placement provenance and a work_event
+
+  - op: assert
+    kind: workflow
+    id: batch_membership_control
+    steps:
+      - employee explicitly freezes a queued batch when physical grouping begins
+      - freezing anchors membership and queue position
+      - starting any batch implicitly and permanently freezes membership
+      - if queued unfreeze is enabled under the implementation assumption, it requires an authorized manager, confirmation, and audit
+      - non-queued batches cannot be unfrozen
+
+  - op: deprecate
+    kind: invariant
+    id: one_production_run_per_schedule
+
+  - op: assert
+    kind: invariant
+    id: one_production_run_per_shift
+    statement: Exactly one production_run may exist for one production shift, and Start is the only lifecycle transition that creates it.
+
+  - op: assert
+    kind: invariant
+    id: new_production_run_begins_started
+    statement: A newly created production_run begins directly in started execution; planned is retained only as a legacy-readable state for pre-migration history.
+
+  - op: assert
+    kind: invariant
+    id: accept_does_not_create_execution
+    statement: Accept records preference for the current immutable schedule_run revision and acknowledged warnings; it creates no production_run, batch, stage, assignment, or scheduled-order transition.
+
+  - op: assert
+    kind: invariant
+    id: one_current_schedule_revision_per_shift
+    statement: A production shift has at most one current draft or accepted schedule_run revision; every successful Compute supersedes the previous current revision and revokes its acceptance.
+
+  - op: assert
+    kind: invariant
+    id: start_requires_current_accepted_snapshot
+    statement: Start succeeds only when the accepted schedule_run is still the current revision and its complete eligible-order snapshot is unchanged.
+
+  - op: assert
+    kind: invariant
+    id: post_start_orders_enter_existing_run
+    statement: An order that becomes eligible after Start may enter only the existing production_run for its shift; LPMS never creates a sibling run for the arrival.
+
+  - op: assert
+    kind: invariant
+    id: batch_membership_freeze_is_orthogonal
+    statement: Batch execution status and membership mutability are separate; queued membership may be mutable or explicitly frozen, while every non-queued batch is permanently frozen.
+
+  - op: assert
+    kind: invariant
+    id: online_insertion_has_zero_automatic_recourse_v1
+    statement: V1 automatic live placement may place only the arriving order and may not relocate any existing production_order between batches.
+
+  - op: assert
+    kind: invariant
+    id: pulse_capacity_is_hard
+    statement: Neither automatic placement, manager-exact placement, nor overtime acceptance may make a production_batch exceed pulse_capacity_lbs.
+
+  - op: assert
+    kind: invariant
+    id: queue_composition_is_versioned
+    statement: Every committed queue-composition or membership mutation compares the expected production_run queue version and increments it exactly once.
+
+  - op: assert
+    kind: invariant
+    id: overtime_acceptance_is_version_bound
+    statement: Overtime acceptance applies only to the exact placement proposal hash and queue version that the manager reviewed; any later queue change invalidates it.
+
+  - op: deprecate
+    kind: policy
+    id: future_order_pull_forward_requires_horizon
+
+  - op: assert
+    kind: policy
+    id: prestart_planning_includes_all_eligible_orders
+    statement: Before Start, Compute includes every currently eligible production_order for the shift rather than an operator-selected planning horizon.
+
+  - op: assert
+    kind: policy
+    id: priority_live_placement_v1
+    statement: A priority arrival uses the earliest feasible mutable queued batch; if none fits, LPMS creates a batch after frozen or in-flight anchors and existing priority work but before the remaining ordinary mutable suffix.
+
+  - op: assert
+    kind: policy
+    id: ordinary_live_placement_v1
+    statement: An ordinary arrival uses the best-fitting mutable queued batch with earliest sequence as the tie-breaker; if none fits, LPMS appends a new batch.
+
+  - op: assert
+    kind: policy
+    id: manager_exact_batch_placement_v1
+    statement: An authorized manager may pin an arriving order to an exact requested mutable queued batch when the placement satisfies hard physical constraints; LPMS must not silently substitute another batch.
+
+  - op: assert
+    kind: policy
+    id: overtime_requires_explicit_acceptance
+    statement: A placement projected beyond the shift end is shown as an overflowing plan and commits only after an authorized manager explicitly accepts that exact overtime outcome.
+
+  - op: assert
+    kind: policy
+    id: human_stability_is_a_scheduling_objective
+    statement: Scheduling decisions balance priority and tardiness, overtime, pulse utilization, and the recourse or churn imposed on floor workers; packing efficiency alone is insufficient.
+
+  - op: update
+    kind: decision
+    id: production_run_is_execution_truth
+    statement: production_run is the sole live execution aggregate for a shift and is created at Start, while schedule_run revisions remain pre-start proposals and audit history.
+
+  - op: assert
+    kind: decision
+    id: online_scheduling_uses_bounded_recourse
+    statement: LPMS treats post-start arrivals as an online scheduling problem with frozen work as irrevocable, zero automatic recourse in v1, and explicit human overrides as durable constraints.
+
+  - op: assert
+    kind: decision
+    id: offline_optimum_is_a_benchmark
+    statement: Offline optimal schedules and competitive analysis are evaluation tools for LPMS algorithms, not authority to silently rewrite the live physical queue.
+
+  - op: assert
+    kind: decision
+    id: backend_owns_workspace_identity
+    statement: Shift, current-plan, production-run, queue-version, and action availability come from backend state and explicit identifiers rather than temporary Processor state or arbitrary overlapping-shift selection.
+
+  - op: assert
+    kind: decision
+    id: defer_sse_until_state_contract_is_stable
+    statement: Immediate refresh and bounded polling are sufficient for this work; SSE is deferred until run-centered identity and state transitions are correct.
+
+  - op: assert
+    kind: decision
+    id: defer_probabilistic_stability_score_v1
+    statement: V1 does not use an arbitrary or probabilistic 0-to-1 stability value; any later stability term must be an evidence-backed scoring penalty rather than randomness.
+
+  - op: assert
+    kind: decision
+    id: defer_silent_live_reoptimization_v1
+    statement: V1 does not silently repack the live queued suffix; a future optimizer may only preview bounded moves and requires explicit manager acceptance before mutation.
+
+  - op: assert
+    kind: assumption
+    id: manager_maps_to_owner_admin_v1
+    statement: Existing owner and admin application roles act as the laundry-production manager for Accept, Start, exact placement, queued unfreeze, and overtime acceptance in v1.
+    confidence: medium
+
+  - op: assert
+    kind: assumption
+    id: queued_unfreeze_is_manager_only_v1
+    statement: A still-queued frozen batch may be explicitly unfrozen only by an owner or admin, with confirmation and audit; a non-queued batch can never be unfrozen.
+    confidence: medium
+
+  - op: update
+    kind: open_question
+    id: role_permission_mapping
+    question: Does the v1 owner/admin-as-manager mapping match floor authority for Accept, Start, exact placement, queued unfreeze, and overtime acceptance?
+
+  - op: assert
+    kind: open_question
+    id: queued_unfreeze_authorization
+    question: Should a still-queued frozen batch be allowed to be unfrozen, and if so is owner/admin-only authorization correct?
+
+  - op: deprecate
+    kind: open_question
+    id: production_shift_boundaries
+
+  - op: deprecate
+    kind: open_question
+    id: replan_after_drift
+
+verification:
+  - Steven explicitly converged on one production run per shift, Accept-before-Start, and one coherent Compute-to-Review/Accept-to-Start workflow.
+  - Steven confirmed that post-start arrivals enter the existing run, in-flight work never reorganizes, automatic insertion moves no existing orders, and exact manager placement optimizes for floor decisions.
+  - Steven confirmed employee-controlled freezing, hard capacity, and explicit manager acceptance of overtime.
+  - The source session records role mapping and queued unfreeze as implementation assumptions rather than confirmed operational facts.
+  - The delta deprecates the prior Accept-creates-run invariant, planning-horizon policy, and now-resolved shift/replan questions.
+
+status: applied

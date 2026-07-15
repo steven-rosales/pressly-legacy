@@ -25,7 +25,9 @@ describe('local development topology', () => {
     expect(command).toContain(
       '/repo/tooling/fixtures/pressly-one.production-bootstrap.json',
     );
-    expect(command).toContain('local-pressly-one-topology-v1');
+    expect(command).toContain(
+      'local-pressly-one-topology-$$(sha256sum /repo/tooling/fixtures/pressly-one.production-bootstrap.json | cut -c1-16)',
+    );
     expect(command).toContain('--apply');
   });
 

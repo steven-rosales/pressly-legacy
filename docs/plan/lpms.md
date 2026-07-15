@@ -43,21 +43,36 @@ source-neutral internal authority for scheduling and physical execution.
 - Allow at most one active production batch per stage kind in v1.
 - Use one configurable `pulse_minutes` value for every production stage. A
   batch occupies sorting, washing, drying, and folding/packaging for one full
-  pulse each and advances only at pulse boundaries.
-- Treat stage completion as operator-confirmed operational truth, not hardware sensor truth.
+  reserved planning pulse each. An explicitly confirmed early physical
+  completion does not pull the next planned stage forward.
+- Treat stage completion as operator-confirmed operational truth, not hardware
+  sensor truth. Completion before the reserved boundary requires a versioned,
+  actor-bound confirmation that is retained in the audit event.
 
 ## Plan And Execution Split
 
 The LPMS has two different concepts that must stay separate:
 
 ```text
-schedule_run = scheduler proposal
-production_run = accepted execution instance
+schedule_run = immutable pre-start proposal revision
+production_run = the shift's execution aggregate, created only by Start
 ```
 
-The system may create many `schedule_run` records without starting production. A `schedule_run` stores the scheduler input snapshot, output plan, hashes, pulse capacity, makespan, completion forecast, and warnings. It is a proposal until an operator accepts it.
+The system may create many `schedule_run` revisions without starting
+production. Compute always supersedes the previous current revision. Accept
+stores the manager's preferred current revision and warning acknowledgments;
+orders remain eligible and no execution rows are created.
 
-When an operator accepts a `schedule_run`, the system creates a `production_run` plus concrete `production_batch`, `production_batch_order`, `stage_run`, and `stage_machine_assignment` records. Those records represent the real production floor.
+Start revalidates the complete eligible-order snapshot and atomically creates
+the shift's one `production_run` plus concrete `production_batch`,
+`production_batch_order`, `stage_run`, and `stage_machine_assignment` records.
+After Start, arrivals enter that stable run through bounded online insertion.
+
+Only an open, unexpired shift without a production run is actionable for
+planning. A draft or accepted proposal becomes historical as soon as a
+`production_run` references it; closed and expired shifts are also read-only.
+The workspace may still load those records by explicit identifier, but it must
+not present them as a plan that can be recomputed, accepted, or started.
 
 Important consequence:
 
@@ -87,7 +102,9 @@ Consistency and availability are chosen per operation.
 | Ingest a verified webhook      | Durable, availability-oriented inbox | Return a non-success response unless the event is durably stored |
 | Apply canonical order demand   | Idempotent Production transaction    | Retry safely; reject conflicting revisions                       |
 | Generate a schedule proposal   | Pure and deterministic               | Retry without changing execution state                           |
-| Accept a schedule proposal     | Strongly consistent transaction      | Commit once or fail without creating partial execution records   |
+| Accept a schedule proposal     | Strongly consistent preference write | Persist the current plan choice; create no execution             |
+| Start an accepted proposal     | Strongly consistent transaction      | Create the shift's one execution graph atomically or fail        |
+| Insert a post-start arrival    | Versioned run transaction            | Place without moving existing work, or leave it visibly eligible |
 | Advance or override production | Strongly consistent transaction      | Validate versions and invariants, then commit once or fail       |
 | Read the production board      | Current-state projection             | Slight read staleness is acceptable; invented state is not       |
 
@@ -245,7 +262,28 @@ purpose-limited projection; LPMS does not create one incidentally.
 
 These tables represent source-neutral demand, internal production planning, and
 physical execution. Planning records describe what the scheduler proposed.
-Execution records describe what operators are actually doing.
+Execution records describe what operators are actually doing. Section headings
+use singular domain vocabulary; fenced field lists use the physical table names
+from the current schema.
+
+### `production_location`
+
+Owns one facility's production configuration and live invalidation sequence.
+
+```text
+production_locations
+- id
+- name
+- timezone
+- is_active
+- live_revision
+- created_at
+- updated_at
+```
+
+`live_revision` is monotonic internal synchronization metadata. A committed
+`work_event` advances it and causes an SSE invalidation, but it contains no
+production payload and never replaces an authoritative workspace or board read.
 
 ### `order_demands`
 
@@ -281,7 +319,7 @@ location change or mutation after production work is committed is rejected.
 Represents a production window.
 
 ```text
-production_shift
+production_shifts
 - id
 - location_id
 - starts_at
@@ -289,6 +327,7 @@ production_shift
 - timezone
 - status
 - effective_folder_count
+- version
 - created_at
 - updated_at
 ```
@@ -297,12 +336,19 @@ production_shift
 that shift, not everyone clocked in. Other labor must still cover sorting,
 machine loading, movement, and packaging support for the forecast to hold.
 
+Before Start, shift window and effective folder count changes are versioned
+production commands. Any real change supersedes the current schedule revision
+and revokes its acceptance; the Processor persists the shift update before it
+computes the replacement proposal. A closed shift or a shift that already owns
+a production run cannot be edited. Completing the final batch completes the
+run and closes its shift in the same transaction.
+
 ### `production_order`
 
 Internal LPMS order that can be scheduled for production.
 
 ```text
-production_order
+production_orders
 - id
 - order_demand_id
 - location_id
@@ -314,9 +360,12 @@ production_order
 - bag_count
 - bag_count_source
 - intake_recorded_at
+- intake_version
 - must_stay_together
+- version
 - eligible_at
 - finished_at
+- pending_placement
 - created_at
 - updated_at
 ```
@@ -339,6 +388,11 @@ must_stay_together = true
 derived_weight_source = external_estimate for the initial Cents adapter
 ```
 
+`intake_version` protects the operator-observed bag fact independently from the
+order's general mutation `version`. `pending_placement` durably records a
+recoverable `awaiting_run`, `ambiguous_run`, `confirmation_required`, or
+`not_placed` outcome and is cleared when Start or a live placement commits.
+
 ### `bag`
 
 A logical production unit under an order. This is not an RFID-tracked or
@@ -347,12 +401,10 @@ intake command records the observed count; the documented Cents payload does
 not establish that fact.
 
 ```text
-bag
+production_bags
 - id
 - production_order_id
 - bag_index
-- recorded_weight_lbs
-- service_type
 - status
 ```
 
@@ -366,7 +418,8 @@ Important v1 rule:
 
 ```text
 All bags for one production_order must stay in the same production_batch.
-recorded_weight_lbs is nullable in v1.
+Bags are logical intake units with eligible or finished status in v1; LPMS does
+not persist bag-level weight or service type.
 ```
 
 ### `station`
@@ -374,8 +427,9 @@ recorded_weight_lbs is nullable in v1.
 Represents a process step.
 
 ```text
-station
+production_stations
 - id
+- location_id
 - kind
 - label
 - sort_order
@@ -398,14 +452,17 @@ Sorting is tracked as a stage, but it does not require physical machine assignme
 Represents a physical constrained resource.
 
 ```text
-machine
+production_machines
 - id
+- location_id
 - station_id
 - label
 - manufacturer_capacity_lbs
 - effective_capacity_lbs
 - capacity_safety_margin_lbs
 - is_active
+- created_at
+- updated_at
 ```
 
 Initial machine inventory:
@@ -437,20 +494,24 @@ not scheduler configuration.
 Versioned scheduler configuration.
 
 ```text
-scheduler_config
+scheduler_configs
 - id
+- location_id
 - pulse_minutes
 - fold_lbs_per_folder_minute
 - algorithm_version
 - version
-- created_at
-- updated_at
+- stage_fit_assertion
+- asserted_by
+- published_at
 ```
 
 `pulse_minutes` is configurable and is the single scheduling clock. Every
-planned `stage_run` lasts exactly one pulse. A machine finishing its physical
-cycle early does not shorten that stage or move the batch early; the unused
-time is operational buffer that keeps the production batch synchronized.
+planned `stage_run` reserves exactly one pulse. A machine finishing its
+physical cycle early does not shorten the stored planning window or pull later
+planned starts forward; the unused time remains operational buffer. The
+operator may record that physical completion early only through the explicit
+confirmation contract described under `stage_run`.
 
 Do not store physical machine counts or effective machine capacity here. Those
 come from active `machine` records. Do not store separate sorting, washer,
@@ -467,7 +528,10 @@ fold_lbs_per_folder_minute = configurable, initially 2
 Both configured values must be positive. Publishing a pulse configuration also
 requires an operational assertion that sorting, washing, and drying can each
 finish their physical work inside that pulse. The scheduler still reserves the
-full pulse for every stage.
+full pulse for every stage. Routine scheduling only consumes the current
+immutable published configuration; it never edits the pulse or fabricates
+stage-fit assertions. Those operator-owned facts belong to the rarer
+configuration-publication workflow or bootstrap manifest.
 
 At most one active batch per stage kind remains a v1 invariant, not a
 configuration knob. Supporting parallel batches would change the production
@@ -492,8 +556,9 @@ pulse_capacity_lbs = min(
 Represents one scheduling attempt. This is a scheduler proposal, not the production floor.
 
 ```text
-schedule_run
+schedule_runs
 - id
+- location_id
 - production_shift_id
 - scheduler_config_id
 - status
@@ -507,9 +572,11 @@ schedule_run
 - makespan_minutes
 - planned_completion_at
 - warnings_json
+- acknowledged_warning_codes
 - created_at
 - accepted_at
-- rejected_at
+- accepted_by
+- superseded_at
 ```
 
 Valid statuses:
@@ -525,22 +592,31 @@ Important rule:
 
 ```text
 The input snapshot, output plan, hashes, algorithm version, capacity forecast,
-makespan, planned completion, and warnings are immutable after creation.
-Accepting a schedule_run creates a production_run.
+makespan, planned completion, and warnings are immutable after creation. A
+shift has at most one current draft or accepted revision. Accept records
+preference only; Start creates execution.
 ```
 
 ### `production_run`
 
-Represents an accepted execution instance created from a schedule proposal.
+Represents the sole execution aggregate for one production shift. It is
+created directly in `started` by Start and retains schedule provenance.
 
 ```text
-production_run
+production_runs
 - id
+- location_id
 - production_shift_id
 - schedule_run_id
 - status
 - started_at
 - completed_at
+- queue_version
+- planned_completion_at
+- overtime_proposal_hash
+- overtime_queue_version
+- overtime_acknowledged_by
+- overtime_acknowledged_at
 - version
 - created_at
 - updated_at
@@ -550,37 +626,39 @@ Recommended constraints:
 
 ```text
 unique(schedule_run_id)
+unique(production_shift_id)
 ```
 
 Valid statuses:
 
 ```text
-planned
 started
 completed
-canceled
 ```
+
+`planned` remains readable only as legacy history. New execution never enters
+it. `queue_version` tracks composition and membership control independently
+from the run lifecycle `version`.
 
 ### `production_batch`
 
 Represents a real group of orders moving together through the production floor. A production batch is not a washer load.
 
 ```text
-production_batch
+production_batches
 - id
+- location_id
 - production_run_id
 - sequence_index
 - status
 - pulse_capacity_lbs
 - derived_weight_lbs
 - pulse_minutes
-- planned_sort_start_at
-- planned_wash_start_at
-- planned_dry_start_at
-- planned_folding_packaging_start_at
 - planned_done_at
 - started_at
 - finished_at
+- membership_frozen_at
+- membership_frozen_by
 - version
 - created_at
 - updated_at
@@ -595,8 +673,6 @@ washing
 drying
 folding_packaging
 finished
-canceled
-blocked
 ```
 
 Important:
@@ -605,16 +681,32 @@ Important:
 Orders do not split across production batches.
 Orders and bags can split across machines inside a batch stage.
 An underfilled production batch still occupies one complete pulse per stage.
+A queued batch may be mutable or frozen. Every non-queued batch is permanently
+frozen, and starting its first stage freezes it implicitly.
 ```
 
 ### `production_batch_order`
 
+The active order-to-batch membership stores placement provenance:
+
+```text
+initial_schedule | automatic | manager_exact
+```
+
+Manager-exact placement stores paired `pinned_at` and `pinned_by` facts. V1
+never automatically relocates an existing membership.
+
 Join table between production batches and production orders.
 
 ```text
-production_batch_order
+production_batch_orders
+- location_id
 - production_batch_id
 - production_order_id
+- active
+- placement_provenance
+- pinned_at
+- pinned_by
 ```
 
 Recommended constraints:
@@ -634,10 +726,12 @@ A production_order can belong to at most one active production_batch.
 Represents one real process step for a production batch. This is the state machine owner for the physical workflow.
 
 ```text
-stage_run
+stage_runs
 - id
+- location_id
 - production_batch_id
 - station_id
+- stage_kind
 - status
 - planned_start_at
 - planned_end_at
@@ -656,9 +750,10 @@ Valid statuses:
 planned
 started
 completed
-blocked
-canceled
 ```
+
+`blocked` is a server-derived next-action state, not a persisted stage status.
+Canceled and exception-stage lifecycles remain deferred.
 
 Important:
 
@@ -667,7 +762,9 @@ queued is a production_batch status before the first stage starts.
 stage_run completion is operator-confirmed, not washer/dryer hardware-confirmed.
 For v1, at most one production_batch can have an active stage_run for the same station kind.
 planned_end_at - planned_start_at equals scheduler_config.pulse_minutes for every stage.
-A batch advances only at a pulse boundary, even when physical work finishes early.
+Completing before the effective boundary requires an explicit confirmation
+bound to actor, stage version, and observed timing. The completion is audited,
+and the next stage still cannot start before its reserved planned boundary.
 ```
 
 ### `stage_machine_assignment`
@@ -675,8 +772,9 @@ A batch advances only at a pulse boundary, even when physical work finishes earl
 Represents physical machines assigned to a stage. A single stage can use many machines.
 
 ```text
-stage_machine_assignment
+stage_machine_assignments
 - id
+- location_id
 - stage_run_id
 - machine_id
 - planned_start_at
@@ -717,8 +815,9 @@ Every production mutation should insert a `work_event` and update the affected o
 An idempotency key replays only when its canonical command identity matches the original operation, location, actor, target, expected version, and payload. Reusing a key for any different command is a conflict; it must never return another mutation's result.
 
 ```text
-work_event
+work_events
 - id
+- location_id
 - event_type
 - entity_type
 - entity_id
@@ -729,49 +828,49 @@ work_event
 - created_at
 ```
 
-Example event types:
+Current emitted event types:
 
 ```text
+production_resources_bootstrapped
+scheduler_config_published
+order_demand_applied
+production_shift_created
+production_shift_updated
+production_order_intake_recorded
+production_order_priority_changed
+schedule_computed
 schedule_accepted
 production_run_started
-production_run_completed
-production_batch_queued
-production_batch_overridden
-production_batch_finished
+production_order_placement_pending
+production_order_placement_overtime_required
+production_order_placement_resolved
+batch_membership_frozen
+batch_membership_unfrozen
+machine_assigned
 stage_started
 stage_completed
-stage_blocked
-stage_unblocked
-machine_assigned
-machine_unassigned
-order_removed_from_production_batch
-machine_breakdown_reported
-bag_marked_missing
-bag_marked_damaged
-rewash_requested
-canceled_order_removed
-manual_hold_applied
-manual_hold_released
-manual_override_applied
 ```
 
-### `manual_override`
+`idempotency_key` is globally unique. `payload_json` includes the private
+canonical command/result identity used for safe replay. Final stage completion
+can finish the batch, orders, bags, run, and shift under the single
+`stage_completed` event; LPMS does not invent separate completion events for
+those projections.
 
-Stores human-approved changes to execution data.
+### Specific human decisions
 
-Manual overrides are not a separate production state. They are commands that emit `work_event` rows and update versioned operational records.
+There is no generic `manual_overrides` table or generic override endpoint in
+v1. Human decisions use narrow versioned commands and their own durable facts:
 
-```text
-manual_override
-- id
-- actor_id
-- entity_type
-- entity_id
-- reason
-- before_json
-- after_json
-- created_at
-```
+- exact placement stores `manager_exact` provenance and pin metadata;
+- overtime confirmation is bound to the run's proposal hash and queue version;
+- freeze and queued-only unfreeze use membership fields and specific events;
+- early completion is audited in `stage_completed.payload.earlyCompletion`;
+- machine assignment and shift update use their dedicated commands and events.
+
+Generic hold, cancellation, rewash, damaged-item, and missing-bag override
+workflows remain deferred until floor evidence defines their state and audit
+requirements.
 
 ## Relationships
 
@@ -787,11 +886,12 @@ source_location_bindings
   -> Worker source adapter
 
 production_shift
-  -> schedule_run
-    -> production_run
-      -> production_batch
-        -> production_batch_order
-          -> production_order
+  -> schedule_run[]
+  -> production_run (zero or one)
+    -> schedule_run (provenance)
+    -> production_batch
+      -> production_batch_order
+        -> production_order
 
 production_batch
   -> stage_run
@@ -828,6 +928,13 @@ apps/worker reconciliation timer
 -> webhook-ingestion ingest use case
 -> the same Worker Cents order consumer
 -> Postgres
+
+Committed work_event
+-> production_locations.live_revision
+-> transactional Postgres NOTIFY
+-> API location change feed
+-> authenticated Processor SSE invalidation
+-> authoritative workspace or run-board reload
 ```
 
 Boundary responsibilities:
@@ -844,6 +951,16 @@ Boundary responsibilities:
   adapters, and runtime polling.
 - Postgres is the durable authority for ingested events, canonical order
   demand, schedule proposals, and accepted production execution.
+
+The Processor does not poll workspace state. Each committed `work_event`
+increments the location's monotonic `live_revision` and emits a transactional
+notification. The API's Postgres listener fans out only the revision or a
+resync signal over the location-authorized SSE route; it never sends production
+payloads. The browser coalesces invalidations, aborts stale loads, reconnects
+when visible and online, and reloads authoritative HTTP projections. Immediate
+post-command refresh remains part of every mutation path. The SSE heartbeat is
+connection liveness, not state polling, and Worker inbox polling remains a
+separate durable-job concern.
 
 The worker may call the same transactional application use cases used by synchronous paths. It must not bypass invariant validation or invent a second production write model.
 
@@ -953,22 +1070,23 @@ At an initial envelope of fewer than 500 eligible orders, sorting and greedy pac
 
 The scheduler should live behind a stable boundary.
 
-For v1, implement a deterministic heijunka-style scheduler in TypeScript. The first goal is to validate the model, invariants, inputs, and operator workflow.
+`fixed-pulse-ffd-v2` is the deterministic pre-start scheduler. Its first goal
+is to validate the model, invariants, inputs, and operator workflow.
 
-The v1 objective is not to search for a mathematically optimal schedule. It is
+The v2 objective is not to search for a mathematically optimal schedule. It is
 to produce the same explainable proposal from the same snapshot and config,
 preserve whole orders, respect pulse capacity, and expose when the requested
 work does not fit. The pure scheduler boundary permits a different
 implementation later only if measured evidence justifies it.
 
-The scheduler receives a stable snapshot:
+Before Start, the global scheduler receives a stable snapshot containing every
+currently eligible order:
 
 ```text
 eligible_orders
 bags
 machines
 stations
-active_stage_runs
 scheduler_config
 production_shift
 ```
@@ -979,11 +1097,10 @@ Eligible orders are orders whose latest canonical demand is:
 order_demands.status = ready_for_production
 ```
 
-The v1 scheduler should:
+The v2 scheduler should:
 
 ```text
-bucket orders by due today / tomorrow / later
-select orders for the production run
+bucket every eligible order by due today / tomorrow / later
 calculate pulse_capacity_lbs from active resources, folding rate, folders, and pulse_minutes
 pack whole orders deterministically into batches no heavier than pulse_capacity_lbs
 create one fixed pulse slot per stage for every production batch
@@ -994,10 +1111,11 @@ calculate batch_count, makespan_minutes, planned_completion_at, and shift overfl
 return oversized or unplaced orders explicitly
 ```
 
-Within each due-date bucket, v1 may use stable first-fit decreasing by order
+Within each due-date bucket, v2 uses stable first-fit decreasing by order
 weight with deterministic tie-breakers. This is a packing heuristic, not an
-optimization claim. The scheduler never shortens the pulse to make a plan fit;
-it reports the infeasibility or leaves lower-priority orders unplaced.
+optimization claim. The scheduler never shortens the pulse to make a plan fit.
+Every eligible order participates; oversized or otherwise infeasible work is
+returned explicitly rather than being hidden by a planning horizon.
 
 The scheduler returns a proposal:
 
@@ -1016,114 +1134,79 @@ warnings
 
 The scheduler must not mutate production state directly.
 
+### Post-Start Online Placement
+
+`online-stable-insertion-v1` operates on the started run's ordered queue and
+accepted resource snapshot:
+
+- Priority work uses the earliest feasible mutable queued batch. If none fits,
+  it creates a batch after every frozen/in-flight anchor and existing priority
+  batch, before the remaining ordinary mutable suffix.
+- Ordinary work uses the best-fitting mutable queued batch, breaking ties by
+  earliest sequence, or appends a new batch.
+- Exact manager placement commits only to the requested mutable batch and
+  rejects hard-capacity or stale-version violations without a fallback.
+- Existing order membership never moves. A new batch may shift only the
+  mutable suffix; frozen and in-flight stage windows remain unchanged.
+- The proposal includes a canonical hash, expected queue version, affected
+  suffix, projected completion, and overtime outcome.
+
+Queue writes lock the run first, compare `queue_version`, rebuild affected
+planned stages and assignments transactionally, then increment the queue once.
+Overtime first returns `confirmation_required`; manager confirmation recomputes
+and commits only when its proposal hash and queue version still match.
+
 Important:
 
 ```text
 Scheduler output becomes schedule_run.output_plan.
-It becomes production_run execution data only after an operator accepts the schedule_run.
+It becomes production execution data only after Start revalidates the accepted
+current revision.
 ```
 
 ## System Interfaces
 
-### Create Schedule Run
+The authenticated Production HTTP surface is the public contract. Browser
+paths are listed separately because UI navigation is not an API command.
 
-Creates a persisted draft schedule proposal. This does not create execution records.
+| Purpose                    | Method and path                                                                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Discover locations         | `GET /production/locations`                                                                                                                                                                                               |
+| Read orders                | `GET /production/locations/:locationId/orders`                                                                                                                                                                            |
+| Record intake              | `PUT /production/locations/:locationId/orders/:productionOrderId/intake`                                                                                                                                                  |
+| Set priority               | `PATCH /production/locations/:locationId/orders/:productionOrderId/priority`                                                                                                                                              |
+| Create/update shift        | `POST /production/locations/:locationId/shifts`; `PATCH /production/locations/:locationId/shifts/:productionShiftId`                                                                                                      |
+| Publish scheduler config   | `POST /production/locations/:locationId/scheduler-configs`                                                                                                                                                                |
+| Compute/read plan          | `POST /production/locations/:locationId/schedules`; `GET /production/locations/:locationId/schedules/:scheduleRunId`                                                                                                      |
+| Accept/Start               | `POST /production/locations/:locationId/schedules/:scheduleRunId/accept`; `POST /production/locations/:locationId/schedules/:scheduleRunId/start`                                                                         |
+| Read workspace             | `GET /production/locations/:locationId/workspace?shiftId=:shiftId`                                                                                                                                                        |
+| Read run board             | `GET /production/locations/:locationId/runs/:productionRunId/board`                                                                                                                                                       |
+| Receive invalidations      | `GET /production/locations/:locationId/events`                                                                                                                                                                            |
+| Automatic/exact placement  | `POST /production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/place`; `POST /production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/orders/:productionOrderId/place` |
+| Confirm overtime           | `POST /production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/confirm-overtime`                                                                                                                 |
+| Freeze/unfreeze membership | `POST /production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/freeze`; `POST /production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/unfreeze`                      |
+| Assign machines            | `PUT /production/locations/:locationId/stages/:stageRunId/machines`                                                                                                                                                       |
+| Start/complete stage       | `POST /production/locations/:locationId/stages/:stageRunId/start`; `POST /production/locations/:locationId/stages/:stageRunId/complete`                                                                                   |
 
-```ts
-createScheduleRun({
-  productionShiftId,
-  schedulerConfigId,
-  horizonStart,
-  horizonEnd
-}) -> {
-  scheduleRunId,
-  batchCount,
-  pulseCapacityLbs,
-  makespanMinutes,
-  plannedCompletionAt,
-  unplacedOrderIds,
-  status
-}
-```
+Compute snapshots all eligible orders and creates a new current revision.
+Accept validates the output hash, blocking-warning acknowledgments, and exact
+eligible snapshot but creates no execution. Start revalidates the accepted
+current revision and returns the created `productionRunId`, batch identifiers,
+and initial queue version. Versioned commands carry the expected lifecycle,
+batch, or queue version and an idempotency key as required by their contract.
+Early stage completion first returns `confirmation_required` with timing and a
+confirmation proof; the follow-up complete command must return that proof.
 
-### Get Schedule Run
+Workspace selection uses an explicit shift when supplied. Without one it
+prefers a unique started run, then a unique actionable accepted plan, then a
+unique actionable open shift. Multiple matches are returned as candidates
+rather than resolved by a latest-row guess. A schedule is actionable only
+while its shift is open and unexpired and no production run references it.
 
-Reads a persisted schedule proposal.
-
-```ts
-getScheduleRun({
-  scheduleRunId
-}) -> {
-  scheduleRun,
-  proposedBatches,
-  forecasts
-}
-```
-
-### Accept Schedule Run
-
-Accepts a draft proposal and creates the execution records.
-
-```ts
-acceptScheduleRun({
-  scheduleRunId,
-  expectedOutputPlanHash
-}) -> {
-  productionRunId,
-  productionBatchIds
-}
-```
-
-### Get Production Board
-
-Reads current production state.
-
-```ts
-getProductionBoard({
-  productionShiftId
-}) -> {
-  stageSlots,
-  activeProductionBatches,
-  queuedProductionBatches,
-  dueTodayOrders,
-  dueTomorrowOrders,
-  laterOrders
-}
-```
-
-### Override Production Batch
-
-Applies a human override with optimistic concurrency.
-
-```ts
-overrideProductionBatch({
-  productionBatchId,
-  expectedProductionRunId,
-  expectedProductionBatchVersion,
-  changes,
-  reason
-}) -> {
-  productionBatchId,
-  newVersion
-}
-```
-
-### Apply Work Event
-
-Applies a production event with idempotency and version checks.
-
-```ts
-applyWorkEvent({
-  eventType,
-  entityId,
-  expectedVersion,
-  idempotencyKey,
-  payload
-}) -> {
-  workEventId,
-  newVersion
-}
-```
+The Processor's real browser routes are `/schedule`, `/schedule/:shiftId`,
+`/production`, `/production/:runId`, and `/configuration`. Query parameters do
+not own Processor navigation, and there is intentionally no legacy root or
+query-route redirect.
 
 ## State Machine
 
@@ -1145,10 +1228,9 @@ queued
 Main happy path for a production order:
 
 ```text
-pending_eligibility
+intake_pending
 -> eligible
--> accepted_into_production_batch
--> in_production
+-> scheduled
 -> finished
 ```
 
@@ -1158,11 +1240,11 @@ Main `stage_run.status` values:
 planned
 started
 completed
-blocked
-canceled
 ```
 
-Exception statuses:
+The server may return a blocked next action without persisting `blocked` as the
+stage status. The following exception workflows are deferred, not current
+states:
 
 ```text
 machine_breakdown
@@ -1176,12 +1258,17 @@ manual_hold
 Important:
 
 ```text
-manual_override is not a state.
-manual_override is a WorkEvent.
+Human decisions are specific versioned commands, not a generic override state
+or table.
 stage_run completion is operator-confirmed.
 Every stage occupies one full configured pulse.
-Physical work finishing early does not advance the batch before the next pulse boundary.
-A late physical start moves that stage's earliest completion to actual_start_at + pulse_minutes; it can never compress the pulse back to the original planned end.
+Physical work may be marked complete before its effective pulse boundary only
+after explicit confirmation bound to the actor, stage version, and observed
+timing; the work_event retains the confirmation audit.
+Early completion does not change stored stage windows or allow the downstream
+stage to start before its planned boundary.
+A late physical start moves the unconfirmed completion boundary to the later
+of planned_end_at and actual_start_at + pulse_minutes.
 There is no washer/dryer hardware integration in v1.
 ```
 
@@ -1192,14 +1279,15 @@ There is no washer/dryer hardware integration in v1.
 The current repository implements the happy-path slice described above:
 
 - `modules/computation/scheduling` produces deterministic fixed-pulse
-  first-fit-decreasing proposals without I/O.
+  all-eligible proposals and stable online-placement decisions without I/O.
 - `modules/policy/production` owns eligibility, schedule acceptance, machine
-  assignment, and stage-transition decisions.
+  assignment, Start, membership, placement, and stage-transition decisions.
 - `modules/business/webhook-ingestion` owns source-neutral durable ingestion,
   deduplication, leases, retries, dead letters, replay, and source-location
   bindings.
 - `modules/business/production` owns canonical order demand, planning,
-  acceptance, execution, idempotency, transactions, controllers, and routes.
+  acceptance, Start, online insertion, execution, idempotency, transactions,
+  controllers, and routes.
   Its source contains no vendor, webhook, receipt, lease, or CRM concepts.
 - `apps/api` owns Cents HMAC verification and wire normalization, composes the
   isolated modules, and applies authentication, authorization, validation, and
@@ -1210,9 +1298,12 @@ The current repository implements the happy-path slice described above:
   the two module transactions. Until a Cents read API is verified, supported
   recovery is bounded manual replay through the normal ingestion path.
 - `apps/processor` is an authenticated, live-only operator surface for location
-  discovery, intake, configuration, resumable workspace reads, proposal review,
-  overflow acknowledgement, acceptance, machine assignment, and
-  server-authorized floor actions.
+  discovery, intake, configuration, resumable workspace reads, the
+  Compute/Accept/Start lifecycle, run-ID boards, pending arrivals, membership
+  controls, exact placement, overtime confirmation, machine assignment, and
+  server-authorized floor actions. It refreshes after commands and receives
+  revision-only invalidations through authenticated SSE; it does not poll the
+  workspace or board on a timer.
 
 Production readiness requires the timestamped-HMAC contract above. The current
 API adapter implements that contract and fails startup in production when its
@@ -1238,7 +1329,9 @@ verified Cents updated-since API exists; otherwise alert and use bounded manual 
 Race two production commands -> optimistic concurrency and constraints allow only one valid write.
 Make Postgres unavailable -> production commands fail without partial state.
 Schedule the same snapshot with the same config twice -> byte-equivalent plans.
-Finish washer work early -> the batch remains in washing until the pulse boundary.
+Finish washer work early -> the first command returns a timing-bound confirmation;
+confirming records the physical completion and audit, while the dryer still
+cannot start before its reserved planned boundary.
 Pack 800 lb into four ideal whole-order batches -> makespan is 392 minutes.
 Use order weights that cannot fit into four 224 lb bins -> actual batch count exceeds the weight lower bound.
 Provide one order above pulse capacity -> the scheduler returns it as unplaced with a warning.
@@ -1252,6 +1345,10 @@ age of oldest pending webhook event
 worker processing latency and failure count
 reconciliation watermark age and detected drift
 production command conflicts and invariant failures
+plan supersessions and production runs started
+live placement outcomes and queue-version conflicts
+explicit or stage-start batch freezes
+version-bound overtime confirmations
 ```
 
 ## Core Invariants
@@ -1271,8 +1368,10 @@ A production batch can be active in only one stage at a time.
 At most one production batch can be active per stage kind in v1.
 A stage cannot start before the previous stage completes.
 A stage occupies exactly one scheduler_config.pulse_minutes slot.
-A production batch advances only at pulse boundaries.
-Early physical completion does not shorten a stage or change downstream start times.
+An early stage completion requires explicit, actor/version/timing-bound
+confirmation and an audit event.
+Early physical completion does not change the reserved planning window or
+downstream planned start time; the next stage cannot start before that boundary.
 A machine cannot have overlapping active stage_machine_assignments.
 Washer and dryer scheduling use effective_capacity_lbs, not manufacturer_capacity_lbs.
 pulse_capacity_lbs is the minimum of effective washer, dryer, and folding capacity per pulse.
@@ -1285,9 +1384,26 @@ calling Production; Production accepts the source-neutral positive estimate.
 Finished means folding and packaging are complete.
 Stage completion is operator-confirmed, not hardware-confirmed.
 schedule_run input and output snapshots are immutable after creation.
-Accepting a schedule_run creates exactly one production_run.
+Compute supersedes the prior current schedule revision, even when its plan hash
+is unchanged.
+Accepting a schedule_run creates no execution and leaves its orders eligible.
+Start creates at most one production_run for a shift, directly in started.
+Start fails when the complete eligible-order snapshot differs from the accepted
+revision.
+Only an open, unexpired shift without a production_run is actionable for
+planning; run-owned, closed, and expired shifts are history.
+Changing a pre-start shift window or effective_folder_count is versioned and
+supersedes its current schedule revision before replacement Compute.
 production_run execution records are mutable only through versioned commands.
-Manual overrides require expected version checks.
+Automatic placement never moves an existing order membership.
+Hard pulse capacity applies to automatic, exact, and overtime-confirmed
+placement.
+Every queue mutation compares and increments queue_version exactly once.
+Every non-queued batch has frozen membership; queued unfreeze is manager-only.
+Overtime acceptance is bound to an exact placement hash and queue version.
+Exact placement, overtime confirmation, membership control, machine
+assignment, shift updates, and early completion use their specific expected
+version or proposal identity.
 Webhook ingress is acknowledged only after durable commit.
 Webhook processing is at least once and Production demand application is
 idempotent.
@@ -1300,4 +1416,6 @@ their public ports.
 The scheduler cannot mutate execution state directly.
 work_event is the authoritative mutation ledger and audit trail.
 Operational tables are the current-state projections for reads.
+Each committed work_event advances one location live_revision; SSE carries
+only invalidations, and HTTP projections remain the source of read truth.
 ```

@@ -68,7 +68,7 @@
     "locationId": "offline-smoke-location",
     "pulseMinutes": 56,
     "foldLbsPerFolderMinute": 2,
-    "algorithmVersion": "fixed-pulse-ffd-v1",
+    "algorithmVersion": "fixed-pulse-ffd-v2",
     "stageFitAssertion": {
       "sortingFits": true,
       "washingFits": true,

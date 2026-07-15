@@ -35,6 +35,7 @@
     "docker:db:seed:pricing": "docker compose run --rm --build api sh -c \"pnpm install --frozen-lockfile && pnpm -F @pressly/db seed:pricing\"",
     "docker:db:setup": "docker compose run --rm --build api sh -c \"pnpm install --frozen-lockfile && pnpm -F @pressly/db migrate && pnpm -F @pressly/db seed:pricing\"",
     "docker:up": "node ./tooling/scripts/docker-stack.mjs up",
+    "docker:logs": "docker compose logs -f --tail=200 postgres api web worker processor",
     "docker:down": "docker compose down --remove-orphans",
     "env:web:pull": "pnpm dlx vercel env pull apps/web/.env.local --environment=development --yes",
     "env:api:pull": "pnpm dlx vercel env pull apps/api/.env.local --environment=development --yes",

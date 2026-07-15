@@ -1,0 +1,29 @@
+work_id: lpms-run-centered-online-scheduling
+status: complete
+updated: 2026-07-14T13:51:43-04:00
+
+current_focus:
+  - complete
+  - Run-centered scheduling, Docker workflow proof, canonical documentation, and implementation-backed memory are verified and reconciled.
+
+tasks:
+  T0: &implemented
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+  T1: *implemented
+  T2: *implemented
+  T3: *implemented
+  T4: *implemented
+  T5: *implemented
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+      - stateworks/work/done/lpms-run-centered-online-scheduling/final-report.md
+  T6:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+      - stateworks/work/done/lpms-run-centered-online-scheduling/final-report.md
+      - stateworks/memory/domains/laundry-production/deltas/2026-07-14-run-centered-online-scheduling-implementation.memory-delta.yaml
