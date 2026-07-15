@@ -4,10 +4,19 @@ import type {
   ProductionLocation,
   ProductionOrderListItem,
   ProductionOrderSummary,
+  ProductionRunSummary,
+  ProductionShift,
   ProductionWorkspace,
+  ScheduleProposal,
 } from "@pressly/contracts"
 import { RequestFailure } from "@/ports/request.error"
 import type { ProcessorRuntime } from "./app.composition"
+import type { WorkspaceRoute } from "./app.navigation"
+import { observeProductionConnectionState } from "./processor-observability"
+import {
+  makeProductionSyncCoordinator,
+  type ProductionSyncTarget,
+} from "./production-sync.coordinator"
 
 export type ProcessorAuthStatus =
   | "restoring"
@@ -50,28 +59,79 @@ const roundUp = (date: Date, intervalMinutes: number): Date => {
 export const derivePlanningDefaults = (input: {
   now: Date
   workspace: ProductionWorkspace
+  shift?: ProductionShift | null
 }) => {
-  const startsAt =
-    input.workspace.currentShift?.startsAt ??
-    roundUp(input.now, 15).toISOString()
+  const shift =
+    input.shift === undefined ? input.workspace.currentShift : input.shift
+  const startsAt = shift?.startsAt ?? roundUp(input.now, 15).toISOString()
   const endsAt =
-    input.workspace.currentShift?.endsAt ??
+    shift?.endsAt ??
     new Date(Date.parse(startsAt) + 6 * 60 * 60_000).toISOString()
-  const horizonBase = Math.max(
-    Date.parse(endsAt),
-    input.now.getTime() + 48 * 60 * 60_000
-  )
-
   return {
     pulseMinutes: input.workspace.currentSchedulerConfig?.pulseMinutes ?? 0,
     foldLbsPerFolderMinute:
       input.workspace.currentSchedulerConfig?.foldLbsPerFolderMinute ?? 0,
-    effectiveFolderCount:
-      input.workspace.currentShift?.effectiveFolderCount ?? 1,
+    effectiveFolderCount: shift?.effectiveFolderCount ?? 1,
     startsAt,
     endsAt,
     timezone: input.workspace.location.timezone,
-    horizonEnd: new Date(horizonBase).toISOString(),
+  }
+}
+
+export type ScheduleContext =
+  | Readonly<{
+      kind: "planning"
+      shift: ProductionShift | null
+      proposal: ScheduleProposal | null
+    }>
+  | Readonly<{
+      kind: "history"
+      shift: ProductionShift
+      proposal: ScheduleProposal | null
+      reason: "run_owned" | "closed" | "expired"
+      productionRun: ProductionRunSummary | null
+    }>
+
+export const classifyScheduleContext = (input: {
+  workspace: ProductionWorkspace
+  requestedShiftId: string | null
+  now: Date
+}): ScheduleContext => {
+  const shift = input.workspace.currentShift
+  if (shift === null) return { kind: "planning", shift: null, proposal: null }
+
+  const boardRun =
+    input.workspace.board?.productionShift.id === shift.id
+      ? input.workspace.board.productionRun
+      : null
+  const reason =
+    boardRun !== null
+      ? "run_owned"
+      : shift.status === "closed"
+        ? "closed"
+        : Date.parse(shift.endsAt) <= input.now.getTime()
+          ? "expired"
+          : null
+
+  if (reason === null)
+    return {
+      kind: "planning",
+      shift,
+      proposal: input.workspace.currentScheduleProposal,
+    }
+
+  if (
+    input.requestedShiftId === null &&
+    input.workspace.board?.productionRun.status !== "started"
+  )
+    return { kind: "planning", shift: null, proposal: null }
+
+  return {
+    kind: "history",
+    shift,
+    proposal: input.workspace.currentScheduleProposal,
+    reason,
+    productionRun: boardRun,
   }
 }
 
@@ -91,28 +151,33 @@ const toSchedulingOrder = (
       }
     : null
 
-const loadAllOrders = async (
-  runtime: ProcessorRuntime,
-  locationId: string
-): Promise<readonly ProductionOrderListItem[]> => {
-  const orders: ProductionOrderListItem[] = []
-  let cursor: string | undefined
-
-  for (let page = 0; page < 100; page += 1) {
-    const response = await runtime.production.listOrders({
-      locationId,
-      limit: 100,
-      ...(cursor === undefined ? {} : { cursor }),
-    })
-    orders.push(...response.items)
-    if (response.nextCursor === null) return orders
-    cursor = response.nextCursor
-  }
-
-  throw new Error("Production order pagination did not converge.")
+const defaultWorkspaceRoute: WorkspaceRoute = {
+  view: "schedule",
+  shiftId: null,
+  runId: null,
 }
 
-export function useProcessorAppModel(runtime: ProcessorRuntime) {
+const syncKey = (locationId: string, route: WorkspaceRoute): string =>
+  [locationId, route.view, route.shiftId ?? "", route.runId ?? ""].join(":")
+
+const snapshotMatchesRoute = (
+  workspace: ProductionWorkspace | null,
+  locationId: string,
+  route: WorkspaceRoute
+): boolean =>
+  workspace?.location.id === locationId &&
+  (route.view !== "schedule" ||
+    (route.shiftId === null
+      ? workspace.currentShift === null
+      : workspace.currentShift?.id === route.shiftId)) &&
+  (route.view !== "board" ||
+    route.runId === null ||
+    workspace.board?.productionRun.id === route.runId)
+
+export function useProcessorAppModel(
+  runtime: ProcessorRuntime,
+  requestedRoute: WorkspaceRoute = defaultWorkspaceRoute
+) {
   const [authStatus, setAuthStatus] = useState<ProcessorAuthStatus>("restoring")
   const [session, setSession] = useState<ProcessorAuthenticatedSession | null>(
     null
@@ -129,22 +194,63 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
   const [workspaceLoading, setWorkspaceLoading] = useState(false)
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
   const [online, setOnline] = useState(() => navigator.onLine)
+  const [visible, setVisible] = useState(
+    () => document.visibilityState === "visible"
+  )
+  const [liveConnection, setLiveConnection] = useState<{
+    locationId: string | null
+    state: "connecting" | "open" | "reconnecting"
+  }>({ locationId: null, state: "connecting" })
+  const acknowledgedLiveRevisionRef = useRef<number | null>(null)
   const selectedLocationIdRef = useRef<string | null>(null)
-  const workspaceRequestGenerationRef = useRef(0)
+  const requestedRouteRef = useRef<WorkspaceRoute>(requestedRoute)
+  const [sync] = useState(() =>
+    makeProductionSyncCoordinator<ProductionWorkspace>({
+      onStart: () => {
+        setWorkspaceLoading(true)
+        setWorkspaceError(null)
+      },
+      onSuccess: (nextWorkspace) => {
+        setWorkspace(nextWorkspace)
+        setOrders(nextWorkspace.orders)
+        setWorkspaceLoading(false)
+      },
+      onError: (cause) => {
+        setWorkspaceError(messageFor(cause))
+        setWorkspaceLoading(false)
+      },
+    })
+  )
 
-  const resetSession = useCallback((message?: string) => {
-    workspaceRequestGenerationRef.current += 1
-    selectedLocationIdRef.current = null
-    setSession(null)
-    setAuthStatus("signed_out")
-    setAuthBusy(false)
-    setAuthError(message ?? null)
-    setLocations([])
-    setSelectedLocationId(null)
-    setWorkspace(null)
-    setOrders([])
-    setWorkspaceLoading(false)
-  }, [])
+  useEffect(() => {
+    requestedRouteRef.current = requestedRoute
+  }, [requestedRoute])
+
+  useEffect(
+    () => () => {
+      sync.setAvailable(false)
+      sync.setTarget(null)
+    },
+    [sync]
+  )
+
+  const resetSession = useCallback(
+    (message?: string) => {
+      sync.setAvailable(false)
+      sync.setTarget(null)
+      selectedLocationIdRef.current = null
+      setSession(null)
+      setAuthStatus("signed_out")
+      setAuthBusy(false)
+      setAuthError(message ?? null)
+      setLocations([])
+      setSelectedLocationId(null)
+      setWorkspace(null)
+      setOrders([])
+      setWorkspaceLoading(false)
+    },
+    [sync]
+  )
 
   const acceptSession = useCallback((next: ProcessorAuthenticatedSession) => {
     const hasProcessorRole = next.principal.roles.some((role) =>
@@ -165,13 +271,28 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
   )
 
   useEffect(() => {
-    const onlineListener = () => setOnline(true)
-    const offlineListener = () => setOnline(false)
+    const onlineListener = () => {
+      setLiveConnection({ locationId: null, state: "connecting" })
+      setOnline(true)
+    }
+    const offlineListener = () => {
+      setOnline(false)
+      setWorkspaceLoading(false)
+    }
+    const visibilityListener = () => {
+      const nextVisible = document.visibilityState === "visible"
+      if (nextVisible)
+        setLiveConnection({ locationId: null, state: "connecting" })
+      setVisible(nextVisible)
+      if (!nextVisible) setWorkspaceLoading(false)
+    }
     window.addEventListener("online", onlineListener)
     window.addEventListener("offline", offlineListener)
+    document.addEventListener("visibilitychange", visibilityListener)
     return () => {
       window.removeEventListener("online", onlineListener)
       window.removeEventListener("offline", offlineListener)
+      document.removeEventListener("visibilitychange", visibilityListener)
     }
   }, [])
 
@@ -213,7 +334,7 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
       const allowed = response.items.filter((location) => location.isActive)
       setLocations(allowed)
       if (allowed.length === 0) {
-        workspaceRequestGenerationRef.current += 1
+        sync.setTarget(null)
         selectedLocationIdRef.current = null
         setSelectedLocationId(null)
         setWorkspace(null)
@@ -231,7 +352,7 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
       if (selectedLocationId === null) {
         if (preferredLocationId !== null) runtime.locationPreference.clear()
         if (selectedLocationIdRef.current !== null) {
-          workspaceRequestGenerationRef.current += 1
+          sync.setTarget(null)
           selectedLocationIdRef.current = null
           setWorkspace(null)
           setOrders([])
@@ -244,7 +365,7 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
       if (preferredLocationId !== selectedLocationId)
         runtime.locationPreference.save(selectedLocationId)
       if (selectedLocationIdRef.current !== selectedLocationId) {
-        workspaceRequestGenerationRef.current += 1
+        sync.setTarget(null)
         selectedLocationIdRef.current = selectedLocationId
         setWorkspace(null)
         setOrders([])
@@ -256,7 +377,7 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
     } finally {
       setLocationsLoading(false)
     }
-  }, [runtime])
+  }, [runtime, sync])
 
   useEffect(() => {
     if (authStatus !== "authenticated") return
@@ -264,37 +385,142 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
     return () => window.clearTimeout(timeout)
   }, [authStatus, refreshLocations])
 
-  const refreshWorkspace = useCallback(async () => {
-    const locationId = selectedLocationIdRef.current
-    if (locationId === null) return
-    const requestGeneration = ++workspaceRequestGenerationRef.current
-    setWorkspaceLoading(true)
-    setWorkspaceError(null)
-    try {
-      const [nextWorkspace, nextOrders] = await Promise.all([
-        runtime.production.loadWorkspace(locationId),
-        loadAllOrders(runtime, locationId),
-      ])
-      if (workspaceRequestGenerationRef.current !== requestGeneration) return
-      setWorkspace(nextWorkspace)
-      setOrders(nextOrders)
-    } catch (cause) {
-      if (workspaceRequestGenerationRef.current !== requestGeneration) return
-      setWorkspaceError(messageFor(cause))
-    } finally {
-      if (workspaceRequestGenerationRef.current === requestGeneration)
-        setWorkspaceLoading(false)
-    }
-  }, [runtime])
+  const makeSyncTarget = useCallback(
+    (
+      locationId: string,
+      route: WorkspaceRoute
+    ): ProductionSyncTarget<ProductionWorkspace> => ({
+      key: syncKey(locationId, route),
+      load: async (signal) => {
+        const nextWorkspace = await runtime.production.loadWorkspace(
+          locationId,
+          route.shiftId ?? undefined,
+          signal
+        )
+        if (
+          route.view !== "board" ||
+          route.runId === null ||
+          nextWorkspace.board?.productionRun.id === route.runId
+        )
+          return nextWorkspace
+        const board = await runtime.production.loadBoard(
+          locationId,
+          route.runId,
+          signal
+        )
+        return { ...nextWorkspace, board }
+      },
+    }),
+    [runtime]
+  )
 
   useEffect(() => {
-    if (authStatus !== "authenticated" || selectedLocationId === null) return
-    const timeout = window.setTimeout(() => void refreshWorkspace(), 0)
-    return () => {
-      window.clearTimeout(timeout)
-      workspaceRequestGenerationRef.current += 1
+    if (authStatus !== "authenticated" || selectedLocationId === null) {
+      sync.setTarget(null)
+      return
     }
-  }, [authStatus, refreshWorkspace, selectedLocationId])
+    const target = makeSyncTarget(selectedLocationId, requestedRoute)
+    sync.setTarget(target, {
+      reuseCurrent: snapshotMatchesRoute(
+        workspace,
+        selectedLocationId,
+        requestedRoute
+      ),
+    })
+  }, [
+    authStatus,
+    makeSyncTarget,
+    requestedRoute,
+    selectedLocationId,
+    sync,
+    workspace,
+  ])
+
+  useEffect(() => {
+    const available =
+      authStatus === "authenticated" &&
+      selectedLocationId !== null &&
+      online &&
+      visible
+    sync.setAvailable(available)
+  }, [authStatus, online, selectedLocationId, sync, visible])
+
+  useEffect(() => {
+    acknowledgedLiveRevisionRef.current = null
+    if (
+      authStatus !== "authenticated" ||
+      selectedLocationId === null ||
+      !online ||
+      !visible
+    )
+      return
+
+    return runtime.productionChanges.subscribe({
+      locationId: selectedLocationId,
+      onStateChange: (state) => {
+        setLiveConnection({ locationId: selectedLocationId, state })
+        observeProductionConnectionState(state)
+      },
+      onInvalidate: ({ revision }) => {
+        if (
+          revision !== null &&
+          acknowledgedLiveRevisionRef.current !== null &&
+          revision <= acknowledgedLiveRevisionRef.current
+        )
+          return
+
+        void sync.refresh({ afterMutation: true }).then((snapshot) => {
+          if (snapshot === null || revision === null) return
+          acknowledgedLiveRevisionRef.current = Math.max(
+            acknowledgedLiveRevisionRef.current ?? revision,
+            revision
+          )
+        })
+      },
+    })
+  }, [
+    authStatus,
+    online,
+    runtime.productionChanges,
+    selectedLocationId,
+    sync,
+    visible,
+  ])
+
+  const refreshWorkspaceSnapshot = useCallback(
+    async (shiftId?: string): Promise<ProductionWorkspace | null> => {
+      const locationId = selectedLocationIdRef.current
+      if (locationId === null) return null
+      const route =
+        shiftId === undefined
+          ? requestedRouteRef.current
+          : { ...requestedRouteRef.current, shiftId }
+      requestedRouteRef.current = route
+      sync.setTarget(makeSyncTarget(locationId, route), {
+        reuseCurrent: snapshotMatchesRoute(workspace, locationId, route),
+      })
+      sync.setAvailable(authStatus === "authenticated" && online && visible)
+      return sync.refresh({ afterMutation: true })
+    },
+    [authStatus, makeSyncTarget, online, sync, visible, workspace]
+  )
+
+  const refreshWorkspace = useCallback(
+    async (shiftId?: string): Promise<void> => {
+      await refreshWorkspaceSnapshot(shiftId)
+    },
+    [refreshWorkspaceSnapshot]
+  )
+
+  const refreshBoard = useCallback(async (): Promise<
+    ProductionWorkspace["board"]
+  > => {
+    const nextWorkspace = await refreshWorkspaceSnapshot()
+    const runId = requestedRouteRef.current.runId
+    return nextWorkspace?.board?.productionRun.id === runId || runId === null
+      ? (nextWorkspace?.board ?? null)
+      : null
+  }, [refreshWorkspaceSnapshot])
 
   const login = async (credentials: { email: string; password: string }) => {
     setAuthBusy(true)
@@ -346,7 +572,7 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
   const selectLocation = (locationId: string) => {
     if (!locations.some((location) => location.id === locationId)) return
     if (selectedLocationIdRef.current === locationId) return
-    workspaceRequestGenerationRef.current += 1
+    sync.setTarget(null)
     selectedLocationIdRef.current = locationId
     runtime.locationPreference.save(locationId)
     setSelectedLocationId(locationId)
@@ -366,6 +592,19 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
   )
   const selectedLocation =
     locations.find((location) => location.id === selectedLocationId) ?? null
+  const liveConnectionState:
+    | "inactive"
+    | "connecting"
+    | "open"
+    | "reconnecting" =
+    authStatus !== "authenticated" ||
+    selectedLocationId === null ||
+    !online ||
+    !visible
+      ? "inactive"
+      : liveConnection.locationId === selectedLocationId
+        ? liveConnection.state
+        : "connecting"
 
   return {
     authStatus,
@@ -383,6 +622,7 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
     workspaceLoading,
     workspaceError,
     online,
+    liveConnectionState,
     login,
     completeMfa,
     restartLogin,
@@ -390,6 +630,7 @@ export function useProcessorAppModel(runtime: ProcessorRuntime) {
     selectLocation,
     refreshLocations,
     refreshWorkspace,
+    refreshBoard,
   }
 }
 

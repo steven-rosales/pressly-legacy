@@ -1,29 +1,40 @@
 import type { ReactNode } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-export function MetricCard({
-  label,
-  value,
-  detail,
-}: {
+export type MetricStripItem = Readonly<{
   label: string
   value: string
   detail: string
-}) {
+}>
+
+export function MetricStrip({
+  label,
+  metrics,
+}: Readonly<{
+  label: string
+  metrics: readonly MetricStripItem[]
+}>) {
   return (
-    <Card size="sm" className="min-w-0 bg-background shadow-xs">
-      <CardHeader>
-        <CardTitle className="text-xs font-normal text-muted-foreground">
-          {label}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-semibold tracking-tight tabular-nums">
-          {value}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-      </CardContent>
-    </Card>
+    <section aria-label={label} data-slot="metric-strip">
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-border ring-1 ring-border lg:grid-cols-4">
+        {metrics.map((metric) => (
+          <div
+            key={metric.label}
+            data-slot="metric"
+            className="min-w-0 bg-background p-4"
+          >
+            <dt className="text-sm text-muted-foreground">{metric.label}</dt>
+            <dd>
+              <p className="mt-2 text-2xl font-medium tracking-tight tabular-nums">
+                {metric.value}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {metric.detail}
+              </p>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   )
 }
 

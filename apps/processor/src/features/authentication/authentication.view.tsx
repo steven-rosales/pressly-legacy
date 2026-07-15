@@ -67,7 +67,7 @@ export function AuthenticationView({
 
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 px-4 py-10">
-      <Card className="w-full max-w-md bg-background shadow-sm">
+      <Card className="w-full max-w-md bg-background">
         <CardHeader>
           <div className="mb-3 grid size-10 place-items-center rounded-lg bg-foreground text-background">
             {mode === "login" ? <IconLock /> : <IconShieldCheck />}

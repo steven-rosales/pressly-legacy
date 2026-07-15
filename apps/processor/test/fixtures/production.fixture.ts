@@ -41,7 +41,7 @@ export const testConfig: SchedulerConfig = {
   id: id(2),
   pulseMinutes: 50,
   foldLbsPerFolderMinute: 2,
-  algorithmVersion: "fixed-pulse-ffd-v1",
+  algorithmVersion: "fixed-pulse-ffd-v2",
   version: 3,
   stageFitAssertion: {
     sortingFits: true,
@@ -107,7 +107,7 @@ export const testSchedule: ScheduleProposal = {
   status: "draft",
   inputSnapshotHash: "a".repeat(64),
   outputPlanHash: "b".repeat(64),
-  algorithmVersion: "fixed-pulse-ffd-v1",
+  algorithmVersion: "fixed-pulse-ffd-v2",
   pulseMinutes: 50,
   pulseCapacityLbs: 200,
   batchCount: 1,
@@ -142,6 +142,9 @@ export const testSchedule: ScheduleProposal = {
   warnings: [],
   createdAt: "2026-08-01T13:30:00.000Z",
   acceptedAt: null,
+  acceptedBy: null,
+  acknowledgedWarningCodes: [],
+  supersededAt: null,
 }
 
 const stageRuns = testSchedule.batches[0]!.stages.map((stage, index) => ({
@@ -154,6 +157,16 @@ const stageRuns = testSchedule.batches[0]!.stages.map((stage, index) => ({
   actualStartAt: null,
   actualEndAt: null,
   machineIds: stage.machineIds,
+  nextAction:
+    index === 0
+      ? ({ state: "available", action: "start" } as const)
+      : ({
+          state: "blocked",
+          action: "start",
+          code: "PREVIOUS_STAGE_INCOMPLETE",
+          message: "The previous stage must be completed first.",
+          availableAt: null,
+        } as const),
   allowedActions:
     index === 0
       ? (["start"] satisfies ("start" | "complete")[])
@@ -165,8 +178,11 @@ export const testBoard: ProductionBoard = {
   productionShift: testShift,
   productionRun: {
     id: id(21),
-    status: "planned",
-    allowedActions: ["start"],
+    productionShiftId: testShift.id,
+    status: "started",
+    queueVersion: 1,
+    plannedCompletionAt: testSchedule.plannedCompletionAt,
+    overtimeAcknowledgement: null,
     version: 1,
   },
   batches: [
@@ -177,7 +193,13 @@ export const testBoard: ProductionBoard = {
       derivedWeightLbs: 200,
       pulseCapacityLbs: 200,
       pulseMinutes: 50,
-      orders: [...testOrders],
+      membership: { state: "mutable" },
+      orders: testOrders.map((order) => ({
+        ...order,
+        placementProvenance: "initial_schedule" as const,
+        pinnedAt: null,
+        pinnedBy: null,
+      })),
       stages: stageRuns,
       version: 1,
     },
@@ -189,14 +211,21 @@ export const testBoard: ProductionBoard = {
 export const testWorkspace: ProductionWorkspace = {
   location: testLocation,
   currentShift: testShift,
+  candidateShifts: [
+    {
+      productionShiftId: testShift.id,
+      startsAt: testShift.startsAt,
+      endsAt: testShift.endsAt,
+      reason: "started_run",
+      productionRunId: testBoard.productionRun.id,
+      scheduleRunId: testSchedule.scheduleRunId,
+    },
+  ],
   currentSchedulerConfig: testConfig,
-  latestScheduleProposal: testSchedule,
-  activeRun: {
-    id: testBoard.productionRun!.id,
-    productionShiftId: testShift.id,
-    status: "planned",
-    version: 1,
-  },
+  currentScheduleProposal: testSchedule,
+  activeRuns: [testBoard.productionRun],
+  orders: [...testOrderItems],
+  pendingEligibleOrders: [],
   board: testBoard,
   stations: [],
   machines: [
@@ -242,11 +271,31 @@ export const makeTestProductionPort = (
   }),
   publishConfig: async () => structuredClone(testConfig),
   createShift: async () => structuredClone(testShift),
+  updateShift: async (input) => ({
+    productionShift: {
+      ...structuredClone(testShift),
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      effectiveFolderCount: input.effectiveFolderCount,
+      version: input.expectedVersion + 1,
+    },
+    supersededScheduleRunId: testSchedule.scheduleRunId,
+    replayed: false,
+  }),
   createSchedule: async () => structuredClone(testSchedule),
   loadSchedule: async () => structuredClone(testSchedule),
   acceptSchedule: async () => ({
-    productionRunId: testBoard.productionRun!.id,
+    scheduleRunId: testSchedule.scheduleRunId,
+    productionShiftId: testShift.id,
+    acceptedAt: "2026-08-01T13:45:00.000Z",
+    replayed: false,
+  }),
+  startSchedule: async () => ({
+    scheduleRunId: testSchedule.scheduleRunId,
+    productionRunId: testBoard.productionRun.id,
     productionBatchIds: testBoard.batches.map((batch) => batch.id),
+    queueVersion: 1,
+    startedAt: "2026-08-01T14:00:00.000Z",
     replayed: false,
   }),
   loadBoard: async () => structuredClone(testBoard),
@@ -255,9 +304,54 @@ export const makeTestProductionPort = (
     version: input.expectedVersion + 1,
     replayed: false,
   }),
-  startRun: async (input) => ({
-    entityId: input.productionRunId,
-    version: input.expectedVersion + 1,
+  freezeBatch: async (input) => ({
+    productionRunId: input.productionRunId,
+    productionBatchId: input.productionBatchId,
+    queueVersion: input.expectedQueueVersion + 1,
+    batchVersion: input.expectedBatchVersion + 1,
+    membership: {
+      state: "frozen",
+      frozenAt: "2026-08-01T14:05:00.000Z",
+      frozenBy: id(90),
+    },
+    replayed: false,
+  }),
+  unfreezeBatch: async (input) => ({
+    productionRunId: input.productionRunId,
+    productionBatchId: input.productionBatchId,
+    queueVersion: input.expectedQueueVersion + 1,
+    batchVersion: input.expectedBatchVersion + 1,
+    membership: { state: "mutable" },
+    replayed: false,
+  }),
+  retryAutomaticPlacement: async (input) => ({
+    status: "not_placed",
+    mode: "automatic",
+    productionRunId: input.productionRunId,
+    productionOrderId: input.productionOrderId,
+    reason: "no_mutable_position",
+    message: "No mutable position is available.",
+    queueVersion: input.expectedQueueVersion,
+    replayed: false,
+  }),
+  placeOrderExactly: async (input) => ({
+    status: "not_placed",
+    mode: "manager_exact",
+    productionRunId: input.productionRunId,
+    productionOrderId: input.productionOrderId,
+    reason: "no_mutable_position",
+    message: "No mutable position is available.",
+    queueVersion: input.expectedQueueVersion,
+    replayed: false,
+  }),
+  confirmPlacementOvertime: async (input) => ({
+    status: "not_placed",
+    mode: "automatic",
+    productionRunId: input.productionRunId,
+    productionOrderId: input.productionOrderId,
+    reason: "proposal_stale",
+    message: "The proposal is stale.",
+    queueVersion: input.expectedQueueVersion,
     replayed: false,
   }),
   advanceStage: async (input) => ({

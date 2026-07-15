@@ -1,5 +1,10 @@
 import {
   acceptScheduleResultSchema,
+  advanceProductionStageResultSchema,
+  automaticProductionOrderPlacementResultSchema,
+  confirmProductionOrderOvertimeResultSchema,
+  exactProductionOrderPlacementResultSchema,
+  productionBatchMembershipMutationResultSchema,
   listProductionLocationsResultSchema,
   listProductionOrdersResultSchema,
   productionBoardSchema,
@@ -9,6 +14,8 @@ import {
   productionShiftSchema,
   scheduleProposalSchema,
   schedulerConfigSchema,
+  startScheduleResultSchema,
+  updateProductionShiftResultSchema,
 } from "@pressly/contracts"
 import type { ProductionPort } from "@/ports/production.port"
 import type { RequestPort } from "@/ports/request.port"
@@ -21,19 +28,25 @@ export const makeApiProductionAdapter = (
       { path: "/production/locations" },
       listProductionLocationsResultSchema
     ),
-  loadWorkspace: (locationId) =>
-    request(
+  loadWorkspace: (locationId, shiftId, signal) => {
+    const query = new URLSearchParams()
+    if (shiftId !== undefined) query.set("shiftId", shiftId)
+    const suffix = query.size === 0 ? "" : `?${query.toString()}`
+    return request(
       {
-        path: `/production/locations/${encodeURIComponent(locationId)}/workspace`,
+        path: `/production/locations/${encodeURIComponent(locationId)}/workspace${suffix}`,
+        ...(signal === undefined ? {} : { signal }),
       },
       productionWorkspaceSchema
-    ),
-  listOrders: ({ locationId, cursor, limit = 100 }) => {
+    )
+  },
+  listOrders: ({ locationId, cursor, limit = 100, signal }) => {
     const query = new URLSearchParams({ limit: String(limit) })
     if (cursor !== undefined) query.set("cursor", cursor)
     return request(
       {
         path: `/production/locations/${encodeURIComponent(locationId)}/orders?${query.toString()}`,
+        ...(signal === undefined ? {} : { signal }),
       },
       listProductionOrdersResultSchema
     )
@@ -65,6 +78,15 @@ export const makeApiProductionAdapter = (
       },
       productionShiftSchema
     ),
+  updateShift: ({ locationId, productionShiftId, ...body }) =>
+    request(
+      {
+        method: "PATCH",
+        path: `/production/locations/${encodeURIComponent(locationId)}/shifts/${encodeURIComponent(productionShiftId)}`,
+        body,
+      },
+      updateProductionShiftResultSchema
+    ),
   createSchedule: ({ locationId, ...body }) =>
     request(
       {
@@ -90,10 +112,20 @@ export const makeApiProductionAdapter = (
       },
       acceptScheduleResultSchema
     ),
-  loadBoard: (locationId, productionShiftId) =>
+  startSchedule: ({ locationId, scheduleRunId, ...body }) =>
     request(
       {
-        path: `/production/locations/${encodeURIComponent(locationId)}/shifts/${encodeURIComponent(productionShiftId)}/board`,
+        method: "POST",
+        path: `/production/locations/${encodeURIComponent(locationId)}/schedules/${encodeURIComponent(scheduleRunId)}/start`,
+        body,
+      },
+      startScheduleResultSchema
+    ),
+  loadBoard: (locationId, productionRunId, signal) =>
+    request(
+      {
+        path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/board`,
+        ...(signal === undefined ? {} : { signal }),
       },
       productionBoardSchema
     ),
@@ -106,14 +138,71 @@ export const makeApiProductionAdapter = (
       },
       productionMutationResultSchema
     ),
-  startRun: ({ locationId, productionRunId, ...body }) =>
+  freezeBatch: ({ locationId, productionRunId, productionBatchId, ...body }) =>
     request(
       {
         method: "POST",
-        path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/start`,
+        path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/batches/${encodeURIComponent(productionBatchId)}/freeze`,
         body,
       },
-      productionMutationResultSchema
+      productionBatchMembershipMutationResultSchema
+    ),
+  unfreezeBatch: ({
+    locationId,
+    productionRunId,
+    productionBatchId,
+    ...body
+  }) =>
+    request(
+      {
+        method: "POST",
+        path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/batches/${encodeURIComponent(productionBatchId)}/unfreeze`,
+        body,
+      },
+      productionBatchMembershipMutationResultSchema
+    ),
+  retryAutomaticPlacement: ({
+    locationId,
+    productionRunId,
+    productionOrderId,
+    ...body
+  }) =>
+    request(
+      {
+        method: "POST",
+        path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/orders/${encodeURIComponent(productionOrderId)}/place`,
+        body,
+      },
+      automaticProductionOrderPlacementResultSchema
+    ),
+  placeOrderExactly: ({
+    locationId,
+    productionRunId,
+    productionOrderId,
+    productionBatchId,
+    ...body
+  }) =>
+    request(
+      {
+        method: "POST",
+        path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/batches/${encodeURIComponent(productionBatchId)}/orders/${encodeURIComponent(productionOrderId)}/place`,
+        body,
+      },
+      exactProductionOrderPlacementResultSchema
+    ),
+  confirmPlacementOvertime: ({
+    locationId,
+    productionRunId,
+    productionOrderId,
+    ...body
+  }) =>
+    request(
+      {
+        method: "POST",
+        path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/orders/${encodeURIComponent(productionOrderId)}/confirm-overtime`,
+        body,
+      },
+      confirmProductionOrderOvertimeResultSchema
     ),
   advanceStage: ({ locationId, stageRunId, transition, ...body }) =>
     request(
@@ -122,7 +211,7 @@ export const makeApiProductionAdapter = (
         path: `/production/locations/${encodeURIComponent(locationId)}/stages/${encodeURIComponent(stageRunId)}/${encodeURIComponent(transition)}`,
         body,
       },
-      productionMutationResultSchema
+      advanceProductionStageResultSchema
     ),
   assignStageMachines: ({ locationId, stageRunId, ...body }) =>
     request(

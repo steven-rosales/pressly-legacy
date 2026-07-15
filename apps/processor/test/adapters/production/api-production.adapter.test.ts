@@ -35,7 +35,7 @@ describe("production API gateway", () => {
     )
     await gateway.loadBoard(
       testWorkspace.location.id,
-      testSchedule.productionShiftId
+      testBoard.productionRun.id
     )
 
     expect(request.mock.calls.map(([input]) => input.path)).toEqual([
@@ -43,8 +43,43 @@ describe("production API gateway", () => {
       `/production/locations/${testWorkspace.location.id}/workspace`,
       `/production/locations/${testWorkspace.location.id}/orders?limit=100`,
       `/production/locations/${testWorkspace.location.id}/schedules/${testSchedule.scheduleRunId}`,
-      `/production/locations/${testWorkspace.location.id}/shifts/${testSchedule.productionShiftId}/board`,
+      `/production/locations/${testWorkspace.location.id}/runs/${testBoard.productionRun.id}/board`,
     ])
+  })
+
+  it("uses explicit shift and run identities for resumable reads", async () => {
+    const request = vi
+      .fn()
+      .mockImplementation(({ path }: { path: string }) =>
+        path.endsWith("/board")
+          ? Promise.resolve(testBoard)
+          : Promise.resolve(testWorkspace)
+      )
+    const gateway = makeApiProductionAdapter(request)
+
+    await gateway.loadWorkspace(
+      testWorkspace.location.id,
+      testSchedule.productionShiftId
+    )
+    await gateway.loadBoard(
+      testWorkspace.location.id,
+      testBoard.productionRun.id
+    )
+
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        path: `/production/locations/${testWorkspace.location.id}/workspace?shiftId=${testSchedule.productionShiftId}`,
+      }),
+      expect.anything()
+    )
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        path: `/production/locations/${testWorkspace.location.id}/runs/${testBoard.productionRun.id}/board`,
+      }),
+      expect.anything()
+    )
   })
 
   it("sends versions and idempotency keys on intake and machine assignment", async () => {
@@ -125,6 +160,104 @@ describe("production API gateway", () => {
           },
           idempotencyKey: "publish-config-command-1",
         },
+      }),
+      expect.anything()
+    )
+  })
+
+  it("sends queue versions on freeze, automatic, exact, and overtime commands", async () => {
+    const request = vi.fn().mockResolvedValue({})
+    const gateway = makeApiProductionAdapter(request)
+    const batch = testBoard.batches[0]!
+    const order = batch.orders[0]!
+    const common = {
+      locationId: testWorkspace.location.id,
+      productionRunId: testBoard.productionRun.id,
+      expectedQueueVersion: testBoard.productionRun.queueVersion,
+      idempotencyKey: "queue-command-1",
+    }
+
+    await gateway.freezeBatch({
+      ...common,
+      productionBatchId: batch.id,
+      expectedBatchVersion: batch.version,
+    })
+    await gateway.retryAutomaticPlacement({
+      ...common,
+      productionOrderId: order.id,
+    })
+    await gateway.placeOrderExactly({
+      ...common,
+      productionOrderId: order.id,
+      productionBatchId: batch.id,
+      expectedBatchVersion: batch.version,
+    })
+    await gateway.confirmPlacementOvertime({
+      ...common,
+      productionOrderId: order.id,
+      proposalHash: "f".repeat(64),
+    })
+
+    expect(request.mock.calls.map(([input]) => input.path)).toEqual([
+      `/production/locations/${common.locationId}/runs/${common.productionRunId}/batches/${batch.id}/freeze`,
+      `/production/locations/${common.locationId}/runs/${common.productionRunId}/orders/${order.id}/place`,
+      `/production/locations/${common.locationId}/runs/${common.productionRunId}/batches/${batch.id}/orders/${order.id}/place`,
+      `/production/locations/${common.locationId}/runs/${common.productionRunId}/orders/${order.id}/confirm-overtime`,
+    ])
+    for (const [input] of request.mock.calls)
+      expect(input.body).toEqual(
+        expect.objectContaining({
+          expectedQueueVersion: common.expectedQueueVersion,
+          idempotencyKey: common.idempotencyKey,
+        })
+      )
+  })
+
+  it("updates a shift in place and echoes a version-bound early-completion confirmation", async () => {
+    const request = vi.fn().mockResolvedValue({})
+    const gateway = makeApiProductionAdapter(request)
+    const stage = testBoard.batches[0]!.stages[0]!
+    const confirmation = {
+      observedAt: "2026-08-01T14:10:00.000Z",
+      confirmationHash: "c".repeat(64),
+    }
+
+    await gateway.updateShift({
+      locationId: testWorkspace.location.id,
+      productionShiftId: testWorkspace.currentShift!.id,
+      startsAt: testWorkspace.currentShift!.startsAt,
+      endsAt: testWorkspace.currentShift!.endsAt,
+      effectiveFolderCount: 3,
+      expectedVersion: testWorkspace.currentShift!.version,
+      idempotencyKey: "update-shift-command-1",
+    })
+    await gateway.advanceStage({
+      locationId: testWorkspace.location.id,
+      stageRunId: stage.id,
+      transition: "complete",
+      expectedVersion: stage.version,
+      confirmation,
+      idempotencyKey: "complete-stage-command-1",
+    })
+
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        method: "PATCH",
+        path: `/production/locations/${testWorkspace.location.id}/shifts/${testWorkspace.currentShift!.id}`,
+        body: expect.objectContaining({
+          effectiveFolderCount: 3,
+          expectedVersion: testWorkspace.currentShift!.version,
+        }),
+      }),
+      expect.anything()
+    )
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        method: "POST",
+        path: `/production/locations/${testWorkspace.location.id}/stages/${stage.id}/complete`,
+        body: expect.objectContaining({ confirmation }),
       }),
       expect.anything()
     )

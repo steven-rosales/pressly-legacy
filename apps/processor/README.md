@@ -1,8 +1,9 @@
 # Processor
 
 The processor is the LPMS operator interface. It is a React/Vite app built on
-the repository's shadcn foundation and the neutral product language captured in
-`docs/agents/10/`.
+the repository's shadcn foundation and the stable ElevenLabs-inspired product
+language in `DESIGN.md`. The screenshots under `docs/agents/10/` are historical
+visual evidence, not the current design authority.
 
 ## Run
 
@@ -26,13 +27,28 @@ access several locations, the processor restores its last valid browser
 preference or asks for a location before loading production data; the same
 selector remains available in the workspace header.
 
-Useful views:
+Browser routes:
 
 ```text
-/?view=schedule
-/?view=board
-/?view=settings
+/schedule
+/schedule/:shiftId
+/production
+/production/:runId
+/configuration
 ```
+
+Query parameters do not own navigation. There is no legacy `/?view=...`
+compatibility redirect and no root redirect; use `/schedule` as the planning
+entry point. Shift and run identifiers in the path make refresh and history
+navigation resumable from backend state.
+
+The app does not poll workspaces or boards on a timer. While authenticated,
+online, and visible, it opens the location-authorized SSE change feed. Revision
+events are invalidations only: a coalescing coordinator reloads the
+authoritative workspace or run board, aborts stale targets, and fences late
+responses. Mutations still await an immediate refresh before navigation. The
+stream disconnects while hidden or offline and reconnects with a full reload;
+its heartbeat carries no production state.
 
 ## Verify
 
