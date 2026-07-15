@@ -30,9 +30,10 @@ The collection-level pre-request script:
 3. Computes HMAC-SHA256 with the local key.
 4. Adds `X-Cents-Timestamp` and `X-Cents-Signature`.
 
-It uses Postman's supported external-package loader for `crypto-js`. Postman
-also documents `pm.variables.replaceIn()` for resolving variables before a
-request is sent:
+It uses `pm.require('npm:crypto-js@4.2.0')` through Postman's external-package
+loader. That loader is not available in every Postman runtime or workspace, so
+verify compatibility before running the collection. Postman also documents
+`pm.variables.replaceIn()` for resolving variables before a request is sent:
 
 - [Import packages into Postman scripts](https://learning.postman.com/latest-v-12/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-require)
 - [Use variables in scripts](https://learning.postman.com/docs/use/send-requests/variables/variables/)
@@ -46,6 +47,8 @@ request is sent:
 - Keep the synthetic payloads synthetic. Do not replace them with customer
   data.
 - Do not log the key or generated signature.
+- Treat the shared native-WSL Postgres volume as persistent development data.
+  Do not reset it, remove it, or run `docker compose down -v` for this proof.
 
 The example environment intentionally contains the unusable placeholder
 `<set-local-only>`. Postman marks it as a secret only to mask the local value in
@@ -96,10 +99,47 @@ runbook.
 6. Keep `cents_test_store_id=tooling-store-001` for local Worker projection.
    Change it only when testing a different explicitly bootstrapped binding.
 
+## Verify Postman Package Support
+
+The collection requires a current Postman runtime that can load a public npm
+package from an internal, partner, or public workspace.
+
+Before sending a request:
+
+1. Open the collection's pre-request script.
+2. Open **Packages** and confirm `npm:crypto-js@4.2.0` imports successfully. A
+   red warning means the signing script cannot run.
+3. If a team policy restricts external packages, allow this exact public
+   package or use a workspace where external public packages are permitted.
+4. Use the current Postman Desktop app or supported web app. Newman does not
+   support external packages used through `pm.require`.
+
+If Postman reports `Cannot find package 'npm:crypto-js@4.2.0'`, stop there. The
+request has not been signed. Update Postman, move or re-import the collection
+into a supported workspace, and confirm package access before retrying.
+
+Do not replace the import with deprecated `require('crypto-js')`, rely on a
+legacy global `CryptoJS`, or paste a precomputed signature. Those approaches do
+not prove that the exact current body was signed. If external packages cannot
+be enabled, use the automated equivalent at the end of this runbook instead of
+claiming a Postman proof.
+
 ## Run the Cases
 
-Use the Collection Runner against a clean local database. Run requests in the
-numbered order so the duplicate case follows its original delivery.
+Run requests in numbered order so the duplicate case follows its original
+delivery.
+
+For a disposable, isolated proof database, the imported identifiers may be
+used once as written. For the shared native-WSL development database, first add
+a unique run suffix to the accepted request bodies in your local Postman copy:
+
+- change the IDs in requests 01, 05, 07, and 08;
+- keep requests 05 and 06 byte-for-byte identical to each other;
+- update the accepted events' `updatedAt` values consistently;
+- do not change repository collection assets merely to rerun a local proof.
+
+This preserves durable development history and makes the first accepted
+delivery new without resetting the database.
 
 | Case                 | Expected HTTP result | Expected ingress result                        |
 | -------------------- | -------------------- | ---------------------------------------------- |
@@ -121,9 +161,10 @@ requests intentionally have identical raw bodies. Their authentication
 timestamps may differ because the event identity does not use the transport
 timestamp.
 
-If a positive case already exists from an earlier run, reset the isolated local
-database before rerunning the collection. Do not edit only the duplicate body;
-that would turn it into a different delivery.
+If a positive case already exists from an earlier run, use a new run suffix.
+Never reset the shared development database to make a `duplicate: false`
+assertion pass. Do not edit only request 06; that would turn the duplicate proof
+into a different delivery.
 
 ## Interpret Failures
 
@@ -137,6 +178,9 @@ that would turn it into a different delivery.
   could not be normalized.
 - A Postman pre-request error about `cents_hmac_key`: the selected environment
   has no local key of at least 32 UTF-8 bytes.
+- `Cannot find package 'npm:crypto-js@4.2.0'`: the current Postman runtime,
+  workspace, or team policy cannot load the collection's external package. Use
+  the compatibility steps above; this is not an API or HMAC-key failure.
 
 Check workstation and API clock synchronization before investigating a valid
 signature that fails only at the clock boundary.

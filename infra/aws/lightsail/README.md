@@ -51,8 +51,26 @@ chmod 600 /opt/pressly/backup-passphrase.txt
 
 Set `PRESSLY_PROCESSOR_DOMAIN` in `caddy.env`, and create `worker.env` and
 `processor.env` from the checked-in examples. The worker env owns the runtime
-database URL and Sentry configuration. The static Processor env contains no
-browser credential or API secret; its image is built with `VITE_API_URL=/api`.
+database URL and Sentry configuration. API and Worker receive the validated
+deployment SHA as `SENTRY_RELEASE` from `deploy.sh`; do not maintain that value
+manually in their env files. The static Processor env contains no browser
+credential or API secret.
+
+Configure these GitHub repository values for the Processor image:
+
+```text
+secret PROCESSOR_SENTRY_DSN
+secret SENTRY_AUTH_TOKEN       source-map upload only; project-scoped
+variable SENTRY_ORG
+variable PROCESSOR_SENTRY_PROJECT
+variable PROCESSOR_SENTRY_TRACES_SAMPLE_RATE
+```
+
+The browser DSN is public configuration compiled into the JavaScript bundle.
+The auth token is mounted only as a BuildKit secret and never enters an image
+layer. CI compiles the exact Git SHA and `production` environment into the
+Processor and removes source maps after uploading them. See
+`docs/observability.md` for dashboard, alert, and incident-response setup.
 
 Deployment is driven by `.github/workflows/deploy-production.yml`. The workflow
 supplies one exact source SHA and the API, Web, Worker, and Processor image

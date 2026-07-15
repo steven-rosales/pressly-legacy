@@ -11,7 +11,7 @@ export const makeLoadProductionBoardController = (
       response,
       await loadBoard({
         locationId: request.params['locationId'] as string,
-        productionShiftId: request.params['productionShiftId'] as string,
+        productionRunId: request.params['productionRunId'] as string,
       }),
     );
   });

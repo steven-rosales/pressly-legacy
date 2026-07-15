@@ -13,10 +13,12 @@ import { startServer } from './server.ts';
 import { makeSecurityEventSink } from './common/logging/security-events.ts';
 import {
   flushSentry,
+  makeApiSignalSinks,
   makeSentryErrorReporter,
 } from './common/observability/sentry.ts';
 import { observeApiRuntimeFailure } from './common/observability/api-observability.ts';
 import { makeLoggingCounterSink } from './common/observability/production-signals.ts';
+import { makePostgresProductionChangeFeed } from './common/live/production-change-feed.ts';
 
 const makeRuntimeLogger = () =>
   makeJsonLogger({
@@ -32,7 +34,12 @@ const main = async (): Promise<void> => {
   const errors = apiEnv.observability.sentry.enabled
     ? makeSentryErrorReporter()
     : nullErrorReporter;
-  const counters = makeLoggingCounterSink(logger);
+  const signals = makeApiSignalSinks({
+    logger,
+    sentryEnabled: apiEnv.observability.sentry.enabled,
+    metricsEnabled: apiEnv.features.metricsEnabled,
+  });
+  const counters = signals.counters;
 
   const database = createDatabaseRuntime({
     databaseUrl: apiEnv.databaseUrl,
@@ -54,25 +61,48 @@ const main = async (): Promise<void> => {
     observability: {
       errors,
       counters,
+      measurements: signals.measurements,
     },
     database,
   };
 
-  const app = makeApiApp(runtime);
-
-  const server = await startServer({
-    app,
-    host: apiEnv.host,
-    port: apiEnv.port,
+  const productionChanges = makePostgresProductionChangeFeed({
+    database,
     logger,
-    onServerError: (error) => {
-      observeApiRuntimeFailure(runtime, {
-        error,
-        phase: 'server',
-        operation: 'http_server',
-      });
-    },
+    counters,
   });
+  try {
+    await productionChanges.start();
+  } catch (error: unknown) {
+    await productionChanges.close();
+    await database.close();
+    await errors.shutdown();
+    throw error;
+  }
+
+  const app = makeApiApp(runtime, { productionChanges });
+
+  let server: Awaited<ReturnType<typeof startServer>>;
+  try {
+    server = await startServer({
+      app,
+      host: apiEnv.host,
+      port: apiEnv.port,
+      logger,
+      onServerError: (error) => {
+        observeApiRuntimeFailure(runtime, {
+          error,
+          phase: 'server',
+          operation: 'http_server',
+        });
+      },
+    });
+  } catch (error: unknown) {
+    await productionChanges.close();
+    await database.close();
+    await errors.shutdown();
+    throw error;
+  }
 
   installShutdownHandlers({
     logger,
@@ -81,7 +111,9 @@ const main = async (): Promise<void> => {
     forceClose: server.forceClose,
 
     close: async () => {
-      await server.close();
+      const serverClosed = server.close();
+      await productionChanges.close();
+      await serverClosed;
       await database.close();
       await errors.shutdown();
     },

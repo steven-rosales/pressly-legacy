@@ -1,8 +1,12 @@
 import type { RequestHandler } from 'express';
-import type { CreateProductionShiftCommand } from '@pressly/contracts';
+import type {
+  CreateProductionShiftCommand,
+  UpdateProductionShiftCommand,
+} from '@pressly/contracts';
 import { catchAsync } from '@pressly/http/express';
 import { sendProductionResult } from '../http/production-response.ts';
 import type { CreateProductionShift } from './manage-production-shift.port.ts';
+import type { UpdateProductionShift } from './manage-production-shift.port.ts';
 
 export const makeCreateProductionShiftController = (input: {
   create: CreateProductionShift;
@@ -17,5 +21,24 @@ export const makeCreateProductionShiftController = (input: {
         actorId: input.readActorId(response),
       }),
       201,
+    );
+  });
+
+export const makeUpdateProductionShiftController = (input: {
+  update: UpdateProductionShift;
+  readActorId: (response: Parameters<RequestHandler>[1]) => string;
+}): RequestHandler =>
+  catchAsync(async (request, response) => {
+    sendProductionResult(
+      response,
+      await input.update({
+        ...(request.body as Omit<
+          UpdateProductionShiftCommand,
+          'locationId' | 'productionShiftId'
+        >),
+        locationId: request.params['locationId'] as string,
+        productionShiftId: request.params['productionShiftId'] as string,
+        actorId: input.readActorId(response),
+      }),
     );
   });

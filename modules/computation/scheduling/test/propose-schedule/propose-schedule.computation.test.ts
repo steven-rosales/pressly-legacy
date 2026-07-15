@@ -53,16 +53,16 @@ const workedInput = (): SchedulingInput => ({
     id: id(301),
     pulseMinutes: 56,
     foldLbsPerFolderMinute: 2,
-    algorithmVersion: 'fixed-pulse-ffd-v1',
+    algorithmVersion: 'fixed-pulse-ffd-v2',
     version: 1,
   },
-  horizonEnd: '2026-07-11T03:59:59.999Z',
 });
 
-describe('fixed-pulse scheduling', () => {
+describe('fixed-pulse-ffd-v2 scheduling', () => {
   it('reproduces the 800 lb manual calculation exactly', () => {
     const proposal = proposeSchedule(workedInput());
 
+    expect(proposal.algorithmVersion).toBe('fixed-pulse-ffd-v2');
     expect(proposal.pulseCapacityLbs).toBe(224);
     expect(proposal.batches.map((batch) => batch.derivedWeightLbs)).toEqual([
       224, 224, 224, 128,
@@ -112,7 +112,7 @@ describe('fixed-pulse scheduling', () => {
     ]);
   });
 
-  it('places priority first and excludes work beyond the explicit horizon', () => {
+  it('places priority first and includes all eligible work regardless of due date', () => {
     const input = workedInput();
     const proposal = proposeSchedule({
       ...input,
@@ -135,7 +135,7 @@ describe('fixed-pulse scheduling', () => {
     });
 
     expect(proposal.batches[0]?.orderIds[0]).toBe(id(502));
-    expect(proposal.batches.flatMap((batch) => batch.orderIds)).not.toContain(
+    expect(proposal.batches.flatMap((batch) => batch.orderIds)).toContain(
       id(503),
     );
   });

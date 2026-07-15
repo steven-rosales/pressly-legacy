@@ -12,7 +12,8 @@ Usage: tooling/scripts/production-topology-smoke.sh [--skip-build]
 
 Builds and exercises a disposable, loopback-only production Compose topology.
 The script refuses remote Docker contexts, uses an isolated project and volume,
-rotates two synthetic local four-image releases, and always tears the stack down.
+proves the run-centered LPMS lifecycle, rotates two synthetic local four-image
+releases, and always tears the stack down.
 EOF
 }
 
@@ -109,6 +110,11 @@ set_release() {
   export PRESSLY_WEB_IMAGE="$(release_image "$release" web)"
   export PRESSLY_WORKER_IMAGE="$(release_image "$release" worker)"
   export PRESSLY_PROCESSOR_IMAGE="$(release_image "$release" processor)"
+  case "$release" in
+    release-a) export PRESSLY_RELEASE_SHA="$RELEASE_A_SOURCE" ;;
+    release-b) export PRESSLY_RELEASE_SHA="$RELEASE_B_SOURCE" ;;
+    *) fail "unknown synthetic release: $release" ;;
+  esac
 }
 
 set_release release-a
@@ -561,33 +567,171 @@ if (response?.ok !== false || response?.error?.code !== 'invalid_session')
 NODE
 }
 
+LPMS_LOCATION_ID='offline-smoke-location'
+LPMS_FIRST_EXTERNAL_ORDER_ID='offline-smoke-order-prestart'
+LPMS_LIVE_EXTERNAL_ORDER_ID='offline-smoke-order-live'
+LPMS_COOKIE_JAR="$WORK_DIR/lpms-processor-cookies.txt"
+LPMS_CSRF_TOKEN=''
+LPMS_FIRST_ORDER_ID=''
+LPMS_LIVE_ORDER_ID=''
+LPMS_SHIFT_ID=''
+LPMS_SCHEDULE_RUN_ID=''
+LPMS_OUTPUT_PLAN_HASH=''
+LPMS_PRODUCTION_RUN_ID=''
+LPMS_FIRST_UPDATED_AT=''
+LPMS_LIVE_UPDATED_AT=''
+LPMS_DUE_AT=''
+
+login_lpms_processor_session() {
+  local origin="https://processor.pressly.test:${CADDY_PORT}"
+  local request_file="$WORK_DIR/lpms-login-request.json"
+  local response_file="$WORK_DIR/lpms-login-response.json"
+  OWNER_PASSWORD="$OWNER_PASSWORD" REQUEST_FILE="$request_file" \
+    node --input-type=module -e "
+      import { writeFileSync } from 'node:fs';
+      writeFileSync(
+        process.env.REQUEST_FILE,
+        JSON.stringify({
+          email: 'owner@offline.pressly.test',
+          password: process.env.OWNER_PASSWORD,
+        }),
+        { flag: 'wx' },
+      );
+    "
+
+  local status
+  status="$(curl \
+    --noproxy '*' \
+    --insecure \
+    --silent \
+    --show-error \
+    --cookie-jar "$LPMS_COOKIE_JAR" \
+    --output "$response_file" \
+    --write-out '%{http_code}' \
+    --resolve "processor.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    --header "Origin: $origin" \
+    --header 'Content-Type: application/json' \
+    --data-binary "@$request_file" \
+    "${origin}/api/processor/auth/login")"
+  [[ "$status" == 200 ]] || fail "LPMS Processor login returned $status; expected 200."
+
+  LPMS_CSRF_TOKEN="$(node --input-type=module - "$response_file" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response?.ok !== true || response?.data?.status !== 'authenticated')
+  throw new Error('LPMS Processor login did not establish an authenticated session.');
+if (typeof response.data.csrfToken !== 'string' || response.data.csrfToken.length !== 43)
+  throw new Error('LPMS Processor login did not return a CSRF proof.');
+process.stdout.write(response.data.csrfToken);
+NODE
+  )"
+}
+
+processor_request() {
+  local method="$1"
+  local path="$2"
+  local request_file="$3"
+  local response_file="$4"
+  local expected_status="$5"
+  local origin="https://processor.pressly.test:${CADDY_PORT}"
+  [[ "$path" == /api/* ]] || fail "Processor proof path must stay behind /api: $path"
+
+  local -a arguments=(
+    --noproxy '*'
+    --insecure
+    --silent
+    --show-error
+    --cookie "$LPMS_COOKIE_JAR"
+    --output "$response_file"
+    --write-out '%{http_code}'
+    --resolve "processor.pressly.test:${CADDY_PORT}:127.0.0.1"
+    --request "$method"
+  )
+  if [[ "$method" != GET && "$method" != HEAD ]]; then
+    arguments+=(--header "Origin: $origin" --header "X-CSRF-Token: $LPMS_CSRF_TOKEN")
+  fi
+  if [[ -n "$request_file" ]]; then
+    arguments+=(--header 'Content-Type: application/json' --data-binary "@$request_file")
+  fi
+
+  local status
+  status="$(curl "${arguments[@]}" "${origin}${path}")"
+  [[ "$status" == "$expected_status" ]] ||
+    fail "Processor $method $path returned $status; expected $expected_status."
+  node --input-type=module - "$response_file" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response?.ok !== true)
+  throw new Error('Authenticated Processor command did not return an API success envelope.');
+NODE
+}
+
+write_json_file() {
+  local path="$1"
+  local json="$2"
+  JSON_VALUE="$json" JSON_PATH="$path" node --input-type=module -e "
+    import { writeFileSync } from 'node:fs';
+    const value = JSON.parse(process.env.JSON_VALUE);
+    writeFileSync(process.env.JSON_PATH, JSON.stringify(value), { flag: 'wx' });
+  "
+}
+
 wait_for_projection() {
+  local external_order_id="$1"
+  local expected_status="$2"
   local deadline=$((SECONDS + 60))
   while ((SECONDS < deadline)); do
     local state
     state="$(database_scalar "
       select concat(
-        coalesce((select status from webhook_events where source = 'cents' and subject_type = 'order' and subject_id = 'offline-smoke-order' limit 1), 'missing'),
+        coalesce((select status from webhook_events where source = 'cents' and subject_type = 'order' and subject_id = '$external_order_id' limit 1), 'missing'),
         '|',
-        coalesce((select po.status from production_orders po join order_demands demand on demand.id = po.order_demand_id where demand.demand_key = 'cents:order:offline-smoke-order' limit 1), 'missing'),
+        coalesce((select po.status from production_orders po join order_demands demand on demand.id = po.order_demand_id where demand.demand_key = 'cents:order:$external_order_id' limit 1), 'missing'),
         '|',
-        (select count(*) from production_orders po join order_demands demand on demand.id = po.order_demand_id where demand.demand_key = 'cents:order:offline-smoke-order')
+        (select count(*) from production_orders po join order_demands demand on demand.id = po.order_demand_id where demand.demand_key = 'cents:order:$external_order_id')
       );
     ")"
-    if [[ "$state" == 'processed|intake_pending|1' ]]; then
+    if [[ "$state" == "processed|${expected_status}|1" ]]; then
       return
     fi
     sleep 1
   done
-  fail 'signed Cents event was not applied by Worker within 60 seconds.'
+  fail "signed Cents event $external_order_id did not reach $expected_status within 60 seconds."
 }
 
 send_signed_webhook() {
-  local body_file="$WORK_DIR/cents-order.json"
-  local response_file="$WORK_DIR/cents-response.json"
-  cat > "$body_file" <<'JSON'
-{"action":"order_updated","order":{"id":"offline-smoke-order","storeId":"offline-smoke-store","status":"IN_PROGRESS","dueDate":"2030-01-15T20:00:00.000Z","updatedAt":"2030-01-15T14:00:00.000Z"},"services":[{"id":"offline-smoke-service","name":"Synthetic Wash and Fold","quantity":10,"totalPrice":"20.00","unitCost":"2.00","serviceCategory":"Wash and Fold","serviceCategoryType":"LAUNDRY"}]}
-JSON
+  local external_order_id="$1"
+  local updated_at="$2"
+  local due_at="$3"
+  local body_file="$WORK_DIR/cents-${external_order_id}.json"
+  local response_file="$WORK_DIR/cents-${external_order_id}-response.json"
+  BODY_FILE="$body_file" EXTERNAL_ORDER_ID="$external_order_id" UPDATED_AT="$updated_at" DUE_AT="$due_at" \
+    node --input-type=module -e "
+      import { writeFileSync } from 'node:fs';
+      writeFileSync(
+        process.env.BODY_FILE,
+        JSON.stringify({
+          action: 'order_updated',
+          order: {
+            id: process.env.EXTERNAL_ORDER_ID,
+            storeId: 'offline-smoke-store',
+            status: 'IN_PROGRESS',
+            dueDate: process.env.DUE_AT,
+            updatedAt: process.env.UPDATED_AT,
+          },
+          services: [{
+            id: 'offline-smoke-service',
+            name: 'Synthetic Wash and Fold',
+            quantity: 10,
+            totalPrice: '20.00',
+            unitCost: '2.00',
+            serviceCategory: 'Wash and Fold',
+            serviceCategoryType: 'LAUNDRY',
+          }],
+        }),
+        { flag: 'wx' },
+      );
+    "
   local timestamp signature status
   timestamp="$(date +%s)"
   signature="$(
@@ -628,6 +772,510 @@ if (response?.ok !== true || response?.data?.status !== 'pending' || response?.d
 NODE
 }
 
+load_order_identity() {
+  local external_order_id="$1"
+  local expected_status="$2"
+  local response_file="$3"
+  processor_request \
+    GET \
+    "/api/production/locations/${LPMS_LOCATION_ID}/orders?status=${expected_status}&limit=50" \
+    '' \
+    "$response_file" \
+    200
+  EXPECTED_EXTERNAL_ORDER_ID="$external_order_id" EXPECTED_STATUS="$expected_status" \
+    node --input-type=module - "$response_file" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const matches = response.data.items.filter(
+  (order) => order.externalOrderId === process.env.EXPECTED_EXTERNAL_ORDER_ID,
+);
+if (matches.length !== 1 || matches[0].status !== process.env.EXPECTED_STATUS)
+  throw new Error('The expected synthetic production order was not uniquely visible.');
+process.stdout.write(`${matches[0].id}|${matches[0].version}`);
+NODE
+}
+
+prepare_lpms_before_api_restart() {
+  local -a lpms_times
+  mapfile -t lpms_times < <(node --input-type=module - <<'NODE'
+const now = Date.now();
+for (const value of [
+  new Date(now - 20 * 60_000),
+  new Date(now - 10 * 60_000),
+  new Date(now + 60 * 60_000),
+  new Date(now - 12 * 60 * 60_000),
+  new Date(now - 4 * 60 * 60_000),
+]) console.log(value.toISOString());
+NODE
+  )
+  (( ${#lpms_times[@]} == 5 )) || fail 'Could not establish synthetic LPMS timestamps.'
+  LPMS_FIRST_UPDATED_AT="${lpms_times[0]}"
+  LPMS_LIVE_UPDATED_AT="${lpms_times[1]}"
+  LPMS_DUE_AT="${lpms_times[2]}"
+  local shift_starts_at="${lpms_times[3]}"
+  local shift_ends_at="${lpms_times[4]}"
+
+  echo '[v2] projecting the pre-Start signed Cents order, then setting priority before intake'
+  send_signed_webhook \
+    "$LPMS_FIRST_EXTERNAL_ORDER_ID" \
+    "$LPMS_FIRST_UPDATED_AT" \
+    "$LPMS_DUE_AT"
+  wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" intake_pending
+
+  login_lpms_processor_session
+  local order_identity order_version
+  order_identity="$(load_order_identity \
+    "$LPMS_FIRST_EXTERNAL_ORDER_ID" \
+    intake_pending \
+    "$WORK_DIR/lpms-prestart-orders.json")"
+  IFS='|' read -r LPMS_FIRST_ORDER_ID order_version <<< "$order_identity"
+
+  local priority_request="$WORK_DIR/lpms-prestart-priority-request.json"
+  local priority_response="$WORK_DIR/lpms-prestart-priority-response.json"
+  write_json_file "$priority_request" "{\"priority\":true,\"expectedVersion\":${order_version},\"idempotencyKey\":\"offline-smoke-prestart-priority-v1\"}"
+  processor_request \
+    PATCH \
+    "/api/production/locations/${LPMS_LOCATION_ID}/orders/${LPMS_FIRST_ORDER_ID}/priority" \
+    "$priority_request" \
+    "$priority_response" \
+    200
+  order_version="$(node --input-type=module - "$priority_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response.data.replayed !== false) throw new Error('Pre-Start priority unexpectedly replayed.');
+process.stdout.write(String(response.data.version));
+NODE
+  )"
+
+  local intake_request="$WORK_DIR/lpms-prestart-intake-request.json"
+  local intake_response="$WORK_DIR/lpms-prestart-intake-response.json"
+  write_json_file "$intake_request" "{\"bagCount\":1,\"expectedVersion\":${order_version},\"idempotencyKey\":\"offline-smoke-prestart-intake-v1\"}"
+  processor_request \
+    PUT \
+    "/api/production/locations/${LPMS_LOCATION_ID}/orders/${LPMS_FIRST_ORDER_ID}/intake" \
+    "$intake_request" \
+    "$intake_response" \
+    200
+  wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" eligible
+
+  local initial_workspace="$WORK_DIR/lpms-initial-workspace.json"
+  processor_request \
+    GET \
+    "/api/production/locations/${LPMS_LOCATION_ID}/workspace" \
+    '' \
+    "$initial_workspace" \
+    200
+  local scheduler_config_id
+  scheduler_config_id="$(EXPECTED_ORDER_ID="$LPMS_FIRST_ORDER_ID" node --input-type=module - "$initial_workspace" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const config = response.data.currentSchedulerConfig;
+if (config?.algorithmVersion !== 'fixed-pulse-ffd-v2')
+  throw new Error('The current scheduler configuration is not fixed-pulse-ffd-v2.');
+const order = response.data.pendingEligibleOrders.find(
+  (candidate) => candidate.id === process.env.EXPECTED_ORDER_ID,
+);
+if (order?.priority !== true || order?.placement?.status !== 'awaiting_run')
+  throw new Error('Pre-Start intake did not persist priority and awaiting-run placement state.');
+process.stdout.write(config.id);
+NODE
+  )"
+
+  echo '[v2] creating a past synthetic shift and executing Compute -> Accept without execution rows'
+  local shift_request="$WORK_DIR/lpms-shift-request.json"
+  local shift_response="$WORK_DIR/lpms-shift-response.json"
+  write_json_file "$shift_request" "{\"startsAt\":\"${shift_starts_at}\",\"endsAt\":\"${shift_ends_at}\",\"timezone\":\"America/New_York\",\"effectiveFolderCount\":2,\"idempotencyKey\":\"offline-smoke-shift-v1\"}"
+  processor_request \
+    POST \
+    "/api/production/locations/${LPMS_LOCATION_ID}/shifts" \
+    "$shift_request" \
+    "$shift_response" \
+    201
+  LPMS_SHIFT_ID="$(node --input-type=module - "$shift_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (Date.parse(response.data.endsAt) >= Date.now())
+  throw new Error('The synthetic shift must end in the past for stage-boundary proof.');
+process.stdout.write(response.data.id);
+NODE
+  )"
+
+  local compute_request="$WORK_DIR/lpms-compute-request.json"
+  local compute_response="$WORK_DIR/lpms-compute-response.json"
+  write_json_file "$compute_request" "{\"productionShiftId\":\"${LPMS_SHIFT_ID}\",\"schedulerConfigId\":\"${scheduler_config_id}\",\"idempotencyKey\":\"offline-smoke-compute-v2\"}"
+  processor_request \
+    POST \
+    "/api/production/locations/${LPMS_LOCATION_ID}/schedules" \
+    "$compute_request" \
+    "$compute_response" \
+    201
+  local schedule_identity
+  schedule_identity="$(EXPECTED_ORDER_ID="$LPMS_FIRST_ORDER_ID" node --input-type=module - "$compute_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const schedule = response.data;
+if (
+  schedule.status !== 'draft' ||
+  schedule.algorithmVersion !== 'fixed-pulse-ffd-v2' ||
+  schedule.batches.length !== 1 ||
+  schedule.batches[0].orderIds.length !== 1 ||
+  schedule.batches[0].orderIds[0] !== process.env.EXPECTED_ORDER_ID ||
+  schedule.unplacedOrderIds.length !== 0 ||
+  schedule.warnings.length !== 0
+) throw new Error('Compute did not produce the expected complete one-order proposal.');
+process.stdout.write(`${schedule.scheduleRunId}|${schedule.outputPlanHash}`);
+NODE
+  )"
+  IFS='|' read -r LPMS_SCHEDULE_RUN_ID LPMS_OUTPUT_PLAN_HASH <<< "$schedule_identity"
+
+  local accept_request="$WORK_DIR/lpms-accept-request.json"
+  local accept_response="$WORK_DIR/lpms-accept-response.json"
+  write_json_file "$accept_request" "{\"expectedOutputPlanHash\":\"${LPMS_OUTPUT_PLAN_HASH}\",\"acknowledgedWarningCodes\":[],\"idempotencyKey\":\"offline-smoke-accept-v2\"}"
+  processor_request \
+    POST \
+    "/api/production/locations/${LPMS_LOCATION_ID}/schedules/${LPMS_SCHEDULE_RUN_ID}/accept" \
+    "$accept_request" \
+    "$accept_response" \
+    201
+  EXPECTED_SCHEDULE_RUN_ID="$LPMS_SCHEDULE_RUN_ID" node --input-type=module - "$accept_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response.data.scheduleRunId !== process.env.EXPECTED_SCHEDULE_RUN_ID || response.data.replayed !== false)
+  throw new Error('Accept did not persist the expected current plan.');
+NODE
+
+  local prestart_state
+  prestart_state="$(database_scalar "
+    select concat(
+      (select status from schedule_runs where id = '${LPMS_SCHEDULE_RUN_ID}'),
+      '|',
+      (select count(*) from production_runs where production_shift_id = '${LPMS_SHIFT_ID}'),
+      '|',
+      (select status from production_orders where id = '${LPMS_FIRST_ORDER_ID}'),
+      '|',
+      (select count(*) from production_bags where production_order_id = '${LPMS_FIRST_ORDER_ID}')
+    );
+  ")"
+  [[ "$prestart_state" == 'accepted|0|eligible|1' ]] ||
+    fail "Accept created or lost execution state before Start: $prestart_state"
+}
+
+resume_lpms_after_api_restart() {
+  echo '[v2] restoring the Processor cookie after API restart, refreshing accepted backend state, and starting once'
+  local session_response="$WORK_DIR/lpms-restored-session.json"
+  processor_request GET /api/processor/auth/session '' "$session_response" 200
+  EXPECTED_CSRF_TOKEN="$LPMS_CSRF_TOKEN" node --input-type=module - "$session_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response.data.status !== 'authenticated' || response.data.csrfToken !== process.env.EXPECTED_CSRF_TOKEN)
+  throw new Error('API restart did not restore the authenticated Processor session and CSRF proof.');
+NODE
+
+  local workspace_response="$WORK_DIR/lpms-accepted-workspace.json"
+  processor_request \
+    GET \
+    "/api/production/locations/${LPMS_LOCATION_ID}/workspace?shiftId=${LPMS_SHIFT_ID}" \
+    '' \
+    "$workspace_response" \
+    200
+  EXPECTED_SHIFT_ID="$LPMS_SHIFT_ID" EXPECTED_SCHEDULE_RUN_ID="$LPMS_SCHEDULE_RUN_ID" \
+    EXPECTED_ORDER_ID="$LPMS_FIRST_ORDER_ID" node --input-type=module - "$workspace_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (
+  response.data.currentShift?.id !== process.env.EXPECTED_SHIFT_ID ||
+  response.data.currentScheduleProposal?.scheduleRunId !== process.env.EXPECTED_SCHEDULE_RUN_ID ||
+  response.data.currentScheduleProposal?.status !== 'accepted' ||
+  response.data.activeRuns.length !== 0 ||
+  !response.data.pendingEligibleOrders.some((order) => order.id === process.env.EXPECTED_ORDER_ID)
+) throw new Error('Accepted plan did not survive API restart and explicit shift refresh.');
+NODE
+
+  local start_request="$WORK_DIR/lpms-start-request.json"
+  local start_response="$WORK_DIR/lpms-start-response.json"
+  write_json_file "$start_request" "{\"expectedOutputPlanHash\":\"${LPMS_OUTPUT_PLAN_HASH}\",\"idempotencyKey\":\"offline-smoke-start-v2\"}"
+  processor_request \
+    POST \
+    "/api/production/locations/${LPMS_LOCATION_ID}/schedules/${LPMS_SCHEDULE_RUN_ID}/start" \
+    "$start_request" \
+    "$start_response" \
+    201
+  LPMS_PRODUCTION_RUN_ID="$(EXPECTED_SCHEDULE_RUN_ID="$LPMS_SCHEDULE_RUN_ID" node --input-type=module - "$start_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (
+  response.data.scheduleRunId !== process.env.EXPECTED_SCHEDULE_RUN_ID ||
+  response.data.productionBatchIds.length !== 1 ||
+  response.data.queueVersion !== 1 ||
+  response.data.replayed !== false
+) throw new Error('Start did not create exactly one initial started run and batch.');
+process.stdout.write(response.data.productionRunId);
+NODE
+  )"
+
+  local board_response="$WORK_DIR/lpms-board-after-start.json"
+  processor_request \
+    GET \
+    "/api/production/locations/${LPMS_LOCATION_ID}/runs/${LPMS_PRODUCTION_RUN_ID}/board" \
+    '' \
+    "$board_response" \
+    200
+  EXPECTED_RUN_ID="$LPMS_PRODUCTION_RUN_ID" EXPECTED_ORDER_ID="$LPMS_FIRST_ORDER_ID" \
+    node --input-type=module - "$board_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const board = response.data;
+if (
+  board.productionRun.id !== process.env.EXPECTED_RUN_ID ||
+  board.productionRun.status !== 'started' ||
+  board.batches.length !== 1 ||
+  board.batches[0].orders.length !== 1 ||
+  board.batches[0].orders[0].id !== process.env.EXPECTED_ORDER_ID ||
+  board.batches[0].orders[0].placementProvenance !== 'initial_schedule'
+) throw new Error('The direct run-ID board did not resume the initial started run.');
+NODE
+}
+
+fast_forward_started_stage() {
+  local stage_run_id="$1"
+  local stage_kind="$2"
+  local expected_assignments=0
+  [[ "$stage_kind" == washing || "$stage_kind" == drying ]] && expected_assignments=1
+  local changed
+  changed="$(database_scalar "
+    with changed_stage as (
+      update stage_runs
+      set actual_start_at = planned_start_at
+      where id = '${stage_run_id}' and status = 'started'
+      returning id
+    ), changed_assignments as (
+      update stage_machine_assignments
+      set actual_start_at = planned_start_at
+      where stage_run_id = '${stage_run_id}' and status = 'active'
+      returning id
+    )
+    select concat(
+      (select count(*) from changed_stage),
+      '|',
+      (select count(*) from changed_assignments)
+    );
+  ")"
+  [[ "$changed" == "1|${expected_assignments}" ]] ||
+    fail "synthetic stage clock advance was incomplete for $stage_kind: $changed"
+}
+
+finish_lpms_live_flow() {
+  echo '[v2] projecting the post-Start signed arrival, then setting priority before automatic intake placement'
+  send_signed_webhook \
+    "$LPMS_LIVE_EXTERNAL_ORDER_ID" \
+    "$LPMS_LIVE_UPDATED_AT" \
+    "$LPMS_DUE_AT"
+  wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" intake_pending
+
+  local order_identity order_version
+  order_identity="$(load_order_identity \
+    "$LPMS_LIVE_EXTERNAL_ORDER_ID" \
+    intake_pending \
+    "$WORK_DIR/lpms-live-orders.json")"
+  IFS='|' read -r LPMS_LIVE_ORDER_ID order_version <<< "$order_identity"
+
+  local priority_request="$WORK_DIR/lpms-live-priority-request.json"
+  local priority_response="$WORK_DIR/lpms-live-priority-response.json"
+  write_json_file "$priority_request" "{\"priority\":true,\"expectedVersion\":${order_version},\"idempotencyKey\":\"offline-smoke-live-priority-v1\"}"
+  processor_request \
+    PATCH \
+    "/api/production/locations/${LPMS_LOCATION_ID}/orders/${LPMS_LIVE_ORDER_ID}/priority" \
+    "$priority_request" \
+    "$priority_response" \
+    200
+  order_version="$(node --input-type=module - "$priority_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+process.stdout.write(String(response.data.version));
+NODE
+  )"
+
+  local intake_request="$WORK_DIR/lpms-live-intake-request.json"
+  local intake_response="$WORK_DIR/lpms-live-intake-response.json"
+  write_json_file "$intake_request" "{\"bagCount\":1,\"expectedVersion\":${order_version},\"idempotencyKey\":\"offline-smoke-live-intake-v1\"}"
+  processor_request \
+    PUT \
+    "/api/production/locations/${LPMS_LOCATION_ID}/orders/${LPMS_LIVE_ORDER_ID}/intake" \
+    "$intake_request" \
+    "$intake_response" \
+    200
+  wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" scheduled
+
+  local placed_board="$WORK_DIR/lpms-board-after-live-placement.json"
+  processor_request \
+    GET \
+    "/api/production/locations/${LPMS_LOCATION_ID}/runs/${LPMS_PRODUCTION_RUN_ID}/board" \
+    '' \
+    "$placed_board" \
+    200
+  local freeze_identity
+  freeze_identity="$(EXPECTED_FIRST_ORDER_ID="$LPMS_FIRST_ORDER_ID" EXPECTED_LIVE_ORDER_ID="$LPMS_LIVE_ORDER_ID" \
+    node --input-type=module - "$placed_board" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const board = response.data;
+if (board.productionRun.queueVersion !== 2 || board.batches.length !== 1 || board.eligibleOrders.length !== 0)
+  throw new Error('Automatic live placement did not produce one stable queue mutation.');
+const orders = board.batches[0].orders;
+const first = orders.find((order) => order.id === process.env.EXPECTED_FIRST_ORDER_ID);
+const live = orders.find((order) => order.id === process.env.EXPECTED_LIVE_ORDER_ID);
+if (
+  orders.length !== 2 ||
+  first?.priority !== true ||
+  first?.placementProvenance !== 'initial_schedule' ||
+  live?.priority !== true ||
+  live?.placementProvenance !== 'automatic'
+) throw new Error('Live order placement provenance or priority is incorrect.');
+process.stdout.write(`${board.productionRun.queueVersion}|${board.batches[0].id}|${board.batches[0].version}`);
+NODE
+  )"
+  local queue_version batch_id batch_version
+  IFS='|' read -r queue_version batch_id batch_version <<< "$freeze_identity"
+
+  echo '[v2] explicitly freezing the mutable batch through the versioned queue command'
+  local freeze_request="$WORK_DIR/lpms-freeze-request.json"
+  local freeze_response="$WORK_DIR/lpms-freeze-response.json"
+  write_json_file "$freeze_request" "{\"expectedQueueVersion\":${queue_version},\"expectedBatchVersion\":${batch_version},\"idempotencyKey\":\"offline-smoke-freeze-v1\"}"
+  processor_request \
+    POST \
+    "/api/production/locations/${LPMS_LOCATION_ID}/runs/${LPMS_PRODUCTION_RUN_ID}/batches/${batch_id}/freeze" \
+    "$freeze_request" \
+    "$freeze_response" \
+    200
+  node --input-type=module - "$freeze_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response.data.membership?.state !== 'frozen' || response.data.replayed !== false)
+  throw new Error('Explicit batch freeze did not commit frozen membership.');
+NODE
+
+  local frozen_board="$WORK_DIR/lpms-board-after-freeze.json"
+  processor_request \
+    GET \
+    "/api/production/locations/${LPMS_LOCATION_ID}/runs/${LPMS_PRODUCTION_RUN_ID}/board" \
+    '' \
+    "$frozen_board" \
+    200
+  local -a stage_rows
+  mapfile -t stage_rows < <(node --input-type=module - "$frozen_board" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const batch = response.data.batches[0];
+const expected = ['sorting', 'washing', 'drying', 'folding_packaging'];
+if (batch?.membership?.state !== 'frozen' || batch.stages.map((stage) => stage.stage).join('|') !== expected.join('|'))
+  throw new Error('Frozen batch does not expose the canonical four-stage pipeline.');
+for (const stage of batch.stages) console.log(`${stage.id}|${stage.stage}|${stage.version}`);
+NODE
+  )
+  (( ${#stage_rows[@]} == 4 )) || fail 'The LPMS batch did not contain exactly four stages.'
+
+  echo '[v2] driving all four stage start/complete transitions through Processor; disposable SQL advances only synthetic elapsed time'
+  local row stage_id stage_kind stage_version
+  for row in "${stage_rows[@]}"; do
+    IFS='|' read -r stage_id stage_kind stage_version <<< "$row"
+    local start_request="$WORK_DIR/lpms-stage-${stage_kind}-start-request.json"
+    local start_response="$WORK_DIR/lpms-stage-${stage_kind}-start-response.json"
+    write_json_file "$start_request" "{\"expectedVersion\":${stage_version},\"idempotencyKey\":\"offline-smoke-stage-${stage_kind}-start-v1\"}"
+    processor_request \
+      POST \
+      "/api/production/locations/${LPMS_LOCATION_ID}/stages/${stage_id}/start" \
+      "$start_request" \
+      "$start_response" \
+      200
+    stage_version="$(EXPECTED_STAGE_ID="$stage_id" node --input-type=module - "$start_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response.data.entityId !== process.env.EXPECTED_STAGE_ID || response.data.replayed !== false)
+  throw new Error('Stage start did not mutate the expected stage.');
+process.stdout.write(String(response.data.version));
+NODE
+    )"
+
+    fast_forward_started_stage "$stage_id" "$stage_kind"
+
+    local complete_request="$WORK_DIR/lpms-stage-${stage_kind}-complete-request.json"
+    local complete_response="$WORK_DIR/lpms-stage-${stage_kind}-complete-response.json"
+    write_json_file "$complete_request" "{\"expectedVersion\":${stage_version},\"idempotencyKey\":\"offline-smoke-stage-${stage_kind}-complete-v1\"}"
+    processor_request \
+      POST \
+      "/api/production/locations/${LPMS_LOCATION_ID}/stages/${stage_id}/complete" \
+      "$complete_request" \
+      "$complete_response" \
+      200
+    EXPECTED_STAGE_ID="$stage_id" node --input-type=module - "$complete_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response.data.entityId !== process.env.EXPECTED_STAGE_ID || response.data.replayed !== false)
+  throw new Error('Stage completion did not mutate the expected stage.');
+NODE
+  done
+
+  echo '[v2] resuming the completed board directly by production run ID and checking durable execution state'
+  local completed_board="$WORK_DIR/lpms-completed-board.json"
+  processor_request \
+    GET \
+    "/api/production/locations/${LPMS_LOCATION_ID}/runs/${LPMS_PRODUCTION_RUN_ID}/board" \
+    '' \
+    "$completed_board" \
+    200
+  EXPECTED_RUN_ID="$LPMS_PRODUCTION_RUN_ID" EXPECTED_FIRST_ORDER_ID="$LPMS_FIRST_ORDER_ID" \
+    EXPECTED_LIVE_ORDER_ID="$LPMS_LIVE_ORDER_ID" node --input-type=module - "$completed_board" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const board = response.data;
+const batch = board.batches[0];
+const orderIds = new Set(batch?.orders.map((order) => order.id));
+if (
+  board.productionRun.id !== process.env.EXPECTED_RUN_ID ||
+  board.productionRun.status !== 'completed' ||
+  board.batches.length !== 1 ||
+  batch.status !== 'finished' ||
+  batch.membership.state !== 'frozen' ||
+  orderIds.size !== 2 ||
+  !orderIds.has(process.env.EXPECTED_FIRST_ORDER_ID) ||
+  !orderIds.has(process.env.EXPECTED_LIVE_ORDER_ID) ||
+  batch.stages.some((stage) => stage.status !== 'completed' || stage.allowedActions.length !== 0) ||
+  board.eligibleOrders.length !== 0
+) throw new Error('The completed run-ID board did not preserve the full execution history.');
+NODE
+
+  local durable_state
+  durable_state="$(database_scalar "
+    select concat(
+      (select count(*) from webhook_events where source = 'cents' and subject_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
+      '|',
+      (select count(*) from order_demands where demand_key in ('cents:order:${LPMS_FIRST_EXTERNAL_ORDER_ID}', 'cents:order:${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
+      '|',
+      (select count(*) from production_orders where id in ('${LPMS_FIRST_ORDER_ID}', '${LPMS_LIVE_ORDER_ID}') and status = 'finished' and priority = true and bag_count = 1),
+      '|',
+      (select count(*) from production_bags where production_order_id in ('${LPMS_FIRST_ORDER_ID}', '${LPMS_LIVE_ORDER_ID}') and status = 'finished'),
+      '|',
+      (select count(*) from schedule_runs where id = '${LPMS_SCHEDULE_RUN_ID}' and status = 'accepted'),
+      '|',
+      (select count(*) from production_runs where id = '${LPMS_PRODUCTION_RUN_ID}' and production_shift_id = '${LPMS_SHIFT_ID}' and status = 'completed'),
+      '|',
+      (select count(*) from production_batches where production_run_id = '${LPMS_PRODUCTION_RUN_ID}' and status = 'finished' and membership_frozen_at is not null and membership_frozen_by is not null),
+      '|',
+      (select count(*) from stage_runs stage join production_batches batch on batch.id = stage.production_batch_id where batch.production_run_id = '${LPMS_PRODUCTION_RUN_ID}' and stage.status = 'completed'),
+      '|',
+      (select count(*) from production_batch_orders link join production_batches batch on batch.id = link.production_batch_id where batch.production_run_id = '${LPMS_PRODUCTION_RUN_ID}'),
+      '|',
+      (select count(*) from production_batch_orders link join production_batches batch on batch.id = link.production_batch_id where batch.production_run_id = '${LPMS_PRODUCTION_RUN_ID}' and link.placement_provenance = 'automatic'),
+      '|',
+      (select count(*) from work_events event join stage_runs stage on stage.id = event.entity_id join production_batches batch on batch.id = stage.production_batch_id where batch.production_run_id = '${LPMS_PRODUCTION_RUN_ID}' and event.event_type = 'stage_started'),
+      '|',
+      (select count(*) from work_events event join stage_runs stage on stage.id = event.entity_id join production_batches batch on batch.id = stage.production_batch_id where batch.production_run_id = '${LPMS_PRODUCTION_RUN_ID}' and event.event_type = 'stage_completed')
+    );
+  ")"
+  [[ "$durable_state" == '2|2|2|2|1|1|1|4|2|1|4|4' ]] ||
+    fail "completed LPMS persistence graph is inconsistent: $durable_state"
+}
+
 echo '[v2] starting a clean Postgres volume and applying all migrations'
 compose up -d --wait --wait-timeout 120 postgres
 run_migrations
@@ -662,11 +1310,9 @@ prove_processor_cookie_auth
 INITIAL_HEARTBEAT="$(compose exec -T worker sh -c 'cat "${WORKER_HEARTBEAT_FILE:-/tmp/pressly-worker-heartbeat}"')"
 [[ -n "$INITIAL_HEARTBEAT" ]] || fail 'Worker heartbeat file is empty.'
 
-echo '[v2] sending one exact-byte signed Cents event through Caddy and waiting for Worker projection'
-send_signed_webhook
-wait_for_projection
+prepare_lpms_before_api_restart
 
-echo '[v2] restarting API and Worker independently'
+echo '[v2] restarting API after Accept and proving backend-derived refresh before Start'
 API_STARTED_BEFORE="$(docker inspect --format '{{.State.StartedAt}}' "$(compose ps -q api)")"
 compose restart api >/dev/null
 wait_for_health api
@@ -674,7 +1320,9 @@ API_STARTED_AFTER="$(docker inspect --format '{{.State.StartedAt}}' "$(compose p
 [[ "$API_STARTED_AFTER" != "$API_STARTED_BEFORE" ]] || fail 'API restart did not change its start time.'
 probe_ok api.pressly.test /health/ready
 probe_ok processor.pressly.test /api/health/ready
+resume_lpms_after_api_restart
 
+echo '[v2] restarting Worker independently before the live-arrival proof'
 WORKER_HEARTBEAT_BEFORE="$(compose exec -T worker sh -c 'cat "${WORKER_HEARTBEAT_FILE:-/tmp/pressly-worker-heartbeat}"')"
 compose restart worker >/dev/null
 wait_for_health worker
@@ -688,6 +1336,8 @@ done
 [[ "$WORKER_HEARTBEAT_AFTER" != "$WORKER_HEARTBEAT_BEFORE" ]] ||
   fail 'Worker heartbeat did not advance after restart.'
 
+finish_lpms_live_flow
+
 promote_metadata "$RELEASE_A_SOURCE"
 
 echo '[v2] migrating and switching all four applications to synthetic release-b'
@@ -696,7 +1346,8 @@ run_migrations
 compose up -d --force-recreate --wait --wait-timeout 180 api web worker processor
 assert_release_images release-b
 probe_routes
-wait_for_projection
+wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" finished
+wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" finished
 promote_metadata "$RELEASE_B_SOURCE"
 assert_metadata "$RELEASE_B_SOURCE" release-b "$RELEASE_A_SOURCE" release-a
 
@@ -706,18 +1357,39 @@ run_migrations
 compose up -d --force-recreate --wait --wait-timeout 180 api web worker processor
 assert_release_images release-a
 probe_routes
-wait_for_projection
+wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" finished
+wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" finished
 swap_metadata_for_rollback
 assert_metadata "$RELEASE_A_SOURCE" release-a "$RELEASE_B_SOURCE" release-b
 
+processor_request \
+  GET \
+  "/api/production/locations/${LPMS_LOCATION_ID}/runs/${LPMS_PRODUCTION_RUN_ID}/board" \
+  '' \
+  "$WORK_DIR/lpms-board-after-rollback.json" \
+  200
+EXPECTED_RUN_ID="$LPMS_PRODUCTION_RUN_ID" \
+  node --input-type=module - "$WORK_DIR/lpms-board-after-rollback.json" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response.data.productionRun?.id !== process.env.EXPECTED_RUN_ID || response.data.productionRun.status !== 'completed')
+  throw new Error('The completed run-ID board did not survive release rotation and rollback.');
+NODE
+
 RUNTIME_COUNTS="$(database_scalar "
   select concat(
-    (select count(*) from webhook_events where source = 'cents' and subject_type = 'order' and subject_id = 'offline-smoke-order'),
+    (select count(*) from webhook_events where source = 'cents' and subject_type = 'order' and subject_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
     '|',
-    (select count(*) from production_orders po join order_demands demand on demand.id = po.order_demand_id where demand.demand_key = 'cents:order:offline-smoke-order')
+    (select count(*) from production_orders po join order_demands demand on demand.id = po.order_demand_id where demand.demand_key in ('cents:order:${LPMS_FIRST_EXTERNAL_ORDER_ID}', 'cents:order:${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
+    '|',
+    (select count(*) from production_orders where id in ('${LPMS_FIRST_ORDER_ID}', '${LPMS_LIVE_ORDER_ID}') and status = 'finished'),
+    '|',
+    (select count(*) from production_runs where id = '${LPMS_PRODUCTION_RUN_ID}' and status = 'completed'),
+    '|',
+    (select count(*) from stage_runs stage join production_batches batch on batch.id = stage.production_batch_id where batch.production_run_id = '${LPMS_PRODUCTION_RUN_ID}' and stage.status = 'completed')
   );
 ")"
-[[ "$RUNTIME_COUNTS" == '1|1' ]] || fail "rollback duplicated durable runtime state: $RUNTIME_COUNTS"
+[[ "$RUNTIME_COUNTS" == '2|2|2|1|4' ]] || fail "rollback duplicated or lost durable LPMS state: $RUNTIME_COUNTS"
 
 echo '[v2] capturing one steady-state memory snapshot for the complete private stack'
 mapfile -t CONTAINER_IDS < <(compose ps -q)
@@ -744,14 +1416,17 @@ const report = {
     bind: `https://127.0.0.1:${caddyPort}`,
     onlyCaddyPublished: true,
     localTls: 'Caddy internal CA with curl certificate verification disabled only for this disposable proof.',
-    routes: ['web:/health', 'api:/health/ready', 'processor:/', 'processor:/api/health/ready', 'processor:/api/processor/auth/session'],
+    routes: ['web:/health', 'api:/health/ready', 'processor:/', 'processor:/api/health/ready', 'processor:/api/processor/auth/session', 'processor:/api/production/locations/:locationId/runs/:productionRunId/board'],
   },
   database: {
     cleanMigration: true,
     explicitSyntheticBootstrap: true,
-    signedReceiptCount: 1,
-    projectedOrderCount: 1,
-    projectionStatus: 'intake_pending',
+    signedReceiptCount: 2,
+    projectedOrderCount: 2,
+    projectionStatus: 'finished',
+    productionRunCount: 1,
+    completedStageCount: 4,
+    stageTransitionCommandCount: 8,
   },
   recovery: {
     apiRestartHealthy: true,
@@ -761,9 +1436,20 @@ const report = {
     loginThroughCaddy: true,
     secureHttpOnlyStrictHostCookie: true,
     sessionRestoredFromCookie: true,
+    sessionSurvivedApiRestart: true,
     missingCsrfRejected: true,
     validCsrfLogoutAccepted: true,
     revokedSessionRejected: true,
+  },
+  lpmsWorkflow: {
+    transport: 'Authenticated Processor cookie and CSRF commands through loopback-only Caddy.',
+    preStart: ['signed Cents demand', 'priority', 'intake', 'Compute', 'Accept', 'API restart', 'backend refresh', 'Start'],
+    postStart: ['signed Cents arrival', 'priority', 'intake', 'automatic placement', 'explicit freeze'],
+    stageTransitions: ['sorting', 'washing', 'drying', 'folding_packaging'],
+    completedRun: true,
+    directRunIdBoardResume: true,
+    durableDatabaseAssertions: true,
+    syntheticTimeControl: 'The past shift establishes planned boundaries. After each authenticated stage start, only the disposable stage actual-start timestamps are set to their planned boundaries before the authenticated completion command.',
   },
   releaseExercise: {
     switchedAllFourToReleaseB: true,
@@ -780,6 +1466,7 @@ const report = {
   },
   limitations: [
     'This proves local Compose orchestration and rollback mechanics, not compatibility between two historical release binaries.',
+    'Synthetic elapsed stage time is advanced directly in the disposable database; every business start and completion transition still passes through the authenticated Processor API.',
     'The memory result is one steady-state snapshot, not a production capacity guarantee.',
     'No Pressly production, Cents, DNS configuration, or deployed cloud endpoint was intentionally contacted. Uncached image builds may contact configured package or container registries.',
   ],

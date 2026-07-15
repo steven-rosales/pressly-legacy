@@ -16,6 +16,7 @@ import {
 } from './common/observability.js';
 import { makeWebhookEventDispatcher } from './lpms/consumer.js';
 import { makeInboxProcessor } from './lpms/processor.js';
+import { makeProductionDomainSignals } from './lpms/production-signals.js';
 import { runInboxLoop } from './lpms/runtime.js';
 import { makeCentsOrderConsumer } from './vendors/cents/cents-order.consumer.js';
 
@@ -65,6 +66,7 @@ const main = async (): Promise<void> => {
     scheduler: makeProductionScheduler(),
     clock,
     ids: { next: () => randomUUID() },
+    signals: makeProductionDomainSignals(signals.counters),
   });
   const ingestion = makePostgresWebhookIngestionApplication({
     db: database.db,
@@ -104,6 +106,7 @@ const main = async (): Promise<void> => {
           maxAttempts: workerEnv.jobs.maxAttempts,
           retryBaseMs: workerEnv.jobs.retryBaseMs,
           retryMaxMs: workerEnv.jobs.retryMaxMs,
+          backlogMeasurementIntervalMs: workerEnv.jobs.metricLogIntervalMs,
         },
       }),
       pollIntervalMs: workerEnv.jobs.pollIntervalMs,

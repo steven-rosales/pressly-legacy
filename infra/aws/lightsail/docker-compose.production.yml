@@ -86,6 +86,11 @@ services:
     env_file:
       - path: ${PRESSLY_API_ENV_FILE:-/opt/pressly/env/api.env}
         required: false
+    environment:
+      FEATURE_METRICS_ENABLED: 'true'
+      NODE_ENV: production
+      SENTRY_ENABLED: 'true'
+      SENTRY_RELEASE: ${PRESSLY_RELEASE_SHA:?PRESSLY_RELEASE_SHA must be the deployed source SHA}
     expose:
       - '4000'
     tmpfs:
@@ -117,6 +122,10 @@ services:
     env_file:
       - path: ${PRESSLY_WORKER_ENV_FILE:-/opt/pressly/env/worker.env}
         required: false
+    environment:
+      NODE_ENV: production
+      SENTRY_ENABLED: 'true'
+      SENTRY_RELEASE: ${PRESSLY_RELEASE_SHA:?PRESSLY_RELEASE_SHA must be the deployed source SHA}
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=1001,gid=1001
     depends_on:

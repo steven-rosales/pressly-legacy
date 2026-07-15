@@ -26,10 +26,17 @@ export const makeApplyOrderDemand =
     policy: ProductionPolicyPort;
     clock: ClockPort;
     ids: IdPort;
+    attemptAutomaticPlacement?: (input: {
+      locationId: string;
+      productionOrderId: string;
+      actorId: string;
+      idempotencyKey: string;
+    }) => Promise<void>;
   }): ApplyOrderDemand =>
   async (command) => {
+    let shouldAttemptAutomaticPlacement = false;
     try {
-      return await deps.repo.transaction(async (repo) => {
+      const outcome = await deps.repo.transaction(async (repo) => {
         const idempotency = defineWorkEventCommand({
           operation: 'order_demand_applied',
           locationId: command.locationId,
@@ -63,6 +70,7 @@ export const makeApplyOrderDemand =
             ),
           );
 
+        await repo.lockLocationScheduling(command.locationId);
         await repo.lockDemand(command.demandKey);
         const existing = await repo.loadDemand(command.demandKey);
         const orderDemandId = existing?.orderDemandId ?? deps.ids.next();
@@ -168,6 +176,8 @@ export const makeApplyOrderDemand =
           productionStatus,
           now: deps.clock.now(),
         });
+        shouldAttemptAutomaticPlacement =
+          applied.productionStatus === 'eligible';
         const value: ApplyOrderDemandResult = {
           orderDemandId,
           productionOrderId: applied.productionOrderId,
@@ -177,6 +187,23 @@ export const makeApplyOrderDemand =
         await appendOutcome(value);
         return result.ok(value);
       });
+      if (
+        outcome.tag === 'ok' &&
+        shouldAttemptAutomaticPlacement &&
+        outcome.value.productionOrderId !== null &&
+        deps.attemptAutomaticPlacement !== undefined
+      )
+        try {
+          await deps.attemptAutomaticPlacement({
+            locationId: command.locationId,
+            productionOrderId: outcome.value.productionOrderId,
+            actorId: systemActorId,
+            idempotencyKey: command.idempotencyKey,
+          });
+        } catch {
+          // Demand remains committed; the eligible order is visible for retry.
+        }
+      return outcome;
     } catch (error) {
       return result.err(
         productionError(

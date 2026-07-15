@@ -13,6 +13,7 @@ export type {
   IdPort,
   PolicyDecision,
   ProductionPolicyPort,
+  ProductionSignalsPort,
   ProductionSchedulerPort,
   SchedulingInput,
   SchedulingOutput,

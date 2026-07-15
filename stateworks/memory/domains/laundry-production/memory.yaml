@@ -1,6 +1,6 @@
 domain_id: laundry-production
 name: Laundry Production
-version: 4
+version: 7
 status: active
 summary: >
   Durable business memory for Pressly's wash-and-fold production process. LPMS
@@ -55,10 +55,13 @@ objects:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: production_run
-    description: The accepted execution instance created from a schedule proposal.
+    description:
+      The sole execution aggregate for one production shift, created only
+      when its current accepted schedule plan is started.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-14-run-centered-online-scheduling
   - id: production_batch
     description: A real group of production orders moving together through the
       floor; it is not a washer load.
@@ -136,20 +139,32 @@ workflows:
       - memdelta-2026-07-08-laundry-production-core
   - id: scheduling_to_execution
     steps:
-      - API durably receives a verified Cents event
-      - worker projects the newest vendor source version
-      - eligible production_orders form an immutable scheduling snapshot
-      - deterministic scheduler creates a schedule_run proposal
-      - operator acknowledges blocking warnings and accepts the output hash
-      - LPMS creates one production_run and its batches, stages, assignments,
-        and work_event atomically
-      - operator starts the production_run
-      - operators advance server-authorized stage_run actions at pulse boundaries
-      - production_batch finishes folding and packaging
+      - API durably receives and projects canonical external order demand
+      - eligible production_orders form the complete immutable scheduling
+        snapshot for one shift
+      - Compute creates a new immutable schedule_run revision and supersedes the
+        prior current revision
+      - manager reviews warnings and accepts the current output hash without
+        creating execution
+      - Start revalidates the current accepted revision, exact eligible-order
+        snapshot, and active shift window
+      - LPMS creates the shift's sole started production_run and its initial
+        batches, stages, assignments, order transitions, and work_event
+        atomically
+      - operators advance server-authorized stage_run actions at pulse
+        boundaries or explicitly confirm an early physical completion without
+        pulling downstream starts forward
+      - post-start arrivals are placed into the existing production_run without
+        moving existing orders automatically
+      - final folding and packaging completion terminalizes the remaining floor
+        facts, completes the run, and closes the shift atomically
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
       - memdelta-2026-07-10-lpms-v1-implementation
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+      - memdelta-2026-07-15-operator-workspace-live-sync
   - id: production_command_write_path
     steps:
       - receive command
@@ -169,6 +184,63 @@ workflows:
     status: active
     sources:
       - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: live_order_placement
+    steps:
+      - an order becomes eligible after its shift's production_run has started
+      - LPMS reads the versioned ordered batch queue and immutable resource
+        snapshot
+      - pure online insertion computes an automatic or manager-exact placement
+        proposal
+      - LPMS rejects hard-capacity violations and requests version-bound
+        confirmation for overtime
+      - LPMS commits the placement and affected mutable suffix under the
+        expected queue version
+      - LPMS records placement provenance and a work_event
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: batch_membership_control
+    steps:
+      - employee explicitly freezes a queued batch when physical grouping begins
+      - freezing anchors membership and queue position
+      - starting any batch implicitly and permanently freezes membership
+      - if queued unfreeze is enabled under the implementation assumption, it
+        requires an authorized manager, confirmation, and audit
+      - non-queued batches cannot be unfrozen
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: prestart_shift_revision
+    steps:
+      - manager edits shift start, end, or effective folder count before
+        execution exists
+      - LPMS locks the location scheduling scope and compares the shift version
+      - LPMS persists the complete shift settings and records one idempotent
+        work_event
+      - a material change supersedes the current schedule revision and revokes
+        acceptance
+      - a no-op preserves the current schedule revision
+      - manager computes a new immutable plan from the persisted shift facts
+    status: active
+    sources:
+      - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: production_workspace_live_refresh
+    steps:
+      - a committed production work_event advances the owning location's durable
+        live revision
+      - PostgreSQL notification wakes the authenticated location-authorized SSE
+        stream
+      - the Processor coalesces the invalidation with any in-flight or
+        post-command refresh
+      - the Processor reloads the authoritative workspace or board through its
+        ordinary HTTP read
+      - initial connection, reconnect, or upstream-listener recovery also forces
+        an authoritative resync
+    status: active
+    sources:
+      - memdelta-2026-07-15-operator-workspace-live-sync
 invariants:
   - id: orders_do_not_split_across_batches
     statement:
@@ -227,7 +299,7 @@ invariants:
       - memdelta-2026-07-08-laundry-production-core
   - id: one_production_run_per_schedule
     statement: Accepting a schedule_run creates exactly one production_run.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: scheduler_does_not_mutate_execution
@@ -247,19 +319,23 @@ invariants:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: every_stage_occupies_one_pulse
-    statement:
-      Sorting, washing, drying, and folding_packaging each occupy exactly
-      one scheduler_config.pulse_minutes slot for every production_batch.
+    statement: The scheduler reserves exactly one scheduler_config.pulse_minutes
+      slot for sorting, washing, drying, and folding_packaging for every
+      production_batch; confirmed early physical completion does not shorten
+      that planned reservation.
     status: active
     sources:
       - memdelta-2026-07-10-fixed-pulse-scheduling
+      - memdelta-2026-07-15-operator-workspace-live-sync
   - id: batches_advance_only_on_pulse_boundaries
     statement:
-      A production_batch advances only at pulse boundaries; early physical
-      completion does not shorten a stage or move downstream start times.
+      A production_batch cannot begin its next stage before that stage's
+      planned pulse boundary; confirmed early physical completion may record the
+      prior stage's truth but cannot pull downstream start times forward.
     status: active
     sources:
       - memdelta-2026-07-10-fixed-pulse-scheduling
+      - memdelta-2026-07-15-operator-workspace-live-sync
   - id: pulse_capacity_is_the_stage_bottleneck
     statement: pulse_capacity_lbs equals the minimum of total active washer
       effective capacity, total active dryer effective capacity, and
@@ -300,6 +376,160 @@ invariants:
     status: active
     sources:
       - memdelta-2026-07-10-lpms-v1-implementation
+  - id: one_production_run_per_shift
+    statement:
+      Exactly one production_run may exist for one production shift, and
+      Start is the only lifecycle transition that creates it.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: new_production_run_begins_started
+    statement:
+      A newly created production_run begins directly in started execution;
+      planned is retained only as a legacy-readable state for pre-migration
+      history.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: accept_does_not_create_execution
+    statement: Accept records preference for the current immutable schedule_run
+      revision and acknowledged warnings; it creates no production_run, batch,
+      stage, assignment, or scheduled-order transition.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: one_current_schedule_revision_per_shift
+    statement: A production shift has at most one current draft or accepted
+      schedule_run revision; every successful Compute supersedes the previous
+      current revision and revokes its acceptance.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: start_requires_current_accepted_snapshot
+    statement: Start succeeds only when the accepted schedule_run is still the
+      current revision and its complete eligible-order snapshot is unchanged.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: post_start_orders_enter_existing_run
+    statement: An order that becomes eligible after Start may enter only the
+      existing production_run for its shift; LPMS never creates a sibling run
+      for the arrival.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: batch_membership_freeze_is_orthogonal
+    statement:
+      Batch execution status and membership mutability are separate; queued
+      membership may be mutable or explicitly frozen, while every non-queued
+      batch is permanently frozen.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: online_insertion_has_zero_automatic_recourse_v1
+    statement:
+      V1 automatic live placement may place only the arriving order and may
+      not relocate any existing production_order between batches.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: pulse_capacity_is_hard
+    statement:
+      Neither automatic placement, manager-exact placement, nor overtime
+      acceptance may make a production_batch exceed pulse_capacity_lbs.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: queue_composition_is_versioned
+    statement:
+      Every committed queue-composition or membership mutation compares the
+      expected production_run queue version and increments it exactly once.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: overtime_acceptance_is_version_bound
+    statement:
+      Overtime acceptance applies only to the exact placement proposal hash
+      and queue version that the manager reviewed; any later queue change
+      invalidates it.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: eligible_snapshot_mutations_are_serialized_v1
+    statement:
+      Compute, Accept, Start, and demand, intake, or priority commands that
+      can change the eligible-order snapshot serialize per location before
+      validating or mutating that snapshot.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: pending_live_placement_is_durable_v1
+    statement: When live placement cannot commit because confirmation or a
+      recoverable condition is required, the production_order remains eligible
+      and its pending placement outcome is durable and reloadable from the
+      backend.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: inactive_batch_membership_history_is_retained_v1
+    statement:
+      Completing production deactivates current batch membership without
+      deleting its historical production_batch_order record.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: shift_planning_commands_respect_operating_window_v1
+    statement:
+      Compute and Accept are allowed only before the production shift ends,
+      while Start is allowed only at or after shift start and before shift end.
+    status: active
+    sources:
+      - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: prestart_shift_changes_revoke_current_plan_v1
+    statement:
+      Before a production run exists, a versioned material change to shift
+      start, end, or effective folder count atomically supersedes the current
+      schedule and revokes acceptance; after a run exists the shift is not
+      mutable.
+    status: active
+    sources:
+      - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: early_stage_completion_is_confirmation_bound_v1
+    statement:
+      Completing a started stage before the later of its planned end and
+      actual start plus one pulse requires an actor-bound, stage-version-bound,
+      timing-bound confirmation that is revalidated and audited with the
+      transition.
+    status: active
+    sources:
+      - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: final_batch_completion_closes_run_and_shift_v1
+    statement: Completing the final folding_packaging stage terminalizes its
+      assignments, orders, bags, active memberships, and batch and, when every
+      run batch is finished, completes the production_run and closes its
+      production shift in the same transaction.
+    status: active
+    sources:
+      - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: production_live_revision_is_work_event_bound_v1
+    statement:
+      Every committed location-owned production work_event advances that
+      location's durable live revision exactly once in the same transaction;
+      notification is an invalidation hint rather than production truth.
+    status: active
+    sources:
+      - memdelta-2026-07-15-operator-workspace-live-sync
 policies:
   - id: cents_in_progress_is_eligible
     statement:
@@ -372,9 +602,69 @@ policies:
       Future-due production_orders may fill unused capacity only within an
       explicit operator-selected planning horizon, and pulling them forward does
       not change their due dates.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-10-fixed-pulse-scheduling
+  - id: prestart_planning_includes_all_eligible_orders
+    statement: Before Start, Compute includes every currently eligible
+      production_order for the shift rather than an operator-selected planning
+      horizon.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: priority_live_placement_v1
+    statement:
+      A priority arrival uses the earliest feasible mutable queued batch;
+      if none fits, LPMS creates a batch after frozen or in-flight anchors and
+      existing priority work but before the remaining ordinary mutable suffix.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: ordinary_live_placement_v1
+    statement:
+      An ordinary arrival uses the best-fitting mutable queued batch with
+      earliest sequence as the tie-breaker; if none fits, LPMS appends a new
+      batch.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: manager_exact_batch_placement_v1
+    statement:
+      An authorized manager may pin an arriving order to an exact requested
+      mutable queued batch when the placement satisfies hard physical
+      constraints; LPMS must not silently substitute another batch.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: overtime_requires_explicit_acceptance
+    statement:
+      A placement projected beyond the shift end is shown as an overflowing
+      plan and commits only after an authorized manager explicitly accepts that
+      exact overtime outcome.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: human_stability_is_a_scheduling_objective
+    statement:
+      Scheduling decisions balance priority and tardiness, overtime, pulse
+      utilization, and the recourse or churn imposed on floor workers; packing
+      efficiency alone is insufficient.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+  - id: schedule_actionability_is_run_provenance_aware_v1
+    statement:
+      A draft or accepted schedule is actionable only while its shift is
+      open and unexpired and no production_run uses that schedule as provenance;
+      run-owned, closed, and expired contexts are read-only history.
+    status: active
+    sources:
+      - memdelta-2026-07-15-operator-workspace-live-sync
 decisions:
   - id: domain_named_laundry_production
     statement: The durable Stateworks memory domain is named laundry-production
@@ -389,11 +679,14 @@ decisions:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: production_run_is_execution_truth
-    statement: production_run and its production_batch and stage_run records
-      represent accepted execution truth.
+    statement:
+      production_run is the sole live execution aggregate for a shift and
+      is created at Start, while schedule_run revisions remain pre-start
+      proposals and audit history.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-14-run-centered-online-scheduling
   - id: stage_run_owns_floor_state
     statement: stage_run owns the physical workflow state machine.
     status: active
@@ -457,6 +750,98 @@ decisions:
     status: active
     sources:
       - memdelta-2026-07-10-lpms-v1-implementation
+  - id: online_scheduling_uses_bounded_recourse
+    statement:
+      LPMS treats post-start arrivals as an online scheduling problem with
+      frozen work as irrevocable, zero automatic recourse in v1, and explicit
+      human overrides as durable constraints.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: offline_optimum_is_a_benchmark
+    statement: Offline optimal schedules and competitive analysis are evaluation
+      tools for LPMS algorithms, not authority to silently rewrite the live
+      physical queue.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+  - id: backend_owns_workspace_identity
+    statement: Shift, current-plan, production-run, queue-version, action
+      availability, and historical status come from backend state and explicit
+      resource identifiers rather than temporary Processor state, query-owned
+      navigation, automatic invalid-path redirects, or arbitrary
+      overlapping-shift selection.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+      - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: defer_sse_until_state_contract_is_stable
+    statement:
+      Immediate refresh and bounded polling are sufficient for this work;
+      SSE is deferred until run-centered identity and state transitions are
+      correct.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: defer_probabilistic_stability_score_v1
+    statement:
+      V1 does not use an arbitrary or probabilistic 0-to-1 stability value;
+      any later stability term must be an evidence-backed scoring penalty rather
+      than randomness.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+  - id: defer_silent_live_reoptimization_v1
+    statement: V1 does not silently repack the live queued suffix; a future
+      optimizer may only preview bounded moves and requires explicit manager
+      acceptance before mutation.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: run_centered_algorithms_implemented_v1
+    statement: The implemented pre-start planner is fixed-pulse-ffd-v2 and the
+      implemented post-start pure placement computation is
+      online-stable-insertion-v1.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: run_centered_forward_migration_v1
+    statement: Migration 0016 aborts before mutation on duplicate shift runs or
+      inconsistent execution, normalizes legacy planned runs back to accepted
+      plans, enforces one current plan and one run per shift, and adds queue,
+      freeze, placement-provenance, and v2 scheduler facts.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: processor_run_centered_polling_v1
+    statement: The Processor persists shiftId and runId in the URL, refreshes
+      authoritative backend state after commands, and polls visible online
+      workspaces and boards every ten seconds without SSE.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+  - id: processor_uses_sse_invalidation_v1
+    statement:
+      The Processor uses an authenticated per-location SSE revision stream
+      to invalidate and coalesce authoritative workspace or board reads;
+      streamed payloads never become a second source of production state and
+      timer polling is not used for production synchronization.
+    status: active
+    sources:
+      - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: worker_inbox_polling_remains_intentional_v1
+    statement:
+      The private Worker continues bounded durable-inbox claim polling with
+      idle waits, retry backoff, lease fencing, heartbeat, and separately
+      throttled backlog sampling; this job-execution loop is independent of
+      Processor live synchronization.
+    status: active
+    sources:
+      - memdelta-2026-07-15-operator-workspace-live-sync
 assumptions:
   - id: cents_price_weight_good_enough_v1
     statement: Cents price-derived weight is good enough for first-version scheduling.
@@ -489,6 +874,24 @@ assumptions:
     sources:
       - memdelta-2026-07-08-laundry-production-core
     confidence: high
+  - id: manager_maps_to_owner_admin_v1
+    statement: Existing owner and admin application roles act as the
+      laundry-production manager for Accept, Start, exact placement, queued
+      unfreeze, and overtime acceptance in v1.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+    confidence: medium
+  - id: queued_unfreeze_is_manager_only_v1
+    statement: A still-queued frozen batch may be explicitly unfrozen only by an
+      owner or admin, with confirmation and audit; a non-queued batch can never
+      be unfrozen.
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
+      - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+    confidence: medium
 open_questions:
   - id: exact_scheduler_ordering_rules
     question:
@@ -507,23 +910,33 @@ open_questions:
       - memdelta-2026-07-08-laundry-production-core
       - memdelta-2026-07-10-fixed-pulse-scheduling
   - id: role_permission_mapping
-    question: Which actions belong to owner, manager, employee, and admin roles?
+    question:
+      Does the v1 owner/admin-as-manager mapping match floor authority for
+      Accept, Start, exact placement, queued unfreeze, and overtime acceptance?
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-14-run-centered-online-scheduling
   - id: production_shift_boundaries
     question: How should production shifts constrain schedule generation,
       continuation, and completion?
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: replan_after_drift
     question:
       When execution drifts from a schedule, should LPMS preserve the old
       plan, replan remaining batches, or create a new schedule_run?
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-08-laundry-production-core
+  - id: queued_unfreeze_authorization
+    question:
+      Should a still-queued frozen batch be allowed to be unfrozen, and if
+      so is owner/admin-only authorization correct?
+    status: active
+    sources:
+      - memdelta-2026-07-14-run-centered-online-scheduling
 sources:
   - id: memdelta-2026-07-08-laundry-production-core
     path: stateworks/memory/domains/laundry-production/sessions/2026-07-08-domain-interrogation.md
@@ -534,3 +947,12 @@ sources:
   - id: memdelta-2026-07-10-lpms-v1-implementation
     path: stateworks/work/done/lpms-v1-happy-path/evidence.md
     type: implementation_evidence
+  - id: memdelta-2026-07-14-run-centered-online-scheduling
+    path: stateworks/memory/domains/laundry-production/sessions/2026-07-14-run-centered-online-scheduling.md
+    type: interrogation_session
+  - id: memdelta-2026-07-14-run-centered-online-scheduling-implementation
+    path: stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+    type: implementation_evidence
+  - id: memdelta-2026-07-15-operator-workspace-live-sync
+    path: stateworks/memory/domains/laundry-production/sessions/2026-07-15-operator-workspace-live-sync.md
+    type: implementation_checkpoint

@@ -36,10 +36,9 @@ export type SchedulingInput = Readonly<{
     id: string;
     pulseMinutes: number;
     foldLbsPerFolderMinute: number;
-    algorithmVersion: 'fixed-pulse-ffd-v1';
+    algorithmVersion: 'fixed-pulse-ffd-v2';
     version: number;
   }>;
-  horizonEnd: string;
 }>;
 
 export type SchedulingWarning = Readonly<{
@@ -70,7 +69,7 @@ export type SchedulingBatch = Readonly<{
 }>;
 
 export type SchedulingProposal = Readonly<{
-  algorithmVersion: 'fixed-pulse-ffd-v1';
+  algorithmVersion: 'fixed-pulse-ffd-v2';
   inputSnapshotHash: string;
   outputPlanHash: string;
   canonicalOutput: string;

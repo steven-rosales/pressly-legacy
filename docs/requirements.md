@@ -1,4 +1,10 @@
-# Pressly v0 website
+# Pressly v0 Website — Historical Scope
+
+> **Status: historical.** This document records the website-only v0 scope that
+> predated the current API, Worker, Processor, and LPMS. It is not the current
+> repository requirements document. Start with [the documentation map](./README.md),
+> [architecture](./architecture.md), and active Stateworks work for current
+> behavior and delivery status.
 
 ## 1. Overview
 

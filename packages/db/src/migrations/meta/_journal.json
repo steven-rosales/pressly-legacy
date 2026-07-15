@@ -106,6 +106,20 @@
       "when": 1783883793077,
       "tag": "0015_lpms-module-boundaries",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1784045430335,
+      "tag": "0016_lpms-run-centered-online-scheduling",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1784078876429,
+      "tag": "0017_production_live_revisions",
+      "breakpoints": true
     }
   ]
 }

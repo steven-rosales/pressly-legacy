@@ -1,3 +1,8 @@
+import type {
+  ProductionOrderSummary,
+  ScheduleProposal,
+} from "@pressly/contracts"
+
 const zonedParts = (value: Date, timeZone: string) =>
   Object.fromEntries(
     new Intl.DateTimeFormat("en-US", {
@@ -71,4 +76,127 @@ export const zonedDateTimeInputToIso = (
   if (formatZonedDateTimeInput(iso, timeZone) !== value)
     throw new TypeError("That local time does not exist in this location.")
   return iso
+}
+
+export type ScheduleDemandSummary = Readonly<{
+  label: "Planned demand" | "Ready demand"
+  derivedWeightLbs: number
+  bagCount: number
+  orderCount: number
+}>
+
+export const summarizeScheduleDemand = (
+  proposal: ScheduleProposal | null,
+  orders: readonly ProductionOrderSummary[]
+): ScheduleDemandSummary => {
+  if (proposal !== null) {
+    const orderIds = new Set(
+      proposal.batches.flatMap((batch) => batch.orderIds)
+    )
+    return {
+      label: "Planned demand",
+      derivedWeightLbs: proposal.batches.reduce(
+        (sum, batch) => sum + batch.derivedWeightLbs,
+        0
+      ),
+      bagCount: proposal.batches.reduce(
+        (sum, batch) => sum + batch.bagCount,
+        0
+      ),
+      orderCount: orderIds.size,
+    }
+  }
+
+  return {
+    label: "Ready demand",
+    derivedWeightLbs: orders.reduce(
+      (sum, order) => sum + order.derivedWeightLbs,
+      0
+    ),
+    bagCount: orders.reduce((sum, order) => sum + order.bagCount, 0),
+    orderCount: orders.length,
+  }
+}
+
+export type ScheduleLifecyclePresentation = Readonly<{
+  state: "configuration_required" | "ready" | "dirty" | "draft" | "accepted"
+  badge: string
+  title: string
+  description: string
+  action: "configure" | "generate" | "accept" | "start"
+  actionLabel: string
+}>
+
+export const presentScheduleLifecycle = ({
+  proposal,
+  dirty,
+  configurationReady,
+}: Readonly<{
+  proposal: ScheduleProposal | null
+  dirty: boolean
+  configurationReady: boolean
+}>): ScheduleLifecyclePresentation => {
+  if (dirty && !configurationReady)
+    return {
+      state: "configuration_required",
+      badge: "Setup required",
+      title: "Publish a production configuration",
+      description:
+        "Scheduling uses the floor-tested pulse published in Configuration.",
+      action: "configure",
+      actionLabel: "Open configuration",
+    }
+
+  if (dirty)
+    return {
+      state: "dirty",
+      badge: "Changes not computed",
+      title: "Recompute the plan",
+      description:
+        "Shift settings, order priority, or ready demand changed after this plan was computed.",
+      action: "generate",
+      actionLabel: "Recompute schedule",
+    }
+
+  if (proposal?.status === "accepted")
+    return {
+      state: "accepted",
+      badge: "Plan accepted",
+      title: "Ready to start production",
+      description:
+        "Starting creates the production run after one final server check.",
+      action: "start",
+      actionLabel: "Start production run",
+    }
+
+  if (proposal !== null)
+    return {
+      state: "draft",
+      badge: "Review plan",
+      title: "Accept this exact proposal",
+      description:
+        "Review the timeline and warnings, then save this plan as the shift preference.",
+      action: "accept",
+      actionLabel: "Accept plan",
+    }
+
+  if (!configurationReady)
+    return {
+      state: "configuration_required",
+      badge: "Setup required",
+      title: "Publish a production configuration",
+      description:
+        "Scheduling uses the floor-tested pulse published in Configuration.",
+      action: "configure",
+      actionLabel: "Open configuration",
+    }
+
+  return {
+    state: "ready",
+    badge: "Ready to compute",
+    title: "Build the shift plan",
+    description: "Compute one proposal from every eligible order.",
+    action: "generate",
+    actionLabel: "Compute schedule",
+  }
 }

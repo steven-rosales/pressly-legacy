@@ -2,9 +2,7 @@ import {
   and,
   asc,
   eq,
-  inArray,
   laundryProduction,
-  sql,
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
@@ -12,9 +10,11 @@ import type {
   AcceptScheduleRepository,
   ScheduleAcceptanceRecord,
 } from './accept-schedule.port.ts';
-import { asDate, mapSchedule } from '../persistence/production-mappers.ts';
+import { mapSchedule } from '../persistence/production-mappers.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
+import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
+import { scheduleCoversInputExactly } from '../persistence/schedule-snapshot-validation.ts';
 
 export const makeAcceptScheduleRepository = (deps: {
   db: Database;
@@ -22,6 +22,8 @@ export const makeAcceptScheduleRepository = (deps: {
 }): AcceptScheduleRepository =>
   makePostgresUnitOfWork(deps.db, (db: DatabaseExecutor) => ({
     findWorkEvent: (idempotencyKey) => findWorkEvent(db, idempotencyKey),
+    lockLocationScheduling: (locationId) =>
+      lockLocationScheduling(db, locationId),
 
     loadSchedule: async (locationId, scheduleRunId) => {
       const [row] = await db
@@ -44,22 +46,12 @@ export const makeAcceptScheduleRepository = (deps: {
           };
     },
 
-    lockAndValidateSelectedOrders: async (locationId, record) => {
-      const selectedOrderIds = record.schedule.batches.flatMap(
-        (batch) => batch.orderIds,
-      );
-      const uniqueOrderIds = [...new Set(selectedOrderIds)].sort();
-      if (uniqueOrderIds.length !== selectedOrderIds.length) return false;
-
+    lockAndValidateScheduleInput: async (locationId, record) => {
       const snapshots = new Map(
         record.inputSnapshot.orders.map((order) => [order.id, order]),
       );
-      if (
-        uniqueOrderIds.some((orderId) => !snapshots.has(orderId)) ||
-        snapshots.size !== record.inputSnapshot.orders.length
-      )
+      if (!scheduleCoversInputExactly(record.schedule, record.inputSnapshot))
         return false;
-      if (uniqueOrderIds.length === 0) return true;
 
       const rows = await db
         .select({
@@ -76,12 +68,12 @@ export const makeAcceptScheduleRepository = (deps: {
         .where(
           and(
             eq(laundryProduction.productionOrders.locationId, locationId),
-            inArray(laundryProduction.productionOrders.id, uniqueOrderIds),
+            eq(laundryProduction.productionOrders.status, 'eligible'),
           ),
         )
         .orderBy(asc(laundryProduction.productionOrders.id))
         .for('update');
-      if (rows.length !== uniqueOrderIds.length) return false;
+      if (rows.length !== snapshots.size) return false;
 
       return rows.every((order) => {
         const snapshot = snapshots.get(order.id);
@@ -98,149 +90,40 @@ export const makeAcceptScheduleRepository = (deps: {
       });
     },
 
-    acceptSchedule: async (
-      locationId,
-      schedule,
-      actorId,
-      idempotencyKey,
-      idempotency,
-      now,
-    ) => {
-      const [shift] = await db
-        .select()
-        .from(laundryProduction.productionShifts)
+    productionRunExists: async (locationId, productionShiftId) => {
+      const [run] = await db
+        .select({ id: laundryProduction.productionRuns.id })
+        .from(laundryProduction.productionRuns)
         .where(
           and(
-            eq(laundryProduction.productionShifts.locationId, locationId),
+            eq(laundryProduction.productionRuns.locationId, locationId),
             eq(
-              laundryProduction.productionShifts.id,
-              schedule.productionShiftId,
+              laundryProduction.productionRuns.productionShiftId,
+              productionShiftId,
             ),
           ),
         )
         .limit(1);
-      if (shift === undefined) throw new Error('Production shift not found.');
-      const stationRows = await db
-        .select()
-        .from(laundryProduction.stations)
-        .where(eq(laundryProduction.stations.locationId, locationId));
-      const stationByKind = new Map(
-        stationRows.map((station) => [station.kind, station.id]),
-      );
-      const selectedOrderIds = [
-        ...new Set(schedule.batches.flatMap((batch) => batch.orderIds)),
-      ];
-      if (
-        selectedOrderIds.length !==
-        schedule.batches.reduce(
-          (count, batch) => count + batch.orderIds.length,
-          0,
-        )
-      )
-        throw new Error('Schedule contains duplicate selected orders.');
+      return run !== undefined;
+    },
 
-      if (selectedOrderIds.length > 0) {
-        const updatedOrders = await db
-          .update(laundryProduction.productionOrders)
-          .set({
-            status: 'scheduled',
-            version: sql`${laundryProduction.productionOrders.version} + 1`,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(laundryProduction.productionOrders.locationId, locationId),
-              eq(laundryProduction.productionOrders.status, 'eligible'),
-              inArray(laundryProduction.productionOrders.id, selectedOrderIds),
-            ),
-          )
-          .returning({ id: laundryProduction.productionOrders.id });
-        if (
-          updatedOrders.length !== selectedOrderIds.length ||
-          new Set(updatedOrders.map((order) => order.id)).size !==
-            selectedOrderIds.length
-        )
-          throw new Error('Not every selected production order was scheduled.');
-      }
-
-      const productionRunId = deps.ids.next();
-      await db.insert(laundryProduction.productionRuns).values({
-        id: productionRunId,
-        locationId,
-        productionShiftId: schedule.productionShiftId,
-        scheduleRunId: schedule.scheduleRunId,
-        status: 'planned',
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      const productionBatchIds: string[] = [];
-      for (const proposed of schedule.batches) {
-        const productionBatchId = deps.ids.next();
-        productionBatchIds.push(productionBatchId);
-        await db.insert(laundryProduction.productionBatches).values({
-          id: productionBatchId,
-          locationId,
-          productionRunId,
-          sequenceIndex: proposed.sequence,
-          status: 'queued',
-          pulseCapacityLbs: schedule.pulseCapacityLbs,
-          derivedWeightLbs: proposed.derivedWeightLbs,
-          pulseMinutes: schedule.pulseMinutes,
-          plannedDoneAt: asDate(
-            proposed.stages[proposed.stages.length - 1]!.endsAt,
-          ),
-          version: 1,
-          createdAt: now,
-          updatedAt: now,
-        });
-        await db.insert(laundryProduction.productionBatchOrders).values(
-          proposed.orderIds.map((productionOrderId) => ({
-            locationId,
-            productionBatchId,
-            productionOrderId,
-            active: true,
-          })),
-        );
-        for (const proposedStage of proposed.stages) {
-          const stationId = stationByKind.get(proposedStage.stage);
-          if (stationId === undefined)
-            throw new Error(`Station not found: ${proposedStage.stage}.`);
-          const stageRunId = deps.ids.next();
-          await db.insert(laundryProduction.stageRuns).values({
-            id: stageRunId,
-            locationId,
-            productionBatchId,
-            stationId,
-            stageKind: proposedStage.stage,
-            status: 'planned',
-            plannedStartAt: asDate(proposedStage.startsAt),
-            plannedEndAt: asDate(proposedStage.endsAt),
-            version: 1,
-            createdAt: now,
-            updatedAt: now,
-          });
-          if (proposedStage.machineIds.length > 0)
-            await db.insert(laundryProduction.stageMachineAssignments).values(
-              proposedStage.machineIds.map((machineId) => ({
-                id: deps.ids.next(),
-                locationId,
-                stageRunId,
-                machineId,
-                plannedStartAt: asDate(proposedStage.startsAt),
-                plannedEndAt: asDate(proposedStage.endsAt),
-                status: 'planned',
-                createdAt: now,
-                updatedAt: now,
-              })),
-            );
-        }
-      }
-
+    acceptSchedule: async (
+      locationId,
+      schedule,
+      actorId,
+      acknowledgedWarningCodes,
+      idempotencyKey,
+      idempotency,
+      now,
+    ) => {
       const [accepted] = await db
         .update(laundryProduction.scheduleRuns)
-        .set({ status: 'accepted', acceptedAt: now })
+        .set({
+          status: 'accepted',
+          acceptedAt: now,
+          acceptedBy: actorId,
+          acknowledgedWarningCodes: [...acknowledgedWarningCodes].sort(),
+        })
         .where(
           and(
             eq(laundryProduction.scheduleRuns.locationId, locationId),
@@ -248,23 +131,31 @@ export const makeAcceptScheduleRepository = (deps: {
             eq(laundryProduction.scheduleRuns.status, 'draft'),
           ),
         )
-        .returning({ id: laundryProduction.scheduleRuns.id });
+        .returning({
+          scheduleRunId: laundryProduction.scheduleRuns.id,
+          productionShiftId: laundryProduction.scheduleRuns.productionShiftId,
+          acceptedAt: laundryProduction.scheduleRuns.acceptedAt,
+        });
       if (accepted === undefined)
         throw new Error('Schedule was already accepted.');
 
       const acceptedResult = {
-        productionRunId,
-        productionBatchIds,
+        scheduleRunId: accepted.scheduleRunId,
+        productionShiftId: accepted.productionShiftId,
+        acceptedAt: accepted.acceptedAt!.toISOString(),
         replayed: false,
       };
       await appendWorkEvent(db, deps.ids, {
         locationId,
         eventType: 'schedule_accepted',
-        entityType: 'production_run',
-        entityId: productionRunId,
+        entityType: 'schedule_run',
+        entityId: schedule.scheduleRunId,
         actorId,
         idempotencyKey,
-        payload: { productionRunId, productionBatchIds },
+        payload: {
+          scheduleRunId: schedule.scheduleRunId,
+          acknowledgedWarningCodes: [...acknowledgedWarningCodes].sort(),
+        },
         idempotency: { command: idempotency, result: acceptedResult },
       });
       return acceptedResult;

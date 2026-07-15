@@ -218,6 +218,7 @@ const makeRuntime = (
     database: {
       db: input.db ?? ({ execute } as unknown as ApiRuntime['database']['db']),
       check: async () => undefined,
+      listen: async () => async () => undefined,
       close: async () => undefined,
     },
   };
@@ -300,7 +301,9 @@ describe('API app HTTP boundary', () => {
     });
     expect(harness.execute).not.toHaveBeenCalled();
     expect(harness.capturedErrors).toEqual([]);
-    expect(harness.counters).toEqual([]);
+    expect(
+      harness.counters.filter(({ name }) => name !== 'api.http_requests'),
+    ).toEqual([]);
     expect(harness.logs.filter((entry) => entry.level === 'error')).toEqual([]);
     expect(harness.securityEvents).toEqual([
       expect.objectContaining({
@@ -330,7 +333,9 @@ describe('API app HTTP boundary', () => {
     });
     expect(JSON.stringify(body)).not.toContain('Bearer');
     expect(harness.capturedErrors).toEqual([]);
-    expect(harness.counters).toEqual([]);
+    expect(
+      harness.counters.filter(({ name }) => name !== 'api.http_requests'),
+    ).toEqual([]);
     expect(harness.securityEvents).toEqual([]);
     expect(harness.logs.filter((entry) => entry.level === 'error')).toEqual([]);
   });
@@ -360,7 +365,9 @@ describe('API app HTTP boundary', () => {
     });
     expect(harness.execute).not.toHaveBeenCalled();
     expect(harness.capturedErrors).toEqual([]);
-    expect(harness.counters).toEqual([]);
+    expect(
+      harness.counters.filter(({ name }) => name !== 'api.http_requests'),
+    ).toEqual([]);
     expect(harness.logs.filter((entry) => entry.level === 'error')).toEqual([]);
   });
 

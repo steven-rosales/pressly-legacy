@@ -1,0 +1,370 @@
+work_id: lpms-operator-workspace-live-sync
+title: LPMS operator workspace and live synchronization checkpoint
+status: complete
+
+goal:
+  - Record the implemented operator-workspace, shift-lifecycle, early-completion, and live-synchronization behavior as a source-backed checkpoint.
+  - Verify the checkpoint with existing tests and read-only local runtime evidence before proposing memory acceptance.
+  - Preserve intentional Worker inbox polling and the production-readiness H1 gate.
+
+invariants:
+  - Backend and database state own shift, schedule, run, queue, stage-action, and history identity.
+  - Compute and Accept cannot mutate an expired shift; Start is legal only during the shift window.
+  - A material pre-start shift or folder-count change is versioned, audited, and supersedes the current plan.
+  - No production shift configuration changes after its production run exists.
+  - A schedule used as production-run provenance is history even if its stored status remains draft or accepted.
+  - Run-owned, closed, and expired shifts are read-only in the Processor.
+  - Every planned stage retains one full pulse and no downstream stage starts before its planned boundary.
+  - Early completion requires an exact, current, auditable confirmation; stale confirmation cannot commit.
+  - Completing the final batch closes the production run and shift atomically with terminal floor facts.
+  - SSE transports invalidation only; ordinary workspace and board reads remain authoritative.
+  - Every production work event advances one durable per-location live revision in the same transaction.
+  - The private Worker continues bounded durable-inbox polling independently of Processor synchronization.
+  - This work changes only the invalid-route fallback needed to honor the agreed resource-route contract; local runtime and production records remain read-only.
+  - Existing user changes, completed-work evidence, and deployed migration history are preserved.
+  - No secret, signature, raw customer payload, credential, or production connection string enters Stateworks evidence.
+  - The active production-readiness work remains at H1 until its existing human evidence is supplied.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Capture the checkpoint and memory baseline
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/work/done/lpms-run-centered-online-scheduling
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations/0017_production_live_revisions.sql
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:apps/api/src/common/live
+      - repo:apps/api/src/routes/production-change.routes.ts
+      - repo:apps/processor/src
+      - repo:apps/worker/src
+    writes:
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync
+      - repo:stateworks/memory/domains/laundry-production/sessions/2026-07-15-operator-workspace-live-sync.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-operator-workspace-live-sync.memory-delta.yaml
+    preconditions:
+      - Inventory the dirty shared worktree and preserve unrelated or concurrent changes.
+      - Treat memory v6 as the active durable baseline.
+      - Treat existing tests as candidate proof until their commands pass on the final checkout.
+    action:
+      - Inspect and record the implemented checkpoint for shift windows, pre-start shift updates, schedule actionability, history classification, final closure, early completion, SSE invalidation, and Worker inbox polling.
+      - Create an active checkpoint package without rewriting completed run-centered or production-readiness evidence.
+      - Propose, but do not apply, the v6-to-v7 laundry-production memory delta.
+      - Preserve the H1 production-readiness gate and every unconfirmed vendor or floor assumption.
+    postconditions:
+      - The checkpoint has an active network, state, evidence boundary, final-report placeholder, and human-action boundary.
+      - The proposed delta is source-backed, validates, and leaves memory.yaml and context-pack.md unchanged.
+      - No comprehensive implementation verification is claimed.
+    verifier:
+      - pnpm stateworks:validate stateworks/work/done/lpms-operator-workspace-live-sync/network.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/2026-07-15-operator-workspace-live-sync.memory-delta.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-operator-workspace-live-sync/network.yaml --state stateworks/work/done/lpms-operator-workspace-live-sync/state.yaml
+      - git diff --check -- stateworks/work/done/lpms-operator-workspace-live-sync stateworks/memory/domains/laundry-production/sessions/2026-07-15-operator-workspace-live-sync.md stateworks/memory/domains/laundry-production/deltas/2026-07-15-operator-workspace-live-sync.memory-delta.yaml
+    rollback:
+      - Remove only this unverified checkpoint package and proposed source files; do not touch memory v6 or historical evidence.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+
+  - id: T1
+    title: Verify and record shift and stage lifecycle facts
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:modules/policy/production/src/shift-planning-window
+      - repo:modules/policy/production/src/stage-transition
+      - repo:modules/business/production/src/manage-production-shift
+      - repo:modules/business/production/src/load-production-workspace
+      - repo:modules/business/production/src/advance-production-stage
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:modules/policy/production/test
+      - repo:modules/business/production/test
+      - repo:packages/contracts/test
+    writes:
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/state.yaml
+      - repo:stateworks/memory/domains/laundry-production/sessions/2026-07-15-operator-workspace-live-sync.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-operator-workspace-live-sync.memory-delta.yaml
+    preconditions:
+      - T0 records memory v6 and the exact checkpoint paths.
+    action:
+      - Verify and record planning-window boundaries, versioned pre-start shift and folder changes, plan supersession, and run-provenance-aware schedule actionability.
+      - Verify and record early-completion confirmation, stable downstream pulse boundaries, and atomic final run and shift closure.
+      - Record any failed or missing proof without changing application code.
+    postconditions:
+      - The session and proposed delta are traceable to concrete policy, use-case, contract, schema, and test paths.
+      - Any unverified claim remains explicitly pending.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/contracts test
+    rollback:
+      - Revert only unaccepted checkpoint wording; do not alter application state or historical evidence.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+
+  - id: T2
+    title: Verify and record live synchronization and Worker distinction
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:packages/db/src/migrations/0017_production_live_revisions.sql
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:apps/api/src/common/live
+      - repo:apps/api/src/routes/production-change.routes.ts
+      - repo:apps/api/test
+      - repo:apps/processor/src/adapters/production/browser-production-change.adapter.ts
+      - repo:apps/processor/src/app/production-sync.coordinator.ts
+      - repo:apps/processor/test
+      - repo:apps/worker/src/lpms/runtime.ts
+      - repo:apps/worker/src/lpms/processor.ts
+      - repo:apps/worker/test
+    writes:
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/state.yaml
+      - repo:stateworks/memory/domains/laundry-production/sessions/2026-07-15-operator-workspace-live-sync.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-operator-workspace-live-sync.memory-delta.yaml
+    preconditions:
+      - T1 leaves all application files and runtime records unchanged.
+    action:
+      - Verify and record durable revision advancement, authenticated SSE invalidation, authoritative reloads, reconnect behavior, and absence of Processor timer polling.
+      - Verify and record that Worker inbox polling is a bounded durable-work claim loop and that its two backlog gauges come from one sample.
+      - Record any failed or missing proof without changing application code.
+    postconditions:
+      - The checkpoint distinguishes UI synchronization from private durable-work claiming.
+      - SSE remains an invalidation channel rather than a second state model.
+    verifier:
+      - pnpm --filter @pressly/api test
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/worker test
+    rollback:
+      - Revert only unaccepted checkpoint wording; do not alter the API, Processor, Worker, database, or runtime.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+
+  - id: T3
+    title: Reconcile routes, history, and current documentation
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - repo:apps/processor/src/app/app.navigation.ts
+      - repo:apps/processor/src/app/app.tsx
+      - repo:apps/processor/src/features/scheduling/schedule-history.view.tsx
+      - repo:apps/processor/test
+      - repo:docs/plan/lpms.md
+      - repo:docs/architecture.md
+      - repo:docs/devops.md
+      - repo:docs/security/application-controls.md
+      - repo:docs/ops/production-migrations.md
+      - repo:docs/runbooks/cents-webhook.md
+      - repo:apps/processor/README.md
+    writes:
+      - repo:apps/processor/src/app/app.tsx
+      - repo:apps/processor/test/app/app.test.tsx
+      - repo:docs/README.md
+      - repo:docs/plan/README.md
+      - repo:docs/agents/README.md
+      - repo:docs/plan/lpms.md
+      - repo:docs/security/application-controls.md
+      - repo:docs/ops/production-migrations.md
+      - repo:docs/runbooks/cents-webhook.md
+      - repo:docs/runbooks/lpms-local-production-run.md
+      - repo:docs/devops.md
+      - repo:docs/observability.md
+      - repo:docs/requirements.md
+      - repo:apps/processor/README.md
+      - repo:apps/processor/DESIGN.md
+      - repo:apps/processor/design-qa.md
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/state.yaml
+      - repo:stateworks/memory/domains/laundry-production/sessions/2026-07-15-operator-workspace-live-sync.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-operator-workspace-live-sync.memory-delta.yaml
+    preconditions:
+      - T2 records the authoritative-read boundary for the Processor.
+    action:
+      - Verify and record resource routes, explicit historical navigation, and classification of run-owned, closed, and expired shifts.
+      - Replace the remaining automatic root and unknown-path redirect with an explicit not-found state and operator-selected navigation to scheduling.
+      - Reconcile the living LPMS, Processor, security, migration, observability, and local-run documentation with the implemented checkpoint.
+      - Add authority indexes that distinguish living references, runbooks, historical plans, artifacts, and Stateworks memory without moving historically referenced paths.
+      - Preserve the transient design review as historical and define one stable ElevenLabs-inspired Processor design reference.
+    postconditions:
+      - Navigation and history claims have named source paths.
+      - Root, legacy query, and unknown paths do not redirect automatically.
+      - Living documents no longer claim Processor timer polling, query-owned navigation, hard pulse-lock completion, absent cookie/CSRF controls, or server-side image builds.
+      - The shared native-WSL database is never reset by the local webhook or production-run procedures.
+    verifier:
+      - pnpm --filter @pressly/processor test
+      - pnpm exec prettier --check docs apps/processor/README.md apps/processor/DESIGN.md apps/processor/design-qa.md
+      - rg -n "poll|SSE|shift|history|pulse" docs/plan/lpms.md docs/architecture.md docs/devops.md apps/processor/README.md
+      - git diff --check -- docs apps/processor/README.md apps/processor/DESIGN.md apps/processor/design-qa.md
+    rollback:
+      - Revert only the invalid-route fallback and unaccepted checkpoint wording.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+
+  - id: V1
+    title: Run existing focused and repository verification
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+    reads:
+      - repo:package.json
+      - repo:pnpm-workspace.yaml
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/api
+      - repo:apps/processor
+      - repo:apps/worker
+      - repo:tooling/test
+    writes:
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/state.yaml
+    preconditions:
+      - T1 through T3 define the exact claims being tested.
+      - Test execution must not be represented as application repair authorization.
+    action:
+      - Run the existing focused tests and repository gates that cover the recorded behavior.
+      - Record exact commands, checkout identity, outcomes, and any failure without changing application code.
+    postconditions:
+      - Passing evidence is command-backed on one checkout, or the work remains active with the failure recorded.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/db test:integration
+      - pnpm --filter @pressly/api test
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/worker test
+      - pnpm format:check
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm test
+      - pnpm build
+    rollback:
+      - Preserve failed command output as evidence and leave the work active; do not repair application code under this task.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+
+  - id: V2
+    title: Capture read-only local runtime evidence
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - runtime:docker-compose-service-health
+      - runtime:postgres-lpms-aggregates
+      - runtime:api-production-change-stream-health
+      - runtime:worker-observability
+    writes:
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/state.yaml
+    preconditions:
+      - Read-only inspection cannot submit, intake, schedule, start, place, freeze, advance, or complete production work.
+      - Runtime evidence contains only aggregate synthetic facts and no secret or customer payload.
+    action:
+      - Record Compose service health and bounded Worker-loop observations.
+      - Record the existing local aggregate of 15 scheduled orders, 800 pounds, and 34 declared bags without changing that dataset.
+      - Record read-only shift, schedule, run, batch, live-revision, and SSE health facts that are safely observable.
+      - Leave any physical production command and full run execution to separate explicitly authorized work.
+    postconditions:
+      - Evidence distinguishes current local runtime health from a completed production-run proof.
+      - No database row or application state changes as a result of V2.
+    verifier:
+      - docker compose ps
+      - Read-only SQL aggregate queries against the local Compose database.
+      - Read-only API or stream health inspection that does not create a session or issue a production command.
+    rollback:
+      - Remove only unsafe evidence text; runtime rollback is unnecessary because V2 performs no writes.
+    secret_handling: redacted_evidence_only
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+
+  - id: T4
+    title: Accept and apply the implementation-backed memory update
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V2
+    reads:
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-operator-workspace-live-sync.memory-delta.yaml
+    writes:
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-operator-workspace-live-sync.memory-delta.yaml
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/final-report.md
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync/state.yaml
+    preconditions:
+      - V1 and V2 evidence supports every proposed memory statement.
+      - Memory v6 and its context pack have not changed unexpectedly.
+      - The user authorized implementing and applying this checkpoint on 2026-07-15.
+    action:
+      - Review and accept only source-backed delta operations.
+      - Apply the accepted v6-to-v7 delta and regenerate the bounded context pack.
+      - Record residual risks without changing historical work evidence or the H1 production-readiness gate.
+    postconditions:
+      - Memory v7 and context-pack.md agree with the accepted delta.
+      - The work is complete only after every required proof and report is recorded.
+    verifier:
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/2026-07-15-operator-workspace-live-sync.memory-delta.yaml
+      - pnpm stateworks:memory:context laundry-production --stdout
+      - pnpm stateworks:verify stateworks/work/done/lpms-operator-workspace-live-sync/network.yaml --state stateworks/work/done/lpms-operator-workspace-live-sync/state.yaml
+    rollback:
+      - Supersede an incorrect accepted memory statement with a forward delta; never rewrite source sessions or completed-work evidence.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operator-workspace-live-sync/evidence.md

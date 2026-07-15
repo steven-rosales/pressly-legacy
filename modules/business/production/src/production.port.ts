@@ -1,9 +1,36 @@
+import type {
+  ProductionStageCompletionTiming,
+  ProductionStageNextAction,
+} from '@pressly/contracts';
+
 export type PolicyDecision<T> =
   | Readonly<{ tag: 'ok'; value: T }>
   | Readonly<{
       tag: 'err';
       error: Readonly<{ code: string; message: string }>;
     }>;
+
+export type ProductionSignalsPort = Readonly<{
+  planSuperseded: () => void;
+  runStarted: () => void;
+  placementOutcome: (input: {
+    status: 'placed' | 'confirmation_required' | 'not_placed';
+    mode: 'automatic' | 'manager_exact';
+    reason?: string;
+  }) => void;
+  queueConflict: (input: { operation: string }) => void;
+  batchFrozen: (input: { source: 'explicit' | 'stage_start' }) => void;
+  overtimeConfirmed: () => void;
+}>;
+
+export const nullProductionSignals: ProductionSignalsPort = {
+  planSuperseded: () => undefined,
+  runStarted: () => undefined,
+  placementOutcome: () => undefined,
+  queueConflict: () => undefined,
+  batchFrozen: () => undefined,
+  overtimeConfirmed: () => undefined,
+};
 
 export type ProductionPolicyPort = Readonly<{
   evaluateEligibility: (input: {
@@ -15,6 +42,7 @@ export type ProductionPolicyPort = Readonly<{
     status: string;
     expectedOutputPlanHash: string;
     actualOutputPlanHash: string;
+    warningCodes: readonly string[];
     blockingWarningCodes: readonly string[];
     acknowledgedWarningCodes: readonly string[];
     batches: readonly Readonly<{
@@ -29,6 +57,68 @@ export type ProductionPolicyPort = Readonly<{
       }>[];
     }>[];
   }) => PolicyDecision<Readonly<{ accepted: true }>>;
+  evaluateCurrentPlanAcceptance: (input: {
+    scheduleRunId: string;
+    status: string;
+    currentScheduleRunId: string | null;
+    eligibleOrderSnapshotMatches: boolean;
+  }) => PolicyDecision<Readonly<{ current: true }>>;
+  evaluateScheduleStart: (input: {
+    scheduleRunId: string;
+    status: string;
+    currentScheduleRunId: string | null;
+    eligibleOrderSnapshotMatches: boolean;
+    productionRunExists: boolean;
+    batchCount: number;
+  }) => PolicyDecision<Readonly<{ started: true }>>;
+  evaluateShiftPlanningWindow: (input: {
+    action: 'compute' | 'accept' | 'start';
+    now: Date;
+    startsAt: Date;
+    endsAt: Date;
+  }) => PolicyDecision<Readonly<{ allowed: true }>>;
+  evaluateBatchMembershipTransition: (input: {
+    action: 'freeze' | 'unfreeze';
+    batchStatus: string;
+    membershipFrozen: boolean;
+    actorRole: string;
+  }) => PolicyDecision<Readonly<{ membershipFrozen: boolean }>>;
+  evaluatePlacementCommit: (input: {
+    runStatus: string;
+    orderStatus: string;
+    orderAlreadyAssigned: boolean;
+    expectedQueueVersion: number;
+    actualQueueVersion: number;
+    placementType: 'automatic' | 'manager_exact';
+    actorRole: string;
+    orderWeightLbs: number;
+    pulseCapacityLbs: number;
+    overtime: Readonly<{
+      required: boolean;
+      proposalHash: string;
+      confirmation: Readonly<{
+        proposalHash: string;
+        queueVersion: number;
+      }> | null;
+    }>;
+  }) => PolicyDecision<Readonly<{ commit: true }>>;
+  evaluateStageNextAction: (
+    entity: Readonly<{
+      state: string;
+      plannedStartAt: Date;
+      plannedEndAt: Date;
+      actualStartAt: Date | null;
+    }>,
+    context: Readonly<{
+      now: Date;
+      productionRunStarted: boolean;
+      previousStageCompleted: boolean;
+      sameKindAlreadyActive: boolean;
+      machinesRequired: boolean;
+      assignedMachineIds: readonly string[];
+      overlappingMachineIds: readonly string[];
+    }>,
+  ) => PolicyDecision<ProductionStageNextAction>;
   evaluateStageTransition: (
     entity: Readonly<{
       state: string;
@@ -46,7 +136,19 @@ export type ProductionPolicyPort = Readonly<{
       assignedMachineIds: readonly string[];
       overlappingMachineIds: readonly string[];
     }>,
-  ) => PolicyDecision<Readonly<{ state: 'planned' | 'started' | 'completed' }>>;
+  ) => PolicyDecision<
+    | Readonly<{
+        status: 'allowed';
+        state: 'planned' | 'started' | 'completed';
+      }>
+    | Readonly<{
+        status: 'confirmation_required';
+        action: 'complete';
+        code: 'PULSE_BOUNDARY_NOT_REACHED';
+        message: string;
+        timing: ProductionStageCompletionTiming;
+      }>
+  >;
   evaluateMachineAssignment: (input: {
     stageKind: string;
     batchWeightLbs: number;
@@ -88,14 +190,13 @@ export type SchedulingInput = Readonly<{
     id: string;
     pulseMinutes: number;
     foldLbsPerFolderMinute: number;
-    algorithmVersion: 'fixed-pulse-ffd-v1';
+    algorithmVersion: 'fixed-pulse-ffd-v2';
     version: number;
   }>;
-  horizonEnd: string;
 }>;
 
 export type SchedulingOutput = Readonly<{
-  algorithmVersion: 'fixed-pulse-ffd-v1';
+  algorithmVersion: 'fixed-pulse-ffd-v2';
   inputSnapshotHash: string;
   outputPlanHash: string;
   canonicalOutput: string;
@@ -130,8 +231,107 @@ export type SchedulingOutput = Readonly<{
   }>[];
 }>;
 
+export type OnlinePlacementInput = Readonly<{
+  order: Readonly<{
+    id: string;
+    priority: boolean;
+    derivedWeightLbs: number;
+    bagCount: number;
+    version: number;
+  }>;
+  run: Readonly<{
+    id: string;
+    queueVersion: number;
+    startsAt: string;
+    shiftEndsAt: string;
+    pulseMinutes: number;
+    pulseCapacityLbs: number;
+  }>;
+  machines: readonly Readonly<{
+    id: string;
+    stationKind: 'washing' | 'drying';
+    effectiveCapacityLbs: number;
+    active: boolean;
+  }>[];
+  batches: readonly Readonly<{
+    id: string;
+    sequence: number;
+    status:
+      | 'queued'
+      | 'sorting'
+      | 'washing'
+      | 'drying'
+      | 'folding_packaging'
+      | 'finished';
+    membershipFrozen: boolean;
+    orderIds: readonly string[];
+    priorityOrderIds: readonly string[];
+    derivedWeightLbs: number;
+    bagCount: number;
+    stages: readonly Readonly<{
+      stage: 'sorting' | 'washing' | 'drying' | 'folding_packaging';
+      startsAt: string;
+      endsAt: string;
+      machineIds: readonly string[];
+    }>[];
+  }>[];
+  mode:
+    | Readonly<{ type: 'automatic' }>
+    | Readonly<{ type: 'manager_exact'; targetBatchId: string }>;
+}>;
+
+export type OnlinePlacementProposal = Readonly<{
+  kind: 'proposed';
+  algorithmVersion: 'online-stable-insertion-v1';
+  inputSnapshotHash: string;
+  placementPlanHash: string;
+  canonicalPlacement: string;
+  expectedQueueVersion: number;
+  target:
+    | Readonly<{
+        type: 'existing_batch';
+        batchId: string;
+        sequence: number;
+      }>
+    | Readonly<{
+        type: 'new_batch';
+        insertAtSequence: number;
+      }>;
+  affectedFromSequence: number;
+  affectedBatches: readonly Readonly<{
+    sourceBatchId: string | null;
+    sequence: number;
+    status: OnlinePlacementInput['batches'][number]['status'];
+    membershipFrozen: boolean;
+    orderIds: readonly string[];
+    priorityOrderIds: readonly string[];
+    derivedWeightLbs: number;
+    bagCount: number;
+    stages: OnlinePlacementInput['batches'][number]['stages'];
+    changed: boolean;
+  }>[];
+  projectedCompletionAt: string;
+  overtime: Readonly<{
+    required: boolean;
+    shiftEndsAt: string;
+    overrunMinutes: number;
+  }>;
+}>;
+
+export type OnlinePlacementResult =
+  | OnlinePlacementProposal
+  | Readonly<{
+      kind: 'rejected';
+      algorithmVersion: 'online-stable-insertion-v1';
+      inputSnapshotHash: string;
+      reason: Readonly<{ code: string; message: string }>;
+    }>;
+
 export type ProductionSchedulerPort = Readonly<{
   propose: (input: SchedulingInput) => SchedulingOutput;
+  proposeOnlinePlacement: (
+    input: OnlinePlacementInput,
+  ) => OnlinePlacementResult;
 }>;
 
 export type ClockPort = Readonly<{ now: () => Date }>;
@@ -178,6 +378,7 @@ export type StoredStage = Readonly<{
 export type StageTransitionContext = Readonly<{
   stage: StoredStage;
   productionRunStarted: boolean;
+  batchMembershipFrozen: boolean;
   previousStageCompleted: boolean;
   sameKindAlreadyActive: boolean;
   batchWeightLbs: number;

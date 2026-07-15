@@ -10,7 +10,7 @@ import type {
   SchedulingWarning,
 } from './propose-schedule.port.ts';
 
-const stages: readonly SchedulingStageKind[] = [
+const fixedPulseStages: readonly SchedulingStageKind[] = [
   'sorting',
   'washing',
   'drying',
@@ -135,22 +135,26 @@ const packOrders = (
   return batches;
 };
 
-const buildStages = (
-  input: SchedulingInput,
-  batchSequence: number,
-  batchWeightLbs: number,
+const buildFixedPulseStages = (
+  input: Readonly<{
+    startsAt: string;
+    pulseMinutes: number;
+    batchSequence: number;
+    batchWeightLbs: number;
+    machines: readonly SchedulingMachine[];
+  }>,
 ): readonly ProposedStage[] =>
-  stages.map((stage, stageIndex) => {
-    const offset = (batchSequence + stageIndex) * input.config.pulseMinutes;
-    const startsAt = addMinutes(input.shift.startsAt, offset);
+  fixedPulseStages.map((stage, stageIndex) => {
+    const offset = (input.batchSequence + stageIndex) * input.pulseMinutes;
+    const startsAt = addMinutes(input.startsAt, offset);
 
     return {
       stage,
       startsAt,
-      endsAt: addMinutes(startsAt, input.config.pulseMinutes),
+      endsAt: addMinutes(startsAt, input.pulseMinutes),
       machineIds:
         stage === 'washing' || stage === 'drying'
-          ? selectMachines(input.machines, stage, batchWeightLbs)
+          ? selectMachines(input.machines, stage, input.batchWeightLbs)
           : [],
     };
   });
@@ -207,14 +211,7 @@ export const proposeSchedule: ProposeSchedule = (input) => {
     dryerCapacity,
     foldingCapacity,
   );
-  const candidates = input.orders
-    .filter(
-      (order) =>
-        order.priority ||
-        Date.parse(order.dueAt) <= Date.parse(input.horizonEnd),
-    )
-    .slice()
-    .sort(compareOrders(input));
+  const candidates = input.orders.slice().sort(compareOrders(input));
   const oversized =
     pulseCapacityLbs > 0
       ? candidates.filter((order) => order.derivedWeightLbs > pulseCapacityLbs)
@@ -240,12 +237,19 @@ export const proposeSchedule: ProposeSchedule = (input) => {
     orderIds: batch.orders.map((order) => order.id),
     derivedWeightLbs: batch.weightLbs,
     bagCount: batch.orders.reduce((total, order) => total + order.bagCount, 0),
-    stages: buildStages(input, sequence, batch.weightLbs),
+    stages: buildFixedPulseStages({
+      startsAt: input.shift.startsAt,
+      pulseMinutes: input.config.pulseMinutes,
+      batchSequence: sequence,
+      batchWeightLbs: batch.weightLbs,
+      machines: input.machines,
+    }),
   }));
   const makespanMinutes =
     batches.length === 0
       ? 0
-      : (batches.length + stages.length - 1) * input.config.pulseMinutes;
+      : (batches.length + fixedPulseStages.length - 1) *
+        input.config.pulseMinutes;
   const plannedCompletionAt = addMinutes(input.shift.startsAt, makespanMinutes);
 
   if (Date.parse(plannedCompletionAt) > Date.parse(input.shift.endsAt))

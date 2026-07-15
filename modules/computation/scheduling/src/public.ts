@@ -1,5 +1,24 @@
 export { makeProductionScheduler } from './main.ts';
 export type { ProductionScheduler } from './main.ts';
+export { proposeOnlinePlacement } from './online-placement/online-placement.computation.ts';
+export type {
+  OnlinePlacementAlgorithmVersion,
+  OnlinePlacementBatchInput,
+  OnlinePlacementBatchProjection,
+  OnlinePlacementBatchStatus,
+  OnlinePlacementInput,
+  OnlinePlacementMachine,
+  OnlinePlacementMode,
+  OnlinePlacementOrder,
+  OnlinePlacementProposal,
+  OnlinePlacementRejection,
+  OnlinePlacementRejectionCode,
+  OnlinePlacementResult,
+  OnlinePlacementStage,
+  OnlinePlacementStageKind,
+  OnlinePlacementTarget,
+  ProposeOnlinePlacement,
+} from './online-placement/online-placement.port.ts';
 export type {
   ProposeSchedule,
   ProposedStage,

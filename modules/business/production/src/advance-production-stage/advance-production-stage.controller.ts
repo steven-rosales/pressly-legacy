@@ -1,5 +1,8 @@
 import type { RequestHandler } from 'express';
-import type { StageCommand } from '@pressly/contracts';
+import type {
+  CompleteStageCommand,
+  StartStageCommand,
+} from '@pressly/contracts';
 import { catchAsync } from '@pressly/http/express';
 import { sendProductionResult } from '../http/production-response.ts';
 import type { AdvanceProductionStage } from './advance-production-stage.port.ts';
@@ -10,14 +13,35 @@ export const makeAdvanceProductionStageController = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
+    const target = {
+      locationId: request.params['locationId'] as string,
+      stageRunId: request.params['stageRunId'] as string,
+      actorId: input.readActorId(response),
+    };
+    if (input.transition === 'start') {
+      sendProductionResult(
+        response,
+        await input.advance({
+          ...(request.body as Omit<
+            StartStageCommand,
+            'locationId' | 'stageRunId'
+          >),
+          ...target,
+          transition: 'start',
+        }),
+      );
+      return;
+    }
+
     sendProductionResult(
       response,
       await input.advance({
-        ...(request.body as Omit<StageCommand, 'locationId' | 'stageRunId'>),
-        locationId: request.params['locationId'] as string,
-        stageRunId: request.params['stageRunId'] as string,
-        actorId: input.readActorId(response),
-        transition: input.transition,
+        ...(request.body as Omit<
+          CompleteStageCommand,
+          'locationId' | 'stageRunId'
+        >),
+        ...target,
+        transition: 'complete',
       }),
     );
   });

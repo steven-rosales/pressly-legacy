@@ -8,6 +8,7 @@ import {
 import type { IdPort } from '../production.port.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
+import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 import type { RecordOrderIntakeRepository } from './record-order-intake.port.ts';
 
 export const makeRecordOrderIntakeRepository = (deps: {
@@ -16,6 +17,8 @@ export const makeRecordOrderIntakeRepository = (deps: {
 }): RecordOrderIntakeRepository =>
   makePostgresUnitOfWork(deps.db, (db: DatabaseExecutor) => ({
     findWorkEvent: (idempotencyKey) => findWorkEvent(db, idempotencyKey),
+    lockLocationScheduling: (locationId) =>
+      lockLocationScheduling(db, locationId),
 
     lockOrder: async (locationId, orderId) => {
       const [row] = await db

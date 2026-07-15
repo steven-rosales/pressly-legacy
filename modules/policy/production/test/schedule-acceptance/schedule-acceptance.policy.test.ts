@@ -15,6 +15,7 @@ const valid = {
   status: 'draft',
   expectedOutputPlanHash: 'hash',
   actualOutputPlanHash: 'hash',
+  warningCodes: [],
   blockingWarningCodes: [],
   acknowledgedWarningCodes: [],
   batches: [
@@ -42,6 +43,7 @@ describe('schedule acceptance policy', () => {
     expect(
       evaluateScheduleAcceptance({
         ...valid,
+        warningCodes: ['SHIFT_OVERFLOW'],
         blockingWarningCodes: ['SHIFT_OVERFLOW'],
       }),
     ).toMatchObject({
@@ -56,6 +58,29 @@ describe('schedule acceptance policy', () => {
     ).toMatchObject({
       tag: 'err',
       error: { code: 'ORDER_SPLIT_ACROSS_BATCHES' },
+    });
+  });
+
+  it('rejects fabricated or duplicate warning acknowledgements', () => {
+    expect(
+      evaluateScheduleAcceptance({
+        ...valid,
+        acknowledgedWarningCodes: ['SHIFT_OVERFLOW'],
+      }),
+    ).toMatchObject({
+      tag: 'err',
+      error: { code: 'SCHEDULE_WARNING_ACKNOWLEDGEMENT_INVALID' },
+    });
+    expect(
+      evaluateScheduleAcceptance({
+        ...valid,
+        warningCodes: ['SHIFT_OVERFLOW'],
+        blockingWarningCodes: ['SHIFT_OVERFLOW'],
+        acknowledgedWarningCodes: ['SHIFT_OVERFLOW', 'SHIFT_OVERFLOW'],
+      }),
+    ).toMatchObject({
+      tag: 'err',
+      error: { code: 'SCHEDULE_WARNING_ACKNOWLEDGEMENT_INVALID' },
     });
   });
 

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo } from "react"
+import { BrowserRouter, useLocation, useNavigate } from "react-router-dom"
 import {
   IconAlertTriangle,
   IconMapPin,
@@ -30,15 +31,22 @@ import { AuthenticationView } from "@/features/authentication/authentication.vie
 import { IntakeWorkspace } from "@/features/intake/intake.view"
 import { ProductionLocationSelect } from "@/features/location-selection/location-selection.view"
 import { ProductionBoardWorkspace } from "@/features/production-board/production-board.view"
+import { ScheduleHistoryView } from "@/features/scheduling/schedule-history.view"
 import { SchedulingWorkspace } from "@/features/scheduling/scheduling.view"
 import { SettingsView } from "@/features/settings/settings.view"
 import { AppShell } from "./app-shell"
 import type { ProcessorRuntime } from "./app.composition"
-import { derivePlanningDefaults, useProcessorAppModel } from "./app.model"
 import {
-  readWorkspaceView,
-  withWorkspaceView,
+  classifyScheduleContext,
+  derivePlanningDefaults,
+  useProcessorAppModel,
+} from "./app.model"
+import {
+  readWorkspaceRoute,
+  workspaceRouteForView,
+  workspaceRoutePath,
   workspaceCopy,
+  type WorkspaceRoute,
   type WorkspaceView,
 } from "./app.navigation"
 import { useTheme } from "./providers"
@@ -71,7 +79,7 @@ function NoLocations({
 }) {
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
-      <Empty className="max-w-lg border bg-background shadow-xs">
+      <Empty className="max-w-lg border bg-background">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <IconMapPin />
@@ -100,12 +108,14 @@ function NoLocations({
 
 function ChooseLocation({
   model,
+  onSelectLocation,
 }: {
   model: ReturnType<typeof useProcessorAppModel>
+  onSelectLocation: (locationId: string) => void
 }) {
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
-      <Card className="w-full max-w-md bg-background shadow-xs">
+      <Card className="w-full max-w-md bg-background">
         <CardHeader>
           <div className="mb-3 grid size-10 place-items-center rounded-lg bg-foreground text-background">
             <IconMapPin />
@@ -129,7 +139,7 @@ function ChooseLocation({
               disabled={model.locationsLoading}
               triggerId="production-location-choice"
               className="w-full"
-              onValueChange={model.selectLocation}
+              onValueChange={onSelectLocation}
             />
           </Field>
         </CardContent>
@@ -160,7 +170,7 @@ function ForbiddenWorkspace({
 }) {
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
-      <Card className="w-full max-w-lg bg-background shadow-xs">
+      <Card className="w-full max-w-lg bg-background">
         <CardHeader>
           <CardTitle>Processor access is not assigned</CardTitle>
           <CardDescription>
@@ -186,38 +196,96 @@ function ForbiddenWorkspace({
   )
 }
 
-export default function App({ runtime }: { runtime: ProcessorRuntime }) {
-  const model = useProcessorAppModel(runtime)
-  const [view, setView] = useState<WorkspaceView>(() =>
-    readWorkspaceView(window.location.search)
-  )
-  const [acceptedShiftId, setAcceptedShiftId] = useState<string | null>(null)
+function ProcessorWorkspace({
+  runtime,
+  route,
+}: {
+  runtime: ProcessorRuntime
+  route: WorkspaceRoute
+}) {
+  const routerNavigate = useNavigate()
+  const model = useProcessorAppModel(runtime, route)
   const { theme, setTheme } = useTheme()
 
-  const navigate = (next: WorkspaceView) => {
-    setView(next)
-    window.history.replaceState(
-      null,
-      "",
-      withWorkspaceView(window.location.href, next)
-    )
-  }
+  const goToRoute = useCallback(
+    (next: WorkspaceRoute, replace = false) => {
+      routerNavigate(workspaceRoutePath(next), { replace })
+    },
+    [routerNavigate]
+  )
 
-  const boardShiftId =
-    acceptedShiftId ??
-    model.workspace?.board?.productionShift.id ??
-    model.workspace?.currentShift?.id ??
-    null
-  const planningDefaults = useMemo(
+  const selectLocation = useCallback(
+    (locationId: string) => {
+      if (locationId === model.selectedLocationId) return
+      goToRoute(workspaceRouteForView(route.view), true)
+      model.selectLocation(locationId)
+    },
+    [goToRoute, model, route.view]
+  )
+
+  const navigateToView = (
+    next: WorkspaceView,
+    identifiers: Partial<Pick<WorkspaceRoute, "shiftId" | "runId">> = {}
+  ) => goToRoute(workspaceRouteForView(next, identifiers))
+
+  const resolvedRunId =
+    route.runId ??
+    model.workspace?.board?.productionRun.id ??
+    (model.workspace?.activeRuns.length === 1
+      ? model.workspace.activeRuns[0]!.id
+      : null)
+  const scheduleContext = useMemo(
     () =>
       model.workspace === null
+        ? null
+        : classifyScheduleContext({
+            workspace: model.workspace,
+            requestedShiftId: route.shiftId,
+            now: runtime.now(),
+          }),
+    [model.workspace, route.shiftId, runtime]
+  )
+  const planningDefaults = useMemo(
+    () =>
+      model.workspace === null || scheduleContext === null
         ? null
         : derivePlanningDefaults({
             now: runtime.now(),
             workspace: model.workspace,
+            shift:
+              scheduleContext.kind === "planning"
+                ? scheduleContext.shift
+                : null,
           }),
-    [model.workspace, runtime]
+    [model.workspace, runtime, scheduleContext]
   )
+
+  useEffect(() => {
+    if (model.workspace === null) return
+    const resolvedRoute =
+      route.view === "schedule"
+        ? workspaceRouteForView("schedule", {
+            shiftId:
+              route.shiftId ??
+              (scheduleContext?.kind === "planning"
+                ? scheduleContext.shift?.id
+                : scheduleContext?.shift.id) ??
+              null,
+          })
+        : route.view === "board"
+          ? workspaceRouteForView("board", {
+              runId:
+                route.runId ??
+                model.workspace.board?.productionRun.id ??
+                (model.workspace.activeRuns.length === 1
+                  ? model.workspace.activeRuns[0]!.id
+                  : null),
+            })
+          : workspaceRouteForView("settings")
+    if (workspaceRoutePath(resolvedRoute) === workspaceRoutePath(route)) return
+    const timeout = window.setTimeout(() => goToRoute(resolvedRoute, true), 0)
+    return () => window.clearTimeout(timeout)
+  }, [goToRoute, model.workspace, route, scheduleContext])
 
   if (model.authStatus === "restoring")
     return (
@@ -275,7 +343,8 @@ export default function App({ runtime }: { runtime: ProcessorRuntime }) {
       />
     )
 
-  if (model.selectedLocationId === null) return <ChooseLocation model={model} />
+  if (model.selectedLocationId === null)
+    return <ChooseLocation model={model} onSelectLocation={selectLocation} />
 
   const location = model.selectedLocation
   if (location === null)
@@ -287,10 +356,10 @@ export default function App({ runtime }: { runtime: ProcessorRuntime }) {
 
   return (
     <AppShell
-      current={view}
-      onNavigate={navigate}
-      title={workspaceCopy[view][0]}
-      description={workspaceCopy[view][1]}
+      current={route.view}
+      onNavigate={navigateToView}
+      title={workspaceCopy[route.view][0]}
+      description={workspaceCopy[route.view][1]}
       locationName={location.name}
       timezone={location.timezone}
       principalName={model.session.principal.displayName}
@@ -299,7 +368,13 @@ export default function App({ runtime }: { runtime: ProcessorRuntime }) {
       actions={
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="hidden sm:inline-flex">
-            Live
+            {!model.online
+              ? "Offline"
+              : model.liveConnectionState === "open"
+                ? "Live"
+                : model.liveConnectionState === "reconnecting"
+                  ? "Reconnecting"
+                  : "Connecting"}
           </Badge>
           {model.locations.length > 1 && (
             <ProductionLocationSelect
@@ -307,7 +382,7 @@ export default function App({ runtime }: { runtime: ProcessorRuntime }) {
               value={location.id}
               disabled={model.locationsLoading || model.workspaceLoading}
               triggerId="production-location-switcher"
-              onValueChange={model.selectLocation}
+              onValueChange={selectLocation}
             />
           )}
         </div>
@@ -359,77 +434,185 @@ export default function App({ runtime }: { runtime: ProcessorRuntime }) {
           </Empty>
         ) : (
           <>
-            {view === "schedule" && (
-              <>
-                {model.intakeOrders.length > 0 && (
-                  <IntakeWorkspace
-                    production={runtime.production}
-                    idempotency={runtime.idempotency}
-                    locationId={location.id}
-                    orders={model.intakeOrders}
-                    onRecorded={model.refreshWorkspace}
-                  />
-                )}
+            {route.view !== "settings" && model.intakeOrders.length > 0 && (
+              <IntakeWorkspace
+                production={runtime.production}
+                idempotency={runtime.idempotency}
+                locationId={location.id}
+                orders={model.intakeOrders}
+                onRecorded={model.refreshWorkspace}
+              />
+            )}
+            {route.view === "schedule" &&
+              scheduleContext?.kind === "history" && (
+                <ScheduleHistoryView
+                  shift={scheduleContext.shift}
+                  productionRun={scheduleContext.productionRun}
+                  reason={scheduleContext.reason}
+                  timezone={location.timezone}
+                  onPlanNewShift={() => navigateToView("schedule")}
+                  onOpenProduction={
+                    scheduleContext.productionRun === null
+                      ? null
+                      : () =>
+                          navigateToView("board", {
+                            runId: scheduleContext.productionRun!.id,
+                          })
+                  }
+                />
+              )}
+            {route.view === "schedule" &&
+              scheduleContext?.kind === "planning" && (
                 <SchedulingWorkspace
-                  key={`${location.id}:${model.workspace.asOf}`}
+                  key={`${location.id}:${scheduleContext.shift?.id ?? "new"}:${scheduleContext.proposal?.scheduleRunId ?? "none"}:${scheduleContext.proposal?.status ?? "none"}`}
                   production={runtime.production}
                   idempotency={runtime.idempotency}
                   locationId={location.id}
                   orders={model.schedulingOrders}
                   defaults={planningDefaults}
                   currentConfig={model.workspace.currentSchedulerConfig}
-                  currentShift={model.workspace.currentShift}
-                  initialProposal={
-                    model.workspace.latestScheduleProposal ?? undefined
-                  }
-                  onAccepted={(productionShiftId) => {
-                    setAcceptedShiftId(productionShiftId)
-                    void model.refreshWorkspace()
-                    navigate("board")
+                  currentShift={scheduleContext.shift}
+                  initialProposal={scheduleContext.proposal ?? undefined}
+                  canManage={model.session.principal.roles.some(
+                    (role) => role === "owner" || role === "admin"
+                  )}
+                  onOpenConfiguration={() => navigateToView("settings")}
+                  onScheduleChanged={async (productionShiftId) => {
+                    goToRoute(
+                      workspaceRouteForView("schedule", {
+                        shiftId: productionShiftId,
+                      }),
+                      true
+                    )
+                    await model.refreshWorkspace(productionShiftId)
+                  }}
+                  onStarted={async (result, productionShiftId) => {
+                    await model.refreshWorkspace(productionShiftId)
+                    goToRoute(
+                      workspaceRouteForView("board", {
+                        runId: result.productionRunId,
+                      })
+                    )
                   }}
                 />
-              </>
-            )}
-            {view === "board" &&
-              boardShiftId !== null &&
-              model.workspace.board !== null && (
-                <ProductionBoardWorkspace
-                  key={`${location.id}:${boardShiftId}`}
-                  production={runtime.production}
-                  idempotency={runtime.idempotency}
-                  locationId={location.id}
-                  productionShiftId={boardShiftId}
-                  timezone={location.timezone}
-                  machines={model.workspace.machines}
-                  initialBoard={model.workspace.board}
-                />
               )}
-            {view === "board" && model.workspace.board === null && (
+            {route.view === "board" && resolvedRunId !== null && (
+              <ProductionBoardWorkspace
+                key={`${location.id}:${resolvedRunId}`}
+                production={runtime.production}
+                idempotency={runtime.idempotency}
+                locationId={location.id}
+                productionRunId={resolvedRunId}
+                timezone={location.timezone}
+                machines={model.workspace.machines}
+                initialBoard={
+                  model.workspace.board?.productionRun.id === resolvedRunId
+                    ? model.workspace.board
+                    : undefined
+                }
+                refreshBoard={model.refreshBoard}
+                online={model.online}
+                updatesState={model.liveConnectionState}
+                canManage={model.session.principal.roles.some(
+                  (role) => role === "owner" || role === "admin"
+                )}
+              />
+            )}
+            {route.view === "board" && resolvedRunId === null && (
               <Empty className="min-h-80 border">
                 <EmptyHeader>
                   <EmptyTitle>No active production run</EmptyTitle>
                   <EmptyDescription>
-                    Accept a schedule before opening the production floor.
+                    {model.workspace.pendingEligibleOrders.some(
+                      (order) => order.placement.status === "ambiguous_run"
+                    )
+                      ? "Pending orders need an explicit run selection because multiple production runs are active."
+                      : "Start an accepted schedule before opening the production floor."}
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
-                  <Button onClick={() => navigate("schedule")}>
+                  {model.workspace.candidateShifts.map((candidate) => (
+                    <Button
+                      key={candidate.productionShiftId}
+                      variant="outline"
+                      onClick={() =>
+                        navigateToView(
+                          candidate.productionRunId === null
+                            ? "schedule"
+                            : "board",
+                          {
+                            shiftId: candidate.productionShiftId,
+                            runId: candidate.productionRunId,
+                          }
+                        )
+                      }
+                    >
+                      Open {candidate.reason.replaceAll("_", " ")}
+                    </Button>
+                  ))}
+                  <Button onClick={() => navigateToView("schedule")}>
                     Open scheduling
                   </Button>
                 </EmptyContent>
               </Empty>
             )}
-            {view === "settings" && (
+            {route.view === "settings" && (
               <SettingsView
                 theme={theme === "dark" ? "dark" : "light"}
                 onThemeChange={setTheme}
                 schedulerConfig={model.workspace.currentSchedulerConfig}
                 shift={model.workspace.currentShift}
+                production={runtime.production}
+                idempotency={runtime.idempotency}
+                locationId={location.id}
+                canManage={model.session.principal.roles.some(
+                  (role) => role === "owner" || role === "admin"
+                )}
+                onConfigurationPublished={async () => {
+                  await model.refreshWorkspace(route.shiftId ?? undefined)
+                }}
               />
             )}
           </>
         )}
       </div>
     </AppShell>
+  )
+}
+
+function ProcessorRoute({ runtime }: { runtime: ProcessorRuntime }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const route = readWorkspaceRoute(location.pathname)
+
+  return route === null ? (
+    <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
+      <Empty className="max-w-lg border bg-background">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <IconAlertTriangle />
+          </EmptyMedia>
+          <EmptyTitle role="heading" aria-level={1}>
+            Page not found
+          </EmptyTitle>
+          <EmptyDescription>
+            This address is not part of the production workspace.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button onClick={() => navigate("/schedule")}>Open scheduling</Button>
+        </EmptyContent>
+      </Empty>
+    </main>
+  ) : (
+    <ProcessorWorkspace runtime={runtime} route={route} />
+  )
+}
+
+export default function App({ runtime }: { runtime: ProcessorRuntime }) {
+  return (
+    <BrowserRouter>
+      <ProcessorRoute runtime={runtime} />
+    </BrowserRouter>
   )
 }

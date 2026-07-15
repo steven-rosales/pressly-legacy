@@ -1,24 +1,25 @@
-import type { RequestHandler } from 'express';
-import type { ProductionRunCommand } from '@pressly/contracts';
+import type { StartScheduleCommand } from '@pressly/contracts';
 import { catchAsync } from '@pressly/http/express';
+import type { RequestHandler } from 'express';
 import { sendProductionResult } from '../http/production-response.ts';
-import type { StartProductionRun } from './start-production-run.port.ts';
+import type { StartSchedule } from './start-schedule.port.ts';
 
-export const makeStartProductionRunController = (input: {
-  startRun: StartProductionRun;
+export const makeStartScheduleController = (input: {
+  startSchedule: StartSchedule;
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
     sendProductionResult(
       response,
-      await input.startRun({
+      await input.startSchedule({
         ...(request.body as Omit<
-          ProductionRunCommand,
-          'locationId' | 'productionRunId'
+          StartScheduleCommand,
+          'locationId' | 'scheduleRunId'
         >),
         locationId: request.params['locationId'] as string,
-        productionRunId: request.params['productionRunId'] as string,
+        scheduleRunId: request.params['scheduleRunId'] as string,
         actorId: input.readActorId(response),
       }),
+      201,
     );
   });

@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { makeProductionApplication } from '../../src/main.ts';
+import { makeApplyOrderDemand } from '../../src/apply-order-demand/apply-order-demand.usecase.ts';
 import { makeMemoryProductionRepositories } from '../support/memory-production-repositories.ts';
 import {
   allowPolicy,
@@ -126,5 +127,48 @@ describe('source-neutral order demand', () => {
       tag: 'err',
       error: { code: 'production_location_unavailable' },
     });
+  });
+
+  it('attempts placement only after an applied revision is eligible', async () => {
+    const ids = makeIds();
+    const memory = makeMemoryProductionRepositories({ ids });
+    const attemptAutomaticPlacement = vi.fn(async () => undefined);
+    const applyDemand = makeApplyOrderDemand({
+      repo: memory.repositories.applyOrderDemand,
+      policy: allowPolicy,
+      clock: makeClock('2026-07-10T14:00:00.000Z').clock,
+      ids,
+      attemptAutomaticPlacement,
+    });
+    const eligible = command({
+      bagCount: 2,
+      idempotencyKey: 'eligible-demand-command',
+    });
+
+    await applyDemand(eligible);
+    await applyDemand(eligible);
+    await applyDemand(
+      command({
+        bagCount: 2,
+        revisionAt: '2026-07-10T13:58:00.000Z',
+        revisionHash: 'b'.repeat(64),
+        idempotencyKey: 'older-eligible-demand-command',
+      }),
+    );
+    await applyDemand(
+      command({
+        demandKey: 'source:order:1002',
+        displayReference: '1002',
+        idempotencyKey: 'intake-pending-demand-command',
+      }),
+    );
+
+    expect(attemptAutomaticPlacement).toHaveBeenCalledOnce();
+    expect(attemptAutomaticPlacement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 'location-1',
+        idempotencyKey: 'eligible-demand-command',
+      }),
+    );
   });
 });

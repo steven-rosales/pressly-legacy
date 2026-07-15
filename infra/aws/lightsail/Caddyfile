@@ -3,6 +3,10 @@
 	reverse_proxy web:3000
 }
 
+www.{$PRESSLY_WEB_DOMAIN:trypressly.com} {
+	redir https://{$PRESSLY_WEB_DOMAIN:trypressly.com}{uri} permanent
+}
+
 {$PRESSLY_API_DOMAIN:api.trypressly.com} {
 	encode zstd gzip
 	reverse_proxy api:4000

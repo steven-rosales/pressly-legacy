@@ -6,6 +6,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -14,8 +15,14 @@ import {
   makeProcessorRuntime,
   type ProcessorRuntime,
 } from "@/app/app.composition"
-import { resolveLocationSelection, useProcessorAppModel } from "@/app/app.model"
+import {
+  classifyScheduleContext,
+  resolveLocationSelection,
+  useProcessorAppModel,
+} from "@/app/app.model"
+import { workspaceCopy } from "@/app/app.navigation"
 import { ThemeProvider } from "@/app/providers"
+import type { ProductionChangePort } from "@/ports/production-change.port"
 import {
   makeTestProductionPort,
   testIdempotency,
@@ -62,8 +69,14 @@ const makeFetch = (restoreStatus = 200) =>
     if (url.endsWith("/processor/auth/login")) return response(session)
     if (url.endsWith("/production/locations"))
       return response({ items: [testLocation], asOf: testWorkspace.asOf })
-    if (url.endsWith(`/production/locations/${testLocation.id}/workspace`))
+    if (url.includes(`/production/locations/${testLocation.id}/workspace`))
       return response(testWorkspace)
+    if (
+      url.endsWith(
+        `/production/locations/${testLocation.id}/runs/${testWorkspace.activeRuns[0]!.id}/board`
+      )
+    )
+      return response(testWorkspace.board)
     if (url.includes(`/production/locations/${testLocation.id}/orders?`))
       return response({
         items: testOrderItems,
@@ -91,9 +104,29 @@ const renderApp = (fetch: typeof globalThis.fetch) =>
 
 describe("processor application composition", () => {
   beforeEach(() => {
-    window.history.replaceState(null, "", "/")
+    window.history.replaceState(null, "", "/schedule")
     window.localStorage.clear()
     document.documentElement.className = ""
+  })
+
+  it("keeps the root invalid until the operator chooses a real route", async () => {
+    const user = userEvent.setup()
+    const fetch = makeFetch()
+    window.history.replaceState(null, "", "/")
+
+    renderApp(fetch)
+
+    expect(
+      await screen.findByRole("heading", { name: "Page not found" })
+    ).toBeVisible()
+    expect(window.location.pathname).toBe("/")
+    expect(fetch).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole("button", { name: "Open scheduling" }))
+
+    expect(
+      await screen.findByRole("heading", { name: "Schedule" })
+    ).toBeVisible()
   })
 
   it("restores a cookie session, discovers locations, and resumes live workspace", async () => {
@@ -101,7 +134,7 @@ describe("processor application composition", () => {
     renderApp(fetch)
 
     expect(
-      await screen.findByRole("heading", { name: "Production schedule" })
+      await screen.findByRole("heading", { name: "Schedule" })
     ).toBeInTheDocument()
     expect(
       screen.getByText(/East Plant · America\/Chicago/)
@@ -116,6 +149,48 @@ describe("processor application composition", () => {
       screen.queryByLabelText("Production location")
     ).not.toBeInTheDocument()
     expect(JSON.stringify(fetch.mock.calls)).not.toContain("Authorization")
+    await waitFor(() =>
+      expect(window.location.pathname).toBe(
+        `/schedule/${testWorkspace.currentShift!.id}`
+      )
+    )
+  })
+
+  it("uses one mobile navigation surface and closes its drawer after selection", async () => {
+    const user = userEvent.setup()
+    renderApp(makeFetch())
+    await screen.findByRole("heading", { name: "Schedule" })
+
+    expect(
+      screen.getAllByRole("navigation", { name: "Processor" })
+    ).toHaveLength(1)
+
+    await user.click(screen.getByRole("button", { name: "Open navigation" }))
+    const drawer = await screen.findByRole("dialog", {
+      name: "Processor navigation",
+    })
+    await user.click(within(drawer).getByRole("button", { name: "Production" }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Processor navigation" })
+      ).not.toBeInTheDocument()
+    )
+    expect(window.location.pathname).toBe(
+      `/production/${testWorkspace.activeRuns[0]!.id}`
+    )
+  })
+
+  it("publishes the Pressly Processor tab identity", async () => {
+    const [html, favicon, canonicalFavicon] = await Promise.all([
+      readFile(resolve(process.cwd(), "index.html"), "utf8"),
+      readFile(resolve(process.cwd(), "public/favicon.ico")),
+      readFile(resolve(process.cwd(), "../web/public/logo/favicon.ico")),
+    ])
+
+    expect(html).toContain('<link rel="icon" href="/favicon.ico" />')
+    expect(html).toContain("<title>Pressly Processor</title>")
+    expect(favicon.equals(canonicalFavicon)).toBe(true)
   })
 
   it("asks for a location only when several are available without a valid preference", async () => {
@@ -156,7 +231,7 @@ describe("processor application composition", () => {
     await user.click(await screen.findByRole("option", { name: "East Plant" }))
 
     expect(
-      await screen.findByRole("heading", { name: "Production schedule" })
+      await screen.findByRole("heading", { name: "Schedule" })
     ).toBeInTheDocument()
     expect(window.localStorage.getItem("pressly.processor.location")).toBe(
       testLocation.id
@@ -210,6 +285,100 @@ describe("processor application composition", () => {
     ).toBe(west.id)
   })
 
+  it("keeps a started run visible while dropping completed implicit history", () => {
+    expect(
+      classifyScheduleContext({
+        workspace: testWorkspace,
+        requestedShiftId: testWorkspace.currentShift!.id,
+        now: new Date("2026-08-01T14:00:00.000Z"),
+      })
+    ).toMatchObject({
+      kind: "history",
+      reason: "run_owned",
+      productionRun: { id: testWorkspace.board!.productionRun.id },
+    })
+    expect(
+      classifyScheduleContext({
+        workspace: testWorkspace,
+        requestedShiftId: null,
+        now: new Date("2026-08-01T14:00:00.000Z"),
+      })
+    ).toMatchObject({
+      kind: "history",
+      reason: "run_owned",
+      productionRun: { status: "started" },
+    })
+
+    const completedWorkspace = structuredClone(testWorkspace)
+    completedWorkspace.board!.productionRun.status = "completed"
+    expect(
+      classifyScheduleContext({
+        workspace: completedWorkspace,
+        requestedShiftId: null,
+        now: new Date("2026-08-01T14:00:00.000Z"),
+      })
+    ).toEqual({ kind: "planning", shift: null, proposal: null })
+  })
+
+  it("keeps completed shifts read-only and reloads a fresh planning workspace", async () => {
+    const user = userEvent.setup()
+    const completedWorkspace = structuredClone(testWorkspace)
+    completedWorkspace.currentShift!.status = "closed"
+    completedWorkspace.currentScheduleProposal = null
+    completedWorkspace.activeRuns = []
+    completedWorkspace.candidateShifts = []
+    completedWorkspace.board!.productionShift.status = "closed"
+    completedWorkspace.board!.productionRun.status = "completed"
+    completedWorkspace.board!.productionRun.version += 1
+    const freshWorkspace = structuredClone(completedWorkspace)
+    freshWorkspace.currentShift = null
+    freshWorkspace.board = null
+    let defaultWorkspaceLoads = 0
+    const managerSession = {
+      ...session,
+      principal: { ...session.principal, roles: ["admin" as const] },
+    }
+    const fetch = vi.fn(async (request: RequestInfo | URL) => {
+      const url = String(request)
+      if (url.endsWith("/processor/auth/session"))
+        return response(managerSession)
+      if (url.endsWith("/production/locations"))
+        return response({ items: [testLocation], asOf: testWorkspace.asOf })
+      if (url.includes(`/production/locations/${testLocation.id}/workspace`)) {
+        if (url.includes("shiftId=")) return response(completedWorkspace)
+        defaultWorkspaceLoads += 1
+        return response(freshWorkspace)
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    window.history.replaceState(
+      null,
+      "",
+      `/schedule/${completedWorkspace.currentShift!.id}`
+    )
+    renderApp(fetch)
+
+    expect(await screen.findByText("This shift is complete")).toBeVisible()
+    expect(
+      screen.getByRole("button", { name: "Open production history" })
+    ).toBeEnabled()
+    expect(
+      screen.queryByRole("button", { name: /compute schedule/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /edit shift/i })
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Plan a new shift" }))
+
+    await waitFor(() => expect(window.location.pathname).toBe("/schedule"))
+    expect(
+      await screen.findByRole("button", { name: "Compute schedule" })
+    ).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Set shift" })).toBeEnabled()
+    expect(defaultWorkspaceLoads).toBe(1)
+  })
+
   it("does not let an older location refresh overwrite newer workspace state", async () => {
     const otherLocation = {
       ...testLocation,
@@ -227,14 +396,9 @@ describe("processor application composition", () => {
       locationId: otherLocation.id,
       externalOrderId: `WEST-${order.externalOrderId}`,
     }))
+    otherWorkspace.orders = otherOrders
     const staleWorkspace = deferred<typeof testWorkspace>()
-    const staleOrders = deferred<{
-      items: Array<(typeof testOrderItems)[number]>
-      nextCursor: null
-      asOf: string
-    }>()
     let eastWorkspaceCalls = 0
-    let eastOrderCalls = 0
     const runtime: ProcessorRuntime = {
       authentication: {
         restore: async () => session,
@@ -254,23 +418,10 @@ describe("processor application composition", () => {
             ? structuredClone(testWorkspace)
             : staleWorkspace.promise
         },
-        listOrders: async ({ locationId }) => {
-          if (locationId === otherLocation.id)
-            return {
-              items: otherOrders,
-              nextCursor: null,
-              asOf: otherWorkspace.asOf,
-            }
-          eastOrderCalls += 1
-          return eastOrderCalls === 1
-            ? {
-                items: [...structuredClone(testOrderItems)],
-                nextCursor: null,
-                asOf: testWorkspace.asOf,
-              }
-            : staleOrders.promise
-        },
       }),
+      productionChanges: {
+        subscribe: () => () => undefined,
+      },
       locationPreference: {
         read: () => testLocation.id,
         save: vi.fn(),
@@ -292,20 +443,15 @@ describe("processor application composition", () => {
     })
     await waitFor(() => expect(eastWorkspaceCalls).toBe(2))
 
-    act(() => result.current.selectLocation(otherLocation.id))
+    act(() => {
+      result.current.selectLocation(otherLocation.id)
+      staleWorkspace.resolve(structuredClone(testWorkspace))
+    })
     await waitFor(() =>
       expect(result.current.workspace?.location.id).toBe(otherLocation.id)
     )
 
-    await act(async () => {
-      staleWorkspace.resolve(structuredClone(testWorkspace))
-      staleOrders.resolve({
-        items: [...structuredClone(testOrderItems)],
-        nextCursor: null,
-        asOf: testWorkspace.asOf,
-      })
-      await olderRefresh
-    })
+    await act(async () => olderRefresh)
 
     expect(result.current.workspace?.location.id).toBe(otherLocation.id)
     expect(result.current.orders).toEqual(otherOrders)
@@ -322,24 +468,331 @@ describe("processor application composition", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }))
 
     expect(
-      await screen.findByRole("heading", { name: "Production schedule" })
+      await screen.findByRole("heading", { name: "Schedule" })
     ).toBeInTheDocument()
     expect(JSON.stringify(window.localStorage)).not.toMatch(
       /correct-horse|csrf/
     )
   })
 
+  it("acknowledges an SSE revision only after its authoritative refresh succeeds", async () => {
+    let subscription:
+      | Parameters<ProductionChangePort["subscribe"]>[0]
+      | undefined
+    let workspaceAttempt = 0
+    const loadWorkspace = vi.fn(async () => {
+      workspaceAttempt += 1
+      if (workspaceAttempt === 2) throw new Error("temporary read failure")
+      return structuredClone(testWorkspace)
+    })
+    const runtime: ProcessorRuntime = {
+      authentication: {
+        restore: async () => session,
+        login: async () => session,
+        completeMfa: async () => session,
+        logout: async () => undefined,
+      },
+      production: makeTestProductionPort({
+        listLocations: async () => ({
+          items: [testLocation],
+          asOf: testWorkspace.asOf,
+        }),
+        loadWorkspace,
+      }),
+      productionChanges: {
+        subscribe: (input) => {
+          subscription = input
+          return () => undefined
+        },
+      },
+      locationPreference: {
+        read: () => testLocation.id,
+        save: vi.fn(),
+        clear: vi.fn(),
+      },
+      idempotency: testIdempotency,
+      subscribeToUnauthorized: () => () => undefined,
+      now: () => new Date("2026-08-01T13:15:00.000Z"),
+    }
+    const { result } = renderHook(() => useProcessorAppModel(runtime))
+
+    await waitFor(() => expect(loadWorkspace).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(subscription).toBeDefined())
+
+    act(() =>
+      subscription!.onInvalidate({
+        source: "ready",
+        revision: 7,
+      })
+    )
+    await waitFor(() => expect(loadWorkspace).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(result.current.workspaceError).not.toBeNull())
+
+    act(() =>
+      subscription!.onInvalidate({
+        source: "ready",
+        revision: 7,
+      })
+    )
+    await waitFor(() => expect(loadWorkspace).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(result.current.workspaceError).toBeNull())
+
+    await act(async () => {
+      subscription!.onInvalidate({
+        source: "ready",
+        revision: 7,
+      })
+      await Promise.resolve()
+    })
+    expect(loadWorkspace).toHaveBeenCalledTimes(3)
+  })
+
   it("persists only the explicit light or dark appearance choice", async () => {
     const user = userEvent.setup()
     renderApp(makeFetch())
-    await screen.findByRole("heading", { name: "Production schedule" })
+    await screen.findByRole("heading", { name: "Schedule" })
 
     await user.click(
       screen.getAllByRole("button", { name: "Configuration" })[0]!
     )
+    expect(window.location.pathname).toBe("/configuration")
     await user.click(screen.getByRole("radio", { name: "Dark" }))
     expect(document.documentElement).toHaveClass("dark")
     expect(window.localStorage.getItem("theme")).toBe("dark")
+  })
+
+  it("follows browser back and forward navigation between real workspace paths", async () => {
+    const user = userEvent.setup()
+    renderApp(makeFetch())
+    await screen.findByRole("heading", { name: workspaceCopy.schedule[0] })
+
+    await user.click(screen.getAllByRole("button", { name: "Production" })[0]!)
+    await waitFor(() =>
+      expect(window.location.pathname).toBe(
+        `/production/${testWorkspace.activeRuns[0]!.id}`
+      )
+    )
+    await user.click(
+      screen.getAllByRole("button", { name: "Configuration" })[0]!
+    )
+    expect(window.location.pathname).toBe("/configuration")
+
+    act(() => window.history.back())
+    expect(
+      await screen.findByRole("heading", { name: workspaceCopy.board[0] })
+    ).toBeInTheDocument()
+    expect(window.location.pathname).toBe(
+      `/production/${testWorkspace.activeRuns[0]!.id}`
+    )
+
+    act(() => window.history.forward())
+    expect(
+      await screen.findByRole("heading", { name: workspaceCopy.settings[0] })
+    ).toBeInTheDocument()
+    expect(window.location.pathname).toBe("/configuration")
+  })
+
+  it("resumes the production board from URL-persisted shift and run identities", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      `/production/${testWorkspace.activeRuns[0]!.id}`
+    )
+    const fetch = makeFetch()
+    renderApp(fetch)
+
+    expect(
+      await screen.findByRole("heading", { name: workspaceCopy.board[0] })
+    ).toBeInTheDocument()
+    expect(window.location.pathname).toBe(
+      `/production/${testWorkspace.activeRuns[0]!.id}`
+    )
+    expect(await screen.findByText("Bag intake")).toBeInTheDocument()
+    expect(screen.getByLabelText("Priority")).toBeInTheDocument()
+    expect(
+      fetch.mock.calls.filter(([request]) =>
+        String(request).includes(
+          `/production/locations/${testLocation.id}/workspace`
+        )
+      )
+    ).toHaveLength(1)
+    expect(
+      fetch.mock.calls.some(([request]) =>
+        String(request).includes(
+          `/production/locations/${testLocation.id}/orders?`
+        )
+      )
+    ).toBe(false)
+    expect(
+      fetch.mock.calls.some(([request]) =>
+        String(request).includes(
+          `/production/locations/${testLocation.id}/runs/${testWorkspace.activeRuns[0]!.id}/board`
+        )
+      )
+    ).toBe(false)
+  })
+
+  it("re-resolves shift and run identities when the production location changes", async () => {
+    const user = userEvent.setup()
+    const westLocation = {
+      ...testLocation,
+      id: "plant-west",
+      name: "West Plant",
+      timezone: "America/Denver",
+    }
+    const westShiftId = "00000000-0000-4000-8000-000000000701"
+    const westRunId = "00000000-0000-4000-8000-000000000702"
+    const westWorkspace = structuredClone(testWorkspace)
+    westWorkspace.location = westLocation
+    westWorkspace.currentShift!.id = westShiftId
+    westWorkspace.currentShift!.locationId = westLocation.id
+    westWorkspace.currentShift!.timezone = westLocation.timezone
+    westWorkspace.currentScheduleProposal!.productionShiftId = westShiftId
+    westWorkspace.activeRuns[0]!.id = westRunId
+    westWorkspace.activeRuns[0]!.productionShiftId = westShiftId
+    westWorkspace.candidateShifts[0]!.productionShiftId = westShiftId
+    westWorkspace.candidateShifts[0]!.productionRunId = westRunId
+    westWorkspace.board!.productionShift.id = westShiftId
+    westWorkspace.board!.productionShift.locationId = westLocation.id
+    westWorkspace.board!.productionShift.timezone = westLocation.timezone
+    westWorkspace.board!.productionRun.id = westRunId
+    westWorkspace.board!.productionRun.productionShiftId = westShiftId
+    const westOrders = testOrderItems.map((order) => ({
+      ...structuredClone(order),
+      locationId: westLocation.id,
+    }))
+    westWorkspace.orders = westOrders
+    const baseFetch = makeFetch()
+    const fetch = vi.fn(
+      async (request: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(request)
+        if (url.endsWith("/production/locations"))
+          return response({
+            items: [testLocation, westLocation],
+            asOf: testWorkspace.asOf,
+          })
+        if (url.includes(`/production/locations/${westLocation.id}/workspace`))
+          return response(westWorkspace)
+        if (url.includes(`/production/locations/${westLocation.id}/orders?`))
+          return response({
+            items: westOrders,
+            nextCursor: null,
+            asOf: westWorkspace.asOf,
+          })
+        if (
+          url.endsWith(
+            `/production/locations/${westLocation.id}/runs/${westRunId}/board`
+          )
+        )
+          return response(westWorkspace.board)
+        return baseFetch(request, init)
+      }
+    )
+    window.localStorage.setItem("pressly.processor.location", testLocation.id)
+    window.history.replaceState(
+      null,
+      "",
+      `/production/${testWorkspace.activeRuns[0]!.id}`
+    )
+    renderApp(fetch)
+
+    await screen.findByRole("heading", { name: workspaceCopy.board[0] })
+    await user.click(screen.getByLabelText("Production location"))
+    await user.click(await screen.findByRole("option", { name: "West Plant" }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/West Plant · America\/Denver/)).toBeVisible()
+    )
+    await waitFor(() => {
+      expect(window.location.pathname).toBe(`/production/${westRunId}`)
+      expect(window.location.pathname).not.toContain(
+        testWorkspace.activeRuns[0]!.id
+      )
+    })
+  })
+
+  it("awaits Start refresh and navigates with the returned production run ID", async () => {
+    const user = userEvent.setup()
+    const acceptedWorkspace = structuredClone(testWorkspace)
+    acceptedWorkspace.currentScheduleProposal!.status = "accepted"
+    acceptedWorkspace.currentScheduleProposal!.acceptedAt =
+      "2026-08-01T13:45:00.000Z"
+    acceptedWorkspace.currentScheduleProposal!.acceptedBy =
+      "00000000-0000-4000-8000-000000000099"
+    acceptedWorkspace.activeRuns = []
+    acceptedWorkspace.board = null
+    acceptedWorkspace.candidateShifts = [
+      {
+        productionShiftId: acceptedWorkspace.currentShift!.id,
+        startsAt: acceptedWorkspace.currentShift!.startsAt,
+        endsAt: acceptedWorkspace.currentShift!.endsAt,
+        reason: "accepted_plan",
+        productionRunId: null,
+        scheduleRunId: acceptedWorkspace.currentScheduleProposal!.scheduleRunId,
+      },
+    ]
+    const managerSession = {
+      ...session,
+      principal: { ...session.principal, roles: ["admin" as const] },
+    }
+    let started = false
+    const fetch = vi.fn(async (request: RequestInfo | URL) => {
+      const url = String(request)
+      if (url.endsWith("/processor/auth/session"))
+        return response(managerSession)
+      if (url.endsWith("/production/locations"))
+        return response({ items: [testLocation], asOf: testWorkspace.asOf })
+      if (url.includes(`/production/locations/${testLocation.id}/workspace`))
+        return response(started ? testWorkspace : acceptedWorkspace)
+      if (url.includes(`/production/locations/${testLocation.id}/orders?`))
+        return response({
+          items: testOrderItems,
+          nextCursor: null,
+          asOf: testWorkspace.asOf,
+        })
+      if (
+        url.endsWith(
+          `/production/locations/${testLocation.id}/schedules/${acceptedWorkspace.currentScheduleProposal!.scheduleRunId}/start`
+        )
+      ) {
+        started = true
+        return response({
+          scheduleRunId:
+            acceptedWorkspace.currentScheduleProposal!.scheduleRunId,
+          productionRunId: testWorkspace.activeRuns[0]!.id,
+          productionBatchIds: testWorkspace.board!.batches.map(
+            (batch) => batch.id
+          ),
+          queueVersion: 1,
+          startedAt: "2026-08-01T14:00:00.000Z",
+          replayed: false,
+        })
+      }
+      if (
+        url.endsWith(
+          `/production/locations/${testLocation.id}/runs/${testWorkspace.activeRuns[0]!.id}/board`
+        )
+      )
+        return response(testWorkspace.board)
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    window.history.replaceState(
+      null,
+      "",
+      `/schedule/${acceptedWorkspace.currentShift!.id}`
+    )
+    renderApp(fetch)
+
+    await user.click(
+      await screen.findByRole("button", { name: "Start production run" })
+    )
+
+    expect(
+      await screen.findByRole("heading", { name: workspaceCopy.board[0] })
+    ).toBeInTheDocument()
+    expect(window.location.pathname).toBe(
+      `/production/${testWorkspace.activeRuns[0]!.id}`
+    )
   })
 
   it("defines the web palette, status, focus, and reduced-motion tokens", async () => {

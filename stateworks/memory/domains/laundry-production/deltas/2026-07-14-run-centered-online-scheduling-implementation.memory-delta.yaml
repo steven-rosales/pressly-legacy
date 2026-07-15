@@ -1,0 +1,195 @@
+id: memdelta-2026-07-14-run-centered-online-scheduling-implementation
+domain_id: laundry-production
+
+source:
+  type: implementation_evidence
+  path: stateworks/work/done/lpms-run-centered-online-scheduling/evidence.md
+
+changes:
+  - op: update
+    kind: workflow
+    id: scheduling_to_execution
+    steps:
+      - API durably receives and projects canonical external order demand
+      - eligible production_orders form the complete immutable scheduling snapshot for one shift
+      - Compute creates a new immutable schedule_run revision and supersedes the prior current revision
+      - manager reviews warnings and accepts the current output hash without creating execution
+      - Start revalidates the current accepted revision and exact eligible-order snapshot
+      - LPMS creates the shift's sole started production_run and its initial batches, stages, assignments, order transitions, and work_event atomically
+      - operators advance server-authorized stage_run actions at pulse boundaries
+      - post-start arrivals are placed into the existing production_run without moving existing orders automatically
+      - production_batch finishes folding and packaging
+
+  - op: update
+    kind: workflow
+    id: live_order_placement
+    steps:
+      - an order becomes eligible after its shift's production_run has started
+      - LPMS reads the versioned ordered batch queue and immutable resource snapshot
+      - pure online insertion computes an automatic or manager-exact placement proposal
+      - LPMS rejects hard-capacity violations and requests version-bound confirmation for overtime
+      - LPMS commits the placement and affected mutable suffix under the expected queue version
+      - LPMS records placement provenance and a work_event
+
+  - op: update
+    kind: workflow
+    id: batch_membership_control
+    steps:
+      - employee explicitly freezes a queued batch when physical grouping begins
+      - freezing anchors membership and queue position
+      - starting any batch implicitly and permanently freezes membership
+      - if queued unfreeze is enabled under the implementation assumption, it requires an authorized manager, confirmation, and audit
+      - non-queued batches cannot be unfrozen
+
+  - op: update
+    kind: invariant
+    id: one_production_run_per_shift
+    statement: Exactly one production_run may exist for one production shift, and Start is the only lifecycle transition that creates it.
+
+  - op: update
+    kind: invariant
+    id: new_production_run_begins_started
+    statement: A newly created production_run begins directly in started execution; planned is retained only as a legacy-readable state for pre-migration history.
+
+  - op: update
+    kind: invariant
+    id: accept_does_not_create_execution
+    statement: Accept records preference for the current immutable schedule_run revision and acknowledged warnings; it creates no production_run, batch, stage, assignment, or scheduled-order transition.
+
+  - op: update
+    kind: invariant
+    id: one_current_schedule_revision_per_shift
+    statement: A production shift has at most one current draft or accepted schedule_run revision; every successful Compute supersedes the previous current revision and revokes its acceptance.
+
+  - op: update
+    kind: invariant
+    id: start_requires_current_accepted_snapshot
+    statement: Start succeeds only when the accepted schedule_run is still the current revision and its complete eligible-order snapshot is unchanged.
+
+  - op: update
+    kind: invariant
+    id: post_start_orders_enter_existing_run
+    statement: An order that becomes eligible after Start may enter only the existing production_run for its shift; LPMS never creates a sibling run for the arrival.
+
+  - op: update
+    kind: invariant
+    id: batch_membership_freeze_is_orthogonal
+    statement: Batch execution status and membership mutability are separate; queued membership may be mutable or explicitly frozen, while every non-queued batch is permanently frozen.
+
+  - op: update
+    kind: invariant
+    id: online_insertion_has_zero_automatic_recourse_v1
+    statement: V1 automatic live placement may place only the arriving order and may not relocate any existing production_order between batches.
+
+  - op: update
+    kind: invariant
+    id: pulse_capacity_is_hard
+    statement: Neither automatic placement, manager-exact placement, nor overtime acceptance may make a production_batch exceed pulse_capacity_lbs.
+
+  - op: update
+    kind: invariant
+    id: queue_composition_is_versioned
+    statement: Every committed queue-composition or membership mutation compares the expected production_run queue version and increments it exactly once.
+
+  - op: update
+    kind: invariant
+    id: overtime_acceptance_is_version_bound
+    statement: Overtime acceptance applies only to the exact placement proposal hash and queue version that the manager reviewed; any later queue change invalidates it.
+
+  - op: assert
+    kind: invariant
+    id: eligible_snapshot_mutations_are_serialized_v1
+    statement: Compute, Accept, Start, and demand, intake, or priority commands that can change the eligible-order snapshot serialize per location before validating or mutating that snapshot.
+
+  - op: assert
+    kind: invariant
+    id: pending_live_placement_is_durable_v1
+    statement: When live placement cannot commit because confirmation or a recoverable condition is required, the production_order remains eligible and its pending placement outcome is durable and reloadable from the backend.
+
+  - op: assert
+    kind: invariant
+    id: inactive_batch_membership_history_is_retained_v1
+    statement: Completing production deactivates current batch membership without deleting its historical production_batch_order record.
+
+  - op: update
+    kind: policy
+    id: prestart_planning_includes_all_eligible_orders
+    statement: Before Start, Compute includes every currently eligible production_order for the shift rather than an operator-selected planning horizon.
+
+  - op: update
+    kind: policy
+    id: priority_live_placement_v1
+    statement: A priority arrival uses the earliest feasible mutable queued batch; if none fits, LPMS creates a batch after frozen or in-flight anchors and existing priority work but before the remaining ordinary mutable suffix.
+
+  - op: update
+    kind: policy
+    id: ordinary_live_placement_v1
+    statement: An ordinary arrival uses the best-fitting mutable queued batch with earliest sequence as the tie-breaker; if none fits, LPMS appends a new batch.
+
+  - op: update
+    kind: policy
+    id: manager_exact_batch_placement_v1
+    statement: An authorized manager may pin an arriving order to an exact requested mutable queued batch when the placement satisfies hard physical constraints; LPMS must not silently substitute another batch.
+
+  - op: update
+    kind: policy
+    id: overtime_requires_explicit_acceptance
+    statement: A placement projected beyond the shift end is shown as an overflowing plan and commits only after an authorized manager explicitly accepts that exact overtime outcome.
+
+  - op: update
+    kind: decision
+    id: online_scheduling_uses_bounded_recourse
+    statement: LPMS treats post-start arrivals as an online scheduling problem with frozen work as irrevocable, zero automatic recourse in v1, and explicit human overrides as durable constraints.
+
+  - op: update
+    kind: decision
+    id: backend_owns_workspace_identity
+    statement: Shift, current-plan, production-run, queue-version, and action availability come from backend state and explicit identifiers rather than temporary Processor state or arbitrary overlapping-shift selection.
+
+  - op: update
+    kind: decision
+    id: defer_sse_until_state_contract_is_stable
+    statement: Immediate refresh and bounded polling are sufficient for this work; SSE is deferred until run-centered identity and state transitions are correct.
+
+  - op: update
+    kind: decision
+    id: defer_silent_live_reoptimization_v1
+    statement: V1 does not silently repack the live queued suffix; a future optimizer may only preview bounded moves and requires explicit manager acceptance before mutation.
+
+  - op: assert
+    kind: decision
+    id: run_centered_algorithms_implemented_v1
+    statement: The implemented pre-start planner is fixed-pulse-ffd-v2 and the implemented post-start pure placement computation is online-stable-insertion-v1.
+
+  - op: assert
+    kind: decision
+    id: run_centered_forward_migration_v1
+    statement: Migration 0016 aborts before mutation on duplicate shift runs or inconsistent execution, normalizes legacy planned runs back to accepted plans, enforces one current plan and one run per shift, and adds queue, freeze, placement-provenance, and v2 scheduler facts.
+
+  - op: assert
+    kind: decision
+    id: processor_run_centered_polling_v1
+    statement: The Processor persists shiftId and runId in the URL, refreshes authoritative backend state after commands, and polls visible online workspaces and boards every ten seconds without SSE.
+
+  - op: update
+    kind: assumption
+    id: manager_maps_to_owner_admin_v1
+    statement: Existing owner and admin application roles act as the laundry-production manager for Accept, Start, exact placement, queued unfreeze, and overtime acceptance in v1.
+    confidence: medium
+
+  - op: update
+    kind: assumption
+    id: queued_unfreeze_is_manager_only_v1
+    statement: A still-queued frozen batch may be explicitly unfrozen only by an owner or admin, with confirmation and audit; a non-queued batch can never be unfrozen.
+    confidence: medium
+
+verification:
+  - Root acceptance passed on one checkout with 43 of 43 typecheck tasks, 24 of 24 lint tasks, 149 files and 814 tests, and 24 of 24 build tasks.
+  - The canonical LPMS integration command passed 36 files and 153 tests; the canonical LPMS end-to-end command passed 13 files and 86 tests. These command-local counts are not summed because their coverage overlaps root acceptance.
+  - Drizzle consistency, final requirement and concurrency audits, Stateworks lifecycle and memory validation, and git diff checks passed.
+  - The final audit verified race-safe unique-run selection under Postgres concurrency, strict unknown or cross-location shift rejection, board intake visibility and refresh, and location-change URL identity reset.
+  - The disposable six-container Docker proof completed two signed synthetic Cents orders in exactly one run through automatic placement, explicit freeze, direct run-ID resume, four stages and eight authenticated transitions, database durability, release switch and rollback, and zero-resource teardown.
+  - The Docker report is /tmp/pressly-v2-smoke-1000-302529-report.json, 4563 bytes, with SHA-256 152592623a0773563e3382a7c8030f5cd18f271e2507e851a52182f0e0e16033; it records offline current-tree proof rather than live Cents, production, cloud, or historical-binary claims.
+  - Owner/admin manager mapping and queued-unfreeze authorization remain medium-confidence implementation assumptions; SSE, probabilistic stability scoring, silent live optimization, automatic repacking, and the other explicit v1 deferrals remain deferred.
+
+status: applied

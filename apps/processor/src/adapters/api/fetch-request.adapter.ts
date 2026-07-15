@@ -6,8 +6,13 @@ type ApiEnvelope =
   | Readonly<{ ok: true; data: unknown }>
   | Readonly<{
       ok: false
-      error: Readonly<{ code?: string; message?: string }>
+      error: Readonly<{ code?: string; message?: string; traceId?: string }>
     }>
+
+export type RequestFailureContext = Readonly<{
+  method: string
+  path: string
+}>
 
 const failureKind = (status: number): RequestFailureKind => {
   if (status === 401) return "unauthorized"
@@ -27,6 +32,7 @@ export const makeFetchRequestAdapter = (input: {
   baseUrl: string
   readCsrfToken: () => string | null
   onUnauthorized?: () => void
+  onFailure?: (failure: RequestFailure, context: RequestFailureContext) => void
   fetch?: typeof globalThis.fetch
 }): RequestPort => {
   const fetcher = input.fetch ?? globalThis.fetch
@@ -38,6 +44,14 @@ export const makeFetchRequestAdapter = (input: {
     const method = request.method ?? "GET"
     const csrfToken = isUnsafe(method) ? input.readCsrfToken() : null
     let response: Response
+    const observed = (failure: RequestFailure): RequestFailure => {
+      try {
+        input.onFailure?.(failure, { method, path: request.path })
+      } catch {
+        // Telemetry must never replace the request failure seen by the operator.
+      }
+      return failure
+    }
 
     try {
       response = await fetcher(joinUrl(input.baseUrl, request.path), {
@@ -54,46 +68,64 @@ export const makeFetchRequestAdapter = (input: {
           request.body === undefined ? undefined : JSON.stringify(request.body),
         signal: request.signal,
       })
-    } catch {
-      throw new RequestFailure({
-        kind: "unavailable",
-        code: "NETWORK_UNAVAILABLE",
-        message: "The production service is unavailable.",
-      })
+    } catch (cause) {
+      if (
+        request.signal?.aborted === true ||
+        (cause instanceof DOMException && cause.name === "AbortError")
+      )
+        throw cause
+      throw observed(
+        new RequestFailure({
+          kind: "unavailable",
+          code: "NETWORK_UNAVAILABLE",
+          message: "The production service is unavailable.",
+        })
+      )
     }
 
+    const requestId = response.headers.get("X-Request-Id") ?? undefined
     let envelope: ApiEnvelope
     try {
       envelope = (await response.json()) as ApiEnvelope
     } catch {
-      throw new RequestFailure({
-        kind: "invalid_response",
-        code: "INVALID_API_RESPONSE",
-        message: "The production service returned an unreadable response.",
-        status: response.status,
-      })
+      throw observed(
+        new RequestFailure({
+          kind: "invalid_response",
+          code: "INVALID_API_RESPONSE",
+          message: "The production service returned an unreadable response.",
+          status: response.status,
+          ...(requestId === undefined ? {} : { requestId }),
+        })
+      )
     }
 
     if (!response.ok || envelope.ok === false) {
       const kind = failureKind(response.status)
       if (kind === "unauthorized") input.onUnauthorized?.()
       const error = envelope.ok === false ? envelope.error : {}
-      throw new RequestFailure({
-        kind,
-        code: error.code ?? `HTTP_${response.status}`,
-        message: error.message ?? "The request could not be completed.",
-        status: response.status,
-      })
+      throw observed(
+        new RequestFailure({
+          kind,
+          code: error.code ?? `HTTP_${response.status}`,
+          message: error.message ?? "The request could not be completed.",
+          status: response.status,
+          ...(requestId === undefined ? {} : { requestId }),
+          ...(error.traceId === undefined ? {} : { traceId: error.traceId }),
+        })
+      )
     }
 
     const parsed = outputSchema.safeParse(envelope.data)
     if (!parsed.success)
-      throw new RequestFailure({
-        kind: "invalid_response",
-        code: "INVALID_API_RESPONSE",
-        message: "The production service returned data outside its contract.",
-        status: response.status,
-      })
+      throw observed(
+        new RequestFailure({
+          kind: "invalid_response",
+          code: "INVALID_API_RESPONSE",
+          message: "The production service returned data outside its contract.",
+          status: response.status,
+          ...(requestId === undefined ? {} : { requestId }),
+        })
+      )
 
     return parsed.data
   }

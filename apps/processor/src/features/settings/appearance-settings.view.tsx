@@ -28,7 +28,7 @@ export function AppearanceSettings({
   }
 
   return (
-    <Card className="self-start bg-background shadow-xs">
+    <Card className="self-start bg-background">
       <CardHeader>
         <CardTitle>Appearance</CardTitle>
         <CardDescription>

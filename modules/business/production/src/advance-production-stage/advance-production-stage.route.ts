@@ -1,7 +1,8 @@
 import { Router, type RequestHandler } from 'express';
 import {
+  completeStageRequestSchema,
   productionStageParamsSchema,
-  stageRequestSchema,
+  startStageRequestSchema,
 } from '@pressly/contracts';
 import { validateRequest } from '@pressly/http/express';
 import type { AdvanceProductionStage } from './advance-production-stage.usecase.ts';
@@ -21,7 +22,10 @@ export const makeAdvanceProductionStageRoute = (input: {
       input.authenticate,
       validateRequest({
         params: productionStageParamsSchema,
-        body: stageRequestSchema,
+        body:
+          transition === 'complete'
+            ? completeStageRequestSchema
+            : startStageRequestSchema,
       }),
       input.authorize,
       makeAdvanceProductionStageController({ ...input, transition }),

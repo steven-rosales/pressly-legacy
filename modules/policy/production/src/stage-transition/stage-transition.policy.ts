@@ -20,7 +20,121 @@ export type StageContext = Readonly<{
   overlappingMachineIds: readonly string[];
 }>;
 
+export const stageActionBlockCodes = [
+  'PRODUCTION_RUN_NOT_STARTED',
+  'STAGE_BOUNDARY_NOT_REACHED',
+  'PREVIOUS_STAGE_INCOMPLETE',
+  'STAGE_KIND_ALREADY_ACTIVE',
+  'MACHINE_ASSIGNMENT_REQUIRED',
+  'MACHINE_ASSIGNMENT_OVERLAPS',
+] as const;
+
+export type StageActionBlockCode = (typeof stageActionBlockCodes)[number];
+export type StageCompletionTiming = Readonly<{
+  actualStartAt: string;
+  plannedEndAt: string;
+  completionBoundaryAt: string;
+  observedAt: string;
+  plannedDurationMilliseconds: number;
+  elapsedMilliseconds: number;
+  remainingMilliseconds: number;
+}>;
+export type StageTransitionDecision =
+  | Readonly<{
+      status: 'allowed';
+      state: StageState;
+    }>
+  | Readonly<{
+      status: 'confirmation_required';
+      action: 'complete';
+      code: 'PULSE_BOUNDARY_NOT_REACHED';
+      message: string;
+      timing: StageCompletionTiming;
+    }>;
+export type StageNextAction =
+  | Readonly<{ state: 'available'; action: 'start' | 'complete' }>
+  | Readonly<{
+      state: 'blocked';
+      action: 'start' | 'complete';
+      code: StageActionBlockCode;
+      message: string;
+      availableAt: string | null;
+    }>
+  | Readonly<{
+      state: 'confirmation_required';
+      action: 'complete';
+      code: 'PULSE_BOUNDARY_NOT_REACHED';
+      message: string;
+      availableAt: string;
+      timing: StageCompletionTiming;
+    }>
+  | Readonly<{ state: 'terminal'; reason: 'stage_completed' }>;
+
+type StageRejection = Readonly<{ code: string; message: string }>;
+
 const rejection = (code: string, message: string) => ({ code, message });
+
+const completionBoundary = (entity: StageEntity): Date | null => {
+  if (entity.actualStartAt === null) return null;
+  const pulseDurationMs =
+    entity.plannedEndAt.getTime() - entity.plannedStartAt.getTime();
+  return new Date(
+    Math.max(
+      entity.plannedEndAt.getTime(),
+      entity.actualStartAt.getTime() + pulseDurationMs,
+    ),
+  );
+};
+
+const completionTiming = (
+  entity: StageEntity,
+  now: Date,
+): StageCompletionTiming | null => {
+  if (entity.actualStartAt === null) return null;
+  const boundary = completionBoundary(entity);
+  if (boundary === null) return null;
+
+  const plannedDurationMilliseconds =
+    entity.plannedEndAt.getTime() - entity.plannedStartAt.getTime();
+  return {
+    actualStartAt: entity.actualStartAt.toISOString(),
+    plannedEndAt: entity.plannedEndAt.toISOString(),
+    completionBoundaryAt: boundary.toISOString(),
+    observedAt: now.toISOString(),
+    plannedDurationMilliseconds,
+    elapsedMilliseconds: Math.max(
+      0,
+      now.getTime() - entity.actualStartAt.getTime(),
+    ),
+    remainingMilliseconds: Math.max(0, boundary.getTime() - now.getTime()),
+  };
+};
+
+const validateEvaluationClock = (
+  entity: StageEntity,
+  context: StageContext,
+): StageRejection | null => {
+  if (!Number.isFinite(context.now.getTime()))
+    return rejection('STAGE_CLOCK_INVALID', 'Clock is invalid.');
+  if (
+    !Number.isFinite(entity.plannedStartAt.getTime()) ||
+    !Number.isFinite(entity.plannedEndAt.getTime()) ||
+    entity.plannedEndAt.getTime() <= entity.plannedStartAt.getTime()
+  )
+    return rejection(
+      'STAGE_WINDOW_INVALID',
+      'Stage end must be after stage start.',
+    );
+  if (
+    entity.actualStartAt !== null &&
+    !Number.isFinite(entity.actualStartAt.getTime())
+  )
+    return rejection(
+      'STAGE_CLOCK_INVALID',
+      'Actual stage start time is invalid.',
+    );
+  return null;
+};
 
 const stageMachine = stateMachine.define<
   readonly ['planned', 'started', 'completed'],
@@ -109,32 +223,16 @@ const stageMachine = stateMachine.define<
       to: 'completed',
       guards: [
         {
-          name: 'pulse-boundary-reached',
-          check: (args) => {
-            if (args.entity.actualStartAt === null)
-              return result.err(
-                rejection(
-                  'STAGE_ACTUAL_START_MISSING',
-                  'A started stage requires its actual start time.',
-                ),
-              );
-
-            const pulseDurationMs =
-              args.entity.plannedEndAt.getTime() -
-              args.entity.plannedStartAt.getTime();
-            const completionBoundary = Math.max(
-              args.entity.plannedEndAt.getTime(),
-              args.entity.actualStartAt.getTime() + pulseDurationMs,
-            );
-            return args.ctx.now.getTime() >= completionBoundary
+          name: 'actual-start-recorded',
+          check: (args) =>
+            args.entity.actualStartAt !== null
               ? result.ok(args)
               : result.err(
                   rejection(
-                    'PULSE_BOUNDARY_NOT_REACHED',
-                    'A stage must occupy one full pulse after its actual start.',
+                    'STAGE_ACTUAL_START_MISSING',
+                    'A started stage requires its actual start time.',
                   ),
-                );
-          },
+                ),
         },
       ],
     },
@@ -161,9 +259,12 @@ export const evaluateStageTransition = (
   event: StageEvent,
   context: StageContext,
 ): Result<
-  Readonly<{ state: StageState }>,
+  StageTransitionDecision,
   Readonly<{ code: string; message: string }>
 > => {
+  const invalidClock = validateEvaluationClock(entity, context);
+  if (invalidClock !== null) return result.err(invalidClock);
+
   if (
     event.type === 'start' &&
     context.now.getTime() < entity.plannedStartAt.getTime()
@@ -175,13 +276,25 @@ export const evaluateStageTransition = (
       ),
     );
 
-  if (
-    entity.actualStartAt !== null &&
-    !Number.isFinite(entity.actualStartAt.getTime())
-  )
-    return result.err(
-      rejection('STAGE_CLOCK_INVALID', 'Actual stage start time is invalid.'),
-    );
+  if (event.type === 'complete') {
+    const timing = completionTiming(entity, context.now);
+    if (timing === null)
+      return result.err(
+        rejection(
+          'STAGE_ACTUAL_START_MISSING',
+          'A started stage requires its actual start time.',
+        ),
+      );
+    if (timing.remainingMilliseconds > 0)
+      return result.ok({
+        status: 'confirmation_required',
+        action: 'complete',
+        code: 'PULSE_BOUNDARY_NOT_REACHED',
+        message:
+          'This stage has not yet occupied its planned production pulse.',
+        timing,
+      });
+  }
 
   const transition = stageMachine.transition(entity, event, context);
 
@@ -197,7 +310,56 @@ export const evaluateStageTransition = (
           : 'The production stage transition is not allowed.',
     });
 
-  return result.ok({ state: transition.value.to });
+  return result.ok({ status: 'allowed', state: transition.value.to });
+};
+
+const isStageActionBlockCode = (value: string): value is StageActionBlockCode =>
+  (stageActionBlockCodes as readonly string[]).includes(value);
+
+export const evaluateStageNextAction = (
+  entity: StageEntity,
+  context: StageContext,
+): Result<StageNextAction, StageRejection> => {
+  const invalidClock = validateEvaluationClock(entity, context);
+  if (invalidClock !== null) return result.err(invalidClock);
+
+  if (entity.state === 'completed')
+    return result.ok({ state: 'terminal', reason: 'stage_completed' });
+
+  if (entity.state !== 'planned' && entity.state !== 'started')
+    return result.err(
+      rejection('STAGE_STATE_INVALID', 'Production stage state is invalid.'),
+    );
+
+  const action = entity.state === 'planned' ? 'start' : 'complete';
+  const decision = evaluateStageTransition(entity, { type: action }, context);
+  if (decision.tag === 'ok') {
+    if (decision.value.status === 'confirmation_required')
+      return result.ok({
+        state: 'confirmation_required',
+        action: 'complete',
+        code: decision.value.code,
+        message: decision.value.message,
+        availableAt: decision.value.timing.completionBoundaryAt,
+        timing: decision.value.timing,
+      });
+    return result.ok({ state: 'available', action });
+  }
+  if (!isStageActionBlockCode(decision.error.code))
+    return result.err(decision.error);
+
+  const availableAt =
+    decision.error.code === 'STAGE_BOUNDARY_NOT_REACHED'
+      ? entity.plannedStartAt.toISOString()
+      : null;
+
+  return result.ok({
+    state: 'blocked',
+    action,
+    code: decision.error.code,
+    message: decision.error.message,
+    availableAt,
+  });
 };
 
 export const productionStageGraph = stageMachine.graph;

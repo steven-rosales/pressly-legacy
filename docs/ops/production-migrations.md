@@ -111,16 +111,60 @@ checklist.
 
 ## Current Production Deploy Behavior
 
-The Lightsail deploy script runs:
+`infra/aws/lightsail/deploy.sh` deploys artifacts built and verified by CI. The
+server does not rebuild application images.
+
+The release sequence is:
 
 ```txt
-docker compose build
-docker compose run --rm api pnpm -F @pressly/db migrate
+validate the release manifest and Compose configuration
+check out the exact verified source SHA
+pull immutable API, Web, Worker, and Processor image digests
+verify each image revision label against the source SHA
+run the tools-profile migrate service with migration-only credentials
 docker compose up -d --remove-orphans --wait
-health checks
+verify Compose state and application health endpoints
 ```
 
-So migrations happen before the new containers are serving traffic.
+The deploy script runs Drizzle directly from the immutable API image with the
+production Compose file and environment selected explicitly:
+
+```bash
+docker compose \
+  --profile tools \
+  --env-file "$COMPOSE_ENV_FILE" \
+  -f "$COMPOSE_FILE" \
+  run --rm --workdir /repo/packages/db migrate \
+  node node_modules/drizzle-kit/bin.cjs migrate --config drizzle.config.ts
+```
+
+This is the invocation inside `infra/aws/lightsail/deploy.sh`; operators should
+run the deploy workflow rather than paste it from the repository root without
+those production selectors.
+
+The `migrate` service is not the API runtime container. It is a read-only tool
+container with its own migration environment and database role. Migrations run
+before the new application containers serve traffic.
 
 That is acceptable only because normal migrations are expected to be
 backward-compatible with the currently running containers.
+
+## Coordinated Breaking Releases
+
+An intentionally breaking migration is not a normal deploy. Treat the
+migration, contracts, API, Worker, and Processor as one release unit.
+
+Before approving it, record:
+
+1. Why expand-contract cannot provide the required transition.
+2. The exact preflight that proves existing data is migratable or aborts
+   without mutation.
+3. The tested migration and application versions that must move together.
+4. Whether rollback is a forward fix, an application rollback, or a database
+   restore. Never imply that all three are interchangeable.
+5. A fresh backup and completed restore drill for any destructive or
+   irreversible rewrite.
+6. The integration and end-to-end proof that crosses the migrated boundary.
+
+Do not make a breaking release routine merely because one has been coordinated
+successfully. Additive, backward-compatible migrations remain the default.

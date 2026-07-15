@@ -47,13 +47,16 @@ const decide = (input: {
   });
 
 describe('production access-control policy', () => {
-  it.each(['owner', 'admin', 'operator'] as const)(
-    'allows %s to perform every happy-path action in scope',
+  it.each(['owner', 'admin'] as const)(
+    'allows %s to perform every production action in scope',
     (role) => {
       for (const action of [
         'production:read',
         'production:schedule',
         'production:accept',
+        'production:start',
+        'production:queue',
+        'production:override',
         'production:priority',
         'production:intake',
         'production:resources',
@@ -62,6 +65,30 @@ describe('production access-control policy', () => {
         expect(decide({ action, role })).toMatchObject({ tag: 'allowed' });
     },
   );
+
+  it('limits operators to floor actions', () => {
+    for (const action of [
+      'production:read',
+      'production:priority',
+      'production:intake',
+      'production:stage',
+      'production:queue',
+    ] as const)
+      expect(decide({ action, role: 'operator' })).toMatchObject({
+        tag: 'allowed',
+      });
+
+    for (const action of [
+      'production:schedule',
+      'production:accept',
+      'production:start',
+      'production:override',
+      'production:resources',
+    ] as const)
+      expect(decide({ action, role: 'operator' })).toMatchObject({
+        tag: 'denied',
+      });
+  });
 
   it('denies unknown roles, wrong scope, and inactive identities', () => {
     expect(

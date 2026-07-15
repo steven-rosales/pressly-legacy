@@ -2,17 +2,29 @@ import { describe, expect, it } from 'vitest';
 import {
   acceptScheduleCommandSchema,
   acceptScheduleRequestSchema,
+  acceptScheduleResultSchema,
+  automaticProductionOrderPlacementResultSchema,
   assignStageMachinesCommandSchema,
   assignStageMachinesRequestSchema,
+  advanceProductionStageResultSchema,
+  completeStageCommandSchema,
+  completeStageRequestSchema,
+  confirmProductionOrderOvertimeCommandSchema,
+  confirmProductionOrderOvertimeResultSchema,
   createProductionShiftCommandSchema,
   createProductionShiftRequestSchema,
   createScheduleCommandSchema,
   createScheduleRequestSchema,
+  exactProductionOrderPlacementResultSchema,
+  freezeProductionBatchCommandSchema,
   listProductionLocationsQuerySchema,
   listProductionLocationsResultSchema,
   listProductionOrdersQuerySchema,
   listProductionOrdersResultSchema,
-  productionBoardParamsSchema,
+  placeProductionOrderAutomaticallyCommandSchema,
+  placeProductionOrderExactlyCommandSchema,
+  productionBatchSchema,
+  productionRunBoardParamsSchema,
   productionBootstrapInputSchema,
   productionBootstrapManifestSchema,
   productionBootstrapResourceChangeSchema,
@@ -23,16 +35,28 @@ import {
   productionRunCommandSchema,
   productionRunRequestSchema,
   productionWorkspaceSchema,
+  productionWorkspaceParamsSchema,
+  productionWorkspaceQuerySchema,
+  productionStageNextActionSchema,
+  productionStageCompletionConfirmationRequiredResultSchema,
   publishSchedulerConfigCommandSchema,
   publishSchedulerConfigRequestSchema,
   recordOrderIntakeCommandSchema,
   recordOrderIntakeRequestSchema,
   recordOrderIntakeResultSchema,
   scheduleRunParamsSchema,
+  scheduleProposalSchema,
+  schedulerConfigSchema,
   setProductionOrderPriorityCommandSchema,
   setProductionOrderPriorityRequestSchema,
+  startScheduleCommandSchema,
+  startScheduleRequestSchema,
+  startScheduleResultSchema,
+  startStageCommandSchema,
+  startStageRequestSchema,
   stageCommandSchema,
   stageRequestSchema,
+  unfreezeProductionBatchCommandSchema,
 } from '../src/production/production.contracts.ts';
 
 const ids = {
@@ -43,6 +67,7 @@ const ids = {
   run: '00000000-0000-4000-8000-000000000005',
   stage: '00000000-0000-4000-8000-000000000006',
   machine: '00000000-0000-4000-8000-000000000007',
+  batch: '00000000-0000-4000-8000-000000000008',
 } as const;
 
 const locationId = 'location-main';
@@ -175,7 +200,7 @@ describe('location-scoped production commands', () => {
         {
           productionShiftId: ids.shift,
           schedulerConfigId: ids.config,
-          horizonEnd: '2026-07-12T23:59:59.999Z',
+          idempotencyKey: 'schedule-command-123',
         },
       ],
       [
@@ -184,6 +209,13 @@ describe('location-scoped production commands', () => {
           expectedOutputPlanHash: 'a'.repeat(64),
           acknowledgedWarningCodes: [],
           idempotencyKey: 'accept-command-123',
+        },
+      ],
+      [
+        startScheduleRequestSchema,
+        {
+          expectedOutputPlanHash: 'a'.repeat(64),
+          idempotencyKey: 'start-command-123',
         },
       ],
       [
@@ -239,7 +271,7 @@ describe('location-scoped production commands', () => {
           locationId,
           productionShiftId: ids.shift,
           schedulerConfigId: ids.config,
-          horizonEnd: '2026-07-12T23:59:59.999Z',
+          idempotencyKey: 'schedule-command-123',
         },
       ],
       [
@@ -250,6 +282,15 @@ describe('location-scoped production commands', () => {
           expectedOutputPlanHash: 'a'.repeat(64),
           acknowledgedWarningCodes: [],
           idempotencyKey: 'accept-command-123',
+        },
+      ],
+      [
+        startScheduleCommandSchema,
+        {
+          locationId,
+          scheduleRunId: ids.schedule,
+          expectedOutputPlanHash: 'a'.repeat(64),
+          idempotencyKey: 'start-command-123',
         },
       ],
       [
@@ -307,9 +348,9 @@ describe('location-scoped production commands', () => {
       }),
     ).toBeDefined();
     expect(
-      productionBoardParamsSchema.parse({
+      productionRunBoardParamsSchema.parse({
         locationId,
-        productionShiftId: ids.shift,
+        productionRunId: ids.run,
       }),
     ).toBeDefined();
     expect(
@@ -338,6 +379,268 @@ describe('location-scoped production commands', () => {
         bypassPulseBoundary: true,
       }),
     ).toThrow();
+  });
+});
+
+describe('run-centered scheduling contracts', () => {
+  it('reads historical v1 and current v2 scheduling facts', () => {
+    const config = {
+      id: ids.config,
+      pulseMinutes: 56,
+      foldLbsPerFolderMinute: 2,
+      algorithmVersion: 'fixed-pulse-ffd-v1',
+      version: 1,
+      stageFitAssertion: {
+        sortingFits: true,
+        washingFits: true,
+        dryingFits: true,
+        assertedBy: ids.order,
+        assertedAt: now,
+      },
+      publishedAt: now,
+    } as const;
+
+    expect(schedulerConfigSchema.safeParse(config).success).toBe(true);
+    expect(
+      schedulerConfigSchema.safeParse({
+        ...config,
+        algorithmVersion: 'fixed-pulse-ffd-v2',
+        version: 2,
+      }).success,
+    ).toBe(true);
+
+    const proposal = {
+      scheduleRunId: ids.schedule,
+      productionShiftId: ids.shift,
+      schedulerConfigId: ids.config,
+      status: 'draft',
+      inputSnapshotHash: 'a'.repeat(64),
+      outputPlanHash: 'b'.repeat(64),
+      algorithmVersion: 'fixed-pulse-ffd-v1',
+      pulseMinutes: 56,
+      pulseCapacityLbs: 224,
+      batchCount: 0,
+      makespanMinutes: 0,
+      plannedCompletionAt: now,
+      batches: [],
+      unplacedOrderIds: [],
+      warnings: [],
+      createdAt: now,
+      acceptedAt: null,
+      acceptedBy: null,
+      acknowledgedWarningCodes: [],
+      supersededAt: null,
+    } as const;
+
+    expect(scheduleProposalSchema.safeParse(proposal).success).toBe(true);
+    expect(
+      scheduleProposalSchema.safeParse({
+        ...proposal,
+        algorithmVersion: 'fixed-pulse-ffd-v2',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('separates acceptance identity from execution created at Start', () => {
+    expect(
+      acceptScheduleResultSchema.parse({
+        scheduleRunId: ids.schedule,
+        productionShiftId: ids.shift,
+        acceptedAt: now,
+        replayed: false,
+      }),
+    ).not.toHaveProperty('productionRunId');
+
+    expect(
+      startScheduleResultSchema.parse({
+        scheduleRunId: ids.schedule,
+        productionRunId: ids.run,
+        productionBatchIds: [ids.batch],
+        queueVersion: 1,
+        startedAt: now,
+        replayed: false,
+      }),
+    ).toMatchObject({ productionRunId: ids.run, queueVersion: 1 });
+  });
+
+  it('uses explicit run and optional shift selection on reads', () => {
+    expect(
+      productionRunBoardParamsSchema.parse({
+        locationId,
+        productionRunId: ids.run,
+      }),
+    ).toBeDefined();
+    expect(
+      productionWorkspaceQuerySchema.parse({ shiftId: ids.shift }),
+    ).toEqual({ shiftId: ids.shift });
+    expect(
+      productionWorkspaceParamsSchema.parse({ locationId, shiftId: ids.shift }),
+    ).toBeDefined();
+  });
+
+  it('requires optimistic versions on placement and membership commands', () => {
+    const queueFields = {
+      locationId,
+      productionRunId: ids.run,
+      expectedQueueVersion: 3,
+      idempotencyKey: 'placement-command-123',
+    } as const;
+    const membershipFields = {
+      ...queueFields,
+      productionBatchId: ids.batch,
+      expectedBatchVersion: 2,
+    } as const;
+
+    expect(freezeProductionBatchCommandSchema.parse(membershipFields)).toEqual(
+      membershipFields,
+    );
+    expect(
+      unfreezeProductionBatchCommandSchema.parse(membershipFields),
+    ).toEqual(membershipFields);
+    expect(
+      placeProductionOrderAutomaticallyCommandSchema.parse({
+        ...queueFields,
+        productionOrderId: ids.order,
+      }),
+    ).toBeDefined();
+    expect(
+      placeProductionOrderExactlyCommandSchema.parse({
+        ...membershipFields,
+        productionOrderId: ids.order,
+      }),
+    ).toBeDefined();
+    expect(
+      confirmProductionOrderOvertimeCommandSchema.parse({
+        ...queueFields,
+        productionOrderId: ids.order,
+        proposalHash: 'c'.repeat(64),
+      }),
+    ).toBeDefined();
+    expect(
+      freezeProductionBatchCommandSchema.safeParse({
+        ...membershipFields,
+        expectedQueueVersion: 0,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('models automatic, exact, and overtime outcomes as discriminated results', () => {
+    const placed = {
+      status: 'placed',
+      mode: 'automatic',
+      productionRunId: ids.run,
+      productionOrderId: ids.order,
+      productionBatchId: ids.batch,
+      createdBatch: false,
+      affectedBatchIds: [ids.batch],
+      queueVersion: 4,
+      proposalHash: 'd'.repeat(64),
+      plannedCompletionAt: now,
+      overtimeMinutes: 0,
+      replayed: false,
+    } as const;
+    expect(automaticProductionOrderPlacementResultSchema.parse(placed)).toEqual(
+      placed,
+    );
+
+    const confirmation = {
+      status: 'confirmation_required',
+      mode: 'manager_exact',
+      productionRunId: ids.run,
+      productionOrderId: ids.order,
+      target: {
+        kind: 'existing_batch',
+        productionBatchId: ids.batch,
+        sequence: 2,
+      },
+      affectedBatchIds: [ids.batch],
+      queueVersion: 4,
+      proposalHash: 'd'.repeat(64),
+      projectedCompletionAt: now,
+      overtimeMinutes: 56,
+      replayed: false,
+    } as const;
+    expect(
+      exactProductionOrderPlacementResultSchema.parse(confirmation),
+    ).toEqual(confirmation);
+    expect(
+      confirmProductionOrderOvertimeResultSchema.safeParse(confirmation)
+        .success,
+    ).toBe(false);
+  });
+
+  it('requires non-queued membership to be frozen and exact placement to be pinned', () => {
+    const order = {
+      id: ids.order,
+      externalOrderId: 'C-1001',
+      dueAt: now,
+      dueBucket: 'today',
+      priority: false,
+      derivedWeightLbs: 74,
+      bagCount: 2,
+      version: 1,
+      placementProvenance: 'initial_schedule',
+      pinnedAt: null,
+      pinnedBy: null,
+    } as const;
+    const stages = ['sorting', 'washing', 'drying', 'folding_packaging'].map(
+      (stage, index) => ({
+        id: `00000000-0000-4000-8000-0000000000${20 + index}`,
+        productionBatchId: ids.batch,
+        stage,
+        status: 'planned',
+        plannedStartAt: now,
+        plannedEndAt: '2026-07-12T15:00:00.000Z',
+        actualStartAt: null,
+        actualEndAt: null,
+        machineIds: [],
+        nextAction: {
+          state: 'blocked',
+          action: 'start',
+          code: 'PRODUCTION_RUN_NOT_STARTED',
+          message: 'The production run has not started.',
+          availableAt: null,
+        },
+        allowedActions: [],
+        version: 1,
+      }),
+    );
+    const batch = {
+      id: ids.batch,
+      sequence: 0,
+      status: 'sorting',
+      derivedWeightLbs: 74,
+      pulseCapacityLbs: 224,
+      pulseMinutes: 56,
+      membership: { state: 'mutable' },
+      orders: [order],
+      stages,
+      version: 1,
+    };
+
+    expect(productionBatchSchema.safeParse(batch).success).toBe(false);
+    expect(
+      productionBatchSchema.safeParse({
+        ...batch,
+        membership: {
+          state: 'frozen',
+          frozenAt: now,
+          frozenBy: ids.order,
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      productionBatchSchema.safeParse({
+        ...batch,
+        status: 'queued',
+        orders: [
+          {
+            ...order,
+            placementProvenance: 'manager_exact',
+          },
+        ],
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -489,15 +792,150 @@ describe('production discovery and intake contracts', () => {
         isActive: true,
       },
       currentShift: null,
+      candidateShifts: [],
       currentSchedulerConfig: null,
-      latestScheduleProposal: null,
-      activeRun: null,
+      currentScheduleProposal: null,
+      activeRuns: [],
+      orders: [],
+      pendingEligibleOrders: [],
       board: null,
       stations: [],
       machines: [],
       asOf: now,
     };
     expect(productionWorkspaceSchema.parse(workspace)).toEqual(workspace);
+  });
+});
+
+describe('production stage availability contracts', () => {
+  it('separates confirmation-required completion from hard blocks', () => {
+    expect(
+      productionStageNextActionSchema.safeParse({
+        state: 'available',
+        action: 'start',
+      }).success,
+    ).toBe(true);
+    expect(
+      productionStageNextActionSchema.safeParse({
+        state: 'confirmation_required',
+        action: 'complete',
+        code: 'PULSE_BOUNDARY_NOT_REACHED',
+        message: 'This stage has not yet occupied its planned pulse.',
+        availableAt: '2026-07-12T15:00:00.000Z',
+        timing: {
+          actualStartAt: '2026-07-12T14:18:00.000Z',
+          plannedEndAt: '2026-07-12T15:00:00.000Z',
+          completionBoundaryAt: '2026-07-12T15:14:00.000Z',
+          observedAt: '2026-07-12T14:30:00.000Z',
+          plannedDurationMilliseconds: 56 * 60_000,
+          elapsedMilliseconds: 12 * 60_000,
+          remainingMilliseconds: 44 * 60_000,
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      productionStageNextActionSchema.safeParse({
+        state: 'blocked',
+        action: 'complete',
+        code: 'PULSE_BOUNDARY_NOT_REACHED',
+        message: 'The pulse is still active.',
+        availableAt: '2026-07-12T15:00:00.000Z',
+      }).success,
+    ).toBe(false);
+    expect(
+      productionStageNextActionSchema.safeParse({
+        state: 'terminal',
+        reason: 'stage_completed',
+      }).success,
+    ).toBe(true);
+    expect(
+      productionStageNextActionSchema.safeParse({
+        state: 'blocked',
+        action: 'start',
+        code: 'PLEASE_WAIT',
+        message: 'Unknown policy result.',
+        availableAt: null,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('validates strict start and early-completion commands independently', () => {
+    const base = {
+      locationId,
+      stageRunId: ids.stage,
+      expectedVersion: 3,
+      idempotencyKey: 'stage-completion-command',
+    };
+    const confirmation = {
+      observedAt: '2026-07-12T14:30:00.000Z',
+      confirmationHash: 'c'.repeat(64),
+    };
+
+    expect(startStageCommandSchema.safeParse(base).success).toBe(true);
+    expect(
+      startStageCommandSchema.safeParse({ ...base, confirmation }).success,
+    ).toBe(false);
+    expect(completeStageCommandSchema.parse({ ...base, confirmation })).toEqual(
+      { ...base, confirmation },
+    );
+    expect(
+      completeStageRequestSchema.parse({
+        expectedVersion: 3,
+        idempotencyKey: 'stage-completion-command',
+        confirmation,
+      }),
+    ).toEqual({
+      expectedVersion: 3,
+      idempotencyKey: 'stage-completion-command',
+      confirmation,
+    });
+    expect(
+      startStageRequestSchema.safeParse({
+        expectedVersion: 3,
+        idempotencyKey: 'stage-completion-command',
+        confirmation,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('validates the server-derived confirmation response and mutation union', () => {
+    const confirmationRequired = {
+      status: 'confirmation_required',
+      stageRunId: ids.stage,
+      stageVersion: 3,
+      code: 'PULSE_BOUNDARY_NOT_REACHED',
+      message: 'This stage has not yet occupied its planned pulse.',
+      confirmation: {
+        observedAt: '2026-07-12T14:30:00.000Z',
+        confirmationHash: 'd'.repeat(64),
+      },
+      timing: {
+        actualStartAt: '2026-07-12T14:18:00.000Z',
+        plannedEndAt: '2026-07-12T15:00:00.000Z',
+        completionBoundaryAt: '2026-07-12T15:14:00.000Z',
+        observedAt: '2026-07-12T14:30:00.000Z',
+        plannedDurationMilliseconds: 56 * 60_000,
+        elapsedMilliseconds: 12 * 60_000,
+        remainingMilliseconds: 44 * 60_000,
+      },
+      replayed: false,
+    } as const;
+
+    expect(
+      productionStageCompletionConfirmationRequiredResultSchema.parse(
+        confirmationRequired,
+      ),
+    ).toEqual(confirmationRequired);
+    expect(
+      advanceProductionStageResultSchema.parse(confirmationRequired),
+    ).toEqual(confirmationRequired);
+    expect(
+      advanceProductionStageResultSchema.parse({
+        entityId: ids.stage,
+        version: 4,
+        replayed: false,
+      }),
+    ).toEqual({ entityId: ids.stage, version: 4, replayed: false });
   });
 });
 

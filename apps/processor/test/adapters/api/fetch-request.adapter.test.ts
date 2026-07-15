@@ -79,4 +79,58 @@ describe("processor request boundary", () => {
       request({ path: "/work" }, z.object({ version: z.number() }))
     ).rejects.toMatchObject({ kind: "invalid_response" })
   })
+
+  it("retains the API request and trace references for the operator and observer", async () => {
+    const onFailure = vi.fn()
+    const request = makeFetchRequestAdapter({
+      baseUrl: "",
+      readCsrfToken: () => null,
+      onFailure,
+      fetch: vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ok: false,
+            error: {
+              code: "UNEXPECTED",
+              message: "The action could not be completed.",
+              traceId: "trace-server-9",
+            },
+          }),
+          {
+            status: 500,
+            headers: { "X-Request-Id": "request-edge-4" },
+          }
+        )
+      ),
+    })
+
+    await expect(request({ path: "/work" }, z.string())).rejects.toMatchObject({
+      requestId: "request-edge-4",
+      traceId: "trace-server-9",
+      referenceId: "trace-server-9",
+      message: "The action could not be completed. Reference: trace-server-9",
+    } satisfies Partial<RequestFailure>)
+    expect(onFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceId: "trace-server-9" }),
+      { method: "GET", path: "/work" }
+    )
+  })
+
+  it("preserves cancellation without reporting it as a service failure", async () => {
+    const onFailure = vi.fn()
+    const controller = new AbortController()
+    controller.abort()
+    const aborted = new DOMException("Cancelled", "AbortError")
+    const request = makeFetchRequestAdapter({
+      baseUrl: "",
+      readCsrfToken: () => null,
+      onFailure,
+      fetch: vi.fn().mockRejectedValue(aborted),
+    })
+
+    await expect(
+      request({ path: "/work", signal: controller.signal }, z.string())
+    ).rejects.toBe(aborted)
+    expect(onFailure).not.toHaveBeenCalled()
+  })
 })

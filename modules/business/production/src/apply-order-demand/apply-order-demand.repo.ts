@@ -8,6 +8,7 @@ import {
 } from '@pressly/db';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
+import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 import type {
   ApplyOrderDemandRepository,
   StoredOrderDemand,
@@ -19,6 +20,8 @@ export const makeApplyOrderDemandRepository = (deps: {
 }): ApplyOrderDemandRepository =>
   makePostgresUnitOfWork(deps.db, (db: DatabaseExecutor) => ({
     findWorkEvent: (idempotencyKey) => findWorkEvent(db, idempotencyKey),
+    lockLocationScheduling: (locationId) =>
+      lockLocationScheduling(db, locationId),
 
     locationIsActive: async (locationId) => {
       const [location] = await db
@@ -133,6 +136,15 @@ export const makeApplyOrderDemandRepository = (deps: {
           createdAt: now,
           updatedAt: now,
         });
+        if (command.bagCount !== null && command.bagCount > 0)
+          await db.insert(laundryProduction.bags).values(
+            Array.from({ length: command.bagCount }, (_, bagIndex) => ({
+              id: deps.ids.next(),
+              productionOrderId,
+              bagIndex,
+              status: 'eligible',
+            })),
+          );
         return {
           orderDemandId,
           productionOrderId,
@@ -188,6 +200,20 @@ export const makeApplyOrderDemandRepository = (deps: {
         });
       if (updated === undefined)
         throw new Error('Production order changed during demand application.');
+      if (adoptsSourceBagCount && bagCount !== null) {
+        await db
+          .delete(laundryProduction.bags)
+          .where(eq(laundryProduction.bags.productionOrderId, existing.id));
+        if (bagCount > 0)
+          await db.insert(laundryProduction.bags).values(
+            Array.from({ length: bagCount }, (_, bagIndex) => ({
+              id: deps.ids.next(),
+              productionOrderId: existing.id,
+              bagIndex,
+              status: 'eligible',
+            })),
+          );
+      }
       return {
         orderDemandId,
         productionOrderId: updated.id,

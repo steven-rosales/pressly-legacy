@@ -6,6 +6,7 @@ export type ScheduleAcceptanceInput = Readonly<{
   status: string;
   expectedOutputPlanHash: string;
   actualOutputPlanHash: string;
+  warningCodes: readonly string[];
   blockingWarningCodes: readonly string[];
   acknowledgedWarningCodes: readonly string[];
   batches: readonly Readonly<{
@@ -36,6 +37,25 @@ export const evaluateScheduleAcceptance = (
       message: 'The schedule proposal changed before acceptance.',
     });
 
+  if (
+    new Set(input.acknowledgedWarningCodes).size !==
+    input.acknowledgedWarningCodes.length
+  )
+    return result.err({
+      code: 'SCHEDULE_WARNING_ACKNOWLEDGEMENT_INVALID',
+      message: 'A schedule warning may be acknowledged only once.',
+    });
+
+  const unexpectedAcknowledgement = input.acknowledgedWarningCodes.find(
+    (code) => !input.warningCodes.includes(code),
+  );
+
+  if (unexpectedAcknowledgement !== undefined)
+    return result.err({
+      code: 'SCHEDULE_WARNING_ACKNOWLEDGEMENT_INVALID',
+      message: `Warning ${unexpectedAcknowledgement} is not present on this schedule.`,
+    });
+
   const missingAcknowledgement = input.blockingWarningCodes.find(
     (code) => !input.acknowledgedWarningCodes.includes(code),
   );
@@ -49,7 +69,7 @@ export const evaluateScheduleAcceptance = (
   if (input.batches.length === 0)
     return result.err({
       code: 'SCHEDULE_HAS_NO_BATCHES',
-      message: 'An empty proposal cannot create a production run.',
+      message: 'An empty proposal cannot be accepted for Start.',
     });
 
   const seenOrders = new Set<string>();

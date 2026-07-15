@@ -10,6 +10,7 @@ import { makeLoadScheduleRepository } from '../../src/load-schedule/load-schedul
 import { makePublishSchedulerConfigRepository } from '../../src/publish-scheduler-config/publish-scheduler-config.repo.ts';
 import { makeSetProductionOrderPriorityRepository } from '../../src/set-production-order-priority/set-production-order-priority.repo.ts';
 import { makeSetProductionOrderPriority } from '../../src/set-production-order-priority/set-production-order-priority.usecase.ts';
+import { makeStartScheduleRepository } from '../../src/start-schedule/start-schedule.repo.ts';
 import { defineWorkEventCommand } from '../../src/production-idempotency.policy.ts';
 import {
   makeClock,
@@ -168,6 +169,7 @@ const seedLocationClosure = async (): Promise<void> => {
       locationId: location.first,
       pulseMinutes: 56,
       foldLbsPerFolderMinute: 2,
+      algorithmVersion: 'fixed-pulse-ffd-v2',
       version: 1,
       stageFitAssertion: {},
       assertedBy: id.actor,
@@ -177,6 +179,7 @@ const seedLocationClosure = async (): Promise<void> => {
       locationId: location.second,
       pulseMinutes: 56,
       foldLbsPerFolderMinute: 2,
+      algorithmVersion: 'fixed-pulse-ffd-v2',
       version: 1,
       stageFitAssertion: {},
       assertedBy: id.actor,
@@ -263,13 +266,14 @@ afterAll(testDb.close);
 
 describe('production location closure', () => {
   it('loads only schedulable orders and machines from the requested location', async () => {
-    const repository = makeCreateScheduleRepository({ db: testDb.db });
+    const ids = makeIds();
+    const repository = makeCreateScheduleRepository({ db: testDb.db, ids });
     const input = await repository.transaction((repo) =>
       repo.loadSchedulingInput({
         locationId: location.first,
         productionShiftId: id.shift,
         schedulerConfigId: id.configFirst,
-        horizonEnd: '2026-07-11T03:59:59.999Z',
+        idempotencyKey: 'location-first-schedule-input',
       }),
     );
 
@@ -290,12 +294,11 @@ describe('production location closure', () => {
           locationId: location.first,
           productionShiftId: id.shift,
           schedulerConfigId: id.configSecond,
-          horizonEnd: '2026-07-11T03:59:59.999Z',
+          idempotencyKey: 'cross-location-schedule-input',
         }),
       ),
     ).resolves.toBeNull();
 
-    const ids = makeIds();
     const configRepository = makePublishSchedulerConfigRepository({
       db: testDb.db,
       ids,
@@ -331,16 +334,19 @@ describe('production location closure', () => {
     ).resolves.toEqual([3, 2]);
   });
 
-  it('keeps accepted execution writes and mutations inside one location', async () => {
+  it('keeps accepted plans, started execution, and mutations inside one location', async () => {
     const ids = makeIds();
     const now = new Date('2026-07-10T14:00:00.000Z');
-    const scheduleRepository = makeCreateScheduleRepository({ db: testDb.db });
+    const scheduleRepository = makeCreateScheduleRepository({
+      db: testDb.db,
+      ids,
+    });
     const schedulingInput = await scheduleRepository.transaction((repo) =>
       repo.loadSchedulingInput({
         locationId: location.first,
         productionShiftId: id.shift,
         schedulerConfigId: id.configFirst,
-        horizonEnd: '2026-07-11T03:59:59.999Z',
+        idempotencyKey: 'location-schedule-input',
       }),
     );
     if (schedulingInput === null) throw new Error('Scheduling input missing.');
@@ -371,6 +377,7 @@ describe('production location closure', () => {
         location.first,
         schedule,
         id.actor,
+        [],
         'location-acceptance-1',
         defineWorkEventCommand({
           operation: 'schedule_accepted',
@@ -386,6 +393,42 @@ describe('production location closure', () => {
         now,
       ),
     );
+
+    for (const table of [
+      laundryProduction.productionRuns,
+      laundryProduction.productionBatches,
+      laundryProduction.productionBatchOrders,
+      laundryProduction.stageRuns,
+      laundryProduction.stageMachineAssignments,
+    ])
+      expect(await testDb.db.select().from(table)).toHaveLength(0);
+
+    const startRepository = makeStartScheduleRepository({
+      db: testDb.db,
+      ids,
+    });
+    await startRepository.transaction(async (repo) => {
+      const record = await repo.loadSchedule(
+        location.first,
+        schedule.scheduleRunId,
+      );
+      if (record === null) throw new Error('Accepted schedule missing.');
+      await repo.startSchedule({
+        locationId: location.first,
+        record,
+        actorId: id.actor,
+        idempotencyKey: 'location-start-1',
+        idempotency: defineWorkEventCommand({
+          operation: 'production_run_started',
+          locationId: location.first,
+          actorId: id.actor,
+          entityType: 'schedule_run',
+          entityId: schedule.scheduleRunId,
+          payload: { expectedOutputPlanHash: schedule.outputPlanHash },
+        }),
+        now,
+      });
+    });
 
     for (const table of [
       laundryProduction.productionRuns,

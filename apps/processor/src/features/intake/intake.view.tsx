@@ -12,14 +12,22 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
+import { Switch } from "@/components/ui/switch"
 import { useIntakeModel, type IntakeModelInput } from "./intake.model"
 
 export function IntakeWorkspace(input: IntakeModelInput) {
-  const { bagCounts, busyOrderId, error, setBagCount, record } =
-    useIntakeModel(input)
+  const {
+    bagCounts,
+    priorities,
+    busyOrderId,
+    error,
+    setBagCount,
+    setPriority,
+    record,
+  } = useIntakeModel(input)
 
   return (
-    <Card className="bg-background shadow-xs">
+    <Card className="bg-background">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -27,8 +35,8 @@ export function IntakeWorkspace(input: IntakeModelInput) {
               <IconPackage /> Bag intake
             </CardTitle>
             <CardDescription>
-              Confirm physical bag counts before these orders become
-              schedulable.
+              Confirm physical bag counts and priority before these orders enter
+              production.
             </CardDescription>
           </div>
           <Badge variant="secondary">{input.orders.length} pending</Badge>
@@ -45,6 +53,7 @@ export function IntakeWorkspace(input: IntakeModelInput) {
         <div className="divide-y rounded-lg border">
           {input.orders.map((order) => {
             const value = bagCounts[order.id] ?? ""
+            const priority = priorities[order.id] ?? order.priority
             const invalid =
               value.length > 0 &&
               (!Number.isInteger(Number(value)) || Number(value) < 0)
@@ -55,7 +64,7 @@ export function IntakeWorkspace(input: IntakeModelInput) {
               >
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">Order {order.externalOrderId}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {order.derivedWeightLbs} lb estimated · due{" "}
                     {order.dueBucket}
                   </p>
@@ -64,6 +73,7 @@ export function IntakeWorkspace(input: IntakeModelInput) {
                   <FieldLabel htmlFor={`bags-${order.id}`}>Bags</FieldLabel>
                   <Input
                     id={`bags-${order.id}`}
+                    className="h-11"
                     type="number"
                     min={0}
                     step={1}
@@ -74,9 +84,22 @@ export function IntakeWorkspace(input: IntakeModelInput) {
                     aria-invalid={invalid}
                   />
                 </Field>
+                <Field orientation="horizontal" className="min-h-11 sm:w-28">
+                  <Switch
+                    id={`priority-${order.id}`}
+                    checked={priority}
+                    onCheckedChange={(checked) =>
+                      setPriority(order.id, checked)
+                    }
+                  />
+                  <FieldLabel htmlFor={`priority-${order.id}`}>
+                    Priority
+                  </FieldLabel>
+                </Field>
                 <Button
                   type="button"
                   variant="outline"
+                  className="h-11"
                   disabled={
                     busyOrderId !== null || value.length === 0 || invalid
                   }

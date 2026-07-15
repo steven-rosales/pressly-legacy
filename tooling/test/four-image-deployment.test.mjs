@@ -162,6 +162,16 @@ describe('four-image deployment identity', () => {
       'PRESSLY_PROCESSOR_IMAGE',
     ])
       expect(workflow).toContain(field);
+
+    const deploy = readFileSync(deployScript, 'utf8');
+    expect(deploy).toContain('export PRESSLY_RELEASE_SHA="${DEPLOY_SHA,,}"');
+    const compose = readFileSync(
+      resolve(root, 'infra/aws/lightsail/docker-compose.production.yml'),
+      'utf8',
+    );
+    expect(
+      compose.match(/SENTRY_RELEASE: \$\{PRESSLY_RELEASE_SHA:/g),
+    ).toHaveLength(2);
   });
 
   it('stages and verifies the target-commit deploy script before first cutover', () => {

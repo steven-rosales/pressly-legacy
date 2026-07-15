@@ -6,22 +6,36 @@ import {
 } from '@pressly/auth/authorization';
 import type { ProductionResource } from './production.resource.ts';
 
-const actions: readonly Action[] = [
+const floorActions: readonly Action[] = [
   'production:read',
-  'production:schedule',
-  'production:accept',
   'production:priority',
   'production:intake',
-  'production:resources',
   'production:stage',
+  'production:queue',
+];
+
+const managerActions: readonly Action[] = [
+  'production:schedule',
+  'production:accept',
+  'production:start',
+  'production:override',
+  'production:resources',
 ];
 
 export const makeProductionPolicies =
-  (): readonly PolicyRule<ProductionResource>[] =>
-    actions.map((action) =>
+  (): readonly PolicyRule<ProductionResource>[] => [
+    ...floorActions.map((action) =>
       allow({
         id: `${action}.owner_admin_operator_in_scope`,
         action,
         when: [hasScopedRole(['owner', 'admin', 'operator'])],
       }),
-    );
+    ),
+    ...managerActions.map((action) =>
+      allow({
+        id: `${action}.owner_admin_in_scope`,
+        action,
+        when: [hasScopedRole(['owner', 'admin'])],
+      }),
+    ),
+  ];

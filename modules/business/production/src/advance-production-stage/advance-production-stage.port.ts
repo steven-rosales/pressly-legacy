@@ -1,6 +1,8 @@
 import type {
+  AdvanceProductionStageResult,
+  CompleteStageCommand,
   ProductionMutationResult,
-  StageCommand,
+  StartStageCommand,
 } from '@pressly/contracts';
 import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
@@ -11,13 +13,28 @@ import type {
   WorkEventInput,
 } from '../production.port.ts';
 
-export type AdvanceProductionStage = (
-  command: StageCommand & {
-    locationId: string;
-    actorId: string;
-    transition: 'start' | 'complete';
-  },
-) => Promise<Result<ProductionMutationResult, AppError>>;
+export type StartProductionStageCommand = StartStageCommand & {
+  actorId: string;
+  transition: 'start';
+};
+
+export type CompleteProductionStageCommand = CompleteStageCommand & {
+  actorId: string;
+  transition: 'complete';
+};
+
+export type AdvanceProductionStageCommand =
+  | StartProductionStageCommand
+  | CompleteProductionStageCommand;
+
+export type AdvanceProductionStage = {
+  (
+    command: StartProductionStageCommand,
+  ): Promise<Result<ProductionMutationResult, AppError>>;
+  (
+    command: CompleteProductionStageCommand,
+  ): Promise<Result<AdvanceProductionStageResult, AppError>>;
+};
 
 export type AdvanceProductionStageRepository = Transactional<
   Readonly<{

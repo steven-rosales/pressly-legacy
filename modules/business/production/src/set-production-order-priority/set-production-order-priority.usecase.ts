@@ -40,6 +40,7 @@ export const makeSetProductionOrderPriority =
           return result.err(productionIdempotencyConflict());
         if (replay.tag === 'replay') return result.ok(replay.result);
 
+        await repo.lockLocationScheduling(command.locationId);
         const updated = await repo.setOrderPriority({
           locationId: command.locationId,
           productionOrderId: command.productionOrderId,

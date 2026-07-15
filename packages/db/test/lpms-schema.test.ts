@@ -56,6 +56,25 @@ describe('LPMS schema', () => {
       'location_id',
     );
     expect(laundryProduction.workEvents.locationId.name).toBe('location_id');
+    expect(laundryProduction.productionLocations.liveRevision.name).toBe(
+      'live_revision',
+    );
+    expect(laundryProduction.scheduleRuns.supersededAt.name).toBe(
+      'superseded_at',
+    );
+    expect(laundryProduction.scheduleRuns.acceptedBy.name).toBe('accepted_by');
+    expect(laundryProduction.productionRuns.queueVersion.name).toBe(
+      'queue_version',
+    );
+    expect(laundryProduction.productionRuns.plannedCompletionAt.name).toBe(
+      'planned_completion_at',
+    );
+    expect(laundryProduction.productionBatches.membershipFrozenAt.name).toBe(
+      'membership_frozen_at',
+    );
+    expect(
+      laundryProduction.productionBatchOrders.placementProvenance.name,
+    ).toBe('placement_provenance');
 
     for (const table of [
       laundryProduction.machines,
@@ -140,5 +159,52 @@ describe('LPMS schema', () => {
     expect(migration).toContain(
       'RENAME COLUMN "crm_order_id" TO "order_demand_id"',
     );
+  });
+
+  it('normalizes legacy planning before enforcing run-centered execution', async () => {
+    const migration = await readFile(
+      new URL(
+        '../src/migrations/0016_lpms-run-centered-online-scheduling.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+
+    expect(migration).toContain(
+      'LPMS_RUN_CENTERED_MIGRATION_MULTIPLE_RUNS_PER_SHIFT',
+    );
+    expect(migration).toContain(
+      'LPMS_RUN_CENTERED_MIGRATION_INCONSISTENT_EXECUTION',
+    );
+    expect(migration).toContain(
+      'UPDATE "production_orders" AS production_order',
+    );
+    expect(migration).toContain(
+      'WHEN event."entity_type" = \'production_run\' THEN run."schedule_run_id"',
+    );
+    expect(migration).toContain(
+      'DELETE FROM "production_runs" WHERE "status" = \'planned\'',
+    );
+    expect(migration).toContain('schedule_runs_one_current_per_shift_unique');
+    expect(migration).toContain('production_runs_shift_unique');
+    expect(migration).toContain("'fixed-pulse-ffd-v2'");
+    expect(migration).toContain('production_batches_membership_freeze_paired');
+    expect(migration).toContain('production_batch_orders_pin_valid');
+  });
+
+  it('publishes a durable location revision after committed production work', async () => {
+    const migration = await readFile(
+      new URL(
+        '../src/migrations/0017_production_live_revisions.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+
+    expect(migration).toContain('ADD COLUMN "live_revision" bigint');
+    expect(migration).toContain('count(*)::bigint');
+    expect(migration).toContain('pressly_notify_production_change');
+    expect(migration).toContain("pg_notify(\n    'pressly_production_changes'");
+    expect(migration).toContain('AFTER INSERT ON "work_events"');
   });
 });

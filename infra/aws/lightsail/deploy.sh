@@ -143,6 +143,7 @@ export PRESSLY_API_IMAGE
 export PRESSLY_WEB_IMAGE
 export PRESSLY_WORKER_IMAGE
 export PRESSLY_PROCESSOR_IMAGE
+export PRESSLY_RELEASE_SHA="${DEPLOY_SHA,,}"
 
 if [[ ! "$DEPLOY_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
     echo "DEPLOY_SHA must be a full 40-character commit SHA." >&2

@@ -1,16 +1,22 @@
 import {
+  productionBoardSchema,
   productionWorkspaceSchema,
   type ProductionWorkspace,
 } from '@pressly/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  mapWorkspaceBoard,
+  isActionableWorkspaceSchedule,
   mapWorkspaceRun,
   mapWorkspaceShift,
-  selectCurrentWorkspaceShift,
 } from '../../src/load-production-workspace/load-production-workspace.mapper.ts';
-import type { LoadProductionWorkspaceRepository } from '../../src/load-production-workspace/load-production-workspace.port.ts';
+import type {
+  LoadProductionWorkspaceRepository,
+  ProductionWorkspaceReadModel,
+} from '../../src/load-production-workspace/load-production-workspace.port.ts';
 import { makeLoadProductionWorkspace } from '../../src/load-production-workspace/load-production-workspace.usecase.ts';
+import { projectProductionBoard } from '../../src/persistence/production-board-projection.ts';
+import { evaluateProductionBoardProjection } from '../../src/production-board-read.policy.ts';
+import { allowPolicy } from '../support/production.fake.ts';
 
 const ids = {
   shift: '00000000-0000-4000-8000-000000000001',
@@ -46,16 +52,25 @@ const shift = {
 const run = {
   id: ids.run,
   productionShiftId: ids.shift,
-  status: 'planned',
+  status: 'started',
+  queueVersion: 1,
+  plannedCompletionAt: new Date('2026-07-12T18:00:00.000Z'),
+  overtimeProposalHash: null,
+  overtimeQueueVersion: null,
+  overtimeAcknowledgedBy: null,
+  overtimeAcknowledgedAt: null,
   version: 1,
 } as const;
 
 const emptyWorkspace: ProductionWorkspace = {
   location,
   currentShift: null,
+  candidateShifts: [],
   currentSchedulerConfig: null,
-  latestScheduleProposal: null,
-  activeRun: null,
+  currentScheduleProposal: null,
+  activeRuns: [],
+  orders: [],
+  pendingEligibleOrders: [],
   board: null,
   stations: [],
   machines: [],
@@ -78,23 +93,49 @@ const stage = (
   version: 1,
 });
 
-const resumedWorkspace = () => {
-  const board = mapWorkspaceBoard({
+const evaluateBoard = (input: Parameters<typeof projectProductionBoard>[0]) =>
+  evaluateProductionBoardProjection(projectProductionBoard(input), allowPolicy);
+
+const resumedWorkspace = (): ProductionWorkspaceReadModel => {
+  const order = {
+    id: ids.order,
+    locationId: location.id,
+    orderDemandId: ids.crm,
+    externalOrderId: 'C-1001',
+    dueAt: new Date('2026-07-12T20:00:00.000Z'),
+    priority: false,
+    status: 'scheduled',
+    derivedWeightLbs: 74,
+    bagCount: 2,
+    bagCountSource: 'operator_intake',
+    intakeVersion: 1,
+    pendingPlacement: null,
+    version: 3,
+  };
+  const stages = [
+    stage(ids.sorting, 'sorting', 0),
+    stage(ids.washing, 'washing', 1),
+    stage(ids.drying, 'drying', 2),
+    stage(ids.folding, 'folding_packaging', 3),
+  ];
+  const assignments = [
+    {
+      stageRunId: ids.washing,
+      machineId: ids.washer,
+      plannedStartAt: stages[1]!.plannedStartAt,
+      plannedEndAt: stages[1]!.plannedEndAt,
+    },
+    {
+      stageRunId: ids.drying,
+      machineId: ids.dryer,
+      plannedStartAt: stages[2]!.plannedStartAt,
+      plannedEndAt: stages[2]!.plannedEndAt,
+    },
+  ];
+  const projection = projectProductionBoard({
     shift,
     run,
-    orders: [
-      {
-        id: ids.order,
-        orderDemandId: ids.crm,
-        externalOrderId: 'C-1001',
-        dueAt: new Date('2026-07-12T20:00:00.000Z'),
-        priority: false,
-        status: 'scheduled',
-        derivedWeightLbs: 74,
-        bagCount: 2,
-        version: 3,
-      },
-    ],
+    orders: [order],
     batches: [
       {
         id: ids.batch,
@@ -103,40 +144,56 @@ const resumedWorkspace = () => {
         derivedWeightLbs: 74,
         pulseCapacityLbs: 224,
         pulseMinutes: 56,
+        membershipFrozenAt: null,
+        membershipFrozenBy: null,
         version: 1,
       },
     ],
     batchOrders: [
-      { productionBatchId: ids.batch, productionOrderId: ids.order },
+      {
+        productionBatchId: ids.batch,
+        productionOrderId: ids.order,
+        active: true,
+        placementProvenance: 'initial_schedule',
+        pinnedAt: null,
+        pinnedBy: null,
+      },
     ],
-    stages: [
-      stage(ids.sorting, 'sorting', 0),
-      stage(ids.washing, 'washing', 1),
-      stage(ids.drying, 'drying', 2),
-      stage(ids.folding, 'folding_packaging', 3),
-    ],
-    assignments: [
-      { stageRunId: ids.washing, machineId: ids.washer },
-      { stageRunId: ids.drying, machineId: ids.dryer },
-    ],
+    stages,
+    assignments,
+    activeStages: [],
+    activeProductionRunIds: [ids.run],
     now: fixedNow,
   });
 
   return {
-    ...emptyWorkspace,
-    currentShift: mapWorkspaceShift(shift),
-    activeRun: mapWorkspaceRun(run),
-    board,
+    workspace: {
+      ...emptyWorkspace,
+      currentShift: mapWorkspaceShift(shift),
+      activeRuns: [mapWorkspaceRun(run)],
+      orders: [...projection.orders],
+      board: null,
+    },
+    boardProjection: projection,
   };
 };
 
 const setup = (repo: LoadProductionWorkspaceRepository) =>
-  makeLoadProductionWorkspace({ repo, clock: { now: () => fixedNow } });
+  makeLoadProductionWorkspace({
+    repo,
+    clock: { now: () => fixedNow },
+    policy: allowPolicy,
+  });
+
+const emptyReadModel: ProductionWorkspaceReadModel = {
+  workspace: { ...emptyWorkspace, board: null },
+  boardProjection: null,
+};
 
 describe('load production workspace', () => {
   it('returns not-found for unknown, inactive, or cross-location scope', async () => {
     const loadWorkspace = vi.fn(async (locationId: string) =>
-      locationId === location.id ? emptyWorkspace : null,
+      locationId === location.id ? emptyReadModel : null,
     );
     const load = setup({ loadWorkspace });
 
@@ -144,11 +201,15 @@ describe('load production workspace', () => {
       tag: 'err',
       error: { code: 'production_location_not_found', status: 404 },
     });
-    expect(loadWorkspace).toHaveBeenCalledWith('location-b', fixedNow);
+    expect(loadWorkspace).toHaveBeenCalledWith(
+      'location-b',
+      undefined,
+      fixedNow,
+    );
   });
 
   it('returns an active location with an empty resumable state', async () => {
-    const load = setup({ loadWorkspace: async () => emptyWorkspace });
+    const load = setup({ loadWorkspace: async () => emptyReadModel });
 
     await expect(load({ locationId: location.id })).resolves.toEqual({
       tag: 'ok',
@@ -159,22 +220,52 @@ describe('load production workspace', () => {
     );
   });
 
-  it('resumes an active run and board without calling sibling use cases', async () => {
-    const workspace = resumedWorkspace();
-    const loadWorkspace = vi.fn(async () => workspace);
+  it('returns not-found when an explicit shift is outside the location', async () => {
+    const unknownShiftId = '00000000-0000-4000-8000-000000000099';
+    const loadWorkspace = vi.fn(
+      async (_locationId: string, requestedShiftId?: string) =>
+        requestedShiftId === unknownShiftId
+          ? ('shift_not_found' as const)
+          : emptyReadModel,
+    );
     const load = setup({ loadWorkspace });
 
-    await expect(load({ locationId: location.id })).resolves.toMatchObject({
+    await expect(
+      load({ locationId: location.id, shiftId: unknownShiftId }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_shift_not_found', status: 404 },
+    });
+    expect(loadWorkspace).toHaveBeenCalledWith(
+      location.id,
+      unknownShiftId,
+      fixedNow,
+    );
+  });
+
+  it('resumes an active run and board without calling sibling use cases', async () => {
+    const readModel = resumedWorkspace();
+    const loadWorkspace = vi.fn(async () => readModel);
+    const load = setup({ loadWorkspace });
+
+    const output = await load({ locationId: location.id });
+    expect(output).toMatchObject({
       tag: 'ok',
       value: {
-        activeRun: { id: ids.run, status: 'planned' },
+        activeRuns: [{ id: ids.run, status: 'started', queueVersion: 1 }],
+        orders: [{ id: ids.order, status: 'scheduled', intakeVersion: 1 }],
         board: {
-          productionRun: { allowedActions: ['start'] },
+          productionRun: { id: ids.run, status: 'started', queueVersion: 1 },
           batches: [
             {
               orders: [{ externalOrderId: 'C-1001', bagCount: 2 }],
               stages: [
-                { stage: 'sorting', machineIds: [] },
+                {
+                  stage: 'sorting',
+                  machineIds: [],
+                  nextAction: { state: 'available', action: 'start' },
+                  allowedActions: ['start'],
+                },
                 { stage: 'washing', machineIds: [ids.washer] },
                 { stage: 'drying', machineIds: [ids.dryer] },
                 { stage: 'folding_packaging', machineIds: [] },
@@ -185,58 +276,157 @@ describe('load production workspace', () => {
       },
     });
     expect(loadWorkspace).toHaveBeenCalledOnce();
-    expect(productionWorkspaceSchema.safeParse(workspace).success).toBe(true);
+    expect(output.tag).toBe('ok');
+    if (output.tag === 'ok')
+      expect(productionWorkspaceSchema.safeParse(output.value).success).toBe(
+        true,
+      );
+  });
+
+  it('retains inactive historical membership after a batch finishes', () => {
+    const board = evaluateBoard({
+      shift,
+      run: { ...run, status: 'completed' },
+      orders: [
+        {
+          id: ids.order,
+          locationId: location.id,
+          orderDemandId: ids.crm,
+          externalOrderId: 'C-1001',
+          dueAt: new Date('2026-07-12T20:00:00.000Z'),
+          priority: false,
+          status: 'finished',
+          derivedWeightLbs: 74,
+          bagCount: 2,
+          bagCountSource: 'operator_intake',
+          intakeVersion: 1,
+          pendingPlacement: null,
+          version: 4,
+        },
+      ],
+      batches: [
+        {
+          id: ids.batch,
+          sequenceIndex: 0,
+          status: 'finished',
+          derivedWeightLbs: 74,
+          pulseCapacityLbs: 224,
+          pulseMinutes: 56,
+          membershipFrozenAt: fixedNow,
+          membershipFrozenBy: ids.crm,
+          version: 5,
+        },
+      ],
+      batchOrders: [
+        {
+          productionBatchId: ids.batch,
+          productionOrderId: ids.order,
+          active: false,
+          placementProvenance: 'initial_schedule',
+          pinnedAt: null,
+          pinnedBy: null,
+        },
+      ],
+      stages: [
+        stage(ids.sorting, 'sorting', 0),
+        stage(ids.washing, 'washing', 1),
+        stage(ids.drying, 'drying', 2),
+        stage(ids.folding, 'folding_packaging', 3),
+      ],
+      assignments: [],
+      activeStages: [],
+      activeProductionRunIds: [],
+      now: fixedNow,
+    });
+
+    expect(board.batches[0]?.orders).toHaveLength(1);
+    expect(board.batches[0]?.orders[0]?.externalOrderId).toBe('C-1001');
+    expect(productionBoardSchema.safeParse(board).success).toBe(true);
+  });
+
+  it('maps the persisted overtime preview into eligible board orders', () => {
+    const board = evaluateBoard({
+      shift,
+      run,
+      orders: [
+        {
+          id: ids.order,
+          locationId: location.id,
+          orderDemandId: ids.crm,
+          externalOrderId: 'C-1001',
+          dueAt: new Date('2026-07-12T20:00:00.000Z'),
+          priority: true,
+          status: 'eligible',
+          derivedWeightLbs: 74,
+          bagCount: 2,
+          bagCountSource: 'operator_intake',
+          intakeVersion: 1,
+          pendingPlacement: {
+            status: 'confirmation_required',
+            mode: 'automatic',
+            productionRunId: ids.run,
+            target: { kind: 'new_batch', sequence: 1 },
+            affectedBatchIds: [],
+            queueVersion: 1,
+            proposalHash: 'a'.repeat(64),
+            projectedCompletionAt: '2026-07-12T21:00:00.000Z',
+            overtimeMinutes: 60,
+          },
+          version: 3,
+        },
+      ],
+      batches: [],
+      batchOrders: [],
+      stages: [],
+      assignments: [],
+      activeStages: [],
+      activeProductionRunIds: [ids.run],
+      now: fixedNow,
+    });
+
+    expect(board.eligibleOrders[0]?.placement).toMatchObject({
+      status: 'confirmation_required',
+      proposalHash: 'a'.repeat(64),
+      queueVersion: 1,
+    });
+    expect(productionBoardSchema.safeParse(board).success).toBe(true);
   });
 });
 
-describe('workspace shift selection', () => {
-  it('prefers the current open shift over a newer draft', () => {
-    const newerDraft = {
-      ...shift,
-      id: '00000000-0000-4000-8000-000000000012',
-      status: 'draft',
-      startsAt: new Date('2026-07-13T14:00:00.000Z'),
-      endsAt: new Date('2026-07-13T20:00:00.000Z'),
-    };
+describe('workspace schedule actionability', () => {
+  const schedule = { id: ids.run, status: 'accepted' } as const;
 
-    expect(selectCurrentWorkspaceShift([newerDraft, shift], fixedNow)?.id).toBe(
-      shift.id,
-    );
-  });
-
-  it('uses the nearest viable draft when no shift is open', () => {
-    const first = {
-      ...shift,
-      id: '00000000-0000-4000-8000-000000000012',
-      status: 'draft',
-      startsAt: new Date('2026-07-13T14:00:00.000Z'),
-      endsAt: new Date('2026-07-13T20:00:00.000Z'),
-    };
-    const later = {
-      ...first,
-      id: '00000000-0000-4000-8000-000000000013',
-      startsAt: new Date('2026-07-14T14:00:00.000Z'),
-      endsAt: new Date('2026-07-14T20:00:00.000Z'),
-    };
-
-    expect(selectCurrentWorkspaceShift([later, first], fixedNow)?.id).toBe(
-      first.id,
-    );
-  });
-
-  it('returns null when only expired drafts exist', () => {
+  it('keeps an accepted plan actionable only before execution starts', () => {
     expect(
-      selectCurrentWorkspaceShift(
-        [
-          {
-            ...shift,
-            status: 'draft',
-            startsAt: new Date('2026-07-11T14:00:00.000Z'),
-            endsAt: new Date('2026-07-11T20:00:00.000Z'),
-          },
-        ],
-        fixedNow,
-      ),
-    ).toBeNull();
+      isActionableWorkspaceSchedule({
+        schedule,
+        shift,
+        committedScheduleRunIds: new Set(),
+        now: fixedNow,
+      }),
+    ).toBe(true);
+    expect(
+      isActionableWorkspaceSchedule({
+        schedule,
+        shift,
+        committedScheduleRunIds: new Set([schedule.id]),
+        now: fixedNow,
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects closed and expired shifts from the actionable plan set', () => {
+    for (const unavailableShift of [
+      { ...shift, status: 'closed' },
+      { ...shift, endsAt: fixedNow },
+    ])
+      expect(
+        isActionableWorkspaceSchedule({
+          schedule,
+          shift: unavailableShift,
+          committedScheduleRunIds: new Set(),
+          now: fixedNow,
+        }),
+      ).toBe(false);
   });
 });

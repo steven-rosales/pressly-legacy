@@ -20,6 +20,7 @@ export type SetProductionOrderPriority = (
 export type SetProductionOrderPriorityRepository = Transactional<
   Readonly<{
     findWorkEvent: FindWorkEvent;
+    lockLocationScheduling: (locationId: string) => Promise<void>;
     setOrderPriority: (input: {
       locationId: string;
       productionOrderId: string;

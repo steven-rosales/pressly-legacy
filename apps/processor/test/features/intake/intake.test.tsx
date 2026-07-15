@@ -47,4 +47,52 @@ describe("order intake", () => {
     )
     expect(onRecorded).toHaveBeenCalled()
   })
+
+  it("captures priority before intake can trigger automatic placement", async () => {
+    const user = userEvent.setup()
+    const pending = testOrderItems.find(
+      (order) => order.status === "intake_pending"
+    )!
+    const setPriority = vi.fn(async () => ({
+      entityId: pending.id,
+      version: pending.version + 1,
+      replayed: false,
+    }))
+    const recordIntake = vi.fn(async () => ({
+      locationId: testWorkspace.location.id,
+      orderId: pending.id,
+      bagCount: 2,
+      bagCountProvenance: "operator_intake" as const,
+      intakeVersion: 1,
+      version: pending.version + 2,
+      replayed: false,
+    }))
+    render(
+      <IntakeWorkspace
+        production={makeTestProductionPort({ setPriority, recordIntake })}
+        idempotency={testIdempotency}
+        locationId={testWorkspace.location.id}
+        orders={[pending]}
+        onRecorded={vi.fn(async () => undefined)}
+      />
+    )
+
+    await user.click(screen.getByRole("switch", { name: "Priority" }))
+    await user.type(screen.getByLabelText("Bags"), "2")
+    await user.click(screen.getByRole("button", { name: "Record intake" }))
+
+    expect(setPriority).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productionOrderId: pending.id,
+        expectedVersion: pending.version,
+        priority: true,
+      })
+    )
+    expect(recordIntake).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedVersion: pending.version + 1 })
+    )
+    expect(setPriority.mock.invocationCallOrder[0]).toBeLessThan(
+      recordIntake.mock.invocationCallOrder[0]!
+    )
+  })
 })
