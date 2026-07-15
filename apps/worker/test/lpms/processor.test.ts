@@ -4,6 +4,7 @@ import {
   nullCounterSink,
   nullErrorReporter,
   nullMeasurementSink,
+  type MeasurementSink,
 } from '@pressly/metrics';
 import type {
   ClaimedWebhookEvent,
@@ -61,15 +62,20 @@ const ingestion = (
 const processor = (input: {
   ingestion: WorkerIngestion;
   consume: WebhookEventConsumer;
+  clock?: Readonly<{ now: () => Date }>;
+  measurements?: MeasurementSink;
+  backlogMeasurementIntervalMs?: number;
 }) =>
   makeInboxProcessor({
     ingestion: input.ingestion,
     consume: input.consume,
-    clock: { now: () => new Date('2026-07-10T14:00:00.000Z') },
+    clock:
+      input.clock ??
+      ({ now: () => new Date('2026-07-10T14:00:00.000Z') } as const),
     random: () => 0.5,
     logger: nullLogger,
     counters: nullCounterSink,
-    measurements: nullMeasurementSink,
+    measurements: input.measurements ?? nullMeasurementSink,
     errors: nullErrorReporter,
     config: {
       workerId: 'worker-1',
@@ -78,6 +84,8 @@ const processor = (input: {
       maxAttempts: 8,
       retryBaseMs: 1_000,
       retryMaxMs: 300_000,
+      backlogMeasurementIntervalMs:
+        input.backlogMeasurementIntervalMs ?? 60_000,
     },
   });
 
@@ -114,6 +122,59 @@ describe('generic webhook inbox processor', () => {
     expect(store.completeEvent).toHaveBeenCalledWith(event);
     expect(store.retryEvent).not.toHaveBeenCalled();
     expect(store.deadLetterEvent).not.toHaveBeenCalled();
+  });
+
+  it('samples two backlog gauges without changing the claim cadence', async () => {
+    let now = new Date('2026-07-10T14:00:00.000Z');
+    const store = ingestion([]);
+    const observe = vi.fn();
+    const inbox = processor({
+      ingestion: store,
+      consume: vi.fn(async () => ({ tag: 'ok' as const })),
+      clock: { now: () => now },
+      measurements: { observe },
+    });
+
+    await inbox.runOnce();
+    await inbox.runOnce();
+    now = new Date('2026-07-10T14:01:00.000Z');
+    await inbox.runOnce();
+
+    expect(store.claimEvents).toHaveBeenCalledTimes(3);
+    expect(store.measureBacklog).toHaveBeenCalledTimes(2);
+    expect(observe.mock.calls).toEqual([
+      [
+        'worker.inbox_oldest_pending_age_seconds',
+        42,
+        { job: 'webhook_ingestion' },
+      ],
+      ['worker.inbox_pending_count', 0, { job: 'webhook_ingestion' }],
+      [
+        'worker.inbox_oldest_pending_age_seconds',
+        42,
+        { job: 'webhook_ingestion' },
+      ],
+      ['worker.inbox_pending_count', 0, { job: 'webhook_ingestion' }],
+    ]);
+  });
+
+  it('does not let backlog telemetry failure block claimed work', async () => {
+    const event = claimedEvent();
+    const store = ingestion([event], {
+      measureBacklog: vi.fn(async () => {
+        throw new Error('aggregate timed out');
+      }),
+    });
+    const consume = vi.fn(async () => ({ tag: 'ok' as const }));
+    const inbox = processor({ ingestion: store, consume });
+
+    await expect(inbox.runOnce()).resolves.toBe(1);
+    await expect(inbox.runOnce()).resolves.toBe(1);
+
+    expect(store.claimEvents).toHaveBeenCalledTimes(2);
+    expect(store.measureBacklog).toHaveBeenCalledOnce();
+    expect(consume).toHaveBeenCalledTimes(2);
+    expect(store.completeEvent).toHaveBeenCalledTimes(2);
   });
 
   it('retries transient failures and dead-letters permanent failures', async () => {

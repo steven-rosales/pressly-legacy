@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { makeProductionApplication } from '@pressly/production';
+import type { ProductionOrderPlacementResult } from '@pressly/contracts';
+import {
+  makeProductionApplication,
+  type ProductionRepositories,
+} from '@pressly/production';
 import { makeMemoryProductionRepositories } from '@pressly/production/testing';
 import { makeProductionPolicy } from '@pressly/production-policy';
 import { makeProductionScheduler } from '@pressly/production-scheduling';
+import { describe, expect, it } from 'vitest';
+import { normalizeCentsWebhook } from '../../src/vendors/cents/cents-webhook.adapter.ts';
 
 const actorId = '11111111-1111-4111-8111-111111111111';
 const locationId = 'location-1';
@@ -44,7 +49,7 @@ const demandCommand = (
   };
 };
 
-describe('LPMS v1 app-composed happy path', () => {
+describe('LPMS run-centered app-composed happy path', () => {
   it('moves 800 lb from canonical demand through a finished fixed-pulse run', async () => {
     const ids = makeIds();
     let now = new Date('2026-07-10T14:00:00.000Z');
@@ -66,8 +71,137 @@ describe('LPMS v1 app-composed happy path', () => {
         active: true,
       })),
     ]);
+    const placementCommits: ProductionOrderPlacementResult[] = [];
+    const placeProductionOrder: ProductionRepositories['placeProductionOrder'] =
+      {
+        transaction: async (work) =>
+          work({
+            findWorkEvent: async () => null,
+            lockLocationScheduling: async () => undefined,
+            findStartedRuns: async (candidateLocationId) =>
+              [...memory.inspect().runs.values()]
+                .filter(
+                  (candidate) =>
+                    candidate.locationId === candidateLocationId &&
+                    candidate.status === 'started',
+                )
+                .map((run) => ({
+                  productionRunId: run.id,
+                  queueVersion: run.queueVersion,
+                })),
+            recordPendingRunResolution: async () => undefined,
+            loadContext: async (
+              candidateLocationId,
+              productionRunId,
+              productionOrderId,
+            ) => {
+              const state = memory.inspect();
+              const run = state.runs.get(productionRunId);
+              const order = state.orders.get(productionOrderId);
+              if (
+                run === undefined ||
+                run.locationId !== candidateLocationId ||
+                order === undefined ||
+                order.locationId !== candidateLocationId ||
+                order.bagCount === null
+              )
+                return null;
+              const shift = state.shifts.get(run.productionShiftId);
+              const batches = [...state.batches.values()]
+                .filter((batch) => batch.productionRunId === run.id)
+                .sort((left, right) => left.sequence - right.sequence);
+              const firstBatch = batches[0];
+              if (shift === undefined || firstBatch === undefined) return null;
+
+              return {
+                input: {
+                  order: {
+                    id: order.id,
+                    priority: order.priority,
+                    derivedWeightLbs: order.derivedWeightLbs,
+                    bagCount: order.bagCount,
+                    version: order.version,
+                  },
+                  run: {
+                    id: run.id,
+                    queueVersion: run.queueVersion,
+                    startsAt: shift.startsAt,
+                    shiftEndsAt: shift.endsAt,
+                    pulseMinutes: firstBatch.pulseMinutes,
+                    pulseCapacityLbs: firstBatch.pulseCapacityLbs,
+                  },
+                  machines: [...state.machines.values()].map((machine) => ({
+                    id: machine.id,
+                    stationKind: machine.stationKind,
+                    effectiveCapacityLbs: machine.effectiveCapacityLbs,
+                    active: machine.active,
+                  })),
+                  batches: batches.map((batch) => {
+                    const batchOrders = batch.orderIds.map((orderId) => {
+                      const stored = state.orders.get(orderId);
+                      if (stored === undefined)
+                        throw new Error('Scheduled order missing from memory.');
+                      return stored;
+                    });
+                    return {
+                      id: batch.id,
+                      sequence: batch.sequence,
+                      status: batch.status,
+                      membershipFrozen: batch.membership.state === 'frozen',
+                      orderIds: [...batch.orderIds],
+                      priorityOrderIds: batchOrders
+                        .filter((stored) => stored.priority)
+                        .map((stored) => stored.id),
+                      derivedWeightLbs: batch.derivedWeightLbs,
+                      bagCount: batchOrders.reduce(
+                        (total, stored) => total + (stored.bagCount ?? 0),
+                        0,
+                      ),
+                      stages: batch.stageIds.map((stageId) => {
+                        const stage = state.stages.get(stageId);
+                        if (stage === undefined)
+                          throw new Error('Stage missing from memory.');
+                        return {
+                          stage: stage.stage,
+                          startsAt: stage.plannedStartAt,
+                          endsAt: stage.plannedEndAt,
+                          machineIds: [...stage.machineIds],
+                        };
+                      }),
+                    };
+                  }),
+                  mode: { type: 'automatic' as const },
+                },
+                runStatus: run.status,
+                orderStatus: order.status,
+                orderAlreadyAssigned: [
+                  ...state.activeBatchOrderIds.values(),
+                ].some((orderIds) => orderIds.has(order.id)),
+                batchVersions: Object.fromEntries(
+                  batches.map((batch) => [batch.id, batch.version]),
+                ),
+              };
+            },
+            findOvertimeProposal: async () => null,
+            recordOutcome: async () => undefined,
+            commitPlacement: async (input) => {
+              const placement = memory.commitPlacementForTest({
+                locationId: input.locationId,
+                productionRunId: input.productionRunId,
+                productionOrderId: input.productionOrderId,
+                actorId: input.actorId,
+                mode: input.mode,
+                proposal: input.proposal,
+                overtimeConfirmed: input.overtimeConfirmed,
+                now: input.now,
+              });
+              placementCommits.push(placement);
+              return placement;
+            },
+          }),
+      };
     const application = makeProductionApplication({
-      repositories: memory.repositories,
+      repositories: { ...memory.repositories, placeProductionOrder },
       policy: makeProductionPolicy(),
       scheduler: makeProductionScheduler(),
       clock,
@@ -152,7 +286,7 @@ describe('LPMS v1 app-composed happy path', () => {
     const shift = await application.createProductionShift({
       locationId,
       startsAt: '2026-07-10T14:00:00.000Z',
-      endsAt: '2026-07-10T20:00:00.000Z',
+      endsAt: '2026-07-10T21:00:00.000Z',
       timezone: 'America/New_York',
       effectiveFolderCount: 2,
       actorId,
@@ -166,7 +300,8 @@ describe('LPMS v1 app-composed happy path', () => {
       locationId,
       productionShiftId: shift.value.id,
       schedulerConfigId: config.value.id,
-      horizonEnd: '2026-07-10T23:59:59.999Z',
+      actorId,
+      idempotencyKey: 'compute-schedule-v2',
     });
     expect(schedule.tag).toBe('ok');
     if (schedule.tag === 'err') return;
@@ -181,31 +316,15 @@ describe('LPMS v1 app-composed happy path', () => {
       makespanMinutes: 392,
       plannedCompletionAt: '2026-07-10T20:32:00.000Z',
     });
-    expect(schedule.value.warnings).toContainEqual(
-      expect.objectContaining({ code: 'SHIFT_OVERFLOW', blocking: true }),
-    );
-
-    await expect(
-      application.acceptSchedule({
-        locationId,
-        scheduleRunId: schedule.value.scheduleRunId,
-        expectedOutputPlanHash: schedule.value.outputPlanHash,
-        acknowledgedWarningCodes: [],
-        actorId,
-        idempotencyKey: 'accept-schedule-v1',
-      }),
-    ).resolves.toMatchObject({
-      tag: 'err',
-      error: { code: 'schedule_warning_not_acknowledged' },
-    });
+    expect(schedule.value.warnings).toEqual([]);
 
     const accepted = await application.acceptSchedule({
       locationId,
       scheduleRunId: schedule.value.scheduleRunId,
       expectedOutputPlanHash: schedule.value.outputPlanHash,
-      acknowledgedWarningCodes: ['SHIFT_OVERFLOW'],
+      acknowledgedWarningCodes: [],
       actorId,
-      idempotencyKey: 'accept-schedule-v1',
+      idempotencyKey: 'accept-schedule-v2',
     });
     expect(accepted.tag).toBe('ok');
     if (accepted.tag === 'err') return;
@@ -214,30 +333,155 @@ describe('LPMS v1 app-composed happy path', () => {
         locationId,
         scheduleRunId: schedule.value.scheduleRunId,
         expectedOutputPlanHash: schedule.value.outputPlanHash,
-        acknowledgedWarningCodes: ['SHIFT_OVERFLOW'],
+        acknowledgedWarningCodes: [],
         actorId,
-        idempotencyKey: 'accept-schedule-v1',
+        idempotencyKey: 'accept-schedule-v2',
       }),
     ).resolves.toMatchObject({ tag: 'ok', value: { replayed: true } });
+    expect(memory.inspect().runs.size).toBe(0);
+
+    const started = await application.startSchedule({
+      locationId,
+      scheduleRunId: accepted.value.scheduleRunId,
+      expectedOutputPlanHash: schedule.value.outputPlanHash,
+      actorId,
+      idempotencyKey: 'start-schedule-v2',
+    });
+    expect(started).toMatchObject({
+      tag: 'ok',
+      value: { queueVersion: 1, replayed: false },
+    });
+    if (started.tag === 'err') return;
 
     let board = await application.loadProductionBoard({
       locationId,
-      productionShiftId: shift.value.id,
+      productionRunId: started.value.productionRunId,
     });
     expect(board.tag).toBe('ok');
-    if (board.tag === 'err' || board.value.productionRun === null) return;
+    if (board.tag === 'err') return;
     expect(
       board.value.batches
         .flatMap((batch) => batch.stages)
         .flatMap((stage) => stage.allowedActions),
-    ).toEqual([]);
+    ).toEqual(['start']);
 
-    await application.startProductionRun({
+    const centsPayload = {
+      action: 'order_updated',
+      order: {
+        id: 12001,
+        storeId: 24,
+        status: 'IN_PROGRESS',
+        dueDate: '2026-07-10T21:00:00.000Z',
+        updatedAt: '2026-07-10T14:01:00.000Z',
+      },
+      services: [
+        {
+          id: 51,
+          name: 'Wash and Fold',
+          quantity: 20,
+          totalPrice: 40,
+          unitCost: 2,
+          serviceCategoryType: 'LAUNDRY',
+        },
+      ],
+    } as const;
+    const centsRawBody = new TextEncoder().encode(JSON.stringify(centsPayload));
+    const normalized = normalizeCentsWebhook({
+      payload: centsPayload,
+      rawBody: centsRawBody,
+    });
+    expect(normalized).toMatchObject({
+      ok: true,
+      value: {
+        disposition: 'project_order',
+        order: { externalOrderId: '12001', bagCount: null },
+      },
+    });
+    if (!normalized.ok || normalized.value.disposition !== 'project_order')
+      return;
+    const centsOrder = normalized.value.order;
+    const centsWeightLbs = centsOrder.services.reduce(
+      (total, service) =>
+        total + service.totalPriceCents / service.unitPriceCents,
+      0,
+    );
+    const arrival = await application.applyOrderDemand({
+      demandKey: `cents:order:${centsOrder.externalOrderId}`,
+      displayReference: centsOrder.externalOrderId,
       locationId,
-      productionRunId: board.value.productionRun.id,
-      expectedVersion: board.value.productionRun.version,
+      revisionAt: centsOrder.sourceUpdatedAt,
+      revisionHash: normalized.value.receipt.rawBodySha256,
+      state: 'ready_for_production',
+      dueAt: centsOrder.dueAt,
+      estimatedWeightLbs: centsWeightLbs,
+      bagCount: centsOrder.bagCount,
+      idempotencyKey: 'webhook:cents-arrival-12001',
+    });
+    expect(arrival).toMatchObject({
+      tag: 'ok',
+      value: { outcome: 'applied' },
+    });
+    if (arrival.tag === 'err' || arrival.value.productionOrderId === null)
+      return;
+    const priority = await application.setProductionOrderPriority({
+      locationId,
+      productionOrderId: arrival.value.productionOrderId,
+      priority: true,
+      expectedVersion: 1,
       actorId,
-      idempotencyKey: 'start-run-v1',
+      idempotencyKey: 'priority-cents-arrival-12001',
+    });
+    expect(priority).toMatchObject({
+      tag: 'ok',
+      value: { version: 2 },
+    });
+    await expect(
+      application.recordOrderIntake({
+        locationId,
+        orderId: arrival.value.productionOrderId,
+        bagCount: 1,
+        expectedVersion: 2,
+        actorId,
+        idempotencyKey: 'intake-cents-arrival-12001',
+      }),
+    ).resolves.toMatchObject({ tag: 'ok', value: { version: 3 } });
+    expect(placementCommits).toEqual([
+      expect.objectContaining({
+        status: 'placed',
+        mode: 'automatic',
+        productionRunId: started.value.productionRunId,
+        productionOrderId: arrival.value.productionOrderId,
+        productionBatchId: started.value.productionBatchIds[3],
+        queueVersion: 2,
+        overtimeMinutes: 0,
+      }),
+    ]);
+    board = await application.loadProductionBoard({
+      locationId,
+      productionRunId: started.value.productionRunId,
+    });
+    expect(board).toMatchObject({
+      tag: 'ok',
+      value: {
+        productionRun: { queueVersion: 2 },
+        batches: [
+          {},
+          {},
+          {},
+          {
+            derivedWeightLbs: 148,
+            orders: [
+              {},
+              {
+                id: arrival.value.productionOrderId,
+                placementProvenance: 'automatic',
+                pinnedAt: null,
+                pinnedBy: null,
+              },
+            ],
+          },
+        ],
+      },
     });
 
     const boundaries = [
@@ -253,7 +497,7 @@ describe('LPMS v1 app-composed happy path', () => {
       now = new Date(boundary);
       board = await application.loadProductionBoard({
         locationId,
-        productionShiftId: shift.value.id,
+        productionRunId: started.value.productionRunId,
       });
       if (board.tag === 'err') return;
 
@@ -265,19 +509,26 @@ describe('LPMS v1 app-composed happy path', () => {
         )) {
         if (!provedEarlyBoundary) {
           now = new Date(Date.parse(boundary) - 1);
-          await expect(
-            application.advanceProductionStage({
-              locationId,
-              stageRunId: stage.id,
-              transition: 'complete',
-              expectedVersion: stage.version,
-              actorId,
-              idempotencyKey: 'early-completion-proof',
-            }),
-          ).resolves.toMatchObject({
-            tag: 'err',
-            error: { code: 'pulse_boundary_not_reached' },
+          const earlyCompletion = await application.advanceProductionStage({
+            locationId,
+            stageRunId: stage.id,
+            transition: 'complete',
+            expectedVersion: stage.version,
+            actorId,
+            idempotencyKey: 'early-completion-proof',
           });
+          expect(earlyCompletion).toMatchObject({
+            tag: 'ok',
+            value: {
+              status: 'confirmation_required',
+              stageRunId: stage.id,
+              stageVersion: stage.version,
+              code: 'PULSE_BOUNDARY_NOT_REACHED',
+              timing: { remainingMilliseconds: 1 },
+              replayed: false,
+            },
+          });
+          expect(memory.inspect().stages.get(stage.id)?.status).toBe('started');
           now = new Date(boundary);
           provedEarlyBoundary = true;
         }
@@ -294,7 +545,7 @@ describe('LPMS v1 app-composed happy path', () => {
 
       board = await application.loadProductionBoard({
         locationId,
-        productionShiftId: shift.value.id,
+        productionRunId: started.value.productionRunId,
       });
       if (board.tag === 'err') return;
       if (boundary === '2026-07-10T14:56:00.000Z')
@@ -342,7 +593,7 @@ describe('LPMS v1 app-composed happy path', () => {
 
     board = await application.loadProductionBoard({
       locationId,
-      productionShiftId: shift.value.id,
+      productionRunId: started.value.productionRunId,
     });
     if (board.tag === 'ok')
       expect(
@@ -366,6 +617,10 @@ describe('LPMS v1 app-composed happy path', () => {
           })),
         ),
       );
+    if (board.tag === 'ok')
+      expect(
+        board.value.batches.map((batch) => batch.membership.state),
+      ).toEqual(board.value.batches.map(() => 'frozen'));
     expect(board).toMatchObject({
       tag: 'ok',
       value: {
@@ -378,5 +633,11 @@ describe('LPMS v1 app-composed happy path', () => {
         ],
       },
     });
+    expect(
+      memory.inspect().orders.get(arrival.value.productionOrderId),
+    ).toMatchObject({ status: 'finished' });
+    expect(
+      memory.inspect().bagStatuses.get(arrival.value.productionOrderId),
+    ).toEqual(['finished']);
   });
 });

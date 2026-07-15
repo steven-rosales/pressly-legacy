@@ -1,4 +1,6 @@
 export type MeasurementName =
+  | 'api.http_request_duration_seconds'
+  | 'api.sse_active_connections'
   | 'worker.inbox_oldest_pending_age_seconds'
   | 'worker.inbox_pending_count'
   | 'worker.processing_latency_seconds'

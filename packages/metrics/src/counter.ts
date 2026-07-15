@@ -17,7 +17,18 @@ export type CounterName =
   | 'worker.loop_failures'
   | 'worker.reconciliation_drift'
   | 'api.command_conflicts'
+  | 'api.http_requests'
+  | 'api.sse_connections'
+  | 'api.sse_events'
+  | 'api.sse_resyncs'
+  | 'api.sse_feed_failures'
   | 'product.invariant_failures'
+  | 'production.plan_supersessions'
+  | 'production.runs_started'
+  | 'production.placement_outcomes'
+  | 'production.queue_conflicts'
+  | 'production.batch_freezes'
+  | 'production.overtime_confirmations'
   | 'deployment.failures';
 
 export type CounterLabels = Readonly<Record<string, string>>;

@@ -8,6 +8,7 @@ import {
 import { redactLogFields, type Logger, type LogFields } from '@pressly/logging';
 import type { Request } from 'express';
 import type { ApiRuntime } from '../runtime/runtime.ts';
+import { normalizedApiRoute } from './api-route.ts';
 
 const toLogFields = (fields: Readonly<Record<string, unknown>>): LogFields =>
   redactLogFields(fields) as LogFields;
@@ -32,10 +33,10 @@ const reportContext = (input: {
   requestId?: string | undefined;
 }): ErrorReportContext => ({
   source: 'api',
-  operation: `${input.request.method} ${input.request.path}`,
+  operation: `${input.request.method} ${normalizedApiRoute(input.request)}`,
   ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
   traceId: input.appError.traceId ?? input.requestId,
-  route: input.request.path,
+  route: normalizedApiRoute(input.request),
   tags: {
     reason: input.decision.reason,
     error_kind: input.appError.kind,
@@ -55,12 +56,13 @@ export const observeApiError = (
     requestId?: string | undefined;
   },
 ): ObservationDecision => {
+  const route = normalizedApiRoute(input.request);
   const decision = decideObservation({
     kind: 'error',
     source: 'api',
     rail: 'http',
-    route: input.request.path,
-    operation: `${input.request.method} ${input.request.path}`,
+    route,
+    operation: `${input.request.method} ${route}`,
     error: {
       kind: input.appError.kind,
       code: input.appError.code,
@@ -81,7 +83,7 @@ export const observeApiError = (
         reason: decision.reason,
         requestId: input.requestId,
         method: input.request.method,
-        route: input.request.path,
+        route,
         details: input.appError.details,
       }),
     );
@@ -90,7 +92,7 @@ export const observeApiError = (
     runtime.observability.counters.increment(decision.counter, {
       reason: decision.reason,
       status: String(input.appError.status),
-      route: input.request.path,
+      route,
     });
 
   if (decision.report)

@@ -14,10 +14,16 @@ import { makePostgresProductionModule } from '@pressly/production';
 import { makeProductionPolicy } from '@pressly/production-policy';
 import { makeProductionScheduler } from '@pressly/production-scheduling';
 import { makePostgresWebhookIngestionApplication } from '@pressly/webhook-ingestion';
+import { nullMeasurementSink } from '@pressly/metrics';
 import { makeErrorHandler } from './common/http/error-handler.ts';
 import { makeNotFoundHandler } from './common/http/not-found.ts';
 import { makeRequestContext } from './common/http/request-context.ts';
-import { makeProductionSignals } from './common/observability/production-signals.ts';
+import type { ProductionChangeFeed } from './common/live/production-change-feed.ts';
+import { makeApiRequestMetrics } from './common/observability/api-metrics.ts';
+import {
+  makeProductionDomainSignals,
+  makeProductionSignals,
+} from './common/observability/production-signals.ts';
 import type { ApiRuntime } from './common/runtime/runtime.ts';
 import { makeCorsOptions } from './common/security/cors.ts';
 import {
@@ -33,11 +39,13 @@ import {
 import { requireJsonContentType } from '@pressly/http/express';
 import { makeHealthRoutes } from './routes/health.routes.ts';
 import { makeWebhookIngestionRoutes } from './routes/webhook-ingestion.routes.ts';
+import { makeProductionChangeRoutes } from './routes/production-change.routes.ts';
 
 export type ApiCompositionOverrides = Readonly<{
   centsWebhookVerifier?: CentsWebhookVerifier;
   clock?: Readonly<{ now: () => Date }>;
   ids?: Readonly<{ next: () => string }>;
+  productionChanges?: ProductionChangeFeed;
 }>;
 
 export const makeApiApp = (
@@ -60,6 +68,12 @@ export const makeApiApp = (
   app.use(helmet());
   app.use(cors(makeCorsOptions(runtime.env.corsOrigin, runtime.env.nodeEnv)));
   app.use(makeRequestContext(runtime.logger));
+  app.use(
+    makeApiRequestMetrics({
+      counters: runtime.observability.counters,
+      measurements: runtime.observability.measurements ?? nullMeasurementSink,
+    }),
+  );
   app.use(makeProductionSignals(runtime.observability.counters));
 
   app.use('/health', makeHealthRoutes(runtime));
@@ -198,6 +212,7 @@ export const makeApiApp = (
     scheduler: productionScheduler,
     clock,
     ids,
+    signals: makeProductionDomainSignals(runtime.observability.counters),
     security: {
       ...accessControlModule.production,
       authenticate: processorBoundary.authenticate,
@@ -225,6 +240,17 @@ export const makeApiApp = (
       authorize: accessControlModule.production.resources,
     }),
   );
+
+  if (overrides.productionChanges !== undefined)
+    app.use(
+      makeProductionChangeRoutes({
+        feed: overrides.productionChanges,
+        authenticate: processorBoundary.authenticate,
+        authorize: accessControlModule.production.read,
+        counters: runtime.observability.counters,
+        measurements: runtime.observability.measurements ?? nullMeasurementSink,
+      }),
+    );
 
   app.use(productionModule.routes);
 
