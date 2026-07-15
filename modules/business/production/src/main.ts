@@ -37,19 +37,35 @@ import { makeLoadProductionWorkspace } from './load-production-workspace/load-pr
 import { makeLoadProductionWorkspaceRoute } from './load-production-workspace/load-production-workspace.route.ts';
 import { makeLoadProductionWorkspaceRepository } from './load-production-workspace/load-production-workspace.repo.ts';
 import type { LoadProductionWorkspaceRepository } from './load-production-workspace/load-production-workspace.port.ts';
+import { makeManageBatchMembership } from './manage-batch-membership/manage-batch-membership.usecase.ts';
+import { makeManageBatchMembershipRoute } from './manage-batch-membership/manage-batch-membership.route.ts';
+import { makeManageBatchMembershipRepository } from './manage-batch-membership/manage-batch-membership.repo.ts';
+import type { ManageBatchMembershipRepository } from './manage-batch-membership/manage-batch-membership.port.ts';
 import { makeManageProductionResources } from './manage-production-resources/manage-production-resources.usecase.ts';
 import { makeManageProductionResourcesRepository } from './manage-production-resources/manage-production-resources.repo.ts';
 import type { ManageProductionResourcesRepository } from './manage-production-resources/manage-production-resources.port.ts';
-import { makeCreateProductionShift } from './manage-production-shift/manage-production-shift.usecase.ts';
-import { makeCreateProductionShiftRoute } from './manage-production-shift/manage-production-shift.route.ts';
+import {
+  makeCreateProductionShift,
+  makeUpdateProductionShift,
+} from './manage-production-shift/manage-production-shift.usecase.ts';
+import {
+  makeCreateProductionShiftRoute,
+  makeUpdateProductionShiftRoute,
+} from './manage-production-shift/manage-production-shift.route.ts';
 import { makeManageProductionShiftRepository } from './manage-production-shift/manage-production-shift.repo.ts';
 import type { ManageProductionShiftRepository } from './manage-production-shift/manage-production-shift.port.ts';
+import { makePlaceProductionOrder } from './place-production-order/place-production-order.usecase.ts';
+import { makePlaceProductionOrderRoutes } from './place-production-order/place-production-order.route.ts';
+import { makePlaceProductionOrderRepository } from './place-production-order/place-production-order.repo.ts';
+import type { PlaceProductionOrderRepository } from './place-production-order/place-production-order.port.ts';
 import type {
   ClockPort,
   IdPort,
   ProductionPolicyPort,
+  ProductionSignalsPort,
   ProductionSchedulerPort,
 } from './production.port.ts';
+import { nullProductionSignals } from './production.port.ts';
 import { makePublishSchedulerConfig } from './publish-scheduler-config/publish-scheduler-config.usecase.ts';
 import { makePublishSchedulerConfigRoute } from './publish-scheduler-config/publish-scheduler-config.route.ts';
 import { makePublishSchedulerConfigRepository } from './publish-scheduler-config/publish-scheduler-config.repo.ts';
@@ -62,12 +78,14 @@ import { makeSetProductionOrderPriority } from './set-production-order-priority/
 import { makeSetProductionOrderPriorityRoute } from './set-production-order-priority/set-production-order-priority.route.ts';
 import { makeSetProductionOrderPriorityRepository } from './set-production-order-priority/set-production-order-priority.repo.ts';
 import type { SetProductionOrderPriorityRepository } from './set-production-order-priority/set-production-order-priority.port.ts';
-import { makeStartProductionRun } from './start-production-run/start-production-run.usecase.ts';
-import { makeStartProductionRunRoute } from './start-production-run/start-production-run.route.ts';
-import { makeStartProductionRunRepository } from './start-production-run/start-production-run.repo.ts';
-import type { StartProductionRunRepository } from './start-production-run/start-production-run.port.ts';
+import { makeStartSchedule } from './start-schedule/start-schedule.usecase.ts';
+import { makeStartScheduleRoute } from './start-schedule/start-schedule.route.ts';
+import { makeStartScheduleRepository } from './start-schedule/start-schedule.repo.ts';
+import type { StartScheduleRepository } from './start-schedule/start-schedule.port.ts';
 import { Router, type RequestHandler, type Response } from 'express';
 import type { Database } from '@pressly/db';
+import type { ProductionOrderPlacementResult } from '@pressly/contracts';
+import { automaticPlacementIdempotencyKey } from './automatic-placement-idempotency.policy.ts';
 
 export type ProductionRepositories = Readonly<{
   acceptSchedule: AcceptScheduleRepository;
@@ -80,12 +98,14 @@ export type ProductionRepositories = Readonly<{
   loadProductionBoard: LoadProductionBoardRepository;
   loadSchedule: LoadScheduleRepository;
   loadProductionWorkspace: LoadProductionWorkspaceRepository;
+  manageBatchMembership: ManageBatchMembershipRepository;
   manageProductionResources: ManageProductionResourcesRepository;
   manageProductionShift: ManageProductionShiftRepository;
+  placeProductionOrder: PlaceProductionOrderRepository;
   publishSchedulerConfig: PublishSchedulerConfigRepository;
   recordOrderIntake: RecordOrderIntakeRepository;
   setProductionOrderPriority: SetProductionOrderPriorityRepository;
-  startProductionRun: StartProductionRunRepository;
+  startSchedule: StartScheduleRepository;
 }>;
 
 export type ProductionApplicationDeps = Readonly<{
@@ -94,82 +114,185 @@ export type ProductionApplicationDeps = Readonly<{
   scheduler: ProductionSchedulerPort;
   clock: ClockPort;
   ids: IdPort;
+  signals?: ProductionSignalsPort;
 }>;
 
-export const makeProductionApplication = (deps: ProductionApplicationDeps) => ({
-  applyOrderDemand: makeApplyOrderDemand({
-    repo: deps.repositories.applyOrderDemand,
+export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
+  const signals = deps.signals ?? nullProductionSignals;
+  const rawPlaceProductionOrder = makePlaceProductionOrder({
+    repo: deps.repositories.placeProductionOrder,
     policy: deps.policy,
-    clock: deps.clock,
-    ids: deps.ids,
-  }),
-  publishSchedulerConfig: makePublishSchedulerConfig({
-    repo: deps.repositories.publishSchedulerConfig,
-    clock: deps.clock,
-    ids: deps.ids,
-  }),
-  createProductionShift: makeCreateProductionShift({
-    repo: deps.repositories.manageProductionShift,
-    clock: deps.clock,
-    ids: deps.ids,
-  }),
-  setProductionOrderPriority: makeSetProductionOrderPriority({
-    repo: deps.repositories.setProductionOrderPriority,
-    clock: deps.clock,
-  }),
-  createSchedule: makeCreateSchedule({
-    repo: deps.repositories.createSchedule,
     scheduler: deps.scheduler,
     clock: deps.clock,
-    ids: deps.ids,
-  }),
-  listProductionLocations: makeListProductionLocations({
-    repo: deps.repositories.listProductionLocations,
-    clock: deps.clock,
-  }),
-  listProductionOrders: makeListProductionOrders({
-    repo: deps.repositories.listProductionOrders,
-    clock: deps.clock,
-  }),
-  loadSchedule: makeLoadSchedule(deps.repositories.loadSchedule),
-  acceptSchedule: makeAcceptSchedule({
-    repo: deps.repositories.acceptSchedule,
+  });
+  const reportPlacement = (
+    outcome: ProductionOrderPlacementResult,
+    operation: string,
+  ): void => {
+    if (outcome.replayed) return;
+    signals.placementOutcome({
+      status: outcome.status,
+      mode: outcome.mode,
+      ...(outcome.status === 'not_placed' ? { reason: outcome.reason } : {}),
+    });
+    if (outcome.status === 'not_placed' && outcome.reason === 'queue_conflict')
+      signals.queueConflict({ operation });
+  };
+  const placeProductionOrder: Pick<
+    ReturnType<typeof makePlaceProductionOrder>,
+    'placeAutomatically' | 'placeExactly' | 'confirmOvertime'
+  > = {
+    placeAutomatically: async (command) => {
+      const outcome = await rawPlaceProductionOrder.placeAutomatically(command);
+      if (outcome.tag === 'ok')
+        reportPlacement(outcome.value, 'automatic_placement');
+      return outcome;
+    },
+    placeExactly: async (command) => {
+      const outcome = await rawPlaceProductionOrder.placeExactly(command);
+      if (outcome.tag === 'ok')
+        reportPlacement(outcome.value, 'manager_exact_placement');
+      return outcome;
+    },
+    confirmOvertime: async (command) => {
+      const outcome = await rawPlaceProductionOrder.confirmOvertime(command);
+      if (outcome.tag === 'ok') {
+        reportPlacement(outcome.value, 'overtime_confirmation');
+        if (outcome.value.status === 'placed' && !outcome.value.replayed)
+          signals.overtimeConfirmed();
+      }
+      return outcome;
+    },
+  };
+  const rawManageBatchMembership = makeManageBatchMembership({
+    repo: deps.repositories.manageBatchMembership,
     policy: deps.policy,
     clock: deps.clock,
-  }),
-  loadProductionBoard: makeLoadProductionBoard({
-    repo: deps.repositories.loadProductionBoard,
+  });
+  const manageBatchMembership: typeof rawManageBatchMembership = async (
+    command,
+  ) => {
+    const outcome = await rawManageBatchMembership(command);
+    if (outcome.tag === 'ok') {
+      if (command.action === 'freeze' && !outcome.value.replayed)
+        signals.batchFrozen({ source: 'explicit' });
+    } else if (outcome.error.code === 'production_queue_version_conflict')
+      signals.queueConflict({ operation: `${command.action}_membership` });
+    return outcome;
+  };
+  const rawStartSchedule = makeStartSchedule({
+    repo: deps.repositories.startSchedule,
+    clock: deps.clock,
     policy: deps.policy,
-    clock: deps.clock,
-  }),
-  loadProductionWorkspace: makeLoadProductionWorkspace({
-    repo: deps.repositories.loadProductionWorkspace,
-    clock: deps.clock,
-  }),
-  manageProductionResources: makeManageProductionResources({
-    repo: deps.repositories.manageProductionResources,
-    clock: deps.clock,
-  }),
-  recordOrderIntake: makeRecordOrderIntake({
-    repo: deps.repositories.recordOrderIntake,
-    policy: deps.policy,
-    clock: deps.clock,
-  }),
-  startProductionRun: makeStartProductionRun({
-    repo: deps.repositories.startProductionRun,
-    clock: deps.clock,
-  }),
-  assignStageMachines: makeAssignStageMachines({
-    repo: deps.repositories.assignStageMachines,
-    policy: deps.policy,
-    clock: deps.clock,
-  }),
-  advanceProductionStage: makeAdvanceProductionStage({
+  });
+  const startSchedule: typeof rawStartSchedule = async (command) => {
+    const outcome = await rawStartSchedule(command);
+    if (outcome.tag === 'ok' && !outcome.value.replayed) signals.runStarted();
+    return outcome;
+  };
+  const advanceProductionStage = makeAdvanceProductionStage({
     repo: deps.repositories.advanceProductionStage,
     policy: deps.policy,
     clock: deps.clock,
-  }),
-});
+    signals,
+  });
+  const attemptAutomaticPlacement = async (input: {
+    locationId: string;
+    productionOrderId: string;
+    actorId: string;
+    idempotencyKey: string;
+  }): Promise<void> => {
+    const outcome = await rawPlaceProductionOrder.attemptAutomaticPlacement({
+      locationId: input.locationId,
+      productionOrderId: input.productionOrderId,
+      idempotencyKey: automaticPlacementIdempotencyKey(input.idempotencyKey),
+      actorId: input.actorId,
+      actorRole: 'operator',
+    });
+    if (outcome.tag === 'ok' && outcome.value !== null)
+      reportPlacement(outcome.value, 'automatic_placement');
+  };
+
+  return {
+    applyOrderDemand: makeApplyOrderDemand({
+      repo: deps.repositories.applyOrderDemand,
+      policy: deps.policy,
+      clock: deps.clock,
+      ids: deps.ids,
+      attemptAutomaticPlacement,
+    }),
+    publishSchedulerConfig: makePublishSchedulerConfig({
+      repo: deps.repositories.publishSchedulerConfig,
+      clock: deps.clock,
+      ids: deps.ids,
+    }),
+    createProductionShift: makeCreateProductionShift({
+      repo: deps.repositories.manageProductionShift,
+      clock: deps.clock,
+      ids: deps.ids,
+    }),
+    updateProductionShift: makeUpdateProductionShift({
+      repo: deps.repositories.manageProductionShift,
+      clock: deps.clock,
+      signals,
+    }),
+    setProductionOrderPriority: makeSetProductionOrderPriority({
+      repo: deps.repositories.setProductionOrderPriority,
+      clock: deps.clock,
+    }),
+    createSchedule: makeCreateSchedule({
+      repo: deps.repositories.createSchedule,
+      scheduler: deps.scheduler,
+      policy: deps.policy,
+      clock: deps.clock,
+      ids: deps.ids,
+      signals,
+    }),
+    listProductionLocations: makeListProductionLocations({
+      repo: deps.repositories.listProductionLocations,
+      clock: deps.clock,
+    }),
+    listProductionOrders: makeListProductionOrders({
+      repo: deps.repositories.listProductionOrders,
+      clock: deps.clock,
+    }),
+    loadSchedule: makeLoadSchedule(deps.repositories.loadSchedule),
+    acceptSchedule: makeAcceptSchedule({
+      repo: deps.repositories.acceptSchedule,
+      policy: deps.policy,
+      clock: deps.clock,
+    }),
+    loadProductionBoard: makeLoadProductionBoard({
+      repo: deps.repositories.loadProductionBoard,
+      policy: deps.policy,
+      clock: deps.clock,
+    }),
+    loadProductionWorkspace: makeLoadProductionWorkspace({
+      repo: deps.repositories.loadProductionWorkspace,
+      clock: deps.clock,
+      policy: deps.policy,
+    }),
+    manageBatchMembership,
+    manageProductionResources: makeManageProductionResources({
+      repo: deps.repositories.manageProductionResources,
+      clock: deps.clock,
+    }),
+    placeProductionOrder,
+    recordOrderIntake: makeRecordOrderIntake({
+      repo: deps.repositories.recordOrderIntake,
+      policy: deps.policy,
+      clock: deps.clock,
+      attemptAutomaticPlacement,
+    }),
+    startSchedule,
+    assignStageMachines: makeAssignStageMachines({
+      repo: deps.repositories.assignStageMachines,
+      policy: deps.policy,
+      clock: deps.clock,
+    }),
+    advanceProductionStage,
+  };
+};
 
 export type ProductionApplication = ReturnType<
   typeof makeProductionApplication
@@ -180,6 +303,9 @@ export type ProductionRouteSecurity = Readonly<{
   read: RequestHandler;
   schedule: RequestHandler;
   accept: RequestHandler;
+  start: RequestHandler;
+  queue: RequestHandler;
+  override: RequestHandler;
   priority: RequestHandler;
   intake: RequestHandler;
   resources: RequestHandler;
@@ -235,6 +361,13 @@ export const makeProductionRoutes = (input: {
     }),
   );
   routes.use(
+    makeUpdateProductionShiftRoute({
+      update: input.application.updateProductionShift,
+      ...scheduleSecurity,
+      ...actor,
+    }),
+  );
+  routes.use(
     makeSetProductionOrderPriorityRoute({
       setPriority: input.application.setProductionOrderPriority,
       authenticate: input.security.authenticate,
@@ -254,6 +387,7 @@ export const makeProductionRoutes = (input: {
     makeCreateScheduleRoute({
       createSchedule: input.application.createSchedule,
       ...scheduleSecurity,
+      ...actor,
     }),
   );
   routes.use(
@@ -279,10 +413,28 @@ export const makeProductionRoutes = (input: {
     }),
   );
   routes.use(
-    makeStartProductionRunRoute({
-      startRun: input.application.startProductionRun,
+    makeStartScheduleRoute({
+      startSchedule: input.application.startSchedule,
       authenticate: input.security.authenticate,
-      authorize: input.security.stage,
+      authorize: input.security.start,
+      ...actor,
+    }),
+  );
+  routes.use(
+    makeManageBatchMembershipRoute({
+      manage: input.application.manageBatchMembership,
+      authenticate: input.security.authenticate,
+      authorizeFreeze: input.security.queue,
+      authorizeUnfreeze: input.security.override,
+      ...actor,
+    }),
+  );
+  routes.use(
+    makePlaceProductionOrderRoutes({
+      ...input.application.placeProductionOrder,
+      authenticate: input.security.authenticate,
+      authorizeQueue: input.security.queue,
+      authorizeOverride: input.security.override,
       ...actor,
     }),
   );
@@ -322,13 +474,15 @@ export const makePostgresProductionApplication = (
       loadProductionBoard: makeLoadProductionBoardRepository(deps),
       loadSchedule: makeLoadScheduleRepository(deps.db),
       loadProductionWorkspace: makeLoadProductionWorkspaceRepository(deps.db),
+      manageBatchMembership: makeManageBatchMembershipRepository(deps),
       manageProductionResources: makeManageProductionResourcesRepository(deps),
       manageProductionShift: makeManageProductionShiftRepository(deps),
+      placeProductionOrder: makePlaceProductionOrderRepository(deps),
       publishSchedulerConfig: makePublishSchedulerConfigRepository(deps),
       recordOrderIntake: makeRecordOrderIntakeRepository(deps),
       setProductionOrderPriority:
         makeSetProductionOrderPriorityRepository(deps),
-      startProductionRun: makeStartProductionRunRepository(deps),
+      startSchedule: makeStartScheduleRepository(deps),
     },
   });
 

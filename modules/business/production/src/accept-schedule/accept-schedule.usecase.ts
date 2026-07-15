@@ -43,6 +43,16 @@ export const makeAcceptSchedule =
           return result.err(productionIdempotencyConflict());
         if (replay.tag === 'replay') return result.ok(replay.result);
 
+        await repo.lockLocationScheduling(command.locationId);
+        const lockedReplay = resolveWorkEventReplay<AcceptScheduleResult>(
+          await repo.findWorkEvent(command.idempotencyKey),
+          idempotency,
+        );
+        if (lockedReplay.tag === 'conflict')
+          return result.err(productionIdempotencyConflict());
+        if (lockedReplay.tag === 'replay')
+          return result.ok(lockedReplay.result);
+
         const acceptanceRecord = await repo.loadSchedule(
           command.locationId,
           command.scheduleRunId,
@@ -58,10 +68,41 @@ export const makeAcceptSchedule =
           );
         const schedule = acceptanceRecord.schedule;
 
+        const now = deps.clock.now();
+        const shiftWindow = deps.policy.evaluateShiftPlanningWindow({
+          action: 'accept',
+          now,
+          startsAt: new Date(acceptanceRecord.inputSnapshot.shift.startsAt),
+          endsAt: new Date(acceptanceRecord.inputSnapshot.shift.endsAt),
+        });
+        if (shiftWindow.tag === 'err')
+          return result.err(
+            productionError(
+              shiftWindow.error.code,
+              shiftWindow.error.message,
+              409,
+            ),
+          );
+
+        if (
+          await repo.productionRunExists(
+            command.locationId,
+            schedule.productionShiftId,
+          )
+        )
+          return result.err(
+            productionError(
+              'PRODUCTION_SHIFT_ALREADY_STARTED',
+              'A production run already exists for this shift.',
+              409,
+            ),
+          );
+
         const decision = deps.policy.evaluateScheduleAcceptance({
           status: schedule.status,
           expectedOutputPlanHash: command.expectedOutputPlanHash,
           actualOutputPlanHash: schedule.outputPlanHash,
+          warningCodes: schedule.warnings.map((warning) => warning.code),
           blockingWarningCodes: schedule.warnings
             .filter((warning) => warning.blocking)
             .map((warning) => warning.code),
@@ -84,16 +125,23 @@ export const makeAcceptSchedule =
             productionError(decision.error.code, decision.error.message, 409),
           );
 
-        if (
-          !(await repo.lockAndValidateSelectedOrders(
+        const eligibleOrderSnapshotMatches =
+          await repo.lockAndValidateScheduleInput(
             command.locationId,
             acceptanceRecord,
-          ))
-        )
+          );
+        const currentPlanDecision = deps.policy.evaluateCurrentPlanAcceptance({
+          scheduleRunId: schedule.scheduleRunId,
+          status: schedule.status,
+          currentScheduleRunId:
+            schedule.status === 'draft' ? schedule.scheduleRunId : null,
+          eligibleOrderSnapshotMatches,
+        });
+        if (currentPlanDecision.tag === 'err')
           return result.err(
             productionError(
-              'SCHEDULE_INPUT_DRIFTED',
-              'One or more selected orders changed after this proposal was created.',
+              currentPlanDecision.error.code,
+              currentPlanDecision.error.message,
               409,
             ),
           );
@@ -103,9 +151,10 @@ export const makeAcceptSchedule =
             command.locationId,
             schedule,
             command.actorId,
+            command.acknowledgedWarningCodes,
             command.idempotencyKey,
             idempotency,
-            deps.clock.now(),
+            now,
           ),
         );
       });

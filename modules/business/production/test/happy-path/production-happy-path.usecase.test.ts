@@ -156,7 +156,8 @@ describe('production happy path', () => {
       locationId,
       productionShiftId: shift.value.id,
       schedulerConfigId: config.value.id,
-      horizonEnd: '2026-07-11T03:59:59.999Z',
+      idempotencyKey: 'schedule-command-1',
+      actorId: '11111111-1111-4111-8111-111111111111',
     });
     expect(schedule.tag).toBe('ok');
     if (schedule.tag === 'err') return;
@@ -175,8 +176,8 @@ describe('production happy path', () => {
     await expect(app.acceptSchedule(acceptCommand)).resolves.toMatchObject({
       tag: 'ok',
       value: {
-        productionRunId: accepted.value.productionRunId,
-        productionBatchIds: accepted.value.productionBatchIds,
+        scheduleRunId: accepted.value.scheduleRunId,
+        productionShiftId: accepted.value.productionShiftId,
         replayed: true,
       },
     });
@@ -189,10 +190,39 @@ describe('production happy path', () => {
       tag: 'err',
       error: { code: 'production_idempotency_conflict', status: 409 },
     });
+    expect(memory.inspect().runs.size).toBe(0);
+
+    const startCommand = {
+      locationId,
+      scheduleRunId: schedule.value.scheduleRunId,
+      expectedOutputPlanHash: schedule.value.outputPlanHash,
+      idempotencyKey: 'start-schedule-command-1',
+      actorId: '11111111-1111-4111-8111-111111111111',
+    } as const;
+    const started = await app.startSchedule(startCommand);
+    expect(started.tag).toBe('ok');
+    if (started.tag === 'err') return;
+    await expect(app.startSchedule(startCommand)).resolves.toMatchObject({
+      tag: 'ok',
+      value: {
+        productionRunId: started.value.productionRunId,
+        productionBatchIds: started.value.productionBatchIds,
+        replayed: true,
+      },
+    });
+    await expect(
+      app.startSchedule({
+        ...startCommand,
+        expectedOutputPlanHash: 'different-plan-hash',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_idempotency_conflict', status: 409 },
+    });
 
     const plannedBoard = await app.loadProductionBoard({
       locationId,
-      productionShiftId: shift.value.id,
+      productionRunId: started.value.productionRunId,
     });
     if (plannedBoard.tag === 'err') return;
     const washingStage = plannedBoard.value.batches[0]?.stages.find(
@@ -223,39 +253,16 @@ describe('production happy path', () => {
       error: { code: 'production_idempotency_conflict', status: 409 },
     });
 
-    const startRunCommand = {
-      locationId,
-      productionRunId: accepted.value.productionRunId,
-      expectedVersion: 1,
-      idempotencyKey: 'start-run-command-1',
-      actorId: '11111111-1111-4111-8111-111111111111',
-    } as const;
-    await expect(
-      app.startProductionRun(startRunCommand),
-    ).resolves.toMatchObject({ tag: 'ok', value: { replayed: false } });
-    await expect(
-      app.startProductionRun(startRunCommand),
-    ).resolves.toMatchObject({ tag: 'ok', value: { replayed: true } });
-    await expect(
-      app.startProductionRun({
-        ...startRunCommand,
-        expectedVersion: 2,
-      }),
-    ).resolves.toMatchObject({
-      tag: 'err',
-      error: { code: 'production_idempotency_conflict', status: 409 },
-    });
-
     let board = await app.loadProductionBoard({
       locationId,
-      productionShiftId: shift.value.id,
+      productionRunId: started.value.productionRunId,
     });
     expect(board.tag).toBe('ok');
     if (board.tag === 'err') return;
 
     for (const [index, stage] of board.value.batches[0]!.stages.entries()) {
       time.set(stage.plannedStartAt);
-      const started = await app.advanceProductionStage({
+      const stageStarted = await app.advanceProductionStage({
         locationId,
         stageRunId: stage.id,
         expectedVersion: stage.version,
@@ -263,8 +270,8 @@ describe('production happy path', () => {
         transition: 'start',
         actorId: '11111111-1111-4111-8111-111111111111',
       });
-      expect(started.tag).toBe('ok');
-      if (started.tag === 'err') return;
+      expect(stageStarted.tag).toBe('ok');
+      if (stageStarted.tag === 'err') return;
       await expect(
         app.advanceProductionStage({
           locationId,
@@ -294,14 +301,18 @@ describe('production happy path', () => {
         app.advanceProductionStage({
           locationId,
           stageRunId: stage.id,
-          expectedVersion: started.value.version,
+          expectedVersion: stageStarted.value.version,
           idempotencyKey: `stage-early-${index}`,
           transition: 'complete',
           actorId: '11111111-1111-4111-8111-111111111111',
         }),
       ).resolves.toMatchObject({
-        tag: 'err',
-        error: { code: 'pulse_boundary_not_reached' },
+        tag: 'ok',
+        value: {
+          status: 'confirmation_required',
+          code: 'PULSE_BOUNDARY_NOT_REACHED',
+          replayed: false,
+        },
       });
 
       time.set(stage.plannedEndAt);
@@ -309,7 +320,7 @@ describe('production happy path', () => {
         app.advanceProductionStage({
           locationId,
           stageRunId: stage.id,
-          expectedVersion: started.value.version,
+          expectedVersion: stageStarted.value.version,
           idempotencyKey: `stage-complete-${index}`,
           transition: 'complete',
           actorId: '11111111-1111-4111-8111-111111111111',
@@ -318,7 +329,7 @@ describe('production happy path', () => {
 
       board = await app.loadProductionBoard({
         locationId,
-        productionShiftId: shift.value.id,
+        productionRunId: started.value.productionRunId,
       });
       if (board.tag === 'err') return;
     }
@@ -343,7 +354,7 @@ describe('production happy path', () => {
       'finished',
     ]);
     expect(
-      terminal.activeBatchOrderIds.get(accepted.value.productionBatchIds[0]!)
+      terminal.activeBatchOrderIds.get(started.value.productionBatchIds[0]!)
         ?.size,
     ).toBe(0);
     expect(
@@ -352,12 +363,12 @@ describe('production happy path', () => {
       ),
     ).toBe(true);
     expect(
-      terminal.batches.get(accepted.value.productionBatchIds[0]!),
+      terminal.batches.get(started.value.productionBatchIds[0]!),
     ).toMatchObject({
       status: 'finished',
       finishedAt: expect.any(String),
     });
-    expect(terminal.runs.get(accepted.value.productionRunId)).toMatchObject({
+    expect(terminal.runs.get(started.value.productionRunId)).toMatchObject({
       status: 'completed',
       completedAt: expect.any(String),
     });

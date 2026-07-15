@@ -38,7 +38,8 @@ export const mapSchedule = (
     status: row.status as ScheduleProposal['status'],
     inputSnapshotHash: row.inputSnapshotHash,
     outputPlanHash: row.outputPlanHash,
-    algorithmVersion: 'fixed-pulse-ffd-v1',
+    algorithmVersion:
+      row.algorithmVersion as ScheduleProposal['algorithmVersion'],
     pulseMinutes: output.pulseMinutes,
     pulseCapacityLbs: row.pulseCapacityLbs,
     batchCount: row.batchCount,
@@ -63,6 +64,10 @@ export const mapSchedule = (
     })),
     createdAt: iso(row.createdAt),
     acceptedAt: row.acceptedAt === null ? null : iso(row.acceptedAt),
+    acceptedBy: row.acceptedBy,
+    acknowledgedWarningCodes:
+      row.acknowledgedWarningCodes as ScheduleProposal['acknowledgedWarningCodes'],
+    supersededAt: row.supersededAt === null ? null : iso(row.supersededAt),
   };
 };
 
@@ -85,7 +90,7 @@ export const mapConfig = (
   id: row.id,
   pulseMinutes: row.pulseMinutes,
   foldLbsPerFolderMinute: row.foldLbsPerFolderMinute,
-  algorithmVersion: 'fixed-pulse-ffd-v1',
+  algorithmVersion: row.algorithmVersion as SchedulerConfig['algorithmVersion'],
   version: row.version,
   stageFitAssertion:
     row.stageFitAssertion as SchedulerConfig['stageFitAssertion'],

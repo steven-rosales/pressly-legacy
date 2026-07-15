@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   check,
   foreignKey,
@@ -32,6 +33,9 @@ export const productionLocations = pgTable('production_locations', {
   name: text('name').notNull(),
   timezone: text('timezone').notNull(),
   isActive: boolean('is_active').notNull().default(true),
+  liveRevision: bigint('live_revision', { mode: 'number' })
+    .notNull()
+    .default(0),
   ...timestamps,
 });
 
@@ -120,6 +124,7 @@ export const productionOrders = pgTable(
     version: integer('version').notNull().default(1),
     eligibleAt: timestamp('eligible_at', { withTimezone: true }).notNull(),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
+    pendingPlacement: jsonb('pending_placement'),
     ...timestamps,
   },
   (table) => [
@@ -302,25 +307,35 @@ export const scheduleRuns = pgTable(
     warnings: jsonb('warnings_json')
       .notNull()
       .default(sql`'[]'::jsonb`),
+    acknowledgedWarningCodes: jsonb('acknowledged_warning_codes')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    acceptedBy: uuid('accepted_by'),
+    supersededAt: timestamp('superseded_at', { withTimezone: true }),
   },
   (table) => [
     uniqueIndex('schedule_runs_id_location_unique').on(
       table.id,
       table.locationId,
     ),
-    uniqueIndex('schedule_runs_canonical_proposal_unique').on(
-      table.productionShiftId,
-      table.schedulerConfigId,
-      table.inputSnapshotHash,
-      table.outputPlanHash,
-    ),
+    uniqueIndex('schedule_runs_one_current_per_shift_unique')
+      .on(table.productionShiftId)
+      .where(sql`${table.status} in ('draft', 'accepted')`),
     check(
       'schedule_runs_nonnegative_forecasts',
       sql`${table.batchCount} >= 0 and ${table.makespanMinutes} >= 0 and ${table.pulseCapacityLbs} > 0`,
+    ),
+    check(
+      'schedule_runs_known_status',
+      sql`${table.status} in ('draft', 'accepted', 'superseded', 'rejected')`,
+    ),
+    check(
+      'schedule_runs_status_timestamps_valid',
+      sql`(${table.status} = 'accepted' and ${table.acceptedAt} is not null and ${table.acceptedBy} is not null and ${table.supersededAt} is null) or (${table.status} = 'draft' and ${table.acceptedAt} is null and ${table.acceptedBy} is null and ${table.supersededAt} is null) or (${table.status} in ('superseded', 'rejected'))`,
     ),
     foreignKey({
       name: 'schedule_runs_shift_location_fk',
@@ -344,19 +359,46 @@ export const productionRuns = pgTable(
       .references(() => productionLocations.id),
     productionShiftId: uuid('production_shift_id').notNull(),
     scheduleRunId: uuid('schedule_run_id').notNull(),
-    status: text('status').notNull().default('planned'),
+    status: text('status').notNull().default('started'),
     startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    queueVersion: integer('queue_version').notNull().default(1),
+    plannedCompletionAt: timestamp('planned_completion_at', {
+      withTimezone: true,
+    }).notNull(),
+    overtimeProposalHash: text('overtime_proposal_hash'),
+    overtimeQueueVersion: integer('overtime_queue_version'),
+    overtimeAcknowledgedBy: uuid('overtime_acknowledged_by'),
+    overtimeAcknowledgedAt: timestamp('overtime_acknowledged_at', {
+      withTimezone: true,
+    }),
     version: integer('version').notNull().default(1),
     ...timestamps,
   },
   (table) => [
     uniqueIndex('production_runs_schedule_unique').on(table.scheduleRunId),
+    uniqueIndex('production_runs_shift_unique').on(table.productionShiftId),
     uniqueIndex('production_runs_id_location_unique').on(
       table.id,
       table.locationId,
     ),
     check('production_runs_positive_version', sql`${table.version} > 0`),
+    check(
+      'production_runs_positive_queue_version',
+      sql`${table.queueVersion} > 0`,
+    ),
+    check(
+      'production_runs_current_status_valid',
+      sql`${table.status} in ('started', 'completed')`,
+    ),
+    check(
+      'production_runs_lifecycle_timestamps_valid',
+      sql`${table.startedAt} is not null and ((${table.status} = 'started' and ${table.completedAt} is null) or (${table.status} = 'completed' and ${table.completedAt} is not null))`,
+    ),
+    check(
+      'production_runs_overtime_acknowledgement_paired',
+      sql`(${table.overtimeProposalHash} is null and ${table.overtimeQueueVersion} is null and ${table.overtimeAcknowledgedBy} is null and ${table.overtimeAcknowledgedAt} is null) or (${table.overtimeProposalHash} is not null and ${table.overtimeQueueVersion} is not null and ${table.overtimeQueueVersion} > 0 and ${table.overtimeAcknowledgedBy} is not null and ${table.overtimeAcknowledgedAt} is not null)`,
+    ),
     foreignKey({
       name: 'production_runs_shift_location_fk',
       columns: [table.productionShiftId, table.locationId],
@@ -388,6 +430,10 @@ export const productionBatches = pgTable(
     }).notNull(),
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
+    membershipFrozenAt: timestamp('membership_frozen_at', {
+      withTimezone: true,
+    }),
+    membershipFrozenBy: uuid('membership_frozen_by'),
     version: integer('version').notNull().default(1),
     ...timestamps,
   },
@@ -405,6 +451,14 @@ export const productionBatches = pgTable(
       sql`${table.derivedWeightLbs} > 0 and ${table.derivedWeightLbs} <= ${table.pulseCapacityLbs} and ${table.pulseMinutes} > 0`,
     ),
     check('production_batches_positive_version', sql`${table.version} > 0`),
+    check(
+      'production_batches_membership_freeze_paired',
+      sql`(${table.membershipFrozenAt} is null) = (${table.membershipFrozenBy} is null)`,
+    ),
+    check(
+      'production_batches_nonqueued_membership_frozen',
+      sql`${table.status} = 'queued' or (${table.membershipFrozenAt} is not null and ${table.membershipFrozenBy} is not null)`,
+    ),
     foreignKey({
       name: 'production_batches_run_location_fk',
       columns: [table.productionRunId, table.locationId],
@@ -422,12 +476,25 @@ export const productionBatchOrders = pgTable(
     productionBatchId: uuid('production_batch_id').notNull(),
     productionOrderId: uuid('production_order_id').notNull(),
     active: boolean('active').notNull().default(true),
+    placementProvenance: text('placement_provenance')
+      .notNull()
+      .default('initial_schedule'),
+    pinnedAt: timestamp('pinned_at', { withTimezone: true }),
+    pinnedBy: uuid('pinned_by'),
   },
   (table) => [
     primaryKey({ columns: [table.productionBatchId, table.productionOrderId] }),
     uniqueIndex('production_batch_orders_active_unique')
       .on(table.productionOrderId)
       .where(sql`${table.active} = true`),
+    check(
+      'production_batch_orders_known_placement_provenance',
+      sql`${table.placementProvenance} in ('initial_schedule', 'automatic', 'manager_exact')`,
+    ),
+    check(
+      'production_batch_orders_pin_valid',
+      sql`(${table.placementProvenance} = 'manager_exact' and ${table.pinnedAt} is not null and ${table.pinnedBy} is not null) or (${table.placementProvenance} <> 'manager_exact' and ${table.pinnedAt} is null and ${table.pinnedBy} is null)`,
+    ),
     foreignKey({
       name: 'production_batch_orders_batch_location_fk',
       columns: [table.productionBatchId, table.locationId],

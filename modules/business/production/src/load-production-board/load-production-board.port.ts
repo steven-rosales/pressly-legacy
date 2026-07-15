@@ -1,29 +1,19 @@
 import type {
   ProductionBoard,
-  ProductionBoardParams,
+  ProductionRunBoardParams,
 } from '@pressly/contracts';
 import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
-import type {
-  StageTransitionContext,
-  Transactional,
-} from '../production.port.ts';
+import type { ProductionBoardProjection } from '../production-board-read.policy.ts';
 
 export type LoadProductionBoard = (
-  command: ProductionBoardParams & { locationId: string },
+  command: ProductionRunBoardParams,
 ) => Promise<Result<ProductionBoard, AppError>>;
 
-export type LoadProductionBoardRepository = Transactional<
-  Readonly<{
-    loadBoard: (
-      locationId: string,
-      productionShiftId: string,
-      now: Date,
-    ) => Promise<ProductionBoard | null>;
-    loadStageTransitionContext: (
-      locationId: string,
-      stageRunId: string,
-      now: Date,
-    ) => Promise<StageTransitionContext | null>;
-  }>
->;
+export type LoadProductionBoardRepository = Readonly<{
+  loadBoardProjection: (
+    locationId: string,
+    productionRunId: string,
+    now: Date,
+  ) => Promise<ProductionBoardProjection | null>;
+}>;

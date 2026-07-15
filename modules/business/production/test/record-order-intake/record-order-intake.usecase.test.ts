@@ -86,6 +86,7 @@ const makeHarness = (
   const findWorkEvent = vi.fn(
     async (key: string) => workEvents.get(key) ?? null,
   );
+  const lockLocationScheduling = vi.fn(async () => undefined);
   const lockOrder = vi.fn(async (scope: string, id: string) =>
     order !== null && order.locationId === scope && order.orderId === id
       ? order
@@ -140,6 +141,7 @@ const makeHarness = (
   });
   const operations = {
     findWorkEvent,
+    lockLocationScheduling,
     lockOrder,
     recordIntake,
     appendWorkEvent,
@@ -177,19 +179,23 @@ const makeHarness = (
   const policy = {
     evaluateEligibility,
   } as unknown as ProductionPolicyPort;
+  const attemptAutomaticPlacement = vi.fn(async () => undefined);
   const intake = makeRecordOrderIntake({
     repo,
     policy,
     clock: { now: () => now },
+    attemptAutomaticPlacement,
   });
 
   return {
     intake,
     findWorkEvent,
+    lockLocationScheduling,
     lockOrder,
     recordIntake,
     appendWorkEvent,
     evaluateEligibility,
+    attemptAutomaticPlacement,
     inspect: () => ({
       order,
       bagCount,
@@ -216,10 +222,20 @@ describe('record order intake', () => {
         replayed: false,
       },
     });
+    expect(harness.lockLocationScheduling).toHaveBeenCalledWith(locationId);
+    expect(
+      harness.lockLocationScheduling.mock.invocationCallOrder[0],
+    ).toBeLessThan(harness.lockOrder.mock.invocationCallOrder[0]!);
     expect(harness.evaluateEligibility).toHaveBeenCalledWith({
       state: 'ready_for_production',
       derivedWeightLbs: 42,
       bagCount: 3,
+    });
+    expect(harness.attemptAutomaticPlacement).toHaveBeenCalledWith({
+      locationId,
+      productionOrderId: orderId,
+      actorId,
+      idempotencyKey: command.idempotencyKey,
     });
     expect(harness.inspect()).toMatchObject({
       order: {
@@ -285,10 +301,12 @@ describe('record order intake', () => {
       tag: 'ok',
       value: { orderId, bagCount: 3, version: 2, replayed: true },
     });
+    expect(harness.lockLocationScheduling).not.toHaveBeenCalled();
     expect(harness.lockOrder).not.toHaveBeenCalled();
     expect(harness.evaluateEligibility).not.toHaveBeenCalled();
     expect(harness.recordIntake).not.toHaveBeenCalled();
     expect(harness.appendWorkEvent).not.toHaveBeenCalled();
+    expect(harness.attemptAutomaticPlacement).not.toHaveBeenCalled();
   });
 
   it('rejects reuse of an intake idempotency key for a different command', async () => {

@@ -109,7 +109,8 @@ export const makeManageProductionResourcesRepository = (deps: {
                 locationId,
                 pulseMinutes: config.pulseMinutes,
                 foldLbsPerFolderMinute: config.foldLbsPerFolderMinute,
-                algorithmVersion: 'fixed-pulse-ffd-v1' as const,
+                algorithmVersion:
+                  config.algorithmVersion as ProductionBootstrapManifest['schedulerConfig']['algorithmVersion'],
                 stageFitAssertion: mapStageFitAssertion(
                   config.stageFitAssertion,
                 ),

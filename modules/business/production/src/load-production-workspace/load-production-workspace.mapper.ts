@@ -1,13 +1,13 @@
+import { productionPendingPlacementSchema } from '@pressly/contracts';
 import type {
-  ProductionBatch,
-  ProductionBoard,
   ProductionLocation,
   ProductionMachine,
   ProductionOrderSummary,
+  ProductionPendingOrder,
+  ProductionPendingPlacement,
   ProductionRunSummary,
   ProductionShift,
   ProductionStation,
-  StageRun,
 } from '@pressly/contracts';
 
 export type WorkspaceShiftRow = Readonly<{
@@ -23,6 +23,7 @@ export type WorkspaceShiftRow = Readonly<{
 
 export type WorkspaceOrderRow = Readonly<{
   id: string;
+  locationId?: string;
   orderDemandId: string;
   externalOrderId: string;
   dueAt: Date;
@@ -30,6 +31,9 @@ export type WorkspaceOrderRow = Readonly<{
   status: string;
   derivedWeightLbs: number;
   bagCount: number | null;
+  bagCountSource?: string | null;
+  intakeVersion?: number;
+  pendingPlacement?: unknown;
   version: number;
 }>;
 
@@ -37,39 +41,13 @@ export type WorkspaceRunRow = Readonly<{
   id: string;
   productionShiftId: string;
   status: string;
+  queueVersion: number;
+  plannedCompletionAt: Date;
+  overtimeProposalHash: string | null;
+  overtimeQueueVersion: number | null;
+  overtimeAcknowledgedBy: string | null;
+  overtimeAcknowledgedAt: Date | null;
   version: number;
-}>;
-
-export type WorkspaceBatchRow = Readonly<{
-  id: string;
-  sequenceIndex: number;
-  status: string;
-  derivedWeightLbs: number;
-  pulseCapacityLbs: number;
-  pulseMinutes: number;
-  version: number;
-}>;
-
-export type WorkspaceBatchOrderRow = Readonly<{
-  productionBatchId: string;
-  productionOrderId: string;
-}>;
-
-export type WorkspaceStageRow = Readonly<{
-  id: string;
-  productionBatchId: string;
-  stageKind: string;
-  status: string;
-  plannedStartAt: Date;
-  plannedEndAt: Date;
-  actualStartAt: Date | null;
-  actualEndAt: Date | null;
-  version: number;
-}>;
-
-export type WorkspaceAssignmentRow = Readonly<{
-  stageRunId: string;
-  machineId: string;
 }>;
 
 const dueBucket = (
@@ -109,76 +87,62 @@ const mapOrder = (
   };
 };
 
-const mapBatchStatus = (value: string): ProductionBatch['status'] => {
-  switch (value) {
-    case 'queued':
-    case 'sorting':
-    case 'washing':
-    case 'drying':
-    case 'folding_packaging':
-    case 'finished':
-      return value;
-    default:
-      throw new Error(`Unknown production batch status: ${value}.`);
-  }
-};
-
-const mapStage = (
-  row: WorkspaceStageRow,
-  assignments: readonly WorkspaceAssignmentRow[],
-): StageRun => {
-  if (
-    row.stageKind !== 'sorting' &&
-    row.stageKind !== 'washing' &&
-    row.stageKind !== 'drying' &&
-    row.stageKind !== 'folding_packaging'
-  )
-    throw new Error(`Unknown production stage kind: ${row.stageKind}.`);
-  if (
-    row.status !== 'planned' &&
-    row.status !== 'started' &&
-    row.status !== 'completed'
-  )
-    throw new Error(`Unknown production stage status: ${row.status}.`);
-
+const defaultPendingPlacement = (
+  activeProductionRunIds: readonly string[],
+): ProductionPendingPlacement => {
+  if (activeProductionRunIds.length > 1)
+    return {
+      status: 'ambiguous_run',
+      reason: 'multiple_started_runs',
+      message:
+        'More than one production run is active; choose the intended run before placing this order.',
+      candidateProductionRunIds: [...activeProductionRunIds].sort(),
+    };
+  if (activeProductionRunIds.length === 0)
+    return {
+      status: 'awaiting_run',
+      reason: 'no_started_run',
+      message: 'This order is waiting for a production run to start.',
+    };
   return {
-    id: row.id,
-    productionBatchId: row.productionBatchId,
-    stage: row.stageKind,
-    status: row.status,
-    plannedStartAt: row.plannedStartAt.toISOString(),
-    plannedEndAt: row.plannedEndAt.toISOString(),
-    actualStartAt: row.actualStartAt?.toISOString() ?? null,
-    actualEndAt: row.actualEndAt?.toISOString() ?? null,
-    machineIds: assignments
-      .filter((assignment) => assignment.stageRunId === row.id)
-      .map((assignment) => assignment.machineId),
-    allowedActions: [],
-    version: row.version,
+    status: 'awaiting_run',
+    reason: 'automatic_placement_not_attempted',
+    message: 'Automatic placement has not completed; it can be retried.',
   };
 };
 
-export const selectCurrentWorkspaceShift = <Row extends WorkspaceShiftRow>(
-  rows: readonly Row[],
+export const mapWorkspacePendingOrder = (
+  row: WorkspaceOrderRow,
   now: Date,
-): Row | null => {
-  const newestFirst = [...rows].sort(
-    (left, right) => right.startsAt.getTime() - left.startsAt.getTime(),
+  activeProductionRunIds: readonly string[],
+): ProductionPendingOrder => {
+  const parsed = productionPendingPlacementSchema.safeParse(
+    row.pendingPlacement,
   );
-  const currentOpen = newestFirst.find(
-    (shift) =>
-      shift.status === 'open' && shift.startsAt <= now && shift.endsAt > now,
-  );
-  if (currentOpen !== undefined) return currentOpen;
-
-  const anyOpen = newestFirst.find((shift) => shift.status === 'open');
-  if (anyOpen !== undefined) return anyOpen;
-
-  const viableDrafts = newestFirst
-    .filter((shift) => shift.status === 'draft' && shift.endsAt > now)
-    .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
-  return viableDrafts[0] ?? null;
+  if (row.pendingPlacement != null && !parsed.success)
+    throw new Error('An eligible order has invalid pending placement state.');
+  return {
+    ...mapOrder(row, now),
+    placement:
+      parsed.success &&
+      parsed.data.status !== 'awaiting_run' &&
+      parsed.data.status !== 'ambiguous_run'
+        ? parsed.data
+        : defaultPendingPlacement(activeProductionRunIds),
+  };
 };
+
+export const isActionableWorkspaceSchedule = (input: {
+  schedule: Readonly<{ id: string; status: string }>;
+  shift: WorkspaceShiftRow | undefined;
+  committedScheduleRunIds: ReadonlySet<string>;
+  now: Date;
+}): boolean =>
+  input.shift !== undefined &&
+  input.shift.status === 'open' &&
+  input.shift.endsAt > input.now &&
+  (input.schedule.status === 'draft' || input.schedule.status === 'accepted') &&
+  !input.committedScheduleRunIds.has(input.schedule.id);
 
 export const mapWorkspaceLocation = (row: {
   id: string;
@@ -253,63 +217,20 @@ export const mapWorkspaceRun = (row: WorkspaceRunRow): ProductionRunSummary => {
     id: row.id,
     productionShiftId: row.productionShiftId,
     status: row.status,
-    version: row.version,
-  };
-};
-
-export const mapWorkspaceBoard = (input: {
-  shift: WorkspaceShiftRow;
-  run: WorkspaceRunRow | null;
-  orders: readonly WorkspaceOrderRow[];
-  batches: readonly WorkspaceBatchRow[];
-  batchOrders: readonly WorkspaceBatchOrderRow[];
-  stages: readonly WorkspaceStageRow[];
-  assignments: readonly WorkspaceAssignmentRow[];
-  now: Date;
-}): ProductionBoard => {
-  const orderById = new Map(input.orders.map((order) => [order.id, order]));
-
-  const batches = input.batches.map((batch): ProductionBatch => {
-    const orders = input.batchOrders
-      .filter((link) => link.productionBatchId === batch.id)
-      .map((link) => {
-        const order = orderById.get(link.productionOrderId);
-        if (order === undefined)
-          throw new Error('A production batch references a missing order.');
-        return mapOrder(order, input.now);
-      });
-    const stages = input.stages
-      .filter((stage) => stage.productionBatchId === batch.id)
-      .map((stage) => mapStage(stage, input.assignments));
-
-    return {
-      id: batch.id,
-      sequence: batch.sequenceIndex,
-      status: mapBatchStatus(batch.status),
-      derivedWeightLbs: batch.derivedWeightLbs,
-      pulseCapacityLbs: batch.pulseCapacityLbs,
-      pulseMinutes: batch.pulseMinutes,
-      orders,
-      stages,
-      version: batch.version,
-    };
-  });
-
-  return {
-    productionShift: mapWorkspaceShift(input.shift),
-    productionRun:
-      input.run === null
+    queueVersion: row.queueVersion,
+    plannedCompletionAt: row.plannedCompletionAt.toISOString(),
+    overtimeAcknowledgement:
+      row.overtimeProposalHash === null ||
+      row.overtimeQueueVersion === null ||
+      row.overtimeAcknowledgedBy === null ||
+      row.overtimeAcknowledgedAt === null
         ? null
         : {
-            id: input.run.id,
-            status: mapWorkspaceRun(input.run).status,
-            allowedActions: input.run.status === 'planned' ? ['start'] : [],
-            version: input.run.version,
+            proposalHash: row.overtimeProposalHash,
+            queueVersion: row.overtimeQueueVersion,
+            acknowledgedBy: row.overtimeAcknowledgedBy,
+            acknowledgedAt: row.overtimeAcknowledgedAt.toISOString(),
           },
-    batches,
-    eligibleOrders: input.orders
-      .filter((order) => order.status === 'eligible' && order.bagCount !== null)
-      .map((order) => mapOrder(order, input.now)),
-    asOf: input.now.toISOString(),
+    version: row.version,
   };
 };

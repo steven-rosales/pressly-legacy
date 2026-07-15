@@ -2,6 +2,7 @@ import {
   and,
   asc,
   eq,
+  inArray,
   laundryProduction,
   sql,
   type Database,
@@ -11,16 +12,52 @@ import type { CreateScheduleRepository } from './create-schedule.port.ts';
 import type { SchedulingInput } from '../production.port.ts';
 import { asDate, iso, mapSchedule } from '../persistence/production-mappers.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
+import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
+import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 
 export const makeCreateScheduleRepository = (deps: {
   db: Database;
+  ids: Readonly<{ next: () => string }>;
 }): CreateScheduleRepository =>
   makePostgresUnitOfWork(deps.db, (db: DatabaseExecutor) => ({
+    findWorkEvent: (idempotencyKey) => findWorkEvent(db, idempotencyKey),
+    lockLocationScheduling: (locationId) =>
+      lockLocationScheduling(db, locationId),
+
+    lockShiftForPlanning: async (locationId, productionShiftId) => {
+      const [shift] = await db
+        .select({ id: laundryProduction.productionShifts.id })
+        .from(laundryProduction.productionShifts)
+        .where(
+          and(
+            eq(laundryProduction.productionShifts.locationId, locationId),
+            eq(laundryProduction.productionShifts.id, productionShiftId),
+          ),
+        )
+        .limit(1)
+        .for('update');
+      if (shift === undefined) return 'not_found';
+
+      const [run] = await db
+        .select({ id: laundryProduction.productionRuns.id })
+        .from(laundryProduction.productionRuns)
+        .where(
+          and(
+            eq(laundryProduction.productionRuns.locationId, locationId),
+            eq(
+              laundryProduction.productionRuns.productionShiftId,
+              productionShiftId,
+            ),
+          ),
+        )
+        .limit(1);
+      return run === undefined ? 'available' : 'run_exists';
+    },
+
     loadSchedulingInput: async ({
       locationId,
       productionShiftId,
       schedulerConfigId,
-      horizonEnd,
     }) => {
       const [shift] = await db
         .select()
@@ -42,7 +79,12 @@ export const makeCreateScheduleRepository = (deps: {
           ),
         )
         .limit(1);
-      if (shift === undefined || config === undefined) return null;
+      if (
+        shift === undefined ||
+        config === undefined ||
+        config.algorithmVersion !== 'fixed-pulse-ffd-v2'
+      )
+        return null;
 
       const orderRows = await db
         .select()
@@ -115,17 +157,37 @@ export const makeCreateScheduleRepository = (deps: {
           id: config.id,
           pulseMinutes: config.pulseMinutes,
           foldLbsPerFolderMinute: config.foldLbsPerFolderMinute,
-          algorithmVersion: 'fixed-pulse-ffd-v1',
+          algorithmVersion: config.algorithmVersion,
           version: config.version,
         },
-        horizonEnd,
       } satisfies SchedulingInput;
     },
 
-    saveSchedule: async ({ locationId, id, schedulingInput, output, now }) => {
-      const [existing] = await db
-        .select()
+    currentPlanExists: async (locationId, productionShiftId) => {
+      const [current] = await db
+        .select({ id: laundryProduction.scheduleRuns.id })
         .from(laundryProduction.scheduleRuns)
+        .where(
+          and(
+            eq(laundryProduction.scheduleRuns.locationId, locationId),
+            eq(
+              laundryProduction.scheduleRuns.productionShiftId,
+              productionShiftId,
+            ),
+            inArray(laundryProduction.scheduleRuns.status, [
+              'draft',
+              'accepted',
+            ]),
+          ),
+        )
+        .limit(1);
+      return current !== undefined;
+    },
+
+    saveSchedule: async ({ locationId, id, schedulingInput, output, now }) => {
+      await db
+        .update(laundryProduction.scheduleRuns)
+        .set({ status: 'superseded', supersededAt: now })
         .where(
           and(
             eq(laundryProduction.scheduleRuns.locationId, locationId),
@@ -133,22 +195,12 @@ export const makeCreateScheduleRepository = (deps: {
               laundryProduction.scheduleRuns.productionShiftId,
               schedulingInput.shift.id,
             ),
-            eq(
-              laundryProduction.scheduleRuns.schedulerConfigId,
-              schedulingInput.config.id,
-            ),
-            eq(
-              laundryProduction.scheduleRuns.inputSnapshotHash,
-              output.inputSnapshotHash,
-            ),
-            eq(
-              laundryProduction.scheduleRuns.outputPlanHash,
-              output.outputPlanHash,
-            ),
+            inArray(laundryProduction.scheduleRuns.status, [
+              'draft',
+              'accepted',
+            ]),
           ),
-        )
-        .limit(1);
-      if (existing !== undefined) return mapSchedule(existing);
+        );
 
       const [row] = await db
         .insert(laundryProduction.scheduleRuns)
@@ -174,4 +226,6 @@ export const makeCreateScheduleRepository = (deps: {
       if (row === undefined) throw new Error('Schedule insert failed.');
       return mapSchedule(row);
     },
+
+    appendWorkEvent: (event) => appendWorkEvent(db, deps.ids, event),
   }));

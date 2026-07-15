@@ -27,6 +27,7 @@ export type LockedIntakeOrder = Readonly<{
 export type RecordOrderIntakeRepository = Transactional<
   Readonly<{
     findWorkEvent: FindWorkEvent;
+    lockLocationScheduling: (locationId: string) => Promise<void>;
     lockOrder: (
       locationId: string,
       orderId: string,

@@ -189,12 +189,22 @@ describe('production Postgres repositories', () => {
     expect(config.tag).toBe('ok');
     expect(shift.tag).toBe('ok');
     if (config.tag === 'err' || shift.tag === 'err') return;
+    await expect(
+      application.loadProductionWorkspace({
+        locationId,
+        shiftId: '00000000-0000-4000-8000-000000009999',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_shift_not_found', status: 404 },
+    });
 
     const schedule = await application.createSchedule({
       locationId,
       productionShiftId: shift.value.id,
       schedulerConfigId: config.value.id,
-      horizonEnd: '2026-07-11T03:59:59.999Z',
+      actorId,
+      idempotencyKey: 'schedule-1',
     });
     expect(schedule.tag).toBe('ok');
     if (schedule.tag === 'err') return;
@@ -225,8 +235,8 @@ describe('production Postgres repositories', () => {
     ).resolves.toMatchObject({
       tag: 'ok',
       value: {
-        productionRunId: accepted.value.productionRunId,
-        productionBatchIds: accepted.value.productionBatchIds,
+        scheduleRunId: accepted.value.scheduleRunId,
+        productionShiftId: accepted.value.productionShiftId,
         replayed: true,
       },
     });
@@ -240,42 +250,104 @@ describe('production Postgres repositories', () => {
       error: { code: 'production_idempotency_conflict', status: 409 },
     });
 
+    expect(
+      await testDb.db.select().from(laundryProduction.productionRuns),
+    ).toHaveLength(0);
+
+    const startCommand = {
+      locationId,
+      scheduleRunId: schedule.value.scheduleRunId,
+      expectedOutputPlanHash: schedule.value.outputPlanHash,
+      actorId,
+      idempotencyKey: 'start-1',
+    } as const;
+    const concurrentStarts = await Promise.all([
+      application.startSchedule(startCommand),
+      application.startSchedule(startCommand),
+    ]);
+    expect(concurrentStarts).toEqual([
+      expect.objectContaining({
+        tag: 'ok',
+        value: expect.objectContaining({ queueVersion: 1 }),
+      }),
+      expect.objectContaining({
+        tag: 'ok',
+        value: expect.objectContaining({ queueVersion: 1 }),
+      }),
+    ]);
+    const startReplayFlags = concurrentStarts
+      .flatMap((outcome) =>
+        outcome.tag === 'ok' ? [outcome.value.replayed] : [],
+      )
+      .sort();
+    expect(startReplayFlags).toEqual([false, true]);
+    const [startedSchedule] = concurrentStarts;
+    if (startedSchedule.tag === 'err') return;
+    expect(concurrentStarts[1]).toMatchObject({
+      tag: 'ok',
+      value: {
+        productionRunId: startedSchedule.value.productionRunId,
+        productionBatchIds: startedSchedule.value.productionBatchIds,
+      },
+    });
+    expect(
+      await testDb.db.select().from(laundryProduction.productionRuns),
+    ).toHaveLength(1);
+    await expect(
+      application.startSchedule(startCommand),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: {
+        productionRunId: startedSchedule.value.productionRunId,
+        replayed: true,
+      },
+    });
+    await expect(
+      application.startSchedule({
+        ...startCommand,
+        expectedOutputPlanHash: 'different-plan-hash',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_idempotency_conflict', status: 409 },
+    });
+
+    await expect(
+      application.acceptSchedule({
+        ...acceptCommand,
+        idempotencyKey: 'accept-after-start',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_shift_already_started', status: 409 },
+    });
+
+    await expect(
+      application.loadProductionWorkspace({ locationId }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: {
+        currentShift: { id: shift.value.id },
+        currentScheduleProposal: null,
+        board: {
+          productionRun: {
+            id: startedSchedule.value.productionRunId,
+            status: 'started',
+          },
+        },
+      },
+    });
+
     const board = await application.loadProductionBoard({
       locationId,
-      productionShiftId: shift.value.id,
+      productionRunId: startedSchedule.value.productionRunId,
     });
     expect(board).toMatchObject({
       tag: 'ok',
       value: {
-        productionRun: { id: accepted.value.productionRunId },
+        productionRun: { id: startedSchedule.value.productionRunId },
         batches: [{ orders: [{ externalOrderId: 'order-1' }] }],
       },
-    });
-
-    const startCommand = {
-      locationId,
-      productionRunId: accepted.value.productionRunId,
-      expectedVersion: 1,
-      actorId,
-      idempotencyKey: 'start-1',
-    } as const;
-    await expect(
-      application.startProductionRun(startCommand),
-    ).resolves.toMatchObject({
-      tag: 'ok',
-      value: { replayed: false, version: 2 },
-    });
-    await expect(
-      application.startProductionRun(startCommand),
-    ).resolves.toMatchObject({
-      tag: 'ok',
-      value: { replayed: true, version: 2 },
-    });
-    await expect(
-      application.startProductionRun({ ...startCommand, expectedVersion: 2 }),
-    ).resolves.toMatchObject({
-      tag: 'err',
-      error: { code: 'production_idempotency_conflict', status: 409 },
     });
 
     if (board.tag === 'err') return;
@@ -329,8 +401,12 @@ describe('production Postgres repositories', () => {
             idempotencyKey: 'late-stage-too-early',
           }),
         ).resolves.toMatchObject({
-          tag: 'err',
-          error: { code: 'pulse_boundary_not_reached', status: 409 },
+          tag: 'ok',
+          value: {
+            status: 'confirmation_required',
+            code: 'PULSE_BOUNDARY_NOT_REACHED',
+            replayed: false,
+          },
         });
       }
 
@@ -450,14 +526,17 @@ describe('production Postgres repositories', () => {
       .where(
         eq(
           laundryProduction.productionBatches.id,
-          accepted.value.productionBatchIds[0]!,
+          startedSchedule.value.productionBatchIds[0]!,
         ),
       );
     const [completedRun] = await testDb.db
       .select()
       .from(laundryProduction.productionRuns)
       .where(
-        eq(laundryProduction.productionRuns.id, accepted.value.productionRunId),
+        eq(
+          laundryProduction.productionRuns.id,
+          startedSchedule.value.productionRunId,
+        ),
       );
     const [closedShift] = await testDb.db
       .select()
@@ -469,7 +548,7 @@ describe('production Postgres repositories', () => {
       .where(
         eq(
           laundryProduction.stageRuns.productionBatchId,
-          accepted.value.productionBatchIds[0]!,
+          startedSchedule.value.productionBatchIds[0]!,
         ),
       );
     const completedAssignments = await testDb.db
@@ -492,7 +571,7 @@ describe('production Postgres repositories', () => {
     expect(completedRun).toMatchObject({
       status: 'completed',
       completedAt: expect.any(Date),
-      version: 3,
+      version: 2,
     });
     expect(closedShift).toMatchObject({ status: 'closed', version: 2 });
     expect(completedStages).toHaveLength(4);
@@ -514,5 +593,34 @@ describe('production Postgres repositories', () => {
           assignment.actualEndAt !== null,
       ),
     ).toBe(true);
+
+    await expect(
+      application.loadProductionWorkspace({ locationId }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: {
+        currentShift: null,
+        currentScheduleProposal: null,
+        board: null,
+      },
+    });
+    await expect(
+      application.loadProductionWorkspace({
+        locationId,
+        shiftId: shift.value.id,
+      }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: {
+        currentShift: { id: shift.value.id, status: 'closed' },
+        currentScheduleProposal: null,
+        board: {
+          productionRun: {
+            id: startedSchedule.value.productionRunId,
+            status: 'completed',
+          },
+        },
+      },
+    });
   });
 });

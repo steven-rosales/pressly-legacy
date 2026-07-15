@@ -8,6 +8,7 @@ import {
 import type { SetProductionOrderPriorityRepository } from './set-production-order-priority.port.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
+import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 
 export const makeSetProductionOrderPriorityRepository = (deps: {
   db: Database;
@@ -15,6 +16,8 @@ export const makeSetProductionOrderPriorityRepository = (deps: {
 }): SetProductionOrderPriorityRepository =>
   makePostgresUnitOfWork(deps.db, (db: DatabaseExecutor) => ({
     findWorkEvent: (idempotencyKey) => findWorkEvent(db, idempotencyKey),
+    lockLocationScheduling: (locationId) =>
+      lockLocationScheduling(db, locationId),
     setOrderPriority: async ({
       locationId,
       productionOrderId,

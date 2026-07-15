@@ -42,6 +42,140 @@ export const allowPolicy: ProductionPolicyPort = {
     tag: 'ok',
     value: { accepted: true },
   }),
+  evaluateCurrentPlanAcceptance: () => ({
+    tag: 'ok',
+    value: { current: true },
+  }),
+  evaluateScheduleStart: () => ({
+    tag: 'ok',
+    value: { started: true },
+  }),
+  evaluateShiftPlanningWindow: () => ({
+    tag: 'ok',
+    value: { allowed: true },
+  }),
+  evaluateBatchMembershipTransition: ({ action }) => ({
+    tag: 'ok',
+    value: { membershipFrozen: action === 'freeze' },
+  }),
+  evaluatePlacementCommit: () => ({
+    tag: 'ok',
+    value: { commit: true },
+  }),
+  evaluateStageNextAction: (entity, context) => {
+    if (entity.state === 'completed')
+      return {
+        tag: 'ok',
+        value: { state: 'terminal', reason: 'stage_completed' },
+      };
+    const action = entity.state === 'planned' ? 'start' : 'complete';
+    if (action === 'start' && context.now < entity.plannedStartAt)
+      return {
+        tag: 'ok',
+        value: {
+          state: 'blocked',
+          action,
+          code: 'STAGE_BOUNDARY_NOT_REACHED',
+          message: 'Stage boundary not reached.',
+          availableAt: entity.plannedStartAt.toISOString(),
+        },
+      };
+    if (action === 'start' && !context.productionRunStarted)
+      return {
+        tag: 'ok',
+        value: {
+          state: 'blocked',
+          action,
+          code: 'PRODUCTION_RUN_NOT_STARTED',
+          message: 'Production run not started.',
+          availableAt: null,
+        },
+      };
+    if (action === 'start' && !context.previousStageCompleted)
+      return {
+        tag: 'ok',
+        value: {
+          state: 'blocked',
+          action,
+          code: 'PREVIOUS_STAGE_INCOMPLETE',
+          message: 'Previous stage incomplete.',
+          availableAt: null,
+        },
+      };
+    if (action === 'start' && context.sameKindAlreadyActive)
+      return {
+        tag: 'ok',
+        value: {
+          state: 'blocked',
+          action,
+          code: 'STAGE_KIND_ALREADY_ACTIVE',
+          message: 'Stage kind already active.',
+          availableAt: null,
+        },
+      };
+    if (
+      action === 'start' &&
+      context.machinesRequired &&
+      (context.assignedMachineIds.length === 0 ||
+        context.overlappingMachineIds.length > 0)
+    )
+      return {
+        tag: 'ok',
+        value: {
+          state: 'blocked',
+          action,
+          code:
+            context.overlappingMachineIds.length > 0
+              ? 'MACHINE_ASSIGNMENT_OVERLAPS'
+              : 'MACHINE_ASSIGNMENT_REQUIRED',
+          message: 'Stage machine assignment is invalid.',
+          availableAt: null,
+        },
+      };
+    if (action === 'complete') {
+      if (entity.actualStartAt === null)
+        return {
+          tag: 'err',
+          error: {
+            code: 'STAGE_ACTUAL_START_MISSING',
+            message: 'Actual stage start is missing.',
+          },
+        };
+      const pulseDurationMs =
+        entity.plannedEndAt.getTime() - entity.plannedStartAt.getTime();
+      const availableAt = new Date(
+        Math.max(
+          entity.plannedEndAt.getTime(),
+          entity.actualStartAt.getTime() + pulseDurationMs,
+        ),
+      );
+      if (context.now < availableAt)
+        return {
+          tag: 'ok',
+          value: {
+            state: 'confirmation_required',
+            action: 'complete',
+            code: 'PULSE_BOUNDARY_NOT_REACHED',
+            message: 'Pulse boundary not reached.',
+            availableAt: availableAt.toISOString(),
+            timing: {
+              actualStartAt: entity.actualStartAt.toISOString(),
+              plannedEndAt: entity.plannedEndAt.toISOString(),
+              completionBoundaryAt: availableAt.toISOString(),
+              observedAt: context.now.toISOString(),
+              plannedDurationMilliseconds: pulseDurationMs,
+              elapsedMilliseconds: Math.max(
+                0,
+                context.now.getTime() - entity.actualStartAt.getTime(),
+              ),
+              remainingMilliseconds:
+                availableAt.getTime() - context.now.getTime(),
+            },
+          },
+        };
+    }
+    return { tag: 'ok', value: { state: 'available', action } };
+  },
   evaluateStageTransition: (entity, event, context) => {
     if (event.type === 'start' && !context.productionRunStarted)
       return {
@@ -68,16 +202,33 @@ export const allowPolicy: ProductionPolicyPort = {
       );
       if (context.now.getTime() < completionBoundary)
         return {
-          tag: 'err',
-          error: {
+          tag: 'ok',
+          value: {
+            status: 'confirmation_required',
+            action: 'complete',
             code: 'PULSE_BOUNDARY_NOT_REACHED',
             message: 'Pulse boundary not reached.',
+            timing: {
+              actualStartAt: entity.actualStartAt.toISOString(),
+              plannedEndAt: entity.plannedEndAt.toISOString(),
+              completionBoundaryAt: new Date(completionBoundary).toISOString(),
+              observedAt: context.now.toISOString(),
+              plannedDurationMilliseconds: pulseDurationMs,
+              elapsedMilliseconds: Math.max(
+                0,
+                context.now.getTime() - entity.actualStartAt.getTime(),
+              ),
+              remainingMilliseconds: completionBoundary - context.now.getTime(),
+            },
           },
         };
     }
     return {
       tag: 'ok',
-      value: { state: event.type === 'start' ? 'started' : 'completed' },
+      value: {
+        status: 'allowed',
+        state: event.type === 'start' ? 'started' : 'completed',
+      },
     };
   },
   evaluateMachineAssignment: (input) => ({
@@ -122,7 +273,7 @@ export const simpleScheduler: ProductionSchedulerPort = {
         : (batches.length + 3) * input.config.pulseMinutes;
 
     return {
-      algorithmVersion: 'fixed-pulse-ffd-v1',
+      algorithmVersion: 'fixed-pulse-ffd-v2',
       inputSnapshotHash: 'a'.repeat(64),
       outputPlanHash: 'b'.repeat(64),
       canonicalOutput: '{}',
@@ -136,4 +287,13 @@ export const simpleScheduler: ProductionSchedulerPort = {
       warnings: [],
     };
   },
+  proposeOnlinePlacement: () => ({
+    kind: 'rejected',
+    algorithmVersion: 'online-stable-insertion-v1',
+    inputSnapshotHash: 'c'.repeat(64),
+    reason: {
+      code: 'UNSUPPORTED_TEST_PLACEMENT',
+      message: 'This scheduler fake does not exercise online placement.',
+    },
+  }),
 };

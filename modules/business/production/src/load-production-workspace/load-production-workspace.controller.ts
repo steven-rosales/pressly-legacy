@@ -11,6 +11,9 @@ export const makeLoadProductionWorkspaceController = (
       response,
       await loadWorkspace({
         locationId: request.params['locationId'] as string,
+        ...(typeof request.query['shiftId'] === 'string'
+          ? { shiftId: request.query['shiftId'] }
+          : {}),
       }),
     );
   });

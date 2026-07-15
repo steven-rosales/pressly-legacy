@@ -45,6 +45,7 @@ export type StoredOrderDemand = Readonly<{
 export type ApplyOrderDemandRepository = Transactional<
   Readonly<{
     findWorkEvent: FindWorkEvent;
+    lockLocationScheduling: (locationId: string) => Promise<void>;
     locationIsActive: (locationId: string) => Promise<boolean>;
     lockDemand: (demandKey: string) => Promise<void>;
     loadDemand: (demandKey: string) => Promise<StoredOrderDemand | null>;

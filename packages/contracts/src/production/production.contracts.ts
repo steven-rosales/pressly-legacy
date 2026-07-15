@@ -2,6 +2,58 @@ import { z } from 'zod';
 import { utcIsoStringSchema } from '../utc-iso.contracts.ts';
 
 export const productionIdSchema = z.uuid();
+export const productionHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+export const productionAlgorithmVersionSchema = z.enum([
+  'fixed-pulse-ffd-v1',
+  'fixed-pulse-ffd-v2',
+]);
+export const productionRunStatusSchema = z.enum([
+  'planned',
+  'started',
+  'completed',
+]);
+export const productionBatchStatusSchema = z.enum([
+  'queued',
+  'sorting',
+  'washing',
+  'drying',
+  'folding_packaging',
+  'finished',
+]);
+export const productionPlacementProvenanceSchema = z.enum([
+  'initial_schedule',
+  'automatic',
+  'manager_exact',
+]);
+export const productionPlacementModeSchema = z.enum([
+  'automatic',
+  'manager_exact',
+]);
+export const productionPlacementTargetSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('existing_batch'),
+      productionBatchId: productionIdSchema,
+      sequence: z.number().int().nonnegative(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('new_batch'),
+      sequence: z.number().int().nonnegative(),
+    })
+    .strict(),
+]);
+export const productionPlacementFailureReasonSchema = z.enum([
+  'hard_capacity_exceeded',
+  'run_not_started',
+  'run_completed',
+  'order_not_eligible',
+  'order_already_scheduled',
+  'no_mutable_position',
+  'queue_conflict',
+  'proposal_stale',
+]);
 export const productionStageKindSchema = z.enum([
   'sorting',
   'washing',
@@ -146,7 +198,7 @@ export const schedulerConfigSchema = z
     id: productionIdSchema,
     pulseMinutes: z.number().int().positive(),
     foldLbsPerFolderMinute: z.number().positive(),
-    algorithmVersion: z.literal('fixed-pulse-ffd-v1'),
+    algorithmVersion: productionAlgorithmVersionSchema,
     version: z.number().int().positive(),
     stageFitAssertion: z
       .object({
@@ -186,9 +238,9 @@ export const scheduleProposalSchema = z
     productionShiftId: productionIdSchema,
     schedulerConfigId: productionIdSchema,
     status: z.enum(['draft', 'accepted', 'superseded', 'rejected']),
-    inputSnapshotHash: z.string().regex(/^[a-f0-9]{64}$/),
-    outputPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
-    algorithmVersion: z.literal('fixed-pulse-ffd-v1'),
+    inputSnapshotHash: productionHashSchema,
+    outputPlanHash: productionHashSchema,
+    algorithmVersion: productionAlgorithmVersionSchema,
     pulseMinutes: z.number().int().positive(),
     pulseCapacityLbs: z.number().positive(),
     batchCount: z.number().int().nonnegative(),
@@ -199,8 +251,73 @@ export const scheduleProposalSchema = z
     warnings: z.array(productionWarningSchema),
     createdAt: utcIsoStringSchema,
     acceptedAt: utcIsoStringSchema.nullable(),
+    acceptedBy: productionIdSchema.nullable(),
+    acknowledgedWarningCodes: z.array(productionWarningCodeSchema),
+    supersededAt: utcIsoStringSchema.nullable(),
   })
   .strict();
+
+export const productionStageActionBlockCodeSchema = z.enum([
+  'PRODUCTION_RUN_NOT_STARTED',
+  'STAGE_BOUNDARY_NOT_REACHED',
+  'PREVIOUS_STAGE_INCOMPLETE',
+  'STAGE_KIND_ALREADY_ACTIVE',
+  'MACHINE_ASSIGNMENT_REQUIRED',
+  'MACHINE_ASSIGNMENT_OVERLAPS',
+]);
+
+export const productionStageCompletionTimingSchema = z
+  .object({
+    actualStartAt: utcIsoStringSchema,
+    plannedEndAt: utcIsoStringSchema,
+    completionBoundaryAt: utcIsoStringSchema,
+    observedAt: utcIsoStringSchema,
+    plannedDurationMilliseconds: z.number().int().positive(),
+    elapsedMilliseconds: z.number().int().nonnegative(),
+    remainingMilliseconds: z.number().int().positive(),
+  })
+  .strict();
+
+export const productionStageCompletionConfirmationSchema = z
+  .object({
+    observedAt: utcIsoStringSchema,
+    confirmationHash: productionHashSchema,
+  })
+  .strict();
+
+export const productionStageNextActionSchema = z.discriminatedUnion('state', [
+  z
+    .object({
+      state: z.literal('available'),
+      action: z.enum(['start', 'complete']),
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal('blocked'),
+      action: z.enum(['start', 'complete']),
+      code: productionStageActionBlockCodeSchema,
+      message: z.string().min(1),
+      availableAt: utcIsoStringSchema.nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal('confirmation_required'),
+      action: z.literal('complete'),
+      code: z.literal('PULSE_BOUNDARY_NOT_REACHED'),
+      message: z.string().min(1),
+      availableAt: utcIsoStringSchema,
+      timing: productionStageCompletionTimingSchema,
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal('terminal'),
+      reason: z.literal('stage_completed'),
+    })
+    .strict(),
+]);
 
 export const stageRunSchema = z
   .object({
@@ -213,47 +330,95 @@ export const stageRunSchema = z
     actualStartAt: utcIsoStringSchema.nullable(),
     actualEndAt: utcIsoStringSchema.nullable(),
     machineIds: z.array(productionIdSchema),
+    nextAction: productionStageNextActionSchema,
+    // Compatibility projection for older clients. It is always derived from
+    // nextAction and is not an independent policy decision.
     allowedActions: z.array(z.enum(['start', 'complete'])),
     version: z.number().int().positive(),
   })
-  .strict();
+  .strict()
+  .superRefine((stage, context) => {
+    const expected =
+      stage.nextAction.state === 'available' ||
+      stage.nextAction.state === 'confirmation_required'
+        ? [stage.nextAction.action]
+        : [];
+    if (
+      stage.allowedActions.length !== expected.length ||
+      stage.allowedActions.some((action, index) => action !== expected[index])
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['allowedActions'],
+        message: 'Allowed actions must be derived from next action.',
+      });
+  });
+
+export const productionBatchMembershipSchema = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('mutable') }).strict(),
+  z
+    .object({
+      state: z.literal('frozen'),
+      frozenAt: utcIsoStringSchema,
+      frozenBy: productionIdSchema,
+    })
+    .strict(),
+]);
+
+export const productionBatchOrderSchema = productionOrderSummarySchema
+  .extend({
+    placementProvenance: productionPlacementProvenanceSchema,
+    pinnedAt: utcIsoStringSchema.nullable(),
+    pinnedBy: productionIdSchema.nullable(),
+  })
+  .strict()
+  .superRefine((order, context) => {
+    if ((order.pinnedAt === null) !== (order.pinnedBy === null))
+      context.addIssue({
+        code: 'custom',
+        path: ['pinnedBy'],
+        message:
+          'Pinned-at and pinned-by must either both exist or both be null.',
+      });
+
+    const isManagerExact = order.placementProvenance === 'manager_exact';
+    if (isManagerExact !== (order.pinnedAt !== null))
+      context.addIssue({
+        code: 'custom',
+        path: ['placementProvenance'],
+        message: 'Only manager-exact placement is pinned.',
+      });
+  });
 
 export const productionBatchSchema = z
   .object({
     id: productionIdSchema,
     sequence: z.number().int().nonnegative(),
-    status: z.enum([
-      'queued',
-      'sorting',
-      'washing',
-      'drying',
-      'folding_packaging',
-      'finished',
-    ]),
+    status: productionBatchStatusSchema,
     derivedWeightLbs: z.number().positive(),
     pulseCapacityLbs: z.number().positive(),
     pulseMinutes: z.number().int().positive(),
-    orders: z.array(productionOrderSummarySchema).min(1),
+    membership: productionBatchMembershipSchema,
+    orders: z.array(productionBatchOrderSchema).min(1),
     stages: z.array(stageRunSchema).length(4),
     version: z.number().int().positive(),
   })
-  .strict();
+  .strict()
+  .superRefine((batch, context) => {
+    if (batch.status !== 'queued' && batch.membership.state !== 'frozen')
+      context.addIssue({
+        code: 'custom',
+        path: ['membership'],
+        message: 'A non-queued batch must have frozen membership.',
+      });
+  });
 
-export const productionBoardSchema = z
+export const productionOvertimeAcknowledgementSchema = z
   .object({
-    productionShift: productionShiftSchema,
-    productionRun: z
-      .object({
-        id: productionIdSchema,
-        status: z.enum(['planned', 'started', 'completed']),
-        allowedActions: z.array(z.literal('start')),
-        version: z.number().int().positive(),
-      })
-      .strict()
-      .nullable(),
-    batches: z.array(productionBatchSchema),
-    eligibleOrders: z.array(productionOrderSummarySchema),
-    asOf: utcIsoStringSchema,
+    proposalHash: productionHashSchema,
+    queueVersion: z.number().int().positive(),
+    acknowledgedBy: productionIdSchema,
+    acknowledgedAt: utcIsoStringSchema,
   })
   .strict();
 
@@ -261,8 +426,89 @@ export const productionRunSummarySchema = z
   .object({
     id: productionIdSchema,
     productionShiftId: productionIdSchema,
-    status: z.enum(['planned', 'started', 'completed']),
+    status: productionRunStatusSchema,
+    queueVersion: z.number().int().positive(),
+    plannedCompletionAt: utcIsoStringSchema,
+    overtimeAcknowledgement: productionOvertimeAcknowledgementSchema.nullable(),
     version: z.number().int().positive(),
+  })
+  .strict();
+
+export const productionPlacementPreviewSchema = z
+  .object({
+    target: productionPlacementTargetSchema,
+    affectedBatchIds: z.array(productionIdSchema),
+    queueVersion: z.number().int().positive(),
+    proposalHash: productionHashSchema,
+    projectedCompletionAt: utcIsoStringSchema,
+    overtimeMinutes: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const productionPendingPlacementSchema = z.discriminatedUnion('status', [
+  z
+    .object({
+      status: z.literal('awaiting_run'),
+      reason: z.enum(['no_started_run', 'automatic_placement_not_attempted']),
+      message: z.string().min(1),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal('ambiguous_run'),
+      reason: z.literal('multiple_started_runs'),
+      message: z.string().min(1),
+      candidateProductionRunIds: z.array(productionIdSchema).min(2),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal('confirmation_required'),
+      mode: productionPlacementModeSchema,
+      productionRunId: productionIdSchema,
+      target: productionPlacementTargetSchema,
+      affectedBatchIds: z.array(productionIdSchema),
+      queueVersion: z.number().int().positive(),
+      proposalHash: productionHashSchema,
+      projectedCompletionAt: utcIsoStringSchema,
+      overtimeMinutes: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal('not_placed'),
+      mode: productionPlacementModeSchema,
+      productionRunId: productionIdSchema,
+      reason: productionPlacementFailureReasonSchema,
+      message: z.string().min(1),
+      queueVersion: z.number().int().positive(),
+      preview: productionPlacementPreviewSchema.nullable(),
+    })
+    .strict(),
+]);
+
+export const productionPendingOrderSchema = productionOrderSummarySchema
+  .extend({ placement: productionPendingPlacementSchema })
+  .strict();
+
+export const productionBoardSchema = z
+  .object({
+    productionShift: productionShiftSchema,
+    productionRun: productionRunSummarySchema,
+    batches: z.array(productionBatchSchema),
+    eligibleOrders: z.array(productionPendingOrderSchema),
+    asOf: utcIsoStringSchema,
+  })
+  .strict();
+
+export const productionWorkspaceShiftCandidateSchema = z
+  .object({
+    productionShiftId: productionIdSchema,
+    startsAt: utcIsoStringSchema,
+    endsAt: utcIsoStringSchema,
+    reason: z.enum(['started_run', 'accepted_plan', 'open_shift']),
+    productionRunId: productionIdSchema.nullable(),
+    scheduleRunId: productionIdSchema.nullable(),
   })
   .strict();
 
@@ -270,9 +516,12 @@ export const productionWorkspaceSchema = z
   .object({
     location: productionLocationSchema,
     currentShift: productionShiftSchema.nullable(),
+    candidateShifts: z.array(productionWorkspaceShiftCandidateSchema),
     currentSchedulerConfig: schedulerConfigSchema.nullable(),
-    latestScheduleProposal: scheduleProposalSchema.nullable(),
-    activeRun: productionRunSummarySchema.nullable(),
+    currentScheduleProposal: scheduleProposalSchema.nullable(),
+    activeRuns: z.array(productionRunSummarySchema),
+    orders: z.array(productionOrderListItemSchema),
+    pendingEligibleOrders: z.array(productionPendingOrderSchema),
     board: productionBoardSchema.nullable(),
     stations: z.array(productionStationSchema),
     machines: z.array(productionMachineSchema),
@@ -369,6 +618,47 @@ export const createProductionShiftRequestSchema = z
     'Shift end must be after its start.',
   );
 
+const productionShiftUpdateFields = {
+  startsAt: utcIsoStringSchema,
+  endsAt: utcIsoStringSchema,
+  effectiveFolderCount: z.number().int().positive(),
+  expectedVersion: z.number().int().positive(),
+  idempotencyKey: z.string().min(8).max(200),
+} as const;
+
+const validProductionShiftUpdateWindow = (value: {
+  startsAt: string;
+  endsAt: string;
+}) => Date.parse(value.endsAt) > Date.parse(value.startsAt);
+
+export const updateProductionShiftCommandSchema = z
+  .object({
+    locationId: z.string().min(1),
+    productionShiftId: productionIdSchema,
+    ...productionShiftUpdateFields,
+  })
+  .strict()
+  .refine(
+    validProductionShiftUpdateWindow,
+    'Shift end must be after its start.',
+  );
+
+export const updateProductionShiftRequestSchema = z
+  .object(productionShiftUpdateFields)
+  .strict()
+  .refine(
+    validProductionShiftUpdateWindow,
+    'Shift end must be after its start.',
+  );
+
+export const updateProductionShiftResultSchema = z
+  .object({
+    productionShift: productionShiftSchema,
+    supersededScheduleRunId: productionIdSchema.nullable(),
+    replayed: z.boolean(),
+  })
+  .strict();
+
 export const setProductionOrderPriorityCommandSchema = z
   .object({
     locationId: z.string().min(1),
@@ -390,7 +680,7 @@ export const createScheduleCommandSchema = z
     locationId: z.string().min(1),
     productionShiftId: productionIdSchema,
     schedulerConfigId: productionIdSchema,
-    horizonEnd: utcIsoStringSchema,
+    idempotencyKey: z.string().min(8).max(200),
   })
   .strict();
 
@@ -420,12 +710,29 @@ export const acceptScheduleRequestSchema = acceptScheduleCommandSchema.omit({
   scheduleRunId: true,
 });
 
-export const productionBoardParamsSchema = z
+export const startScheduleCommandSchema = z
   .object({
     locationId: z.string().min(1),
-    productionShiftId: productionIdSchema,
+    scheduleRunId: productionIdSchema,
+    expectedOutputPlanHash: productionHashSchema,
+    idempotencyKey: z.string().min(8).max(200),
   })
   .strict();
+
+export const startScheduleRequestSchema = startScheduleCommandSchema.omit({
+  locationId: true,
+  scheduleRunId: true,
+});
+
+export const productionRunBoardParamsSchema = z
+  .object({
+    locationId: z.string().min(1),
+    productionRunId: productionIdSchema,
+  })
+  .strict();
+
+/** @deprecated Use productionRunBoardParamsSchema. */
+export const productionBoardParamsSchema = productionRunBoardParamsSchema;
 
 export const productionRunCommandSchema = z
   .object({
@@ -451,6 +758,20 @@ export const stageCommandSchema = z
   .strict();
 
 export const stageRequestSchema = stageCommandSchema.omit({
+  locationId: true,
+  stageRunId: true,
+});
+
+export const startStageCommandSchema = stageCommandSchema;
+export const startStageRequestSchema = stageRequestSchema;
+
+export const completeStageCommandSchema = stageCommandSchema
+  .extend({
+    confirmation: productionStageCompletionConfirmationSchema.optional(),
+  })
+  .strict();
+
+export const completeStageRequestSchema = completeStageCommandSchema.omit({
   locationId: true,
   stageRunId: true,
 });
@@ -489,7 +810,94 @@ export const productionStageParamsSchema = productionLocationParamsSchema
   .extend({ stageRunId: productionIdSchema })
   .strict();
 
-export const productionWorkspaceParamsSchema = productionLocationParamsSchema;
+export const productionWorkspaceQuerySchema = z
+  .object({ shiftId: productionIdSchema.optional() })
+  .strict();
+
+export const productionWorkspaceParamsSchema = productionLocationParamsSchema
+  .extend({ shiftId: productionIdSchema.optional() })
+  .strict();
+
+const productionQueueCommandFields = {
+  locationId: z.string().min(1),
+  productionRunId: productionIdSchema,
+  expectedQueueVersion: z.number().int().positive(),
+  idempotencyKey: z.string().min(8).max(200),
+} as const;
+
+const productionBatchMembershipCommandFields = {
+  ...productionQueueCommandFields,
+  productionBatchId: productionIdSchema,
+  expectedBatchVersion: z.number().int().positive(),
+} as const;
+
+export const freezeProductionBatchCommandSchema = z
+  .object(productionBatchMembershipCommandFields)
+  .strict();
+
+export const freezeProductionBatchRequestSchema =
+  freezeProductionBatchCommandSchema.omit({
+    locationId: true,
+    productionRunId: true,
+    productionBatchId: true,
+  });
+
+export const unfreezeProductionBatchCommandSchema = z
+  .object(productionBatchMembershipCommandFields)
+  .strict();
+
+export const unfreezeProductionBatchRequestSchema =
+  unfreezeProductionBatchCommandSchema.omit({
+    locationId: true,
+    productionRunId: true,
+    productionBatchId: true,
+  });
+
+export const placeProductionOrderAutomaticallyCommandSchema = z
+  .object({
+    ...productionQueueCommandFields,
+    productionOrderId: productionIdSchema,
+  })
+  .strict();
+
+export const placeProductionOrderAutomaticallyRequestSchema =
+  placeProductionOrderAutomaticallyCommandSchema.omit({
+    locationId: true,
+    productionRunId: true,
+    productionOrderId: true,
+  });
+
+export const placeProductionOrderExactlyCommandSchema = z
+  .object({
+    ...productionQueueCommandFields,
+    productionOrderId: productionIdSchema,
+    productionBatchId: productionIdSchema,
+    expectedBatchVersion: z.number().int().positive(),
+  })
+  .strict();
+
+export const placeProductionOrderExactlyRequestSchema =
+  placeProductionOrderExactlyCommandSchema.omit({
+    locationId: true,
+    productionRunId: true,
+    productionOrderId: true,
+    productionBatchId: true,
+  });
+
+export const confirmProductionOrderOvertimeCommandSchema = z
+  .object({
+    ...productionQueueCommandFields,
+    productionOrderId: productionIdSchema,
+    proposalHash: productionHashSchema,
+  })
+  .strict();
+
+export const confirmProductionOrderOvertimeRequestSchema =
+  confirmProductionOrderOvertimeCommandSchema.omit({
+    locationId: true,
+    productionRunId: true,
+    productionOrderId: true,
+  });
 
 export const recordOrderIntakeCommandSchema = z
   .object({
@@ -563,7 +971,7 @@ export const schedulerConfigResourceInputSchema = z
     locationId: z.string().trim().min(1).max(100),
     pulseMinutes: z.number().int().positive(),
     foldLbsPerFolderMinute: z.number().positive(),
-    algorithmVersion: z.literal('fixed-pulse-ffd-v1'),
+    algorithmVersion: productionAlgorithmVersionSchema,
     stageFitAssertion: z
       .object({
         sortingFits: z.literal(true),
@@ -779,10 +1187,163 @@ export const productionMutationResultSchema = z
   })
   .strict();
 
-export const acceptScheduleResultSchema = z
+export const productionStageCompletionConfirmationRequiredResultSchema = z
+  .object({
+    status: z.literal('confirmation_required'),
+    stageRunId: productionIdSchema,
+    stageVersion: z.number().int().positive(),
+    code: z.literal('PULSE_BOUNDARY_NOT_REACHED'),
+    message: z.string().min(1),
+    confirmation: productionStageCompletionConfirmationSchema,
+    timing: productionStageCompletionTimingSchema,
+    replayed: z.literal(false),
+  })
+  .strict();
+
+export const advanceProductionStageResultSchema = z.union([
+  productionMutationResultSchema,
+  productionStageCompletionConfirmationRequiredResultSchema,
+]);
+
+export const productionBatchMembershipMutationResultSchema = z
   .object({
     productionRunId: productionIdSchema,
-    productionBatchIds: z.array(productionIdSchema).min(1),
+    productionBatchId: productionIdSchema,
+    queueVersion: z.number().int().positive(),
+    batchVersion: z.number().int().positive(),
+    membership: productionBatchMembershipSchema,
+    replayed: z.boolean(),
+  })
+  .strict();
+
+const productionPlacementCommittedFields = {
+  status: z.literal('placed'),
+  mode: productionPlacementModeSchema,
+  productionRunId: productionIdSchema,
+  productionOrderId: productionIdSchema,
+  productionBatchId: productionIdSchema,
+  createdBatch: z.boolean(),
+  affectedBatchIds: z.array(productionIdSchema).min(1),
+  queueVersion: z.number().int().positive(),
+  proposalHash: productionHashSchema,
+  plannedCompletionAt: utcIsoStringSchema,
+  overtimeMinutes: z.number().int().nonnegative(),
+  replayed: z.boolean(),
+} as const;
+
+export const productionOrderPlacedResultSchema = z
+  .object(productionPlacementCommittedFields)
+  .strict();
+
+const productionPlacementConfirmationFields = {
+  status: z.literal('confirmation_required'),
+  mode: productionPlacementModeSchema,
+  productionRunId: productionIdSchema,
+  productionOrderId: productionIdSchema,
+  target: productionPlacementTargetSchema,
+  affectedBatchIds: z.array(productionIdSchema),
+  queueVersion: z.number().int().positive(),
+  proposalHash: productionHashSchema,
+  projectedCompletionAt: utcIsoStringSchema,
+  overtimeMinutes: z.number().int().positive(),
+  replayed: z.literal(false),
+} as const;
+
+export const productionOrderPlacementConfirmationRequiredResultSchema = z
+  .object(productionPlacementConfirmationFields)
+  .strict();
+
+const productionPlacementNotPlacedFields = {
+  status: z.literal('not_placed'),
+  mode: productionPlacementModeSchema,
+  productionRunId: productionIdSchema,
+  productionOrderId: productionIdSchema,
+  reason: productionPlacementFailureReasonSchema,
+  message: z.string().min(1),
+  queueVersion: z.number().int().positive(),
+  replayed: z.boolean(),
+} as const;
+
+export const productionOrderNotPlacedResultSchema = z
+  .object(productionPlacementNotPlacedFields)
+  .strict();
+
+export const productionOrderPlacementResultSchema = z.discriminatedUnion(
+  'status',
+  [
+    productionOrderPlacedResultSchema,
+    productionOrderPlacementConfirmationRequiredResultSchema,
+    productionOrderNotPlacedResultSchema,
+  ],
+);
+
+export const automaticProductionOrderPlacementResultSchema =
+  z.discriminatedUnion('status', [
+    z
+      .object({
+        ...productionPlacementCommittedFields,
+        mode: z.literal('automatic'),
+      })
+      .strict(),
+    z
+      .object({
+        ...productionPlacementConfirmationFields,
+        mode: z.literal('automatic'),
+      })
+      .strict(),
+    z
+      .object({
+        ...productionPlacementNotPlacedFields,
+        mode: z.literal('automatic'),
+      })
+      .strict(),
+  ]);
+
+export const exactProductionOrderPlacementResultSchema = z.discriminatedUnion(
+  'status',
+  [
+    z
+      .object({
+        ...productionPlacementCommittedFields,
+        mode: z.literal('manager_exact'),
+      })
+      .strict(),
+    z
+      .object({
+        ...productionPlacementConfirmationFields,
+        mode: z.literal('manager_exact'),
+      })
+      .strict(),
+    z
+      .object({
+        ...productionPlacementNotPlacedFields,
+        mode: z.literal('manager_exact'),
+      })
+      .strict(),
+  ],
+);
+
+export const confirmProductionOrderOvertimeResultSchema = z.discriminatedUnion(
+  'status',
+  [productionOrderPlacedResultSchema, productionOrderNotPlacedResultSchema],
+);
+
+export const acceptScheduleResultSchema = z
+  .object({
+    scheduleRunId: productionIdSchema,
+    productionShiftId: productionIdSchema,
+    acceptedAt: utcIsoStringSchema,
+    replayed: z.boolean(),
+  })
+  .strict();
+
+export const startScheduleResultSchema = z
+  .object({
+    scheduleRunId: productionIdSchema,
+    productionRunId: productionIdSchema,
+    productionBatchIds: z.array(productionIdSchema),
+    queueVersion: z.number().int().positive(),
+    startedAt: utcIsoStringSchema,
     replayed: z.boolean(),
   })
   .strict();

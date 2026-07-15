@@ -16,9 +16,26 @@ export const loadStageTransitionContext = async (
   locationId: string,
   stageRunId: string,
 ): Promise<StageTransitionContext | null> => {
-  const [stage] = await db
-    .select()
+  const [identity] = await db
+    .select({
+      stageRunId: laundryProduction.stageRuns.id,
+      productionBatchId: laundryProduction.productionBatches.id,
+      productionRunId: laundryProduction.productionBatches.productionRunId,
+    })
     .from(laundryProduction.stageRuns)
+    .innerJoin(
+      laundryProduction.productionBatches,
+      and(
+        eq(
+          laundryProduction.productionBatches.id,
+          laundryProduction.stageRuns.productionBatchId,
+        ),
+        eq(
+          laundryProduction.productionBatches.locationId,
+          laundryProduction.stageRuns.locationId,
+        ),
+      ),
+    )
     .where(
       and(
         eq(laundryProduction.stageRuns.locationId, locationId),
@@ -26,29 +43,54 @@ export const loadStageTransitionContext = async (
       ),
     )
     .limit(1);
-  if (stage === undefined) return null;
-  const [batch] = await db
-    .select()
-    .from(laundryProduction.productionBatches)
-    .where(
-      and(
-        eq(laundryProduction.productionBatches.locationId, locationId),
-        eq(laundryProduction.productionBatches.id, stage.productionBatchId),
-      ),
-    )
-    .limit(1);
-  if (batch === undefined) throw new Error('Batch not found.');
+  if (identity === undefined) return null;
+
+  // Queue composition, membership, and stage transitions share this order.
+  // The preliminary identity read acquires no locks; durable locks always begin
+  // at the execution aggregate and proceed toward its children.
   const [run] = await db
     .select({ status: laundryProduction.productionRuns.status })
     .from(laundryProduction.productionRuns)
     .where(
       and(
         eq(laundryProduction.productionRuns.locationId, locationId),
-        eq(laundryProduction.productionRuns.id, batch.productionRunId),
+        eq(laundryProduction.productionRuns.id, identity.productionRunId),
       ),
     )
-    .limit(1);
-  if (run === undefined) throw new Error('Production run not found.');
+    .limit(1)
+    .for('update');
+  if (run === undefined) return null;
+
+  const [batch] = await db
+    .select()
+    .from(laundryProduction.productionBatches)
+    .where(
+      and(
+        eq(laundryProduction.productionBatches.locationId, locationId),
+        eq(laundryProduction.productionBatches.id, identity.productionBatchId),
+        eq(
+          laundryProduction.productionBatches.productionRunId,
+          identity.productionRunId,
+        ),
+      ),
+    )
+    .limit(1)
+    .for('update');
+  if (batch === undefined) return null;
+
+  const [stage] = await db
+    .select()
+    .from(laundryProduction.stageRuns)
+    .where(
+      and(
+        eq(laundryProduction.stageRuns.locationId, locationId),
+        eq(laundryProduction.stageRuns.id, identity.stageRunId),
+        eq(laundryProduction.stageRuns.productionBatchId, batch.id),
+      ),
+    )
+    .limit(1)
+    .for('update');
+  if (stage === undefined) return null;
   const siblingStages = await db
     .select()
     .from(laundryProduction.stageRuns)
@@ -113,6 +155,7 @@ export const loadStageTransitionContext = async (
   return {
     stage: storedStage,
     productionRunStarted: run.status === 'started',
+    batchMembershipFrozen: batch.membershipFrozenAt !== null,
     previousStageCompleted:
       stageIndex === 0 || previous?.status === 'completed',
     sameKindAlreadyActive: allStages.some(

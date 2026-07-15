@@ -115,6 +115,8 @@ export const makeAdvanceProductionStageRepository = (deps: {
         )
         .limit(1);
       if (batch === undefined) throw new Error('Batch not found.');
+      const anchorsMutableQueue =
+        nextState === 'started' && batch.status === 'queued';
       const [updatedBatch] = await db
         .update(laundryProduction.productionBatches)
         .set({
@@ -128,6 +130,12 @@ export const makeAdvanceProductionStageRepository = (deps: {
           updatedAt: now,
           ...(nextState === 'started' && batch.startedAt === null
             ? { startedAt: now }
+            : {}),
+          ...(anchorsMutableQueue
+            ? {
+                membershipFrozenAt: batch.membershipFrozenAt ?? now,
+                membershipFrozenBy: batch.membershipFrozenBy ?? actorId,
+              }
             : {}),
           ...(nextState === 'completed' &&
           stage.stageKind === 'folding_packaging'
@@ -144,6 +152,29 @@ export const makeAdvanceProductionStageRepository = (deps: {
         .returning();
       if (updatedBatch === undefined)
         throw new Error('Production batch changed during stage transition.');
+
+      if (anchorsMutableQueue) {
+        const [updatedRunQueue] = await db
+          .update(laundryProduction.productionRuns)
+          .set({
+            queueVersion: sql`${laundryProduction.productionRuns.queueVersion} + 1`,
+            overtimeProposalHash: null,
+            overtimeQueueVersion: null,
+            overtimeAcknowledgedBy: null,
+            overtimeAcknowledgedAt: null,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(laundryProduction.productionRuns.locationId, locationId),
+              eq(laundryProduction.productionRuns.id, batch.productionRunId),
+              eq(laundryProduction.productionRuns.status, 'started'),
+            ),
+          )
+          .returning({ id: laundryProduction.productionRuns.id });
+        if (updatedRunQueue === undefined)
+          throw new Error('Production run changed during stage transition.');
+      }
 
       if (
         nextState === 'completed' &&

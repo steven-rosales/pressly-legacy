@@ -1,0 +1,39 @@
+import type {
+  FreezeProductionBatchCommand,
+  UnfreezeProductionBatchCommand,
+} from '@pressly/contracts';
+import { catchAsync } from '@pressly/http/express';
+import type { RequestHandler } from 'express';
+import { sendProductionResult } from '../http/production-response.ts';
+import type {
+  BatchMembershipAction,
+  ManageBatchMembership,
+} from './manage-batch-membership.port.ts';
+
+type MembershipCommand =
+  | FreezeProductionBatchCommand
+  | UnfreezeProductionBatchCommand;
+
+export const makeManageBatchMembershipController = (input: {
+  manage: ManageBatchMembership;
+  action: BatchMembershipAction;
+  effectiveActorRole: 'operator' | 'owner';
+  readActorId: (response: Parameters<RequestHandler>[1]) => string;
+}): RequestHandler =>
+  catchAsync(async (request, response) => {
+    sendProductionResult(
+      response,
+      await input.manage({
+        ...(request.body as Omit<
+          MembershipCommand,
+          'locationId' | 'productionRunId' | 'productionBatchId'
+        >),
+        locationId: request.params['locationId'] as string,
+        productionRunId: request.params['productionRunId'] as string,
+        productionBatchId: request.params['productionBatchId'] as string,
+        action: input.action,
+        actorId: input.readActorId(response),
+        actorRole: input.effectiveActorRole,
+      }),
+    );
+  });

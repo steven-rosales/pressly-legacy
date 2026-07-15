@@ -57,7 +57,7 @@ export const makePublishSchedulerConfig =
           id: deps.ids.next(),
           pulseMinutes: command.pulseMinutes,
           foldLbsPerFolderMinute: command.foldLbsPerFolderMinute,
-          algorithmVersion: 'fixed-pulse-ffd-v1' as const,
+          algorithmVersion: 'fixed-pulse-ffd-v2' as const,
           version: await repo.nextSchedulerConfigVersion(command.locationId),
           stageFitAssertion: {
             ...command.stageFitAssertion,

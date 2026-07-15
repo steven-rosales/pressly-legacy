@@ -1,20 +1,37 @@
 import type { z } from 'zod';
 import type {
   acceptScheduleResultSchema,
+  advanceProductionStageResultSchema,
+  automaticProductionOrderPlacementResultSchema,
+  confirmProductionOrderOvertimeResultSchema,
+  exactProductionOrderPlacementResultSchema,
   listProductionLocationsResultSchema,
   listProductionOrdersResultSchema,
   productionBootstrapDestructiveRejectionSchema,
   productionBootstrapResourceChangeSchema,
   productionBootstrapResultSchema,
   productionBatchSchema,
+  productionBatchMembershipMutationResultSchema,
+  productionBatchMembershipSchema,
+  productionBatchOrderSchema,
   productionBoardSchema,
   productionLocationSchema,
   productionMachineSchema,
   productionMutationResultSchema,
   productionOrderListItemSchema,
+  productionPendingOrderSchema,
+  productionPendingPlacementSchema,
+  productionPlacementPreviewSchema,
   productionOrderSummarySchema,
+  productionOrderPlacementResultSchema,
+  productionOvertimeAcknowledgementSchema,
+  productionPlacementTargetSchema,
   productionRunSummarySchema,
   productionShiftSchema,
+  productionStageActionBlockCodeSchema,
+  productionStageCompletionConfirmationRequiredResultSchema,
+  productionStageCompletionTimingSchema,
+  productionStageNextActionSchema,
   productionStationSchema,
   productionWarningSchema,
   productionWorkspaceSchema,
@@ -22,25 +39,80 @@ import type {
   recordOrderIntakeResultSchema,
   scheduleProposalSchema,
   schedulerConfigSchema,
+  startScheduleResultSchema,
   stageRunSchema,
+  updateProductionShiftResultSchema,
 } from './production.contracts.ts';
 
 export type ProductionWarning = z.infer<typeof productionWarningSchema>;
 export type ProductionOrderSummary = z.infer<
   typeof productionOrderSummarySchema
 >;
+export type ProductionPendingOrder = z.infer<
+  typeof productionPendingOrderSchema
+>;
+export type ProductionPendingPlacement = z.infer<
+  typeof productionPendingPlacementSchema
+>;
+export type ProductionPlacementPreview = z.infer<
+  typeof productionPlacementPreviewSchema
+>;
 export type ProductionMachine = z.infer<typeof productionMachineSchema>;
 export type ProductionShift = z.infer<typeof productionShiftSchema>;
+export type UpdateProductionShiftResult = z.infer<
+  typeof updateProductionShiftResultSchema
+>;
 export type SchedulerConfig = z.infer<typeof schedulerConfigSchema>;
 export type ProposedBatch = z.infer<typeof proposedBatchSchema>;
 export type ScheduleProposal = z.infer<typeof scheduleProposalSchema>;
 export type StageRun = z.infer<typeof stageRunSchema>;
+export type ProductionStageActionBlockCode = z.infer<
+  typeof productionStageActionBlockCodeSchema
+>;
+export type ProductionStageCompletionTiming = z.infer<
+  typeof productionStageCompletionTimingSchema
+>;
+export type ProductionStageCompletionConfirmationRequiredResult = z.infer<
+  typeof productionStageCompletionConfirmationRequiredResultSchema
+>;
+export type AdvanceProductionStageResult = z.infer<
+  typeof advanceProductionStageResultSchema
+>;
+export type ProductionStageNextAction = z.infer<
+  typeof productionStageNextActionSchema
+>;
 export type ProductionBatch = z.infer<typeof productionBatchSchema>;
+export type ProductionBatchOrder = z.infer<typeof productionBatchOrderSchema>;
+export type ProductionBatchMembership = z.infer<
+  typeof productionBatchMembershipSchema
+>;
 export type ProductionBoard = z.infer<typeof productionBoardSchema>;
 export type ProductionMutationResult = z.infer<
   typeof productionMutationResultSchema
 >;
 export type AcceptScheduleResult = z.infer<typeof acceptScheduleResultSchema>;
+export type StartScheduleResult = z.infer<typeof startScheduleResultSchema>;
+export type ProductionBatchMembershipMutationResult = z.infer<
+  typeof productionBatchMembershipMutationResultSchema
+>;
+export type ProductionPlacementTarget = z.infer<
+  typeof productionPlacementTargetSchema
+>;
+export type ProductionOrderPlacementResult = z.infer<
+  typeof productionOrderPlacementResultSchema
+>;
+export type AutomaticProductionOrderPlacementResult = z.infer<
+  typeof automaticProductionOrderPlacementResultSchema
+>;
+export type ExactProductionOrderPlacementResult = z.infer<
+  typeof exactProductionOrderPlacementResultSchema
+>;
+export type ConfirmProductionOrderOvertimeResult = z.infer<
+  typeof confirmProductionOrderOvertimeResultSchema
+>;
+export type ProductionOvertimeAcknowledgement = z.infer<
+  typeof productionOvertimeAcknowledgementSchema
+>;
 export type ProductionOrderListItem = z.infer<
   typeof productionOrderListItemSchema
 >;

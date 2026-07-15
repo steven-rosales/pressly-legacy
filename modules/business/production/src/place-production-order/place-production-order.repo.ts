@@ -1,0 +1,717 @@
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  laundryProduction,
+  sql,
+  type Database,
+  type DatabaseExecutor,
+} from '@pressly/db';
+import type {
+  ProductionPendingPlacement,
+  ProductionPlacementPreview,
+} from '@pressly/contracts';
+import type {
+  OnlinePlacementInput,
+  OnlinePlacementProposal,
+  SchedulingInput,
+  SchedulingOutput,
+} from '../production.port.ts';
+import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
+import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
+import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
+import type {
+  PlaceProductionOrderRepository,
+  PlacementContext,
+  PlacementOutcomeInput,
+  StoredOvertimeProposal,
+} from './place-production-order.port.ts';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const asStoredOvertimeProposal = (
+  payload: unknown,
+): StoredOvertimeProposal | null => {
+  if (!isRecord(payload)) return null;
+  const mode = payload['mode'];
+  const targetBatchId = payload['targetBatchId'];
+  const proposalHash = payload['proposalHash'];
+  const queueVersion = payload['queueVersion'];
+  if (
+    (mode !== 'automatic' && mode !== 'manager_exact') ||
+    (targetBatchId !== null && typeof targetBatchId !== 'string') ||
+    typeof proposalHash !== 'string' ||
+    typeof queueVersion !== 'number'
+  )
+    return null;
+  return { mode, targetBatchId, proposalHash, queueVersion };
+};
+
+const asBatchStatus = (
+  status: string,
+): OnlinePlacementInput['batches'][number]['status'] => {
+  switch (status) {
+    case 'queued':
+    case 'sorting':
+    case 'washing':
+    case 'drying':
+    case 'folding_packaging':
+    case 'finished':
+      return status;
+    default:
+      throw new Error(`Unknown production batch status: ${status}.`);
+  }
+};
+
+const asStageKind = (
+  stage: string,
+): OnlinePlacementInput['batches'][number]['stages'][number]['stage'] => {
+  switch (stage) {
+    case 'sorting':
+    case 'washing':
+    case 'drying':
+    case 'folding_packaging':
+      return stage;
+    default:
+      throw new Error(`Unknown production stage kind: ${stage}.`);
+  }
+};
+
+const placementPreview = (
+  proposal: OnlinePlacementProposal,
+): ProductionPlacementPreview => ({
+  target:
+    proposal.target.type === 'existing_batch'
+      ? {
+          kind: 'existing_batch',
+          productionBatchId: proposal.target.batchId,
+          sequence: proposal.target.sequence,
+        }
+      : {
+          kind: 'new_batch',
+          sequence: proposal.target.insertAtSequence,
+        },
+  affectedBatchIds: proposal.affectedBatches.flatMap((batch) =>
+    batch.sourceBatchId === null ? [] : [batch.sourceBatchId],
+  ),
+  queueVersion: proposal.expectedQueueVersion,
+  proposalHash: proposal.placementPlanHash,
+  projectedCompletionAt: proposal.projectedCompletionAt,
+  overtimeMinutes: proposal.overtime.overrunMinutes,
+});
+
+const pendingPlacementForOutcome = (
+  input: PlacementOutcomeInput,
+): ProductionPendingPlacement | null => {
+  if (input.result.status === 'placed') return null;
+  if (input.result.status === 'confirmation_required')
+    return {
+      status: 'confirmation_required',
+      mode: input.result.mode,
+      productionRunId: input.result.productionRunId,
+      target: input.result.target,
+      affectedBatchIds: input.result.affectedBatchIds,
+      queueVersion: input.result.queueVersion,
+      proposalHash: input.result.proposalHash,
+      projectedCompletionAt: input.result.projectedCompletionAt,
+      overtimeMinutes: input.result.overtimeMinutes,
+    };
+
+  return {
+    status: 'not_placed',
+    mode: input.result.mode,
+    productionRunId: input.result.productionRunId,
+    reason: input.result.reason,
+    message: input.result.message,
+    queueVersion: input.result.queueVersion,
+    preview: input.proposal === null ? null : placementPreview(input.proposal),
+  };
+};
+
+const loadContext = async (
+  db: DatabaseExecutor,
+  locationId: string,
+  productionRunId: string,
+  productionOrderId: string,
+): Promise<PlacementContext | null> => {
+  const [run] = await db
+    .select()
+    .from(laundryProduction.productionRuns)
+    .where(
+      and(
+        eq(laundryProduction.productionRuns.locationId, locationId),
+        eq(laundryProduction.productionRuns.id, productionRunId),
+      ),
+    )
+    .limit(1)
+    .for('update');
+  if (run === undefined) return null;
+
+  const [order] = await db
+    .select()
+    .from(laundryProduction.productionOrders)
+    .where(
+      and(
+        eq(laundryProduction.productionOrders.locationId, locationId),
+        eq(laundryProduction.productionOrders.id, productionOrderId),
+      ),
+    )
+    .limit(1)
+    .for('update');
+  if (order === undefined || order.bagCount === null) return null;
+
+  const [schedule] = await db
+    .select({
+      inputSnapshot: laundryProduction.scheduleRuns.inputSnapshot,
+      outputPlan: laundryProduction.scheduleRuns.outputPlan,
+    })
+    .from(laundryProduction.scheduleRuns)
+    .where(
+      and(
+        eq(laundryProduction.scheduleRuns.locationId, locationId),
+        eq(laundryProduction.scheduleRuns.id, run.scheduleRunId),
+      ),
+    )
+    .limit(1);
+  if (schedule === undefined) return null;
+  const snapshot = schedule.inputSnapshot as SchedulingInput;
+  const originalPlan = schedule.outputPlan as SchedulingOutput;
+
+  const batchRows = await db
+    .select()
+    .from(laundryProduction.productionBatches)
+    .where(
+      and(
+        eq(laundryProduction.productionBatches.locationId, locationId),
+        eq(
+          laundryProduction.productionBatches.productionRunId,
+          productionRunId,
+        ),
+      ),
+    )
+    .orderBy(asc(laundryProduction.productionBatches.sequenceIndex))
+    .for('update');
+  if (batchRows.length === 0) return null;
+  const batchIds = batchRows.map((batch) => batch.id);
+
+  const [membershipRows, stageRows] = await Promise.all([
+    db
+      .select({
+        productionBatchId:
+          laundryProduction.productionBatchOrders.productionBatchId,
+        productionOrderId:
+          laundryProduction.productionBatchOrders.productionOrderId,
+        active: laundryProduction.productionBatchOrders.active,
+        priority: laundryProduction.productionOrders.priority,
+        bagCount: laundryProduction.productionOrders.bagCount,
+      })
+      .from(laundryProduction.productionBatchOrders)
+      .innerJoin(
+        laundryProduction.productionOrders,
+        and(
+          eq(
+            laundryProduction.productionOrders.id,
+            laundryProduction.productionBatchOrders.productionOrderId,
+          ),
+          eq(
+            laundryProduction.productionOrders.locationId,
+            laundryProduction.productionBatchOrders.locationId,
+          ),
+        ),
+      )
+      .where(
+        and(
+          eq(laundryProduction.productionBatchOrders.locationId, locationId),
+          inArray(
+            laundryProduction.productionBatchOrders.productionBatchId,
+            batchIds,
+          ),
+          eq(laundryProduction.productionBatchOrders.active, true),
+        ),
+      ),
+    db
+      .select()
+      .from(laundryProduction.stageRuns)
+      .where(
+        and(
+          eq(laundryProduction.stageRuns.locationId, locationId),
+          inArray(laundryProduction.stageRuns.productionBatchId, batchIds),
+        ),
+      )
+      .orderBy(asc(laundryProduction.stageRuns.plannedStartAt)),
+  ]);
+  const stageIds = stageRows.map((stage) => stage.id);
+  const assignmentRows =
+    stageIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(laundryProduction.stageMachineAssignments)
+          .where(
+            and(
+              eq(
+                laundryProduction.stageMachineAssignments.locationId,
+                locationId,
+              ),
+              inArray(
+                laundryProduction.stageMachineAssignments.stageRunId,
+                stageIds,
+              ),
+            ),
+          );
+
+  const [existingMembership] = await db
+    .select({
+      productionOrderId:
+        laundryProduction.productionBatchOrders.productionOrderId,
+    })
+    .from(laundryProduction.productionBatchOrders)
+    .where(
+      and(
+        eq(laundryProduction.productionBatchOrders.locationId, locationId),
+        eq(
+          laundryProduction.productionBatchOrders.productionOrderId,
+          productionOrderId,
+        ),
+        eq(laundryProduction.productionBatchOrders.active, true),
+      ),
+    )
+    .limit(1);
+
+  return {
+    input: {
+      order: {
+        id: order.id,
+        priority: order.priority,
+        derivedWeightLbs: order.derivedWeightLbs,
+        bagCount: order.bagCount,
+        version: order.version,
+      },
+      run: {
+        id: run.id,
+        queueVersion: run.queueVersion,
+        startsAt: snapshot.shift.startsAt,
+        shiftEndsAt: snapshot.shift.endsAt,
+        pulseMinutes: originalPlan.pulseMinutes,
+        pulseCapacityLbs: originalPlan.pulseCapacityLbs,
+      },
+      machines: snapshot.machines.map((machine) => ({ ...machine })),
+      batches: batchRows.map((batch) => {
+        const memberships = membershipRows.filter(
+          (membership) => membership.productionBatchId === batch.id,
+        );
+        return {
+          id: batch.id,
+          sequence: batch.sequenceIndex,
+          status: asBatchStatus(batch.status),
+          membershipFrozen: batch.membershipFrozenAt !== null,
+          orderIds: memberships.map(
+            (membership) => membership.productionOrderId,
+          ),
+          priorityOrderIds: memberships
+            .filter((membership) => membership.priority)
+            .map((membership) => membership.productionOrderId),
+          derivedWeightLbs: batch.derivedWeightLbs,
+          bagCount: memberships.reduce(
+            (total, membership) => total + (membership.bagCount ?? 0),
+            0,
+          ),
+          stages: stageRows
+            .filter((stage) => stage.productionBatchId === batch.id)
+            .map((stage) => ({
+              stage: asStageKind(stage.stageKind),
+              startsAt: stage.plannedStartAt.toISOString(),
+              endsAt: stage.plannedEndAt.toISOString(),
+              machineIds: assignmentRows
+                .filter((assignment) => assignment.stageRunId === stage.id)
+                .map((assignment) => assignment.machineId),
+            })),
+        };
+      }),
+      mode: { type: 'automatic' },
+    },
+    runStatus: run.status,
+    orderStatus: order.status,
+    orderAlreadyAssigned: existingMembership !== undefined,
+    batchVersions: Object.fromEntries(
+      batchRows.map((batch) => [batch.id, batch.version]),
+    ),
+  };
+};
+
+const recordOutcome = async (
+  db: DatabaseExecutor,
+  ids: Readonly<{ next: () => string }>,
+  input: PlacementOutcomeInput,
+): Promise<void> => {
+  const pendingPlacement = pendingPlacementForOutcome(input);
+  if (pendingPlacement !== null)
+    await db
+      .update(laundryProduction.productionOrders)
+      .set({ pendingPlacement, updatedAt: input.now })
+      .where(
+        and(
+          eq(laundryProduction.productionOrders.locationId, input.locationId),
+          eq(laundryProduction.productionOrders.id, input.productionOrderId),
+          eq(laundryProduction.productionOrders.status, 'eligible'),
+        ),
+      );
+
+  await appendWorkEvent(db, ids, {
+    locationId: input.locationId,
+    eventType:
+      input.result.status === 'confirmation_required'
+        ? 'production_order_placement_overtime_required'
+        : 'production_order_placement_resolved',
+    entityType: 'production_order',
+    entityId: input.productionOrderId,
+    actorId: input.actorId,
+    ...(input.proposal === null
+      ? {}
+      : { expectedVersion: input.proposal.expectedQueueVersion }),
+    idempotencyKey: input.idempotencyKey,
+    payload: {
+      productionRunId: input.productionRunId,
+      mode: input.mode,
+      targetBatchId: input.targetBatchId,
+      proposalHash: input.proposal?.placementPlanHash ?? null,
+      queueVersion:
+        input.proposal?.expectedQueueVersion ?? input.result.queueVersion,
+      outcome: input.result.status,
+    },
+    idempotency: { command: input.idempotency, result: input.result },
+  });
+};
+
+const commitPlacement = async (
+  db: DatabaseExecutor,
+  ids: Readonly<{ next: () => string }>,
+  input: PlacementOutcomeInput & {
+    context: PlacementContext;
+    proposal: OnlinePlacementProposal;
+    overtimeConfirmed: boolean;
+  },
+) => {
+  const changed = input.proposal.affectedBatches.filter(
+    (batch) => batch.changed,
+  );
+  const existingChangedIds = changed.flatMap((batch) =>
+    batch.sourceBatchId === null ? [] : [batch.sourceBatchId],
+  );
+  if (existingChangedIds.length > 0)
+    await db
+      .update(laundryProduction.productionBatches)
+      .set({
+        sequenceIndex: sql`-${laundryProduction.productionBatches.sequenceIndex} - 1`,
+      })
+      .where(
+        and(
+          eq(laundryProduction.productionBatches.locationId, input.locationId),
+          inArray(laundryProduction.productionBatches.id, existingChangedIds),
+        ),
+      );
+
+  const existingStageRows =
+    existingChangedIds.length === 0
+      ? []
+      : await db
+          .select({ id: laundryProduction.stageRuns.id })
+          .from(laundryProduction.stageRuns)
+          .where(
+            and(
+              eq(laundryProduction.stageRuns.locationId, input.locationId),
+              inArray(
+                laundryProduction.stageRuns.productionBatchId,
+                existingChangedIds,
+              ),
+              eq(laundryProduction.stageRuns.status, 'planned'),
+            ),
+          );
+  if (existingStageRows.length > 0)
+    await db.delete(laundryProduction.stageRuns).where(
+      inArray(
+        laundryProduction.stageRuns.id,
+        existingStageRows.map((stage) => stage.id),
+      ),
+    );
+
+  const stationRows = await db
+    .select()
+    .from(laundryProduction.stations)
+    .where(eq(laundryProduction.stations.locationId, input.locationId));
+  const stationByKind = new Map(
+    stationRows.map((station) => [station.kind, station.id]),
+  );
+  const batchIdByProjection = new Map<string, string>();
+  let createdBatchId: string | null = null;
+
+  for (const projection of input.proposal.affectedBatches) {
+    if (projection.sourceBatchId !== null)
+      batchIdByProjection.set(
+        projection.sourceBatchId,
+        projection.sourceBatchId,
+      );
+    if (!projection.changed) continue;
+
+    const batchId = projection.sourceBatchId ?? ids.next();
+    if (projection.sourceBatchId === null) createdBatchId = batchId;
+    batchIdByProjection.set(
+      projection.sourceBatchId ?? `new:${projection.sequence}`,
+      batchId,
+    );
+    const plannedDoneAt = new Date(
+      projection.stages[projection.stages.length - 1]!.endsAt,
+    );
+    if (projection.sourceBatchId === null)
+      await db.insert(laundryProduction.productionBatches).values({
+        id: batchId,
+        locationId: input.locationId,
+        productionRunId: input.productionRunId,
+        sequenceIndex: projection.sequence,
+        status: 'queued',
+        pulseCapacityLbs: input.context.input.run.pulseCapacityLbs,
+        derivedWeightLbs: projection.derivedWeightLbs,
+        pulseMinutes: input.context.input.run.pulseMinutes,
+        plannedDoneAt,
+        version: 1,
+        createdAt: input.now,
+        updatedAt: input.now,
+      });
+    else
+      await db
+        .update(laundryProduction.productionBatches)
+        .set({
+          sequenceIndex: projection.sequence,
+          derivedWeightLbs: projection.derivedWeightLbs,
+          plannedDoneAt,
+          version: sql`${laundryProduction.productionBatches.version} + 1`,
+          updatedAt: input.now,
+        })
+        .where(
+          and(
+            eq(
+              laundryProduction.productionBatches.locationId,
+              input.locationId,
+            ),
+            eq(laundryProduction.productionBatches.id, batchId),
+            eq(laundryProduction.productionBatches.status, 'queued'),
+            sql`${laundryProduction.productionBatches.membershipFrozenAt} is null`,
+          ),
+        );
+
+    for (const stage of projection.stages) {
+      const stationId = stationByKind.get(stage.stage);
+      if (stationId === undefined)
+        throw new Error(`Production station missing: ${stage.stage}.`);
+      const stageRunId = ids.next();
+      await db.insert(laundryProduction.stageRuns).values({
+        id: stageRunId,
+        locationId: input.locationId,
+        productionBatchId: batchId,
+        stationId,
+        stageKind: stage.stage,
+        status: 'planned',
+        plannedStartAt: new Date(stage.startsAt),
+        plannedEndAt: new Date(stage.endsAt),
+        version: 1,
+        createdAt: input.now,
+        updatedAt: input.now,
+      });
+      if (stage.machineIds.length > 0)
+        await db.insert(laundryProduction.stageMachineAssignments).values(
+          stage.machineIds.map((machineId) => ({
+            id: ids.next(),
+            locationId: input.locationId,
+            stageRunId,
+            machineId,
+            plannedStartAt: new Date(stage.startsAt),
+            plannedEndAt: new Date(stage.endsAt),
+            status: 'planned',
+            createdAt: input.now,
+            updatedAt: input.now,
+          })),
+        );
+    }
+  }
+
+  const targetBatchId =
+    input.proposal.target.type === 'existing_batch'
+      ? input.proposal.target.batchId
+      : createdBatchId;
+  if (targetBatchId === null)
+    throw new Error('The placement target batch was not materialized.');
+
+  await db.insert(laundryProduction.productionBatchOrders).values({
+    locationId: input.locationId,
+    productionBatchId: targetBatchId,
+    productionOrderId: input.productionOrderId,
+    active: true,
+    placementProvenance:
+      input.mode === 'manager_exact' ? 'manager_exact' : 'automatic',
+    pinnedAt: input.mode === 'manager_exact' ? input.now : null,
+    pinnedBy: input.mode === 'manager_exact' ? input.actorId : null,
+  });
+  const [updatedOrder] = await db
+    .update(laundryProduction.productionOrders)
+    .set({
+      status: 'scheduled',
+      pendingPlacement: null,
+      version: sql`${laundryProduction.productionOrders.version} + 1`,
+      updatedAt: input.now,
+    })
+    .where(
+      and(
+        eq(laundryProduction.productionOrders.locationId, input.locationId),
+        eq(laundryProduction.productionOrders.id, input.productionOrderId),
+        eq(laundryProduction.productionOrders.status, 'eligible'),
+      ),
+    )
+    .returning({ id: laundryProduction.productionOrders.id });
+  if (updatedOrder === undefined)
+    throw new Error('The order stopped being eligible during placement.');
+
+  const nextQueueVersion = input.context.input.run.queueVersion + 1;
+  const acknowledgesOvertime =
+    input.proposal.overtime.required && input.overtimeConfirmed;
+  const [updatedRun] = await db
+    .update(laundryProduction.productionRuns)
+    .set({
+      queueVersion: nextQueueVersion,
+      plannedCompletionAt: new Date(input.proposal.projectedCompletionAt),
+      overtimeProposalHash: acknowledgesOvertime
+        ? input.proposal.placementPlanHash
+        : null,
+      overtimeQueueVersion: acknowledgesOvertime ? nextQueueVersion : null,
+      overtimeAcknowledgedBy: acknowledgesOvertime ? input.actorId : null,
+      overtimeAcknowledgedAt: acknowledgesOvertime ? input.now : null,
+      updatedAt: input.now,
+    })
+    .where(
+      and(
+        eq(laundryProduction.productionRuns.locationId, input.locationId),
+        eq(laundryProduction.productionRuns.id, input.productionRunId),
+        eq(
+          laundryProduction.productionRuns.queueVersion,
+          input.context.input.run.queueVersion,
+        ),
+        eq(laundryProduction.productionRuns.status, 'started'),
+      ),
+    )
+    .returning({ id: laundryProduction.productionRuns.id });
+  if (updatedRun === undefined)
+    throw new Error('The production queue changed during placement.');
+
+  const affectedBatchIds = input.proposal.affectedBatches.map((projection) => {
+    if (projection.sourceBatchId !== null) return projection.sourceBatchId;
+    const batchId = batchIdByProjection.get(`new:${projection.sequence}`);
+    if (batchId === undefined) throw new Error('New batch mapping is missing.');
+    return batchId;
+  });
+  const outcome = {
+    status: 'placed' as const,
+    mode: input.mode,
+    productionRunId: input.productionRunId,
+    productionOrderId: input.productionOrderId,
+    productionBatchId: targetBatchId,
+    createdBatch: input.proposal.target.type === 'new_batch',
+    affectedBatchIds,
+    queueVersion: nextQueueVersion,
+    proposalHash: input.proposal.placementPlanHash,
+    plannedCompletionAt: input.proposal.projectedCompletionAt,
+    overtimeMinutes: input.proposal.overtime.overrunMinutes,
+    replayed: false,
+  };
+  await recordOutcome(db, ids, { ...input, result: outcome });
+  return outcome;
+};
+
+export const makePlaceProductionOrderRepository = (deps: {
+  db: Database;
+  ids: Readonly<{ next: () => string }>;
+}): PlaceProductionOrderRepository =>
+  makePostgresUnitOfWork(deps.db, (db: DatabaseExecutor) => ({
+    findWorkEvent: (idempotencyKey) => findWorkEvent(db, idempotencyKey),
+    lockLocationScheduling: (locationId) =>
+      lockLocationScheduling(db, locationId),
+    findStartedRuns: async (locationId) =>
+      db
+        .select({
+          productionRunId: laundryProduction.productionRuns.id,
+          queueVersion: laundryProduction.productionRuns.queueVersion,
+        })
+        .from(laundryProduction.productionRuns)
+        .where(
+          and(
+            eq(laundryProduction.productionRuns.locationId, locationId),
+            eq(laundryProduction.productionRuns.status, 'started'),
+          ),
+        )
+        .orderBy(asc(laundryProduction.productionRuns.id)),
+    recordPendingRunResolution: async (input) => {
+      if ((await findWorkEvent(db, input.idempotencyKey)) !== null) return;
+      await db
+        .update(laundryProduction.productionOrders)
+        .set({ pendingPlacement: input.placement, updatedAt: input.now })
+        .where(
+          and(
+            eq(laundryProduction.productionOrders.locationId, input.locationId),
+            eq(laundryProduction.productionOrders.id, input.productionOrderId),
+            eq(laundryProduction.productionOrders.status, 'eligible'),
+          ),
+        );
+      const command = {
+        operation: 'production_order_automatic_placement_pending',
+        locationId: input.locationId,
+        actorId: input.actorId,
+        target: {
+          entityType: 'production_order',
+          entityId: input.productionOrderId,
+        },
+        expectedVersion: null,
+        payload: { placement: input.placement },
+      } as const;
+      await appendWorkEvent(db, deps.ids, {
+        locationId: input.locationId,
+        eventType: 'production_order_placement_pending',
+        entityType: 'production_order',
+        entityId: input.productionOrderId,
+        actorId: input.actorId,
+        idempotencyKey: input.idempotencyKey,
+        payload: { placement: input.placement },
+        idempotency: { command, result: input.placement },
+      });
+    },
+    loadContext: (locationId, productionRunId, productionOrderId) =>
+      loadContext(db, locationId, productionRunId, productionOrderId),
+    findOvertimeProposal: async (
+      locationId,
+      productionOrderId,
+      proposalHash,
+    ) => {
+      const rows = await db
+        .select({ payload: laundryProduction.workEvents.payload })
+        .from(laundryProduction.workEvents)
+        .where(
+          and(
+            eq(laundryProduction.workEvents.locationId, locationId),
+            eq(laundryProduction.workEvents.entityType, 'production_order'),
+            eq(laundryProduction.workEvents.entityId, productionOrderId),
+            eq(
+              laundryProduction.workEvents.eventType,
+              'production_order_placement_overtime_required',
+            ),
+          ),
+        )
+        .orderBy(desc(laundryProduction.workEvents.createdAt));
+      return (
+        rows
+          .map((row) => asStoredOvertimeProposal(row.payload))
+          .find((proposal) => proposal?.proposalHash === proposalHash) ?? null
+      );
+    },
+    recordOutcome: (input) => recordOutcome(db, deps.ids, input),
+    commitPlacement: (input) => commitPlacement(db, deps.ids, input),
+  }));

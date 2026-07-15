@@ -11,6 +11,7 @@ export const makeCreateScheduleRoute = (input: {
   createSchedule: CreateSchedule;
   authenticate: RequestHandler;
   authorize: RequestHandler;
+  readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
   router.post(
@@ -21,7 +22,7 @@ export const makeCreateScheduleRoute = (input: {
       body: createScheduleRequestSchema,
     }),
     input.authorize,
-    makeCreateScheduleController(input.createSchedule),
+    makeCreateScheduleController(input),
   );
   return router;
 };

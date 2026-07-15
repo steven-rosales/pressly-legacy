@@ -1,5 +1,8 @@
 import { result } from '@pressly/kernel';
-import type { ProductionMutationResult } from '@pressly/contracts';
+import type {
+  AdvanceProductionStageResult,
+  ProductionStageCompletionTiming,
+} from '@pressly/contracts';
 import {
   productionError,
   productionIdempotencyConflict,
@@ -8,22 +11,66 @@ import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
 } from '../production-idempotency.policy.ts';
-import type { ClockPort, ProductionPolicyPort } from '../production.port.ts';
+import type {
+  ClockPort,
+  ProductionPolicyPort,
+  ProductionSignalsPort,
+} from '../production.port.ts';
 import type {
   AdvanceProductionStage,
+  AdvanceProductionStageCommand,
   AdvanceProductionStageRepository,
 } from './advance-production-stage.port.ts';
+import {
+  makeStageCompletionConfirmationRequired,
+  matchesStageCompletionConfirmation,
+} from './stage-completion-confirmation.policy.ts';
 export type { AdvanceProductionStage } from './advance-production-stage.port.ts';
 
-export const makeAdvanceProductionStage =
-  (deps: {
-    repo: AdvanceProductionStageRepository;
-    policy: ProductionPolicyPort;
-    clock: ClockPort;
-  }): AdvanceProductionStage =>
-  async (command) => {
+type EarlyCompletionAudit = Readonly<{
+  actorId: string;
+  confirmationHash: string;
+  confirmationObservedAt: string;
+  confirmedAt: string;
+  actualStartAt: string;
+  plannedEndAt: string;
+  completionBoundaryAt: string;
+  plannedDurationMilliseconds: number;
+  elapsedMilliseconds: number;
+  remainingMilliseconds: number;
+}>;
+
+const earlyCompletionAudit = (input: {
+  actorId: string;
+  confirmation: Readonly<{
+    observedAt: string;
+    confirmationHash: string;
+  }>;
+  timing: ProductionStageCompletionTiming;
+  now: Date;
+}): EarlyCompletionAudit => ({
+  actorId: input.actorId,
+  confirmationHash: input.confirmation.confirmationHash,
+  confirmationObservedAt: input.confirmation.observedAt,
+  confirmedAt: input.now.toISOString(),
+  actualStartAt: input.timing.actualStartAt,
+  plannedEndAt: input.timing.plannedEndAt,
+  completionBoundaryAt: input.timing.completionBoundaryAt,
+  plannedDurationMilliseconds: input.timing.plannedDurationMilliseconds,
+  elapsedMilliseconds: input.timing.elapsedMilliseconds,
+  remainingMilliseconds: input.timing.remainingMilliseconds,
+});
+
+export const makeAdvanceProductionStage = (deps: {
+  repo: AdvanceProductionStageRepository;
+  policy: ProductionPolicyPort;
+  clock: ClockPort;
+  signals?: ProductionSignalsPort;
+}): AdvanceProductionStage => {
+  const advance = async (command: AdvanceProductionStageCommand) => {
+    let implicitlyFrozeMembership = false;
     try {
-      return await deps.repo.transaction(async (repo) => {
+      const outcome = await deps.repo.transaction(async (repo) => {
         const eventType =
           command.transition === 'start' ? 'stage_started' : 'stage_completed';
         const idempotency = defineWorkEventCommand({
@@ -33,9 +80,14 @@ export const makeAdvanceProductionStage =
           entityType: 'stage_run',
           entityId: command.stageRunId,
           expectedVersion: command.expectedVersion,
-          payload: { transition: command.transition },
+          payload: {
+            transition: command.transition,
+            ...(command.transition === 'complete'
+              ? { confirmation: command.confirmation ?? null }
+              : {}),
+          },
         });
-        const replay = resolveWorkEventReplay<ProductionMutationResult>(
+        const replay = resolveWorkEventReplay<AdvanceProductionStageResult>(
           await repo.findWorkEvent(command.idempotencyKey),
           idempotency,
         );
@@ -98,20 +150,77 @@ export const makeAdvanceProductionStage =
             productionError(decision.error.code, decision.error.message, 409),
           );
 
-        if (decision.value.state === 'planned')
-          return result.err(
-            productionError(
-              'STAGE_POLICY_INVALID_RESULT',
-              'The production stage policy returned an invalid transition.',
-              500,
-            ),
-          );
+        let nextState: 'started' | 'completed';
+        let completionAudit: EarlyCompletionAudit | null = null;
+        if (decision.value.status === 'confirmation_required') {
+          if (command.transition !== 'complete')
+            return result.err(
+              productionError(
+                'STAGE_POLICY_INVALID_RESULT',
+                'The production stage policy returned an invalid confirmation.',
+                500,
+              ),
+            );
+
+          const confirmationRequired = makeStageCompletionConfirmationRequired({
+            locationId: command.locationId,
+            stageRunId: command.stageRunId,
+            actorId: command.actorId,
+            expectedVersion: command.expectedVersion,
+            code: decision.value.code,
+            message: decision.value.message,
+            timing: decision.value.timing,
+          });
+          if (command.confirmation === undefined)
+            return result.ok(confirmationRequired);
+
+          if (
+            !matchesStageCompletionConfirmation({
+              locationId: command.locationId,
+              stageRunId: command.stageRunId,
+              actorId: command.actorId,
+              expectedVersion: command.expectedVersion,
+              timing: decision.value.timing,
+              now,
+              confirmation: command.confirmation,
+            })
+          )
+            return result.err(
+              productionError(
+                'STAGE_COMPLETION_CONFIRMATION_STALE',
+                'The early-completion confirmation is no longer current.',
+              ),
+            );
+
+          nextState = 'completed';
+          completionAudit = earlyCompletionAudit({
+            actorId: command.actorId,
+            confirmation: command.confirmation,
+            timing: decision.value.timing,
+            now,
+          });
+        } else {
+          if (decision.value.state === 'planned')
+            return result.err(
+              productionError(
+                'STAGE_POLICY_INVALID_RESULT',
+                'The production stage policy returned an invalid transition.',
+                500,
+              ),
+            );
+          nextState = decision.value.state;
+        }
+
+        implicitlyFrozeMembership =
+          command.transition === 'start' &&
+          context.stage.stage === 'sorting' &&
+          !context.batchMembershipFrozen;
 
         const mutation = await repo.transitionStage({
           locationId: command.locationId,
           stageRunId: command.stageRunId,
           expectedVersion: command.expectedVersion,
-          nextState: decision.value.state,
+          nextState,
           actorId: command.actorId,
           now,
         });
@@ -131,12 +240,24 @@ export const makeAdvanceProductionStage =
           actorId: command.actorId,
           expectedVersion: command.expectedVersion,
           idempotencyKey: command.idempotencyKey,
-          payload: { version: mutation.version },
+          payload: {
+            version: mutation.version,
+            ...(completionAudit === null
+              ? {}
+              : { earlyCompletion: completionAudit }),
+          },
           idempotency: { command: idempotency, result: mutation },
         });
 
         return result.ok(mutation);
       });
+      if (
+        outcome.tag === 'ok' &&
+        !outcome.value.replayed &&
+        implicitlyFrozeMembership
+      )
+        deps.signals?.batchFrozen({ source: 'stage_start' });
+      return outcome;
     } catch (error) {
       return result.err(
         productionError(
@@ -148,3 +269,6 @@ export const makeAdvanceProductionStage =
       );
     }
   };
+
+  return advance as AdvanceProductionStage;
+};

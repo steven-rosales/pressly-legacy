@@ -8,6 +8,11 @@ export type Database = PostgresJsDatabase<typeof schema>;
 export type DatabaseRuntime = Readonly<{
   db: Database;
   check: () => Promise<void>;
+  listen: (
+    channel: string,
+    onNotification: (payload: string) => void,
+    onListen?: () => void,
+  ) => Promise<() => Promise<void>>;
   close: () => Promise<void>;
 }>;
 
@@ -43,6 +48,11 @@ export const createDatabaseRuntime = (
 
     check: async (): Promise<void> => {
       await db.execute(sql`select 1`);
+    },
+
+    listen: async (channel, onNotification, onListen) => {
+      const listener = await client.listen(channel, onNotification, onListen);
+      return () => listener.unlisten();
     },
 
     close: async (): Promise<void> => {

@@ -20,10 +20,16 @@ export const makeRecordOrderIntake =
     repo: RecordOrderIntakeRepository;
     policy: ProductionPolicyPort;
     clock: ClockPort;
+    attemptAutomaticPlacement?: (input: {
+      locationId: string;
+      productionOrderId: string;
+      actorId: string;
+      idempotencyKey: string;
+    }) => Promise<void>;
   }): RecordOrderIntake =>
   async (command) => {
     try {
-      return await deps.repo.transaction(async (repo) => {
+      const outcome = await deps.repo.transaction(async (repo) => {
         const idempotency = defineWorkEventCommand({
           operation: 'production_order_intake_recorded',
           locationId: command.locationId,
@@ -41,6 +47,7 @@ export const makeRecordOrderIntake =
           return result.err(productionIdempotencyConflict());
         if (replay.tag === 'replay') return result.ok(replay.result);
 
+        await repo.lockLocationScheduling(command.locationId);
         const order = await repo.lockOrder(command.locationId, command.orderId);
         if (order === null)
           return result.err(
@@ -116,6 +123,22 @@ export const makeRecordOrderIntake =
 
         return result.ok(recorded);
       });
+      if (
+        outcome.tag === 'ok' &&
+        !outcome.value.replayed &&
+        deps.attemptAutomaticPlacement !== undefined
+      )
+        try {
+          await deps.attemptAutomaticPlacement({
+            locationId: command.locationId,
+            productionOrderId: command.orderId,
+            actorId: command.actorId,
+            idempotencyKey: command.idempotencyKey,
+          });
+        } catch {
+          // Intake remains committed; the eligible order is visible for retry.
+        }
+      return outcome;
     } catch (error) {
       return result.err(
         productionError(

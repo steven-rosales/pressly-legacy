@@ -34,6 +34,7 @@ const ids = {
   orderDemand: '00000000-0000-4000-8000-000000000015',
   productionOrder: '00000000-0000-4000-8000-000000000016',
   workEvent: '00000000-0000-4000-8000-000000000017',
+  scheduleTwo: '00000000-0000-4000-8000-000000000018',
 } as const;
 
 const locations = {
@@ -107,8 +108,12 @@ const seedExecution = async (
   `;
   await runtime`
     insert into production_runs (
-      id, location_id, production_shift_id, schedule_run_id
-    ) values (${ids.run}, ${locations.first}, ${ids.shift}, ${ids.schedule})
+      id, location_id, production_shift_id, schedule_run_id, started_at,
+      planned_completion_at
+    ) values (
+      ${ids.run}, ${locations.first}, ${ids.shift}, ${ids.schedule},
+      '2026-07-10T14:00:00Z', '2026-07-10T18:40:00Z'
+    )
   `;
   await runtime`
     insert into production_batches (
@@ -291,6 +296,14 @@ describe('LPMS database invariants', () => {
 
   it('scopes scheduler versions and work-event facts to known locations', async () => {
     await seedLocations();
+    let resolveNotification!: (payload: string) => void;
+    const notification = new Promise<string>((resolve) => {
+      resolveNotification = resolve;
+    });
+    const listener = await runtime.listen(
+      'pressly_production_changes',
+      resolveNotification,
+    );
     const assertion = runtime.json({
       sorting: true,
       washing: true,
@@ -331,6 +344,18 @@ describe('LPMS database invariants', () => {
       select location_id from work_events where id = ${ids.workEvent}
     `;
     expect(event?.['location_id']).toBe(locations.first);
+    const [location] = await runtime`
+      select live_revision from production_locations
+      where id = ${locations.first}
+    `;
+    expect(Number(location?.['live_revision'])).toBe(1);
+    await expect(
+      notification.then((payload) => JSON.parse(payload)),
+    ).resolves.toEqual({
+      locationId: locations.first,
+      revision: 1,
+    });
+    await listener.unlisten();
 
     await expect(
       runtime`
@@ -344,6 +369,60 @@ describe('LPMS database invariants', () => {
         )
       `,
     ).rejects.toThrow(/work_events_location_id_production_locations_id_fk/);
+  });
+
+  it('publishes a live revision only after its work-event transaction commits', async () => {
+    await seedLocations();
+    const notifications: unknown[] = [];
+    let resolveCommitted!: () => void;
+    const committed = new Promise<void>((resolve) => {
+      resolveCommitted = resolve;
+    });
+    const listener = await runtime.listen(
+      'pressly_production_changes',
+      (payload) => {
+        notifications.push(JSON.parse(payload));
+        resolveCommitted();
+      },
+    );
+
+    await expect(
+      runtime.begin(async (transaction) => {
+        await transaction`
+          insert into work_events (
+            id, location_id, event_type, entity_type, entity_id, actor_id,
+            idempotency_key
+          ) values (
+            ${ids.workEvent}, ${locations.first}, 'production.order.intake_recorded',
+            'production_order', ${ids.productionOrder}, ${ids.actor},
+            'rolled-back-intake'
+          )
+        `;
+        throw new Error('roll back synthetic work event');
+      }),
+    ).rejects.toThrow('roll back synthetic work event');
+
+    const [afterRollback] = await runtime`
+      select live_revision from production_locations where id = ${locations.first}
+    `;
+    expect(Number(afterRollback?.['live_revision'])).toBe(0);
+    expect(notifications).toEqual([]);
+
+    await runtime`
+      insert into work_events (
+        id, location_id, event_type, entity_type, entity_id, actor_id,
+        idempotency_key
+      ) values (
+        ${ids.workEvent}, ${locations.first}, 'production.order.intake_recorded',
+        'production_order', ${ids.productionOrder}, ${ids.actor},
+        'committed-intake'
+      )
+    `;
+    await committed;
+    expect(notifications).toEqual([
+      { locationId: locations.first, revision: 1 },
+    ]);
+    await listener.unlisten();
   });
 
   it('represents missing bag intake as nullable, versioned production truth', async () => {
@@ -453,18 +532,87 @@ describe('LPMS database invariants', () => {
     ).rejects.toThrow(/schedule_runs_config_location_fk/);
   });
 
-  it('creates at most one production run for an accepted schedule', async () => {
+  it('creates at most one current plan and one production run per shift', async () => {
     await seedExecution();
 
     await expect(
       runtime`
-        insert into production_runs (
-          id, location_id, production_shift_id, schedule_run_id
+        insert into schedule_runs (
+          id, location_id, production_shift_id, scheduler_config_id,
+          input_snapshot, input_snapshot_hash, output_plan, output_plan_hash,
+          algorithm_version, pulse_capacity_lbs, batch_count,
+          makespan_minutes, planned_completion_at
         ) values (
-          ${ids.runTwo}, ${locations.first}, ${ids.shift}, ${ids.schedule}
+          ${ids.scheduleTwo}, ${locations.first}, ${ids.shift}, ${ids.config},
+          ${runtime.json({})}, 'input-hash-two', ${runtime.json({})},
+          'output-hash-two', 'fixed-pulse-ffd-v2', 224, 1, 224,
+          '2026-07-10T17:44:00Z'
         )
       `,
-    ).rejects.toThrow(/production_runs_schedule_unique/);
+    ).rejects.toThrow(/schedule_runs_one_current_per_shift_unique/);
+
+    await runtime`
+      update schedule_runs
+      set status = 'superseded', superseded_at = now()
+      where id = ${ids.schedule}
+    `;
+    await runtime`
+      insert into schedule_runs (
+        id, location_id, production_shift_id, scheduler_config_id, status,
+        input_snapshot, input_snapshot_hash, output_plan, output_plan_hash,
+        algorithm_version, pulse_capacity_lbs, batch_count,
+        makespan_minutes, planned_completion_at, superseded_at
+      ) values (
+        ${ids.scheduleTwo}, ${locations.first}, ${ids.shift}, ${ids.config},
+        'superseded', ${runtime.json({})}, 'input-hash-two',
+        ${runtime.json({})}, 'output-hash-two', 'fixed-pulse-ffd-v2', 224,
+        1, 224, '2026-07-10T17:44:00Z', now()
+      )
+    `;
+
+    await expect(
+      runtime`
+        insert into production_runs (
+          id, location_id, production_shift_id, schedule_run_id, started_at,
+          planned_completion_at
+        ) values (
+          ${ids.runTwo}, ${locations.first}, ${ids.shift}, ${ids.scheduleTwo},
+          '2026-07-10T14:00:00Z', '2026-07-10T17:44:00Z'
+        )
+      `,
+    ).rejects.toThrow(/production_runs_shift_unique/);
+  });
+
+  it('enforces queue, overtime, and membership-freeze state at rest', async () => {
+    await seedExecution();
+
+    await expect(
+      runtime`update production_runs set queue_version = 0 where id = ${ids.run}`,
+    ).rejects.toThrow(/production_runs_positive_queue_version/);
+    await expect(
+      runtime`
+        update production_runs
+        set overtime_proposal_hash = ${'a'.repeat(64)}
+        where id = ${ids.run}
+      `,
+    ).rejects.toThrow(/production_runs_overtime_acknowledgement_paired/);
+    await expect(
+      runtime`
+        update production_batches
+        set status = 'sorting'
+        where id = ${ids.batch}
+      `,
+    ).rejects.toThrow(/production_batches_nonqueued_membership_frozen/);
+
+    await expect(
+      runtime`
+        update production_batches
+        set status = 'sorting', membership_frozen_at = now(),
+            membership_frozen_by = ${ids.actor}
+        where id = ${ids.batch}
+        returning id
+      `,
+    ).resolves.toHaveLength(1);
   });
 
   it('rejects machine overlap while allowing adjacent pulse windows', async () => {
