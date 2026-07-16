@@ -85,6 +85,8 @@ export type ProductionBoardStageRow = Readonly<{
   plannedEndAt: Date;
   actualStartAt: Date | null;
   actualEndAt: Date | null;
+  actualStartProvenance: 'live_observed' | 'operator_reported' | 'not_recorded';
+  actualEndProvenance: 'live_observed' | 'operator_reported' | 'not_recorded';
   version: number;
 }>;
 
@@ -300,6 +302,8 @@ const mapStage = (row: ProductionBoardStageRow): UnevaluatedStageRun => {
     plannedEndAt: row.plannedEndAt.toISOString(),
     actualStartAt: row.actualStartAt?.toISOString() ?? null,
     actualEndAt: row.actualEndAt?.toISOString() ?? null,
+    actualStartProvenance: row.actualStartProvenance,
+    actualEndProvenance: row.actualEndProvenance,
     machineIds: [],
     version: row.version,
   };

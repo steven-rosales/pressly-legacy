@@ -2,6 +2,7 @@ import { result } from '@pressly/kernel';
 import type {
   AdvanceProductionStageResult,
   ProductionStageCompletionTiming,
+  ProductionStageStartTiming,
 } from '@pressly/contracts';
 import {
   productionError,
@@ -25,6 +26,10 @@ import {
   makeStageCompletionConfirmationRequired,
   matchesStageCompletionConfirmation,
 } from './stage-completion-confirmation.policy.ts';
+import {
+  makeStageStartConfirmationRequired,
+  matchesStageStartConfirmation,
+} from './stage-start-confirmation.policy.ts';
 export type { AdvanceProductionStage } from './advance-production-stage.port.ts';
 
 type EarlyCompletionAudit = Readonly<{
@@ -39,6 +44,34 @@ type EarlyCompletionAudit = Readonly<{
   elapsedMilliseconds: number;
   remainingMilliseconds: number;
 }>;
+
+type EarlyStartAudit = Readonly<{
+  actorId: string;
+  confirmationHash: string;
+  confirmationObservedAt: string;
+  confirmedAt: string;
+  plannedStartAt: string;
+  plannedEndAt: string;
+  remainingMilliseconds: number;
+}>;
+
+const earlyStartAudit = (input: {
+  actorId: string;
+  confirmation: Readonly<{
+    observedAt: string;
+    confirmationHash: string;
+  }>;
+  timing: ProductionStageStartTiming;
+  now: Date;
+}): EarlyStartAudit => ({
+  actorId: input.actorId,
+  confirmationHash: input.confirmation.confirmationHash,
+  confirmationObservedAt: input.confirmation.observedAt,
+  confirmedAt: input.now.toISOString(),
+  plannedStartAt: input.timing.plannedStartAt,
+  plannedEndAt: input.timing.plannedEndAt,
+  remainingMilliseconds: input.timing.remainingMilliseconds,
+});
 
 const earlyCompletionAudit = (input: {
   actorId: string;
@@ -82,7 +115,8 @@ export const makeAdvanceProductionStage = (deps: {
           expectedVersion: command.expectedVersion,
           payload: {
             transition: command.transition,
-            ...(command.transition === 'complete'
+            ...(command.transition === 'complete' ||
+            command.confirmation !== undefined
               ? { confirmation: command.confirmation ?? null }
               : {}),
           },
@@ -101,6 +135,15 @@ export const makeAdvanceProductionStage = (deps: {
           command.stageRunId,
           now,
         );
+        const replayAfterLock =
+          resolveWorkEventReplay<AdvanceProductionStageResult>(
+            await repo.findWorkEvent(command.idempotencyKey),
+            idempotency,
+          );
+        if (replayAfterLock.tag === 'conflict')
+          return result.err(productionIdempotencyConflict());
+        if (replayAfterLock.tag === 'replay')
+          return result.ok(replayAfterLock.result);
         if (context === null)
           return result.err(
             productionError(
@@ -151,9 +194,93 @@ export const makeAdvanceProductionStage = (deps: {
           );
 
         let nextState: 'started' | 'completed';
+        let startAudit: EarlyStartAudit | null = null;
         let completionAudit: EarlyCompletionAudit | null = null;
         if (decision.value.status === 'confirmation_required') {
-          if (command.transition !== 'complete')
+          if (
+            decision.value.action === 'start' &&
+            command.transition === 'start'
+          ) {
+            const confirmationRequired = makeStageStartConfirmationRequired({
+              locationId: command.locationId,
+              stageRunId: command.stageRunId,
+              actorId: command.actorId,
+              expectedVersion: command.expectedVersion,
+              code: decision.value.code,
+              message: decision.value.message,
+              timing: decision.value.timing,
+            });
+            if (command.confirmation === undefined)
+              return result.ok(confirmationRequired);
+
+            if (
+              !matchesStageStartConfirmation({
+                locationId: command.locationId,
+                stageRunId: command.stageRunId,
+                actorId: command.actorId,
+                expectedVersion: command.expectedVersion,
+                timing: decision.value.timing,
+                now,
+                confirmation: command.confirmation,
+              })
+            )
+              return result.err(
+                productionError(
+                  'STAGE_START_CONFIRMATION_STALE',
+                  'The early-start confirmation is no longer current.',
+                ),
+              );
+
+            nextState = 'started';
+            startAudit = earlyStartAudit({
+              actorId: command.actorId,
+              confirmation: command.confirmation,
+              timing: decision.value.timing,
+              now,
+            });
+          } else if (
+            decision.value.action === 'complete' &&
+            command.transition === 'complete'
+          ) {
+            const confirmationRequired =
+              makeStageCompletionConfirmationRequired({
+                locationId: command.locationId,
+                stageRunId: command.stageRunId,
+                actorId: command.actorId,
+                expectedVersion: command.expectedVersion,
+                code: decision.value.code,
+                message: decision.value.message,
+                timing: decision.value.timing,
+              });
+            if (command.confirmation === undefined)
+              return result.ok(confirmationRequired);
+
+            if (
+              !matchesStageCompletionConfirmation({
+                locationId: command.locationId,
+                stageRunId: command.stageRunId,
+                actorId: command.actorId,
+                expectedVersion: command.expectedVersion,
+                timing: decision.value.timing,
+                now,
+                confirmation: command.confirmation,
+              })
+            )
+              return result.err(
+                productionError(
+                  'STAGE_COMPLETION_CONFIRMATION_STALE',
+                  'The early-completion confirmation is no longer current.',
+                ),
+              );
+
+            nextState = 'completed';
+            completionAudit = earlyCompletionAudit({
+              actorId: command.actorId,
+              confirmation: command.confirmation,
+              timing: decision.value.timing,
+              now,
+            });
+          } else
             return result.err(
               productionError(
                 'STAGE_POLICY_INVALID_RESULT',
@@ -161,44 +288,6 @@ export const makeAdvanceProductionStage = (deps: {
                 500,
               ),
             );
-
-          const confirmationRequired = makeStageCompletionConfirmationRequired({
-            locationId: command.locationId,
-            stageRunId: command.stageRunId,
-            actorId: command.actorId,
-            expectedVersion: command.expectedVersion,
-            code: decision.value.code,
-            message: decision.value.message,
-            timing: decision.value.timing,
-          });
-          if (command.confirmation === undefined)
-            return result.ok(confirmationRequired);
-
-          if (
-            !matchesStageCompletionConfirmation({
-              locationId: command.locationId,
-              stageRunId: command.stageRunId,
-              actorId: command.actorId,
-              expectedVersion: command.expectedVersion,
-              timing: decision.value.timing,
-              now,
-              confirmation: command.confirmation,
-            })
-          )
-            return result.err(
-              productionError(
-                'STAGE_COMPLETION_CONFIRMATION_STALE',
-                'The early-completion confirmation is no longer current.',
-              ),
-            );
-
-          nextState = 'completed';
-          completionAudit = earlyCompletionAudit({
-            actorId: command.actorId,
-            confirmation: command.confirmation,
-            timing: decision.value.timing,
-            now,
-          });
         } else {
           if (decision.value.state === 'planned')
             return result.err(
@@ -242,6 +331,7 @@ export const makeAdvanceProductionStage = (deps: {
           idempotencyKey: command.idempotencyKey,
           payload: {
             version: mutation.version,
+            ...(startAudit === null ? {} : { earlyStart: startAudit }),
             ...(completionAudit === null
               ? {}
               : { earlyCompletion: completionAudit }),

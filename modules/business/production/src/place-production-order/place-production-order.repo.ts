@@ -418,7 +418,11 @@ const commitPlacement = async (
     existingChangedIds.length === 0
       ? []
       : await db
-          .select({ id: laundryProduction.stageRuns.id })
+          .select({
+            id: laundryProduction.stageRuns.id,
+            productionBatchId: laundryProduction.stageRuns.productionBatchId,
+            stageKind: laundryProduction.stageRuns.stageKind,
+          })
           .from(laundryProduction.stageRuns)
           .where(
             and(
@@ -430,13 +434,6 @@ const commitPlacement = async (
               eq(laundryProduction.stageRuns.status, 'planned'),
             ),
           );
-  if (existingStageRows.length > 0)
-    await db.delete(laundryProduction.stageRuns).where(
-      inArray(
-        laundryProduction.stageRuns.id,
-        existingStageRows.map((stage) => stage.id),
-      ),
-    );
 
   const stationRows = await db
     .select()
@@ -446,6 +443,12 @@ const commitPlacement = async (
     stationRows.map((station) => [station.kind, station.id]),
   );
   const batchIdByProjection = new Map<string, string>();
+  const stageRunIdByBatchAndKind = new Map<string, string>(
+    existingStageRows.map((stage) => [
+      `${stage.productionBatchId}:${stage.stageKind}`,
+      stage.id,
+    ]),
+  );
   let createdBatchId: string | null = null;
 
   for (const projection of input.proposal.affectedBatches) {
@@ -506,20 +509,60 @@ const commitPlacement = async (
       const stationId = stationByKind.get(stage.stage);
       if (stationId === undefined)
         throw new Error(`Production station missing: ${stage.stage}.`);
-      const stageRunId = ids.next();
-      await db.insert(laundryProduction.stageRuns).values({
-        id: stageRunId,
-        locationId: input.locationId,
-        productionBatchId: batchId,
-        stationId,
-        stageKind: stage.stage,
-        status: 'planned',
-        plannedStartAt: new Date(stage.startsAt),
-        plannedEndAt: new Date(stage.endsAt),
-        version: 1,
-        createdAt: input.now,
-        updatedAt: input.now,
-      });
+      const stageKey = `${batchId}:${stage.stage}`;
+      const existingStageRunId = stageRunIdByBatchAndKind.get(stageKey);
+      const stageRunId = existingStageRunId ?? ids.next();
+      if (existingStageRunId === undefined)
+        await db.insert(laundryProduction.stageRuns).values({
+          id: stageRunId,
+          locationId: input.locationId,
+          productionBatchId: batchId,
+          stationId,
+          stageKind: stage.stage,
+          status: 'planned',
+          plannedStartAt: new Date(stage.startsAt),
+          plannedEndAt: new Date(stage.endsAt),
+          version: 1,
+          createdAt: input.now,
+          updatedAt: input.now,
+        });
+      else {
+        const [updatedStage] = await db
+          .update(laundryProduction.stageRuns)
+          .set({
+            stationId,
+            plannedStartAt: new Date(stage.startsAt),
+            plannedEndAt: new Date(stage.endsAt),
+            version: sql`${laundryProduction.stageRuns.version} + 1`,
+            updatedAt: input.now,
+          })
+          .where(
+            and(
+              eq(laundryProduction.stageRuns.id, stageRunId),
+              eq(laundryProduction.stageRuns.locationId, input.locationId),
+              eq(laundryProduction.stageRuns.status, 'planned'),
+            ),
+          )
+          .returning({ id: laundryProduction.stageRuns.id });
+        if (updatedStage === undefined)
+          throw new Error('A queued stage changed during reprojection.');
+        await db
+          .delete(laundryProduction.stageMachineAssignments)
+          .where(
+            and(
+              eq(
+                laundryProduction.stageMachineAssignments.locationId,
+                input.locationId,
+              ),
+              eq(
+                laundryProduction.stageMachineAssignments.stageRunId,
+                stageRunId,
+              ),
+              eq(laundryProduction.stageMachineAssignments.status, 'planned'),
+            ),
+          );
+      }
+      stageRunIdByBatchAndKind.set(stageKey, stageRunId);
       if (stage.machineIds.length > 0)
         await db.insert(laundryProduction.stageMachineAssignments).values(
           stage.machineIds.map((machineId) => ({
@@ -551,9 +594,42 @@ const commitPlacement = async (
     active: true,
     placementProvenance:
       input.mode === 'manager_exact' ? 'manager_exact' : 'automatic',
+    placedAt: input.now,
+    placedBy: input.actorId,
     pinnedAt: input.mode === 'manager_exact' ? input.now : null,
     pinnedBy: input.mode === 'manager_exact' ? input.actorId : null,
   });
+  const targetStageRuns = [
+    'sorting',
+    'washing',
+    'drying',
+    'folding_packaging',
+  ].map((stageKind) => {
+    const stageRunId = stageRunIdByBatchAndKind.get(
+      `${targetBatchId}:${stageKind}`,
+    );
+    if (stageRunId === undefined)
+      throw new Error(`Placed order target stage is missing: ${stageKind}.`);
+    return { stageKind, stageRunId };
+  });
+  await db.insert(laundryProduction.productionOrderStageAttempts).values(
+    targetStageRuns.map(({ stageKind, stageRunId }) => ({
+      id: ids.next(),
+      locationId: input.locationId,
+      productionRunId: input.productionRunId,
+      productionOrderId: input.productionOrderId,
+      stageRunId,
+      stageKind,
+      attemptNumber: 1,
+      status: 'assigned',
+      assignmentReason:
+        input.mode === 'manager_exact' ? 'manager_exact' : 'automatic',
+      assignedAt: input.now,
+      assignedBy: input.actorId,
+      createdAt: input.now,
+      updatedAt: input.now,
+    })),
+  );
   const [updatedOrder] = await db
     .update(laundryProduction.productionOrders)
     .set({

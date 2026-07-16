@@ -120,6 +120,27 @@
       "when": 1784078876429,
       "tag": "0017_production_live_revisions",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784137564354,
+      "tag": "0018_stage_boundary_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784139827000,
+      "tag": "0019_production-batch-lifecycle-timestamps",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1784159769678,
+      "tag": "0020_fair_karma",
+      "breakpoints": true
     }
   ]
 }

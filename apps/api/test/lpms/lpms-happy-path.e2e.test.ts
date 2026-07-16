@@ -363,7 +363,17 @@ describe('LPMS run-centered app-composed happy path', () => {
       board.value.batches
         .flatMap((batch) => batch.stages)
         .flatMap((stage) => stage.allowedActions),
-    ).toEqual(['start']);
+    ).toEqual(board.value.batches.map(() => 'start'));
+    expect(
+      board.value.batches.every(
+        (batch) =>
+          batch.stages[0]?.stage === 'sorting' &&
+          batch.stages[0].allowedActions[0] === 'start' &&
+          batch.stages
+            .slice(1)
+            .every((stage) => stage.allowedActions.length === 0),
+      ),
+    ).toBe(true);
 
     const centsPayload = {
       action: 'order_updated',

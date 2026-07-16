@@ -24,4 +24,16 @@ export const makeProductionDomainSignals = (
     counters.increment('production.overtime_confirmations', {
       status: 'placed',
     }),
+  orderRouteOutcome: ({ operation, status, kind, reason }) =>
+    counters.increment('production.order_route_outcomes', {
+      operation,
+      status,
+      kind,
+      reason,
+    }),
+  progressReconciled: ({ target, runCompleted }) =>
+    counters.increment('production.progress_reconciliations', {
+      target,
+      runCompleted: String(runCompleted),
+    }),
 });

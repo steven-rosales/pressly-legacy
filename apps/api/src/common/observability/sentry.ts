@@ -57,6 +57,7 @@ const metricAttributeKeys = new Set([
   'route',
   'status',
   'operation',
+  'kind',
   'reason',
   'source',
   'outcome',

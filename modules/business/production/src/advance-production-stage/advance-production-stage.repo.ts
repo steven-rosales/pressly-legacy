@@ -1,7 +1,6 @@
 import {
   and,
   eq,
-  inArray,
   laundryProduction,
   sql,
   type Database,
@@ -11,6 +10,8 @@ import type { AdvanceProductionStageRepository } from './advance-production-stag
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { loadStageTransitionContext } from '../persistence/stage-transition-context.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
+import { completeProductionBatch } from '../persistence/complete-production-batch.ts';
+import { completeAssignedOrderStageAttempts } from '../persistence/complete-order-stage-attempts.ts';
 
 export const makeAdvanceProductionStageRepository = (deps: {
   db: Database;
@@ -35,8 +36,16 @@ export const makeAdvanceProductionStageRepository = (deps: {
           version: expectedVersion + 1,
           updatedAt: now,
           ...(nextState === 'started'
-            ? { actualStartAt: now, startedBy: actorId }
-            : { actualEndAt: now, completedBy: actorId }),
+            ? {
+                actualStartAt: now,
+                actualStartProvenance: 'live_observed',
+                startedBy: actorId,
+              }
+            : {
+                actualEndAt: now,
+                actualEndProvenance: 'live_observed',
+                completedBy: actorId,
+              }),
         })
         .where(
           and(
@@ -176,181 +185,21 @@ export const makeAdvanceProductionStageRepository = (deps: {
           throw new Error('Production run changed during stage transition.');
       }
 
-      if (
-        nextState === 'completed' &&
-        stage.stageKind === 'folding_packaging'
-      ) {
-        const activeOrderLinks = await db
-          .select({
-            productionOrderId:
-              laundryProduction.productionBatchOrders.productionOrderId,
-          })
-          .from(laundryProduction.productionBatchOrders)
-          .where(
-            and(
-              eq(
-                laundryProduction.productionBatchOrders.locationId,
-                locationId,
-              ),
-              eq(
-                laundryProduction.productionBatchOrders.productionBatchId,
-                batch.id,
-              ),
-              eq(laundryProduction.productionBatchOrders.active, true),
-            ),
-          );
-        const orderIds = activeOrderLinks.map((link) => link.productionOrderId);
-        if (orderIds.length === 0)
-          throw new Error('Finished batch has no active production orders.');
+      if (nextState === 'completed')
+        await completeAssignedOrderStageAttempts(db, {
+          locationId,
+          stageRunId: stage.id,
+          actorId,
+          now,
+        });
 
-        const finishedOrders = await db
-          .update(laundryProduction.productionOrders)
-          .set({
-            status: 'finished',
-            finishedAt: now,
-            version: sql`${laundryProduction.productionOrders.version} + 1`,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(laundryProduction.productionOrders.locationId, locationId),
-              inArray(laundryProduction.productionOrders.id, orderIds),
-              eq(laundryProduction.productionOrders.status, 'scheduled'),
-            ),
-          )
-          .returning({
-            id: laundryProduction.productionOrders.id,
-            bagCount: laundryProduction.productionOrders.bagCount,
-          });
-        if (finishedOrders.length !== orderIds.length)
-          throw new Error(
-            'Finished batch contains an order outside scheduled production.',
-          );
-
-        if (finishedOrders.some((order) => order.bagCount === null))
-          throw new Error('Finished production order is missing bag intake.');
-        const expectedBagCount = finishedOrders.reduce(
-          (total, order) => total + order.bagCount!,
-          0,
-        );
-        const finishedBags = await db
-          .update(laundryProduction.bags)
-          .set({ status: 'finished' })
-          .where(inArray(laundryProduction.bags.productionOrderId, orderIds))
-          .returning({ id: laundryProduction.bags.id });
-        if (finishedBags.length !== expectedBagCount)
-          throw new Error(
-            'Finished production order bag count is inconsistent.',
-          );
-
-        const deactivatedOrderLinks = await db
-          .update(laundryProduction.productionBatchOrders)
-          .set({ active: false })
-          .where(
-            and(
-              eq(
-                laundryProduction.productionBatchOrders.locationId,
-                locationId,
-              ),
-              eq(
-                laundryProduction.productionBatchOrders.productionBatchId,
-                batch.id,
-              ),
-              eq(laundryProduction.productionBatchOrders.active, true),
-            ),
-          )
-          .returning({
-            productionOrderId:
-              laundryProduction.productionBatchOrders.productionOrderId,
-          });
-        if (deactivatedOrderLinks.length !== orderIds.length)
-          throw new Error('Production batch order links changed concurrently.');
-
-        const runBatches = await db
-          .select()
-          .from(laundryProduction.productionBatches)
-          .where(
-            and(
-              eq(laundryProduction.productionBatches.locationId, locationId),
-              eq(
-                laundryProduction.productionBatches.productionRunId,
-                batch.productionRunId,
-              ),
-            ),
-          );
-        if (runBatches.every((candidate) => candidate.status === 'finished')) {
-          const [run] = await db
-            .select()
-            .from(laundryProduction.productionRuns)
-            .where(
-              and(
-                eq(laundryProduction.productionRuns.locationId, locationId),
-                eq(laundryProduction.productionRuns.id, batch.productionRunId),
-              ),
-            )
-            .limit(1);
-          if (run === undefined) throw new Error('Production run not found.');
-          const [completedRun] = await db
-            .update(laundryProduction.productionRuns)
-            .set({
-              status: 'completed',
-              completedAt: now,
-              version: run.version + 1,
-              updatedAt: now,
-            })
-            .where(
-              and(
-                eq(laundryProduction.productionRuns.locationId, locationId),
-                eq(laundryProduction.productionRuns.id, run.id),
-                eq(laundryProduction.productionRuns.status, 'started'),
-                eq(laundryProduction.productionRuns.version, run.version),
-              ),
-            )
-            .returning({ id: laundryProduction.productionRuns.id });
-          if (completedRun === undefined)
-            throw new Error('Production run changed during completion.');
-
-          const siblingRuns = await db
-            .select({
-              id: laundryProduction.productionRuns.id,
-              status: laundryProduction.productionRuns.status,
-            })
-            .from(laundryProduction.productionRuns)
-            .where(
-              and(
-                eq(laundryProduction.productionRuns.locationId, locationId),
-                eq(
-                  laundryProduction.productionRuns.productionShiftId,
-                  run.productionShiftId,
-                ),
-              ),
-            );
-          if (
-            siblingRuns.every((candidate) => candidate.status === 'completed')
-          ) {
-            const [closedShift] = await db
-              .update(laundryProduction.productionShifts)
-              .set({
-                status: 'closed',
-                version: sql`${laundryProduction.productionShifts.version} + 1`,
-                updatedAt: now,
-              })
-              .where(
-                and(
-                  eq(laundryProduction.productionShifts.locationId, locationId),
-                  eq(
-                    laundryProduction.productionShifts.id,
-                    run.productionShiftId,
-                  ),
-                  eq(laundryProduction.productionShifts.status, 'open'),
-                ),
-              )
-              .returning({ id: laundryProduction.productionShifts.id });
-            if (closedShift === undefined)
-              throw new Error('Production shift changed during completion.');
-          }
-        }
-      }
+      if (nextState === 'completed' && stage.stageKind === 'folding_packaging')
+        await completeProductionBatch(db, {
+          locationId,
+          productionBatchId: batch.id,
+          productionRunId: batch.productionRunId,
+          now,
+        });
 
       return { entityId: stage.id, version: stage.version, replayed: false };
     },

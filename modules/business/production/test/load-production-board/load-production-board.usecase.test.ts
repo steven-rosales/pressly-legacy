@@ -41,6 +41,11 @@ const projection = (stageStarted = false) => {
     plannedEndAt: new Date(now.getTime() + (index + 1) * pulseMs),
     actualStartAt: stageStarted && index === 0 ? now : null,
     actualEndAt: null,
+    actualStartProvenance:
+      stageStarted && index === 0
+        ? ('live_observed' as const)
+        : ('not_recorded' as const),
+    actualEndProvenance: 'not_recorded' as const,
     version: 1,
   }));
   return projectProductionBoard({
@@ -154,8 +159,8 @@ describe('load production board', () => {
       nextAction: {
         state: 'blocked',
         action: 'start',
-        code: 'STAGE_BOUNDARY_NOT_REACHED',
-        availableAt: '2026-07-12T14:56:00.000Z',
+        code: 'PREVIOUS_STAGE_INCOMPLETE',
+        availableAt: null,
       },
       allowedActions: [],
     });

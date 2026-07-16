@@ -29,6 +29,8 @@ export type CounterName =
   | 'production.queue_conflicts'
   | 'production.batch_freezes'
   | 'production.overtime_confirmations'
+  | 'production.order_route_outcomes'
+  | 'production.progress_reconciliations'
   | 'deployment.failures';
 
 export type CounterLabels = Readonly<Record<string, string>>;

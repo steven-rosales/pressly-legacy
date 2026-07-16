@@ -8,8 +8,8 @@ import {
   integer,
   jsonb,
   numeric,
+  pgEnum,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -27,6 +27,12 @@ const timestamps = {
 
 const weight = (name: string) =>
   numeric(name, { precision: 12, scale: 3, mode: 'number' });
+
+export const stageBoundaryProvenanceEnum = pgEnum('stage_boundary_provenance', [
+  'live_observed',
+  'operator_reported',
+  'not_recorded',
+]);
 
 export const productionLocations = pgTable('production_locations', {
   id: text('id').primaryKey(),
@@ -151,6 +157,11 @@ export const productionOrders = pgTable(
     index('production_orders_location_status_idx').on(
       table.locationId,
       table.status,
+    ),
+    index('production_orders_location_due_id_idx').on(
+      table.locationId,
+      table.dueAt,
+      table.id,
     ),
     uniqueIndex('production_orders_id_location_unique').on(
       table.id,
@@ -459,6 +470,10 @@ export const productionBatches = pgTable(
       'production_batches_nonqueued_membership_frozen',
       sql`${table.status} = 'queued' or (${table.membershipFrozenAt} is not null and ${table.membershipFrozenBy} is not null)`,
     ),
+    check(
+      'production_batches_lifecycle_timestamps_valid',
+      sql`(${table.status} = 'queued' and ${table.startedAt} is null and ${table.finishedAt} is null) or (${table.status} <> 'queued' and ${table.startedAt} is not null and ((${table.status} = 'finished') = (${table.finishedAt} is not null)))`,
+    ),
     foreignKey({
       name: 'production_batches_run_location_fk',
       columns: [table.productionRunId, table.locationId],
@@ -470,6 +485,7 @@ export const productionBatches = pgTable(
 export const productionBatchOrders = pgTable(
   'production_batch_orders',
   {
+    id: uuid('id').primaryKey().defaultRandom(),
     locationId: text('location_id')
       .notNull()
       .references(() => productionLocations.id),
@@ -479,21 +495,35 @@ export const productionBatchOrders = pgTable(
     placementProvenance: text('placement_provenance')
       .notNull()
       .default('initial_schedule'),
+    placedAt: timestamp('placed_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    placedBy: uuid('placed_by'),
     pinnedAt: timestamp('pinned_at', { withTimezone: true }),
     pinnedBy: uuid('pinned_by'),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    releasedBy: uuid('released_by'),
+    releaseReason: text('release_reason'),
   },
   (table) => [
-    primaryKey({ columns: [table.productionBatchId, table.productionOrderId] }),
     uniqueIndex('production_batch_orders_active_unique')
       .on(table.productionOrderId)
       .where(sql`${table.active} = true`),
+    index('production_batch_orders_order_history_idx').on(
+      table.productionOrderId,
+      table.placedAt,
+    ),
     check(
       'production_batch_orders_known_placement_provenance',
-      sql`${table.placementProvenance} in ('initial_schedule', 'automatic', 'manager_exact')`,
+      sql`${table.placementProvenance} in ('initial_schedule', 'automatic', 'manager_exact', 'manual_rebatch', 'exception_route')`,
     ),
     check(
       'production_batch_orders_pin_valid',
-      sql`(${table.placementProvenance} = 'manager_exact' and ${table.pinnedAt} is not null and ${table.pinnedBy} is not null) or (${table.placementProvenance} <> 'manager_exact' and ${table.pinnedAt} is null and ${table.pinnedBy} is null)`,
+      sql`(${table.placementProvenance} in ('manager_exact', 'manual_rebatch') and ${table.pinnedAt} is not null and ${table.pinnedBy} is not null) or (${table.placementProvenance} not in ('manager_exact', 'manual_rebatch') and ${table.pinnedAt} is null and ${table.pinnedBy} is null)`,
+    ),
+    check(
+      'production_batch_orders_release_valid',
+      sql`(${table.releasedAt} is null and ${table.releasedBy} is null and ${table.releaseReason} is null) or (${table.active} = false and ${table.releasedAt} is not null and ${table.releasedBy} is not null and ${table.releaseReason} is not null)`,
     ),
     foreignKey({
       name: 'production_batch_orders_batch_location_fk',
@@ -527,6 +557,14 @@ export const stageRuns = pgTable(
     }).notNull(),
     actualStartAt: timestamp('actual_start_at', { withTimezone: true }),
     actualEndAt: timestamp('actual_end_at', { withTimezone: true }),
+    actualStartProvenance: stageBoundaryProvenanceEnum(
+      'actual_start_provenance',
+    )
+      .notNull()
+      .default('not_recorded'),
+    actualEndProvenance: stageBoundaryProvenanceEnum('actual_end_provenance')
+      .notNull()
+      .default('not_recorded'),
     startedBy: uuid('started_by'),
     completedBy: uuid('completed_by'),
     version: integer('version').notNull().default(1),
@@ -548,6 +586,18 @@ export const stageRuns = pgTable(
     check(
       'stage_runs_known_stage',
       sql`${table.stageKind} in ('sorting', 'washing', 'drying', 'folding_packaging')`,
+    ),
+    check(
+      'stage_runs_actual_start_provenance_valid',
+      sql`(${table.actualStartAt} is null and ${table.actualStartProvenance} = 'not_recorded') or (${table.actualStartAt} is not null and ${table.actualStartProvenance} in ('live_observed', 'operator_reported'))`,
+    ),
+    check(
+      'stage_runs_actual_end_provenance_valid',
+      sql`(${table.actualEndAt} is null and ${table.actualEndProvenance} = 'not_recorded') or (${table.actualEndAt} is not null and ${table.actualEndProvenance} in ('live_observed', 'operator_reported'))`,
+    ),
+    check(
+      'stage_runs_actual_window_valid',
+      sql`${table.actualStartAt} is null or ${table.actualEndAt} is null or ${table.actualEndAt} >= ${table.actualStartAt}`,
     ),
     foreignKey({
       name: 'stage_runs_batch_location_fk',
@@ -604,6 +654,95 @@ export const stageMachineAssignments = pgTable(
   ],
 );
 
+/**
+ * An order route is the ordered set of immutable attempts through physical
+ * stage slots. Stage runs remain the batch-level floor truth; these rows make
+ * exceptions such as extra drying and rewash explicit without rewriting the
+ * stages an order already completed.
+ */
+export const productionOrderStageAttempts = pgTable(
+  'production_order_stage_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    locationId: text('location_id')
+      .notNull()
+      .references(() => productionLocations.id),
+    productionRunId: uuid('production_run_id').notNull(),
+    productionOrderId: uuid('production_order_id').notNull(),
+    stageRunId: uuid('stage_run_id').notNull(),
+    stageKind: text('stage_kind').notNull(),
+    attemptNumber: integer('attempt_number').notNull(),
+    status: text('status').notNull().default('assigned'),
+    assignmentReason: text('assignment_reason').notNull(),
+    assignedAt: timestamp('assigned_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    assignedBy: uuid('assigned_by'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    completedBy: uuid('completed_by'),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    releasedBy: uuid('released_by'),
+    releaseReason: text('release_reason'),
+    metadata: jsonb('metadata_json')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('production_order_stage_attempts_order_stage_number_unique').on(
+      table.productionOrderId,
+      table.stageKind,
+      table.attemptNumber,
+    ),
+    uniqueIndex('production_order_stage_attempts_one_assigned_unique')
+      .on(table.productionOrderId, table.stageKind)
+      .where(sql`${table.status} = 'assigned'`),
+    index('production_order_stage_attempts_stage_idx').on(
+      table.stageRunId,
+      table.status,
+    ),
+    index('production_order_stage_attempts_order_idx').on(
+      table.productionOrderId,
+      table.assignedAt,
+    ),
+    check(
+      'production_order_stage_attempts_known_stage',
+      sql`${table.stageKind} in ('sorting', 'washing', 'drying', 'folding_packaging')`,
+    ),
+    check(
+      'production_order_stage_attempts_positive_number',
+      sql`${table.attemptNumber} > 0`,
+    ),
+    check(
+      'production_order_stage_attempts_known_status',
+      sql`${table.status} in ('assigned', 'completed', 'released')`,
+    ),
+    check(
+      'production_order_stage_attempts_known_assignment_reason',
+      sql`${table.assignmentReason} in ('initial_schedule', 'automatic', 'manager_exact', 'manual_rebatch', 'needs_more_drying', 'rewash_required', 'sorting_incomplete', 'stage_incomplete', 'other')`,
+    ),
+    check(
+      'production_order_stage_attempts_lifecycle_valid',
+      sql`(${table.status} = 'assigned' and ${table.completedAt} is null and ${table.completedBy} is null and ${table.releasedAt} is null and ${table.releasedBy} is null and ${table.releaseReason} is null) or (${table.status} = 'completed' and ${table.completedAt} is not null and ${table.releasedAt} is null and ${table.releasedBy} is null and ${table.releaseReason} is null) or (${table.status} = 'released' and ${table.completedAt} is null and ${table.completedBy} is null and ${table.releasedAt} is not null and ${table.releasedBy} is not null and ${table.releaseReason} is not null)`,
+    ),
+    foreignKey({
+      name: 'production_order_stage_attempts_run_location_fk',
+      columns: [table.productionRunId, table.locationId],
+      foreignColumns: [productionRuns.id, productionRuns.locationId],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'production_order_stage_attempts_order_location_fk',
+      columns: [table.productionOrderId, table.locationId],
+      foreignColumns: [productionOrders.id, productionOrders.locationId],
+    }),
+    foreignKey({
+      name: 'production_order_stage_attempts_stage_location_fk',
+      columns: [table.stageRunId, table.locationId],
+      foreignColumns: [stageRuns.id, stageRuns.locationId],
+    }),
+  ],
+);
+
 export const workEvents = pgTable(
   'work_events',
   {
@@ -630,6 +769,11 @@ export const workEvents = pgTable(
       table.entityType,
       table.entityId,
       table.createdAt,
+    ),
+    index('work_events_location_created_id_idx').on(
+      table.locationId,
+      table.createdAt,
+      table.id,
     ),
   ],
 );

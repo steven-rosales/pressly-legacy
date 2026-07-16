@@ -1,6 +1,10 @@
 import type {
+  ProductionFloorMilestone,
+  ProductionFloorProgressTarget,
+  ProductionOrderRouteReason,
   ProductionStageCompletionTiming,
   ProductionStageNextAction,
+  ProductionStageStartTiming,
 } from '@pressly/contracts';
 
 export type PolicyDecision<T> =
@@ -8,6 +12,83 @@ export type PolicyDecision<T> =
   | Readonly<{
       tag: 'err';
       error: Readonly<{ code: string; message: string }>;
+    }>;
+
+export type OrderRoutingStage =
+  | 'sorting'
+  | 'washing'
+  | 'drying'
+  | 'folding_packaging';
+
+export type OrderRoutingPolicyInput = Readonly<{
+  command: 'queued_rebatch' | 'defer_or_rework';
+  order: Readonly<{ productionOrderId: string; weightLbs: number }>;
+  source: Readonly<{
+    productionBatchId: string;
+    sequence: number;
+    status:
+      | 'queued'
+      | 'sorting'
+      | 'washing'
+      | 'drying'
+      | 'folding_packaging'
+      | 'finished';
+    membershipFrozen: boolean;
+  }>;
+  currentStage: OrderRoutingStage;
+  restartStage: OrderRoutingStage;
+  targetCandidates: readonly Readonly<{
+    productionBatchId: string;
+    sequence: number;
+    status:
+      | 'queued'
+      | 'sorting'
+      | 'washing'
+      | 'drying'
+      | 'folding_packaging'
+      | 'finished';
+    membershipFrozen: boolean;
+    stages: readonly Readonly<{
+      stage: OrderRoutingStage;
+      status: 'planned' | 'started' | 'completed';
+      assignedWeightLbs: number;
+      capacityLbs: number;
+    }>[];
+  }>[];
+}>;
+
+export type OrderRoutingPolicyDecision =
+  | Readonly<{
+      decision: 'rejected';
+      command: OrderRoutingPolicyInput['command'];
+      reason: Readonly<{ code: string; message: string }>;
+    }>
+  | Readonly<{
+      decision: 'accepted';
+      command: OrderRoutingPolicyInput['command'];
+      wholeOrder: Readonly<{
+        productionOrderId: string;
+        weightLbs: number;
+      }>;
+      route: Readonly<{
+        sourceProductionBatchId: string;
+        sourceSequence: number;
+        targetProductionBatchId: string;
+        targetSequence: number;
+        currentStage: OrderRoutingStage;
+        restartStage: OrderRoutingStage;
+        releasedUnfinishedStages: readonly OrderRoutingStage[];
+        reworkStages: readonly OrderRoutingStage[];
+        targetAssignments: readonly Readonly<{
+          stage: OrderRoutingStage;
+          sourceDisposition:
+            | 'release_unfinished'
+            | 'preserve_completed_for_rework';
+          assignedWeightBeforeLbs: number;
+          assignedWeightAfterLbs: number;
+          capacityLbs: number;
+        }>[];
+      }>;
     }>;
 
 export type ProductionSignalsPort = Readonly<{
@@ -21,6 +102,22 @@ export type ProductionSignalsPort = Readonly<{
   queueConflict: (input: { operation: string }) => void;
   batchFrozen: (input: { source: 'explicit' | 'stage_start' }) => void;
   overtimeConfirmed: () => void;
+  orderRouteOutcome: (input: {
+    operation: 'preview' | 'commit';
+    status:
+      | 'proposed'
+      | 'committed'
+      | 'replayed'
+      | 'rejected'
+      | 'conflict'
+      | 'failed';
+    kind: 'queued_move' | 'exception';
+    reason: ProductionOrderRouteReason;
+  }) => void;
+  progressReconciled: (input: {
+    target: ProductionFloorProgressTarget;
+    runCompleted: boolean;
+  }) => void;
 }>;
 
 export const nullProductionSignals: ProductionSignalsPort = {
@@ -30,9 +127,14 @@ export const nullProductionSignals: ProductionSignalsPort = {
   queueConflict: () => undefined,
   batchFrozen: () => undefined,
   overtimeConfirmed: () => undefined,
+  orderRouteOutcome: () => undefined,
+  progressReconciled: () => undefined,
 };
 
 export type ProductionPolicyPort = Readonly<{
+  evaluateOrderRouting: (
+    input: OrderRoutingPolicyInput,
+  ) => OrderRoutingPolicyDecision;
   evaluateEligibility: (input: {
     state: 'ready_for_production' | 'not_ready';
     derivedWeightLbs: number;
@@ -102,6 +204,48 @@ export type ProductionPolicyPort = Readonly<{
       }> | null;
     }>;
   }) => PolicyDecision<Readonly<{ commit: true }>>;
+  evaluateFloorProgressReconciliation: (input: {
+    runStatus: string;
+    batchStatus: string;
+    stages: readonly Readonly<{
+      stageRunId: string;
+      stage: string;
+      status: string;
+    }>[];
+    target: ProductionFloorProgressTarget;
+    sameKindAlreadyActive: boolean;
+    assignedMachineIds: readonly string[];
+    overlappingMachineIds: readonly string[];
+  }) => PolicyDecision<
+    Readonly<{
+      currentMilestone: ProductionFloorMilestone;
+      targetMilestone: ProductionFloorProgressTarget;
+      batchStatus:
+        | 'sorting'
+        | 'washing'
+        | 'drying'
+        | 'folding_packaging'
+        | 'finished';
+      completedStages: readonly (
+        | 'sorting'
+        | 'washing'
+        | 'drying'
+        | 'folding_packaging'
+      )[];
+      activeStage:
+        | 'sorting'
+        | 'washing'
+        | 'drying'
+        | 'folding_packaging'
+        | null;
+      stages: readonly Readonly<{
+        stageRunId: string;
+        stage: 'sorting' | 'washing' | 'drying' | 'folding_packaging';
+        currentStatus: 'planned' | 'started' | 'completed';
+        nextStatus: 'planned' | 'started' | 'completed';
+      }>[];
+    }>
+  >;
   evaluateStageNextAction: (
     entity: Readonly<{
       state: string;
@@ -140,6 +284,13 @@ export type ProductionPolicyPort = Readonly<{
     | Readonly<{
         status: 'allowed';
         state: 'planned' | 'started' | 'completed';
+      }>
+    | Readonly<{
+        status: 'confirmation_required';
+        action: 'start';
+        code: 'PLANNED_START_NOT_REACHED';
+        message: string;
+        timing: ProductionStageStartTiming;
       }>
     | Readonly<{
         status: 'confirmation_required';

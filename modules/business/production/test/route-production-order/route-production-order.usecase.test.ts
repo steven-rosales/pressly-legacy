@@ -1,0 +1,251 @@
+import type { CommitProductionOrderRouteResult } from '@pressly/contracts';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  nullProductionSignals,
+  type StoredWorkEvent,
+} from '../../src/production.port.ts';
+import type {
+  ProductionOrderRoutingContext,
+  RouteProductionOrderRepository,
+} from '../../src/route-production-order/route-production-order.port.ts';
+import { makeRouteProductionOrder } from '../../src/route-production-order/route-production-order.usecase.ts';
+import { allowPolicy, makeClock } from '../support/production.fake.ts';
+
+const ids = {
+  run: '10000000-0000-4000-8000-000000000001',
+  order: '10000000-0000-4000-8000-000000000002',
+  source: '10000000-0000-4000-8000-000000000003',
+  target: '10000000-0000-4000-8000-000000000004',
+  membership: '10000000-0000-4000-8000-000000000005',
+  actor: '10000000-0000-4000-8000-000000000006',
+} as const;
+
+const stageIds = {
+  sorting: '20000000-0000-4000-8000-000000000001',
+  washing: '20000000-0000-4000-8000-000000000002',
+  drying: '20000000-0000-4000-8000-000000000003',
+  folding_packaging: '20000000-0000-4000-8000-000000000004',
+} as const;
+
+const context = (): ProductionOrderRoutingContext => ({
+  run: { id: ids.run, status: 'started', queueVersion: 4 },
+  order: { id: ids.order, status: 'scheduled', version: 3, weightLbs: 25 },
+  source: {
+    membershipId: ids.membership,
+    productionBatchId: ids.source,
+    sequence: 0,
+    status: 'queued',
+    membershipFrozen: false,
+    version: 2,
+    derivedWeightLbs: 70,
+    activeOrderCount: 2,
+  },
+  candidates: [
+    {
+      productionBatchId: ids.target,
+      sequence: 1,
+      status: 'queued',
+      membershipFrozen: false,
+      version: 5,
+      derivedWeightLbs: 50,
+      pulseCapacityLbs: 100,
+      stages: (
+        ['sorting', 'washing', 'drying', 'folding_packaging'] as const
+      ).map((stage) => ({
+        stageRunId: stageIds[stage],
+        stage,
+        status: 'planned' as const,
+        assignedWeightLbs: 50,
+        capacityLbs: 100,
+      })),
+    },
+  ],
+  attempts: [],
+});
+
+const command = {
+  locationId: 'location-1',
+  productionRunId: ids.run,
+  productionOrderId: ids.order,
+  actorId: ids.actor,
+  actorRole: 'operator' as const,
+  kind: 'queued_move' as const,
+  reason: 'manual_rebatch' as const,
+  restartStage: 'sorting' as const,
+  targetProductionBatchId: ids.target,
+  expectedQueueVersion: 4,
+  expectedOrderVersion: 3,
+  expectedSourceBatchVersion: 2,
+};
+
+const setup = (storedEvent: StoredWorkEvent | null = null) => {
+  const loadContext = vi.fn(async () => context());
+  let appliedWorkEvent = storedEvent;
+  const findWorkEvent = vi.fn(async () => appliedWorkEvent);
+  const commit = vi.fn(async (input) => {
+    const output: CommitProductionOrderRouteResult = {
+      status: 'routed',
+      proposal: input.proposal,
+      queueVersion: 5,
+      orderVersion: 4,
+      sourceBatchVersion: 3,
+      targetBatchVersion: 6,
+      createdAttemptIds: [stageIds.sorting],
+      replayed: false,
+    };
+    appliedWorkEvent = {
+      command: input.idempotency,
+      result: output,
+      valid: true,
+    };
+    return output;
+  });
+  const repo: RouteProductionOrderRepository = {
+    transaction: async (work) => work({ loadContext, findWorkEvent, commit }),
+  };
+  const orderRouteOutcome = vi.fn();
+  const queueConflict = vi.fn();
+  const signals = {
+    ...nullProductionSignals,
+    orderRouteOutcome,
+    queueConflict,
+  };
+  const route = makeRouteProductionOrder({
+    repo,
+    policy: allowPolicy,
+    clock: makeClock('2026-07-15T16:00:00.000Z').clock,
+    signals,
+  });
+  return {
+    route,
+    loadContext,
+    findWorkEvent,
+    commit,
+    orderRouteOutcome,
+    queueConflict,
+  };
+};
+
+describe('route production order', () => {
+  it('previews a deterministic whole-order move without mutating persistence', async () => {
+    const { route, commit, orderRouteOutcome } = setup();
+    const outcome = await route.preview(command);
+    expect(outcome.tag).toBe('ok');
+    if (outcome.tag !== 'ok') return;
+    expect(outcome.value).toMatchObject({
+      productionOrderId: ids.order,
+      sourceProductionBatchId: ids.source,
+      targetProductionBatchId: ids.target,
+      releasedStages: ['sorting', 'washing', 'drying', 'folding_packaging'],
+      assignedStages: ['sorting', 'washing', 'drying', 'folding_packaging'],
+    });
+    expect(outcome.value.proposalHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(commit).not.toHaveBeenCalled();
+    expect(orderRouteOutcome).toHaveBeenCalledWith({
+      operation: 'preview',
+      status: 'proposed',
+      kind: 'queued_move',
+      reason: 'manual_rebatch',
+    });
+  });
+
+  it('re-evaluates the hash under lock before one atomic commit', async () => {
+    const { route, loadContext, commit, orderRouteOutcome } = setup();
+    const preview = await route.preview(command);
+    if (preview.tag !== 'ok') throw new Error('Expected a preview.');
+    const outcome = await route.commit({
+      ...command,
+      proposalHash: preview.value.proposalHash,
+      idempotencyKey: 'route-production-order-1',
+    });
+    expect(outcome).toMatchObject({
+      tag: 'ok',
+      value: { status: 'routed', queueVersion: 5, orderVersion: 4 },
+    });
+    expect(loadContext).toHaveBeenLastCalledWith(
+      'location-1',
+      ids.run,
+      ids.order,
+      true,
+    );
+    expect(commit).toHaveBeenCalledOnce();
+    expect(orderRouteOutcome).toHaveBeenLastCalledWith({
+      operation: 'commit',
+      status: 'committed',
+      kind: 'queued_move',
+      reason: 'manual_rebatch',
+    });
+  });
+
+  it('rejects a stale queue version before proposing a route', async () => {
+    const { route, commit, orderRouteOutcome, queueConflict } = setup();
+    const outcome = await route.preview({
+      ...command,
+      expectedQueueVersion: 3,
+    });
+    expect(outcome).toMatchObject({
+      tag: 'err',
+      error: { code: 'production_queue_version_conflict' },
+    });
+    expect(commit).not.toHaveBeenCalled();
+    expect(orderRouteOutcome).toHaveBeenCalledWith({
+      operation: 'preview',
+      status: 'conflict',
+      kind: 'queued_move',
+      reason: 'manual_rebatch',
+    });
+    expect(queueConflict).toHaveBeenCalledWith({
+      operation: 'order_route_preview',
+    });
+  });
+
+  it('reports a bounded failure outcome when an atomic route cannot commit', async () => {
+    const { route, commit, orderRouteOutcome } = setup();
+    const preview = await route.preview(command);
+    if (preview.tag !== 'ok') throw new Error('Expected a preview.');
+    commit.mockRejectedValueOnce(new Error('database unavailable'));
+
+    const outcome = await route.commit({
+      ...command,
+      proposalHash: preview.value.proposalHash,
+      idempotencyKey: 'route-production-order-failure-1',
+    });
+
+    expect(outcome).toMatchObject({
+      tag: 'err',
+      error: { code: 'production_order_route_failed' },
+    });
+    expect(orderRouteOutcome).toHaveBeenLastCalledWith({
+      operation: 'commit',
+      status: 'failed',
+      kind: 'queued_move',
+      reason: 'manual_rebatch',
+    });
+  });
+
+  it('distinguishes an idempotent replay from a newly committed route', async () => {
+    const { route, commit, orderRouteOutcome } = setup();
+    const preview = await route.preview(command);
+    if (preview.tag !== 'ok') throw new Error('Expected a preview.');
+    const commitCommand = {
+      ...command,
+      proposalHash: preview.value.proposalHash,
+      idempotencyKey: 'route-production-order-replay-1',
+    };
+
+    await route.commit(commitCommand);
+    const replay = await route.commit(commitCommand);
+
+    expect(replay).toMatchObject({
+      tag: 'ok',
+      value: { status: 'routed', replayed: true },
+    });
+    expect(commit).toHaveBeenCalledOnce();
+    expect(orderRouteOutcome).toHaveBeenLastCalledWith({
+      operation: 'commit',
+      status: 'replayed',
+      kind: 'queued_move',
+      reason: 'manual_rebatch',
+    });
+  });
+});

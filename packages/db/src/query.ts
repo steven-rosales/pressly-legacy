@@ -8,6 +8,7 @@ export {
   eq,
   getTableName,
   gt,
+  gte,
   inArray,
   isNull,
   lt,
@@ -16,6 +17,8 @@ export {
   ne,
   or,
 } from 'drizzle-orm';
+
+export { getTableConfig } from 'drizzle-orm/pg-core';
 
 /**
  * Builds SQL fragments while binding every interpolated value as a parameter.

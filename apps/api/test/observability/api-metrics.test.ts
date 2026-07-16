@@ -204,4 +204,46 @@ describe('API request metrics', () => {
     expect(count).toHaveBeenCalledTimes(2);
     expect(warn).toHaveBeenCalledOnce();
   });
+
+  it('exports only bounded order-route metadata to logs and Sentry', () => {
+    const info = vi.fn();
+    const count = vi.fn();
+    const sinks = makeApiSignalSinks({
+      logger: { info, warn: vi.fn() } as unknown as Logger,
+      sentryEnabled: true,
+      metricsEnabled: true,
+      sentryMetrics: {
+        count,
+        gauge: vi.fn(),
+        distribution: vi.fn(),
+      } as never,
+    });
+
+    sinks.counters.increment('production.order_route_outcomes', {
+      operation: 'preview',
+      status: 'conflict',
+      kind: 'exception',
+      reason: 'needs_more_drying',
+    });
+
+    expect(info).toHaveBeenCalledWith('api counter incremented', {
+      metric: 'production.order_route_outcomes',
+      labels: {
+        operation: 'preview',
+        status: 'conflict',
+        kind: 'exception',
+        reason: 'needs_more_drying',
+      },
+      value: 1,
+    });
+    expect(count).toHaveBeenCalledWith('production.order_route_outcomes', 1, {
+      attributes: {
+        runtime: 'api',
+        operation: 'preview',
+        status: 'conflict',
+        kind: 'exception',
+        reason: 'needs_more_drying',
+      },
+    });
+  });
 });

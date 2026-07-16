@@ -97,6 +97,8 @@ LPMS PRODUCTION
 */
 
 export * from './production/production.contracts.ts';
+export * from './production/production-order-control.contracts.ts';
+export * from './production/production-history.contracts.ts';
 export type * from './production/production.command.ts';
 export type * from './production/production.result.ts';
 

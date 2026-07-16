@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import {
+  getTableConfig,
   getTableName,
   laundryProduction,
   webhookIngestion,
@@ -15,6 +16,14 @@ describe('LPMS schema', () => {
     expect(getTableName(laundryProduction.workEvents)).toBe('work_events');
   });
 
+  it('enforces production batch lifecycle timestamps in the schema', () => {
+    expect(
+      getTableConfig(laundryProduction.productionBatches).checks.map(
+        (candidate) => candidate.name,
+      ),
+    ).toContain('production_batches_lifecycle_timestamps_valid');
+  });
+
   it('exports production and ingestion through separate namespaces', () => {
     expect(Object.keys(laundryProduction)).toEqual(
       expect.arrayContaining([
@@ -22,6 +31,7 @@ describe('LPMS schema', () => {
         'orderDemands',
         'productionRuns',
         'productionBatchOrders',
+        'productionOrderStageAttempts',
         'workEvents',
       ]),
     );
@@ -72,9 +82,26 @@ describe('LPMS schema', () => {
     expect(laundryProduction.productionBatches.membershipFrozenAt.name).toBe(
       'membership_frozen_at',
     );
+    expect(laundryProduction.stageRuns.actualStartProvenance.name).toBe(
+      'actual_start_provenance',
+    );
+    expect(laundryProduction.stageRuns.actualEndProvenance.name).toBe(
+      'actual_end_provenance',
+    );
+    expect(laundryProduction.stageBoundaryProvenanceEnum.enumValues).toEqual([
+      'live_observed',
+      'operator_reported',
+      'not_recorded',
+    ]);
     expect(
       laundryProduction.productionBatchOrders.placementProvenance.name,
     ).toBe('placement_provenance');
+    expect(laundryProduction.productionBatchOrders.releasedAt.name).toBe(
+      'released_at',
+    );
+    expect(
+      laundryProduction.productionOrderStageAttempts.attemptNumber.name,
+    ).toBe('attempt_number');
 
     for (const table of [
       laundryProduction.machines,
@@ -82,6 +109,7 @@ describe('LPMS schema', () => {
       laundryProduction.productionRuns,
       laundryProduction.productionBatches,
       laundryProduction.productionBatchOrders,
+      laundryProduction.productionOrderStageAttempts,
       laundryProduction.stageRuns,
       laundryProduction.stageMachineAssignments,
     ]) {
@@ -206,5 +234,94 @@ describe('LPMS schema', () => {
     expect(migration).toContain('pressly_notify_production_change');
     expect(migration).toContain("pg_notify(\n    'pressly_production_changes'");
     expect(migration).toContain('AFTER INSERT ON "work_events"');
+  });
+
+  it('backfills honest provenance before constraining actual stage boundaries', async () => {
+    const migration = await readFile(
+      new URL(
+        '../src/migrations/0018_stage_boundary_provenance.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const startColumn =
+      'ADD COLUMN "actual_start_provenance" "stage_boundary_provenance"';
+    const startBackfill = 'SET "actual_start_provenance" = \'live_observed\'';
+    const startConstraint =
+      'ADD CONSTRAINT "stage_runs_actual_start_provenance_valid"';
+
+    expect(migration).toContain(
+      `CREATE TYPE "public"."stage_boundary_provenance" AS ENUM('live_observed', 'operator_reported', 'not_recorded')`,
+    );
+    expect(migration).toContain('WHERE "actual_start_at" IS NOT NULL');
+    expect(migration).toContain('WHERE "actual_end_at" IS NOT NULL');
+    expect(migration.indexOf(startBackfill)).toBeGreaterThan(
+      migration.indexOf(startColumn),
+    );
+    expect(migration.indexOf(startConstraint)).toBeGreaterThan(
+      migration.indexOf(startBackfill),
+    );
+    expect(migration).toContain('stage_runs_actual_end_provenance_valid');
+    expect(migration).toContain('stage_runs_actual_window_valid');
+  });
+
+  it('anchors legacy batch starts before enforcing lifecycle timestamps', async () => {
+    const migration = await readFile(
+      new URL(
+        '../src/migrations/0019_production-batch-lifecycle-timestamps.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const preflight = 'LPMS_BATCH_LIFECYCLE_MIGRATION_INCONSISTENT_TIMESTAMPS';
+    const backfill =
+      'SET "started_at" = COALESCE("membership_frozen_at", "updated_at")';
+    const constraint = 'production_batches_lifecycle_timestamps_valid';
+
+    expect(migration).toContain(preflight);
+    expect(migration).toContain(backfill);
+    expect(migration.indexOf(backfill)).toBeGreaterThan(
+      migration.indexOf(preflight),
+    );
+    expect(migration.indexOf(constraint)).toBeGreaterThan(
+      migration.indexOf(backfill),
+    );
+    expect(migration).toContain(
+      '"status" = \'queued\' and "production_batches"."started_at" is null',
+    );
+    expect(migration).toContain(
+      '("production_batches"."status" = \'finished\') = ("production_batches"."finished_at" is not null)',
+    );
+  });
+
+  it('backfills immutable order-stage attempts before enabling floor routing', async () => {
+    const migration = await readFile(
+      new URL('../src/migrations/0020_fair_karma.sql', import.meta.url),
+      'utf8',
+    );
+    const createAttempts = 'CREATE TABLE "production_order_stage_attempts"';
+    const membershipIdentity =
+      'ALTER TABLE "production_batch_orders" ADD COLUMN "id" uuid PRIMARY KEY';
+    const preflight =
+      'Cannot backfill order routes: inactive batch membership has unfinished stage work';
+    const completionPreflight =
+      'Cannot backfill order routes: completed stage has no actual completion boundary';
+    const backfill = 'INSERT INTO "production_order_stage_attempts"';
+    const routeUniqueness =
+      'production_order_stage_attempts_one_assigned_unique';
+
+    expect(migration).toContain(createAttempts);
+    expect(migration).toContain(membershipIdentity);
+    expect(migration).toContain(preflight);
+    expect(migration).toContain(completionPreflight);
+    expect(migration).toContain('\'{"backfilled":true}\'::jsonb');
+    expect(migration).toContain('"production_batch_orders"."active" = false');
+    expect(migration.indexOf(backfill)).toBeGreaterThan(
+      migration.indexOf(preflight),
+    );
+    expect(migration.indexOf(routeUniqueness)).toBeGreaterThan(
+      migration.indexOf(backfill),
+    );
+    expect(migration).not.toContain('DELETE FROM "production_batch_orders"');
   });
 });

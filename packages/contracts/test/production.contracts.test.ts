@@ -39,6 +39,10 @@ import {
   productionWorkspaceQuerySchema,
   productionStageNextActionSchema,
   productionStageCompletionConfirmationRequiredResultSchema,
+  productionStageStartConfirmationRequiredResultSchema,
+  reconcileProductionBatchProgressCommandSchema,
+  reconcileProductionBatchProgressRequestSchema,
+  productionBatchProgressReconciliationResultSchema,
   publishSchedulerConfigCommandSchema,
   publishSchedulerConfigRequestSchema,
   recordOrderIntakeCommandSchema,
@@ -593,6 +597,8 @@ describe('run-centered scheduling contracts', () => {
         plannedEndAt: '2026-07-12T15:00:00.000Z',
         actualStartAt: null,
         actualEndAt: null,
+        actualStartProvenance: 'not_recorded',
+        actualEndProvenance: 'not_recorded',
         machineIds: [],
         nextAction: {
           state: 'blocked',
@@ -808,11 +814,26 @@ describe('production discovery and intake contracts', () => {
 });
 
 describe('production stage availability contracts', () => {
-  it('separates confirmation-required completion from hard blocks', () => {
+  it('separates timing confirmations from hard blocks', () => {
     expect(
       productionStageNextActionSchema.safeParse({
         state: 'available',
         action: 'start',
+      }).success,
+    ).toBe(true);
+    expect(
+      productionStageNextActionSchema.safeParse({
+        state: 'confirmation_required',
+        action: 'start',
+        code: 'PLANNED_START_NOT_REACHED',
+        message: 'This stage is scheduled to start later.',
+        availableAt: '2026-07-12T15:00:00.000Z',
+        timing: {
+          plannedStartAt: '2026-07-12T15:00:00.000Z',
+          plannedEndAt: '2026-07-12T15:56:00.000Z',
+          observedAt: '2026-07-12T14:30:00.000Z',
+          remainingMilliseconds: 30 * 60_000,
+        },
       }).success,
     ).toBe(true);
     expect(
@@ -859,7 +880,7 @@ describe('production stage availability contracts', () => {
     ).toBe(false);
   });
 
-  it('validates strict start and early-completion commands independently', () => {
+  it('validates start and completion confirmations independently', () => {
     const base = {
       locationId,
       stageRunId: ids.stage,
@@ -872,9 +893,10 @@ describe('production stage availability contracts', () => {
     };
 
     expect(startStageCommandSchema.safeParse(base).success).toBe(true);
-    expect(
-      startStageCommandSchema.safeParse({ ...base, confirmation }).success,
-    ).toBe(false);
+    expect(startStageCommandSchema.parse({ ...base, confirmation })).toEqual({
+      ...base,
+      confirmation,
+    });
     expect(completeStageCommandSchema.parse({ ...base, confirmation })).toEqual(
       { ...base, confirmation },
     );
@@ -890,12 +912,16 @@ describe('production stage availability contracts', () => {
       confirmation,
     });
     expect(
-      startStageRequestSchema.safeParse({
+      startStageRequestSchema.parse({
         expectedVersion: 3,
         idempotencyKey: 'stage-completion-command',
         confirmation,
-      }).success,
-    ).toBe(false);
+      }),
+    ).toEqual({
+      expectedVersion: 3,
+      idempotencyKey: 'stage-completion-command',
+      confirmation,
+    });
   });
 
   it('validates the server-derived confirmation response and mutation union', () => {
@@ -929,6 +955,32 @@ describe('production stage availability contracts', () => {
     expect(
       advanceProductionStageResultSchema.parse(confirmationRequired),
     ).toEqual(confirmationRequired);
+    const earlyStartRequired = {
+      status: 'confirmation_required',
+      stageRunId: ids.stage,
+      stageVersion: 3,
+      code: 'PLANNED_START_NOT_REACHED',
+      message: 'This stage is scheduled to start later.',
+      confirmation: {
+        observedAt: '2026-07-12T14:30:00.000Z',
+        confirmationHash: 'e'.repeat(64),
+      },
+      timing: {
+        plannedStartAt: '2026-07-12T15:00:00.000Z',
+        plannedEndAt: '2026-07-12T15:56:00.000Z',
+        observedAt: '2026-07-12T14:30:00.000Z',
+        remainingMilliseconds: 30 * 60_000,
+      },
+      replayed: false,
+    } as const;
+    expect(
+      productionStageStartConfirmationRequiredResultSchema.parse(
+        earlyStartRequired,
+      ),
+    ).toEqual(earlyStartRequired);
+    expect(
+      advanceProductionStageResultSchema.parse(earlyStartRequired),
+    ).toEqual(earlyStartRequired);
     expect(
       advanceProductionStageResultSchema.parse({
         entityId: ids.stage,
@@ -936,6 +988,93 @@ describe('production stage availability contracts', () => {
         replayed: false,
       }),
     ).toEqual({ entityId: ids.stage, version: 4, replayed: false });
+  });
+});
+
+describe('production floor progress reconciliation contracts', () => {
+  const command = {
+    locationId,
+    productionRunId: ids.run,
+    productionBatchId: ids.batch,
+    expectedQueueVersion: 2,
+    expectedBatchVersion: 3,
+    expectedStageVersions: [
+      { stageRunId: ids.stage, version: 1 },
+      { stageRunId: '00000000-0000-4000-8000-000000000010', version: 1 },
+      { stageRunId: '00000000-0000-4000-8000-000000000011', version: 1 },
+      { stageRunId: '00000000-0000-4000-8000-000000000012', version: 1 },
+    ],
+    target: 'drying_started',
+    reason: 'lpms_unavailable',
+    machineIds: ['00000000-0000-4000-8000-000000000013'],
+    idempotencyKey: 'reconcile-floor-progress',
+  } as const;
+
+  it('requires exact versions, target-compatible machines, and meaningful other reasons', () => {
+    expect(
+      reconcileProductionBatchProgressCommandSchema.parse(command),
+    ).toEqual(command);
+    const {
+      locationId: _,
+      productionRunId: __,
+      productionBatchId: ___,
+      ...body
+    } = command;
+    expect(reconcileProductionBatchProgressRequestSchema.parse(body)).toEqual(
+      body,
+    );
+    expect(
+      reconcileProductionBatchProgressCommandSchema.safeParse({
+        ...command,
+        target: 'sorting_completed',
+      }).success,
+    ).toBe(false);
+    expect(
+      reconcileProductionBatchProgressCommandSchema.safeParse({
+        ...command,
+        reason: 'other',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('validates the preview and committed result union', () => {
+    expect(
+      productionBatchProgressReconciliationResultSchema.safeParse({
+        status: 'confirmation_required',
+        productionRunId: ids.run,
+        productionBatchId: ids.batch,
+        currentMilestone: 'waiting_to_sort',
+        targetMilestone: 'drying_started',
+        queueVersion: 2,
+        batchVersion: 3,
+        stageVersions: command.expectedStageVersions,
+        confirmation: { proposalHash: 'f'.repeat(64) },
+        effects: {
+          completedStages: ['sorting', 'washing'],
+          activeStage: 'drying',
+          finishesBatch: false,
+          finishesRun: false,
+          closesShift: false,
+        },
+        replayed: false,
+      }).success,
+    ).toBe(true);
+    expect(
+      productionBatchProgressReconciliationResultSchema.safeParse({
+        status: 'reconciled',
+        productionRunId: ids.run,
+        productionBatchId: ids.batch,
+        milestone: 'drying_started',
+        queueVersion: 3,
+        batchVersion: 4,
+        stageVersions: command.expectedStageVersions,
+        finishedOrderCount: 0,
+        finishedBagCount: 0,
+        runCompleted: false,
+        shiftClosed: false,
+        replayed: false,
+      }).success,
+    ).toBe(true);
   });
 });
 

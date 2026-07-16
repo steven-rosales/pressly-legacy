@@ -272,6 +272,8 @@ describe('production happy path', () => {
       });
       expect(stageStarted.tag).toBe('ok');
       if (stageStarted.tag === 'err') return;
+      if (!('version' in stageStarted.value))
+        throw new Error('Stage start unexpectedly required confirmation.');
       await expect(
         app.advanceProductionStage({
           locationId,
