@@ -1,6 +1,6 @@
 domain_id: laundry-production
 name: Laundry Production
-version: 7
+version: 9
 status: active
 summary: >
   Durable business memory for Pressly's wash-and-fold production process. LPMS
@@ -99,6 +99,13 @@ objects:
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+  - id: production_order_stage_attempt
+    description: A numbered assignment of one production_order to one canonical
+      stage_run; its assignment identity is immutable, while its lifecycle
+      closes as completed or released to preserve order routing history.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
 states:
   schedule_run:
     - draft
@@ -151,13 +158,20 @@ workflows:
       - LPMS creates the shift's sole started production_run and its initial
         batches, stages, assignments, order transitions, and work_event
         atomically
-      - operators advance server-authorized stage_run actions at pulse
-        boundaries or explicitly confirm an early physical completion without
-        pulling downstream starts forward
+      - operators advance server-authorized stage_run actions; an
+        otherwise-valid early start or completion requires an exact current
+        confirmation and never rewrites planned stage windows
+      - after reconnect, an operator may reconcile one batch to a strictly later
+        physical milestone through a previewed and exact-version confirmation
+        without synthetic stage events
       - post-start arrivals are placed into the existing production_run without
         moving existing orders automatically
-      - final folding and packaging completion terminalizes the remaining floor
-        facts, completes the run, and closes the shift atomically
+      - employees may explicitly rebatch a whole queued order or defer and
+        rework a whole in-flight order into a later batch without changing
+        canonical batch-stage progression
+      - final folding and packaging completion, whether live or reconciled,
+        terminalizes the remaining floor facts, completes the run, and closes
+        the shift atomically
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
@@ -165,6 +179,8 @@ workflows:
       - memdelta-2026-07-14-run-centered-online-scheduling
       - memdelta-2026-07-14-run-centered-online-scheduling-implementation
       - memdelta-2026-07-15-operator-workspace-live-sync
+      - memdelta-2026-07-15-floor-truth-reconciliation
+      - memdelta-2026-07-15-order-control-history
   - id: production_command_write_path
     steps:
       - receive command
@@ -241,14 +257,72 @@ workflows:
     status: active
     sources:
       - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: floor_truth_recovery_after_reconnect
+    steps:
+      - the backend becomes reachable after physical work continued or floor
+        updates were missed
+      - the operator selects one batch, a strictly later milestone, a reason, an
+        optional note, and machines only when the target leaves washing or
+        drying active
+      - LPMS locks the run, batch, and canonical stages and validates exact
+        queue, batch, and stage versions
+      - LPMS validates sequential progress, one active batch per stage kind,
+        machine compatibility and availability, and hard capacity
+      - LPMS returns the exact projected effects and a canonical confirmation
+        hash without mutating state
+      - operator confirmation recomputes and commits only when the hash and all
+        versions remain current
+      - LPMS updates the current projection atomically, preserves unknown
+        skipped boundaries, and appends one batch_progress_reconciled work_event
+      - the work_event advances one live revision and the Processor reloads the
+        authoritative board
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: order_level_routing
+    steps:
+      - employee opens one order from the server-paginated Home projection
+      - queued rebatch requires an unfrozen queued source and an exact selected
+        mutable queued target
+      - in-flight defer or rework selects a reason and restart stage that does
+        not skip required work
+      - pure policy chooses the earliest feasible later batch for an in-flight
+        route and validates whole-order hard capacity across the required stage
+        suffix
+      - LPMS returns an exact version-bound proposal hash without mutation
+      - confirmation reloads and locks the current routing context, recomputes
+        the proposal, and rejects drift
+      - one transaction releases the source membership and unfinished attempts,
+        inserts the target membership and new attempts, updates aggregate
+        weights and versions, and appends one order-routing work_event
+      - the Processor refreshes authoritative order and board projections
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
+  - id: production_history_review
+    steps:
+      - authorized user opens the read-only History workspace
+      - LPMS returns bounded keyset pages for production runs, sanitized
+        activity, or schedule plans
+      - cursors remain bound to the selected history view and filters
+      - opening a run loads batches, canonical stage progress, every historical
+        order-membership episode, schedule lineage, and a bounded newest-first
+        activity window
+      - raw work_event payloads and private idempotency data remain
+        server-internal
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
 invariants:
   - id: orders_do_not_split_across_batches
     statement:
       A production_order can belong to at most one active production_batch,
-      and all bags for one order must stay in that same production_batch.
+      every queued rebatch or in-flight route moves the complete order
+      atomically, and all bags remain with that order.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-15-order-control-history
   - id: bags_not_assigned_to_machines
     statement:
       Individual bags are not assigned to machines in v1; machine use is
@@ -320,19 +394,21 @@ invariants:
       - memdelta-2026-07-08-laundry-production-core
   - id: every_stage_occupies_one_pulse
     statement: The scheduler reserves exactly one scheduler_config.pulse_minutes
-      slot for sorting, washing, drying, and folding_packaging for every
-      production_batch; confirmed early physical completion does not shorten
-      that planned reservation.
+      planned window for sorting, washing, drying, and folding_packaging for
+      every production_batch; the window is a forecast and resource reservation,
+      while confirmed actual floor timing may differ without rewriting the
+      accepted plan.
     status: active
     sources:
       - memdelta-2026-07-10-fixed-pulse-scheduling
       - memdelta-2026-07-15-operator-workspace-live-sync
+      - memdelta-2026-07-15-floor-truth-reconciliation
   - id: batches_advance_only_on_pulse_boundaries
     statement:
       A production_batch cannot begin its next stage before that stage's
       planned pulse boundary; confirmed early physical completion may record the
       prior stage's truth but cannot pull downstream start times forward.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-10-fixed-pulse-scheduling
       - memdelta-2026-07-15-operator-workspace-live-sync
@@ -530,6 +606,106 @@ invariants:
     status: active
     sources:
       - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: planned_stage_windows_are_advisory_reservations_v1
+    statement:
+      Planned stage windows coordinate expected flow and reserve resources,
+      but an otherwise-valid operator-confirmed early start or completion may
+      record actual floor truth without mutating those planned boundaries.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: early_stage_start_is_confirmation_bound_v1
+    statement: Starting a stage before planned_start_at succeeds only when every
+      other transition invariant holds and an actor-bound, stage-version-bound,
+      timing-bound confirmation is revalidated and audited with the transition.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: stage_boundary_provenance_is_explicit_v1
+    statement: Every actual stage boundary is classified as live_observed,
+      operator_reported, or not_recorded; a missed boundary remains null and
+      not_recorded rather than receiving an inferred timestamp.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: reconciled_batch_start_is_a_recorded_lifecycle_anchor_v1
+    statement: When floor reconciliation first moves a queued production_batch
+      forward, started_at records the reconciliation commit time when LPMS
+      learned that execution had begun; it is not a reconstructed physical
+      stage-start timestamp, and any skipped stage boundary remains
+      not_recorded.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: floor_progress_reconciliation_is_forward_only_v1
+    statement:
+      Floor progress reconciliation may move one coherent started-run batch
+      only to a strictly later canonical milestone; backward correction and
+      reopening are separate deferred workflows.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: floor_progress_reconciliation_preserves_unknown_boundaries_v1
+    statement: Reconciliation records the current milestone without inventing
+      timestamps, stage events, or historical machine assignments for work that
+      LPMS did not observe; a skipped stage's planned assignment is removed from
+      the mutable execution projection while its immutable schedule and stage
+      window retain the plan.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: floor_progress_reconciliation_is_atomic_v1
+    statement: A confirmed floor reconciliation compares the expected run queue
+      version, batch version, and all four stage versions, updates the complete
+      current projection atomically, increments queue composition at most once
+      when required, and appends exactly one batch_progress_reconciled
+      work_event.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: floor_progress_reconciliation_terminalization_parity_v1
+    statement:
+      Reconciliation to finished uses the same terminalization operation as
+      live final-stage completion for assignments, orders, bags, active
+      memberships, batch, run, and shift.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: whole_order_routing_is_atomic_v1
+    statement:
+      A committed order route atomically releases the source membership and
+      unfinished attempts, creates one target membership and required target
+      attempts, updates source and target aggregate weights, compares and
+      increments the relevant queue, batch, and order versions, invalidates
+      stale overtime acceptance, and appends exactly one routing work_event.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
+  - id: batch_stage_transition_has_one_authority_v1
+    statement: Canonical production_batch and stage_run progression changes only
+      through the existing stage advance or floor-reconciliation authorities;
+      order routing and production_order_stage_attempt records cannot
+      independently start, complete, rewind, or finish a batch stage.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
+  - id: order_stage_attempt_assignment_is_immutable_v1
+    statement: A production_order_stage_attempt retains its order, canonical
+      stage_run, stage kind, attempt number, and assignment reason; completion
+      or release terminalizes that assignment, and later routing creates a new
+      numbered attempt instead of rewriting prior route history.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
+  - id: in_flight_order_route_moves_later_v1
+    statement:
+      An in-flight defer or rework route may target only a strictly later
+      production_batch, may not skip the current or requested restart work, and
+      must fit the complete order within hard capacity for every newly assigned
+      target stage.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
 policies:
   - id: cents_in_progress_is_eligible
     statement:
@@ -665,6 +841,40 @@ policies:
     status: active
     sources:
       - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: floor_progress_reconciliation_preserves_hard_constraints_v1
+    statement:
+      Floor reconciliation cannot override stage sequence, one active batch
+      per stage kind, machine compatibility, active-machine availability,
+      machine non-overlap, whole-batch membership, or hard effective capacity
+      constraints.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: queued_order_rebatch_v1
+    statement: A queued whole-order move is allowed only from an unfrozen queued
+      source to the exact employee-selected mutable queued target; LPMS rejects
+      the move rather than substituting another batch.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
+  - id: in_flight_order_defer_or_rework_v1
+    statement:
+      A started but unfinished whole order may be left behind or assigned
+      bounded rework by releasing its unfinished source-stage attempts and
+      assigning the required stage suffix in a later batch while preserving
+      completed attempts as history.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
+  - id: earliest_feasible_later_order_route_v1
+    statement:
+      For an in-flight defer or rework command, LPMS chooses the earliest
+      stable later batch whose required stage suffix remains planned and whose
+      per-stage assigned load can accept the complete order without exceeding
+      hard capacity.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
 decisions:
   - id: domain_named_laundry_production
     statement: The durable Stateworks memory domain is named laundry-production
@@ -688,10 +898,16 @@ decisions:
       - memdelta-2026-07-08-laundry-production-core
       - memdelta-2026-07-14-run-centered-online-scheduling
   - id: stage_run_owns_floor_state
-    statement: stage_run owns the physical workflow state machine.
+    statement: stage_run rows own the current physical workflow projection and
+      remain the sole batch-stage transition authority;
+      production_order_stage_attempt rows record per-order participation and
+      routing history against those canonical stages but cannot advance
+      execution.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-15-floor-truth-reconciliation
+      - memdelta-2026-07-15-order-control-history
   - id: work_event_not_full_event_sourcing_v1
     statement:
       work_event is the authoritative mutation ledger and audit trail, but
@@ -714,12 +930,14 @@ decisions:
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: happy_path_delivery_before_exceptions
-    statement: Deliver the happy path through the API and scheduler, processor
-      integration, and UI before implementing manual holds, hard-confirmed
-      cancellation, recovery, and exception UX from observed workflows.
+    statement: The happy path was delivered before exceptions; the first bounded
+      exception slice now supports queued whole-order rebatching and in-flight
+      defer or rework, while generic holds, cancellations, damage, missing
+      items, and backward correction remain separate workflows.
     status: active
     sources:
       - memdelta-2026-07-10-fixed-pulse-scheduling
+      - memdelta-2026-07-15-order-control-history
   - id: fixed_pulse_scheduler_ordering_v1
     statement:
       V1 orders scheduling candidates by priority, due-date bucket, weight
@@ -842,6 +1060,64 @@ decisions:
     status: active
     sources:
       - memdelta-2026-07-15-operator-workspace-live-sync
+  - id: floor_recovery_is_not_offline_first_v1
+    statement:
+      V1 floor recovery operates only after the backend is reachable and
+      reconciles already-advanced physical reality; the Processor does not queue
+      offline production commands, predict success while disconnected, or replay
+      browser writes later.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: defer_backward_floor_correction_and_reopen_v1
+    statement:
+      Backward stage correction and reopening completed stages, batches,
+      runs, or shifts require a separate exception and compensation model and
+      are deferred.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: defer_offline_command_queue_and_pwa_v1
+    statement:
+      A true offline command log, PWA execution mode, replay protocol, and
+      conflict-resolution experience are deferred rather than approximated by
+      forward reconciliation.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: defer_concurrent_same_kind_execution_v1
+    statement: V1 retains at most one active production_batch per stage kind;
+      redesigning capacity and operator coordination for concurrent same-kind
+      execution is deferred.
+    status: active
+    sources:
+      - memdelta-2026-07-15-floor-truth-reconciliation
+  - id: server_paginated_order_home_and_history_v1
+    statement:
+      The Processor root is an order-first Home surface and /history is a
+      read-only production audit surface; both use bounded server keyset
+      pagination and server-side filters rather than loading an unbounded
+      location history into browser state.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
+  - id: sanitized_history_projection_v1
+    statement:
+      Public production history exposes typed event summaries and selected
+      operational detail only; raw work_event payloads and private idempotency
+      records remain internal, and run detail activity is capped with an
+      explicit continuation signal.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
+  - id: defer_sole_order_empty_batch_routing_v1
+    statement: V1 rejects routing the only active order out of a source batch
+      because empty-batch retention or deletion, queue resequencing, planned
+      reservation cleanup, in-flight compensation, and completion effects
+      require an explicit separate policy.
+    status: active
+    sources:
+      - memdelta-2026-07-15-order-control-history
 assumptions:
   - id: cents_price_weight_good_enough_v1
     statement: Cents price-derived weight is good enough for first-version scheduling.
@@ -903,12 +1179,14 @@ open_questions:
       - memdelta-2026-07-10-fixed-pulse-scheduling
   - id: exception_effects
     question:
-      How should manual holds, hard-confirmed cancellations, rewash, damaged
-      items, and missing bags affect an accepted production_run?
+      How should manual holds, hard-confirmed cancellations, damaged items,
+      missing bags, and empty source batches affect an accepted production_run
+      and its planned resource reservations?
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
       - memdelta-2026-07-10-fixed-pulse-scheduling
+      - memdelta-2026-07-15-order-control-history
   - id: role_permission_mapping
     question:
       Does the v1 owner/admin-as-manager mapping match floor authority for
@@ -955,4 +1233,10 @@ sources:
     type: implementation_evidence
   - id: memdelta-2026-07-15-operator-workspace-live-sync
     path: stateworks/memory/domains/laundry-production/sessions/2026-07-15-operator-workspace-live-sync.md
+    type: implementation_checkpoint
+  - id: memdelta-2026-07-15-floor-truth-reconciliation
+    path: stateworks/memory/domains/laundry-production/sessions/2026-07-15-floor-truth-reconciliation.md
+    type: implementation_checkpoint
+  - id: memdelta-2026-07-15-order-control-history
+    path: stateworks/memory/domains/laundry-production/sessions/2026-07-15-order-control-history.md
     type: implementation_checkpoint

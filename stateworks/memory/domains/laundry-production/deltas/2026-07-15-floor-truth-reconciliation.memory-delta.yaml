@@ -1,0 +1,124 @@
+id: memdelta-2026-07-15-floor-truth-reconciliation
+domain_id: laundry-production
+
+source:
+  type: implementation_checkpoint
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-15-floor-truth-reconciliation.md
+
+changes:
+  - op: update
+    kind: workflow
+    id: scheduling_to_execution
+    steps:
+      - API durably receives and projects canonical external order demand
+      - eligible production_orders form the complete immutable scheduling snapshot for one shift
+      - Compute creates a new immutable schedule_run revision and supersedes the prior current revision
+      - manager reviews warnings and accepts the current output hash without creating execution
+      - Start revalidates the current accepted revision, exact eligible-order snapshot, and active shift window
+      - LPMS creates the shift's sole started production_run and its initial batches, stages, assignments, order transitions, and work_event atomically
+      - operators advance server-authorized stage_run actions; an otherwise-valid early start or completion requires an exact current confirmation and never rewrites planned stage windows
+      - after reconnect, an operator may reconcile one batch to a strictly later physical milestone through a previewed and exact-version confirmation without synthetic stage events
+      - post-start arrivals are placed into the existing production_run without moving existing orders automatically
+      - final folding and packaging completion, whether live or reconciled, terminalizes the remaining floor facts, completes the run, and closes the shift atomically
+
+  - op: assert
+    kind: workflow
+    id: floor_truth_recovery_after_reconnect
+    steps:
+      - the backend becomes reachable after physical work continued or floor updates were missed
+      - the operator selects one batch, a strictly later milestone, a reason, an optional note, and machines only when the target leaves washing or drying active
+      - LPMS locks the run, batch, and canonical stages and validates exact queue, batch, and stage versions
+      - LPMS validates sequential progress, one active batch per stage kind, machine compatibility and availability, and hard capacity
+      - LPMS returns the exact projected effects and a canonical confirmation hash without mutating state
+      - operator confirmation recomputes and commits only when the hash and all versions remain current
+      - LPMS updates the current projection atomically, preserves unknown skipped boundaries, and appends one batch_progress_reconciled work_event
+      - the work_event advances one live revision and the Processor reloads the authoritative board
+
+  - op: update
+    kind: invariant
+    id: every_stage_occupies_one_pulse
+    statement: The scheduler reserves exactly one scheduler_config.pulse_minutes planned window for sorting, washing, drying, and folding_packaging for every production_batch; the window is a forecast and resource reservation, while confirmed actual floor timing may differ without rewriting the accepted plan.
+
+  - op: deprecate
+    kind: invariant
+    id: batches_advance_only_on_pulse_boundaries
+
+  - op: assert
+    kind: invariant
+    id: planned_stage_windows_are_advisory_reservations_v1
+    statement: Planned stage windows coordinate expected flow and reserve resources, but an otherwise-valid operator-confirmed early start or completion may record actual floor truth without mutating those planned boundaries.
+
+  - op: assert
+    kind: invariant
+    id: early_stage_start_is_confirmation_bound_v1
+    statement: Starting a stage before planned_start_at succeeds only when every other transition invariant holds and an actor-bound, stage-version-bound, timing-bound confirmation is revalidated and audited with the transition.
+
+  - op: assert
+    kind: invariant
+    id: stage_boundary_provenance_is_explicit_v1
+    statement: Every actual stage boundary is classified as live_observed, operator_reported, or not_recorded; a missed boundary remains null and not_recorded rather than receiving an inferred timestamp.
+
+  - op: assert
+    kind: invariant
+    id: reconciled_batch_start_is_a_recorded_lifecycle_anchor_v1
+    statement: When floor reconciliation first moves a queued production_batch forward, started_at records the reconciliation commit time when LPMS learned that execution had begun; it is not a reconstructed physical stage-start timestamp, and any skipped stage boundary remains not_recorded.
+
+  - op: assert
+    kind: invariant
+    id: floor_progress_reconciliation_is_forward_only_v1
+    statement: Floor progress reconciliation may move one coherent started-run batch only to a strictly later canonical milestone; backward correction and reopening are separate deferred workflows.
+
+  - op: assert
+    kind: invariant
+    id: floor_progress_reconciliation_preserves_unknown_boundaries_v1
+    statement: Reconciliation records the current milestone without inventing timestamps, stage events, or historical machine assignments for work that LPMS did not observe; a skipped stage's planned assignment is removed from the mutable execution projection while its immutable schedule and stage window retain the plan.
+
+  - op: assert
+    kind: invariant
+    id: floor_progress_reconciliation_is_atomic_v1
+    statement: A confirmed floor reconciliation compares the expected run queue version, batch version, and all four stage versions, updates the complete current projection atomically, increments queue composition at most once when required, and appends exactly one batch_progress_reconciled work_event.
+
+  - op: assert
+    kind: invariant
+    id: floor_progress_reconciliation_terminalization_parity_v1
+    statement: Reconciliation to finished uses the same terminalization operation as live final-stage completion for assignments, orders, bags, active memberships, batch, run, and shift.
+
+  - op: assert
+    kind: policy
+    id: floor_progress_reconciliation_preserves_hard_constraints_v1
+    statement: Floor reconciliation cannot override stage sequence, one active batch per stage kind, machine compatibility, active-machine availability, machine non-overlap, whole-batch membership, or hard effective capacity constraints.
+
+  - op: update
+    kind: decision
+    id: stage_run_owns_floor_state
+    statement: stage_run rows own the current physical workflow projection; ordinary stage events audit observed transitions, while one batch_progress_reconciled event audits a forward correction of that projection without synthetic intermediate events.
+
+  - op: assert
+    kind: decision
+    id: floor_recovery_is_not_offline_first_v1
+    statement: V1 floor recovery operates only after the backend is reachable and reconciles already-advanced physical reality; the Processor does not queue offline production commands, predict success while disconnected, or replay browser writes later.
+
+  - op: assert
+    kind: decision
+    id: defer_backward_floor_correction_and_reopen_v1
+    statement: Backward stage correction and reopening completed stages, batches, runs, or shifts require a separate exception and compensation model and are deferred.
+
+  - op: assert
+    kind: decision
+    id: defer_offline_command_queue_and_pwa_v1
+    statement: A true offline command log, PWA execution mode, replay protocol, and conflict-resolution experience are deferred rather than approximated by forward reconciliation.
+
+  - op: assert
+    kind: decision
+    id: defer_concurrent_same_kind_execution_v1
+    statement: V1 retains at most one active production_batch per stage kind; redesigning capacity and operator coordination for concurrent same-kind execution is deferred.
+
+verification:
+  - The source session records the inspected contract, schema, migration, policy, business, API, Processor, and test paths for early starts and floor reconciliation.
+  - The proposed changes replace the hard pulse-boundary invariant with advisory planned reservations while preserving all physical hard constraints.
+  - Recovery after reconnect is explicitly distinguished from a true offline command queue or PWA.
+  - Existing exception, role-mapping, queued-unfreeze, Cents, deployment, and production-readiness questions remain unresolved.
+  - Documentation validation alone was not sufficient for acceptance; the delta remained proposed until V1 evidence was recorded under lpms-floor-truth-reconciliation.
+  - The accepted delta was applied exactly once to memory v7, advancing laundry-production memory to v8 before context-pack regeneration.
+
+status: applied
