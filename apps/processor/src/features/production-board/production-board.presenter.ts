@@ -27,7 +27,9 @@ export const selectDefaultStage = (
     productionStages.find((kind) =>
       stages.some(
         (stage) =>
-          stage.stage === kind && stage.nextAction.state === "available"
+          stage.stage === kind &&
+          (stage.nextAction.state === "available" ||
+            stage.nextAction.state === "confirmation_required")
       )
     ) ??
     "sorting"
@@ -154,6 +156,18 @@ export const presentStage = ({
       detail: "Authorized by the server",
       action: stage.nextAction.action,
       availableAt: null,
+    }
+
+  if (
+    stage.nextAction.state === "confirmation_required" &&
+    stage.nextAction.action === "start"
+  )
+    return {
+      state: "upcoming",
+      label: "Scheduled to start",
+      detail: "Start now if the batch is physically ready.",
+      action: "start",
+      availableAt: Date.parse(stage.nextAction.availableAt),
     }
 
   if (stage.nextAction.state === "confirmation_required")

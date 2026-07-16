@@ -7,6 +7,7 @@ import {
 
 describe("processor browser routes", () => {
   it.each([
+    ["/", { view: "home", shiftId: null, runId: null }],
     ["/schedule", { view: "schedule", shiftId: null, runId: null }],
     [
       "/schedule/shift%20one",
@@ -18,12 +19,12 @@ describe("processor browser routes", () => {
       { view: "board", shiftId: null, runId: "run/one" },
     ],
     ["/configuration", { view: "settings", shiftId: null, runId: null }],
+    ["/history", { view: "history", shiftId: null, runId: null }],
   ] as const)("reads %s", (pathname, expected) => {
     expect(readWorkspaceRoute(pathname)).toEqual(expected)
   })
 
-  it("rejects the root and unrecognized or malformed paths", () => {
-    expect(readWorkspaceRoute("/")).toBeNull()
+  it("rejects unrecognized or malformed paths", () => {
     expect(readWorkspaceRoute("/schedule/one/more")).toBeNull()
     expect(readWorkspaceRoute("/?view=board")).toBeNull()
     expect(readWorkspaceRoute("/production/%E0%A4%A")).toBeNull()
@@ -48,6 +49,10 @@ describe("processor browser routes", () => {
     ).toBe("/production/run%20one")
     expect(workspaceRoutePath(workspaceRouteForView("settings"))).toBe(
       "/configuration"
+    )
+    expect(workspaceRoutePath(workspaceRouteForView("home"))).toBe("/")
+    expect(workspaceRoutePath(workspaceRouteForView("history"))).toBe(
+      "/history"
     )
   })
 })

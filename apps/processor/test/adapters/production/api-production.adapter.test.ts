@@ -165,7 +165,7 @@ describe("production API gateway", () => {
     )
   })
 
-  it("sends queue versions on freeze, automatic, exact, and overtime commands", async () => {
+  it("sends queue versions on freeze, placement, overtime, and floor reconciliation commands", async () => {
     const request = vi.fn().mockResolvedValue({})
     const gateway = makeApiProductionAdapter(request)
     const batch = testBoard.batches[0]!
@@ -197,12 +197,25 @@ describe("production API gateway", () => {
       productionOrderId: order.id,
       proposalHash: "f".repeat(64),
     })
+    await gateway.reconcileBatchProgress({
+      ...common,
+      productionBatchId: batch.id,
+      expectedBatchVersion: batch.version,
+      expectedStageVersions: batch.stages.map((stage) => ({
+        stageRunId: stage.id,
+        version: stage.version,
+      })),
+      target: "folding_packaging_started",
+      reason: "updates_missed",
+      machineIds: [],
+    })
 
     expect(request.mock.calls.map(([input]) => input.path)).toEqual([
       `/production/locations/${common.locationId}/runs/${common.productionRunId}/batches/${batch.id}/freeze`,
       `/production/locations/${common.locationId}/runs/${common.productionRunId}/orders/${order.id}/place`,
       `/production/locations/${common.locationId}/runs/${common.productionRunId}/batches/${batch.id}/orders/${order.id}/place`,
       `/production/locations/${common.locationId}/runs/${common.productionRunId}/orders/${order.id}/confirm-overtime`,
+      `/production/locations/${common.locationId}/runs/${common.productionRunId}/batches/${batch.id}/progress-reconciliation`,
     ])
     for (const [input] of request.mock.calls)
       expect(input.body).toEqual(
@@ -258,6 +271,80 @@ describe("production API gateway", () => {
         method: "POST",
         path: `/production/locations/${testWorkspace.location.id}/stages/${stage.id}/complete`,
         body: expect.objectContaining({ confirmation }),
+      }),
+      expect.anything()
+    )
+  })
+
+  it("uses explicit order-route and production-history resources", async () => {
+    const request = vi.fn().mockResolvedValue({})
+    const gateway = makeApiProductionAdapter(request)
+    const batch = testBoard.batches[0]!
+    const order = batch.orders[0]!
+    const routeRequest = {
+      kind: "queued_move" as const,
+      reason: "manual_rebatch" as const,
+      targetProductionBatchId: batch.id,
+      restartStage: "sorting" as const,
+      expectedQueueVersion: testBoard.productionRun.queueVersion,
+      expectedOrderVersion: order.version,
+      expectedSourceBatchVersion: batch.version,
+    }
+
+    await gateway.listOrderControl({
+      locationId: testWorkspace.location.id,
+      query: { view: "active", limit: 25, priority: true },
+    })
+    await gateway.previewOrderRoute({
+      locationId: testWorkspace.location.id,
+      productionRunId: testBoard.productionRun.id,
+      productionOrderId: order.id,
+      request: routeRequest,
+    })
+    await gateway.commitOrderRoute({
+      locationId: testWorkspace.location.id,
+      productionRunId: testBoard.productionRun.id,
+      productionOrderId: order.id,
+      request: {
+        ...routeRequest,
+        proposalHash: "a".repeat(64),
+        idempotencyKey: "manual-order-route-1",
+      },
+    })
+    await gateway.listHistoryRuns({
+      locationId: testWorkspace.location.id,
+      query: { limit: 50 },
+    })
+    await gateway.listHistoryActivity({
+      locationId: testWorkspace.location.id,
+      query: { limit: 50, runId: testBoard.productionRun.id },
+    })
+    await gateway.listHistoryPlans({
+      locationId: testWorkspace.location.id,
+      query: { limit: 50, runId: testBoard.productionRun.id },
+    })
+    await gateway.loadHistoryRun(
+      testWorkspace.location.id,
+      testBoard.productionRun.id
+    )
+
+    expect(request.mock.calls.map(([input]) => input.path)).toEqual([
+      `/production/locations/${testWorkspace.location.id}/order-control?view=active&limit=25&priority=true`,
+      `/production/locations/${testWorkspace.location.id}/runs/${testBoard.productionRun.id}/orders/${order.id}/route/preview`,
+      `/production/locations/${testWorkspace.location.id}/runs/${testBoard.productionRun.id}/orders/${order.id}/route`,
+      `/production/locations/${testWorkspace.location.id}/history/runs?limit=50`,
+      `/production/locations/${testWorkspace.location.id}/history/activity?limit=50&runId=${testBoard.productionRun.id}`,
+      `/production/locations/${testWorkspace.location.id}/history/plans?limit=50&runId=${testBoard.productionRun.id}`,
+      `/production/locations/${testWorkspace.location.id}/history/runs/${testBoard.productionRun.id}`,
+    ])
+    expect(request).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        method: "POST",
+        body: expect.objectContaining({
+          proposalHash: "a".repeat(64),
+          idempotencyKey: "manual-order-route-1",
+        }),
       }),
       expect.anything()
     )

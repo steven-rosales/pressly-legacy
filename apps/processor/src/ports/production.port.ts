@@ -5,17 +5,33 @@ import type {
   CompleteStageCommand,
   ConfirmProductionOrderOvertimeResult,
   ExactProductionOrderPlacementResult,
+  CommitProductionOrderRouteRequest,
+  CommitProductionOrderRouteResult,
+  ListProductionHistoryActivityQuery,
+  ListProductionHistoryActivityResult,
+  ListProductionHistoryPlansQuery,
+  ListProductionHistoryPlansResult,
+  ListProductionHistoryRunsQuery,
+  ListProductionHistoryRunsResult,
+  ListProductionOrderControlQuery,
+  ListProductionOrderControlResult,
   ListProductionLocationsResult,
   ListProductionOrdersResult,
   ProductionBoard,
   ProductionBatchMembershipMutationResult,
+  ProductionBatchProgressReconciliationResult,
   ProductionMutationResult,
+  ProductionHistoryRunDetail,
+  PreviewProductionOrderRouteRequest,
+  ProductionOrderRouteProposal,
   ProductionWorkspace,
   RecordOrderIntakeResult,
+  ReconcileProductionBatchProgressCommand,
   ProductionShift,
   ScheduleProposal,
   SchedulerConfig,
   StartScheduleResult,
+  StartStageCommand,
   UpdateProductionShiftResult,
 } from "@pressly/contracts"
 
@@ -32,6 +48,43 @@ export type ProductionPort = Readonly<{
     limit?: number
     signal?: AbortSignal
   }) => Promise<ListProductionOrdersResult>
+  listOrderControl: (input: {
+    locationId: string
+    query: ListProductionOrderControlQuery
+    signal?: AbortSignal
+  }) => Promise<ListProductionOrderControlResult>
+  previewOrderRoute: (input: {
+    locationId: string
+    productionRunId: string
+    productionOrderId: string
+    request: PreviewProductionOrderRouteRequest
+  }) => Promise<ProductionOrderRouteProposal>
+  commitOrderRoute: (input: {
+    locationId: string
+    productionRunId: string
+    productionOrderId: string
+    request: CommitProductionOrderRouteRequest
+  }) => Promise<CommitProductionOrderRouteResult>
+  listHistoryRuns: (input: {
+    locationId: string
+    query: ListProductionHistoryRunsQuery
+    signal?: AbortSignal
+  }) => Promise<ListProductionHistoryRunsResult>
+  listHistoryActivity: (input: {
+    locationId: string
+    query: ListProductionHistoryActivityQuery
+    signal?: AbortSignal
+  }) => Promise<ListProductionHistoryActivityResult>
+  listHistoryPlans: (input: {
+    locationId: string
+    query: ListProductionHistoryPlansQuery
+    signal?: AbortSignal
+  }) => Promise<ListProductionHistoryPlansResult>
+  loadHistoryRun: (
+    locationId: string,
+    productionRunId: string,
+    signal?: AbortSignal
+  ) => Promise<ProductionHistoryRunDetail>
   recordIntake: (input: {
     locationId: string
     productionOrderId: string
@@ -142,13 +195,18 @@ export type ProductionPort = Readonly<{
     proposalHash: string
     idempotencyKey: string
   }) => Promise<ConfirmProductionOrderOvertimeResult>
+  reconcileBatchProgress: (
+    input: ReconcileProductionBatchProgressCommand
+  ) => Promise<ProductionBatchProgressReconciliationResult>
   advanceStage: (input: {
     locationId: string
     stageRunId: string
     transition: "start" | "complete"
     expectedVersion: number
     idempotencyKey: string
-    confirmation?: NonNullable<CompleteStageCommand["confirmation"]>
+    confirmation?: NonNullable<
+      CompleteStageCommand["confirmation"] | StartStageCommand["confirmation"]
+    >
   }) => Promise<AdvanceProductionStageResult>
   assignStageMachines: (input: {
     locationId: string

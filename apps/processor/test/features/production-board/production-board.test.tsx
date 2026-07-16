@@ -29,9 +29,9 @@ describe("production floor board", () => {
     resumed.batches[0]!.stages[0]!.nextAction = {
       state: "blocked",
       action: "start",
-      code: "STAGE_BOUNDARY_NOT_REACHED",
-      message: "The stage boundary has not been reached.",
-      availableAt: "2026-08-01T14:01:00.000Z",
+      code: "PREVIOUS_STAGE_INCOMPLETE",
+      message: "The previous stage is still running.",
+      availableAt: null,
     }
     const refreshed = structuredClone(testBoard)
     refreshed.batches[0]!.stages[0]!.allowedActions = ["start"]
@@ -65,15 +65,21 @@ describe("production floor board", () => {
     ).toBeInTheDocument()
   })
 
-  it("refreshes once at a server readiness boundary without enabling locally", async () => {
+  it("keeps an early start actionable and refreshes once at its planned boundary", async () => {
     const boundaryBoard = structuredClone(testBoard)
-    boundaryBoard.batches[0]!.stages[0]!.allowedActions = []
+    boundaryBoard.batches[0]!.stages[0]!.allowedActions = ["start"]
     boundaryBoard.batches[0]!.stages[0]!.nextAction = {
-      state: "blocked",
+      state: "confirmation_required",
       action: "start",
-      code: "STAGE_BOUNDARY_NOT_REACHED",
-      message: "The server is checking the stage boundary.",
+      code: "PLANNED_START_NOT_REACHED",
+      message: "The planned start is still ahead.",
       availableAt: boundaryBoard.asOf,
+      timing: {
+        plannedStartAt: boundaryBoard.asOf,
+        plannedEndAt: "2026-08-01T14:50:00.000Z",
+        observedAt: "2026-08-01T13:59:59.999Z",
+        remainingMilliseconds: 1,
+      },
     }
     const refreshBoard = vi.fn(async () => boundaryBoard)
 
@@ -88,8 +94,8 @@ describe("production floor board", () => {
 
     await waitFor(() => expect(refreshBoard).toHaveBeenCalledTimes(1))
     expect(
-      screen.queryByRole("button", { name: "Start Sorting" })
-    ).not.toBeInTheDocument()
+      screen.getByRole("button", { name: "Start Sorting now" })
+    ).toBeInTheDocument()
   })
 
   it("applies an authoritative board refresh supplied by the workspace", async () => {
@@ -265,6 +271,10 @@ describe("production floor board", () => {
     expect(
       screen.getByRole("tablist", { name: "Production stages" })
     ).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Washing" })).toHaveClass(
+      "min-w-0",
+      "text-xs"
+    )
     await user.click(screen.getByRole("tab", { name: "Fold" }))
     expect(
       screen.getByLabelText("Batch 1, Folding & packaging, planned")
@@ -282,6 +292,77 @@ describe("production floor board", () => {
 
     expect(screen.getByText("Board is offline")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Start Sorting" })).toBeDisabled()
+  })
+
+  it("asks for explicit confirmation before starting a stage ahead of plan", async () => {
+    const user = userEvent.setup()
+    const earlyBoard = structuredClone(testBoard)
+    const stage = earlyBoard.batches[0]!.stages[0]!
+    stage.plannedStartAt = "2026-08-01T14:19:00.000Z"
+    stage.plannedEndAt = "2026-08-01T15:09:00.000Z"
+    stage.allowedActions = ["start"]
+    const timing = {
+      plannedStartAt: stage.plannedStartAt,
+      plannedEndAt: stage.plannedEndAt,
+      observedAt: earlyBoard.asOf,
+      remainingMilliseconds: 19 * 60_000,
+    }
+    stage.nextAction = {
+      state: "confirmation_required",
+      action: "start",
+      code: "PLANNED_START_NOT_REACHED",
+      message: "The planned start is still ahead.",
+      availableAt: stage.plannedStartAt,
+      timing,
+    }
+    const confirmation = {
+      observedAt: timing.observedAt,
+      confirmationHash: "s".repeat(64),
+    }
+    const advanceStage = vi.fn(async (command) =>
+      command.confirmation === undefined
+        ? {
+            status: "confirmation_required" as const,
+            stageRunId: stage.id,
+            stageVersion: stage.version,
+            code: "PLANNED_START_NOT_REACHED" as const,
+            message: "The planned start is still ahead.",
+            confirmation,
+            timing,
+            replayed: false as const,
+          }
+        : {
+            entityId: stage.id,
+            version: stage.version + 1,
+            replayed: false,
+          }
+    )
+    const refreshBoard = vi.fn(async () => earlyBoard)
+
+    render(
+      <ProductionBoardWorkspace
+        {...boardProps}
+        initialBoard={earlyBoard}
+        refreshBoard={refreshBoard}
+        production={makeTestProductionPort({ advanceStage })}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: "Start Sorting now" }))
+    expect(
+      screen.getByRole("alertdialog", { name: "Start Sorting now?" })
+    ).toHaveTextContent("19 min from now")
+    await user.click(screen.getByRole("button", { name: "Start now" }))
+
+    await waitFor(() => expect(advanceStage).toHaveBeenCalledTimes(2))
+    expect(advanceStage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        transition: "start",
+        expectedVersion: stage.version,
+        confirmation,
+      })
+    )
+    expect(refreshBoard).toHaveBeenCalledOnce()
   })
 
   it("asks for explicit confirmation before completing a stage early", async () => {
@@ -488,5 +569,99 @@ describe("production floor board", () => {
         proposalHash: confirmation.proposalHash,
       })
     )
+  })
+
+  it("reviews and confirms one atomic floor-progress reconciliation", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    const user = userEvent.setup()
+    const batch = testBoard.batches[0]!
+    const preview = {
+      status: "confirmation_required" as const,
+      productionRunId: testBoard.productionRun.id,
+      productionBatchId: batch.id,
+      currentMilestone: "waiting_to_sort" as const,
+      targetMilestone: "finished" as const,
+      queueVersion: testBoard.productionRun.queueVersion,
+      batchVersion: batch.version,
+      stageVersions: batch.stages.map((stage) => ({
+        stageRunId: stage.id,
+        version: stage.version,
+      })),
+      confirmation: { proposalHash: "r".repeat(64) },
+      effects: {
+        completedStages: [
+          "sorting",
+          "washing",
+          "drying",
+          "folding_packaging",
+        ] as Array<"sorting" | "washing" | "drying" | "folding_packaging">,
+        activeStage: null,
+        finishesBatch: true,
+        finishesRun: true,
+        closesShift: true,
+      },
+      replayed: false as const,
+    }
+    const reconcileBatchProgress = vi.fn(async (command) =>
+      command.confirmation === undefined
+        ? preview
+        : {
+            status: "reconciled" as const,
+            productionRunId: testBoard.productionRun.id,
+            productionBatchId: batch.id,
+            milestone: "finished" as const,
+            queueVersion: 2,
+            batchVersion: 2,
+            stageVersions: batch.stages.map((stage) => ({
+              stageRunId: stage.id,
+              version: stage.version + 1,
+            })),
+            finishedOrderCount: batch.orders.length,
+            finishedBagCount: batch.orders.reduce(
+              (sum, order) => sum + order.bagCount,
+              0
+            ),
+            runCompleted: true,
+            shiftClosed: true,
+            replayed: false,
+          }
+    )
+    const refreshBoard = vi.fn(async () => testBoard)
+
+    render(
+      <ProductionBoardWorkspace
+        {...boardProps}
+        refreshBoard={refreshBoard}
+        production={makeTestProductionPort({ reconcileBatchProgress })}
+      />
+    )
+
+    await user.click(
+      screen.getByRole("button", { name: "Record floor progress" })
+    )
+    await user.click(screen.getByRole("radio", { name: "Finished" }))
+    expect(screen.getByText(/finishes 2 orders and 5 bags/)).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Review progress" }))
+    expect(await screen.findByText("Ready to record")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Confirm and record" }))
+
+    await waitFor(() => expect(reconcileBatchProgress).toHaveBeenCalledTimes(2))
+    expect(reconcileBatchProgress).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        expectedQueueVersion: preview.queueVersion,
+        expectedBatchVersion: preview.batchVersion,
+        expectedStageVersions: preview.stageVersions,
+        target: "finished",
+        confirmation: preview.confirmation,
+      })
+    )
+    expect(refreshBoard).toHaveBeenCalledOnce()
   })
 })

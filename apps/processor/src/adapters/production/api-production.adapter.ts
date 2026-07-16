@@ -4,11 +4,19 @@ import {
   automaticProductionOrderPlacementResultSchema,
   confirmProductionOrderOvertimeResultSchema,
   exactProductionOrderPlacementResultSchema,
+  commitProductionOrderRouteResultSchema,
+  listProductionHistoryActivityResultSchema,
+  listProductionHistoryPlansResultSchema,
+  listProductionHistoryRunsResultSchema,
+  listProductionOrderControlResultSchema,
   productionBatchMembershipMutationResultSchema,
+  productionBatchProgressReconciliationResultSchema,
   listProductionLocationsResultSchema,
   listProductionOrdersResultSchema,
   productionBoardSchema,
   productionMutationResultSchema,
+  productionHistoryRunDetailSchema,
+  productionOrderRouteProposalSchema,
   productionWorkspaceSchema,
   recordOrderIntakeResultSchema,
   productionShiftSchema,
@@ -51,6 +59,94 @@ export const makeApiProductionAdapter = (
       listProductionOrdersResultSchema
     )
   },
+  listOrderControl: ({ locationId, query: input, signal }) => {
+    const query = new URLSearchParams()
+    Object.entries(input).forEach(([key, value]) => {
+      if (value !== undefined) query.set(key, String(value))
+    })
+    return request(
+      {
+        path: `/production/locations/${encodeURIComponent(locationId)}/order-control?${query.toString()}`,
+        ...(signal === undefined ? {} : { signal }),
+      },
+      listProductionOrderControlResultSchema
+    )
+  },
+  previewOrderRoute: ({
+    locationId,
+    productionRunId,
+    productionOrderId,
+    request: body,
+  }) =>
+    request(
+      {
+        method: "POST",
+        path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/orders/${encodeURIComponent(productionOrderId)}/route/preview`,
+        body,
+      },
+      productionOrderRouteProposalSchema
+    ),
+  commitOrderRoute: ({
+    locationId,
+    productionRunId,
+    productionOrderId,
+    request: body,
+  }) =>
+    request(
+      {
+        method: "POST",
+        path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/orders/${encodeURIComponent(productionOrderId)}/route`,
+        body,
+      },
+      commitProductionOrderRouteResultSchema
+    ),
+  listHistoryRuns: ({ locationId, query: input, signal }) => {
+    const query = new URLSearchParams()
+    Object.entries(input).forEach(([key, value]) => {
+      if (value !== undefined) query.set(key, String(value))
+    })
+    return request(
+      {
+        path: `/production/locations/${encodeURIComponent(locationId)}/history/runs?${query.toString()}`,
+        ...(signal === undefined ? {} : { signal }),
+      },
+      listProductionHistoryRunsResultSchema
+    )
+  },
+  listHistoryActivity: ({ locationId, query: input, signal }) => {
+    const query = new URLSearchParams()
+    Object.entries(input).forEach(([key, value]) => {
+      if (value !== undefined) query.set(key, String(value))
+    })
+    return request(
+      {
+        path: `/production/locations/${encodeURIComponent(locationId)}/history/activity?${query.toString()}`,
+        ...(signal === undefined ? {} : { signal }),
+      },
+      listProductionHistoryActivityResultSchema
+    )
+  },
+  listHistoryPlans: ({ locationId, query: input, signal }) => {
+    const query = new URLSearchParams()
+    Object.entries(input).forEach(([key, value]) => {
+      if (value !== undefined) query.set(key, String(value))
+    })
+    return request(
+      {
+        path: `/production/locations/${encodeURIComponent(locationId)}/history/plans?${query.toString()}`,
+        ...(signal === undefined ? {} : { signal }),
+      },
+      listProductionHistoryPlansResultSchema
+    )
+  },
+  loadHistoryRun: (locationId, productionRunId, signal) =>
+    request(
+      {
+        path: `/production/locations/${encodeURIComponent(locationId)}/history/runs/${encodeURIComponent(productionRunId)}`,
+        ...(signal === undefined ? {} : { signal }),
+      },
+      productionHistoryRunDetailSchema
+    ),
   recordIntake: ({ locationId, productionOrderId, ...body }) =>
     request(
       {
@@ -203,6 +299,20 @@ export const makeApiProductionAdapter = (
         body,
       },
       confirmProductionOrderOvertimeResultSchema
+    ),
+  reconcileBatchProgress: ({
+    locationId,
+    productionRunId,
+    productionBatchId,
+    ...body
+  }) =>
+    request(
+      {
+        method: "POST",
+        path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/batches/${encodeURIComponent(productionBatchId)}/progress-reconciliation`,
+        body,
+      },
+      productionBatchProgressReconciliationResultSchema
     ),
   advanceStage: ({ locationId, stageRunId, transition, ...body }) =>
     request(

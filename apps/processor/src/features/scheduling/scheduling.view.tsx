@@ -170,7 +170,7 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
       )}
 
       <Card
-        className="sticky top-20 z-10 bg-background/95 py-0 backdrop-blur"
+        className="py-0 md:sticky md:top-20 md:z-10 md:bg-background/95 md:backdrop-blur"
         data-testid="schedule-action-surface"
       >
         <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
