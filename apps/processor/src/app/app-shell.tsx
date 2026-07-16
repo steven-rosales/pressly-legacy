@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -103,6 +104,9 @@ export function AppShell({
             <SheetContent side="left" className="w-72 p-4">
               <SheetHeader className="sr-only">
                 <SheetTitle>Processor navigation</SheetTitle>
+                <SheetDescription>
+                  Choose a Processor workspace for this location.
+                </SheetDescription>
               </SheetHeader>
               <div className="mb-6 flex items-center gap-2 font-semibold">
                 <span className="grid size-7 place-items-center rounded-lg bg-foreground text-background">

@@ -1,4 +1,7 @@
 domains:
+  - id: steven-collaboration
+    path: domains/steven-collaboration/memory.yaml
+    default_context_pack: domains/steven-collaboration/context-pack.md
   - id: laundry-production
     path: domains/laundry-production/memory.yaml
     default_context_pack: domains/laundry-production/context-pack.md

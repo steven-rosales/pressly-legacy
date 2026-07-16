@@ -24,6 +24,8 @@ export const productionPlacementProvenanceSchema = z.enum([
   'initial_schedule',
   'automatic',
   'manager_exact',
+  'manual_rebatch',
+  'exception_route',
 ]);
 export const productionPlacementModeSchema = z.enum([
   'automatic',
@@ -259,12 +261,26 @@ export const scheduleProposalSchema = z
 
 export const productionStageActionBlockCodeSchema = z.enum([
   'PRODUCTION_RUN_NOT_STARTED',
-  'STAGE_BOUNDARY_NOT_REACHED',
   'PREVIOUS_STAGE_INCOMPLETE',
   'STAGE_KIND_ALREADY_ACTIVE',
   'MACHINE_ASSIGNMENT_REQUIRED',
   'MACHINE_ASSIGNMENT_OVERLAPS',
 ]);
+
+export const productionStageBoundaryProvenanceSchema = z.enum([
+  'live_observed',
+  'operator_reported',
+  'not_recorded',
+]);
+
+export const productionStageStartTimingSchema = z
+  .object({
+    plannedStartAt: utcIsoStringSchema,
+    plannedEndAt: utcIsoStringSchema,
+    observedAt: utcIsoStringSchema,
+    remainingMilliseconds: z.number().int().positive(),
+  })
+  .strict();
 
 export const productionStageCompletionTimingSchema = z
   .object({
@@ -278,14 +294,18 @@ export const productionStageCompletionTimingSchema = z
   })
   .strict();
 
-export const productionStageCompletionConfirmationSchema = z
+export const productionStageTimingConfirmationSchema = z
   .object({
     observedAt: utcIsoStringSchema,
     confirmationHash: productionHashSchema,
   })
   .strict();
 
-export const productionStageNextActionSchema = z.discriminatedUnion('state', [
+/** @deprecated Use productionStageTimingConfirmationSchema. */
+export const productionStageCompletionConfirmationSchema =
+  productionStageTimingConfirmationSchema;
+
+export const productionStageNextActionSchema = z.union([
   z
     .object({
       state: z.literal('available'),
@@ -299,6 +319,16 @@ export const productionStageNextActionSchema = z.discriminatedUnion('state', [
       code: productionStageActionBlockCodeSchema,
       message: z.string().min(1),
       availableAt: utcIsoStringSchema.nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal('confirmation_required'),
+      action: z.literal('start'),
+      code: z.literal('PLANNED_START_NOT_REACHED'),
+      message: z.string().min(1),
+      availableAt: utcIsoStringSchema,
+      timing: productionStageStartTimingSchema,
     })
     .strict(),
   z
@@ -329,6 +359,8 @@ export const stageRunSchema = z
     plannedEndAt: utcIsoStringSchema,
     actualStartAt: utcIsoStringSchema.nullable(),
     actualEndAt: utcIsoStringSchema.nullable(),
+    actualStartProvenance: productionStageBoundaryProvenanceSchema,
+    actualEndProvenance: productionStageBoundaryProvenanceSchema,
     machineIds: z.array(productionIdSchema),
     nextAction: productionStageNextActionSchema,
     // Compatibility projection for older clients. It is always derived from
@@ -338,6 +370,24 @@ export const stageRunSchema = z
   })
   .strict()
   .superRefine((stage, context) => {
+    if (
+      (stage.actualStartAt === null) !==
+      (stage.actualStartProvenance === 'not_recorded')
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['actualStartProvenance'],
+        message: 'Actual start time and provenance disagree.',
+      });
+    if (
+      (stage.actualEndAt === null) !==
+      (stage.actualEndProvenance === 'not_recorded')
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['actualEndProvenance'],
+        message: 'Actual end time and provenance disagree.',
+      });
     const expected =
       stage.nextAction.state === 'available' ||
       stage.nextAction.state === 'confirmation_required'
@@ -381,12 +431,14 @@ export const productionBatchOrderSchema = productionOrderSummarySchema
           'Pinned-at and pinned-by must either both exist or both be null.',
       });
 
-    const isManagerExact = order.placementProvenance === 'manager_exact';
-    if (isManagerExact !== (order.pinnedAt !== null))
+    const isPinnedPlacement =
+      order.placementProvenance === 'manager_exact' ||
+      order.placementProvenance === 'manual_rebatch';
+    if (isPinnedPlacement !== (order.pinnedAt !== null))
       context.addIssue({
         code: 'custom',
         path: ['placementProvenance'],
-        message: 'Only manager-exact placement is pinned.',
+        message: 'Only exact or manual queued placement is pinned.',
       });
   });
 
@@ -762,12 +814,20 @@ export const stageRequestSchema = stageCommandSchema.omit({
   stageRunId: true,
 });
 
-export const startStageCommandSchema = stageCommandSchema;
-export const startStageRequestSchema = stageRequestSchema;
+export const startStageCommandSchema = stageCommandSchema
+  .extend({
+    confirmation: productionStageTimingConfirmationSchema.optional(),
+  })
+  .strict();
+
+export const startStageRequestSchema = startStageCommandSchema.omit({
+  locationId: true,
+  stageRunId: true,
+});
 
 export const completeStageCommandSchema = stageCommandSchema
   .extend({
-    confirmation: productionStageCompletionConfirmationSchema.optional(),
+    confirmation: productionStageTimingConfirmationSchema.optional(),
   })
   .strict();
 
@@ -805,6 +865,138 @@ export const productionShiftParamsSchema = productionLocationParamsSchema
 export const productionRunParamsSchema = productionLocationParamsSchema
   .extend({ productionRunId: productionIdSchema })
   .strict();
+
+export const productionBatchProgressReconciliationParamsSchema =
+  productionRunParamsSchema
+    .extend({ productionBatchId: productionIdSchema })
+    .strict();
+
+export const productionFloorMilestoneSchema = z.enum([
+  'waiting_to_sort',
+  'sorting_started',
+  'sorting_completed',
+  'washing_started',
+  'washing_completed',
+  'drying_started',
+  'drying_completed',
+  'folding_packaging_started',
+  'finished',
+]);
+
+export const productionFloorProgressTargetSchema = z.enum([
+  'sorting_started',
+  'sorting_completed',
+  'washing_started',
+  'washing_completed',
+  'drying_started',
+  'drying_completed',
+  'folding_packaging_started',
+  'finished',
+]);
+
+export const productionFloorProgressReasonSchema = z.enum([
+  'lpms_unavailable',
+  'updates_missed',
+  'other',
+]);
+
+export const productionExpectedStageVersionSchema = z
+  .object({
+    stageRunId: productionIdSchema,
+    version: z.number().int().positive(),
+  })
+  .strict();
+
+export const productionBatchProgressReconciliationConfirmationSchema = z
+  .object({ proposalHash: productionHashSchema })
+  .strict();
+
+const reconcileProductionBatchProgressFields = {
+  locationId: z.string().min(1),
+  productionRunId: productionIdSchema,
+  productionBatchId: productionIdSchema,
+  expectedQueueVersion: z.number().int().positive(),
+  expectedBatchVersion: z.number().int().positive(),
+  expectedStageVersions: z
+    .array(productionExpectedStageVersionSchema)
+    .length(4),
+  target: productionFloorProgressTargetSchema,
+  reason: productionFloorProgressReasonSchema,
+  note: z.string().trim().min(1).max(500).optional(),
+  machineIds: z.array(productionIdSchema),
+  confirmation:
+    productionBatchProgressReconciliationConfirmationSchema.optional(),
+  idempotencyKey: z.string().min(8).max(200),
+} as const;
+
+const validateReconcileProductionBatchProgress = (
+  command: {
+    target: z.infer<typeof productionFloorProgressTargetSchema>;
+    reason: z.infer<typeof productionFloorProgressReasonSchema>;
+    note?: string | undefined;
+    machineIds: readonly string[];
+    expectedStageVersions: readonly Readonly<{ stageRunId: string }>[];
+  },
+  context: z.RefinementCtx,
+): void => {
+  if (
+    new Set(command.expectedStageVersions.map((stage) => stage.stageRunId))
+      .size !== command.expectedStageVersions.length
+  )
+    context.addIssue({
+      code: 'custom',
+      path: ['expectedStageVersions'],
+      message: 'Expected stage versions must identify four distinct stages.',
+    });
+
+  if (new Set(command.machineIds).size !== command.machineIds.length)
+    context.addIssue({
+      code: 'custom',
+      path: ['machineIds'],
+      message: 'Machine identifiers must be distinct.',
+    });
+
+  const targetNeedsMachines =
+    command.target === 'washing_started' || command.target === 'drying_started';
+  if (targetNeedsMachines !== command.machineIds.length > 0)
+    context.addIssue({
+      code: 'custom',
+      path: ['machineIds'],
+      message: targetNeedsMachines
+        ? 'An active washing or drying milestone requires machines.'
+        : 'Only an active washing or drying milestone accepts machines.',
+    });
+
+  if (command.reason === 'other' && command.note === undefined)
+    context.addIssue({
+      code: 'custom',
+      path: ['note'],
+      message: 'An explanatory note is required for the other reason.',
+    });
+};
+
+export const reconcileProductionBatchProgressCommandSchema = z
+  .object(reconcileProductionBatchProgressFields)
+  .strict()
+  .superRefine(validateReconcileProductionBatchProgress);
+
+export const reconcileProductionBatchProgressRequestSchema = z
+  .object({
+    expectedQueueVersion:
+      reconcileProductionBatchProgressFields.expectedQueueVersion,
+    expectedBatchVersion:
+      reconcileProductionBatchProgressFields.expectedBatchVersion,
+    expectedStageVersions:
+      reconcileProductionBatchProgressFields.expectedStageVersions,
+    target: reconcileProductionBatchProgressFields.target,
+    reason: reconcileProductionBatchProgressFields.reason,
+    note: reconcileProductionBatchProgressFields.note,
+    machineIds: reconcileProductionBatchProgressFields.machineIds,
+    confirmation: reconcileProductionBatchProgressFields.confirmation,
+    idempotencyKey: reconcileProductionBatchProgressFields.idempotencyKey,
+  })
+  .strict()
+  .superRefine(validateReconcileProductionBatchProgress);
 
 export const productionStageParamsSchema = productionLocationParamsSchema
   .extend({ stageRunId: productionIdSchema })
@@ -1194,15 +1386,78 @@ export const productionStageCompletionConfirmationRequiredResultSchema = z
     stageVersion: z.number().int().positive(),
     code: z.literal('PULSE_BOUNDARY_NOT_REACHED'),
     message: z.string().min(1),
-    confirmation: productionStageCompletionConfirmationSchema,
+    confirmation: productionStageTimingConfirmationSchema,
     timing: productionStageCompletionTimingSchema,
+    replayed: z.literal(false),
+  })
+  .strict();
+
+export const productionStageStartConfirmationRequiredResultSchema = z
+  .object({
+    status: z.literal('confirmation_required'),
+    stageRunId: productionIdSchema,
+    stageVersion: z.number().int().positive(),
+    code: z.literal('PLANNED_START_NOT_REACHED'),
+    message: z.string().min(1),
+    confirmation: productionStageTimingConfirmationSchema,
+    timing: productionStageStartTimingSchema,
     replayed: z.literal(false),
   })
   .strict();
 
 export const advanceProductionStageResultSchema = z.union([
   productionMutationResultSchema,
+  productionStageStartConfirmationRequiredResultSchema,
   productionStageCompletionConfirmationRequiredResultSchema,
+]);
+
+export const productionBatchProgressReconciliationEffectsSchema = z
+  .object({
+    completedStages: z.array(productionStageKindSchema),
+    activeStage: productionStageKindSchema.nullable(),
+    finishesBatch: z.boolean(),
+    finishesRun: z.boolean(),
+    closesShift: z.boolean(),
+  })
+  .strict();
+
+export const productionBatchProgressReconciliationConfirmationRequiredResultSchema =
+  z
+    .object({
+      status: z.literal('confirmation_required'),
+      productionRunId: productionIdSchema,
+      productionBatchId: productionIdSchema,
+      currentMilestone: productionFloorMilestoneSchema,
+      targetMilestone: productionFloorProgressTargetSchema,
+      queueVersion: z.number().int().positive(),
+      batchVersion: z.number().int().positive(),
+      stageVersions: z.array(productionExpectedStageVersionSchema).length(4),
+      confirmation: productionBatchProgressReconciliationConfirmationSchema,
+      effects: productionBatchProgressReconciliationEffectsSchema,
+      replayed: z.literal(false),
+    })
+    .strict();
+
+export const productionBatchProgressReconciledResultSchema = z
+  .object({
+    status: z.literal('reconciled'),
+    productionRunId: productionIdSchema,
+    productionBatchId: productionIdSchema,
+    milestone: productionFloorProgressTargetSchema,
+    queueVersion: z.number().int().positive(),
+    batchVersion: z.number().int().positive(),
+    stageVersions: z.array(productionExpectedStageVersionSchema).length(4),
+    finishedOrderCount: z.number().int().nonnegative(),
+    finishedBagCount: z.number().int().nonnegative(),
+    runCompleted: z.boolean(),
+    shiftClosed: z.boolean(),
+    replayed: z.boolean(),
+  })
+  .strict();
+
+export const productionBatchProgressReconciliationResultSchema = z.union([
+  productionBatchProgressReconciliationConfirmationRequiredResultSchema,
+  productionBatchProgressReconciledResultSchema,
 ]);
 
 export const productionBatchMembershipMutationResultSchema = z

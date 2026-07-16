@@ -82,7 +82,7 @@ export function AuthenticationView({
           </CardDescription>
         </CardHeader>
         <form onSubmit={submit}>
-          <CardContent>
+          <CardContent className="pb-(--card-spacing)">
             <FieldGroup>
               {error !== null && (
                 <Alert variant="destructive" role="alert">

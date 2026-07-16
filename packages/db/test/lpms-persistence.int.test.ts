@@ -599,7 +599,7 @@ describe('LPMS database invariants', () => {
     await expect(
       runtime`
         update production_batches
-        set status = 'sorting'
+        set status = 'sorting', started_at = now()
         where id = ${ids.batch}
       `,
     ).rejects.toThrow(/production_batches_nonqueued_membership_frozen/);
@@ -607,7 +607,7 @@ describe('LPMS database invariants', () => {
     await expect(
       runtime`
         update production_batches
-        set status = 'sorting', membership_frozen_at = now(),
+        set status = 'sorting', started_at = now(), membership_frozen_at = now(),
             membership_frozen_by = ${ids.actor}
         where id = ${ids.batch}
         returning id

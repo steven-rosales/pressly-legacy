@@ -1,0 +1,156 @@
+domain_id: steven-collaboration
+name: Steven Collaboration
+version: 1
+status: active
+summary: >
+  Durable, non-secret collaboration preferences for working with Steven on
+  Pressly. This memory governs how agents reason, ask questions, present
+  decisions, and preserve handoffs; it does not contain laundry-production
+  truth or replace Steven's current request.
+
+actors:
+  - id: steven
+    description: Steven is the user collaborating with agents on Pressly and LPMS.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+external_systems: []
+objects: []
+states: {}
+
+workflows:
+  - id: grounded_domain_interrogation
+    steps:
+      - Load the relevant domain context pack, current implementation, and concrete evidence before asking questions
+      - Ask one compact batch of only the questions that materially affect invariants, policies, state transitions, authorization, or floor workflow
+      - Re-explain an unclear question instead of interpreting confusion as a decision
+      - Separate confirmed facts, decisions, assumptions, and open questions explicitly
+      - Challenge an answer when code, evidence, or a stronger invariant contradicts it
+      - Reflect the converged model back compactly before planning implementation
+      - Persist only confirmed durable conclusions through a source-backed memory delta
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: scoped_change_authorization
+    steps:
+      - Classify the request as report, diagnosis, planning, implementation, or external action
+      - When Steven requests a report or says no changes, inspect read-only evidence and stop after the report
+      - When Steven gives an implementation green light, make the smallest coherent change that preserves agreed invariants
+      - Verify in proportion to correctness and operational risk
+      - Report the result, remaining limitations, and any unverified external state plainly
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: durable_session_handoff
+    steps:
+      - Keep user collaboration preferences separate from product-domain truth
+      - Keep unfinished engineering risks in queued or active Stateworks work rather than presenting them as durable facts
+      - Record exact verification already completed without upgrading it into an unsupported release claim
+      - Make the next highest-value action visible to the following session
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+invariants:
+  - id: current_request_overrides_profile
+    statement: Steven's explicit instruction in the current task overrides every saved collaboration preference.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: collaboration_memory_is_not_domain_truth
+    statement: Steven-collaboration memory may guide process and presentation but cannot assert, modify, or override laundry-production facts, policies, or invariants.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: memory_claims_preserve_epistemic_status
+    statement: Confirmed facts, implementation evidence, assumptions, preferences, and unresolved questions must remain distinguishable in every memory or handoff update.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: collaboration_memory_contains_no_secrets
+    statement: Collaboration memory never stores credentials, secrets, private tokens, customer payloads, or sensitive personal information.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+policies:
+  - id: ask_essential_domain_questions
+    statement: Interrogation should use a small batch of high-leverage domain questions and should not continue once the material ambiguity has converged.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: give_strong_evidence_backed_judgment
+    statement: Give Steven blunt, strong recommendations and corrections when warranted, with concrete reasoning and tradeoffs instead of social cushioning or automatic agreement.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: reason_from_physical_operations
+    statement: For LPMS decisions, load laundry-production memory and start from physical-floor reality, human stability, and explicit operator authority before applying generic software abstractions.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: preserve_report_only_boundaries
+    statement: If Steven asks for a report, explanation, plan, or no changes, do not implement until he gives a clear green light.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: prefer_rigorous_proportional_verification
+    statement: Test domain rules, state transitions, concurrency, persistence, and contracts rigorously while keeping verification proportional for small presentation changes.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: processor_ui_uses_elevenlabs_language
+    statement: For new Processor UI, use Product Design, shadcn, and the current official ElevenLabs UI system aggressively for structure and interaction while retaining Pressly's color palette and prioritizing physical-floor ergonomics.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: visual_review_uses_selected_surface
+    statement: Use Steven's supplied screenshots as the default Processor visual-review surface and do not switch to browser automation without his permission or an explicit browser request.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: local_runtime_is_native_wsl_docker
+    statement: For local Pressly runtime work, default to Steven's native WSL2 Docker daemon and verify the active daemon before mutation rather than assuming Docker Desktop.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: endpoint_guidance_prefers_postman
+    statement: When Steven asks how to exercise an endpoint manually, prefer a Postman setup over curl unless he requests another client.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+decisions:
+  - id: collaborator_name_is_steven
+    statement: Address the collaborating user as Steven when a name is useful.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+  - id: user_product_and_execution_memory_are_separate
+    statement: Store collaboration preferences in steven-collaboration, laundry-production truth in laundry-production, and unfinished implementation status in Stateworks work packages and evidence.
+    status: active
+    sources:
+      - memdelta-2026-07-16-steven-collaboration-profile
+
+assumptions: []
+open_questions: []
+
+sources:
+  - id: memdelta-2026-07-16-steven-collaboration-profile
+    path: stateworks/memory/domains/steven-collaboration/sessions/2026-07-16-collaboration-profile.md
+    type: conversation_checkpoint

@@ -1,10 +1,17 @@
 import {
   IconAdjustmentsHorizontal,
   IconCalendarClock,
+  IconHistory,
+  IconHome,
   IconLayoutBoard,
 } from "@tabler/icons-react"
 
-export type WorkspaceView = "schedule" | "board" | "settings"
+export type WorkspaceView =
+  | "home"
+  | "schedule"
+  | "board"
+  | "history"
+  | "settings"
 
 export type WorkspaceRoute = Readonly<{
   view: WorkspaceView
@@ -13,8 +20,10 @@ export type WorkspaceRoute = Readonly<{
 }>
 
 export const workspaceNavigation = [
-  { id: "schedule" as const, label: "Schedule", icon: IconCalendarClock },
+  { id: "home" as const, label: "Home", icon: IconHome },
   { id: "board" as const, label: "Production", icon: IconLayoutBoard },
+  { id: "schedule" as const, label: "Schedule", icon: IconCalendarClock },
+  { id: "history" as const, label: "History", icon: IconHistory },
   {
     id: "settings" as const,
     label: "Configuration",
@@ -23,11 +32,19 @@ export const workspaceNavigation = [
 ] as const
 
 export const workspaceCopy: Record<WorkspaceView, [string, string]> = {
+  home: [
+    "Home",
+    "Find orders, resolve floor exceptions, and keep whole-order production moving.",
+  ],
   schedule: [
     "Schedule",
     "Plan whole orders through one fixed production pulse.",
   ],
   board: ["Production", "Advance started work from sorting through folding."],
+  history: [
+    "History",
+    "Review production runs, floor activity, and schedule-plan lineage.",
+  ],
   settings: [
     "Configuration",
     "Manage appearance and review immutable scheduler inputs.",
@@ -49,6 +66,9 @@ const decodeSegment = (segment: string | undefined): string | null => {
  */
 export const readWorkspaceRoute = (pathname: string): WorkspaceRoute | null => {
   const segments = pathname.split("/").filter(Boolean)
+  if (segments.length === 0) return { view: "home", shiftId: null, runId: null }
+  if (segments.length === 1 && segments[0] === "history")
+    return { view: "history", shiftId: null, runId: null }
   if (segments.length === 1 && segments[0] === "configuration")
     return { view: "settings", shiftId: null, runId: null }
 
@@ -74,6 +94,8 @@ export const readWorkspaceRoute = (pathname: string): WorkspaceRoute | null => {
 }
 
 export const workspaceRoutePath = (route: WorkspaceRoute): string => {
+  if (route.view === "home") return "/"
+  if (route.view === "history") return "/history"
   if (route.view === "settings") return "/configuration"
   if (route.view === "board")
     return route.runId === null
@@ -88,6 +110,8 @@ export const workspaceRouteForView = (
   view: WorkspaceView,
   identifiers: Partial<Pick<WorkspaceRoute, "shiftId" | "runId">> = {}
 ): WorkspaceRoute => {
+  if (view === "home" || view === "history")
+    return { view, shiftId: null, runId: null }
   if (view === "settings")
     return { view: "settings", shiftId: null, runId: null }
   if (view === "board")

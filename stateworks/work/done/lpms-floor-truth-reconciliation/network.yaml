@@ -1,0 +1,309 @@
+work_id: lpms-floor-truth-reconciliation
+title: LPMS floor truth reconciliation
+status: complete
+
+goal:
+  - Treat planned stage windows as useful forecasts and reservations without allowing them to contradict operator-confirmed physical truth.
+  - Permit otherwise-valid early starts through exact current confirmation while preserving every hard production invariant and the accepted plan.
+  - Reconcile missed floor progress after reconnect through one atomic, forward-only, auditable batch command.
+  - Prove the implementation before advancing laundry-production memory from v7 to v8.
+
+invariants:
+  - Planned stage windows remain immutable forecasts and resource reservations.
+  - Early starts and completions cannot bypass predecessor, run, stage-kind, machine, capacity, version, or idempotency constraints.
+  - A timing exception succeeds only through an actor-bound, version-bound, timing-bound confirmation revalidated under lock.
+  - Floor reconciliation moves one coherent started-run batch only to a strictly later canonical milestone.
+  - The reconciliation proposal binds the actor, target, reason, note, selected machines, queue version, batch version, four stage versions, and exact effects.
+  - Skipped timestamps and historical machine assignments remain unknown; no synthetic stage events are written.
+  - A reconciled queued batch uses the reconciliation commit time as its LPMS started lifecycle anchor, not as a reconstructed physical stage timestamp.
+  - One reconciliation transaction writes one batch_progress_reconciled work event and causes one SSE invalidation.
+  - Reconciliation to finished has terminalization parity with ordinary final-stage completion.
+  - Stage rows remain current projections and work events remain the mutation ledger; this is not full event sourcing.
+  - Recovery operates after reconnect and does not introduce an offline browser command queue or PWA execution mode.
+  - Backward correction, reopen, concurrent same-kind execution, and existing exception workflows remain deferred.
+  - Existing user changes, historical evidence, deployed migrations, and the active production-readiness human gate are preserved.
+  - No secret, credential, signature, raw customer payload, or production connection string enters Stateworks evidence.
+  - Durable memory is not advanced until full verification passes on one final checkout.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Capture the memory and documentation baseline
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/work/done/lpms-run-centered-online-scheduling
+      - repo:stateworks/work/done/lpms-operator-workspace-live-sync
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:docs/plan/lpms.md
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations/0018_stage_boundary_provenance.sql
+      - repo:modules/policy/production/src
+      - repo:modules/business/production/src
+      - repo:apps/processor/src/features/production-board
+    writes:
+      - repo:docs/plan/lpms.md
+      - repo:stateworks/work/done/lpms-floor-truth-reconciliation
+      - repo:stateworks/memory/domains/laundry-production/sessions/2026-07-15-floor-truth-reconciliation.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-floor-truth-reconciliation.memory-delta.yaml
+    preconditions:
+      - Inventory the shared dirty worktree and preserve application changes owned by concurrent implementation work.
+      - Treat laundry-production memory v7 as the active durable baseline.
+      - Treat existing test files as candidate proof until their commands pass on the final checkout.
+    action:
+      - Record the implemented distinction between planned reservations and actual floor facts.
+      - Record early-start confirmation, boundary provenance, forward reconciliation, terminalization parity, and the Processor experience using exact source paths.
+      - Reconcile the canonical LPMS plan with the implemented behavior and distinguish recovery after reconnect from offline-first execution.
+      - Propose, but do not apply, the v7-to-v8 laundry-production memory delta.
+    postconditions:
+      - The active work package, source session, proposed delta, and canonical plan agree on the implementation boundary.
+      - memory.yaml and context-pack.md remain unchanged at v7.
+      - No full verification or deployment claim is made.
+    verifier:
+      - pnpm stateworks:validate stateworks/work/done/lpms-floor-truth-reconciliation/network.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/2026-07-15-floor-truth-reconciliation.memory-delta.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-floor-truth-reconciliation/network.yaml --state stateworks/work/done/lpms-floor-truth-reconciliation/state.yaml
+      - pnpm exec prettier --check docs/plan/lpms.md stateworks/work/done/lpms-floor-truth-reconciliation stateworks/memory/domains/laundry-production/sessions/2026-07-15-floor-truth-reconciliation.md stateworks/memory/domains/laundry-production/deltas/2026-07-15-floor-truth-reconciliation.memory-delta.yaml
+      - git diff --check -- docs/plan/lpms.md stateworks/work/done/lpms-floor-truth-reconciliation stateworks/memory/domains/laundry-production/sessions/2026-07-15-floor-truth-reconciliation.md stateworks/memory/domains/laundry-production/deltas/2026-07-15-floor-truth-reconciliation.memory-delta.yaml
+    rollback:
+      - Revert only this unaccepted documentation and Stateworks package; do not touch application code, memory v7, or historical work.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+
+  - id: T1
+    title: Record early-start and boundary-provenance implementation
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations/0018_stage_boundary_provenance.sql
+      - repo:modules/policy/production/src/stage-transition
+      - repo:modules/business/production/src/advance-production-stage
+      - repo:apps/processor/src/features/production-board/early-stage-start-dialog.view.tsx
+      - repo:modules/policy/production/test/stage-transition
+      - repo:modules/business/production/test/advance-production-stage
+      - repo:apps/processor/test/features/production-board/early-stage-start-dialog.test.tsx
+    writes:
+      - repo:stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+      - repo:stateworks/memory/domains/laundry-production/sessions/2026-07-15-floor-truth-reconciliation.md
+    preconditions:
+      - T0 records the v7 memory baseline and evidence boundary.
+    action:
+      - Trace the early-start result union from policy through confirmation hashing, persistence, API composition, audit payload, and Processor dialog.
+      - Trace provenance constraints and normal live-observation writes through schema and migration.
+      - Record focused test paths without claiming their execution until V1.
+    postconditions:
+      - Every early-start and provenance claim has a concrete implementation path.
+      - Planned windows remain unmodified and hard transition guards remain explicit.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/processor test
+    rollback:
+      - Correct only unsupported evidence wording; do not mutate the implementation during this documentation task.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+
+  - id: T2
+    title: Record forward reconciliation policy and transaction
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/contracts/src/production
+      - repo:modules/policy/production/src/progress-reconciliation
+      - repo:modules/business/production/src/reconcile-production-batch-progress
+      - repo:modules/business/production/src/persistence/complete-production-batch.ts
+      - repo:modules/business/production/test/reconcile-production-batch-progress
+      - repo:modules/business/production/test/concurrency
+      - repo:apps/api/src
+      - repo:packages/db/src/migrations/0017_production_live_revisions.sql
+    writes:
+      - repo:stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+      - repo:stateworks/memory/domains/laundry-production/sessions/2026-07-15-floor-truth-reconciliation.md
+    preconditions:
+      - T0 records recovery-after-reconnect as distinct from offline command execution.
+    action:
+      - Trace request validation, forward milestone policy, hard machine and capacity checks, exact-version preview hashing, lock order, persistence, terminalization, idempotency, and work-event emission.
+      - Verify that skipped boundaries and historical machine usage remain unknown.
+      - Verify that one event produces one durable live-revision invalidation.
+    postconditions:
+      - Reconciliation is documented as one atomic current-projection command with one audit event.
+      - No wording claims synthetic history, backward correction, reopen, or offline replay.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production test:integration
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/api test
+    rollback:
+      - Correct only unsupported evidence wording; do not broaden or mutate application behavior.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+
+  - id: T3
+    title: Record the Processor recovery experience
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:apps/processor/src/features/production-board/early-stage-start-dialog.view.tsx
+      - repo:apps/processor/src/features/production-board/floor-progress-reconciliation.view.tsx
+      - repo:apps/processor/src/features/production-board/floor-progress.presenter.ts
+      - repo:apps/processor/src/features/production-board/production-board.model.ts
+      - repo:apps/processor/test/features/production-board
+    writes:
+      - repo:stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+      - repo:stateworks/memory/domains/laundry-production/sessions/2026-07-15-floor-truth-reconciliation.md
+    preconditions:
+      - T0 records the product boundary and authoritative-server refresh model.
+    action:
+      - Trace the early-start dialog and responsive Record floor progress sheet.
+      - Record progressive disclosure, effect preview, exact confirmation, conflict refresh, unknown-time wording, and authoritative reload behavior.
+      - Verify that the UI does not claim offline success or queue physical commands.
+    postconditions:
+      - The documented experience matches the implemented command semantics.
+      - Recovery remains a deliberate operator action rather than an automatic rewrite.
+    verifier:
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+    rollback:
+      - Correct only unsupported evidence wording; do not change Processor code during this documentation task.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+
+  - id: V1
+    title: Run full implementation verification
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+      - T3
+    reads:
+      - repo:package.json
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:apps/api
+      - repo:apps/processor
+      - repo:tooling/test
+      - repo:docker-compose.yml
+    writes:
+      - repo:stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+      - repo:stateworks/work/done/lpms-floor-truth-reconciliation/state.yaml
+    preconditions:
+      - T1 through T3 define the exact implementation claims and deferrals.
+      - All commands run against one final checkout with no application repair hidden inside the evidence task.
+    action:
+      - Run focused policy, business, contract, database, API, and Processor tests.
+      - Run database integration and concurrency proof.
+      - Run root format, lint, typecheck, test, build, and architecture-boundary gates.
+      - Run the API-composed Cents happy path, Processor workflow tests, Postgres reconciliation-through-terminalization tests, and coordinated LPMS Docker image builds.
+      - Record exact commands, checkout identity, outcomes, and any failure.
+    postconditions:
+      - Every asserted behavior is command-backed on one checkout, or this work remains active with the failure recorded.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/db test:integration
+      - pnpm --filter @pressly/api test
+      - pnpm --filter @pressly/processor test
+      - pnpm test:lpms:int
+      - pnpm test:lpms:e2e
+      - pnpm docker:lpms:build
+      - pnpm format:check
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm test
+      - pnpm build
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+    rollback:
+      - Record any failing gate and keep the work active; do not accept memory or conceal the failure.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+
+  - id: T4
+    title: Accept memory and close verified work
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-floor-truth-reconciliation.memory-delta.yaml
+    writes:
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-floor-truth-reconciliation.memory-delta.yaml
+      - repo:stateworks/work/done/lpms-floor-truth-reconciliation
+    preconditions:
+      - V1 has committed complete command-backed evidence with no unresolved implementation failure.
+      - The proposed delta still matches memory v7 and the verified implementation.
+    action:
+      - Change the delta to applied only after acceptance proof is complete.
+      - Apply the v7-to-v8 memory delta and regenerate the bounded context pack.
+      - Record the final report, mark Stateworks tasks committed, and move the work package from active to done.
+      - Leave the separate production-readiness gate unchanged.
+    postconditions:
+      - Laundry-production memory is v8 and its context pack matches.
+      - The work package is complete under stateworks/work/done.
+      - Production readiness remains independently gated.
+    verifier:
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/2026-07-15-floor-truth-reconciliation.memory-delta.yaml
+      - pnpm stateworks:validate stateworks/work/done/lpms-floor-truth-reconciliation/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-floor-truth-reconciliation/network.yaml --state stateworks/work/done/lpms-floor-truth-reconciliation/state.yaml
+      - git diff --check -- docs/plan/lpms.md stateworks/work/done/lpms-floor-truth-reconciliation stateworks/memory/domains/laundry-production
+    rollback:
+      - If acceptance or apply validation fails, keep the work active, restore the proposed delta state, and preserve memory v7.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-floor-truth-reconciliation/evidence.md
+      - stateworks/work/done/lpms-floor-truth-reconciliation/final-report.md
+      - stateworks/memory/domains/laundry-production/deltas/2026-07-15-floor-truth-reconciliation.memory-delta.yaml

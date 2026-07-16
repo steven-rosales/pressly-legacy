@@ -1,4 +1,4 @@
-import { useId, useState, useSyncExternalStore } from "react"
+import { useId, useState } from "react"
 import {
   IconAdjustmentsHorizontal,
   IconAlertTriangle,
@@ -30,28 +30,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { cn } from "@/components/ui/class-names"
 import { Spinner } from "@/components/ui/spinner"
+import { useIsMobile } from "@/components/ui/use-mobile"
 import { ShiftWindowField } from "./shift-window-field.view"
 import { shiftWindowValidationError } from "./shift-window.presenter"
-
-const mobileSheetQuery = "(max-width: 767px)"
-
-const mobileSheetSnapshot = () =>
-  typeof window !== "undefined" &&
-  typeof window.matchMedia === "function" &&
-  window.matchMedia(mobileSheetQuery).matches
-
-const subscribeToMobileSheet = (onStoreChange: () => void) => {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function")
-    return () => undefined
-  const media = window.matchMedia(mobileSheetQuery)
-  media.addEventListener("change", onStoreChange)
-  return () => media.removeEventListener("change", onStoreChange)
-}
-
-const useMobileSheet = () =>
-  useSyncExternalStore(subscribeToMobileSheet, mobileSheetSnapshot, () => false)
 
 export type ScheduleSettings = Readonly<{
   folders: number
@@ -83,7 +65,7 @@ export function ScheduleSettingsSheet({
   const generatedId = useId()
   const foldersDescriptionId = `${generatedId}-folders-description`
   const foldersErrorId = `${generatedId}-folders-error`
-  const isMobile = useMobileSheet()
+  const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(settings)
   const [saving, setSaving] = useState(false)
@@ -120,15 +102,8 @@ export function ScheduleSettingsSheet({
           {mode === "create" ? "Set shift" : "Edit shift"}
         </Button>
       </SheetTrigger>
-      <SheetContent
-        side={isMobile ? "bottom" : "right"}
-        className={cn(
-          isMobile
-            ? "max-h-[calc(100dvh-0.5rem)] w-full rounded-t-xl"
-            : "sm:max-w-md"
-        )}
-      >
-        <SheetHeader className="border-b px-5 py-4">
+      <SheetContent side={isMobile ? "bottom" : "right"} size="workspace">
+        <SheetHeader className="border-b px-5 py-4 pe-16">
           <SheetTitle>Shift settings</SheetTitle>
           <SheetDescription>
             {mode === "create"

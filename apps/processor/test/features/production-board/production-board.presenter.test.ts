@@ -24,47 +24,34 @@ describe("production board presenter", () => {
     )
   })
 
-  it("renders a server-timed block as upcoming without enabling the action", () => {
+  it("keeps an early start actionable while showing the planned boundary", () => {
     const stage = structuredClone(testBoard.batches[0]!.stages[0]!)
     stage.nextAction = {
-      state: "blocked",
+      state: "confirmation_required",
       action: "start",
-      code: "STAGE_BOUNDARY_NOT_REACHED",
+      code: "PLANNED_START_NOT_REACHED",
       message: "The planned stage boundary has not been reached.",
       availableAt: "2026-08-01T14:05:00.000Z",
+      timing: {
+        plannedStartAt: "2026-08-01T14:05:00.000Z",
+        plannedEndAt: "2026-08-01T14:55:00.000Z",
+        observedAt: "2026-08-01T14:00:00.000Z",
+        remainingMilliseconds: 300_000,
+      },
     }
 
     expect(
       presentStage({ stage, now: Date.parse("2026-08-01T14:00:00.000Z") })
     ).toEqual({
       state: "upcoming",
-      label: "Upcoming",
-      detail: "The planned stage boundary has not been reached.",
-      action: null,
+      label: "Scheduled to start",
+      detail: "Start now if the batch is physically ready.",
+      action: "start",
       availableAt: Date.parse("2026-08-01T14:05:00.000Z"),
     })
   })
 
   it("never shows a negative countdown after a stale boundary", () => {
-    const stage = structuredClone(testBoard.batches[0]!.stages[0]!)
-    stage.nextAction = {
-      state: "blocked",
-      action: "start",
-      code: "STAGE_BOUNDARY_NOT_REACHED",
-      message: "Waiting for an authoritative refresh.",
-      availableAt: "2026-08-01T13:59:00.000Z",
-    }
-
-    expect(
-      presentStage({ stage, now: Date.parse("2026-08-01T14:00:00.000Z") })
-    ).toEqual(
-      expect.objectContaining({
-        state: "waiting",
-        label: "Waiting for server clearance",
-        action: null,
-        availableAt: null,
-      })
-    )
     expect(formatCountdown(1_000, 2_000)).toBe("Checking readiness…")
   })
 
@@ -140,9 +127,9 @@ describe("production board presenter", () => {
     ready[0]!.stages[0]!.nextAction = {
       state: "blocked",
       action: "start",
-      code: "STAGE_BOUNDARY_NOT_REACHED",
-      message: "Wait for the stage boundary.",
-      availableAt: "2026-08-01T14:10:00.000Z",
+      code: "PREVIOUS_STAGE_INCOMPLETE",
+      message: "Wait for the previous stage.",
+      availableAt: null,
     }
     ready[0]!.stages[2]!.nextAction = {
       state: "available",

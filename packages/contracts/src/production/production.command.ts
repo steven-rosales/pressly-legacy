@@ -22,6 +22,7 @@ import type {
   productionWorkspaceQuerySchema,
   publishSchedulerConfigCommandSchema,
   recordOrderIntakeCommandSchema,
+  reconcileProductionBatchProgressCommandSchema,
   scheduleRunParamsSchema,
   schedulerConfigResourceInputSchema,
   setProductionOrderPriorityCommandSchema,
@@ -89,6 +90,9 @@ export type ConfirmProductionOrderOvertimeCommand = z.infer<
 >;
 export type RecordOrderIntakeCommand = z.infer<
   typeof recordOrderIntakeCommandSchema
+>;
+export type ReconcileProductionBatchProgressCommand = z.infer<
+  typeof reconcileProductionBatchProgressCommandSchema
 >;
 export type ProductionLocationResourceInput = z.infer<
   typeof productionLocationResourceInputSchema

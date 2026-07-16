@@ -6,6 +6,7 @@ import {
 
 const productionTables = [
   'work_events',
+  'production_order_stage_attempts',
   'stage_machine_assignments',
   'stage_runs',
   'production_batch_orders',

@@ -156,6 +156,8 @@ const stageRuns = testSchedule.batches[0]!.stages.map((stage, index) => ({
   plannedEndAt: stage.endsAt,
   actualStartAt: null,
   actualEndAt: null,
+  actualStartProvenance: "not_recorded" as const,
+  actualEndProvenance: "not_recorded" as const,
   machineIds: stage.machineIds,
   nextAction:
     index === 0
@@ -260,6 +262,36 @@ export const makeTestProductionPort = (
     nextCursor: null,
     asOf: testWorkspace.asOf,
   }),
+  listOrderControl: async () => ({
+    items: [],
+    counts: { attention: 0, active: 0, all: 0 },
+    nextCursor: null,
+    asOf: testWorkspace.asOf,
+  }),
+  previewOrderRoute: async () => {
+    throw new Error("No order-route preview is configured for this test.")
+  },
+  commitOrderRoute: async () => {
+    throw new Error("No order-route commit is configured for this test.")
+  },
+  listHistoryRuns: async () => ({
+    items: [],
+    nextCursor: null,
+    asOf: testWorkspace.asOf,
+  }),
+  listHistoryActivity: async () => ({
+    items: [],
+    nextCursor: null,
+    asOf: testWorkspace.asOf,
+  }),
+  listHistoryPlans: async () => ({
+    items: [],
+    nextCursor: null,
+    asOf: testWorkspace.asOf,
+  }),
+  loadHistoryRun: async () => {
+    throw new Error("No production-run history is configured for this test.")
+  },
   recordIntake: async (input) => ({
     locationId: input.locationId,
     orderId: input.productionOrderId,
@@ -352,6 +384,25 @@ export const makeTestProductionPort = (
     reason: "proposal_stale",
     message: "The proposal is stale.",
     queueVersion: input.expectedQueueVersion,
+    replayed: false,
+  }),
+  reconcileBatchProgress: async (input) => ({
+    status: "confirmation_required",
+    productionRunId: input.productionRunId,
+    productionBatchId: input.productionBatchId,
+    currentMilestone: "waiting_to_sort",
+    targetMilestone: input.target,
+    queueVersion: input.expectedQueueVersion,
+    batchVersion: input.expectedBatchVersion,
+    stageVersions: input.expectedStageVersions,
+    confirmation: { proposalHash: "e".repeat(64) },
+    effects: {
+      completedStages: [],
+      activeStage: null,
+      finishesBatch: false,
+      finishesRun: false,
+      closesShift: false,
+    },
     replayed: false,
   }),
   advanceStage: async (input) => ({

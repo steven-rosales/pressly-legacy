@@ -90,6 +90,8 @@ const stage = (
   plannedEndAt: new Date(shift.startsAt.getTime() + (offset + 1) * 56 * 60_000),
   actualStartAt: null,
   actualEndAt: null,
+  actualStartProvenance: 'not_recorded' as const,
+  actualEndProvenance: 'not_recorded' as const,
   version: 1,
 });
 

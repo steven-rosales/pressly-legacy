@@ -208,7 +208,12 @@ describe("shift window field", () => {
     await user.click(screen.getByRole("button", { name: "Edit shift" }))
     const sheet = screen.getByRole("dialog", { name: "Shift settings" })
     expect(sheet).toHaveAttribute("data-side", "bottom")
-    expect(sheet).toHaveClass("max-h-[calc(100dvh-0.5rem)]", "w-full")
+    expect(sheet).toHaveAttribute("data-size", "workspace")
+    expect(sheet).toHaveClass(
+      "data-[side=bottom]:h-[calc(100dvh-0.5rem)]",
+      "data-[side=bottom]:max-h-[calc(100dvh-0.5rem)]",
+      "data-[side=bottom]:w-full"
+    )
 
     const folders = screen.getByLabelText("Folding team")
     const foldersDescriptionId = folders.getAttribute("aria-describedby")

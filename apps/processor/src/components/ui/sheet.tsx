@@ -47,10 +47,12 @@ function SheetContent({
   className,
   children,
   side = "right",
+  size = "default",
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
+  size?: "default" | "workspace"
   showCloseButton?: boolean
 }) {
   return (
@@ -59,8 +61,11 @@ function SheetContent({
       <SheetPrimitive.Content
         data-slot="sheet-content"
         data-side={side}
+        data-size={size}
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg transition duration-200 ease-in-out data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-e data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-s data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-[side=bottom]:data-open:slide-in-from-bottom-10 data-[side=left]:data-open:slide-in-from-left-10 data-[side=right]:data-open:slide-in-from-right-10 data-[side=top]:data-open:slide-in-from-top-10 data-closed:animate-out data-closed:fade-out-0 data-[side=bottom]:data-closed:slide-out-to-bottom-10 data-[side=left]:data-closed:slide-out-to-left-10 data-[side=right]:data-closed:slide-out-to-right-10 data-[side=top]:data-closed:slide-out-to-top-10",
+          size === "workspace" &&
+            "min-h-0 gap-0 overflow-hidden data-[side=bottom]:h-[calc(100dvh-0.5rem)] data-[side=bottom]:max-h-[calc(100dvh-0.5rem)] data-[side=bottom]:w-full data-[side=bottom]:rounded-t-xl data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:md:w-[40vw] data-[side=left]:md:max-w-[40vw] data-[side=right]:md:w-[40vw] data-[side=right]:md:max-w-[40vw]",
           className
         )}
         {...props}
@@ -69,9 +74,10 @@ function SheetContent({
         {showCloseButton && (
           <SheetPrimitive.Close data-slot="sheet-close" asChild>
             <Button
+              type="button"
               variant="ghost"
-              className="absolute end-3 top-3"
-              size="icon-sm"
+              className="absolute end-2 top-2 z-20 size-11 touch-manipulation md:end-3 md:top-3 md:size-8"
+              size="icon"
             >
               <IconX />
               <span className="sr-only">Close</span>
@@ -87,7 +93,7 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-header"
-      className={cn("flex flex-col gap-0.5 p-4", className)}
+      className={cn("flex shrink-0 flex-col gap-0.5 p-4", className)}
       {...props}
     />
   )
@@ -97,7 +103,7 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-footer"
-      className={cn("mt-auto flex flex-col gap-2 p-4", className)}
+      className={cn("mt-auto flex shrink-0 flex-col gap-2 p-4", className)}
       {...props}
     />
   )

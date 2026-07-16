@@ -83,6 +83,13 @@ const makeFetch = (restoreStatus = 200) =>
         nextCursor: null,
         asOf: testWorkspace.asOf,
       })
+    if (url.includes(`/production/locations/${testLocation.id}/order-control?`))
+      return response({
+        items: [],
+        counts: { attention: 0, active: 0, all: 0 },
+        nextCursor: null,
+        asOf: testWorkspace.asOf,
+      })
     if (url.endsWith("/processor/auth/logout"))
       return response({ revoked: true })
     throw new Error(`Unexpected request: ${init?.method ?? "GET"} ${url}`)
@@ -109,24 +116,17 @@ describe("processor application composition", () => {
     document.documentElement.className = ""
   })
 
-  it("keeps the root invalid until the operator chooses a real route", async () => {
-    const user = userEvent.setup()
+  it("uses the root as the order-first Processor home", async () => {
     const fetch = makeFetch()
     window.history.replaceState(null, "", "/")
 
     renderApp(fetch)
 
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeVisible()
     expect(
-      await screen.findByRole("heading", { name: "Page not found" })
+      await screen.findByRole("heading", { name: "No orders need attention" })
     ).toBeVisible()
     expect(window.location.pathname).toBe("/")
-    expect(fetch).not.toHaveBeenCalled()
-
-    await user.click(screen.getByRole("button", { name: "Open scheduling" }))
-
-    expect(
-      await screen.findByRole("heading", { name: "Schedule" })
-    ).toBeVisible()
   })
 
   it("restores a cookie session, discovers locations, and resumes live workspace", async () => {
@@ -464,7 +464,11 @@ describe("processor application composition", () => {
     renderApp(fetch)
 
     await user.type(await screen.findByLabelText("Email"), "olivia@example.com")
-    await user.type(screen.getByLabelText("Password"), "correct-horse")
+    const password = screen.getByLabelText("Password")
+    expect(password.closest('[data-slot="card-content"]')).toHaveClass(
+      "pb-(--card-spacing)"
+    )
+    await user.type(password, "correct-horse")
     await user.click(screen.getByRole("button", { name: "Sign in" }))
 
     expect(

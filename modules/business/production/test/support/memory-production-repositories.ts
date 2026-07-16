@@ -872,6 +872,12 @@ export const makeMemoryProductionRepositories = (deps: {
                 plannedEndAt: stage.plannedEndAt,
                 actualStartAt: stage.actualStartAt,
                 actualEndAt: stage.actualEndAt,
+                actualStartProvenance:
+                  stage.actualStartAt === null
+                    ? 'not_recorded'
+                    : 'live_observed',
+                actualEndProvenance:
+                  stage.actualEndAt === null ? 'not_recorded' : 'live_observed',
                 machineIds: [...stage.machineIds],
                 version: stage.version,
               };
@@ -1317,6 +1323,32 @@ export const makeMemoryProductionRepositories = (deps: {
         },
       }),
     },
+    listProductionOrderControl: {
+      list: async (_command, now) => ({
+        tag: 'found',
+        value: {
+          items: [],
+          counts: { attention: 0, active: 0, all: 0 },
+          nextCursor: null,
+          asOf: now.toISOString(),
+        },
+      }),
+    },
+    productionHistory: {
+      listRuns: async (_command, now) => ({
+        tag: 'found',
+        value: { items: [], nextCursor: null, asOf: now.toISOString() },
+      }),
+      listActivity: async (_command, now) => ({
+        tag: 'found',
+        value: { items: [], nextCursor: null, asOf: now.toISOString() },
+      }),
+      listPlans: async (_command, now) => ({
+        tag: 'found',
+        value: { items: [], nextCursor: null, asOf: now.toISOString() },
+      }),
+      loadRun: async () => ({ tag: 'run_not_found' }),
+    },
     loadProductionBoard: {
       loadBoardProjection: loadMemoryBoardProjection,
     },
@@ -1521,6 +1553,11 @@ export const makeMemoryProductionRepositories = (deps: {
       transactional<OperationsOf<'publishSchedulerConfig'>>(allOperations),
     recordOrderIntake:
       transactional<OperationsOf<'recordOrderIntake'>>(allOperations),
+    routeProductionOrder: unsupportedTransactional(),
+    reconcileProductionBatchProgress:
+      unsupportedTransactional<
+        OperationsOf<'reconcileProductionBatchProgress'>
+      >(),
     setProductionOrderPriority:
       transactional<OperationsOf<'setProductionOrderPriority'>>(allOperations),
     startSchedule: transactional<OperationsOf<'startSchedule'>>(allOperations),

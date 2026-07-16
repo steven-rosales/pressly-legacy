@@ -29,7 +29,9 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AuthenticationView } from "@/features/authentication/authentication.view"
 import { IntakeWorkspace } from "@/features/intake/intake.view"
+import { HistoryWorkspaceContainer } from "@/features/history/history-workspace.view"
 import { ProductionLocationSelect } from "@/features/location-selection/location-selection.view"
+import { OrderControlWorkspaceContainer } from "@/features/order-control/order-control-workspace.view"
 import { ProductionBoardWorkspace } from "@/features/production-board/production-board.view"
 import { ScheduleHistoryView } from "@/features/scheduling/schedule-history.view"
 import { SchedulingWorkspace } from "@/features/scheduling/scheduling.view"
@@ -281,7 +283,7 @@ function ProcessorWorkspace({
                   ? model.workspace.activeRuns[0]!.id
                   : null),
             })
-          : workspaceRouteForView("settings")
+          : workspaceRouteForView(route.view)
     if (workspaceRoutePath(resolvedRoute) === workspaceRoutePath(route)) return
     const timeout = window.setTimeout(() => goToRoute(resolvedRoute, true), 0)
     return () => window.clearTimeout(timeout)
@@ -434,13 +436,25 @@ function ProcessorWorkspace({
           </Empty>
         ) : (
           <>
-            {route.view !== "settings" && model.intakeOrders.length > 0 && (
-              <IntakeWorkspace
+            {(route.view === "schedule" || route.view === "board") &&
+              model.intakeOrders.length > 0 && (
+                <IntakeWorkspace
+                  production={runtime.production}
+                  idempotency={runtime.idempotency}
+                  locationId={location.id}
+                  orders={model.intakeOrders}
+                  onRecorded={model.refreshWorkspace}
+                />
+              )}
+            {route.view === "home" && (
+              <OrderControlWorkspaceContainer
                 production={runtime.production}
                 idempotency={runtime.idempotency}
                 locationId={location.id}
-                orders={model.intakeOrders}
-                onRecorded={model.refreshWorkspace}
+                timezone={location.timezone}
+                board={model.workspace.board}
+                revision={model.workspace.asOf}
+                onMutated={model.refreshWorkspace}
               />
             )}
             {route.view === "schedule" &&
@@ -556,6 +570,14 @@ function ProcessorWorkspace({
                 </EmptyContent>
               </Empty>
             )}
+            {route.view === "history" && (
+              <HistoryWorkspaceContainer
+                production={runtime.production}
+                locationId={location.id}
+                timezone={location.timezone}
+                revision={model.workspace.asOf}
+              />
+            )}
             {route.view === "settings" && (
               <SettingsView
                 theme={theme === "dark" ? "dark" : "light"}
@@ -600,7 +622,7 @@ function ProcessorRoute({ runtime }: { runtime: ProcessorRuntime }) {
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button onClick={() => navigate("/schedule")}>Open scheduling</Button>
+          <Button onClick={() => navigate("/")}>Open Processor home</Button>
         </EmptyContent>
       </Empty>
     </main>

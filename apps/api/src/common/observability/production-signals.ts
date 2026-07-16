@@ -13,11 +13,7 @@ export const makeLoggingCounterSink = (logger: Logger): CounterSink => ({
     }),
 });
 
-/**
- * Maps committed production-domain outcomes to the deployment's counter sink.
- * The application layer invokes these signals only after a transaction commits,
- * so retries and rejected HTTP requests cannot inflate business counters.
- */
+/** Maps bounded production workflow outcomes to the deployment counter sink. */
 export const makeProductionDomainSignals = (
   counters: CounterSink,
 ): ProductionSignalsPort => ({
@@ -39,6 +35,18 @@ export const makeProductionDomainSignals = (
   overtimeConfirmed: () =>
     counters.increment('production.overtime_confirmations', {
       status: 'placed',
+    }),
+  orderRouteOutcome: ({ operation, status, kind, reason }) =>
+    counters.increment('production.order_route_outcomes', {
+      operation,
+      status,
+      kind,
+      reason,
+    }),
+  progressReconciled: ({ target, runCompleted }) =>
+    counters.increment('production.progress_reconciliations', {
+      target,
+      runCompleted: String(runCompleted),
     }),
 });
 

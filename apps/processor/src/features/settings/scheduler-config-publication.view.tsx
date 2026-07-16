@@ -30,6 +30,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
+import { useIsMobile } from "@/components/ui/use-mobile"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import { useSchedulerConfigPublication } from "./scheduler-config-publication.model"
@@ -56,6 +57,7 @@ export function SchedulerConfigPublication({
   onPublished: (config: SchedulerConfig) => Promise<void>
 }>) {
   const [open, setOpen] = useState(false)
+  const isMobile = useIsMobile()
   const model = useSchedulerConfigPublication({
     production,
     idempotency,
@@ -85,18 +87,19 @@ export function SchedulerConfigPublication({
         </Button>
       </SheetTrigger>
       <SheetContent
-        className="sm:max-w-md"
+        side={isMobile ? "bottom" : "right"}
+        size="workspace"
         showCloseButton={!model.busy}
         aria-busy={model.busy}
       >
-        <SheetHeader className="border-b px-5 py-4">
+        <SheetHeader className="border-b px-5 py-4 pe-16">
           <SheetTitle>Publish production configuration</SheetTitle>
           <SheetDescription>
             Record a tested pulse as a new immutable scheduler version.
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
           {model.error !== null && (
             <Alert variant="destructive" role="alert">
               <IconAlertTriangle />

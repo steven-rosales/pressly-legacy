@@ -190,6 +190,11 @@ export const makeStartScheduleRepository = (deps: {
       });
 
       const productionBatchIds: string[] = [];
+      const initialStageAttempts: {
+        stageRunId: string;
+        stageKind: (typeof schedule.batches)[number]['stages'][number]['stage'];
+        productionOrderIds: readonly string[];
+      }[] = [];
       for (const proposed of schedule.batches) {
         const productionBatchId = deps.ids.next();
         productionBatchIds.push(productionBatchId);
@@ -237,6 +242,11 @@ export const makeStartScheduleRepository = (deps: {
             createdAt: now,
             updatedAt: now,
           });
+          initialStageAttempts.push({
+            stageRunId,
+            stageKind: proposedStage.stage,
+            productionOrderIds: proposed.orderIds,
+          });
           if (proposedStage.machineIds.length > 0)
             await db.insert(laundryProduction.stageMachineAssignments).values(
               proposedStage.machineIds.map((machineId) => ({
@@ -253,6 +263,28 @@ export const makeStartScheduleRepository = (deps: {
             );
         }
       }
+
+      const initialAttemptValues = initialStageAttempts.flatMap((stage) =>
+        stage.productionOrderIds.map((productionOrderId) => ({
+          id: deps.ids.next(),
+          locationId,
+          productionRunId,
+          productionOrderId,
+          stageRunId: stage.stageRunId,
+          stageKind: stage.stageKind,
+          attemptNumber: 1,
+          status: 'assigned',
+          assignmentReason: 'initial_schedule',
+          assignedAt: now,
+          assignedBy: actorId,
+          createdAt: now,
+          updatedAt: now,
+        })),
+      );
+      if (initialAttemptValues.length > 0)
+        await db
+          .insert(laundryProduction.productionOrderStageAttempts)
+          .values(initialAttemptValues);
 
       const startedResult = {
         scheduleRunId: schedule.scheduleRunId,

@@ -9,6 +9,7 @@ import {
   IconAlertTriangle,
   IconCheck,
   IconClock,
+  IconHistory,
   IconLock,
   IconLockOpen,
   IconPlayerPlay,
@@ -59,6 +60,8 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { cn } from "@/components/ui/class-names"
+import { EarlyStageStartDialog } from "./early-stage-start-dialog.view"
+import { FloorProgressReconciliationSheet } from "./floor-progress-reconciliation.view"
 import {
   useProductionBoardModel,
   type ProductionBoardModelInput,
@@ -181,6 +184,9 @@ function StageCard({
   )
   const supportsMachines = stage.stage === "washing" || stage.stage === "drying"
   const action = presentation.action
+  const startsEarly =
+    stage.nextAction.state === "confirmation_required" &&
+    stage.nextAction.action === "start"
 
   return (
     <Card
@@ -268,7 +274,9 @@ function StageCard({
                 <IconCheck data-icon="inline-start" />
               )}
               {action === "start"
-                ? `Start ${productionStageLabels[stage.stage]}`
+                ? startsEarly
+                  ? `Start ${productionStageLabels[stage.stage]} now`
+                  : `Start ${productionStageLabels[stage.stage]}`
                 : `Complete ${productionStageLabels[stage.stage]}`}
             </Button>
           )}
@@ -287,10 +295,16 @@ export function ProductionBoardWorkspace({
     error,
     announcement,
     earlyCompletion,
+    earlyStart,
+    floorProgressOpen,
+    floorProgressError,
+    floorProgressConfirmation,
     totalLbs,
     completedStages,
     refresh,
     act,
+    confirmEarlyStart,
+    dismissEarlyStart,
     confirmEarlyCompletion,
     dismissEarlyCompletion,
     selectedMachineIds,
@@ -302,6 +316,11 @@ export function ProductionBoardWorkspace({
     selectExactBatch,
     placeOrderExactly,
     confirmOvertime,
+    openFloorProgress,
+    closeFloorProgress,
+    reconcileFloorProgress,
+    confirmFloorProgress,
+    invalidateFloorProgressConfirmation,
   } = useProductionBoardModel(input)
   const [editingStageId, setEditingStageId] = useState<string | null>(null)
   const isWide = useMediaQuery("(min-width: 1280px)", true)
@@ -469,7 +488,7 @@ export function ProductionBoardWorkspace({
         title="Live production run"
         description={`Shift ${formatStageWindow(board.productionShift.startsAt, board.productionShift.endsAt, board.asOf, input.timezone)} · updated ${formatMoment(board.asOf, board.asOf, input.timezone)}`}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {updatesUnavailable && (
               <Badge variant="outline">
                 {input.online === false
@@ -479,6 +498,17 @@ export function ProductionBoardWorkspace({
                     : "Connecting"}
               </Badge>
             )}
+            <Button
+              variant="outline"
+              className="h-11"
+              onClick={openFloorProgress}
+              disabled={
+                mutationsDisabled || board.productionRun.status === "completed"
+              }
+            >
+              <IconHistory data-icon="inline-start" />
+              Record floor progress
+            </Button>
             <Button
               variant="outline"
               className="h-11"
@@ -797,7 +827,11 @@ export function ProductionBoardWorkspace({
                 aria-label="Production stages"
               >
                 {productionStages.map((kind) => (
-                  <TabsTrigger key={kind} value={kind}>
+                  <TabsTrigger
+                    key={kind}
+                    value={kind}
+                    className="min-w-0 px-1 text-xs sm:text-sm"
+                  >
                     {kind === "folding_packaging"
                       ? "Fold"
                       : productionStageLabels[kind]}
@@ -820,13 +854,10 @@ export function ProductionBoardWorkspace({
           if (!open) closeMachineEditor()
         }}
       >
-        <SheetContent
-          side={isMobile ? "bottom" : "right"}
-          className={cn(isMobile ? "max-h-[85vh]" : "sm:max-w-md")}
-        >
+        <SheetContent side={isMobile ? "bottom" : "right"} size="workspace">
           {editingStage !== undefined && editingBatch !== undefined && (
             <>
-              <SheetHeader className="border-b px-4 pb-4">
+              <SheetHeader className="border-b px-4 pe-16 pb-4">
                 <SheetTitle>
                   Assign{" "}
                   {productionStageLabels[editingStage.stage].toLowerCase()}{" "}
@@ -838,12 +869,7 @@ export function ProductionBoardWorkspace({
                   capacity. Saving replaces the full machine set for this stage.
                 </SheetDescription>
               </SheetHeader>
-              <ScrollArea
-                className={cn(
-                  "px-4",
-                  isMobile ? "max-h-[45vh]" : "min-h-0 flex-1"
-                )}
-              >
+              <ScrollArea className="min-h-0 flex-1 px-4">
                 <FieldSet>
                   <FieldLegend>Active compatible machines</FieldLegend>
                   <FieldGroup className="gap-2">
@@ -938,6 +964,37 @@ export function ProductionBoardWorkspace({
           )}
         </SheetContent>
       </Sheet>
+
+      <FloorProgressReconciliationSheet
+        key={
+          floorProgressOpen ? "floor-progress-open" : "floor-progress-closed"
+        }
+        open={floorProgressOpen}
+        isMobile={isMobile}
+        batches={board.batches}
+        machines={input.machines}
+        busy={busyId !== null}
+        error={floorProgressError}
+        confirmation={floorProgressConfirmation}
+        onOpenChange={(open) => {
+          if (!open) closeFloorProgress()
+        }}
+        onSubmit={(draft) => void reconcileFloorProgress(draft)}
+        onConfirm={() => void confirmFloorProgress()}
+        onInvalidateConfirmation={invalidateFloorProgressConfirmation}
+      />
+
+      <EarlyStageStartDialog
+        stage={earlyStart?.stage ?? null}
+        timing={earlyStart?.result.timing ?? null}
+        referenceAt={board.asOf}
+        timezone={input.timezone}
+        busy={busyId !== null}
+        onOpenChange={(open) => {
+          if (!open && busyId === null) dismissEarlyStart()
+        }}
+        onConfirm={() => void confirmEarlyStart()}
+      />
 
       <AlertDialog
         open={earlyCompletion !== null}

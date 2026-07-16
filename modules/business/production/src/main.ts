@@ -25,6 +25,14 @@ import { makeListProductionOrders } from './list-production-orders/list-producti
 import { makeListProductionOrdersRoute } from './list-production-orders/list-production-orders.route.ts';
 import { makeListProductionOrdersRepository } from './list-production-orders/list-production-orders.repo.ts';
 import type { ListProductionOrdersRepository } from './list-production-orders/list-production-orders.port.ts';
+import { makeListProductionOrderControl } from './list-production-order-control/list-production-order-control.usecase.ts';
+import { makeListProductionOrderControlRoute } from './list-production-order-control/list-production-order-control.route.ts';
+import { makeListProductionOrderControlRepository } from './list-production-order-control/list-production-order-control.repo.ts';
+import type { ListProductionOrderControlRepository } from './list-production-order-control/list-production-order-control.port.ts';
+import { makeListProductionHistory } from './list-production-history/list-production-history.usecase.ts';
+import { makeListProductionHistoryRoute } from './list-production-history/list-production-history.route.ts';
+import { makeListProductionHistoryRepository } from './list-production-history/list-production-history.repo.ts';
+import type { ProductionHistoryRepository } from './list-production-history/list-production-history.port.ts';
 import { makeLoadProductionBoard } from './load-production-board/load-production-board.usecase.ts';
 import { makeLoadProductionBoardRoute } from './load-production-board/load-production-board.route.ts';
 import { makeLoadProductionBoardRepository } from './load-production-board/load-production-board.repo.ts';
@@ -74,6 +82,14 @@ import { makeRecordOrderIntake } from './record-order-intake/record-order-intake
 import { makeRecordOrderIntakeRoute } from './record-order-intake/record-order-intake.route.ts';
 import { makeRecordOrderIntakeRepository } from './record-order-intake/record-order-intake.repo.ts';
 import type { RecordOrderIntakeRepository } from './record-order-intake/record-order-intake.port.ts';
+import { makeRouteProductionOrder } from './route-production-order/route-production-order.usecase.ts';
+import { makeRouteProductionOrderRoutes } from './route-production-order/route-production-order.route.ts';
+import { makeRouteProductionOrderRepository } from './route-production-order/route-production-order.repo.ts';
+import type { RouteProductionOrderRepository } from './route-production-order/route-production-order.port.ts';
+import { makeReconcileProductionBatchProgress } from './reconcile-production-batch-progress/reconcile-production-batch-progress.usecase.ts';
+import { makeReconcileProductionBatchProgressRoute } from './reconcile-production-batch-progress/reconcile-production-batch-progress.route.ts';
+import { makeReconcileProductionBatchProgressRepository } from './reconcile-production-batch-progress/reconcile-production-batch-progress.repo.ts';
+import type { ReconcileProductionBatchProgressRepository } from './reconcile-production-batch-progress/reconcile-production-batch-progress.port.ts';
 import { makeSetProductionOrderPriority } from './set-production-order-priority/set-production-order-priority.usecase.ts';
 import { makeSetProductionOrderPriorityRoute } from './set-production-order-priority/set-production-order-priority.route.ts';
 import { makeSetProductionOrderPriorityRepository } from './set-production-order-priority/set-production-order-priority.repo.ts';
@@ -95,6 +111,8 @@ export type ProductionRepositories = Readonly<{
   createSchedule: CreateScheduleRepository;
   listProductionLocations: ListProductionLocationsRepository;
   listProductionOrders: ListProductionOrdersRepository;
+  listProductionOrderControl: ListProductionOrderControlRepository;
+  productionHistory: ProductionHistoryRepository;
   loadProductionBoard: LoadProductionBoardRepository;
   loadSchedule: LoadScheduleRepository;
   loadProductionWorkspace: LoadProductionWorkspaceRepository;
@@ -104,6 +122,8 @@ export type ProductionRepositories = Readonly<{
   placeProductionOrder: PlaceProductionOrderRepository;
   publishSchedulerConfig: PublishSchedulerConfigRepository;
   recordOrderIntake: RecordOrderIntakeRepository;
+  routeProductionOrder: RouteProductionOrderRepository;
+  reconcileProductionBatchProgress: ReconcileProductionBatchProgressRepository;
   setProductionOrderPriority: SetProductionOrderPriorityRepository;
   startSchedule: StartScheduleRepository;
 }>;
@@ -256,6 +276,14 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
       repo: deps.repositories.listProductionOrders,
       clock: deps.clock,
     }),
+    listProductionOrderControl: makeListProductionOrderControl({
+      repo: deps.repositories.listProductionOrderControl,
+      clock: deps.clock,
+    }),
+    productionHistory: makeListProductionHistory({
+      repo: deps.repositories.productionHistory,
+      clock: deps.clock,
+    }),
     loadSchedule: makeLoadSchedule(deps.repositories.loadSchedule),
     acceptSchedule: makeAcceptSchedule({
       repo: deps.repositories.acceptSchedule,
@@ -283,6 +311,18 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
       policy: deps.policy,
       clock: deps.clock,
       attemptAutomaticPlacement,
+    }),
+    routeProductionOrder: makeRouteProductionOrder({
+      repo: deps.repositories.routeProductionOrder,
+      policy: deps.policy,
+      clock: deps.clock,
+      signals,
+    }),
+    reconcileProductionBatchProgress: makeReconcileProductionBatchProgress({
+      repo: deps.repositories.reconcileProductionBatchProgress,
+      policy: deps.policy,
+      clock: deps.clock,
+      signals,
     }),
     startSchedule,
     assignStageMachines: makeAssignStageMachines({
@@ -335,6 +375,20 @@ export const makeProductionRoutes = (input: {
   routes.use(
     makeListProductionOrdersRoute({
       listOrders: input.application.listProductionOrders,
+      authenticate: input.security.authenticate,
+      authorize: input.security.read,
+    }),
+  );
+  routes.use(
+    makeListProductionOrderControlRoute({
+      list: input.application.listProductionOrderControl,
+      authenticate: input.security.authenticate,
+      authorize: input.security.read,
+    }),
+  );
+  routes.use(
+    makeListProductionHistoryRoute({
+      history: input.application.productionHistory,
       authenticate: input.security.authenticate,
       authorize: input.security.read,
     }),
@@ -439,8 +493,24 @@ export const makeProductionRoutes = (input: {
     }),
   );
   routes.use(
+    makeRouteProductionOrderRoutes({
+      ...input.application.routeProductionOrder,
+      authenticate: input.security.authenticate,
+      authorize: input.security.stage,
+      ...actor,
+    }),
+  );
+  routes.use(
     makeAssignStageMachinesRoute({
       assign: input.application.assignStageMachines,
+      authenticate: input.security.authenticate,
+      authorize: input.security.stage,
+      ...actor,
+    }),
+  );
+  routes.use(
+    makeReconcileProductionBatchProgressRoute({
+      reconcile: input.application.reconcileProductionBatchProgress,
       authenticate: input.security.authenticate,
       authorize: input.security.stage,
       ...actor,
@@ -471,6 +541,10 @@ export const makePostgresProductionApplication = (
       createSchedule: makeCreateScheduleRepository(deps),
       listProductionLocations: makeListProductionLocationsRepository(deps.db),
       listProductionOrders: makeListProductionOrdersRepository(deps.db),
+      listProductionOrderControl: makeListProductionOrderControlRepository(
+        deps.db,
+      ),
+      productionHistory: makeListProductionHistoryRepository(deps.db),
       loadProductionBoard: makeLoadProductionBoardRepository(deps),
       loadSchedule: makeLoadScheduleRepository(deps.db),
       loadProductionWorkspace: makeLoadProductionWorkspaceRepository(deps.db),
@@ -480,6 +554,9 @@ export const makePostgresProductionApplication = (
       placeProductionOrder: makePlaceProductionOrderRepository(deps),
       publishSchedulerConfig: makePublishSchedulerConfigRepository(deps),
       recordOrderIntake: makeRecordOrderIntakeRepository(deps),
+      routeProductionOrder: makeRouteProductionOrderRepository(deps),
+      reconcileProductionBatchProgress:
+        makeReconcileProductionBatchProgressRepository(deps),
       setProductionOrderPriority:
         makeSetProductionOrderPriorityRepository(deps),
       startSchedule: makeStartScheduleRepository(deps),

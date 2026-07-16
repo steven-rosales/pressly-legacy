@@ -30,7 +30,7 @@ export type AdvanceProductionStageCommand =
 export type AdvanceProductionStage = {
   (
     command: StartProductionStageCommand,
-  ): Promise<Result<ProductionMutationResult, AppError>>;
+  ): Promise<Result<AdvanceProductionStageResult, AppError>>;
   (
     command: CompleteProductionStageCommand,
   ): Promise<Result<AdvanceProductionStageResult, AppError>>;

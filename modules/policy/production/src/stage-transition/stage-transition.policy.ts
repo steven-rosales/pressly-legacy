@@ -22,7 +22,6 @@ export type StageContext = Readonly<{
 
 export const stageActionBlockCodes = [
   'PRODUCTION_RUN_NOT_STARTED',
-  'STAGE_BOUNDARY_NOT_REACHED',
   'PREVIOUS_STAGE_INCOMPLETE',
   'STAGE_KIND_ALREADY_ACTIVE',
   'MACHINE_ASSIGNMENT_REQUIRED',
@@ -30,6 +29,12 @@ export const stageActionBlockCodes = [
 ] as const;
 
 export type StageActionBlockCode = (typeof stageActionBlockCodes)[number];
+export type StageStartTiming = Readonly<{
+  plannedStartAt: string;
+  plannedEndAt: string;
+  observedAt: string;
+  remainingMilliseconds: number;
+}>;
 export type StageCompletionTiming = Readonly<{
   actualStartAt: string;
   plannedEndAt: string;
@@ -46,6 +51,13 @@ export type StageTransitionDecision =
     }>
   | Readonly<{
       status: 'confirmation_required';
+      action: 'start';
+      code: 'PLANNED_START_NOT_REACHED';
+      message: string;
+      timing: StageStartTiming;
+    }>
+  | Readonly<{
+      status: 'confirmation_required';
       action: 'complete';
       code: 'PULSE_BOUNDARY_NOT_REACHED';
       message: string;
@@ -59,6 +71,14 @@ export type StageNextAction =
       code: StageActionBlockCode;
       message: string;
       availableAt: string | null;
+    }>
+  | Readonly<{
+      state: 'confirmation_required';
+      action: 'start';
+      code: 'PLANNED_START_NOT_REACHED';
+      message: string;
+      availableAt: string;
+      timing: StageStartTiming;
     }>
   | Readonly<{
       state: 'confirmation_required';
@@ -85,6 +105,16 @@ const completionBoundary = (entity: StageEntity): Date | null => {
     ),
   );
 };
+
+const startTiming = (entity: StageEntity, now: Date): StageStartTiming => ({
+  plannedStartAt: entity.plannedStartAt.toISOString(),
+  plannedEndAt: entity.plannedEndAt.toISOString(),
+  observedAt: now.toISOString(),
+  remainingMilliseconds: Math.max(
+    0,
+    entity.plannedStartAt.getTime() - now.getTime(),
+  ),
+});
 
 const completionTiming = (
   entity: StageEntity,
@@ -221,20 +251,7 @@ const stageMachine = stateMachine.define<
       from: 'started',
       on: 'complete',
       to: 'completed',
-      guards: [
-        {
-          name: 'actual-start-recorded',
-          check: (args) =>
-            args.entity.actualStartAt !== null
-              ? result.ok(args)
-              : result.err(
-                  rejection(
-                    'STAGE_ACTUAL_START_MISSING',
-                    'A started stage requires its actual start time.',
-                  ),
-                ),
-        },
-      ],
+      guards: [],
     },
   ],
   invariants: [
@@ -265,27 +282,9 @@ export const evaluateStageTransition = (
   const invalidClock = validateEvaluationClock(entity, context);
   if (invalidClock !== null) return result.err(invalidClock);
 
-  if (
-    event.type === 'start' &&
-    context.now.getTime() < entity.plannedStartAt.getTime()
-  )
-    return result.err(
-      rejection(
-        'STAGE_BOUNDARY_NOT_REACHED',
-        'A stage cannot start before its planned boundary.',
-      ),
-    );
-
   if (event.type === 'complete') {
     const timing = completionTiming(entity, context.now);
-    if (timing === null)
-      return result.err(
-        rejection(
-          'STAGE_ACTUAL_START_MISSING',
-          'A started stage requires its actual start time.',
-        ),
-      );
-    if (timing.remainingMilliseconds > 0)
+    if (timing !== null && timing.remainingMilliseconds > 0)
       return result.ok({
         status: 'confirmation_required',
         action: 'complete',
@@ -308,6 +307,19 @@ export const evaluateStageTransition = (
         'message' in transition.error && transition.error.message !== undefined
           ? transition.error.message
           : 'The production stage transition is not allowed.',
+    });
+
+  if (
+    event.type === 'start' &&
+    context.now.getTime() < entity.plannedStartAt.getTime()
+  )
+    return result.ok({
+      status: 'confirmation_required',
+      action: 'start',
+      code: 'PLANNED_START_NOT_REACHED',
+      message:
+        'This stage is scheduled to start later. Confirm to start it now without changing the planned production window.',
+      timing: startTiming(entity, context.now),
     });
 
   return result.ok({ status: 'allowed', state: transition.value.to });
@@ -334,7 +346,22 @@ export const evaluateStageNextAction = (
   const action = entity.state === 'planned' ? 'start' : 'complete';
   const decision = evaluateStageTransition(entity, { type: action }, context);
   if (decision.tag === 'ok') {
-    if (decision.value.status === 'confirmation_required')
+    if (
+      decision.value.status === 'confirmation_required' &&
+      decision.value.action === 'start'
+    )
+      return result.ok({
+        state: 'confirmation_required',
+        action: 'start',
+        code: decision.value.code,
+        message: decision.value.message,
+        availableAt: decision.value.timing.plannedStartAt,
+        timing: decision.value.timing,
+      });
+    if (
+      decision.value.status === 'confirmation_required' &&
+      decision.value.action === 'complete'
+    )
       return result.ok({
         state: 'confirmation_required',
         action: 'complete',
@@ -348,17 +375,12 @@ export const evaluateStageNextAction = (
   if (!isStageActionBlockCode(decision.error.code))
     return result.err(decision.error);
 
-  const availableAt =
-    decision.error.code === 'STAGE_BOUNDARY_NOT_REACHED'
-      ? entity.plannedStartAt.toISOString()
-      : null;
-
   return result.ok({
     state: 'blocked',
     action,
     code: decision.error.code,
     message: decision.error.message,
-    availableAt,
+    availableAt: null,
   });
 };
 

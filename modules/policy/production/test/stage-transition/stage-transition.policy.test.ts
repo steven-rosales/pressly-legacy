@@ -45,16 +45,28 @@ describe('stage transition policy', () => {
     });
   });
 
-  it('rejects early starts and requires confirmation for early completion', () => {
+  it('requires distinct confirmations for early starts and early completion', () => {
     expect(
       evaluateStageTransition(
         { state: 'planned', plannedStartAt, plannedEndAt, actualStartAt: null },
         { type: 'start' },
         { ...context, now: new Date('2026-07-10T13:59:59.999Z') },
       ),
-    ).toMatchObject({
-      tag: 'err',
-      error: { code: 'STAGE_BOUNDARY_NOT_REACHED' },
+    ).toEqual({
+      tag: 'ok',
+      value: {
+        status: 'confirmation_required',
+        action: 'start',
+        code: 'PLANNED_START_NOT_REACHED',
+        message:
+          'This stage is scheduled to start later. Confirm to start it now without changing the planned production window.',
+        timing: {
+          plannedStartAt: plannedStartAt.toISOString(),
+          plannedEndAt: plannedEndAt.toISOString(),
+          observedAt: '2026-07-10T13:59:59.999Z',
+          remainingMilliseconds: 1,
+        },
+      },
     });
     expect(
       evaluateStageTransition(
@@ -143,6 +155,102 @@ describe('stage transition policy', () => {
     });
   });
 
+  it('keeps lifecycle and physical safety failures hard before offering an early-start confirmation', () => {
+    const earlyContext = {
+      ...context,
+      now: new Date('2026-07-10T13:30:00.000Z'),
+    };
+
+    expect(
+      evaluateStageTransition(
+        { state: 'planned', plannedStartAt, plannedEndAt, actualStartAt: null },
+        { type: 'start' },
+        { ...earlyContext, productionRunStarted: false },
+      ),
+    ).toMatchObject({
+      tag: 'err',
+      error: { code: 'PRODUCTION_RUN_NOT_STARTED' },
+    });
+    expect(
+      evaluateStageTransition(
+        { state: 'planned', plannedStartAt, plannedEndAt, actualStartAt: null },
+        { type: 'start' },
+        { ...earlyContext, previousStageCompleted: false },
+      ),
+    ).toMatchObject({
+      tag: 'err',
+      error: { code: 'PREVIOUS_STAGE_INCOMPLETE' },
+    });
+    expect(
+      evaluateStageTransition(
+        { state: 'planned', plannedStartAt, plannedEndAt, actualStartAt: null },
+        { type: 'start' },
+        { ...earlyContext, sameKindAlreadyActive: true },
+      ),
+    ).toMatchObject({
+      tag: 'err',
+      error: { code: 'STAGE_KIND_ALREADY_ACTIVE' },
+    });
+    expect(
+      evaluateStageTransition(
+        { state: 'planned', plannedStartAt, plannedEndAt, actualStartAt: null },
+        { type: 'start' },
+        {
+          ...earlyContext,
+          machinesRequired: true,
+          assignedMachineIds: ['machine-1'],
+          overlappingMachineIds: ['machine-1'],
+        },
+      ),
+    ).toMatchObject({
+      tag: 'err',
+      error: { code: 'MACHINE_ASSIGNMENT_OVERLAPS' },
+    });
+  });
+
+  it('keeps planned windows unchanged when asking to start early', () => {
+    const entity = {
+      state: 'planned',
+      plannedStartAt,
+      plannedEndAt,
+      actualStartAt: null,
+    } as const;
+
+    evaluateStageTransition(
+      entity,
+      { type: 'start' },
+      {
+        ...context,
+        now: new Date('2026-07-10T13:30:00.000Z'),
+      },
+    );
+
+    expect(entity).toEqual({
+      state: 'planned',
+      plannedStartAt,
+      plannedEndAt,
+      actualStartAt: null,
+    });
+  });
+
+  it('allows an operator to complete a reconciled active stage whose start time was not recorded', () => {
+    expect(
+      evaluateStageTransition(
+        {
+          state: 'started',
+          plannedStartAt,
+          plannedEndAt,
+          actualStartAt: null,
+        },
+        { type: 'complete' },
+        context,
+      ),
+    ).toEqual({
+      tag: 'ok',
+      value: { status: 'allowed', state: 'completed' },
+    });
+  });
+
   it('rejects missing or overlapping machine assignments', () => {
     expect(
       evaluateStageTransition(
@@ -173,7 +281,7 @@ describe('stage transition policy', () => {
 });
 
 describe('stage next-action projection', () => {
-  it('returns an exact availability timestamp before a planned boundary', () => {
+  it('offers an early-start confirmation with the exact planned availability timestamp', () => {
     expect(
       evaluateStageNextAction(
         { state: 'planned', plannedStartAt, plannedEndAt, actualStartAt: null },
@@ -182,11 +290,18 @@ describe('stage next-action projection', () => {
     ).toEqual({
       tag: 'ok',
       value: {
-        state: 'blocked',
+        state: 'confirmation_required',
         action: 'start',
-        code: 'STAGE_BOUNDARY_NOT_REACHED',
-        message: 'A stage cannot start before its planned boundary.',
+        code: 'PLANNED_START_NOT_REACHED',
+        message:
+          'This stage is scheduled to start later. Confirm to start it now without changing the planned production window.',
         availableAt: plannedStartAt.toISOString(),
+        timing: {
+          plannedStartAt: plannedStartAt.toISOString(),
+          plannedEndAt: plannedEndAt.toISOString(),
+          observedAt: '2026-07-10T13:59:59.999Z',
+          remainingMilliseconds: 1,
+        },
       },
     });
   });

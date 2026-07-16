@@ -92,6 +92,13 @@ describe("scheduling workspace", () => {
     expect(
       screen.getByRole("button", { name: "Compute schedule" })
     ).toBeEnabled()
+    expect(screen.getByTestId("schedule-action-surface")).not.toHaveClass(
+      "sticky"
+    )
+    expect(screen.getByTestId("schedule-action-surface")).toHaveClass(
+      "md:sticky",
+      "md:top-20"
+    )
   })
 
   it("creates a new shift before computing when no planning shift exists", async () => {

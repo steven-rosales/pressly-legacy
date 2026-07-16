@@ -88,6 +88,16 @@ describe('LPMS operational signals', () => {
     signals.queueConflict({ operation: 'automatic_placement' });
     signals.batchFrozen({ source: 'stage_start' });
     signals.overtimeConfirmed();
+    signals.orderRouteOutcome({
+      operation: 'commit',
+      status: 'committed',
+      kind: 'exception',
+      reason: 'needs_more_drying',
+    });
+    signals.progressReconciled({
+      target: 'drying_started',
+      runCompleted: false,
+    });
 
     expect(increment).toHaveBeenCalledWith('production.plan_supersessions', {
       operation: 'compute_replace_current',
@@ -109,6 +119,16 @@ describe('LPMS operational signals', () => {
       {
         status: 'placed',
       },
+    );
+    expect(increment).toHaveBeenCalledWith('production.order_route_outcomes', {
+      operation: 'commit',
+      status: 'committed',
+      kind: 'exception',
+      reason: 'needs_more_drying',
+    });
+    expect(increment).toHaveBeenCalledWith(
+      'production.progress_reconciliations',
+      { target: 'drying_started', runCompleted: 'false' },
     );
   });
 

@@ -62,6 +62,112 @@ export const allowPolicy: ProductionPolicyPort = {
     tag: 'ok',
     value: { commit: true },
   }),
+  evaluateOrderRouting: (input) => {
+    const stages = [
+      'sorting',
+      'washing',
+      'drying',
+      'folding_packaging',
+    ] as const;
+    const target = input.targetCandidates[0];
+    if (target === undefined)
+      return {
+        decision: 'rejected',
+        command: input.command,
+        reason: {
+          code: 'NO_FEASIBLE_TARGET' as const,
+          message: 'No test target was supplied.',
+        },
+      };
+    const currentIndex = stages.indexOf(input.currentStage);
+    const restartIndex = stages.indexOf(input.restartStage);
+    return {
+      decision: 'accepted',
+      command: input.command,
+      wholeOrder: { ...input.order },
+      route: {
+        sourceProductionBatchId: input.source.productionBatchId,
+        sourceSequence: input.source.sequence,
+        targetProductionBatchId: target.productionBatchId,
+        targetSequence: target.sequence,
+        currentStage: input.currentStage,
+        restartStage: input.restartStage,
+        releasedUnfinishedStages: stages.slice(currentIndex),
+        reworkStages: stages.slice(restartIndex, currentIndex),
+        targetAssignments: stages.slice(restartIndex).map((stage) => {
+          const targetStage = target.stages.find(
+            (candidate) => candidate.stage === stage,
+          );
+          if (targetStage === undefined)
+            throw new Error(`Missing test target stage: ${stage}.`);
+          return {
+            stage,
+            sourceDisposition:
+              stages.indexOf(stage) < currentIndex
+                ? ('preserve_completed_for_rework' as const)
+                : ('release_unfinished' as const),
+            assignedWeightBeforeLbs: targetStage.assignedWeightLbs,
+            assignedWeightAfterLbs:
+              targetStage.assignedWeightLbs + input.order.weightLbs,
+            capacityLbs: targetStage.capacityLbs,
+          };
+        }),
+      },
+    };
+  },
+  evaluateFloorProgressReconciliation: (input) => {
+    const targetIndex = [
+      'sorting_started',
+      'sorting_completed',
+      'washing_started',
+      'washing_completed',
+      'drying_started',
+      'drying_completed',
+      'folding_packaging_started',
+      'finished',
+    ].indexOf(input.target);
+    const stages = [
+      'sorting',
+      'washing',
+      'drying',
+      'folding_packaging',
+    ] as const;
+    return {
+      tag: 'ok',
+      value: {
+        currentMilestone: 'waiting_to_sort' as const,
+        targetMilestone: input.target,
+        batchStatus:
+          targetIndex >= 7
+            ? ('finished' as const)
+            : targetIndex >= 6
+              ? ('folding_packaging' as const)
+              : targetIndex >= 4
+                ? ('drying' as const)
+                : targetIndex >= 2
+                  ? ('washing' as const)
+                  : ('sorting' as const),
+        completedStages: stages.filter(
+          (_, index) => targetIndex >= index * 2 + 1,
+        ),
+        activeStage:
+          targetIndex % 2 === 0 && targetIndex < 7
+            ? (stages[targetIndex / 2] ?? null)
+            : null,
+        stages: input.stages.map((stage, index) => ({
+          stageRunId: stage.stageRunId,
+          stage: stages[index] ?? 'sorting',
+          currentStatus: stage.status as 'planned' | 'started' | 'completed',
+          nextStatus:
+            targetIndex >= index * 2 + 1
+              ? ('completed' as const)
+              : targetIndex === index * 2
+                ? ('started' as const)
+                : ('planned' as const),
+        })),
+      },
+    };
+  },
   evaluateStageNextAction: (entity, context) => {
     if (entity.state === 'completed')
       return {
@@ -69,17 +175,6 @@ export const allowPolicy: ProductionPolicyPort = {
         value: { state: 'terminal', reason: 'stage_completed' },
       };
     const action = entity.state === 'planned' ? 'start' : 'complete';
-    if (action === 'start' && context.now < entity.plannedStartAt)
-      return {
-        tag: 'ok',
-        value: {
-          state: 'blocked',
-          action,
-          code: 'STAGE_BOUNDARY_NOT_REACHED',
-          message: 'Stage boundary not reached.',
-          availableAt: entity.plannedStartAt.toISOString(),
-        },
-      };
     if (action === 'start' && !context.productionRunStarted)
       return {
         tag: 'ok',
@@ -132,15 +227,27 @@ export const allowPolicy: ProductionPolicyPort = {
           availableAt: null,
         },
       };
+    if (action === 'start' && context.now < entity.plannedStartAt)
+      return {
+        tag: 'ok',
+        value: {
+          state: 'confirmation_required',
+          action,
+          code: 'PLANNED_START_NOT_REACHED',
+          message: 'Stage is scheduled to start later.',
+          availableAt: entity.plannedStartAt.toISOString(),
+          timing: {
+            plannedStartAt: entity.plannedStartAt.toISOString(),
+            plannedEndAt: entity.plannedEndAt.toISOString(),
+            observedAt: context.now.toISOString(),
+            remainingMilliseconds:
+              entity.plannedStartAt.getTime() - context.now.getTime(),
+          },
+        },
+      };
     if (action === 'complete') {
       if (entity.actualStartAt === null)
-        return {
-          tag: 'err',
-          error: {
-            code: 'STAGE_ACTUAL_START_MISSING',
-            message: 'Actual stage start is missing.',
-          },
-        };
+        return { tag: 'ok', value: { state: 'available', action } };
       const pulseDurationMs =
         entity.plannedEndAt.getTime() - entity.plannedStartAt.getTime();
       const availableAt = new Date(
@@ -185,15 +292,24 @@ export const allowPolicy: ProductionPolicyPort = {
           message: 'Production run not started.',
         },
       };
-    if (event.type === 'complete') {
-      if (entity.actualStartAt === null)
-        return {
-          tag: 'err',
-          error: {
-            code: 'STAGE_ACTUAL_START_MISSING',
-            message: 'Actual stage start is missing.',
+    if (event.type === 'start' && context.now < entity.plannedStartAt)
+      return {
+        tag: 'ok',
+        value: {
+          status: 'confirmation_required',
+          action: 'start',
+          code: 'PLANNED_START_NOT_REACHED',
+          message: 'Stage is scheduled to start later.',
+          timing: {
+            plannedStartAt: entity.plannedStartAt.toISOString(),
+            plannedEndAt: entity.plannedEndAt.toISOString(),
+            observedAt: context.now.toISOString(),
+            remainingMilliseconds:
+              entity.plannedStartAt.getTime() - context.now.getTime(),
           },
-        };
+        },
+      };
+    if (event.type === 'complete' && entity.actualStartAt !== null) {
       const pulseDurationMs =
         entity.plannedEndAt.getTime() - entity.plannedStartAt.getTime();
       const completionBoundary = Math.max(

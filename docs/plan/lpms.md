@@ -38,16 +38,21 @@ source-neutral internal authority for scheduling and physical execution.
 - Use workers for projection, retries, reconciliation, and other eventually consistent work. Workers do not own production-floor invariants.
 - Keep v1 scoped to wash-and-fold production only.
 - Keep orders together in v1: an order can have many bags, but all bags for one order must remain in the same production batch.
+- Route exceptions at whole-order granularity. A queued rebatch or in-flight
+  defer/rework releases one complete order from its source assignment and
+  assigns the complete order to one target batch.
 - Do not assign individual bags to machines. Machine usage is modeled at the stage level.
 - Allow a production batch to use many washers or dryers inside one stage.
 - Allow at most one active production batch per stage kind in v1.
 - Use one configurable `pulse_minutes` value for every production stage. A
   batch occupies sorting, washing, drying, and folding/packaging for one full
-  reserved planning pulse each. An explicitly confirmed early physical
-  completion does not pull the next planned stage forward.
-- Treat stage completion as operator-confirmed operational truth, not hardware
-  sensor truth. Completion before the reserved boundary requires a versioned,
-  actor-bound confirmation that is retained in the audit event.
+  planned reservation each. Planned windows are forecasts and coordination
+  boundaries, not evidence that physical work happened at those times.
+- Treat stage starts and completions as operator-confirmed operational truth,
+  not hardware-sensor truth. An otherwise-valid early start or completion
+  requires a versioned, actor-bound, timing-bound confirmation that is retained
+  in the audit event. The confirmation records floor truth without rewriting
+  the accepted plan.
 
 ## Plan And Execution Split
 
@@ -97,18 +102,24 @@ This gives auditability, idempotency, replay potential, and current-state reads 
 
 Consistency and availability are chosen per operation.
 
-| Operation                      | Model                                | Failure behavior                                                 |
-| ------------------------------ | ------------------------------------ | ---------------------------------------------------------------- |
-| Ingest a verified webhook      | Durable, availability-oriented inbox | Return a non-success response unless the event is durably stored |
-| Apply canonical order demand   | Idempotent Production transaction    | Retry safely; reject conflicting revisions                       |
-| Generate a schedule proposal   | Pure and deterministic               | Retry without changing execution state                           |
-| Accept a schedule proposal     | Strongly consistent preference write | Persist the current plan choice; create no execution             |
-| Start an accepted proposal     | Strongly consistent transaction      | Create the shift's one execution graph atomically or fail        |
-| Insert a post-start arrival    | Versioned run transaction            | Place without moving existing work, or leave it visibly eligible |
-| Advance or override production | Strongly consistent transaction      | Validate versions and invariants, then commit once or fail       |
-| Read the production board      | Current-state projection             | Slight read staleness is acceptable; invented state is not       |
+| Operation                      | Model                                | Failure behavior                                                     |
+| ------------------------------ | ------------------------------------ | -------------------------------------------------------------------- |
+| Ingest a verified webhook      | Durable, availability-oriented inbox | Return a non-success response unless the event is durably stored     |
+| Apply canonical order demand   | Idempotent Production transaction    | Retry safely; reject conflicting revisions                           |
+| Generate a schedule proposal   | Pure and deterministic               | Retry without changing execution state                               |
+| Accept a schedule proposal     | Strongly consistent preference write | Persist the current plan choice; create no execution                 |
+| Start an accepted proposal     | Strongly consistent transaction      | Create the shift's one execution graph atomically or fail            |
+| Insert a post-start arrival    | Versioned run transaction            | Place without moving existing work, or leave it visibly eligible     |
+| Advance or override production | Strongly consistent transaction      | Validate versions and invariants, then commit once or fail           |
+| Reconcile missed floor updates | Versioned batch transaction          | Preview and confirm one forward projection, or leave state unchanged |
+| Read the production board      | Current-state projection             | Slight read staleness is acceptable; invented state is not           |
 
-Commands that start, advance, assign, or override physical production must not be queued for later success. If the database cannot prove the command is valid, the command fails and the operator retries.
+Commands that start, advance, assign, override, or reconcile physical
+production must not be queued in the browser for later success. If the
+database cannot prove the command is valid, the command fails and the operator
+retries after reconnecting. The recovery command described below reconciles a
+reachable backend with already-advanced floor reality; it is not an offline
+command queue.
 
 ## External Demand Ingestion
 
@@ -507,11 +518,12 @@ scheduler_configs
 ```
 
 `pulse_minutes` is configurable and is the single scheduling clock. Every
-planned `stage_run` reserves exactly one pulse. A machine finishing its
-physical cycle early does not shorten the stored planning window or pull later
-planned starts forward; the unused time remains operational buffer. The
-operator may record that physical completion early only through the explicit
-confirmation contract described under `stage_run`.
+planned `stage_run` reserves exactly one pulse. Its planned window is a
+forecast and resource reservation; actual floor boundaries are separate
+operator-observed facts. Starting or finishing physical work early does not
+shorten or shift the stored plan. An otherwise-valid early start or completion
+uses the explicit confirmation contract described under `stage_run`, while
+hard predecessor, stage-kind, machine, and capacity constraints still apply.
 
 Do not store physical machine counts or effective machine capacity here. Those
 come from active `machine` records. Do not store separate sorting, washer,
@@ -687,32 +699,46 @@ frozen, and starting its first stage freezes it implicitly.
 
 ### `production_batch_order`
 
-The active order-to-batch membership stores placement provenance:
+An order-to-batch membership is one durable placement episode. The active
+episode stores where the order is now; released episodes remain available for
+history.
+
+Placement provenance is:
 
 ```text
-initial_schedule | automatic | manager_exact
+initial_schedule | automatic | manager_exact | manual_rebatch | exception_route
 ```
 
-Manager-exact placement stores paired `pinned_at` and `pinned_by` facts. V1
-never automatically relocates an existing membership.
+Manager-exact placement and explicit queued rebatching store paired `pinned_at`
+and `pinned_by` facts. Automatic online insertion never relocates an existing
+membership. A manual route releases the current episode and creates a new one
+instead of rewriting placement history.
 
 Join table between production batches and production orders.
 
 ```text
 production_batch_orders
+- id
 - location_id
 - production_batch_id
 - production_order_id
 - active
 - placement_provenance
+- placed_at
+- placed_by
 - pinned_at
 - pinned_by
+- released_at
+- released_by
+- release_reason
 ```
 
 Recommended constraints:
 
 ```text
-unique(production_batch_id, production_order_id)
+primary key(id)
+unique(production_order_id) where active = true
+released_at, released_by, and release_reason are all null or all present
 ```
 
 Important v1 rule:
@@ -720,6 +746,60 @@ Important v1 rule:
 ```text
 A production_order can belong to at most one active production_batch.
 ```
+
+### `production_order_stage_attempt`
+
+Records one numbered assignment of an order to a canonical batch `stage_run`.
+It is order routing history, not another production state machine.
+
+```text
+production_order_stage_attempts
+- id
+- location_id
+- production_run_id
+- production_order_id
+- stage_run_id
+- stage_kind
+- attempt_number
+- status
+- assignment_reason
+- assigned_at
+- assigned_by
+- completed_at
+- completed_by
+- released_at
+- released_by
+- release_reason
+- metadata_json
+- created_at
+- updated_at
+```
+
+Valid statuses:
+
+```text
+assigned
+completed
+released
+```
+
+The attempt's order, stage run, stage kind, attempt number, and assignment
+reason are immutable identity. Canonical batch-stage completion terminalizes
+an assigned attempt as completed. Whole-order routing terminalizes unfinished
+source attempts as released and creates new numbered target attempts for the
+required stage suffix.
+
+Recommended constraints:
+
+```text
+unique(production_order_id, stage_kind, attempt_number)
+unique(production_order_id, stage_kind) where status = assigned
+completion and release lifecycle fields match status
+```
+
+`production_order_stage_attempt` cannot start or complete a `stage_run`, move a
+batch, assign a machine, or finish a run. The existing stage advance and floor
+reconciliation workflows remain the only batch-stage transition authorities.
 
 ### `stage_run`
 
@@ -736,7 +816,9 @@ stage_runs
 - planned_start_at
 - planned_end_at
 - actual_start_at
+- actual_start_provenance
 - actual_end_at
+- actual_end_provenance
 - started_by
 - completed_by
 - version
@@ -759,12 +841,17 @@ Important:
 
 ```text
 queued is a production_batch status before the first stage starts.
-stage_run completion is operator-confirmed, not washer/dryer hardware-confirmed.
+stage_run boundaries are operator-confirmed, not washer/dryer hardware-confirmed.
 For v1, at most one production_batch can have an active stage_run for the same station kind.
 planned_end_at - planned_start_at equals scheduler_config.pulse_minutes for every stage.
-Completing before the effective boundary requires an explicit confirmation
-bound to actor, stage version, and observed timing. The completion is audited,
-and the next stage still cannot start before its reserved planned boundary.
+An otherwise-valid start before planned_start_at requires an explicit
+confirmation bound to actor, stage version, and observed timing. Completing
+before the effective completion boundary uses the same class of explicit
+confirmation. Neither action rewrites planned_start_at or planned_end_at.
+actual_start_provenance and actual_end_provenance are live_observed,
+operator_reported, or not_recorded. A null boundary must be not_recorded;
+LPMS never fabricates a timestamp for work that happened while it was not being
+recorded.
 ```
 
 ### `stage_machine_assignment`
@@ -844,18 +931,25 @@ production_run_started
 production_order_placement_pending
 production_order_placement_overtime_required
 production_order_placement_resolved
+production_order_rebatched
+production_order_route_exception_recorded
 batch_membership_frozen
 batch_membership_unfrozen
 machine_assigned
 stage_started
 stage_completed
+batch_progress_reconciled
 ```
 
 `idempotency_key` is globally unique. `payload_json` includes the private
 canonical command/result identity used for safe replay. Final stage completion
 can finish the batch, orders, bags, run, and shift under the single
 `stage_completed` event; LPMS does not invent separate completion events for
-those projections.
+those projections. Forward floor reconciliation similarly updates the current
+stage projection and emits one `batch_progress_reconciled` event rather than a
+synthetic sequence of `stage_started` and `stage_completed` events. Because
+live revision advancement is work-event-bound, that transaction produces one
+SSE invalidation.
 
 ### Specific human decisions
 
@@ -865,12 +959,147 @@ v1. Human decisions use narrow versioned commands and their own durable facts:
 - exact placement stores `manager_exact` provenance and pin metadata;
 - overtime confirmation is bound to the run's proposal hash and queue version;
 - freeze and queued-only unfreeze use membership fields and specific events;
+- early start is audited in `stage_started.payload.earlyStart`;
 - early completion is audited in `stage_completed.payload.earlyCompletion`;
+- missed forward progress is recorded through the narrow
+  `batch_progress_reconciled` command and event;
+- queued order movement is recorded through the versioned
+  `production_order_rebatched` command and event;
+- in-flight leave-behind or rework is recorded through the versioned
+  `production_order_route_exception_recorded` command and event;
 - machine assignment and shift update use their dedicated commands and events.
 
-Generic hold, cancellation, rewash, damaged-item, and missing-bag override
-workflows remain deferred until floor evidence defines their state and audit
-requirements.
+Generic hold, cancellation, damaged-item, and missing-bag override workflows
+remain deferred until floor evidence defines their state and audit
+requirements. Rewash and other incomplete-stage routes are implemented only as
+the bounded whole-order workflow below.
+
+### Order-Level Control and Routing
+
+The Processor root route is an order-first **Home** workspace backed by:
+
+```text
+GET /production/locations/:locationId/order-control
+```
+
+The server owns filtering and bounded keyset pagination. The contract supports
+attention/active/all views, external-reference search, order status, due
+window, run, batch, current stage, priority, and movability. It returns current
+placement and version facts, next required stage, route-attempt history, and
+server-derived action availability. The browser does not load an unbounded
+location order set and paginate it locally.
+
+There are two explicit routing workflows:
+
+```text
+queued rebatch
+  -> source must be queued and unfrozen
+  -> employee selects one exact mutable queued target
+  -> restart remains sorting
+
+in-flight defer or rework
+  -> source batch has started but is not finished
+  -> employee records a bounded reason and restart stage
+  -> restart cannot skip the current or required work
+  -> server selects the earliest feasible strictly later batch
+```
+
+Both workflows preview before commit. The proposal binds source and target,
+released and assigned stage suffixes, whole-order weight, target capacity, run
+queue version, order version, source and target batch versions, and a canonical
+hash. Confirmation reloads and locks the current route, recomputes the
+proposal, and rejects stale facts.
+
+One accepted route transaction:
+
+```text
+release source membership and unfinished order-stage attempts
+-> create one target membership and required target attempts
+-> transfer the complete order weight between batch aggregates
+-> increment source batch, target batch, order, and queue versions
+-> clear stale overtime acceptance
+-> append one order-routing work_event
+-> commit
+```
+
+The policy never splits bags, never exceeds hard capacity, and never mutates a
+batch's canonical stage state. Completed order-stage attempts stay intact; a
+new assignment is a new numbered attempt.
+
+V1 rejects moving the sole active order out of a source batch with
+`SOURCE_BATCH_WOULD_BE_EMPTY`. Empty-batch deletion or retention, queue
+resequencing, reservation cleanup, in-flight compensation, and completion
+effects need an explicit policy and are not guessed by this workflow.
+
+### Production History
+
+The read-only `/history` workspace has Runs, Activity, and Plans views backed
+by bounded descending keyset pages. Cursors are bound to their view and filter
+set so they cannot be replayed against another history query.
+
+A run detail includes run facts, batches, canonical stage progress, all
+historical order-membership episodes, schedule lineage, and a newest-first
+sanitized activity window capped at 100 entries with an explicit `hasMore`
+marker.
+
+History does not expose raw `work_event.payload_json` or its private
+idempotency identity. It maps allowlisted production events into typed summaries
+and selected operational details. This is a read projection over durable
+operational tables and the audit ledger, not full event sourcing and not a
+command surface.
+
+### Floor Truth Recovery After Reconnect
+
+Floor recovery applies when physical work continued while LPMS was unavailable
+or operators missed updates, and the backend is reachable again. It is not an
+offline-first mode: the Processor does not queue commands, predict success, or
+replay browser writes later.
+
+The operator opens **Record floor progress** from the production board, chooses
+one batch and a strictly later milestone, records a reason and optional note,
+and selects machines only when the target leaves washing or drying active. The
+server returns a review preview with the affected stages and terminalization
+effects. Confirmation commits only the exact preview hash, run queue version,
+batch version, and all four stage versions that were reviewed.
+
+The command is one forward-only atomic projection change:
+
+```text
+current stage projection
+-> validate canonical four-stage graph and forward target
+-> validate predecessor, one-active-stage-kind, machine compatibility,
+   machine availability, and hard capacity constraints
+-> preview exact effects and confirmation hash
+-> confirm against unchanged versions
+-> update stage, batch, assignment, membership, order, run, and shift
+   projections as required
+-> append one batch_progress_reconciled work_event
+-> commit and emit one SSE invalidation
+```
+
+Planned stage windows remain unchanged. A boundary observed through a normal
+live command is `live_observed`. Recovery does not guess when skipped work
+started or ended, so those timestamps remain null with `not_recorded`
+provenance. `operator_reported` is reserved for a future workflow that captures
+an actual operator-supplied time; selecting a milestone alone is not enough to
+invent one. Machine assignments that existed only as a skipped stage's mutable
+plan are removed instead of being presented as completed actual use; the
+immutable schedule and stage window preserve the plan. An assignment already
+known to be active is retained when reconciliation completes its stage.
+Finishing through recovery uses the same terminalization operation as live
+final-stage completion so orders, bags, active memberships, the run, and the
+shift cannot diverge.
+
+When reconciliation first moves a queued batch into production,
+`production_batch.started_at` is set to the reconciliation commit time. That
+field is the lifecycle anchor for when LPMS first recorded the batch as
+non-queued; it is not a reconstructed physical start timestamp. Any skipped
+stage start remains null with `not_recorded` provenance.
+
+Backward correction, reopening completed work, true offline command queuing or
+PWA behavior, and concurrent execution of multiple batches in the same stage
+kind remain deferred. Those capabilities require separate state and conflict
+models rather than broader behavior in this recovery command.
 
 ## Relationships
 
@@ -892,6 +1121,8 @@ production_shift
     -> production_batch
       -> production_batch_order
         -> production_order
+          -> production_order_stage_attempt[]
+            -> stage_run
 
 production_batch
   -> stage_run
@@ -1169,24 +1400,27 @@ current revision.
 The authenticated Production HTTP surface is the public contract. Browser
 paths are listed separately because UI navigation is not an API command.
 
-| Purpose                    | Method and path                                                                                                                                                                                                           |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Discover locations         | `GET /production/locations`                                                                                                                                                                                               |
-| Read orders                | `GET /production/locations/:locationId/orders`                                                                                                                                                                            |
-| Record intake              | `PUT /production/locations/:locationId/orders/:productionOrderId/intake`                                                                                                                                                  |
-| Set priority               | `PATCH /production/locations/:locationId/orders/:productionOrderId/priority`                                                                                                                                              |
-| Create/update shift        | `POST /production/locations/:locationId/shifts`; `PATCH /production/locations/:locationId/shifts/:productionShiftId`                                                                                                      |
-| Publish scheduler config   | `POST /production/locations/:locationId/scheduler-configs`                                                                                                                                                                |
-| Compute/read plan          | `POST /production/locations/:locationId/schedules`; `GET /production/locations/:locationId/schedules/:scheduleRunId`                                                                                                      |
-| Accept/Start               | `POST /production/locations/:locationId/schedules/:scheduleRunId/accept`; `POST /production/locations/:locationId/schedules/:scheduleRunId/start`                                                                         |
-| Read workspace             | `GET /production/locations/:locationId/workspace?shiftId=:shiftId`                                                                                                                                                        |
-| Read run board             | `GET /production/locations/:locationId/runs/:productionRunId/board`                                                                                                                                                       |
-| Receive invalidations      | `GET /production/locations/:locationId/events`                                                                                                                                                                            |
-| Automatic/exact placement  | `POST /production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/place`; `POST /production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/orders/:productionOrderId/place` |
-| Confirm overtime           | `POST /production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/confirm-overtime`                                                                                                                 |
-| Freeze/unfreeze membership | `POST /production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/freeze`; `POST /production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/unfreeze`                      |
-| Assign machines            | `PUT /production/locations/:locationId/stages/:stageRunId/machines`                                                                                                                                                       |
-| Start/complete stage       | `POST /production/locations/:locationId/stages/:stageRunId/start`; `POST /production/locations/:locationId/stages/:stageRunId/complete`                                                                                   |
+| Purpose                    | Method and path                                                                                                                                                                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Discover locations         | `GET /production/locations`                                                                                                                                                                                                                  |
+| Read orders                | `GET /production/locations/:locationId/orders`; `GET /production/locations/:locationId/order-control`                                                                                                                                        |
+| Record intake              | `PUT /production/locations/:locationId/orders/:productionOrderId/intake`                                                                                                                                                                     |
+| Set priority               | `PATCH /production/locations/:locationId/orders/:productionOrderId/priority`                                                                                                                                                                 |
+| Create/update shift        | `POST /production/locations/:locationId/shifts`; `PATCH /production/locations/:locationId/shifts/:productionShiftId`                                                                                                                         |
+| Publish scheduler config   | `POST /production/locations/:locationId/scheduler-configs`                                                                                                                                                                                   |
+| Compute/read plan          | `POST /production/locations/:locationId/schedules`; `GET /production/locations/:locationId/schedules/:scheduleRunId`                                                                                                                         |
+| Accept/Start               | `POST /production/locations/:locationId/schedules/:scheduleRunId/accept`; `POST /production/locations/:locationId/schedules/:scheduleRunId/start`                                                                                            |
+| Read workspace             | `GET /production/locations/:locationId/workspace?shiftId=:shiftId`                                                                                                                                                                           |
+| Read run board             | `GET /production/locations/:locationId/runs/:productionRunId/board`                                                                                                                                                                          |
+| Receive invalidations      | `GET /production/locations/:locationId/events`                                                                                                                                                                                               |
+| Automatic/exact placement  | `POST /production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/place`; `POST /production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/orders/:productionOrderId/place`                    |
+| Confirm overtime           | `POST /production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/confirm-overtime`                                                                                                                                    |
+| Freeze/unfreeze membership | `POST /production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/freeze`; `POST /production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/unfreeze`                                         |
+| Assign machines            | `PUT /production/locations/:locationId/stages/:stageRunId/machines`                                                                                                                                                                          |
+| Start/complete stage       | `POST /production/locations/:locationId/stages/:stageRunId/start`; `POST /production/locations/:locationId/stages/:stageRunId/complete`                                                                                                      |
+| Reconcile floor progress   | `POST /production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/progress-reconciliation`                                                                                                                            |
+| Preview/commit order route | `POST /production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/route/preview`; `POST /production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/route`                                       |
+| Read production history    | `GET /production/locations/:locationId/history/runs`; `GET /production/locations/:locationId/history/runs/:productionRunId`; `GET /production/locations/:locationId/history/activity`; `GET /production/locations/:locationId/history/plans` |
 
 Compute snapshots all eligible orders and creates a new current revision.
 Accept validates the output hash, blocking-warning acknowledgments, and exact
@@ -1194,8 +1428,11 @@ eligible snapshot but creates no execution. Start revalidates the accepted
 current revision and returns the created `productionRunId`, batch identifiers,
 and initial queue version. Versioned commands carry the expected lifecycle,
 batch, or queue version and an idempotency key as required by their contract.
-Early stage completion first returns `confirmation_required` with timing and a
-confirmation proof; the follow-up complete command must return that proof.
+An otherwise-valid early stage start or completion first returns
+`confirmation_required` with timing and a confirmation proof; the follow-up
+command must return that exact proof. Floor reconciliation also uses a
+preview-then-confirm union: the proof binds the actor, target milestone,
+reason, machines, queue and batch versions, and all four stage versions.
 
 Workspace selection uses an explicit shift when supplied. Without one it
 prefers a unique started run, then a unique actionable accepted plan, then a
@@ -1203,10 +1440,9 @@ unique actionable open shift. Multiple matches are returned as candidates
 rather than resolved by a latest-row guess. A schedule is actionable only
 while its shift is open and unexpired and no production run references it.
 
-The Processor's real browser routes are `/schedule`, `/schedule/:shiftId`,
-`/production`, `/production/:runId`, and `/configuration`. Query parameters do
-not own Processor navigation, and there is intentionally no legacy root or
-query-route redirect.
+The Processor's real browser routes are `/` for order-first Home, `/schedule`,
+`/schedule/:shiftId`, `/production`, `/production/:runId`, `/history`, and
+`/configuration`. Query parameters do not own Processor navigation.
 
 ## State Machine
 
@@ -1243,12 +1479,19 @@ completed
 ```
 
 The server may return a blocked next action without persisting `blocked` as the
-stage status. The following exception workflows are deferred, not current
-states:
+stage status. Per-order route attempts also do not add batch stage states:
+
+```text
+assigned -> completed | released
+```
+
+That lifecycle describes one order's participation in a canonical
+`stage_run`; it cannot advance the batch. Queued whole-order rebatching and
+in-flight leave-behind/rewash are explicit commands, not persisted batch
+states. The following broader exception workflows remain deferred:
 
 ```text
 machine_breakdown
-rewash_required
 missing_bag
 damaged_item
 canceled_order
@@ -1260,15 +1503,18 @@ Important:
 ```text
 Human decisions are specific versioned commands, not a generic override state
 or table.
-stage_run completion is operator-confirmed.
-Every stage occupies one full configured pulse.
-Physical work may be marked complete before its effective pulse boundary only
-after explicit confirmation bound to the actor, stage version, and observed
-timing; the work_event retains the confirmation audit.
-Early completion does not change stored stage windows or allow the downstream
-stage to start before its planned boundary.
+stage_run starts and completions are operator-confirmed.
+Every planned stage reserves one full configured pulse.
+An otherwise-valid start before planned_start_at or completion before its
+effective completion boundary requires explicit confirmation bound to the
+actor, stage version, and observed timing; the work_event retains the audit.
+Early action does not change stored stage windows. Planned boundaries remain
+the accepted forecast rather than a hard claim about physical reality.
 A late physical start moves the unconfirmed completion boundary to the later
 of planned_end_at and actual_start_at + pulse_minutes.
+After reconnect, an operator may reconcile one batch only to a strictly later
+milestone through an exact-version preview and confirmation. Skipped timestamps
+remain unknown and no synthetic stage events are written.
 There is no washer/dryer hardware integration in v1.
 ```
 
@@ -1281,12 +1527,14 @@ The current repository implements the happy-path slice described above:
 - `modules/computation/scheduling` produces deterministic fixed-pulse
   all-eligible proposals and stable online-placement decisions without I/O.
 - `modules/policy/production` owns eligibility, schedule acceptance, machine
-  assignment, Start, membership, placement, and stage-transition decisions.
+  assignment, Start, membership, placement, whole-order routing, and
+  stage-transition decisions.
 - `modules/business/webhook-ingestion` owns source-neutral durable ingestion,
   deduplication, leases, retries, dead letters, replay, and source-location
   bindings.
 - `modules/business/production` owns canonical order demand, planning,
   acceptance, Start, online insertion, execution, idempotency, transactions,
+  server-paginated order/history projections, whole-order routing,
   controllers, and routes.
   Its source contains no vendor, webhook, receipt, lease, or CRM concepts.
 - `apps/api` owns Cents HMAC verification and wire normalization, composes the
@@ -1298,20 +1546,22 @@ The current repository implements the happy-path slice described above:
   the two module transactions. Until a Cents read API is verified, supported
   recovery is bounded manual replay through the normal ingestion path.
 - `apps/processor` is an authenticated, live-only operator surface for location
-  discovery, intake, configuration, resumable workspace reads, the
-  Compute/Accept/Start lifecycle, run-ID boards, pending arrivals, membership
-  controls, exact placement, overtime confirmation, machine assignment, and
-  server-authorized floor actions. It refreshes after commands and receives
-  revision-only invalidations through authenticated SSE; it does not poll the
-  workspace or board on a timer.
+  discovery, an order-first paginated Home, read-only History, intake,
+  configuration, resumable workspace reads, the Compute/Accept/Start lifecycle,
+  run-ID boards, pending arrivals, membership controls, queued order moves,
+  in-flight leave-behind/rework, exact placement, overtime confirmation,
+  machine assignment, and server-authorized floor actions. It refreshes after
+  commands and receives revision-only invalidations through authenticated SSE;
+  it does not poll the workspace or board on a timer.
 
 Production readiness requires the timestamped-HMAC contract above. The current
 API adapter implements that contract and fails startup in production when its
 current key is absent. Live delivery remains disabled until the contract is
 verified with Cents. Automatic read/reconciliation also remains disabled until
-Cents proves an authoritative updated-since API. Manual holds, hard-confirmed
-cancellation, rewash, damaged-item, and missing-bag workflows remain
-intentionally deferred to a separate exception-work item.
+Cents proves an authoritative updated-since API. Queued rebatching and bounded
+in-flight leave-behind/rewash are implemented as whole-order routes. Manual
+holds, hard-confirmed cancellation, damaged-item, missing-bag, backward
+correction, and sole-order empty-batch workflows remain intentionally deferred.
 
 The implementation is correct enough for v1 only when these failure cases are tested:
 
@@ -1330,8 +1580,25 @@ Race two production commands -> optimistic concurrency and constraints allow onl
 Make Postgres unavailable -> production commands fail without partial state.
 Schedule the same snapshot with the same config twice -> byte-equivalent plans.
 Finish washer work early -> the first command returns a timing-bound confirmation;
-confirming records the physical completion and audit, while the dryer still
-cannot start before its reserved planned boundary.
+confirming records the physical completion and audit without rewriting either
+stage's planned window. Starting the dryer before its planned boundary returns
+its own timing-bound confirmation, while predecessor and machine constraints
+remain hard.
+Continue floor work during an LPMS interruption -> after reconnect, preview and
+confirm one strictly forward batch milestone; skipped timestamps remain unknown,
+one reconciliation event is written, and terminalization matches the live path.
+Move an order between queued batches -> require a mutable queued source and the
+exact selected mutable queued target; preview then atomically transfer the whole
+order without changing either batch's stage state.
+Leave an order behind in an in-flight batch -> choose the earliest feasible
+strictly later batch, release unfinished source attempts, preserve completed
+attempts, and assign the required target stage suffix under one versioned
+transaction.
+Try to move the only active order in a batch -> reject with
+SOURCE_BATCH_WOULD_BE_EMPTY until empty-batch compensation is explicitly
+modeled.
+Page Home or History across a large location -> use server keyset cursors and
+filters; do not load the complete order or audit set into browser memory.
 Pack 800 lb into four ideal whole-order batches -> makespan is 392 minutes.
 Use order weights that cannot fit into four 224 lb bins -> actual batch count exceeds the weight lower bound.
 Provide one order above pulse capacity -> the scheduler returns it as unplaced with a warning.
@@ -1359,6 +1626,20 @@ ready_for_production, its location matches, its derived weight is positive, and
 bag intake is complete.
 A production_order can belong to at most one active production_batch.
 All bags for one production_order must stay in the same production_batch.
+A queued rebatch or in-flight route moves the complete order atomically.
+A queued move requires an unfrozen queued source and exact mutable queued
+target; an in-flight route targets the earliest feasible strictly later batch.
+Every target stage assigned by an order route must have hard capacity for the
+complete order.
+A production_order_stage_attempt retains immutable assignment identity and
+closes only as completed or released; a later route creates a new numbered
+attempt.
+production_order_stage_attempt is order routing history, not a second batch
+state machine.
+Only canonical stage advance or floor reconciliation changes batch/stage
+progression; order routing cannot start, complete, rewind, or finish a stage.
+V1 does not route the sole active order out of a source batch because
+empty-batch compensation is not yet modeled.
 A production batch stage may use multiple machines, but v1 does not persist a
 bag-to-machine assignment.
 A bag is not assigned to a machine.
@@ -1367,11 +1648,14 @@ A production batch is not a washer load.
 A production batch can be active in only one stage at a time.
 At most one production batch can be active per stage kind in v1.
 A stage cannot start before the previous stage completes.
-A stage occupies exactly one scheduler_config.pulse_minutes slot.
+A planned stage reserves exactly one scheduler_config.pulse_minutes slot.
+Planned stage windows are forecasts and resource reservations, while actual
+boundaries are separately observed floor facts.
+An otherwise-valid early stage start requires explicit,
+actor/version/timing-bound confirmation and an audit event.
 An early stage completion requires explicit, actor/version/timing-bound
 confirmation and an audit event.
-Early physical completion does not change the reserved planning window or
-downstream planned start time; the next stage cannot start before that boundary.
+Early physical action does not mutate the accepted planned window.
 A machine cannot have overlapping active stage_machine_assignments.
 Washer and dryer scheduling use effective_capacity_lbs, not manufacturer_capacity_lbs.
 pulse_capacity_lbs is the minimum of effective washer, dryer, and folding capacity per pulse.
@@ -1402,8 +1686,15 @@ Every queue mutation compares and increments queue_version exactly once.
 Every non-queued batch has frozen membership; queued unfreeze is manager-only.
 Overtime acceptance is bound to an exact placement hash and queue version.
 Exact placement, overtime confirmation, membership control, machine
-assignment, shift updates, and early completion use their specific expected
-version or proposal identity.
+assignment, shift updates, early starts, early completion, and floor
+reconciliation use their specific expected version or proposal identity.
+Floor progress reconciliation is atomic and strictly forward-only, preserves
+all hard stage, machine, and capacity constraints, and emits one
+batch_progress_reconciled work_event rather than synthetic stage events.
+Missed stage boundaries remain null with not_recorded provenance; recovery does
+not invent event times.
+Finishing through floor reconciliation uses the same order, bag, membership,
+run, and shift terminalization as live final-stage completion.
 Webhook ingress is acknowledged only after durable commit.
 Webhook processing is at least once and Production demand application is
 idempotent.
@@ -1418,4 +1709,7 @@ work_event is the authoritative mutation ledger and audit trail.
 Operational tables are the current-state projections for reads.
 Each committed work_event advances one location live_revision; SSE carries
 only invalidations, and HTTP projections remain the source of read truth.
+Home and History use bounded server keyset pagination and server-side filters.
+Public History exposes typed sanitized activity summaries, never raw
+work_event payloads or private idempotency data.
 ```

@@ -1,0 +1,332 @@
+import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type {
+  ProductionBoard,
+  ProductionOrderControlItem,
+  ProductionOrderRouteProposal,
+} from "@pressly/contracts"
+import { OrderControlWorkspaceContainer } from "@/features/order-control/order-control-workspace.view"
+import {
+  makeTestProductionPort,
+  testBoard,
+  testIdempotency,
+  testLocation,
+  testOrderItems,
+} from "../../fixtures/production.fixture"
+
+const id = (value: number) =>
+  `00000000-0000-4000-8000-${value.toString().padStart(12, "0")}`
+
+const inFlightOrder: ProductionOrderControlItem = {
+  order: {
+    ...structuredClone(testOrderItems[0]!),
+    status: "scheduled",
+    derivedWeightLbs: 40,
+    version: 7,
+  },
+  attention: null,
+  currentPlacement: {
+    productionRunId: testBoard.productionRun.id,
+    productionBatchId: testBoard.batches[0]!.id,
+    batchSequence: 0,
+    batchStatus: "washing",
+    batchVersion: 4,
+    queueVersion: 6,
+    membershipFrozen: true,
+    placementProvenance: "initial_schedule",
+    pinnedAt: null,
+    pinnedBy: null,
+  },
+  nextRequiredStage: "washing",
+  routeAttempts: [],
+  canMoveQueued: false,
+  canRouteException: true,
+}
+
+const exceptionProposal: ProductionOrderRouteProposal = {
+  kind: "exception",
+  productionRunId: testBoard.productionRun.id,
+  productionOrderId: inFlightOrder.order.id,
+  sourceProductionBatchId: testBoard.batches[0]!.id,
+  sourceBatchSequence: 0,
+  targetProductionBatchId: id(301),
+  targetBatchSequence: 2,
+  restartStage: "washing",
+  releasedStages: ["washing", "drying", "folding_packaging"],
+  assignedStages: ["washing", "drying", "folding_packaging"],
+  orderWeightLbs: 40,
+  targetWeightLbs: 160,
+  targetCapacityLbs: 200,
+  expectedQueueVersion: 6,
+  expectedOrderVersion: 7,
+  expectedSourceBatchVersion: 4,
+  expectedTargetBatchVersion: 2,
+  proposalHash: "e".repeat(64),
+}
+
+beforeEach(() =>
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+)
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe("connected order control workspace", () => {
+  it("previews and commits an in-flight leave-behind against exact versions", async () => {
+    const user = userEvent.setup()
+    const listOrderControl = vi.fn(async () => ({
+      items: [inFlightOrder],
+      counts: { attention: 1, active: 1, all: 1 },
+      nextCursor: null,
+      asOf: "2026-08-01T15:00:00.000Z",
+    }))
+    const previewOrderRoute = vi.fn(async () => exceptionProposal)
+    const commitOrderRoute = vi.fn(async () => ({
+      status: "routed" as const,
+      proposal: exceptionProposal,
+      queueVersion: 7,
+      orderVersion: 8,
+      sourceBatchVersion: 5,
+      targetBatchVersion: 3,
+      createdAttemptIds: [id(302)],
+      replayed: false,
+    }))
+    const onMutated = vi.fn(async () => undefined)
+    const production = makeTestProductionPort({
+      listOrderControl,
+      previewOrderRoute,
+      commitOrderRoute,
+    })
+
+    render(
+      <OrderControlWorkspaceContainer
+        production={production}
+        idempotency={testIdempotency}
+        locationId={testLocation.id}
+        timezone={testLocation.timezone}
+        board={testBoard}
+        revision="2026-08-01T15:00:00.000Z"
+        onMutated={onMutated}
+      />
+    )
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: `Order ${inFlightOrder.order.externalOrderId}`,
+      })
+    )
+
+    expect(listOrderControl).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole("button", { name: "Leave behind" }))
+    await user.click(
+      screen.getByRole("button", { name: "Review floor change" })
+    )
+
+    await waitFor(() =>
+      expect(previewOrderRoute).toHaveBeenCalledWith({
+        locationId: testLocation.id,
+        productionRunId: testBoard.productionRun.id,
+        productionOrderId: inFlightOrder.order.id,
+        request: {
+          kind: "exception",
+          reason: "stage_incomplete",
+          restartStage: "washing",
+          expectedQueueVersion: 6,
+          expectedOrderVersion: 7,
+          expectedSourceBatchVersion: 4,
+        },
+      })
+    )
+
+    await user.click(
+      await screen.findByRole("button", { name: "Confirm floor route" })
+    )
+
+    await waitFor(() => expect(commitOrderRoute).toHaveBeenCalledTimes(1))
+    expect(commitOrderRoute).toHaveBeenCalledWith({
+      locationId: testLocation.id,
+      productionRunId: testBoard.productionRun.id,
+      productionOrderId: inFlightOrder.order.id,
+      request: expect.objectContaining({
+        kind: "exception",
+        reason: "stage_incomplete",
+        restartStage: "washing",
+        expectedQueueVersion: 6,
+        expectedOrderVersion: 7,
+        expectedSourceBatchVersion: 4,
+        proposalHash: exceptionProposal.proposalHash,
+        idempotencyKey: expect.stringContaining("route-order-exception"),
+      }),
+    })
+    await waitFor(() => expect(onMutated).toHaveBeenCalledTimes(1))
+  })
+
+  it("keeps established orders visible while filters refresh immediately", async () => {
+    const user = userEvent.setup()
+    let resolveRefresh:
+      | ((value: {
+          items: readonly ProductionOrderControlItem[]
+          counts: { attention: number; active: number; all: number }
+          nextCursor: null
+          asOf: string
+        }) => void)
+      | undefined
+    const refresh = new Promise<{
+      items: readonly ProductionOrderControlItem[]
+      counts: { attention: number; active: number; all: number }
+      nextCursor: null
+      asOf: string
+    }>((resolve) => {
+      resolveRefresh = resolve
+    })
+    const listOrderControl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [inFlightOrder],
+        counts: { attention: 1, active: 1, all: 1 },
+        nextCursor: null,
+        asOf: "2026-08-01T15:00:00.000Z",
+      })
+      .mockReturnValueOnce(refresh)
+    const production = makeTestProductionPort({ listOrderControl })
+
+    render(
+      <OrderControlWorkspaceContainer
+        production={production}
+        idempotency={testIdempotency}
+        locationId={testLocation.id}
+        timezone={testLocation.timezone}
+        board={testBoard}
+        revision="2026-08-01T15:00:00.000Z"
+        onMutated={async () => undefined}
+      />
+    )
+
+    const orderButton = await screen.findByRole("button", {
+      name: `Order ${inFlightOrder.order.externalOrderId}`,
+    })
+    await user.selectOptions(screen.getByLabelText("Order status"), "scheduled")
+
+    await waitFor(() => expect(listOrderControl).toHaveBeenCalledTimes(2))
+    expect(orderButton).toBeInTheDocument()
+    expect(screen.queryByLabelText("Loading orders")).not.toBeInTheDocument()
+    expect(screen.getByText("Updating")).toBeInTheDocument()
+
+    resolveRefresh?.({
+      items: [],
+      counts: { attention: 0, active: 0, all: 0 },
+      nextCursor: null,
+      asOf: "2026-08-01T15:01:00.000Z",
+    })
+    expect(
+      await screen.findByRole("heading", { name: "No orders need attention" })
+    ).toBeInTheDocument()
+  })
+
+  it("loads the order's own run before offering cross-workspace move targets", async () => {
+    const user = userEvent.setup()
+    const sourceRunId = id(401)
+    const sourceBatchId = id(402)
+    const targetBatchId = id(403)
+    const queuedOrder: ProductionOrderControlItem = {
+      order: {
+        ...structuredClone(testOrderItems[1]!),
+        status: "scheduled",
+        derivedWeightLbs: 50,
+        version: 3,
+      },
+      attention: null,
+      currentPlacement: {
+        productionRunId: sourceRunId,
+        productionBatchId: sourceBatchId,
+        batchSequence: 0,
+        batchStatus: "queued",
+        batchVersion: 2,
+        queueVersion: 5,
+        membershipFrozen: false,
+        placementProvenance: "automatic",
+        pinnedAt: null,
+        pinnedBy: null,
+      },
+      nextRequiredStage: "sorting",
+      routeAttempts: [],
+      canMoveQueued: true,
+      canRouteException: false,
+    }
+    const sourceBatch = {
+      ...structuredClone(testBoard.batches[0]!),
+      id: sourceBatchId,
+      sequence: 0,
+      derivedWeightLbs: 50,
+      orders: [],
+      version: 2,
+    }
+    const targetBatch = {
+      ...structuredClone(testBoard.batches[0]!),
+      id: targetBatchId,
+      sequence: 1,
+      derivedWeightLbs: 80,
+      orders: [],
+      version: 3,
+    }
+    const sourceBoard: ProductionBoard = {
+      ...structuredClone(testBoard),
+      productionRun: {
+        ...structuredClone(testBoard.productionRun),
+        id: sourceRunId,
+        queueVersion: 5,
+      },
+      batches: [sourceBatch, targetBatch],
+    }
+    const loadBoard = vi.fn(async () => sourceBoard)
+    const production = makeTestProductionPort({
+      listOrderControl: async () => ({
+        items: [queuedOrder],
+        counts: { attention: 0, active: 1, all: 1 },
+        nextCursor: null,
+        asOf: "2026-08-01T15:00:00.000Z",
+      }),
+      loadBoard,
+    })
+
+    render(
+      <OrderControlWorkspaceContainer
+        production={production}
+        idempotency={testIdempotency}
+        locationId={testLocation.id}
+        timezone={testLocation.timezone}
+        board={testBoard}
+        revision="2026-08-01T15:00:00.000Z"
+        onMutated={async () => undefined}
+      />
+    )
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: `Order ${queuedOrder.order.externalOrderId}`,
+      })
+    )
+    await user.click(
+      screen.getByRole("button", { name: "Move to queued batch" })
+    )
+
+    await waitFor(() =>
+      expect(loadBoard).toHaveBeenCalledWith(testLocation.id, sourceRunId)
+    )
+    expect(
+      await screen.findByRole("option", { name: /Batch 2 · 80 \/ 200 lb/ })
+    ).toBeEnabled()
+    expect(screen.getByLabelText("Destination batch")).toHaveValue(
+      targetBatchId
+    )
+    expect(screen.getByRole("button", { name: "Review move" })).toBeEnabled()
+  })
+})

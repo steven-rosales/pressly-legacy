@@ -365,6 +365,29 @@ describe('production Postgres repositories', () => {
     expect(scheduledOrder.status).toBe('scheduled');
 
     const stages = board.value.batches[0]!.stages;
+    const initialAttempts = await testDb.db
+      .select()
+      .from(laundryProduction.productionOrderStageAttempts)
+      .where(
+        eq(
+          laundryProduction.productionOrderStageAttempts.productionOrderId,
+          projected.value.productionOrderId,
+        ),
+      );
+    expect(initialAttempts).toHaveLength(4);
+    expect(initialAttempts.map((attempt) => attempt.stageRunId).sort()).toEqual(
+      stages.map((stage) => stage.id).sort(),
+    );
+    expect(
+      initialAttempts.every(
+        (attempt) =>
+          attempt.productionRunId === startedSchedule.value.productionRunId &&
+          attempt.attemptNumber === 1 &&
+          attempt.status === 'assigned' &&
+          attempt.assignmentReason === 'initial_schedule' &&
+          attempt.assignedBy === actorId,
+      ),
+    ).toBe(true);
     let previousCompletionAt = 0;
     for (const [index, stage] of stages.entries()) {
       const plannedStartAt = Date.parse(stage.plannedStartAt);
@@ -388,6 +411,8 @@ describe('production Postgres repositories', () => {
         value: { replayed: false },
       });
       if (started.tag === 'err') return;
+      if (!('version' in started.value))
+        throw new Error('Stage start unexpectedly required confirmation.');
 
       if (index === 0) {
         clock.set(stage.plannedEndAt);
@@ -469,6 +494,15 @@ describe('production Postgres repositories', () => {
               projected.value.productionOrderId,
             ),
           );
+        const [rolledBackAttempt] = await testDb.db
+          .select()
+          .from(laundryProduction.productionOrderStageAttempts)
+          .where(
+            eq(
+              laundryProduction.productionOrderStageAttempts.stageRunId,
+              stage.id,
+            ),
+          );
         expect(rolledBackStage).toMatchObject({
           status: 'started',
           version: started.value.version,
@@ -480,6 +514,11 @@ describe('production Postgres repositories', () => {
           version: scheduledOrder.version,
         });
         expect(rolledBackLink?.active).toBe(true);
+        expect(rolledBackAttempt).toMatchObject({
+          status: 'assigned',
+          completedAt: null,
+          completedBy: null,
+        });
 
         await testDb.db.insert(laundryProduction.bags).values(removedBag);
       }
@@ -489,6 +528,20 @@ describe('production Postgres repositories', () => {
       ).resolves.toMatchObject({
         tag: 'ok',
         value: { replayed: false },
+      });
+      const [completedAttempt] = await testDb.db
+        .select()
+        .from(laundryProduction.productionOrderStageAttempts)
+        .where(
+          eq(
+            laundryProduction.productionOrderStageAttempts.stageRunId,
+            stage.id,
+          ),
+        );
+      expect(completedAttempt).toMatchObject({
+        status: 'completed',
+        completedAt: new Date(completionAt),
+        completedBy: actorId,
       });
       previousCompletionAt = completionAt;
     }
@@ -554,6 +607,15 @@ describe('production Postgres repositories', () => {
     const completedAssignments = await testDb.db
       .select()
       .from(laundryProduction.stageMachineAssignments);
+    const completedAttempts = await testDb.db
+      .select()
+      .from(laundryProduction.productionOrderStageAttempts)
+      .where(
+        eq(
+          laundryProduction.productionOrderStageAttempts.productionOrderId,
+          projected.value.productionOrderId,
+        ),
+      );
 
     expect(finishedOrder).toMatchObject({
       status: 'finished',
@@ -591,6 +653,15 @@ describe('production Postgres repositories', () => {
           assignment.status === 'completed' &&
           assignment.actualStartAt !== null &&
           assignment.actualEndAt !== null,
+      ),
+    ).toBe(true);
+    expect(completedAttempts).toHaveLength(4);
+    expect(
+      completedAttempts.every(
+        (attempt) =>
+          attempt.status === 'completed' &&
+          attempt.completedAt !== null &&
+          attempt.completedBy === actorId,
       ),
     ).toBe(true);
 

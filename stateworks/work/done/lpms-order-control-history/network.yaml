@@ -1,0 +1,197 @@
+work_id: lpms-order-control-history
+title: LPMS order control and production history
+status: complete
+
+goal:
+  - Give employees bounded order-level control without creating a second execution authority.
+  - Separate queued rebatching from in-flight defer or rework and preserve whole-order hard-capacity invariants.
+  - Provide server-paginated Home and read-only History projections.
+  - Record and apply implementation-backed laundry-production memory v9.
+
+invariants:
+  - stage_run remains the sole canonical batch-stage transition authority.
+  - Every route moves one complete order and preserves one active batch membership.
+  - Queued rebatch uses the exact selected mutable target; in-flight routes use the earliest feasible later target.
+  - production_order_stage_attempt records immutable assignment identity and terminal completion or release, not an independent state machine.
+  - Route preview and commit are version-, actor-, scope-, and proposal-bound.
+  - Hard capacity, queue versioning, affected-row checks, and idempotency remain mandatory.
+  - Home and History use bounded server keyset pagination.
+  - Public History never exposes raw work-event payloads or private idempotency data.
+  - Sole-order empty-batch routing remains explicitly rejected in v1.
+  - Existing floor-reconciliation evidence and the production-readiness human gate remain unchanged.
+  - No secret, credential, customer payload, or production connection string enters Stateworks.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconcile documentation and memory baseline
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/work/done/lpms-run-centered-online-scheduling
+      - repo:stateworks/work/done/lpms-floor-truth-reconciliation
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:docs/plan/lpms.md
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations/0020_fair_karma.sql
+      - repo:modules/policy/production/src/order-routing
+      - repo:modules/business/production/src
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/history
+    writes:
+      - repo:docs/plan/lpms.md
+      - repo:stateworks/work/done/lpms-order-control-history
+      - repo:stateworks/memory/domains/laundry-production/sessions/2026-07-15-order-control-history.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-order-control-history.memory-delta.yaml
+    action:
+      - Record implemented ownership, routing, pagination, history sanitization, and v1 limitation using exact source paths.
+      - Propose the v8-to-v9 delta without applying it before focused verification.
+    verifier:
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/2026-07-15-order-control-history.memory-delta.yaml
+      - pnpm exec prettier --check docs/plan/lpms.md stateworks/work/done/lpms-order-control-history stateworks/memory/domains/laundry-production/sessions/2026-07-15-order-control-history.md stateworks/memory/domains/laundry-production/deltas/2026-07-15-order-control-history.memory-delta.yaml
+    rollback:
+      - Revert only this work package and memory delta; preserve implementation and prior memory.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-history/evidence.md
+
+  - id: T1
+    title: Verify whole-order routing and transition ownership
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/contracts/src/production/production-order-control.contracts.ts
+      - repo:modules/policy/production/src/order-routing
+      - repo:modules/business/production/src/route-production-order
+      - repo:modules/business/production/src/advance-production-stage
+      - repo:modules/business/production/src/persistence/complete-order-stage-attempts.ts
+      - repo:packages/db/src/migrations/0020_fair_karma.sql
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:stateworks/work/done/lpms-order-control-history/evidence.md
+    action:
+      - Verify queued and in-flight policy branches, earliest-feasible target selection, preview hashing, transaction scope, idempotency, attempt lifecycle, and stage-run authority.
+      - Verify explicit rejection when the source batch would become empty.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production test:integration
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/db test:integration
+    rollback:
+      - Correct unsupported documentation claims; do not weaken routing invariants.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-history/evidence.md
+
+  - id: T2
+    title: Verify Home and History read surfaces
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/contracts/src/production/production-order-control.contracts.ts
+      - repo:packages/contracts/src/production/production-history.contracts.ts
+      - repo:modules/business/production/src/list-production-order-control
+      - repo:modules/business/production/src/list-production-history
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/history
+      - repo:apps/processor/src/app/app.navigation.ts
+    writes:
+      - repo:stateworks/work/done/lpms-order-control-history/evidence.md
+    action:
+      - Verify server filters, cursor binding, bounded pages, route-attempt and membership history, activity sanitization, browser routes, and responsive order/history workflows.
+    verifier:
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/contracts typecheck
+      - pnpm --filter @pressly/production typecheck
+      - pnpm --filter @pressly/processor typecheck
+    rollback:
+      - Correct unsupported documentation claims while preserving prior application work.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-history/evidence.md
+
+  - id: V1
+    title: Verify the completed work package
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+    reads:
+      - repo:stateworks/work/done/lpms-order-control-history
+      - repo:stateworks/memory/domains/laundry-production
+      - repo:docs/plan/lpms.md
+    writes:
+      - repo:stateworks/work/done/lpms-order-control-history/evidence.md
+    action:
+      - Run focused implementation and documentation gates and record exact outcomes.
+    verifier:
+      - pnpm stateworks:validate stateworks/work/done/lpms-order-control-history/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-order-control-history/network.yaml --state stateworks/work/done/lpms-order-control-history/state.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/2026-07-15-order-control-history.memory-delta.yaml
+      - pnpm exec prettier --check docs/plan/lpms.md stateworks/work/done/lpms-order-control-history stateworks/memory/domains/laundry-production
+      - git diff --check -- docs/plan/lpms.md stateworks/work/done/lpms-order-control-history stateworks/memory/domains/laundry-production
+    rollback:
+      - Keep the delta proposed and the package active if any verifier fails.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-history/evidence.md
+
+  - id: T3
+    title: Apply memory v9 and close work
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:stateworks/work/done/lpms-order-control-history/evidence.md
+      - repo:stateworks/memory/domains/laundry-production/deltas/2026-07-15-order-control-history.memory-delta.yaml
+    writes:
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:stateworks/work/done/lpms-order-control-history/final-report.md
+    action:
+      - Accept and apply the verified v8-to-v9 memory delta exactly once.
+      - Regenerate context-pack.md and record final closure.
+    verifier:
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/deltas/2026-07-15-order-control-history.memory-delta.yaml
+      - pnpm stateworks:memory:context laundry-production
+    rollback:
+      - If apply validation fails, restore memory v8 and keep the delta proposed; never partially advance durable memory.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-history/evidence.md
+      - stateworks/work/done/lpms-order-control-history/final-report.md

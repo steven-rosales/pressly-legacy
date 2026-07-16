@@ -24,6 +24,7 @@ const fixed = {
   run: '66666666-6666-4666-8666-666666666666',
   batch: '77777777-7777-4777-8777-777777777777',
   stage: '88888888-8888-4888-8888-888888888888',
+  attempt: '88888888-8888-4888-8888-888888888889',
   demand: '99999999-9999-4999-8999-999999999999',
   order: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   bag: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -207,9 +208,25 @@ const seedNearlyCompleteRun = async (): Promise<void> => {
     plannedStartAt: start,
     plannedEndAt: stageEnd,
     actualStartAt: start,
+    actualStartProvenance: 'live_observed',
     startedBy: fixed.actor,
     version: 1,
   });
+  await testDb.db
+    .insert(laundryProduction.productionOrderStageAttempts)
+    .values({
+      id: fixed.attempt,
+      locationId,
+      productionRunId: fixed.run,
+      productionOrderId: fixed.order,
+      stageRunId: fixed.stage,
+      stageKind: 'folding_packaging',
+      attemptNumber: 1,
+      status: 'assigned',
+      assignmentReason: 'initial_schedule',
+      assignedAt: start,
+      assignedBy: fixed.actor,
+    });
 };
 
 const holdRunLock = async () => {
@@ -328,6 +345,12 @@ describe('production aggregate races', () => {
       .select()
       .from(laundryProduction.bags)
       .where(eq(laundryProduction.bags.productionOrderId, arrivingOrderId!));
+    const [completedAttempt] = await testDb.db
+      .select()
+      .from(laundryProduction.productionOrderStageAttempts)
+      .where(
+        eq(laundryProduction.productionOrderStageAttempts.id, fixed.attempt),
+      );
 
     expect(run).toMatchObject({ status: 'completed', version: 2 });
     expect(shift).toMatchObject({ status: 'closed', version: 2 });
@@ -337,6 +360,11 @@ describe('production aggregate races', () => {
     });
     expect(arrivingOrder?.pendingPlacement).not.toBeNull();
     expect(arrivingMemberships).toEqual([]);
+    expect(completedAttempt).toMatchObject({
+      status: 'completed',
+      completedAt: new Date('2026-07-14T15:00:00.000Z'),
+      completedBy: fixed.actor,
+    });
     expect(arrivingBags).toEqual([
       expect.objectContaining({ bagIndex: 0, status: 'eligible' }),
     ]);

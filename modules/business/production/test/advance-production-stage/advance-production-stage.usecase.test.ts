@@ -1,6 +1,7 @@
 import type {
   ProductionMutationResult,
   ProductionStageCompletionConfirmationRequiredResult,
+  ProductionStageStartConfirmationRequiredResult,
 } from '@pressly/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import type {
@@ -78,19 +79,29 @@ const policy = {
 const makeRepository = (
   overrides: Readonly<{
     version?: number;
+    status?: 'planned' | 'started';
+    plannedStartAt?: string;
     plannedEndAt?: string;
+    actualStartAt?: string | null;
+    storedWorkEvent?: StoredWorkEvent | null;
+    replayAfterLock?: boolean;
   }> = {},
 ) => {
-  let storedWorkEvent: StoredWorkEvent | null = null;
+  let storedWorkEvent: StoredWorkEvent | null =
+    overrides.storedWorkEvent ?? null;
+  let workEventReads = 0;
   const context: StageTransitionContext = {
     stage: {
       id: ids.stage,
       productionBatchId: ids.batch,
       stage: 'sorting',
-      status: 'started',
-      plannedStartAt: '2026-07-14T14:00:00.000Z',
+      status: overrides.status ?? 'started',
+      plannedStartAt: overrides.plannedStartAt ?? '2026-07-14T14:00:00.000Z',
       plannedEndAt: overrides.plannedEndAt ?? '2026-07-14T14:56:00.000Z',
-      actualStartAt: '2026-07-14T14:00:00.000Z',
+      actualStartAt:
+        overrides.actualStartAt === undefined
+          ? '2026-07-14T14:00:00.000Z'
+          : overrides.actualStartAt,
       machineIds: [],
       version: overrides.version ?? 3,
     },
@@ -114,9 +125,15 @@ const makeRepository = (
       valid: true,
     };
   });
+  const findWorkEvent = vi.fn(async () => {
+    workEventReads += 1;
+    if (overrides.replayAfterLock === true && workEventReads === 1) return null;
+    return storedWorkEvent;
+  });
+  const loadStageTransitionContext = vi.fn(async () => context);
   const operations = {
-    findWorkEvent: vi.fn(async () => storedWorkEvent),
-    loadStageTransitionContext: vi.fn(async () => context),
+    findWorkEvent,
+    loadStageTransitionContext,
     transitionStage,
     appendWorkEvent,
   };
@@ -124,7 +141,13 @@ const makeRepository = (
     transaction: async (work) => work(operations),
   };
 
-  return { repo, transitionStage, appendWorkEvent };
+  return {
+    repo,
+    findWorkEvent,
+    loadStageTransitionContext,
+    transitionStage,
+    appendWorkEvent,
+  };
 };
 
 const completionCommand = {
@@ -149,7 +172,148 @@ const confirmationValue = (
   return value as ProductionStageCompletionConfirmationRequiredResult;
 };
 
+const startConfirmationValue = (
+  value: unknown,
+): ProductionStageStartConfirmationRequiredResult => {
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    !('status' in value) ||
+    value.status !== 'confirmation_required' ||
+    !('code' in value) ||
+    value.code !== 'PLANNED_START_NOT_REACHED'
+  )
+    throw new Error('Expected an early-start confirmation.');
+  return value as ProductionStageStartConfirmationRequiredResult;
+};
+
 describe('advance production stage', () => {
+  it('replays a concurrent pre-deploy ordinary start after acquiring the aggregate lock', async () => {
+    const legacyResult: ProductionMutationResult = {
+      entityId: ids.stage,
+      version: 4,
+      replayed: false,
+    };
+    const legacyStart: StoredWorkEvent = {
+      valid: true,
+      command: {
+        operation: 'stage_started',
+        locationId: 'location-1',
+        actorId: ids.actor,
+        target: { entityType: 'stage_run', entityId: ids.stage },
+        expectedVersion: 3,
+        payload: { transition: 'start' },
+      },
+      result: legacyResult,
+    };
+    const repository = makeRepository({
+      version: 4,
+      status: 'started',
+      storedWorkEvent: legacyStart,
+      replayAfterLock: true,
+    });
+    const advance = makeAdvanceProductionStage({
+      repo: repository.repo,
+      policy,
+      clock: { now: () => new Date('2026-07-14T14:20:00.000Z') },
+    });
+
+    await expect(
+      advance({
+        locationId: 'location-1',
+        stageRunId: ids.stage,
+        expectedVersion: 3,
+        actorId: ids.actor,
+        transition: 'start',
+        idempotencyKey: 'legacy-start-stage-command-1',
+      }),
+    ).resolves.toEqual({
+      tag: 'ok',
+      value: { ...legacyResult, replayed: true },
+    });
+    expect(repository.findWorkEvent).toHaveBeenCalledTimes(2);
+    expect(repository.loadStageTransitionContext).toHaveBeenCalledOnce();
+    expect(repository.transitionStage).not.toHaveBeenCalled();
+  });
+
+  it('requires a version-bound confirmation before an otherwise-valid early start', async () => {
+    const repository = makeRepository({
+      status: 'planned',
+      actualStartAt: null,
+      plannedStartAt: '2026-07-14T15:00:00.000Z',
+      plannedEndAt: '2026-07-14T15:56:00.000Z',
+    });
+    let now = new Date('2026-07-14T14:40:00.000Z');
+    const earlyStartPolicy = {
+      evaluateStageTransition: () => ({
+        tag: 'ok' as const,
+        value: {
+          status: 'confirmation_required' as const,
+          action: 'start' as const,
+          code: 'PLANNED_START_NOT_REACHED' as const,
+          message: 'This stage is scheduled to start later.',
+          timing: {
+            plannedStartAt: '2026-07-14T15:00:00.000Z',
+            plannedEndAt: '2026-07-14T15:56:00.000Z',
+            observedAt: now.toISOString(),
+            remainingMilliseconds:
+              Date.parse('2026-07-14T15:00:00.000Z') - now.getTime(),
+          },
+        },
+      }),
+    } as unknown as ProductionPolicyPort;
+    const advance = makeAdvanceProductionStage({
+      repo: repository.repo,
+      policy: earlyStartPolicy,
+      clock: { now: () => now },
+    });
+    const command = {
+      locationId: 'location-1',
+      stageRunId: ids.stage,
+      expectedVersion: 3,
+      actorId: ids.actor,
+      transition: 'start' as const,
+      idempotencyKey: 'start-stage-command-1',
+    };
+
+    const requested = await advance(command);
+    expect(requested).toMatchObject({
+      tag: 'ok',
+      value: {
+        status: 'confirmation_required',
+        code: 'PLANNED_START_NOT_REACHED',
+        stageVersion: 3,
+        timing: { remainingMilliseconds: 20 * 60_000 },
+      },
+    });
+    if (requested.tag === 'err') return;
+    const required = startConfirmationValue(requested.value);
+    expect(repository.transitionStage).not.toHaveBeenCalled();
+
+    now = new Date('2026-07-14T14:42:00.000Z');
+    await expect(
+      advance({ ...command, confirmation: required.confirmation }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: { entityId: ids.stage, version: 4, replayed: false },
+    });
+    expect(repository.appendWorkEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'stage_started',
+        payload: {
+          version: 4,
+          earlyStart: expect.objectContaining({
+            actorId: ids.actor,
+            confirmationObservedAt: '2026-07-14T14:40:00.000Z',
+            confirmedAt: '2026-07-14T14:42:00.000Z',
+            plannedStartAt: '2026-07-14T15:00:00.000Z',
+            remainingMilliseconds: 18 * 60_000,
+          }),
+        },
+      }),
+    );
+  });
+
   it('requires an explicit, versioned confirmation before completing early', async () => {
     const repository = makeRepository();
     let now = new Date('2026-07-14T14:18:00.000Z');

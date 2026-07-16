@@ -1,0 +1,131 @@
+id: memdelta-2026-07-15-order-control-history
+domain_id: laundry-production
+
+source:
+  type: implementation_checkpoint
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-15-order-control-history.md
+
+changes:
+  - op: assert
+    kind: object
+    id: production_order_stage_attempt
+    description: A numbered assignment of one production_order to one canonical stage_run; its assignment identity is immutable, while its lifecycle closes as completed or released to preserve order routing history.
+
+  - op: update
+    kind: workflow
+    id: scheduling_to_execution
+    steps:
+      - API durably receives and projects canonical external order demand
+      - eligible production_orders form the complete immutable scheduling snapshot for one shift
+      - Compute creates a new immutable schedule_run revision and supersedes the prior current revision
+      - manager reviews warnings and accepts the current output hash without creating execution
+      - Start revalidates the current accepted revision, exact eligible-order snapshot, and active shift window
+      - LPMS creates the shift's sole started production_run and its initial batches, stages, assignments, order transitions, and work_event atomically
+      - operators advance server-authorized stage_run actions; an otherwise-valid early start or completion requires an exact current confirmation and never rewrites planned stage windows
+      - after reconnect, an operator may reconcile one batch to a strictly later physical milestone through a previewed and exact-version confirmation without synthetic stage events
+      - post-start arrivals are placed into the existing production_run without moving existing orders automatically
+      - employees may explicitly rebatch a whole queued order or defer and rework a whole in-flight order into a later batch without changing canonical batch-stage progression
+      - final folding and packaging completion, whether live or reconciled, terminalizes the remaining floor facts, completes the run, and closes the shift atomically
+
+  - op: assert
+    kind: workflow
+    id: order_level_routing
+    steps:
+      - employee opens one order from the server-paginated Home projection
+      - queued rebatch requires an unfrozen queued source and an exact selected mutable queued target
+      - in-flight defer or rework selects a reason and restart stage that does not skip required work
+      - pure policy chooses the earliest feasible later batch for an in-flight route and validates whole-order hard capacity across the required stage suffix
+      - LPMS returns an exact version-bound proposal hash without mutation
+      - confirmation reloads and locks the current routing context, recomputes the proposal, and rejects drift
+      - one transaction releases the source membership and unfinished attempts, inserts the target membership and new attempts, updates aggregate weights and versions, and appends one order-routing work_event
+      - the Processor refreshes authoritative order and board projections
+
+  - op: assert
+    kind: workflow
+    id: production_history_review
+    steps:
+      - authorized user opens the read-only History workspace
+      - LPMS returns bounded keyset pages for production runs, sanitized activity, or schedule plans
+      - cursors remain bound to the selected history view and filters
+      - opening a run loads batches, canonical stage progress, every historical order-membership episode, schedule lineage, and a bounded newest-first activity window
+      - raw work_event payloads and private idempotency data remain server-internal
+
+  - op: update
+    kind: invariant
+    id: orders_do_not_split_across_batches
+    statement: A production_order can belong to at most one active production_batch, every queued rebatch or in-flight route moves the complete order atomically, and all bags remain with that order.
+
+  - op: assert
+    kind: invariant
+    id: whole_order_routing_is_atomic_v1
+    statement: A committed order route atomically releases the source membership and unfinished attempts, creates one target membership and required target attempts, updates source and target aggregate weights, compares and increments the relevant queue, batch, and order versions, invalidates stale overtime acceptance, and appends exactly one routing work_event.
+
+  - op: assert
+    kind: invariant
+    id: batch_stage_transition_has_one_authority_v1
+    statement: Canonical production_batch and stage_run progression changes only through the existing stage advance or floor-reconciliation authorities; order routing and production_order_stage_attempt records cannot independently start, complete, rewind, or finish a batch stage.
+
+  - op: assert
+    kind: invariant
+    id: order_stage_attempt_assignment_is_immutable_v1
+    statement: A production_order_stage_attempt retains its order, canonical stage_run, stage kind, attempt number, and assignment reason; completion or release terminalizes that assignment, and later routing creates a new numbered attempt instead of rewriting prior route history.
+
+  - op: assert
+    kind: invariant
+    id: in_flight_order_route_moves_later_v1
+    statement: An in-flight defer or rework route may target only a strictly later production_batch, may not skip the current or requested restart work, and must fit the complete order within hard capacity for every newly assigned target stage.
+
+  - op: assert
+    kind: policy
+    id: queued_order_rebatch_v1
+    statement: A queued whole-order move is allowed only from an unfrozen queued source to the exact employee-selected mutable queued target; LPMS rejects the move rather than substituting another batch.
+
+  - op: assert
+    kind: policy
+    id: in_flight_order_defer_or_rework_v1
+    statement: A started but unfinished whole order may be left behind or assigned bounded rework by releasing its unfinished source-stage attempts and assigning the required stage suffix in a later batch while preserving completed attempts as history.
+
+  - op: assert
+    kind: policy
+    id: earliest_feasible_later_order_route_v1
+    statement: For an in-flight defer or rework command, LPMS chooses the earliest stable later batch whose required stage suffix remains planned and whose per-stage assigned load can accept the complete order without exceeding hard capacity.
+
+  - op: update
+    kind: decision
+    id: stage_run_owns_floor_state
+    statement: stage_run rows own the current physical workflow projection and remain the sole batch-stage transition authority; production_order_stage_attempt rows record per-order participation and routing history against those canonical stages but cannot advance execution.
+
+  - op: assert
+    kind: decision
+    id: server_paginated_order_home_and_history_v1
+    statement: The Processor root is an order-first Home surface and /history is a read-only production audit surface; both use bounded server keyset pagination and server-side filters rather than loading an unbounded location history into browser state.
+
+  - op: assert
+    kind: decision
+    id: sanitized_history_projection_v1
+    statement: Public production history exposes typed event summaries and selected operational detail only; raw work_event payloads and private idempotency records remain internal, and run detail activity is capped with an explicit continuation signal.
+
+  - op: assert
+    kind: decision
+    id: defer_sole_order_empty_batch_routing_v1
+    statement: V1 rejects routing the only active order out of a source batch because empty-batch retention or deletion, queue resequencing, planned reservation cleanup, in-flight compensation, and completion effects require an explicit separate policy.
+
+  - op: update
+    kind: decision
+    id: happy_path_delivery_before_exceptions
+    statement: The happy path was delivered before exceptions; the first bounded exception slice now supports queued whole-order rebatching and in-flight defer or rework, while generic holds, cancellations, damage, missing items, and backward correction remain separate workflows.
+
+  - op: update
+    kind: open_question
+    id: exception_effects
+    question: How should manual holds, hard-confirmed cancellations, damaged items, missing bags, and empty source batches affect an accepted production_run and its planned resource reservations?
+
+verification:
+  - The source session traces the contracts, pure routing policy, transaction, migration, Home and History read models, Processor workflows, and focused tests.
+  - Whole-order routing, queued versus in-flight semantics, earliest-feasible later selection, stage-run authority, and order-stage attempt history are stated without introducing a second execution state machine.
+  - Home and History are explicitly bounded server projections, and public history sanitization excludes raw work-event and idempotency payloads.
+  - The sole-order empty-batch rejection and broader exception deferrals remain explicit.
+  - Focused contract, policy, business, database, Processor, and Stateworks verification is recorded under lpms-order-control-history before the delta is accepted and applied.
+  - Applying this accepted delta to current memory v8 advances laundry-production memory to v9 and requires context-pack regeneration.
+
+status: applied

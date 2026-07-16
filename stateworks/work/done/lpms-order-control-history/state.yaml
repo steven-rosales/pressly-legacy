@@ -1,0 +1,30 @@
+work_id: lpms-order-control-history
+status: complete
+updated: 2026-07-15T20:34:00-04:00
+
+current_focus:
+  - complete
+  - Whole-order routing, server-paginated Home and History, documentation, and laundry-production memory v9 are complete.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-history/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-history/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-history/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-history/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-history/evidence.md
+      - stateworks/work/done/lpms-order-control-history/final-report.md

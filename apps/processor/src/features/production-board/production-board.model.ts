@@ -2,16 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   AdvanceProductionStageResult,
   ProductionBatch,
+  ProductionBatchProgressReconciliationConfirmationRequiredResult,
   ProductionBoard,
   ProductionMachine,
   ProductionOrderPlacementResult,
   ProductionPendingOrder,
   ProductionStageCompletionConfirmationRequiredResult,
+  ProductionStageStartConfirmationRequiredResult,
   StageRun,
 } from "@pressly/contracts"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import { RequestFailure } from "@/ports/request.error"
+import type { FloorProgressDraft } from "./floor-progress.presenter"
 
 export type ProductionBoardModelInput = Readonly<{
   production: ProductionPort
@@ -63,6 +66,18 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     stage: StageRun
     result: ProductionStageCompletionConfirmationRequiredResult
   } | null>(null)
+  const [earlyStart, setEarlyStart] = useState<{
+    stage: StageRun
+    result: ProductionStageStartConfirmationRequiredResult
+  } | null>(null)
+  const [floorProgressOpen, setFloorProgressOpen] = useState(false)
+  const [floorProgressError, setFloorProgressError] = useState<string | null>(
+    null
+  )
+  const [floorProgressConfirmation, setFloorProgressConfirmation] = useState<{
+    draft: FloorProgressDraft
+    result: ProductionBatchProgressReconciliationConfirmationRequiredResult
+  } | null>(null)
   const [machineSelections, setMachineSelections] = useState<
     Record<string, readonly string[]>
   >({})
@@ -80,6 +95,35 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       return currentStage !== undefined &&
         currentStage.status === "started" &&
         currentStage.version === current.result.stageVersion
+        ? current
+        : null
+    })
+    setEarlyStart((current) => {
+      if (current === null) return null
+      const currentStage = next.batches
+        .flatMap((batch) => batch.stages)
+        .find((stage) => stage.id === current.stage.id)
+      return currentStage !== undefined &&
+        currentStage.status === "planned" &&
+        currentStage.version === current.result.stageVersion
+        ? current
+        : null
+    })
+    setFloorProgressConfirmation((current) => {
+      if (current === null) return null
+      const currentBatch = next.batches.find(
+        (batch) => batch.id === current.draft.productionBatchId
+      )
+      return currentBatch !== undefined &&
+        next.productionRun.queueVersion === current.result.queueVersion &&
+        currentBatch.version === current.result.batchVersion &&
+        currentBatch.stages.every((stage) =>
+          current.result.stageVersions.some(
+            (expected) =>
+              expected.stageRunId === stage.id &&
+              expected.version === stage.version
+          )
+        )
         ? current
         : null
     })
@@ -148,6 +192,13 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
           },
         }),
       })
+      if (isStartConfirmation(result)) {
+        setEarlyStart({ stage, result })
+        setAnnouncement(
+          `${stageNames[stage.stage]} can start now after confirmation.`
+        )
+        return
+      }
       if (isCompletionConfirmation(result)) {
         setEarlyCompletion({ stage, result })
         setAnnouncement(
@@ -162,6 +213,49 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     } catch (cause) {
       await refresh()
       setError(conflictMessage(cause, "The stage action failed."))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const confirmEarlyStart = async () => {
+    if (earlyStart === null) return
+    const { stage, result: prompt } = earlyStart
+    setBusyId(stage.id)
+    setError(null)
+    try {
+      const result = await input.production.advanceStage({
+        locationId: input.locationId,
+        stageRunId: stage.id,
+        transition: "start",
+        expectedVersion: prompt.stageVersion,
+        confirmation: prompt.confirmation,
+        idempotencyKey: await input.idempotency.key({
+          operation: "confirm-early-production-stage-start",
+          payload: {
+            locationId: input.locationId,
+            stageRunId: stage.id,
+            expectedVersion: prompt.stageVersion,
+            confirmation: prompt.confirmation,
+          },
+        }),
+      })
+      if (isStartConfirmation(result)) {
+        setEarlyStart({ stage, result })
+        return
+      }
+      setEarlyStart(null)
+      await refresh()
+      setAnnouncement(`${stageNames[stage.stage]} started.`)
+    } catch (cause) {
+      setEarlyStart(null)
+      await refresh()
+      setError(
+        conflictMessage(
+          cause,
+          "The early start could not be confirmed. Review the current stage and try again."
+        )
+      )
     } finally {
       setBusyId(null)
     }
@@ -434,17 +528,157 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     }
   }
 
+  const finishFloorProgress = async (
+    batchSequence: number,
+    result: Extract<
+      Awaited<ReturnType<ProductionPort["reconcileBatchProgress"]>>,
+      { status: "reconciled" }
+    >
+  ) => {
+    setFloorProgressConfirmation(null)
+    setFloorProgressOpen(false)
+    await refresh()
+    setAnnouncement(
+      "Batch " +
+        (batchSequence + 1) +
+        " floor progress recorded" +
+        (result.shiftClosed ? "; the shift is closed." : ".")
+    )
+  }
+
+  const reconcileFloorProgress = async (draft: FloorProgressDraft) => {
+    if (board === null) return
+    const batch = board.batches.find(
+      (candidate) => candidate.id === draft.productionBatchId
+    )
+    if (batch === undefined) {
+      setFloorProgressError("The selected batch is no longer on this board.")
+      return
+    }
+
+    const expectedStageVersions = batch.stages.map((stage) => ({
+      stageRunId: stage.id,
+      version: stage.version,
+    }))
+    const command = {
+      locationId: input.locationId,
+      productionRunId: board.productionRun.id,
+      productionBatchId: batch.id,
+      expectedQueueVersion: board.productionRun.queueVersion,
+      expectedBatchVersion: batch.version,
+      expectedStageVersions,
+      target: draft.target,
+      reason: draft.reason,
+      ...(draft.note === null ? {} : { note: draft.note }),
+      machineIds: [...draft.machineIds],
+    }
+
+    setBusyId(batch.id)
+    setFloorProgressError(null)
+    setFloorProgressConfirmation(null)
+    try {
+      const result = await input.production.reconcileBatchProgress({
+        ...command,
+        idempotencyKey: await input.idempotency.key({
+          operation: "review-production-batch-progress-reconciliation",
+          payload: command,
+        }),
+      })
+      if (result.status === "confirmation_required") {
+        setFloorProgressConfirmation({ draft, result })
+        setAnnouncement(
+          "Batch " + (batch.sequence + 1) + " progress is ready to confirm."
+        )
+        return
+      }
+      await finishFloorProgress(batch.sequence, result)
+    } catch (cause) {
+      await refresh()
+      setFloorProgressError(
+        conflictMessage(
+          cause,
+          "Floor progress could not be reviewed. Check the batch and try again."
+        )
+      )
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const confirmFloorProgress = async () => {
+    if (board === null || floorProgressConfirmation === null) return
+    const { draft, result: prompt } = floorProgressConfirmation
+    const batch = board.batches.find(
+      (candidate) => candidate.id === draft.productionBatchId
+    )
+    if (batch === undefined) {
+      setFloorProgressConfirmation(null)
+      setFloorProgressError("The selected batch is no longer on this board.")
+      return
+    }
+    const command = {
+      locationId: input.locationId,
+      productionRunId: prompt.productionRunId,
+      productionBatchId: prompt.productionBatchId,
+      expectedQueueVersion: prompt.queueVersion,
+      expectedBatchVersion: prompt.batchVersion,
+      expectedStageVersions: prompt.stageVersions,
+      target: draft.target,
+      reason: draft.reason,
+      ...(draft.note === null ? {} : { note: draft.note }),
+      machineIds: [...draft.machineIds],
+      confirmation: prompt.confirmation,
+    }
+
+    setBusyId(batch.id)
+    setFloorProgressError(null)
+    try {
+      const result = await input.production.reconcileBatchProgress({
+        ...command,
+        idempotencyKey: await input.idempotency.key({
+          operation: "confirm-production-batch-progress-reconciliation",
+          payload: command,
+        }),
+      })
+      if (result.status === "confirmation_required") {
+        setFloorProgressConfirmation({ draft, result })
+        return
+      }
+      await finishFloorProgress(batch.sequence, result)
+    } catch (cause) {
+      setFloorProgressConfirmation(null)
+      await refresh()
+      setFloorProgressError(
+        conflictMessage(
+          cause,
+          "The floor record changed. Review the current state and record again."
+        )
+      )
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return {
     board,
     busyId,
     error,
     announcement,
     earlyCompletion,
+    earlyStart,
+    floorProgressOpen,
+    floorProgressError,
+    floorProgressConfirmation:
+      floorProgressConfirmation === null
+        ? null
+        : floorProgressConfirmation.result,
     totalLbs,
     completedStages,
     exactBatchSelections,
     refresh,
     act,
+    confirmEarlyStart,
+    dismissEarlyStart: () => setEarlyStart(null),
     confirmEarlyCompletion,
     dismissEarlyCompletion: () => setEarlyCompletion(null),
     selectedMachineIds,
@@ -455,12 +689,36 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     selectExactBatch,
     placeOrderExactly,
     confirmOvertime,
+    openFloorProgress: () => {
+      setFloorProgressError(null)
+      setFloorProgressConfirmation(null)
+      setFloorProgressOpen(true)
+    },
+    closeFloorProgress: () => {
+      if (busyId !== null) return
+      setFloorProgressOpen(false)
+      setFloorProgressError(null)
+      setFloorProgressConfirmation(null)
+    },
+    reconcileFloorProgress,
+    confirmFloorProgress,
+    invalidateFloorProgressConfirmation: () =>
+      setFloorProgressConfirmation(null),
   }
 }
 
 const isCompletionConfirmation = (
   result: AdvanceProductionStageResult
 ): result is ProductionStageCompletionConfirmationRequiredResult =>
-  "status" in result && result.status === "confirmation_required"
+  "status" in result &&
+  result.status === "confirmation_required" &&
+  result.code === "PULSE_BOUNDARY_NOT_REACHED"
+
+const isStartConfirmation = (
+  result: AdvanceProductionStageResult
+): result is ProductionStageStartConfirmationRequiredResult =>
+  "status" in result &&
+  result.status === "confirmation_required" &&
+  result.code === "PLANNED_START_NOT_REACHED"
 
 export type ProductionBoardModel = ReturnType<typeof useProductionBoardModel>
