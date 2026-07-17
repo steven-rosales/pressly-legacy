@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import type {
   ProcessorAuthenticatedSession,
   ProductionLocation,
@@ -10,8 +11,12 @@ import type {
   ScheduleProposal,
 } from "@pressly/contracts"
 import { RequestFailure } from "@/ports/request.error"
+import { presentAuthenticationError } from "@/features/authentication/authentication.error.presenter"
 import type { ProcessorRuntime } from "./app.composition"
+import { presentAppError, type AppErrorMessages } from "./app.error.presenter"
 import type { WorkspaceRoute } from "./app.navigation"
+import { englishAppMessages, spanishAppMessages } from "./app.messages"
+import { scheduleSessionExpiry } from "./session-expiry"
 import { observeProductionConnectionState } from "./processor-observability"
 import {
   makeProductionSyncCoordinator,
@@ -46,10 +51,12 @@ export const resolveLocationSelection = (input: {
   return input.locations.length === 1 ? input.locations[0]!.id : null
 }
 
-const messageFor = (cause: unknown): string =>
-  cause instanceof RequestFailure
-    ? cause.message
-    : "The processor could not load current production data."
+const errorMessagesForLanguage = (
+  language: string | undefined
+): AppErrorMessages =>
+  language?.startsWith("es") === true
+    ? spanishAppMessages.errors
+    : englishAppMessages.errors
 
 const roundUp = (date: Date, intervalMinutes: number): Date => {
   const interval = intervalMinutes * 60_000
@@ -178,6 +185,8 @@ export function useProcessorAppModel(
   runtime: ProcessorRuntime,
   requestedRoute: WorkspaceRoute = defaultWorkspaceRoute
 ) {
+  const { t, i18n } = useTranslation()
+  const errorMessages = errorMessagesForLanguage(i18n.resolvedLanguage)
   const [authStatus, setAuthStatus] = useState<ProcessorAuthStatus>("restoring")
   const [session, setSession] = useState<ProcessorAuthenticatedSession | null>(
     null
@@ -216,7 +225,13 @@ export function useProcessorAppModel(
         setWorkspaceLoading(false)
       },
       onError: (cause) => {
-        setWorkspaceError(messageFor(cause))
+        setWorkspaceError(
+          presentAppError(
+            cause,
+            "load_workspace",
+            errorMessagesForLanguage(document.documentElement.lang)
+          )
+        )
         setWorkspaceLoading(false)
       },
     })
@@ -265,9 +280,9 @@ export function useProcessorAppModel(
   useEffect(
     () =>
       runtime.subscribeToUnauthorized(() =>
-        resetSession("Your session expired. Sign in again to continue.")
+        resetSession(t("authentication.sessionExpired"))
       ),
-    [resetSession, runtime]
+    [resetSession, runtime, t]
   )
 
   useEffect(() => {
@@ -308,23 +323,20 @@ export function useProcessorAppModel(
         resetSession(
           cause instanceof RequestFailure && cause.kind === "unauthorized"
             ? undefined
-            : messageFor(cause)
+            : presentAuthenticationError(cause, "restore", t)
         )
       })
     return () => {
       active = false
     }
-  }, [acceptSession, resetSession, runtime])
+  }, [acceptSession, resetSession, runtime, t])
 
   useEffect(() => {
     if (session === null) return
-    const delay = Math.max(0, Date.parse(session.expiresAt) - Date.now())
-    const timeout = window.setTimeout(
-      () => resetSession("Your session expired. Sign in again to continue."),
-      Math.min(delay, 2_147_483_647)
+    return scheduleSessionExpiry(session.expiresAt, () =>
+      resetSession(t("authentication.sessionExpired"))
     )
-    return () => window.clearTimeout(timeout)
-  }, [resetSession, session])
+  }, [resetSession, session, t])
 
   const refreshLocations = useCallback(async () => {
     setLocationsLoading(true)
@@ -373,11 +385,11 @@ export function useProcessorAppModel(
       }
       setSelectedLocationId(selectedLocationId)
     } catch (cause) {
-      setWorkspaceError(messageFor(cause))
+      setWorkspaceError(presentAppError(cause, "load_locations", errorMessages))
     } finally {
       setLocationsLoading(false)
     }
-  }, [runtime, sync])
+  }, [errorMessages, runtime, sync])
 
   useEffect(() => {
     if (authStatus !== "authenticated") return
@@ -530,7 +542,7 @@ export function useProcessorAppModel(
       if (outcome.status === "mfa_required") setAuthStatus("mfa_required")
       else acceptSession(outcome)
     } catch (cause) {
-      setAuthError(messageFor(cause))
+      setAuthError(presentAuthenticationError(cause, "login", t))
     } finally {
       setAuthBusy(false)
     }
@@ -545,7 +557,7 @@ export function useProcessorAppModel(
     try {
       acceptSession(await runtime.authentication.completeMfa(input))
     } catch (cause) {
-      setAuthError(messageFor(cause))
+      setAuthError(presentAuthenticationError(cause, "verify", t))
     } finally {
       setAuthBusy(false)
     }
@@ -563,7 +575,7 @@ export function useProcessorAppModel(
       await runtime.authentication.logout()
       resetSession()
     } catch (cause) {
-      setAuthError(messageFor(cause))
+      setAuthError(presentAuthenticationError(cause, "logout", t))
     } finally {
       setAuthBusy(false)
     }

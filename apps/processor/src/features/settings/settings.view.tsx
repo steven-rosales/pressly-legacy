@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { ProductionShift, SchedulerConfig } from "@pressly/contracts"
+import { useTranslation } from "react-i18next"
 import {
   Card,
   CardContent,
@@ -11,6 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import { AppearanceSettings } from "./appearance-settings.view"
+import { LanguageSettings } from "./language-settings.view"
 import { SchedulerConfigPublication } from "./scheduler-config-publication.view"
 
 function SummaryRow({
@@ -46,6 +48,7 @@ export function SettingsView({
   canManage: boolean
   onConfigurationPublished: (config: SchedulerConfig) => Promise<void>
 }) {
+  const { t } = useTranslation()
   const pulseCapacity =
     schedulerConfig === null || shift === null
       ? null
@@ -59,12 +62,14 @@ export function SettingsView({
         <CardHeader className="gap-3">
           <div className="flex flex-col gap-1">
             <CardTitle role="heading" aria-level={2}>
-              Published production pulse
+              {t("settings.publishedPulse")}
             </CardTitle>
             <CardDescription>
               {schedulerConfig === null
-                ? "Production scheduling is not configured. Publish a tested pulse before computing a schedule."
-                : `Immutable scheduler configuration · version ${schedulerConfig.version}`}
+                ? t("settings.notConfigured")
+                : t("settings.immutableVersion", {
+                    version: schedulerConfig.version,
+                  })}
             </CardDescription>
           </div>
           <SchedulerConfigPublication
@@ -77,34 +82,43 @@ export function SettingsView({
           />
         </CardHeader>
         <CardContent>
-          <dl className="flex flex-col" aria-label="Production pulse summary">
-            <SummaryRow label="Pulse duration">
+          <dl className="flex flex-col" aria-label={t("settings.pulseSummary")}>
+            <SummaryRow label={t("settings.pulseDuration")}>
               {schedulerConfig === null
-                ? "Not published"
-                : `${schedulerConfig.pulseMinutes} minutes`}
+                ? t("settings.notPublished")
+                : t("common.minutes", {
+                    count: schedulerConfig.pulseMinutes,
+                  })}
             </SummaryRow>
             <Separator />
-            <SummaryRow label="Folding rate">
+            <SummaryRow label={t("settings.foldingRate")}>
               {schedulerConfig === null
-                ? "Not published"
-                : `${schedulerConfig.foldLbsPerFolderMinute} lb/min/person`}
+                ? t("settings.notPublished")
+                : t("settings.foldingRateValue", {
+                    value: schedulerConfig.foldLbsPerFolderMinute,
+                  })}
             </SummaryRow>
             <Separator />
-            <SummaryRow label="Effective folders">
+            <SummaryRow label={t("settings.effectiveFolders")}>
               {shift === null
-                ? "No active shift"
-                : `${shift.effectiveFolderCount} employees`}
+                ? t("settings.noActiveShift")
+                : t("common.employees", {
+                    count: shift.effectiveFolderCount,
+                  })}
             </SummaryRow>
             <Separator />
-            <SummaryRow label="Pulse capacity">
+            <SummaryRow label={t("settings.pulseCapacity")}>
               {pulseCapacity === null
-                ? "Available with a published pulse and active shift"
-                : `${pulseCapacity} lb folding ceiling`}
+                ? t("settings.capacityUnavailable")
+                : t("settings.foldingCeiling", { value: pulseCapacity })}
             </SummaryRow>
           </dl>
         </CardContent>
       </Card>
-      <AppearanceSettings theme={theme} onThemeChange={onThemeChange} />
+      <div className="flex flex-col gap-4">
+        <LanguageSettings />
+        <AppearanceSettings theme={theme} onThemeChange={onThemeChange} />
+      </div>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import type { ProductionLocation } from "@pressly/contracts"
+import { useTranslation } from "react-i18next"
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ export function ProductionLocationSelect({
   className?: string
   onValueChange: (locationId: string) => void
 }) {
+  const { t } = useTranslation()
   return (
     <Select
       value={value ?? undefined}
@@ -33,9 +35,9 @@ export function ProductionLocationSelect({
         id={triggerId}
         size="sm"
         className={className}
-        aria-label="Production location"
+        aria-label={t("location.productionLocation")}
       >
-        <SelectValue placeholder="Choose a location" />
+        <SelectValue placeholder={t("location.choosePlaceholder")} />
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>

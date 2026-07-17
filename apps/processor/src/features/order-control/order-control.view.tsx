@@ -7,6 +7,7 @@ import {
   IconPackage,
   IconSearch,
 } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 import { SectionHeading } from "@/components/layout/workspace-primitives"
 import { DelayedLoadingRows } from "@/components/ui/delayed-loading-rows"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -52,27 +53,33 @@ import type {
 const tabCopy: ReadonlyArray<
   Readonly<{
     value: OrderControlTab
-    label: string
-    compactLabel: string
+    labelKey:
+      | "orderControl.needsAttention"
+      | "orderControl.active"
+      | "orderControl.all"
+    compactLabelKey:
+      | "orderControl.attention"
+      | "orderControl.active"
+      | "orderControl.all"
     count: (model: OrderControlViewModel) => number
   }>
 > = [
   {
     value: "needs_attention",
-    label: "Needs attention",
-    compactLabel: "Attention",
+    labelKey: "orderControl.needsAttention",
+    compactLabelKey: "orderControl.attention",
     count: (model) => model.counts.needsAttention,
   },
   {
     value: "active",
-    label: "Active",
-    compactLabel: "Active",
+    labelKey: "orderControl.active",
+    compactLabelKey: "orderControl.active",
     count: (model) => model.counts.active,
   },
   {
     value: "all",
-    label: "All",
-    compactLabel: "All",
+    labelKey: "orderControl.all",
+    compactLabelKey: "orderControl.all",
     count: (model) => model.counts.all,
   },
 ]
@@ -149,18 +156,25 @@ function DesktopOrderTable({
   orders: readonly OrderControlOrder[]
   onOpenOrder: (orderId: string) => void
 }>) {
+  const { t } = useTranslation()
   return (
     <div className="hidden overflow-hidden rounded-xl border bg-background md:block">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="w-[24%] px-4">Order</TableHead>
-            <TableHead>State</TableHead>
-            <TableHead>Due</TableHead>
-            <TableHead className="w-[24%]">Floor position</TableHead>
-            <TableHead>Demand</TableHead>
+            <TableHead className="w-[24%] px-4">
+              {t("orderControl.order")}
+            </TableHead>
+            <TableHead>{t("orderControl.state")}</TableHead>
+            <TableHead>{t("orderControl.due")}</TableHead>
+            <TableHead className="w-[24%]">
+              {t("orderControl.floorPosition")}
+            </TableHead>
+            <TableHead>{t("orderControl.demand")}</TableHead>
             <TableHead>
-              <span className="sr-only">Open order</span>
+              <span className="sr-only">
+                {t("orderControl.openOrderShort")}
+              </span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -174,7 +188,9 @@ function DesktopOrderTable({
                   className="h-auto justify-start p-0 text-foreground"
                   onClick={() => onOpenOrder(order.id)}
                 >
-                  Order {order.externalOrderId}
+                  {t("orderControl.orderNumber", {
+                    orderId: order.externalOrderId,
+                  })}
                 </Button>
                 {order.secondaryLabel !== null && (
                   <p className="mt-1 truncate text-xs text-muted-foreground">
@@ -185,7 +201,9 @@ function DesktopOrderTable({
               <TableCell className="py-3">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <AttentionBadge order={order} />
-                  {order.priority && <Badge>Priority</Badge>}
+                  {order.priority && (
+                    <Badge>{t("orderControl.priority")}</Badge>
+                  )}
                 </div>
               </TableCell>
               <TableCell className="py-3">
@@ -211,7 +229,9 @@ function DesktopOrderTable({
                   size="icon"
                   variant="ghost"
                   className="size-11"
-                  aria-label={`Open order ${order.externalOrderId}`}
+                  aria-label={t("orderControl.openOrder", {
+                    orderId: order.externalOrderId,
+                  })}
                   onClick={() => onOpenOrder(order.id)}
                 >
                   <IconChevronRight />
@@ -232,6 +252,7 @@ function MobileOrderCards({
   orders: readonly OrderControlOrder[]
   onOpenOrder: (orderId: string) => void
 }>) {
+  const { t } = useTranslation()
   return (
     <div className="grid gap-2 md:hidden">
       {orders.map((order) => (
@@ -240,13 +261,15 @@ function MobileOrderCards({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-medium">
-                  Order {order.externalOrderId}
+                  {t("orderControl.orderNumber", {
+                    orderId: order.externalOrderId,
+                  })}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {order.dueLabel} · {order.weightLabel} · {order.bagLabel}
                 </p>
               </div>
-              {order.priority && <Badge>Priority</Badge>}
+              {order.priority && <Badge>{t("orderControl.priority")}</Badge>}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <AttentionBadge order={order} />
@@ -261,7 +284,7 @@ function MobileOrderCards({
               className="h-11 w-full"
               onClick={() => onOpenOrder(order.id)}
             >
-              Open order
+              {t("orderControl.openOrderShort")}
               <IconChevronRight data-icon="inline-end" />
             </Button>
           </CardContent>
@@ -280,9 +303,10 @@ function OrderPagination({
   onPreviousPage: (cursor: string) => void
   onNextPage: (cursor: string) => void
 }>) {
+  const { t } = useTranslation()
   return (
     <nav
-      aria-label="Order pages"
+      aria-label={t("orderControl.pages")}
       className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="text-sm text-muted-foreground">{page.rangeLabel}</p>
@@ -298,7 +322,7 @@ function OrderPagination({
           }}
         >
           <IconChevronLeft data-icon="inline-start" />
-          Previous
+          {t("common.previous")}
         </Button>
         <Button
           type="button"
@@ -309,7 +333,7 @@ function OrderPagination({
             if (page.nextCursor !== null) onNextPage(page.nextCursor)
           }}
         >
-          Next
+          {t("common.next")}
           <IconChevronRight data-icon="inline-end" />
         </Button>
       </div>
@@ -326,6 +350,7 @@ export function OrderControlWorkspace({
   callbacks: OrderControlCallbacks
   isMobile: boolean
 }>) {
+  const { t } = useTranslation()
   const filterCount = activeFilterCount(model.filters)
   const updateFilter = <TKey extends keyof OrderControlFilters>(
     key: TKey,
@@ -338,8 +363,10 @@ export function OrderControlWorkspace({
       aria-busy={model.loading || model.refreshing}
     >
       <SectionHeading
-        title="Order control"
-        description={`Find floor work, resolve exceptions, and move eligible queued orders. ${model.asOfLabel}`}
+        title={t("orderControl.title")}
+        description={t("orderControl.description", {
+          asOf: model.asOfLabel,
+        })}
         action={
           model.refreshing ? (
             <div
@@ -347,7 +374,7 @@ export function OrderControlWorkspace({
               className="flex h-8 items-center gap-2 text-xs text-muted-foreground"
             >
               <Spinner className="size-3.5" aria-hidden="true" />
-              Updating
+              {t("orderControl.updating")}
             </div>
           ) : undefined
         }
@@ -356,7 +383,7 @@ export function OrderControlWorkspace({
       {model.error !== null && (
         <Alert variant="destructive" role="alert">
           <IconAlertTriangle />
-          <AlertTitle>Orders need attention</AlertTitle>
+          <AlertTitle>{t("orderControl.ordersNeedAttention")}</AlertTitle>
           <AlertDescription>{model.error}</AlertDescription>
         </Alert>
       )}
@@ -372,11 +399,14 @@ export function OrderControlWorkspace({
             <TabsTrigger
               key={tab.value}
               value={tab.value}
-              aria-label={`${tab.label}, ${tab.count(model)}`}
+              aria-label={t("orderControl.tabLabel", {
+                label: t(tab.labelKey),
+                count: tab.count(model),
+              })}
               className="min-w-0 gap-1 px-1 sm:px-2"
             >
-              <span className="sm:hidden">{tab.compactLabel}</span>
-              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{t(tab.compactLabelKey)}</span>
+              <span className="hidden sm:inline">{t(tab.labelKey)}</span>
               <Badge
                 variant={model.tab === tab.value ? "secondary" : "outline"}
                 className="min-w-5 shrink-0 px-1"
@@ -396,8 +426,8 @@ export function OrderControlWorkspace({
             </InputGroupAddon>
             <InputGroupInput
               type="search"
-              aria-label="Search orders"
-              placeholder="Search order number"
+              aria-label={t("orderControl.search")}
+              placeholder={t("orderControl.searchPlaceholder")}
               value={model.filters.query}
               onChange={(event) => updateFilter("query", event.target.value)}
             />
@@ -405,28 +435,28 @@ export function OrderControlWorkspace({
           <div className="flex flex-wrap gap-2">
             <FilterSelect
               id="order-status-filter"
-              label="Order status"
+              label={t("orderControl.orderStatus")}
               value={model.filters.status}
               options={model.filterOptions.statuses}
               onValueChange={(value) => updateFilter("status", value)}
             />
             <FilterSelect
               id="order-due-filter"
-              label="Due window"
+              label={t("orderControl.dueWindow")}
               value={model.filters.due}
               options={model.filterOptions.dueWindows}
               onValueChange={(value) => updateFilter("due", value)}
             />
             <FilterSelect
               id="order-stage-filter"
-              label="Floor stage"
+              label={t("orderControl.floorStage")}
               value={model.filters.stage}
               options={model.filterOptions.stages}
               onValueChange={(value) => updateFilter("stage", value)}
             />
             <FilterSelect
               id="order-priority-filter"
-              label="Priority"
+              label={t("orderControl.priority")}
               value={model.filters.priority}
               options={model.filterOptions.priorities}
               onValueChange={(value) => updateFilter("priority", value)}
@@ -439,7 +469,7 @@ export function OrderControlWorkspace({
                 onClick={callbacks.onClearFilters}
               >
                 <IconFilter data-icon="inline-start" />
-                Clear {filterCount}
+                {t("orderControl.clearCount", { count: filterCount })}
               </Button>
             )}
           </div>
@@ -447,7 +477,7 @@ export function OrderControlWorkspace({
       </Card>
 
       {model.loading ? (
-        <DelayedLoadingRows label="Loading orders" />
+        <DelayedLoadingRows label={t("orderControl.loading")} />
       ) : model.orders.length === 0 ? (
         <Empty className="min-h-72 border">
           <EmptyHeader>
@@ -460,13 +490,13 @@ export function OrderControlWorkspace({
             </EmptyMedia>
             <EmptyTitle role="heading" aria-level={2}>
               {model.tab === "needs_attention"
-                ? "No orders need attention"
-                : "No orders match this view"}
+                ? t("orderControl.noAttention")
+                : t("orderControl.noMatch")}
             </EmptyTitle>
             <EmptyDescription>
               {filterCount > 0
-                ? "Clear a filter or search for a different order."
-                : "New order work will appear here as the floor changes."}
+                ? t("orderControl.emptyFiltered")
+                : t("orderControl.empty")}
             </EmptyDescription>
           </EmptyHeader>
           {filterCount > 0 && (
@@ -477,7 +507,7 @@ export function OrderControlWorkspace({
                 className="h-11"
                 onClick={callbacks.onClearFilters}
               >
-                Clear filters
+                {t("orderControl.clearFilters")}
               </Button>
             </EmptyContent>
           )}

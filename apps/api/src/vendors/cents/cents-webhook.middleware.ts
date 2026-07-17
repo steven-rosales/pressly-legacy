@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { makeAppError } from '@pressly/errors';
-import { readAuthenticatedCentsRawBody } from './cents-webhook.security.ts';
+import { readCentsWebhookRawBody } from './cents-webhook.security.ts';
 import {
   normalizeCentsWebhook,
   toCentsWebhookEventCommand,
@@ -17,13 +17,13 @@ const normalizationError = (input: { code: string; message: string }) =>
 
 export const makeCentsWebhookNormalizationBoundary =
   (): RequestHandler => (request, response, next) => {
-    const rawBody = readAuthenticatedCentsRawBody(response.locals);
+    const rawBody = readCentsWebhookRawBody(response.locals);
     if (rawBody === null) {
       next(
         makeAppError({
           kind: 'ExternalServiceError',
           code: 'cents_webhook_raw_body_unavailable',
-          message: 'Authenticated Cents raw body was unavailable.',
+          message: 'Cents webhook raw body was unavailable.',
           safeMessage: 'Vendor webhook receipt is unavailable.',
           status: 503,
         }),

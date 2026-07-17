@@ -9,6 +9,7 @@ import {
   IconSearch,
   IconTimeline,
 } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 import { SectionHeading } from "@/components/layout/workspace-primitives"
 import { DelayedLoadingRows } from "@/components/ui/delayed-loading-rows"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -54,12 +55,12 @@ import type {
 
 const historyTabs: readonly Readonly<{
   value: HistoryTab
-  label: string
+  labelKey: "history.runs" | "history.activity" | "history.plans"
   icon: typeof IconHistory
 }>[] = [
-  { value: "runs", label: "Runs", icon: IconHistory },
-  { value: "activity", label: "Activity", icon: IconTimeline },
-  { value: "plans", label: "Plans", icon: IconCalendarClock },
+  { value: "runs", labelKey: "history.runs", icon: IconHistory },
+  { value: "activity", labelKey: "history.activity", icon: IconTimeline },
+  { value: "plans", labelKey: "history.plans", icon: IconCalendarClock },
 ]
 
 const defaultFilter = (value: string) =>
@@ -120,19 +121,22 @@ function RunsView({
   runs: readonly HistoryRunSummary[]
   onOpenRun: (runId: string) => void
 }>) {
+  const { t } = useTranslation()
   return (
     <>
       <div className="hidden overflow-hidden rounded-xl border bg-background md:block">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[26%] px-4">Production run</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Demand</TableHead>
-              <TableHead>Timing</TableHead>
-              <TableHead>Exceptions</TableHead>
+              <TableHead className="w-[26%] px-4">
+                {t("history.productionRun")}
+              </TableHead>
+              <TableHead>{t("history.status")}</TableHead>
+              <TableHead>{t("history.demand")}</TableHead>
+              <TableHead>{t("history.timing")}</TableHead>
+              <TableHead>{t("history.exceptions")}</TableHead>
               <TableHead>
-                <span className="sr-only">Open run</span>
+                <span className="sr-only">{t("history.openRunShort")}</span>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -173,7 +177,9 @@ function RunsView({
                 </TableCell>
                 <TableCell className="py-3 whitespace-normal">
                   {run.exceptionLabel === null ? (
-                    <span className="text-sm text-muted-foreground">None</span>
+                    <span className="text-sm text-muted-foreground">
+                      {t("common.none")}
+                    </span>
                   ) : (
                     <Badge variant="outline">{run.exceptionLabel}</Badge>
                   )}
@@ -184,7 +190,7 @@ function RunsView({
                     size="icon"
                     variant="ghost"
                     className="size-11"
-                    aria-label={`Open ${run.title}`}
+                    aria-label={t("history.openRun", { title: run.title })}
                     onClick={() => onOpenRun(run.id)}
                   >
                     <IconChevronRight />
@@ -211,11 +217,15 @@ function RunsView({
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <p className="text-xs text-muted-foreground">Demand</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("history.demand")}
+                  </p>
                   <p className="mt-1 font-medium">{run.demandLabel}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Batches</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("history.batches")}
+                  </p>
                   <p className="mt-1 font-medium">{run.batchesLabel}</p>
                 </div>
               </div>
@@ -226,7 +236,7 @@ function RunsView({
                 className="h-11 w-full"
                 onClick={() => onOpenRun(run.id)}
               >
-                Open run history
+                {t("history.openRunHistory")}
                 <IconChevronRight data-icon="inline-end" />
               </Button>
             </CardContent>
@@ -288,18 +298,19 @@ function PlansView({
   plans: readonly HistoryPlanSummary[]
   onOpenRun: (runId: string) => void
 }>) {
+  const { t } = useTranslation()
   return (
     <div className="overflow-hidden rounded-xl border bg-background">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="px-4">Revision</TableHead>
-            <TableHead>Shift</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Timing</TableHead>
-            <TableHead>Warnings</TableHead>
+            <TableHead className="px-4">{t("history.revision")}</TableHead>
+            <TableHead>{t("history.shift")}</TableHead>
+            <TableHead>{t("history.status")}</TableHead>
+            <TableHead>{t("history.timing")}</TableHead>
+            <TableHead>{t("history.warnings")}</TableHead>
             <TableHead>
-              <span className="sr-only">Production run</span>
+              <span className="sr-only">{t("history.productionRun")}</span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -314,10 +325,12 @@ function PlansView({
                 <PlanStatusBadge plan={plan} />
               </TableCell>
               <TableCell className="py-3 whitespace-normal">
-                <p className="text-sm">Computed {plan.computedAtLabel}</p>
+                <p className="text-sm">
+                  {t("history.computedAt", { date: plan.computedAtLabel })}
+                </p>
                 {plan.acceptedAtLabel !== null && (
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Accepted {plan.acceptedAtLabel}
+                    {t("history.acceptedAt", { date: plan.acceptedAtLabel })}
                   </p>
                 )}
               </TableCell>
@@ -330,7 +343,7 @@ function PlansView({
                     className="h-11"
                     onClick={() => onOpenRun(plan.productionRunId!)}
                   >
-                    Open run
+                    {t("history.openRunShort")}
                   </Button>
                 )}
               </TableCell>
@@ -349,9 +362,10 @@ function HistoryPagination({
   page: HistoryCursorPageViewModel
   callbacks: Pick<HistoryCallbacks, "onPreviousPage" | "onNextPage">
 }>) {
+  const { t } = useTranslation()
   return (
     <nav
-      aria-label="History pages"
+      aria-label={t("history.pages")}
       className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="text-sm text-muted-foreground">{page.rangeLabel}</p>
@@ -367,7 +381,7 @@ function HistoryPagination({
           }}
         >
           <IconChevronLeft data-icon="inline-start" />
-          Previous
+          {t("common.previous")}
         </Button>
         <Button
           type="button"
@@ -378,7 +392,7 @@ function HistoryPagination({
             if (page.nextCursor !== null) callbacks.onNextPage(page.nextCursor)
           }}
         >
-          Next
+          {t("common.next")}
           <IconChevronRight data-icon="inline-end" />
         </Button>
       </div>
@@ -395,6 +409,7 @@ export function HistoryWorkspace({
   callbacks: HistoryCallbacks
   isMobile: boolean
 }>) {
+  const { t } = useTranslation()
   const filterCount = activeFilterCount(model.filters)
   const updateFilter = <TKey extends keyof HistoryFilters>(
     key: TKey,
@@ -413,8 +428,8 @@ export function HistoryWorkspace({
       aria-busy={model.loading || model.refreshing}
     >
       <SectionHeading
-        title="History"
-        description={`Review production execution, human actions, and immutable plan lineage. ${model.asOfLabel}`}
+        title={t("history.title")}
+        description={t("history.description", { asOf: model.asOfLabel })}
         action={
           model.refreshing ? (
             <div
@@ -422,7 +437,7 @@ export function HistoryWorkspace({
               className="flex h-8 items-center gap-2 text-xs text-muted-foreground"
             >
               <Spinner className="size-3.5" aria-hidden="true" />
-              Updating
+              {t("history.updating")}
             </div>
           ) : undefined
         }
@@ -431,7 +446,7 @@ export function HistoryWorkspace({
       {model.error !== null && (
         <Alert variant="destructive" role="alert">
           <IconAlertTriangle />
-          <AlertTitle>History is unavailable</AlertTitle>
+          <AlertTitle>{t("history.unavailable")}</AlertTitle>
           <AlertDescription>{model.error}</AlertDescription>
         </Alert>
       )}
@@ -441,14 +456,14 @@ export function HistoryWorkspace({
         onValueChange={(value) => callbacks.onTabChange(value as HistoryTab)}
       >
         <TabsList className="grid h-11 w-full grid-cols-3 sm:w-fit sm:min-w-sm">
-          {historyTabs.map(({ value, label, icon: Icon }) => (
+          {historyTabs.map(({ value, labelKey, icon: Icon }) => (
             <TabsTrigger
               key={value}
               value={value}
               className="min-w-0 gap-1 px-1 sm:px-2"
             >
               <Icon />
-              {label}
+              {t(labelKey)}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -462,13 +477,13 @@ export function HistoryWorkspace({
             </InputGroupAddon>
             <InputGroupInput
               type="search"
-              aria-label="Search history"
+              aria-label={t("history.search")}
               placeholder={
                 model.tab === "activity"
-                  ? "Search actor, action, or entity"
+                  ? t("history.searchActivity")
                   : model.tab === "plans"
-                    ? "Search plan or shift"
-                    : "Search run or shift"
+                    ? t("history.searchPlans")
+                    : t("history.searchRuns")
               }
               value={model.filters.query}
               onChange={(event) => updateFilter("query", event.target.value)}
@@ -477,7 +492,7 @@ export function HistoryWorkspace({
           <div className="flex flex-wrap gap-2 sm:ml-auto">
             <HistoryFilterSelect
               id="history-date-filter"
-              label="History date"
+              label={t("history.date")}
               value={model.filters.dateWindow}
               options={model.dateOptions}
               onChange={(value) => updateFilter("dateWindow", value)}
@@ -485,7 +500,7 @@ export function HistoryWorkspace({
             {model.statusOptions.length > 1 && (
               <HistoryFilterSelect
                 id="history-status-filter"
-                label="History status"
+                label={t("history.status")}
                 value={model.filters.status}
                 options={model.statusOptions}
                 onChange={(value) => updateFilter("status", value)}
@@ -499,7 +514,7 @@ export function HistoryWorkspace({
                 onClick={callbacks.onClearFilters}
               >
                 <IconFilter data-icon="inline-start" />
-                Clear {filterCount}
+                {t("history.clearFilters", { count: filterCount })}
               </Button>
             )}
           </div>
@@ -507,7 +522,7 @@ export function HistoryWorkspace({
       </Card>
 
       {model.loading ? (
-        <DelayedLoadingRows label="Loading history" />
+        <DelayedLoadingRows label={t("history.loading")} />
       ) : itemCount === 0 ? (
         <Empty className="min-h-72 border">
           <EmptyHeader>
@@ -515,12 +530,12 @@ export function HistoryWorkspace({
               {model.tab === "activity" ? <IconClock /> : <IconHistory />}
             </EmptyMedia>
             <EmptyTitle role="heading" aria-level={2}>
-              No history matches this view
+              {t("history.emptyTitle")}
             </EmptyTitle>
             <EmptyDescription>
               {filterCount > 0
-                ? "Clear a filter or search a different production record."
-                : "Completed and active production records will appear here."}
+                ? t("history.emptyFiltered")
+                : t("history.empty")}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

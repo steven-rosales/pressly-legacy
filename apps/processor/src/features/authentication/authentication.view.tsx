@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react"
+import { useTranslation } from "react-i18next"
 import { IconLock, IconShieldCheck } from "@tabler/icons-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -50,6 +51,7 @@ export function AuthenticationView({
   }) => Promise<void>
   onRestart: () => void
 }) {
+  const { t } = useTranslation()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [method, setMethod] = useState<"totp" | "recovery">("totp")
@@ -73,12 +75,14 @@ export function AuthenticationView({
             {mode === "login" ? <IconLock /> : <IconShieldCheck />}
           </div>
           <CardTitle>
-            {mode === "login" ? "Sign in to Processor" : "Verify your identity"}
+            {mode === "login"
+              ? t("authentication.signInTitle")
+              : t("authentication.verifyTitle")}
           </CardTitle>
           <CardDescription>
             {mode === "login"
-              ? "Use your Pressly operator account. Your session stays in a protected browser cookie."
-              : "Complete the server-held challenge to open the production workspace."}
+              ? t("authentication.signInDescription")
+              : t("authentication.verifyDescription")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={submit}>
@@ -86,14 +90,16 @@ export function AuthenticationView({
             <FieldGroup>
               {error !== null && (
                 <Alert variant="destructive" role="alert">
-                  <AlertTitle>Authentication failed</AlertTitle>
+                  <AlertTitle>{t("authentication.failed")}</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
               {mode === "login" ? (
                 <>
                   <Field>
-                    <FieldLabel htmlFor="processor-email">Email</FieldLabel>
+                    <FieldLabel htmlFor="processor-email">
+                      {t("authentication.email")}
+                    </FieldLabel>
                     <Input
                       id="processor-email"
                       type="email"
@@ -105,7 +111,7 @@ export function AuthenticationView({
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="processor-password">
-                      Password
+                      {t("authentication.password")}
                     </FieldLabel>
                     <Input
                       id="processor-password"
@@ -122,7 +128,7 @@ export function AuthenticationView({
                 <>
                   <Field>
                     <FieldLabel htmlFor="mfa-method">
-                      Verification method
+                      {t("authentication.verificationMethod")}
                     </FieldLabel>
                     <Select
                       value={method}
@@ -137,10 +143,10 @@ export function AuthenticationView({
                       <SelectContent>
                         <SelectGroup>
                           <SelectItem value="totp">
-                            Authenticator code
+                            {t("authentication.authenticatorCode")}
                           </SelectItem>
                           <SelectItem value="recovery">
-                            Recovery code
+                            {t("authentication.recoveryCode")}
                           </SelectItem>
                         </SelectGroup>
                       </SelectContent>
@@ -148,7 +154,9 @@ export function AuthenticationView({
                   </Field>
                   <Field data-invalid={invalidCode}>
                     <FieldLabel htmlFor="processor-mfa-code">
-                      {method === "totp" ? "Six-digit code" : "Recovery code"}
+                      {method === "totp"
+                        ? t("authentication.sixDigitCode")
+                        : t("authentication.recoveryCode")}
                     </FieldLabel>
                     {method === "totp" ? (
                       <InputOTP
@@ -175,8 +183,12 @@ export function AuthenticationView({
                     )}
                     {invalidCode && (
                       <FieldError>
-                        Enter a valid{" "}
-                        {method === "totp" ? "six-digit" : "recovery"} code.
+                        {t("authentication.invalidCode", {
+                          kind:
+                            method === "totp"
+                              ? t("authentication.sixDigit")
+                              : t("authentication.recovery"),
+                        })}
                       </FieldError>
                     )}
                   </Field>
@@ -196,7 +208,9 @@ export function AuthenticationView({
               }
             >
               {busy && <Spinner data-icon="inline-start" />}
-              {mode === "login" ? "Sign in" : "Verify and continue"}
+              {mode === "login"
+                ? t("authentication.signIn")
+                : t("authentication.verifyAndContinue")}
             </Button>
             {mode === "mfa" && (
               <Button
@@ -206,7 +220,7 @@ export function AuthenticationView({
                 disabled={busy}
                 onClick={onRestart}
               >
-                Back to sign in
+                {t("authentication.backToSignIn")}
               </Button>
             )}
           </CardFooter>

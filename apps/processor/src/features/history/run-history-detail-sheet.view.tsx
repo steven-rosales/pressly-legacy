@@ -5,6 +5,7 @@ import {
   IconScale,
   IconStack2,
 } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -59,10 +60,11 @@ function RunFact({
 function ActivityTimeline({
   items,
 }: Readonly<{ items: readonly HistoryActivityItem[] }>) {
+  const { t } = useTranslation()
   if (items.length === 0)
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
-        No recorded activity for this run.
+        {t("history.noActivity")}
       </p>
     )
   return (
@@ -102,6 +104,7 @@ export function RunHistoryDetailSheet({
   callbacks: Pick<HistoryCallbacks, "onCloseRun">
   isMobile: boolean
 }>) {
+  const { t } = useTranslation()
   return (
     <Sheet
       open={run !== null}
@@ -109,16 +112,20 @@ export function RunHistoryDetailSheet({
         if (!open) callbacks.onCloseRun()
       }}
     >
-      <SheetContent side={isMobile ? "bottom" : "right"} size="workspace">
+      <SheetContent
+        side={isMobile ? "bottom" : "right"}
+        size="workspace"
+        closeLabel={t("common.close")}
+      >
         <SheetHeader className="border-b px-5 py-4 pe-16">
           <div className="flex flex-wrap items-center gap-2">
-            <SheetTitle>{run?.title ?? "Production run"}</SheetTitle>
+            <SheetTitle>{run?.title ?? t("history.productionRun")}</SheetTitle>
             {run !== null && (
               <Badge variant="secondary">{run.statusLabel}</Badge>
             )}
           </div>
           <SheetDescription>
-            {run?.shiftLabel ?? "Read-only production history"}
+            {run?.shiftLabel ?? t("history.readOnly")}
           </SheetDescription>
         </SheetHeader>
 
@@ -133,31 +140,31 @@ export function RunHistoryDetailSheet({
                   value="overview"
                   className="min-w-0 px-1 text-xs sm:text-sm"
                 >
-                  Overview
+                  {t("history.overview")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="batches"
                   className="min-w-0 px-1 text-xs sm:text-sm"
                 >
-                  Batches
+                  {t("history.batches")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="orders"
                   className="min-w-0 px-1 text-xs sm:text-sm"
                 >
-                  Orders
+                  {t("history.orders")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="activity"
                   className="min-w-0 px-1 text-xs sm:text-sm"
                 >
-                  Activity
+                  {t("history.activity")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="plans"
                   className="min-w-0 px-1 text-xs sm:text-sm"
                 >
-                  Plans
+                  {t("history.plans")}
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -165,30 +172,30 @@ export function RunHistoryDetailSheet({
               <TabsContent value="overview" className="py-4">
                 <div className="grid grid-cols-2 gap-2">
                   <RunFact
-                    label="Demand"
+                    label={t("history.demand")}
                     value={run.demandLabel}
                     icon={IconScale}
                   />
                   <RunFact
-                    label="Batches"
+                    label={t("history.batches")}
                     value={run.batchCountLabel}
                     icon={IconStack2}
                   />
                   <RunFact
-                    label="Planned"
+                    label={t("history.planned")}
                     value={run.plannedTimingLabel}
                     icon={IconCalendarClock}
                   />
                   <RunFact
-                    label="Actual"
+                    label={t("history.actual")}
                     value={run.actualTimingLabel}
                     icon={IconClock}
                   />
                 </div>
-                {run.exceptionLabel !== "None" && (
+                {run.exceptionLabel !== t("common.none") && (
                   <Alert className="mt-4 border-warning-foreground/20 bg-warning text-warning-foreground">
                     <IconAlertTriangle />
-                    <AlertTitle>Recorded exceptions</AlertTitle>
+                    <AlertTitle>{t("history.recordedExceptions")}</AlertTitle>
                     <AlertDescription>{run.exceptionLabel}</AlertDescription>
                   </Alert>
                 )}
@@ -225,10 +232,12 @@ export function RunHistoryDetailSheet({
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className="px-3">Order</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Batch</TableHead>
-                        <TableHead>Demand</TableHead>
+                        <TableHead className="px-3">
+                          {t("history.order")}
+                        </TableHead>
+                        <TableHead>{t("history.status")}</TableHead>
+                        <TableHead>{t("history.batches")}</TableHead>
+                        <TableHead>{t("history.demand")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -262,10 +271,14 @@ export function RunHistoryDetailSheet({
                         <Badge variant="secondary">{plan.statusLabel}</Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Computed {plan.computedAtLabel}
+                        {t("history.computedAt", {
+                          date: plan.computedAtLabel,
+                        })}
                         {plan.acceptedAtLabel === null
                           ? ""
-                          : ` · accepted ${plan.acceptedAtLabel}`}
+                          : ` · ${t("history.acceptedAt", {
+                              date: plan.acceptedAtLabel,
+                            })}`}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {plan.warningsLabel}
@@ -285,7 +298,7 @@ export function RunHistoryDetailSheet({
             className="h-11"
             onClick={callbacks.onCloseRun}
           >
-            Close history
+            {t("history.closeHistory")}
           </Button>
         </SheetFooter>
       </SheetContent>

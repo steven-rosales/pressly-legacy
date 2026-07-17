@@ -108,7 +108,7 @@ describe("processor request boundary", () => {
       requestId: "request-edge-4",
       traceId: "trace-server-9",
       referenceId: "trace-server-9",
-      message: "The action could not be completed. Reference: trace-server-9",
+      message: "The action could not be completed.",
     } satisfies Partial<RequestFailure>)
     expect(onFailure).toHaveBeenCalledWith(
       expect.objectContaining({ referenceId: "trace-server-9" }),

@@ -1,7 +1,54 @@
 import type {
   ProductionOrderSummary,
+  ProductionWarning,
   ScheduleProposal,
 } from "@pressly/contracts"
+import type { TFunction } from "i18next"
+
+export type ScheduleWarningPresentation = Readonly<{
+  title: string
+  detail: string
+}>
+
+export const presentScheduleWarning = (
+  warning: ProductionWarning,
+  t: TFunction
+): ScheduleWarningPresentation => {
+  switch (warning.code) {
+    case "SHIFT_OVERFLOW":
+      return {
+        title: t("scheduling.warningShiftOverflowTitle"),
+        detail: t("scheduling.warningShiftOverflowDetail"),
+      }
+    case "OVERSIZED_ORDER":
+      return {
+        title: t("scheduling.warningOversizedTitle"),
+        detail: t("scheduling.warningOversizedDetail", {
+          count: warning.orderIds?.length ?? 0,
+        }),
+      }
+    case "NO_ACTIVE_WASHERS":
+      return {
+        title: t("scheduling.warningNoWashersTitle"),
+        detail: t("scheduling.warningNoWashersDetail"),
+      }
+    case "NO_ACTIVE_DRYERS":
+      return {
+        title: t("scheduling.warningNoDryersTitle"),
+        detail: t("scheduling.warningNoDryersDetail"),
+      }
+    case "NO_FOLDING_CAPACITY":
+      return {
+        title: t("scheduling.warningNoFoldingTitle"),
+        detail: t("scheduling.warningNoFoldingDetail"),
+      }
+  }
+}
+
+export const localeForLanguage = (
+  language: string | undefined
+): "en-US" | "es-US" =>
+  language?.startsWith("es") === true ? "es-US" : "en-US"
 
 const zonedParts = (value: Date, timeZone: string) =>
   Object.fromEntries(

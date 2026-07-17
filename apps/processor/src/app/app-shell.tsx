@@ -1,5 +1,6 @@
 import { IconLogout, IconMenu2, IconSparkles } from "@tabler/icons-react"
 import { useState, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -20,9 +21,11 @@ function Navigation({
   current: WorkspaceView
   onNavigate: (view: WorkspaceView) => void
 }) {
+  const { t } = useTranslation()
+
   return (
-    <nav aria-label="Processor" className="flex flex-col gap-1">
-      {workspaceNavigation.map(({ id, label, icon: Icon }) => (
+    <nav aria-label={t("navigation.label")} className="flex flex-col gap-1">
+      {workspaceNavigation.map(({ id, labelKey, icon: Icon }) => (
         <Button
           key={id}
           type="button"
@@ -32,7 +35,7 @@ function Navigation({
           onClick={() => onNavigate(id)}
         >
           <Icon data-icon="inline-start" />
-          {label}
+          {t(labelKey)}
         </Button>
       ))}
     </nav>
@@ -64,6 +67,7 @@ export function AppShell({
   onLogout: () => void
   children: ReactNode
 }) {
+  const { t } = useTranslation()
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
 
   return (
@@ -73,14 +77,19 @@ export function AppShell({
           <span className="grid size-7 place-items-center rounded-lg bg-foreground text-background">
             <IconSparkles className="size-4" aria-hidden="true" />
           </span>
-          Pressly Processor
+          {t("common.appName")}
         </div>
         <Separator className="my-3" />
         <Navigation current={current} onNavigate={onNavigate} />
         <div className="mt-auto rounded-xl border bg-background p-3 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">Laundry Production</p>
+          <p className="font-medium text-foreground">
+            {t("navigation.laundryProduction")}
+          </p>
           <p className="mt-1">
-            {locationName} · {timezone}
+            {t("navigation.locationAndTimezone", {
+              location: locationName,
+              timezone,
+            })}
           </p>
         </div>
       </aside>
@@ -96,23 +105,27 @@ export function AppShell({
                 className="lg:hidden"
                 size="icon"
                 variant="ghost"
-                aria-label="Open navigation"
+                aria-label={t("navigation.open")}
               >
                 <IconMenu2 />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-4">
+            <SheetContent
+              side="left"
+              className="w-72 p-4"
+              closeLabel={t("common.close")}
+            >
               <SheetHeader className="sr-only">
-                <SheetTitle>Processor navigation</SheetTitle>
+                <SheetTitle>{t("navigation.dialogTitle")}</SheetTitle>
                 <SheetDescription>
-                  Choose a Processor workspace for this location.
+                  {t("navigation.dialogDescription")}
                 </SheetDescription>
               </SheetHeader>
               <div className="mb-6 flex items-center gap-2 font-semibold">
                 <span className="grid size-7 place-items-center rounded-lg bg-foreground text-background">
                   <IconSparkles className="size-4" />
                 </span>
-                Pressly Processor
+                {t("common.appName")}
               </div>
               <Navigation
                 current={current}
@@ -130,7 +143,9 @@ export function AppShell({
             </p>
           </div>
           {actions}
-          <Avatar aria-label={`Signed in as ${principalName}`}>
+          <Avatar
+            aria-label={t("navigation.signedInAs", { name: principalName })}
+          >
             <AvatarFallback>
               {principalName
                 .split(/\s+/)
@@ -144,7 +159,7 @@ export function AppShell({
             type="button"
             size="icon"
             variant="ghost"
-            aria-label="Sign out"
+            aria-label={t("navigation.signOut")}
             disabled={logoutBusy}
             onClick={onLogout}
           >

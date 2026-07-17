@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { BrowserRouter, useLocation, useNavigate } from "react-router-dom"
 import {
   IconAlertTriangle,
@@ -47,18 +48,16 @@ import {
   readWorkspaceRoute,
   workspaceRouteForView,
   workspaceRoutePath,
-  workspaceCopy,
+  workspaceCopyKeys,
   type WorkspaceRoute,
   type WorkspaceView,
 } from "./app.navigation"
 import { useTheme } from "./providers"
 
 function WorkspaceLoading() {
+  const { t } = useTranslation()
   return (
-    <div
-      className="flex flex-col gap-4"
-      aria-label="Loading production workspace"
-    >
+    <div className="flex flex-col gap-4" aria-label={t("workspace.loading")}>
       <Skeleton className="h-8 w-64" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[0, 1, 2, 3].map((index) => (
@@ -79,6 +78,7 @@ function NoLocations({
   onRefresh: () => void
   onLogout: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
       <Empty className="max-w-lg border bg-background">
@@ -87,20 +87,19 @@ function NoLocations({
             <IconMapPin />
           </EmptyMedia>
           <EmptyTitle role="heading" aria-level={1}>
-            No production location is available
+            {t("location.unavailableTitle")}
           </EmptyTitle>
           <EmptyDescription>
-            Check the active location configuration or your assignment, then
-            retry.
+            {t("location.unavailableDescription")}
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button disabled={busy} onClick={onRefresh}>
             <IconRefresh data-icon="inline-start" />
-            Refresh access
+            {t("location.refreshAccess")}
           </Button>
           <Button variant="ghost" disabled={busy} onClick={onLogout}>
-            Sign out
+            {t("navigation.signOut")}
           </Button>
         </EmptyContent>
       </Empty>
@@ -115,6 +114,7 @@ function ChooseLocation({
   model: ReturnType<typeof useProcessorAppModel>
   onSelectLocation: (locationId: string) => void
 }) {
+  const { t } = useTranslation()
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
       <Card className="w-full max-w-md bg-background">
@@ -123,17 +123,14 @@ function ChooseLocation({
             <IconMapPin />
           </div>
           <CardTitle role="heading" aria-level={1}>
-            Choose a production location
+            {t("location.chooseTitle")}
           </CardTitle>
-          <CardDescription>
-            Select the floor you are working in. The processor will remember
-            this choice on this browser.
-          </CardDescription>
+          <CardDescription>{t("location.chooseDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <Field>
             <FieldLabel htmlFor="production-location-choice">
-              Production location
+              {t("location.productionLocation")}
             </FieldLabel>
             <ProductionLocationSelect
               locations={model.locations}
@@ -151,7 +148,7 @@ function ChooseLocation({
             disabled={model.authBusy}
             onClick={() => void model.logout()}
           >
-            Sign out
+            {t("navigation.signOut")}
           </Button>
         </CardFooter>
       </Card>
@@ -170,27 +167,29 @@ function ForbiddenWorkspace({
   error: string | null
   onLogout: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
       <Card className="w-full max-w-lg bg-background">
         <CardHeader>
-          <CardTitle>Processor access is not assigned</CardTitle>
+          <CardTitle>{t("authentication.accessNotAssigned")}</CardTitle>
           <CardDescription>
-            {principalName} is authenticated, but this workspace is limited to
-            owners, administrators, and production operators.
+            {t("authentication.accessNotAssignedDescription", {
+              name: principalName,
+            })}
           </CardDescription>
         </CardHeader>
         {error !== null && (
           <CardContent>
             <Alert variant="destructive" role="alert">
-              <AlertTitle>Sign out failed</AlertTitle>
+              <AlertTitle>{t("authentication.signOutFailed")}</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           </CardContent>
         )}
         <CardFooter>
           <Button disabled={busy} onClick={onLogout}>
-            Sign out
+            {t("navigation.signOut")}
           </Button>
         </CardFooter>
       </Card>
@@ -208,6 +207,7 @@ function ProcessorWorkspace({
   const routerNavigate = useNavigate()
   const model = useProcessorAppModel(runtime, route)
   const { theme, setTheme } = useTheme()
+  const { t } = useTranslation()
 
   const goToRoute = useCallback(
     (next: WorkspaceRoute, replace = false) => {
@@ -294,7 +294,7 @@ function ProcessorWorkspace({
       <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
         <div
           className="flex w-full max-w-sm flex-col gap-3"
-          aria-label="Restoring session"
+          aria-label={t("authentication.restoring")}
         >
           <Skeleton className="h-10 w-10" />
           <Skeleton className="h-7 w-64" />
@@ -360,8 +360,8 @@ function ProcessorWorkspace({
     <AppShell
       current={route.view}
       onNavigate={navigateToView}
-      title={workspaceCopy[route.view][0]}
-      description={workspaceCopy[route.view][1]}
+      title={t(workspaceCopyKeys[route.view][0])}
+      description={t(workspaceCopyKeys[route.view][1])}
       locationName={location.name}
       timezone={location.timezone}
       principalName={model.session.principal.displayName}
@@ -371,12 +371,12 @@ function ProcessorWorkspace({
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="hidden sm:inline-flex">
             {!model.online
-              ? "Offline"
+              ? t("connection.offline")
               : model.liveConnectionState === "open"
-                ? "Live"
+                ? t("connection.live")
                 : model.liveConnectionState === "reconnecting"
-                  ? "Reconnecting"
-                  : "Connecting"}
+                  ? t("connection.reconnecting")
+                  : t("connection.connecting")}
           </Badge>
           {model.locations.length > 1 && (
             <ProductionLocationSelect
@@ -394,17 +394,16 @@ function ProcessorWorkspace({
         {!model.online && (
           <Alert role="alert">
             <IconWifiOff />
-            <AlertTitle>You are offline</AlertTitle>
+            <AlertTitle>{t("connection.offlineTitle")}</AlertTitle>
             <AlertDescription>
-              Current data remains visible, but server actions will not complete
-              until the connection returns.
+              {t("connection.offlineDescription")}
             </AlertDescription>
           </Alert>
         )}
         {model.workspaceError !== null && (
           <Alert variant="destructive" role="alert">
             <IconAlertTriangle />
-            <AlertTitle>Workspace needs attention</AlertTitle>
+            <AlertTitle>{t("workspace.attentionTitle")}</AlertTitle>
             <AlertDescription className="flex flex-col items-start gap-3">
               <span>{model.workspaceError}</span>
               <Button
@@ -412,7 +411,7 @@ function ProcessorWorkspace({
                 variant="outline"
                 onClick={() => void model.refreshWorkspace()}
               >
-                <IconRefresh data-icon="inline-start" /> Retry
+                <IconRefresh data-icon="inline-start" /> {t("common.retry")}
               </Button>
             </AlertDescription>
           </Alert>
@@ -423,14 +422,14 @@ function ProcessorWorkspace({
         ) : model.workspace === null || planningDefaults === null ? (
           <Empty className="min-h-80 border">
             <EmptyHeader>
-              <EmptyTitle>No production workspace is available</EmptyTitle>
+              <EmptyTitle>{t("workspace.unavailableTitle")}</EmptyTitle>
               <EmptyDescription>
-                Refresh after the location has been configured on the server.
+                {t("workspace.unavailableDescription")}
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button onClick={() => void model.refreshWorkspace()}>
-                <IconRefresh data-icon="inline-start" /> Refresh
+                <IconRefresh data-icon="inline-start" /> {t("common.refresh")}
               </Button>
             </EmptyContent>
           </Empty>
@@ -535,13 +534,13 @@ function ProcessorWorkspace({
             {route.view === "board" && resolvedRunId === null && (
               <Empty className="min-h-80 border">
                 <EmptyHeader>
-                  <EmptyTitle>No active production run</EmptyTitle>
+                  <EmptyTitle>{t("workspace.noActiveRun")}</EmptyTitle>
                   <EmptyDescription>
                     {model.workspace.pendingEligibleOrders.some(
                       (order) => order.placement.status === "ambiguous_run"
                     )
-                      ? "Pending orders need an explicit run selection because multiple production runs are active."
-                      : "Start an accepted schedule before opening the production floor."}
+                      ? t("workspace.ambiguousRun")
+                      : t("workspace.startSchedule")}
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
@@ -561,11 +560,19 @@ function ProcessorWorkspace({
                         )
                       }
                     >
-                      Open {candidate.reason.replaceAll("_", " ")}
+                      {t("workspace.openCandidate", {
+                        reason: t(
+                          candidate.reason === "started_run"
+                            ? "workspace.candidateReason.startedRun"
+                            : candidate.reason === "accepted_plan"
+                              ? "workspace.candidateReason.acceptedPlan"
+                              : "workspace.candidateReason.openShift"
+                        ),
+                      })}
                     </Button>
                   ))}
                   <Button onClick={() => navigateToView("schedule")}>
-                    Open scheduling
+                    {t("workspace.openScheduling")}
                   </Button>
                 </EmptyContent>
               </Empty>
@@ -606,6 +613,7 @@ function ProcessorRoute({ runtime }: { runtime: ProcessorRuntime }) {
   const location = useLocation()
   const navigate = useNavigate()
   const route = readWorkspaceRoute(location.pathname)
+  const { t } = useTranslation()
 
   return route === null ? (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
@@ -615,14 +623,16 @@ function ProcessorRoute({ runtime }: { runtime: ProcessorRuntime }) {
             <IconAlertTriangle />
           </EmptyMedia>
           <EmptyTitle role="heading" aria-level={1}>
-            Page not found
+            {t("workspace.pageNotFound")}
           </EmptyTitle>
           <EmptyDescription>
-            This address is not part of the production workspace.
+            {t("workspace.pageNotFoundDescription")}
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button onClick={() => navigate("/")}>Open Processor home</Button>
+          <Button onClick={() => navigate("/")}>
+            {t("workspace.openHome")}
+          </Button>
         </EmptyContent>
       </Empty>
     </main>

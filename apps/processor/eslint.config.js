@@ -26,6 +26,7 @@ export default defineConfig([
       architecture: architecturePlugin,
     },
     rules: {
+      "architecture/processor-message-ownership": "error",
       "architecture/processor-zone-imports": "error",
     },
   },
@@ -41,6 +42,11 @@ export default defineConfig([
               regex: "^@pressly/",
               message:
                 "Processor UI primitives cannot depend on product protocols or application packages.",
+            },
+            {
+              regex: "^(?:i18next|react-i18next)$",
+              message:
+                "Processor UI primitives are localization-agnostic; product owners pass localized labels through props.",
             },
           ],
         },
@@ -116,6 +122,7 @@ export default defineConfig([
     files: ["src/features/**/*.{ts,tsx}"],
     ignores: [
       "src/features/**/*.model.ts",
+      "src/features/**/*.messages.ts",
       "src/features/**/*.presenter.ts",
       "src/features/**/*.view.tsx",
     ],
@@ -132,10 +139,44 @@ export default defineConfig([
   },
   {
     files: [
+      "src/app/**/*.{ts,tsx}",
+      "src/features/**/*.model.ts",
+      "src/features/**/*.presenter.ts",
+      "src/features/**/*.view.tsx",
+    ],
+    ignores: ["src/app/processor-observability.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "MemberExpression[property.name=/^(?:referenceId|requestId|traceId)$/]",
+          message:
+            "Request and trace identifiers are diagnostic-only and cannot be rendered by Processor app or feature code.",
+        },
+        {
+          selector: "Identifier[name='eventId']",
+          message:
+            "Error event identifiers are diagnostic-only and cannot be rendered in Processor.",
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='slice'][arguments.0.value=0][arguments.1.value=8]",
+          message:
+            "Do not turn truncated opaque identifiers into Processor UI labels; present operational context instead.",
+        },
+      ],
+    },
+  },
+  {
+    files: [
       "src/common/**/*.{ts,tsx}",
       "src/hooks/**/*.{ts,tsx}",
+      "src/i18n/**/*.{ts,tsx}",
       "src/shared/**/*.{ts,tsx}",
       "src/lib/**/*.{ts,tsx}",
+      "src/localization/**/*.{ts,tsx}",
+      "src/messages/**/*.{ts,tsx}",
     ],
     rules: {
       "no-restricted-syntax": [
@@ -143,7 +184,7 @@ export default defineConfig([
         {
           selector: "Program",
           message:
-            "Processor code must use an explicit app, port, adapter, feature, or component owner; generic common/shared/hooks/lib buckets are forbidden.",
+            "Processor code must use an explicit app, port, adapter, feature, or component owner; generic common/shared/hooks/lib/i18n/localization/messages buckets are forbidden.",
         },
       ],
     },

@@ -5,8 +5,10 @@
 Active. This work started after the locally verified LPMS v1 happy path.
 
 The purpose is to replace the remaining demo and unverified-vendor seams with
-one deployable, observable, authenticated production path. It does not add the
-deferred exception workflows.
+one deployable, observable production path. Cents ingress uses an explicit
+runtime authentication mode; the initial documented-vendor compatibility mode
+is intentionally unsigned. This work does not add the deferred exception
+workflows.
 
 ## Outcome
 
@@ -15,10 +17,10 @@ An authorized Pressly operator can:
 1. Sign in to the processor with the existing opaque server-side session and
    MFA flow.
 2. Select an actual location and resume its current production workspace.
-3. Receive an authenticated Cents order event, ingest it durably, translate it
-   through a Worker-owned source adapter into canonical Production demand,
-   record missing intake facts such as bag count, and see the order become
-   schedulable only when all required facts exist.
+3. Receive a Cents order event through the configured ingress mode, ingest it
+   durably, translate it through a Worker-owned source adapter into canonical
+   Production demand, record missing intake facts such as bag count, and see
+   the order become schedulable only when all required facts exist.
 4. Create and accept a deterministic schedule, then operate the four fixed
    stages through the processor.
 5. Detect and recover from webhook duplicates, stale delivery, worker retries,
@@ -75,9 +77,15 @@ Historical V2 evidence remains useful but does not prove this new boundary.
 RV1 must rerun repository, database, integration, and isolated Docker-topology
 proof before work returns to H1.
 
-## Required Cents Security Contract
+## Cents Ingress Authentication Modes
 
-The shared secret is an HMAC key. It is never sent as a raw header value.
+`CENTS_WEBHOOK_AUTH_MODE` makes the ingress posture explicit and reversible.
+`hmac` remains the default and requires the timestamped signature contract
+below. `unsigned` intentionally matches Cents' documented JSON sender while
+the vendor does not provide a signing contract.
+
+In `hmac` mode, the shared secret is an HMAC key. It is never sent as a raw
+header value.
 
 ```text
 X-Cents-Timestamp: <unix-seconds>
@@ -86,7 +94,7 @@ X-Cents-Signature: v1=<hex HMAC-SHA256>
 signed bytes = timestamp + "." + exact raw HTTP body bytes
 ```
 
-Production verification must:
+HMAC verification must:
 
 - Read the exact raw request bytes before JSON parsing.
 - Accept timestamps only inside a five-minute clock window.
@@ -96,9 +104,12 @@ Production verification must:
   durable event is created.
 - Never log secrets, raw signatures, bearer credentials, or customer payloads.
 
-If Cents can only send a static secret header, live enablement is blocked. IP
-allowlisting can be added as defense in depth after Cents confirms stable
-egress ranges, but it is not an authenticity mechanism.
+In `unsigned` mode, Pressly skips only source authentication. HTTPS, exact raw
+body capture, JSON content type, the 256 KB limit, wire validation,
+deduplication, source ordering, explicit store binding, minimized persistence,
+and idempotent processing remain active. The API emits an operational warning
+while unsigned mode is active. The accepted tradeoff is that a schema-valid
+request cannot be proven to originate from Cents.
 
 ## Cents Wire Normalization
 
@@ -123,8 +134,9 @@ derive deterministic redelivery identity when Cents provides no stable event
 ID. Source ordering uses `updatedAt`, not webhook arrival order.
 
 Customer and marketing events may reach the same endpoint because Cents can
-enable all documented event types. Authenticate and classify them, persist
-only minimal event metadata and a digest, then acknowledge them as ignored.
+enable all documented event types. Apply the configured ingress boundary and
+classify them, persist only minimal event metadata and a digest, then
+acknowledge them as ignored.
 Do not retain irrelevant customer PII merely because it appeared in the body.
 
 For order events, durable storage contains the minimized canonical projection
@@ -199,28 +211,29 @@ external gates
 ```
 
 Repository implementation and local proof deliberately precede external
-actions. A vendor contract mismatch at H1 invalidates the affected webhook
-subgraph and requires a replan; it does not authorize a weaker verifier.
+actions. The documented vendor sender and Steven's explicit 2026-07-17 launch
+decision authorize the temporary unsigned mode; any other contract mismatch at
+H1 still invalidates the affected webhook subgraph and requires a replan.
 
 ## Human-Owned Inputs
 
 Stateworks will stop and request the human when these become ready:
 
-- `H1`: obtain the exact Cents signing, retry, payload, store, bag-count, and
-  reconciliation facts from the Cents CSM.
+- `H1`: obtain the exact Cents retry, payload, store, bag-count, reconciliation,
+  and any future signing facts from the Cents CSM.
 - `H2A`: provision/resize the Lightsail host, static IP, firewall, time sync,
   disk headroom, and backup access.
 - `H2B`: add and verify the Processor DNS record.
-- `H2C`: place external env files, a generated HMAC secret, and reviewed
-  facility bootstrap input without exposing their values.
+- `H2C`: place external env files with an explicit Cents auth mode and reviewed
+  facility bootstrap input without exposing secret values.
 - `H2D`: configure high-signal Worker and deployment alerts.
 - `H3`: approve and deploy only a main-branch release whose CI produced all
   four immutable digests.
 - `H4`: run the idempotent production bootstrap and verify the real location,
   store mapping, stations, machines, scheduler config, operator account, and
   MFA.
-- `H5`: configure Cents delivery only after public routing, signed ingress,
-  Processor, Worker, and rollback checks pass.
+- `H5`: configure Cents delivery only after public routing, the explicitly
+  configured ingress mode, Processor, Worker, and rollback checks pass.
 - `H6`: approve a controlled happy-path pilot.
 - `H7`: operate the pilot with explicit stop conditions and manual fallback.
 
@@ -247,9 +260,10 @@ an unmodeled state change.
 
 - Real runtime code contains no demo mode, hardcoded location, frozen date, or
   production fixture.
-- A valid signed event reaches durable ingestion and one idempotent canonical
-  Production demand application;
-  invalid, altered, stale, and replayed requests behave as specified.
+- A valid event under the configured ingress mode reaches durable ingestion and
+  one idempotent canonical Production demand application; invalid and replayed
+  requests behave as specified, and HMAC-only signature cases remain proven in
+  HMAC mode.
 - Location isolation and missing-intake rules are proven in database and HTTP
   tests.
 - The processor signs in, resumes real state, and drives the existing happy
@@ -260,7 +274,7 @@ an unmodeled state change.
   Processor as one immutable release.
 - Caddy exposes only the intended HTTPS routes; worker and Postgres stay
   private.
-- Human setup, signed webhook smoke, facility bootstrap, rollback proof, and a
-  controlled pilot have redacted evidence.
+- Human setup, webhook smoke under the configured mode, facility bootstrap,
+  rollback proof, and a controlled pilot have redacted evidence.
 - Documentation and durable laundry-production memory contain only facts
   proven by the completed work.

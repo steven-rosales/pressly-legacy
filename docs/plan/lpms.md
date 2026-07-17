@@ -183,7 +183,8 @@ generic ingestion command. If Cents does not expose the required read API, the
 system cannot promise automatic recovery from an event it never received;
 manual replay and operational review become the fallback.
 
-The required Pressly ingress contract is:
+Pressly supports two explicit Cents ingress modes. `hmac` remains the default
+and uses this contract:
 
 ```text
 X-Cents-Timestamp: <unix-seconds>
@@ -192,13 +193,20 @@ X-Cents-Signature: v1=<hex HMAC-SHA256>
 signed bytes = timestamp + "." + exact raw HTTP body bytes
 ```
 
-The API accepts timestamps only inside a five-minute past/future window,
+In `hmac` mode, the API accepts timestamps only inside a five-minute
+past/future window,
 compares fixed-length signature bytes in constant time, and supports a current
 and previous key for bounded rotation. A missing, malformed, stale, future, or
 body-mismatched signature creates no event. The key is never sent as a raw
-header value. IP allowlisting is optional defense in depth, not authenticity.
-Live delivery remains blocked until Cents confirms it can emit this exact
-contract and signs retries without reserializing the body.
+header value.
+
+For the initial Cents integration, `CENTS_WEBHOOK_AUTH_MODE=unsigned`
+intentionally accepts the vendor's documented HTTPS JSON `POST` without
+signature headers. Unsigned mode skips only source authentication; raw-body
+capture, content type and size limits, wire validation, deduplication, source
+ordering, location binding, and minimized persistence remain unchanged. The
+mode is explicit, emits an operational warning, and can be switched back to
+`hmac` without changing the route or downstream contracts.
 
 ### `webhook_events`
 
@@ -1537,9 +1545,10 @@ The current repository implements the happy-path slice described above:
   server-paginated order/history projections, whole-order routing,
   controllers, and routes.
   Its source contains no vendor, webhook, receipt, lease, or CRM concepts.
-- `apps/api` owns Cents HMAC verification and wire normalization, composes the
-  isolated modules, and applies authentication, authorization, validation, and
-  HTTP error mapping.
+- `apps/api` owns the explicit Cents authentication policy and wire
+  normalization, composes the isolated modules, and applies authentication,
+  authorization, validation, and HTTP error mapping. HMAC remains available;
+  the initial vendor-compatible mode is explicitly unsigned.
 - `apps/worker` composes webhook ingestion with Production through a declarative
   source/subject consumer registry. The Cents consumer derives the canonical
   demand command; stable event-based idempotency closes the crash window between

@@ -3,21 +3,21 @@ title: LPMS production readiness and controlled pilot
 status: active
 
 goal:
-  - Replace synthetic and disabled LPMS runtime seams with authenticated, location-aware, observable production behavior.
+  - Replace synthetic and disabled LPMS runtime seams with location-aware, observable production behavior and an explicit Cents ingress mode.
   - Ship API, Web, Worker, and Processor as one immutable and reversible production release on the existing Lightsail Compose topology.
-  - Prove one controlled happy-path pilot from signed Cents demand through operator-confirmed production without implementing deferred exception workflows.
+  - Prove one controlled happy-path pilot from Cents demand accepted under the configured ingress mode through operator-confirmed production without implementing deferred exception workflows.
 
 invariants:
   - No module imports, calls, or declares a package dependency on another module; apps remain the only composition roots.
   - Policy and computation modules remain headless and expose no HTTP routes.
   - Production writes remain strongly consistent, versioned, idempotent, and atomically recorded with work events.
-  - Cents authenticity is verified against exact raw body bytes before JSON parsing or durable receipt.
-  - The shared Cents secret is used as an HMAC key and is never transmitted as a raw header value, logged, committed, or placed in Stateworks.
-  - Production accepts only the versioned HMAC-SHA256 contract with a bounded timestamp window and constant-time comparison; a static-secret fallback is not enabled.
-  - Invalid, missing, malformed, stale, future, or body-mismatched signatures create no receipt or projection.
+  - Cents ingress mode is explicit: hmac verifies exact raw body bytes before JSON parsing, while unsigned intentionally matches the vendor's documented sender without claiming authenticity.
+  - In hmac mode, the shared Cents secret is used only as an HMAC key and is never transmitted as a raw header value, logged, committed, or placed in Stateworks.
+  - Hmac mode retains the versioned HMAC-SHA256 contract with a bounded timestamp window and constant-time comparison; unsigned mode skips only source authentication and emits an operational warning.
+  - In hmac mode, invalid, missing, malformed, stale, future, or body-mismatched signatures create no receipt or projection.
   - Customer PII, bearer credentials, signatures, secrets, recovery codes, and production connection strings never appear in repository fixtures, evidence, logs, screenshots, or durable memory.
   - Durable Cents order receipts retain only canonical LPMS input plus a raw-body digest unless encrypted short-retention storage is separately approved.
-  - Customer and marketing events are authenticated and minimally acknowledged without persisting irrelevant PII.
+  - Customer and marketing events pass the configured ingress boundary and are minimally acknowledged without persisting irrelevant PII.
   - Cents source ordering uses the vendor updatedAt fact, not webhook arrival order or an invented numeric source version.
   - Every Cents storeId maps explicitly to one Pressly location; unknown stores fail closed and no scheduling query crosses locations.
   - Missing bag count is never fabricated; an order remains unschedulable until a versioned intake command records the fact or an authoritative vendor field is proven.
@@ -171,21 +171,22 @@ tasks:
       - repo:packages/db/test
     preconditions:
       - Exact raw request bytes are available before the JSON parser for /webhooks/cents.
-      - Production enablement can fail startup when required secret configuration is missing.
+      - Production enablement can fail startup when hmac mode lacks required secret configuration.
     action:
+      - Select hmac or unsigned only through explicit runtime configuration; hmac remains the default and unsigned is the documented-vendor compatibility mode.
       - Verify X-Cents-Timestamp as Unix seconds and X-Cents-Signature as v1 hex HMAC-SHA256 over timestamp, a period, and exact raw body bytes.
       - Enforce a five-minute past and future window through an injected clock and compare fixed-length byte buffers in constant time.
       - Support current and previous HMAC keys during bounded rotation without revealing which key matched.
-      - Distinguish invalid authentication from unavailable server configuration and malformed authenticated JSON.
-      - Authenticate and normalize before durable write; persist canonical LPMS input, event classification, source metadata, and raw-body SHA-256 digest rather than irrelevant raw PII.
-      - Store a minimal deduplicated receipt for authenticated ignored events so repeated delivery is auditable without retaining customer payloads.
+      - Distinguish invalid authentication from unavailable server configuration and malformed accepted JSON.
+      - Apply the configured ingress boundary and normalize before durable write; persist canonical LPMS input, event classification, source metadata, and raw-body SHA-256 digest rather than irrelevant raw PII.
+      - Store a minimal deduplicated receipt for accepted ignored events so repeated delivery is auditable without retaining customer payloads.
       - Acknowledge only after the appropriate receipt commits; emit sparse redacted counters and security signals.
       - Add valid, wrong-key, missing-header, malformed-signature, stale, future, body-mutation, dual-key rotation, duplicate, ignored-event, database-failure, and logging-redaction tests.
     postconditions:
       - Invalid requests produce no receipt and no projection.
       - A valid order event is durably pending before success is returned.
-      - An authenticated customer or marketing event is minimally recorded and ignored without PII retention.
-      - Secret absence cannot silently disable verification in production.
+      - An accepted customer or marketing event is minimally recorded and ignored without PII retention.
+      - Secret absence cannot silently disable verification when hmac mode is configured in production.
     verifier:
       - pnpm --filter @pressly/api test
       - pnpm --filter @pressly/production test
@@ -194,7 +195,7 @@ tasks:
       - pnpm typecheck
       - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
     rollback:
-      - Disable the Cents route and retain already authenticated minimized receipts; do not enable an unsigned fallback.
+      - Disable the Cents route or restore hmac mode and retain already minimized receipts; never relabel unsigned receipts as authenticated.
     secret_handling: env_file_only
     status: pending
     evidence: []
@@ -788,8 +789,7 @@ tasks:
       - external:Cents-webhook-contract-confirmation
       - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
     human_instructions:
-      - Require Cents to send X-Cents-Timestamp in Unix seconds and X-Cents-Signature as v1 hex HMAC-SHA256 over timestamp, a period, and the exact raw request body.
-      - Confirm Cents signs every retry without reserializing the body between signing and transmission.
+      - Record whether Cents offers any signing or authentication contract beyond the ordinary headers shown in its public webhook documentation; signing is future hardening rather than a launch blocker for the authorized unsigned mode.
       - Confirm retry schedule, timeout, accepted success status range, ordering, duplicate behavior, and whether all documented event types are always enabled for one endpoint.
       - Obtain one representative redacted order payload and confirm action versus event, CANCELLED spelling, dueDate, updatedAt, services, unitPrice versus unitCost, and decimal price semantics.
       - Record real Cents store IDs and their intended Pressly locations without recording customer data.
@@ -797,15 +797,15 @@ tasks:
       - Ask for stable egress IP ranges only as optional defense in depth.
       - Record non-secret answers, contact, date, and source in human-actions.md; never record the shared key or raw payload.
     expected_external_state:
-      - Cents accepts the required HMAC contract for the Pressly endpoint.
+      - Cents can deliver its documented HTTPS JSON request to the Pressly endpoint; any available stronger authentication is recorded for a later mode switch.
       - Retry and payload behavior are documented well enough to verify the adapter.
       - Store mappings and the presence or absence of bag count and reconciliation APIs are known.
     verifier:
-      - Human provides redacted written confirmation of the HMAC fields and semantics.
+      - Human provides redacted written confirmation of delivery, retry, payload, and identifier facts and records any signing capability without a secret.
       - Human-actions evidence names the confirmed store IDs only if they are not sensitive and contains no customer PII or secret.
       - Any mismatch with T1 or T2 invalidates those tasks for repair before production infrastructure or secrets are configured.
     rollback:
-      - Do not enable Cents delivery. If HMAC is unsupported, block launch rather than accepting a static secret or IP-only authentication.
+      - Do not enable Cents delivery if its documented body cannot be normalized or mapped; restore hmac mode later when Cents supports the verified signing contract.
     secret_handling: never_show_agent
     status: pending
     evidence: []
@@ -1053,7 +1053,7 @@ tasks:
     evidence: []
 
   - id: H5
-    title: Configure signed Cents webhook delivery
+    title: Configure Cents webhook delivery
     type: human_action
     owner: human
     surface: other
@@ -1062,32 +1062,31 @@ tasks:
       - H4
     reads:
       - external:Cents-account-configuration
-      - external:approved-current-HMAC-key
+      - external:approved-Cents-auth-mode
       - external:production-API-health
     writes:
       - external:Cents-webhook-endpoint
-      - external:Cents-signing-configuration
+      - external:Cents-delivery-configuration
       - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
     human_instructions:
       - Configure the public HTTPS endpoint as the production API /webhooks/cents route, not an internal container URL.
-      - Transfer the shared HMAC key to Cents through the approved secure operator channel without exposing it to the agent or repository.
-      - Configure the exact timestamp and v1 signature headers accepted in H1 and verify Cents signs exact transmitted body bytes.
+      - Confirm the production API explicitly uses the approved ingress mode; the initial documented-vendor compatibility mode is unsigned.
       - Start with a Cents test delivery or one designated non-customer pilot order if the vendor supports it.
-      - Confirm Cents receives a success only for a correctly signed durable receipt and that no webhook-disabled warning is generated.
+      - Confirm Cents receives HTTP 202 after a durable receipt and that no webhook-disabled warning is generated.
       - Record endpoint hostname, event types, configuration timestamp, CSM confirmation, and redacted delivery result in human-actions.md.
     expected_external_state:
-      - Cents sends signed events to the production API endpoint using the current key.
-      - Failed signatures are visible as redacted security signals and create no receipts.
+      - Cents sends its documented JSON events to the production API endpoint and receives HTTP 202 for a durable receipt.
+      - API startup logs clearly identify unsigned mode until a verified signing mode is adopted.
     verifier:
       - Human provides a redacted Cents delivery result and matching API receipt identifier or digest prefix without showing headers or payload PII.
     rollback:
-      - Disable the Cents endpoint in the vendor console and rotate/revoke the key if delivery or secrecy is uncertain.
+      - Disable the Cents endpoint in the vendor console and restore hmac mode when delivery must be stopped or signing becomes available.
     secret_handling: never_show_agent
     status: pending
     evidence: []
 
   - id: V4
-    title: Prove signed ingress and operational recovery in production
+    title: Prove configured ingress and operational recovery in production
     type: verification
     owner: agent
     surface: other
@@ -1103,23 +1102,23 @@ tasks:
       - repo:stateworks/work/active/lpms-production-readiness/evidence.md
     preconditions:
       - Tests use a designated non-customer or safely controlled order and do not disrupt live production.
-      - Negative signature tests are rate-limited and approved for the production endpoint; otherwise they run against a production-like isolated endpoint.
+      - Signature-negative tests remain confined to hmac mode in a production-like isolated endpoint.
     action:
-      - Record the human-run Postman valid-signature proof and safe wrong-key, modified-body, stale-timestamp, and duplicate proofs.
-      - Trace one signed order event from durable receipt through Worker projection and the mapped production location.
+      - Record one live Cents HTTP 202 delivery under the configured ingress mode; retain wrong-key, modified-body, and stale-timestamp proof for hmac mode in automated tests.
+      - Trace one Cents order event from durable receipt through Worker projection and the mapped production location.
       - Prove an order without bag count remains intake-pending, then record intake through the Processor and prove it becomes eligible.
       - Prove ignored customer or marketing delivery retains no customer payload and only minimal receipt metadata.
       - Prove Worker heartbeat, retry/dead-letter visibility, bounded replay, and restart recovery without duplicating projection.
       - If the Cents read API was confirmed, prove reconciliation from a stored watermark; otherwise prove and document manual replay as the launch fallback.
     postconditions:
-      - Live signed ingress, projection, location mapping, intake, and recovery behavior have redacted evidence.
-      - No unresolved authenticity, PII, worker, or mapping defect remains before pilot approval.
+      - Live configured ingress, projection, location mapping, intake, and recovery behavior have redacted evidence.
+      - The accepted unsigned-authenticity limitation is explicit and no unresolved PII, worker, or mapping defect remains before pilot approval.
     verifier:
       - Human evidence covers every applicable proof with timestamps, safe identifiers, and outcomes.
       - Receipt and projection counts prove duplicate effectiveness without exposing raw payloads.
       - Unsupported automatic reconciliation is explicitly accepted as manual operational debt or blocks the pilot.
     rollback:
-      - Disable Cents delivery, stop Worker if necessary, retain authenticated receipts, and rotate the key after any suspected exposure.
+      - Disable Cents delivery, stop Worker if necessary, retain minimized receipts, and restore hmac mode when signing is available.
     secret_handling: never_show_agent
     status: pending
     evidence: []

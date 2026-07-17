@@ -12,6 +12,7 @@ import type { LocationPreferencePort } from "@/ports/location-preference.port"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import type { ProductionChangePort } from "@/ports/production-change.port"
+import { initializeProcessorLocalization } from "./localization/localization.composition"
 import { observeProcessorRequestFailure } from "./processor-observability"
 
 export type ProcessorRuntime = Readonly<{
@@ -31,6 +32,7 @@ export const makeProcessorRuntime = (input: {
   eventSourceFactory?: EventSourceFactory
   now?: () => Date
 }): ProcessorRuntime => {
+  initializeProcessorLocalization(input.storage)
   let csrfToken: string | null = null
   const unauthorizedListeners = new Set<() => void>()
   const clearCsrfToken = () => {

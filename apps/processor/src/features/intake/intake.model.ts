@@ -1,8 +1,9 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { ProductionOrderListItem } from "@pressly/contracts"
 import type { ProductionPort } from "@/ports/production.port"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
-import { RequestFailure } from "@/ports/request.error"
+import { presentIntakeError } from "./intake.error.presenter"
 
 export type IntakeModelInput = Readonly<{
   production: ProductionPort
@@ -13,6 +14,7 @@ export type IntakeModelInput = Readonly<{
 }>
 
 export function useIntakeModel(input: IntakeModelInput) {
+  const { t } = useTranslation()
   const [bagCounts, setBagCounts] = useState<Record<string, string>>({})
   const [priorities, setPriorities] = useState<Record<string, boolean>>({})
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null)
@@ -27,7 +29,7 @@ export function useIntakeModel(input: IntakeModelInput) {
   const record = async (order: ProductionOrderListItem) => {
     const bagCount = Number(bagCounts[order.id])
     if (!Number.isInteger(bagCount) || bagCount < 0) {
-      setError("Bag count must be a whole number of zero or more.")
+      setError(t("intake.invalidBagCount"))
       return
     }
 
@@ -82,13 +84,7 @@ export function useIntakeModel(input: IntakeModelInput) {
         return next
       })
     } catch (cause) {
-      setError(
-        cause instanceof RequestFailure && cause.kind === "conflict"
-          ? "This order changed while intake was open. The workspace has been refreshed."
-          : cause instanceof RequestFailure
-            ? cause.message
-            : "Bag intake could not be recorded."
-      )
+      setError(presentIntakeError(cause, t))
       await input.onRecorded()
     } finally {
       setBusyOrderId(null)

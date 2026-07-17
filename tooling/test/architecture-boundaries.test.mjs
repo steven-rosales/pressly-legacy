@@ -613,6 +613,17 @@ describe('processor architecture boundaries', () => {
     );
   });
 
+  it('allows app composition to assemble owner-local messages into the localization adapter', async () => {
+    await expectAllowed(
+      'apps/processor/src/app/localization/localization.composition.ts',
+      `
+        import { initializeI18nextLocalizationAdapter } from '@/adapters/localization/i18next-localization.adapter';
+        import { englishSchedulingMessages } from '@/features/scheduling/scheduling.messages';
+        export const dependencies = { initializeI18nextLocalizationAdapter, englishSchedulingMessages };
+      `,
+    );
+  });
+
   it('allows feature models to depend on framework-free ports', async () => {
     await expectAllowed(
       'apps/processor/src/features/scheduling/scheduling.model.ts',
@@ -631,6 +642,35 @@ describe('processor architecture boundaries', () => {
         import { Button } from '@/components/ui/button';
         export const dependencies = { useSchedulingModel, Button };
       `,
+    );
+  });
+
+  it('allows product copy to live in an explicitly owned feature message file', async () => {
+    await expectAllowed(
+      'apps/processor/src/features/scheduling/scheduling.messages.ts',
+      `
+        export const englishSchedulingMessages = { scheduling: { title: 'Schedule' } } as const;
+      `,
+    );
+  });
+
+  it('allows features to use their own and app-shared message namespaces', async () => {
+    await expectAllowed(
+      'apps/processor/src/features/history/history.view.tsx',
+      `
+        export const ownMessage = 'history.title';
+        export const sharedMessage = 'common.close';
+      `,
+    );
+  });
+
+  it('rejects hidden cross-feature dependencies through translation keys', async () => {
+    await expectRejectedBy(
+      'apps/processor/src/features/production-board/production-board.view.tsx',
+      `
+        export const leakedCopy = 'scheduling.sorting';
+      `,
+      'architecture/processor-message-ownership',
     );
   });
 
@@ -699,6 +739,17 @@ describe('processor architecture boundaries', () => {
     );
   });
 
+  it('keeps localization frameworks out of shadcn UI primitives', async () => {
+    await expectRejectedBy(
+      'apps/processor/src/components/ui/button.tsx',
+      `
+        import { useTranslation } from 'react-i18next';
+        export const leakedLocalization = useTranslation;
+      `,
+      '@typescript-eslint/no-restricted-imports',
+    );
+  });
+
   it('keeps the Vite entrypoint limited to app bootstrap', async () => {
     await expectRejectedBy(
       'apps/processor/src/main.tsx',
@@ -718,6 +769,16 @@ describe('processor architecture boundaries', () => {
     );
     await expectRejectedBy(
       'apps/processor/src/lib/utils.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'apps/processor/src/i18n/resources.ts',
+      'export const value = 1;',
+      'no-restricted-syntax',
+    );
+    await expectRejectedBy(
+      'apps/processor/src/localization/resources.ts',
       'export const value = 1;',
       'no-restricted-syntax',
     );

@@ -135,6 +135,7 @@ const makeRuntime = (
   input: {
     execute?: ReturnType<typeof vi.fn>;
     db?: ApiRuntime['database']['db'];
+    centsWebhookAuthMode?: 'hmac' | 'unsigned';
     centsWebhookCurrentKey?: Secret;
     centsWebhookPreviousKey?: Secret;
   } = {},
@@ -183,6 +184,7 @@ const makeRuntime = (
         ),
       },
       centsWebhook: {
+        authMode: input.centsWebhookAuthMode ?? 'hmac',
         hmac: {
           currentKey: input.centsWebhookCurrentKey,
           previousKey: input.centsWebhookPreviousKey,
@@ -392,6 +394,40 @@ describe('API app HTTP boundary', () => {
       },
     });
     expect(harness.execute).not.toHaveBeenCalled();
+  });
+
+  it('accepts the documented Cents payload without signature headers only in explicit unsigned mode', async () => {
+    const database = makeCentsReceiptDatabase();
+    const harness = makeRuntime({
+      db: database.db,
+      centsWebhookAuthMode: 'unsigned',
+    });
+    const response = await fetch(
+      `${await start(makeApiApp(harness.runtime))}/webhooks/cents`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(documentedCentsOrderWebhook),
+      },
+    );
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: { duplicate: false, status: 'pending' },
+    });
+    expect(database.insert).toHaveBeenCalledOnce();
+    expect(database.receipts[0]).toMatchObject({
+      source: 'cents',
+      eventType: 'order_updated',
+      subjectId: '12345',
+      sourceLocationId: '24',
+    });
+    expect(harness.logs).toContainEqual({
+      level: 'warn',
+      message: 'Cents webhook authentication is disabled by configuration.',
+      fields: { route: '/webhooks/cents', authMode: 'unsigned' },
+    });
   });
 
   it('classifies verifier failures as unavailable without exposing their cause', async () => {

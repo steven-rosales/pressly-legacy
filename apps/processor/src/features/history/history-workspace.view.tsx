@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 import type {
   ListProductionHistoryActivityResult,
   ListProductionHistoryPlansResult,
@@ -10,6 +12,7 @@ import type {
 } from "@pressly/contracts"
 import { useIsMobile } from "@/components/ui/use-mobile"
 import type { ProductionPort } from "@/ports/production.port"
+import { presentHistoryError } from "./history.error.presenter"
 import {
   HistoryWorkspace,
   type HistoryCallbacks,
@@ -24,23 +27,34 @@ import type {
   HistoryTab,
 } from "./history.model"
 
+const localeForLanguage = (language: string | undefined): "en-US" | "es-US" =>
+  language?.startsWith("es") === true ? "es-US" : "en-US"
+
 const emptyFilters: HistoryFilters = {
   query: "",
   dateWindow: "all",
   status: "all",
 }
 
-const messageFor = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : "History could not be loaded."
-
-const labelFor = (value: string): string =>
-  value
+const labelFor = (value: string, t: TFunction): string => {
+  if (value === "accepted") return t("history.accepted")
+  if (value === "superseded") return t("history.superseded")
+  if (value === "draft") return t("history.draft")
+  if (value === "rejected") return t("history.rejected")
+  if (value === "started") return t("history.started")
+  if (value === "completed") return t("history.completed")
+  if (value === "sorting") return t("common.stage.sorting")
+  if (value === "washing") return t("common.stage.washing")
+  if (value === "drying") return t("common.stage.drying")
+  if (value === "folding_packaging") return t("common.stage.foldingPackaging")
+  return value
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ")
+}
 
-const formatDate = (value: string, timezone: string): string =>
-  new Intl.DateTimeFormat(undefined, {
+const formatDate = (value: string, timezone: string, locale: string): string =>
+  new Intl.DateTimeFormat(locale, {
     timeZone: timezone,
     month: "short",
     day: "numeric",
@@ -49,8 +63,12 @@ const formatDate = (value: string, timezone: string): string =>
     minute: "2-digit",
   }).format(new Date(value))
 
-const durationLabel = (start: string, end: string | null): string => {
-  if (end === null) return "In progress"
+const durationLabel = (
+  start: string,
+  end: string | null,
+  t: TFunction
+): string => {
+  if (end === null) return t("history.inProgress")
   const minutes = Math.max(
     0,
     Math.round((Date.parse(end) - Date.parse(start)) / 60_000)
@@ -62,81 +80,111 @@ const durationLabel = (start: string, end: string | null): string => {
 
 const presentRun = (
   run: ProductionHistoryRunSummary,
-  timezone: string
+  timezone: string,
+  locale: string,
+  t: TFunction
 ): HistoryRunViewModel => ({
   id: run.productionRunId,
-  title: `Run ${run.productionRunId.slice(0, 8)}`,
-  shiftLabel: `${formatDate(run.shiftStartsAt, timezone)} – ${formatDate(run.shiftEndsAt, timezone)}`,
-  statusLabel: labelFor(run.status),
+  title: t("history.runTitle"),
+  shiftLabel: `${formatDate(run.shiftStartsAt, timezone, locale)} – ${formatDate(run.shiftEndsAt, timezone, locale)}`,
+  statusLabel: labelFor(run.status, t),
   status: run.status,
-  demandLabel: `${run.orderCount} orders · ${run.totalWeightLbs.toLocaleString()} lb`,
-  batchesLabel: `${run.completedBatchCount} of ${run.batchCount} batches finished`,
+  demandLabel: t("history.ordersAndWeight", {
+    orders: t("common.orders", { count: run.orderCount }),
+    weight: run.totalWeightLbs,
+  }),
+  batchesLabel: t("history.batchesFinished", {
+    completed: run.completedBatchCount,
+    total: run.batchCount,
+  }),
   timingLabel:
     run.status === "completed"
-      ? durationLabel(run.startedAt, run.completedAt)
-      : `Planned through ${formatDate(run.plannedCompletionAt, timezone)}`,
+      ? durationLabel(run.startedAt, run.completedAt, t)
+      : t("history.plannedThrough", {
+          date: formatDate(run.plannedCompletionAt, timezone, locale),
+        }),
   exceptionLabel: null,
-  overtimeLabel: run.overtimeAcknowledged ? "Overtime accepted" : null,
+  overtimeLabel: run.overtimeAcknowledged
+    ? t("history.overtimeAccepted")
+    : null,
 })
 
-const activityDetail = (activity: ProductionHistoryActivityEntry): string => {
+const activityDetail = (
+  activity: ProductionHistoryActivityEntry,
+  t: TFunction
+): string => {
   const details = activity.details
   switch (details.kind) {
     case "order":
       return (
         [
           details.outcome,
-          details.routeReason === null ? null : labelFor(details.routeReason),
+          details.routeReason === null
+            ? null
+            : labelFor(details.routeReason, t),
           details.sourceBatchId === null || details.targetBatchId === null
             ? null
-            : `${details.sourceBatchId.slice(0, 8)} → ${details.targetBatchId.slice(0, 8)}`,
+            : t("history.movedBetweenBatches"),
           details.restartStage === null
             ? null
-            : `resume ${labelFor(details.restartStage)}`,
+            : t("history.resumeStage", {
+                stage: labelFor(details.restartStage, t),
+              }),
           details.queueVersion === null
             ? null
-            : `queue v${details.queueVersion}`,
+            : t("history.queueVersion", { version: details.queueVersion }),
         ]
           .filter(Boolean)
-          .join(" · ") || "Order state changed."
+          .join(" · ") || t("history.orderStateChanged")
       )
     case "batch":
       return [details.action, details.reason, details.targetMilestone]
         .filter(Boolean)
         .map(String)
-        .map(labelFor)
+        .map((value) => labelFor(value, t))
         .join(" · ")
     case "stage":
-      return `${labelFor(details.action)}${details.timingConfirmationRecorded ? " · timing confirmed" : ""}`
+      return `${labelFor(details.action, t)}${
+        details.timingConfirmationRecorded
+          ? ` · ${t("history.timingConfirmed")}`
+          : ""
+      }`
     case "schedule":
       return details.productionShiftId === null
-        ? "Schedule revision recorded."
-        : `Shift ${details.productionShiftId.slice(0, 8)}`
+        ? t("history.scheduleRevision")
+        : t("history.shiftRecord")
     case "run":
-      return `${details.batchCount ?? 0} batches · queue v${details.queueVersion ?? 1}`
+      return t("history.batchesAndQueue", {
+        count: details.batchCount ?? 0,
+        version: details.queueVersion ?? 1,
+      })
     case "shift":
       return details.changedFields.length === 0
-        ? "Shift lifecycle changed."
-        : `Changed ${details.changedFields.join(", ")}`
+        ? t("history.shiftLifecycle")
+        : t("history.changedFields", {
+            fields: details.changedFields.join(", "),
+          })
     case "configuration":
       return details.version === null
-        ? "Configuration changed."
-        : `Version ${details.version}`
+        ? t("history.configurationChanged")
+        : t("history.version", { version: details.version })
     case "demand":
-      return details.outcome ?? "Demand synchronized."
+      return details.outcome ?? t("history.demandSynchronized")
   }
 }
 
 const presentActivity = (
   activity: ProductionHistoryActivityEntry,
-  timezone: string
+  timezone: string,
+  locale: string,
+  t: TFunction
 ): HistoryActivityItem => ({
   id: activity.id,
   title: activity.summary,
-  detail: activityDetail(activity),
-  occurredAtLabel: formatDate(activity.occurredAt, timezone),
-  actorLabel: activity.actor.displayName ?? labelFor(activity.actor.kind),
-  entityLabel: `${labelFor(activity.entityType)} ${activity.entityId.slice(0, 8)}`,
+  detail: activityDetail(activity, t),
+  occurredAtLabel: formatDate(activity.occurredAt, timezone, locale),
+  actorLabel: activity.actor.displayName ?? labelFor(activity.actor.kind, t),
+  entityLabel: labelFor(activity.entityType, t),
   tone:
     activity.eventType === "production_order_route_exception_recorded" ||
     activity.eventType === "production_order_placement_overtime_required"
@@ -146,28 +194,37 @@ const presentActivity = (
 
 const presentPlan = (
   plan: ProductionHistoryPlanSummary,
-  timezone: string
+  timezone: string,
+  locale: string,
+  t: TFunction
 ): HistoryPlanViewModel => ({
   id: plan.scheduleRunId,
-  revisionLabel: `Plan ${plan.scheduleRunId.slice(0, 8)}`,
-  shiftLabel: `${formatDate(plan.shiftStartsAt, timezone)} – ${formatDate(plan.shiftEndsAt, timezone)}`,
-  statusLabel: labelFor(plan.status),
+  revisionLabel: t("history.planTitle"),
+  shiftLabel: `${formatDate(plan.shiftStartsAt, timezone, locale)} – ${formatDate(plan.shiftEndsAt, timezone, locale)}`,
+  statusLabel: labelFor(plan.status, t),
   status: plan.status === "rejected" ? "other" : plan.status,
-  computedAtLabel: formatDate(plan.createdAt, timezone),
+  computedAtLabel: formatDate(plan.createdAt, timezone, locale),
   acceptedAtLabel:
-    plan.acceptedAt === null ? null : formatDate(plan.acceptedAt, timezone),
-  warningsLabel: `${plan.acknowledgedWarningCount} of ${plan.warningCount} warnings acknowledged`,
+    plan.acceptedAt === null
+      ? null
+      : formatDate(plan.acceptedAt, timezone, locale),
+  warningsLabel: t("history.warningsAcknowledged", {
+    acknowledged: plan.acknowledgedWarningCount,
+    total: plan.warningCount,
+  }),
   productionRunId: plan.linkedProductionRunId,
 })
 
 const presentDetail = (
   value: ProductionHistoryRunDetail,
-  timezone: string
+  timezone: string,
+  locale: string,
+  t: TFunction
 ): HistoryRunDetail => {
   const detail = value
-  const run = presentRun(detail.overview, timezone)
+  const run = presentRun(detail.overview, timezone, locale, t)
   const activity = detail.activity.items.map((item) =>
-    presentActivity(item, timezone)
+    presentActivity(item, timezone, locale, t)
   )
   const exceptionCount = activity.filter(
     (item) => item.tone !== "default"
@@ -178,40 +235,58 @@ const presentDetail = (
     shiftLabel: run.shiftLabel,
     statusLabel: run.statusLabel,
     demandLabel: run.demandLabel,
-    batchCountLabel: `${detail.overview.completedBatchCount} / ${detail.overview.batchCount} complete`,
-    plannedTimingLabel: `Through ${formatDate(detail.overview.plannedCompletionAt, timezone)}`,
+    batchCountLabel: t("history.completeCount", {
+      completed: detail.overview.completedBatchCount,
+      total: detail.overview.batchCount,
+    }),
+    plannedTimingLabel: t("history.through", {
+      date: formatDate(detail.overview.plannedCompletionAt, timezone, locale),
+    }),
     actualTimingLabel: durationLabel(
       detail.overview.startedAt,
-      detail.overview.completedAt
+      detail.overview.completedAt,
+      t
     ),
     exceptionLabel:
       exceptionCount === 0
-        ? "None"
-        : `${exceptionCount} floor ${exceptionCount === 1 ? "exception" : "exceptions"}`,
+        ? t("common.none")
+        : t("history.floorExceptions", { count: exceptionCount }),
     batches: detail.batches.map((batch) => ({
       id: batch.productionBatchId,
-      label: `Batch ${batch.sequence + 1}`,
-      statusLabel: labelFor(batch.status),
-      demandLabel: `${batch.derivedWeightLbs.toLocaleString()} / ${batch.pulseCapacityLbs.toLocaleString()} lb`,
+      label: t("history.batch", { number: batch.sequence + 1 }),
+      statusLabel: labelFor(batch.status, t),
+      demandLabel: `${batch.derivedWeightLbs.toLocaleString(locale)} / ${batch.pulseCapacityLbs.toLocaleString(locale)} lb`,
       timingLabel:
         batch.startedAt === null
-          ? "Not started"
-          : durationLabel(batch.startedAt, batch.finishedAt),
+          ? t("history.notStarted")
+          : durationLabel(batch.startedAt, batch.finishedAt, t),
       exceptionLabel:
         batch.historicalOrderCount === batch.currentOrderCount
           ? null
-          : `${batch.historicalOrderCount - batch.currentOrderCount} moved`,
+          : t("history.moved", {
+              count: batch.historicalOrderCount - batch.currentOrderCount,
+            }),
     })),
     orders: detail.orderMemberships.map((order) => ({
       id: order.productionOrderId,
       externalOrderId: order.externalOrderId,
-      statusLabel: labelFor(order.orderStatus),
-      demandLabel: `${order.derivedWeightLbs.toLocaleString()} lb · ${order.bagCount ?? "—"} bags`,
-      batchLabel: `Batch ${order.batchSequence + 1}${order.placement.state === "current" ? "" : " · historical"}`,
+      statusLabel: labelFor(order.orderStatus, t),
+      demandLabel: `${order.derivedWeightLbs.toLocaleString(locale)} lb · ${
+        order.bagCount === null
+          ? "—"
+          : t("common.bags", { count: order.bagCount })
+      }`,
+      batchLabel: `${t("history.batch", {
+        number: order.batchSequence + 1,
+      })}${
+        order.placement.state === "current"
+          ? ""
+          : ` · ${t("history.historical")}`
+      }`,
     })),
     activity,
     plans: detail.scheduleLineage.revisions.map((plan) =>
-      presentPlan(plan, timezone)
+      presentPlan(plan, timezone, locale, t)
     ),
   }
 }
@@ -233,6 +308,8 @@ export function HistoryWorkspaceContainer({
   timezone: string
   revision: string
 }>) {
+  const { t, i18n } = useTranslation()
+  const locale = localeForLanguage(i18n.resolvedLanguage)
   const isMobile = useIsMobile()
   const [tab, setTab] = useState<HistoryTab>("runs")
   const [filters, setFilters] = useState<HistoryFilters>(emptyFilters)
@@ -312,7 +389,8 @@ export function HistoryWorkspaceContainer({
         if (requestSequence === sequence.current) setPlansResult(value)
       }
     } catch (cause) {
-      if (requestSequence === sequence.current) setError(messageFor(cause))
+      if (requestSequence === sequence.current)
+        setError(presentHistoryError(cause, "list", t))
     } finally {
       if (requestSequence === sequence.current) setLoading(false)
     }
@@ -325,6 +403,7 @@ export function HistoryWorkspaceContainer({
     locationId,
     production,
     tab,
+    t,
   ])
 
   useEffect(() => {
@@ -336,12 +415,14 @@ export function HistoryWorkspaceContainer({
     setCursor(undefined)
     setCursorHistory([])
   }
-  const runs = (runsResult?.items ?? []).map((run) => presentRun(run, timezone))
+  const runs = (runsResult?.items ?? []).map((run) =>
+    presentRun(run, timezone, locale, t)
+  )
   const activity = (activityResult?.items ?? []).map((item) =>
-    presentActivity(item, timezone)
+    presentActivity(item, timezone, locale, t)
   )
   const plans = (plansResult?.items ?? []).map((plan) =>
-    presentPlan(plan, timezone)
+    presentPlan(plan, timezone, locale, t)
   )
   const currentResult =
     tab === "runs"
@@ -385,8 +466,10 @@ export function HistoryWorkspaceContainer({
       setError(null)
       void production
         .loadHistoryRun(locationId, runId)
-        .then((detail) => setSelectedRun(presentDetail(detail, timezone)))
-        .catch((cause) => setError(messageFor(cause)))
+        .then((detail) =>
+          setSelectedRun(presentDetail(detail, timezone, locale, t))
+        )
+        .catch((cause) => setError(presentHistoryError(cause, "detail", t)))
     },
     onCloseRun: () => setSelectedRun(null),
   }
@@ -395,24 +478,24 @@ export function HistoryWorkspaceContainer({
     tab,
     filters,
     dateOptions: [
-      { value: "all", label: "Any date" },
-      { value: "7d", label: "Last 7 days" },
-      { value: "30d", label: "Last 30 days" },
-      { value: "90d", label: "Last 90 days" },
+      { value: "all", label: t("history.anyDate") },
+      { value: "7d", label: t("history.last7Days") },
+      { value: "30d", label: t("history.last30Days") },
+      { value: "90d", label: t("history.last90Days") },
     ],
     statusOptions: [
-      { value: "all", label: "Any status" },
+      { value: "all", label: t("history.anyStatus") },
       ...(tab === "plans"
         ? [
-            { value: "accepted", label: "Accepted" },
-            { value: "superseded", label: "Superseded" },
-            { value: "draft", label: "Draft" },
-            { value: "rejected", label: "Rejected" },
+            { value: "accepted", label: t("history.accepted") },
+            { value: "superseded", label: t("history.superseded") },
+            { value: "draft", label: t("history.draft") },
+            { value: "rejected", label: t("history.rejected") },
           ]
         : tab === "runs"
           ? [
-              { value: "started", label: "Started" },
-              { value: "completed", label: "Completed" },
+              { value: "started", label: t("history.started") },
+              { value: "completed", label: t("history.completed") },
             ]
           : []),
     ],
@@ -420,7 +503,15 @@ export function HistoryWorkspaceContainer({
     activity,
     plans,
     page: {
-      rangeLabel: `Showing ${itemCount} ${tab}`,
+      rangeLabel: t("history.showing", {
+        count: itemCount,
+        kind:
+          tab === "runs"
+            ? t("history.runs").toLocaleLowerCase(locale)
+            : tab === "activity"
+              ? t("history.activity").toLocaleLowerCase(locale)
+              : t("history.plans").toLocaleLowerCase(locale),
+      }),
       previousCursor:
         cursorHistory.length === 0
           ? null
@@ -430,7 +521,9 @@ export function HistoryWorkspaceContainer({
     asOfLabel:
       currentResult === null
         ? ""
-        : `Updated ${formatDate(currentResult.asOf, timezone)}`,
+        : t("history.updated", {
+            date: formatDate(currentResult.asOf, timezone, locale),
+          }),
     selectedRun,
     loading: loading && currentResult === null,
     refreshing: loading && currentResult !== null,

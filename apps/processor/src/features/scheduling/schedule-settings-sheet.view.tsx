@@ -1,4 +1,5 @@
 import { useId, useState } from "react"
+import { useTranslation } from "react-i18next"
 import {
   IconAdjustmentsHorizontal,
   IconAlertTriangle,
@@ -62,6 +63,7 @@ export function ScheduleSettingsSheet({
   error: string | null
   onApply: (settings: ScheduleSettings) => Promise<boolean>
 }>) {
+  const { t } = useTranslation()
   const generatedId = useId()
   const foldersDescriptionId = `${generatedId}-folders-description`
   const foldersErrorId = `${generatedId}-folders-error`
@@ -72,10 +74,11 @@ export function ScheduleSettingsSheet({
   const foldersError =
     Number.isFinite(draft.folders) && draft.folders > 0
       ? null
-      : "Enter at least one person for the folding team."
+      : t("shiftSettings.foldingTeamInvalid")
   const shiftWindowError = shiftWindowValidationError(
     draft.shiftStartsAt,
-    draft.shiftEndsAt
+    draft.shiftEndsAt,
+    t
   )
   const valid =
     foldersError === null &&
@@ -99,16 +102,22 @@ export function ScheduleSettingsSheet({
           disabled={disabled}
         >
           <IconAdjustmentsHorizontal data-icon="inline-start" />
-          {mode === "create" ? "Set shift" : "Edit shift"}
+          {mode === "create"
+            ? t("shiftSettings.setShift")
+            : t("shiftSettings.editShift")}
         </Button>
       </SheetTrigger>
-      <SheetContent side={isMobile ? "bottom" : "right"} size="workspace">
+      <SheetContent
+        side={isMobile ? "bottom" : "right"}
+        size="workspace"
+        closeLabel={t("common.close")}
+      >
         <SheetHeader className="border-b px-5 py-4 pe-16">
-          <SheetTitle>Shift settings</SheetTitle>
+          <SheetTitle>{t("shiftSettings.title")}</SheetTitle>
           <SheetDescription>
             {mode === "create"
-              ? "Set the next shift without changing the tested production pulse."
-              : "Adjust this shift without changing the tested production pulse."}
+              ? t("shiftSettings.createDescription")
+              : t("shiftSettings.editDescription")}
           </SheetDescription>
         </SheetHeader>
 
@@ -120,10 +129,10 @@ export function ScheduleSettingsSheet({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 id="pulse-title" className="text-sm font-medium">
-                  Published pulse
+                  {t("shiftSettings.publishedPulse")}
                 </h3>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Floor capability is managed in Configuration.
+                  {t("shiftSettings.managedInConfiguration")}
                 </p>
               </div>
               {configVersion !== null && (
@@ -132,26 +141,32 @@ export function ScheduleSettingsSheet({
             </div>
             <div className="grid grid-cols-2 gap-3 rounded-xl border bg-muted/35 p-3">
               <div>
-                <p className="text-xs text-muted-foreground">Pulse</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("shiftSettings.pulse")}
+                </p>
                 <p className="mt-1 font-medium tabular-nums">
                   {pulseMinutes} min
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Fold rate</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("shiftSettings.foldRate")}
+                </p>
                 <p className="mt-1 font-medium tabular-nums">
                   {foldRate} lb/min/person
                 </p>
               </div>
             </div>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground [&_svg]:size-3.5">
-              <IconLock /> Published values are read-only during scheduling.
+              <IconLock /> {t("shiftSettings.publishedReadOnly")}
             </p>
           </section>
 
           <FieldGroup>
             <Field data-invalid={foldersError !== null || undefined}>
-              <FieldLabel htmlFor="schedule-folders">Folding team</FieldLabel>
+              <FieldLabel htmlFor="schedule-folders">
+                {t("shiftSettings.foldingTeam")}
+              </FieldLabel>
               <InputGroup className="h-11">
                 <InputGroupInput
                   id="schedule-folders"
@@ -172,11 +187,11 @@ export function ScheduleSettingsSheet({
                   }
                 />
                 <InputGroupAddon align="inline-end">
-                  <InputGroupText>people</InputGroupText>
+                  <InputGroupText>{t("shiftSettings.people")}</InputGroupText>
                 </InputGroupAddon>
               </InputGroup>
               <FieldDescription id={foldersDescriptionId}>
-                Effective people available for folding and packaging.
+                {t("shiftSettings.foldingTeamHelp")}
               </FieldDescription>
               {foldersError !== null && (
                 <FieldError id={foldersErrorId}>{foldersError}</FieldError>
@@ -203,8 +218,8 @@ export function ScheduleSettingsSheet({
               <IconAlertTriangle />
               <AlertTitle>
                 {mode === "create"
-                  ? "The shift was not created"
-                  : "Shift changes were not saved"}
+                  ? t("shiftSettings.createFailed")
+                  : t("shiftSettings.saveFailed")}
               </AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -219,7 +234,7 @@ export function ScheduleSettingsSheet({
               className="h-11"
               disabled={saving}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
           </SheetClose>
           <Button
@@ -240,11 +255,11 @@ export function ScheduleSettingsSheet({
             {saving && <Spinner data-icon="inline-start" />}
             {saving
               ? mode === "create"
-                ? "Creating…"
-                : "Saving…"
+                ? t("shiftSettings.creating")
+                : t("shiftSettings.saving")
               : mode === "create"
-                ? "Create & compute"
-                : "Save & recompute"}
+                ? t("shiftSettings.createAndCompute")
+                : t("shiftSettings.saveAndRecompute")}
           </Button>
         </SheetFooter>
       </SheetContent>

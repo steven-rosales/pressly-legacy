@@ -93,7 +93,7 @@ describe("connected production history workspace", () => {
 
     expect(
       await screen.findByRole("button", {
-        name: `Run ${run.productionRunId.slice(0, 8)}`,
+        name: "Production run",
       })
     ).toBeInTheDocument()
     expect(listHistoryRuns).toHaveBeenLastCalledWith({

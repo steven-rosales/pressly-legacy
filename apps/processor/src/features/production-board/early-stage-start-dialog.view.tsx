@@ -1,4 +1,6 @@
 import { IconClock } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 import type { ProductionStageStartTiming, StageRun } from "@pressly/contracts"
 import {
   AlertDialog,
@@ -12,10 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  formatMoment,
-  productionStageLabels,
-} from "./production-board.presenter"
+import { formatMoment, localeForLanguage } from "./production-board.presenter"
 
 export function EarlyStageStartDialog({
   stage,
@@ -34,6 +33,20 @@ export function EarlyStageStartDialog({
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
 }>) {
+  const { t, i18n } = useTranslation()
+  const locale = localeForLanguage(i18n.resolvedLanguage)
+  const stageLabel =
+    stage === null
+      ? t("production.thisStage")
+      : t(
+          stage.stage === "sorting"
+            ? "common.stage.sorting"
+            : stage.stage === "washing"
+              ? "common.stage.washing"
+              : stage.stage === "drying"
+                ? "common.stage.drying"
+                : "common.stage.foldingPackaging"
+        )
   return (
     <AlertDialog
       open={stage !== null && timing !== null}
@@ -45,18 +58,26 @@ export function EarlyStageStartDialog({
             <IconClock />
           </AlertDialogMedia>
           <AlertDialogTitle>
-            Start{" "}
-            {stage === null ? "this stage" : productionStageLabels[stage.stage]}{" "}
-            now?
+            {t("production.startStageNowTitle", { stage: stageLabel })}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {stage === null || timing === null
-              ? "This stage is earlier than planned."
-              : `It is planned for ${formatMoment(timing.plannedStartAt, referenceAt, timezone)}, ${formatDuration(timing.remainingMilliseconds)} from now. Start only if the batch is physically ready. The original plan will not change.`}
+              ? t("production.earlierThanPlanned")
+              : t("production.earlyStartDescription", {
+                  time: formatMoment(
+                    timing.plannedStartAt,
+                    referenceAt,
+                    timezone,
+                    locale
+                  ),
+                  remaining: formatDuration(timing.remainingMilliseconds, t),
+                })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Not yet</AlertDialogCancel>
+          <AlertDialogCancel disabled={busy}>
+            {t("production.notYet")}
+          </AlertDialogCancel>
           <AlertDialogAction
             disabled={busy}
             onClick={(event) => {
@@ -65,7 +86,7 @@ export function EarlyStageStartDialog({
             }}
           >
             {busy && <Spinner data-icon="inline-start" />}
-            Start now
+            {t("production.startNowShort")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -73,10 +94,13 @@ export function EarlyStageStartDialog({
   )
 }
 
-const formatDuration = (milliseconds: number): string => {
+const formatDuration = (milliseconds: number, t: TFunction): string => {
   const totalMinutes = Math.max(1, Math.ceil(milliseconds / 60_000))
-  if (totalMinutes < 60) return `${totalMinutes} min`
+  if (totalMinutes < 60)
+    return t("common.minutesShort", { minutes: totalMinutes })
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
-  return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`
+  return minutes === 0
+    ? t("production.hoursShort", { hours })
+    : t("production.hoursMinutesShort", { hours, minutes })
 }

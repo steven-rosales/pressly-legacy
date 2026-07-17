@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { IconAlertTriangle, IconGauge, IconLock } from "@tabler/icons-react"
 import type { SchedulerConfig } from "@pressly/contracts"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -36,9 +37,9 @@ import type { ProductionPort } from "@/ports/production.port"
 import { useSchedulerConfigPublication } from "./scheduler-config-publication.model"
 
 const stageFitOptions = [
-  ["sortingFits", "Sorting"],
-  ["washingFits", "Washing"],
-  ["dryingFits", "Drying"],
+  ["sortingFits", "settings.sorting"],
+  ["washingFits", "settings.washing"],
+  ["dryingFits", "settings.drying"],
 ] as const
 
 export function SchedulerConfigPublication({
@@ -57,6 +58,7 @@ export function SchedulerConfigPublication({
   onPublished: (config: SchedulerConfig) => Promise<void>
 }>) {
   const [open, setOpen] = useState(false)
+  const { t } = useTranslation()
   const isMobile = useIsMobile()
   const model = useSchedulerConfigPublication({
     production,
@@ -82,20 +84,21 @@ export function SchedulerConfigPublication({
           disabled={!canManage}
         >
           {currentConfig === null
-            ? "Publish configuration"
-            : "Publish new version"}
+            ? t("settings.publishConfiguration")
+            : t("settings.publishNewVersion")}
         </Button>
       </SheetTrigger>
       <SheetContent
         side={isMobile ? "bottom" : "right"}
         size="workspace"
         showCloseButton={!model.busy}
+        closeLabel={t("common.close")}
         aria-busy={model.busy}
       >
         <SheetHeader className="border-b px-5 py-4 pe-16">
-          <SheetTitle>Publish production configuration</SheetTitle>
+          <SheetTitle>{t("settings.publishTitle")}</SheetTitle>
           <SheetDescription>
-            Record a tested pulse as a new immutable scheduler version.
+            {t("settings.publishDescription")}
           </SheetDescription>
         </SheetHeader>
 
@@ -103,17 +106,16 @@ export function SchedulerConfigPublication({
           {model.error !== null && (
             <Alert variant="destructive" role="alert">
               <IconAlertTriangle />
-              <AlertTitle>Configuration not published</AlertTitle>
+              <AlertTitle>{t("settings.publishFailed")}</AlertTitle>
               <AlertDescription>{model.error}</AlertDescription>
             </Alert>
           )}
 
           <Alert>
             <IconLock />
-            <AlertTitle>This creates an immutable version</AlertTitle>
+            <AlertTitle>{t("settings.immutableTitle")}</AlertTitle>
             <AlertDescription>
-              Existing plans retain their original configuration. New schedule
-              computations use the latest published version.
+              {t("settings.immutableDescription")}
             </AlertDescription>
           </Alert>
 
@@ -123,7 +125,7 @@ export function SchedulerConfigPublication({
               data-disabled={model.busy}
             >
               <FieldLabel htmlFor="configuration-pulse-minutes">
-                Pulse duration
+                {t("settings.pulseDuration")}
               </FieldLabel>
               <InputGroup className="h-11">
                 <InputGroupInput
@@ -143,15 +145,15 @@ export function SchedulerConfigPublication({
                   }
                 />
                 <InputGroupAddon align="inline-end">
-                  <InputGroupText>minutes</InputGroupText>
+                  <InputGroupText>{t("common.minutesUnit")}</InputGroupText>
                 </InputGroupAddon>
               </InputGroup>
               <FieldDescription id="configuration-pulse-help">
-                The single clock used by every production stage.
+                {t("settings.pulseHelp")}
               </FieldDescription>
               {!model.pulseMinutesValid && (
                 <FieldError id="configuration-pulse-error">
-                  Enter a pulse duration of at least 1 minute.
+                  {t("settings.pulseInvalid")}
                 </FieldError>
               )}
             </Field>
@@ -161,7 +163,7 @@ export function SchedulerConfigPublication({
               data-disabled={model.busy}
             >
               <FieldLabel htmlFor="configuration-fold-rate">
-                Fold rate
+                {t("settings.foldRate")}
               </FieldLabel>
               <InputGroup className="h-11">
                 <InputGroupInput
@@ -182,15 +184,17 @@ export function SchedulerConfigPublication({
                   }
                 />
                 <InputGroupAddon align="inline-end">
-                  <InputGroupText>lb/min/person</InputGroupText>
+                  <InputGroupText>
+                    {t("settings.foldingRateUnit")}
+                  </InputGroupText>
                 </InputGroupAddon>
               </InputGroup>
               <FieldDescription id="configuration-fold-help">
-                Observed folding and packaging throughput per person.
+                {t("settings.foldRateHelp")}
               </FieldDescription>
               {!model.foldRateValid && (
                 <FieldError id="configuration-fold-error">
-                  Enter a fold rate greater than 0.
+                  {t("settings.foldRateInvalid")}
                 </FieldError>
               )}
             </Field>
@@ -203,11 +207,10 @@ export function SchedulerConfigPublication({
           >
             <FieldLegend className="mb-0 flex items-center gap-2 text-sm">
               <IconGauge className="size-4 shrink-0" aria-hidden="true" />
-              Physical stage fit
+              {t("settings.physicalStageFit")}
             </FieldLegend>
             <FieldDescription id="stage-fit-help">
-              Confirm observed floor capability for this exact pulse. Every
-              stage must be confirmed before publication.
+              {t("settings.physicalStageFitHelp")}
             </FieldDescription>
             <FieldGroup className="gap-3">
               {stageFitOptions.map(([key, label]) => (
@@ -228,23 +231,22 @@ export function SchedulerConfigPublication({
                     htmlFor={"configuration-" + key}
                     className="font-normal"
                   >
-                    {label} finishes within the full{" "}
-                    {model.pulseMinutesValid
-                      ? model.pulseMinutes
-                      : "configured"}
-                    -minute pulse.
+                    {t("settings.stageFits", {
+                      stage: t(label),
+                      minutes: model.pulseMinutesValid
+                        ? model.pulseMinutes
+                        : t("settings.configured"),
+                    })}
                   </FieldLabel>
                 </Field>
               ))}
             </FieldGroup>
             <FieldDescription id="stage-fit-progress" aria-live="polite">
               {model.stageFitConfirmed
-                ? "All three stage confirmations are complete."
-                : `${model.stageFitRemaining} ${
-                    model.stageFitRemaining === 1
-                      ? "confirmation"
-                      : "confirmations"
-                  } remaining before this version can be published.`}
+                ? t("settings.confirmationsComplete")
+                : t("settings.confirmationsRemaining", {
+                    count: model.stageFitRemaining,
+                  })}
             </FieldDescription>
           </FieldSet>
         </div>
@@ -257,7 +259,7 @@ export function SchedulerConfigPublication({
               className="h-11"
               disabled={model.busy}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
           </SheetClose>
           <Button
@@ -273,7 +275,9 @@ export function SchedulerConfigPublication({
             {model.busy && (
               <Spinner data-icon="inline-start" aria-hidden="true" />
             )}
-            {model.busy ? "Publishing…" : "Publish immutable version"}
+            {model.busy
+              ? t("settings.publishing")
+              : t("settings.publishImmutable")}
           </Button>
         </SheetFooter>
       </SheetContent>

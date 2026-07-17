@@ -1,5 +1,7 @@
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
+import { processorLanguageStorageKey } from "@/adapters/localization/i18next-localization.adapter"
 import { SettingsView } from "@/features/settings/settings.view"
 import {
   makeTestProductionPort,
@@ -20,6 +22,32 @@ const baseProps = {
 }
 
 describe("settings view", () => {
+  it("switches Processor between English and Spanish and persists the choice", async () => {
+    const user = userEvent.setup()
+    render(
+      <SettingsView
+        {...baseProps}
+        schedulerConfig={testConfig}
+        shift={testShift}
+      />
+    )
+
+    await user.click(screen.getByRole("radio", { name: "Español" }))
+
+    expect(
+      screen.getByRole("heading", { name: "Pulso de producción publicado" })
+    ).toBeInTheDocument()
+    expect(document.documentElement.lang).toBe("es")
+    expect(window.localStorage.getItem(processorLanguageStorageKey)).toBe("es")
+
+    await user.click(screen.getByRole("radio", { name: "English" }))
+
+    expect(
+      screen.getByRole("heading", { name: "Published production pulse" })
+    ).toBeInTheDocument()
+    expect(document.documentElement.lang).toBe("en")
+  })
+
   it("presents the published pulse as a compact operational summary", () => {
     const { container } = render(
       <SettingsView
