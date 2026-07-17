@@ -1,4 +1,5 @@
 import { IconAlertTriangle, IconPackage } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,6 +17,7 @@ import { Switch } from "@/components/ui/switch"
 import { useIntakeModel, type IntakeModelInput } from "./intake.model"
 
 export function IntakeWorkspace(input: IntakeModelInput) {
+  const { t } = useTranslation()
   const {
     bagCounts,
     priorities,
@@ -32,21 +34,20 @@ export function IntakeWorkspace(input: IntakeModelInput) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <IconPackage /> Bag intake
+              <IconPackage /> {t("intake.title")}
             </CardTitle>
-            <CardDescription>
-              Confirm physical bag counts and priority before these orders enter
-              production.
-            </CardDescription>
+            <CardDescription>{t("intake.description")}</CardDescription>
           </div>
-          <Badge variant="secondary">{input.orders.length} pending</Badge>
+          <Badge variant="secondary">
+            {t("intake.pending", { count: input.orders.length })}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {error !== null && (
           <Alert variant="destructive" role="alert">
             <IconAlertTriangle />
-            <AlertTitle>Intake needs attention</AlertTitle>
+            <AlertTitle>{t("intake.attention")}</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -63,14 +64,20 @@ export function IntakeWorkspace(input: IntakeModelInput) {
                 className="flex flex-col gap-3 p-3 sm:flex-row sm:items-end"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">Order {order.externalOrderId}</p>
+                  <p className="font-medium">
+                    {t("intake.order", { orderId: order.externalOrderId })}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    {order.derivedWeightLbs} lb estimated · due{" "}
-                    {order.dueBucket}
+                    {t("intake.orderDetail", {
+                      weight: order.derivedWeightLbs,
+                      due: order.dueBucket,
+                    })}
                   </p>
                 </div>
                 <Field className="sm:w-32" data-invalid={invalid}>
-                  <FieldLabel htmlFor={`bags-${order.id}`}>Bags</FieldLabel>
+                  <FieldLabel htmlFor={`bags-${order.id}`}>
+                    {t("intake.bags")}
+                  </FieldLabel>
                   <Input
                     id={`bags-${order.id}`}
                     className="h-11"
@@ -93,7 +100,7 @@ export function IntakeWorkspace(input: IntakeModelInput) {
                     }
                   />
                   <FieldLabel htmlFor={`priority-${order.id}`}>
-                    Priority
+                    {t("intake.priority")}
                   </FieldLabel>
                 </Field>
                 <Button
@@ -108,7 +115,7 @@ export function IntakeWorkspace(input: IntakeModelInput) {
                   {busyOrderId === order.id && (
                     <Spinner data-icon="inline-start" />
                   )}
-                  Record intake
+                  {t("intake.record")}
                 </Button>
               </div>
             )

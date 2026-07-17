@@ -1,4 +1,5 @@
 import { IconMoon, IconSun } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 import {
   Card,
   CardContent,
@@ -21,6 +22,8 @@ export function AppearanceSettings({
   theme: "light" | "dark"
   onThemeChange: (theme: "light" | "dark") => void
 }) {
+  const { t } = useTranslation()
+
   const selectTheme = (nextTheme: string) => {
     if (nextTheme === "light" || nextTheme === "dark") {
       onThemeChange(nextTheme)
@@ -30,18 +33,16 @@ export function AppearanceSettings({
   return (
     <Card className="self-start bg-background">
       <CardHeader>
-        <CardTitle>Appearance</CardTitle>
-        <CardDescription>
-          Choose how the processor looks on this browser.
-        </CardDescription>
+        <CardTitle>{t("settings.appearance")}</CardTitle>
+        <CardDescription>{t("settings.appearanceDescription")}</CardDescription>
       </CardHeader>
       <CardContent>
         <Field orientation="responsive">
           <FieldContent>
-            <FieldTitle id="color-mode-label">Color mode</FieldTitle>
-            <FieldDescription>
-              Your preference is saved automatically.
-            </FieldDescription>
+            <FieldTitle id="color-mode-label">
+              {t("settings.colorMode")}
+            </FieldTitle>
+            <FieldDescription>{t("settings.preferenceSaved")}</FieldDescription>
           </FieldContent>
           <ToggleGroup
             type="single"
@@ -52,11 +53,11 @@ export function AppearanceSettings({
           >
             <ToggleGroupItem value="light">
               <IconSun aria-hidden="true" />
-              Light
+              {t("settings.light")}
             </ToggleGroupItem>
             <ToggleGroupItem value="dark">
               <IconMoon aria-hidden="true" />
-              Dark
+              {t("settings.dark")}
             </ToggleGroupItem>
           </ToggleGroup>
         </Field>

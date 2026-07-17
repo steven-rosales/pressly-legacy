@@ -37,6 +37,8 @@ const localProcessorCsrfSecret = hmacKey.parse(
   'local-dev-processor-csrf-key-32-bytes-minimum',
 );
 
+const centsWebhookAuthMode = z.enum(['hmac', 'unsigned']);
+
 const apiEnvSchema = z
   .object({
     NODE_ENV: nodeEnvSchema.default('development'),
@@ -56,8 +58,8 @@ const apiEnvSchema = z
     API_LOGIN_RATE_WINDOW_SECONDS: envRateLimit.default(900),
 
     AUTH_SECRET: secret,
-    AUTH_SESSION_TTL_MINUTES: envInteger.default(720),
-    AUTH_SESSION_IDLE_TIMEOUT_MINUTES: envInteger.default(60),
+    AUTH_SESSION_TTL_MINUTES: envInteger.default(43_200),
+    AUTH_SESSION_IDLE_TIMEOUT_MINUTES: envInteger.default(10_080),
     AUTH_LOGIN_WINDOW_MINUTES: envInteger.default(15),
     AUTH_LOGIN_MAX_FAILURES: envInteger.default(8),
     AUTH_FRESH_SESSION_MAX_AGE_MINUTES: envInteger.default(15),
@@ -68,6 +70,7 @@ const apiEnvSchema = z
     PROCESSOR_ORIGIN: z.url().optional(),
     PROCESSOR_CSRF_SECRET: hmacKey.optional(),
 
+    CENTS_WEBHOOK_AUTH_MODE: centsWebhookAuthMode.default('hmac'),
     CENTS_WEBHOOK_HMAC_CURRENT_KEY: hmacKey.optional(),
     CENTS_WEBHOOK_HMAC_PREVIOUS_KEY: hmacKey.optional(),
     CENTS_WEBHOOK_CLOCK_WINDOW_SECONDS: envInteger.default(300),
@@ -90,6 +93,7 @@ const apiEnvSchema = z
 
     if (
       env.NODE_ENV === 'production' &&
+      env.CENTS_WEBHOOK_AUTH_MODE === 'hmac' &&
       env.CENTS_WEBHOOK_HMAC_CURRENT_KEY === undefined
     )
       context.addIssue({
@@ -166,6 +170,7 @@ const configuredApiEnv = {
     csrfSecret: rawApiEnv.PROCESSOR_CSRF_SECRET ?? localProcessorCsrfSecret,
   },
   centsWebhook: {
+    authMode: rawApiEnv.CENTS_WEBHOOK_AUTH_MODE,
     hmac: {
       currentKey: rawApiEnv.CENTS_WEBHOOK_HMAC_CURRENT_KEY,
       previousKey: rawApiEnv.CENTS_WEBHOOK_HMAC_PREVIOUS_KEY,

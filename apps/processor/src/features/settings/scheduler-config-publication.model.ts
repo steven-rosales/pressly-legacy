@@ -1,20 +1,14 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { SchedulerConfig } from "@pressly/contracts"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
-import { RequestFailure } from "@/ports/request.error"
+import { presentSettingsError } from "./settings.error.presenter"
 
 const initialPulseMinutes = 56
 const initialFoldRate = 2
 
 type StageFitKey = "sortingFits" | "washingFits" | "dryingFits"
-
-const messageFor = (error: unknown) =>
-  error instanceof RequestFailure
-    ? error.message
-    : error instanceof TypeError
-      ? error.message
-      : "The production configuration could not be published. Try again."
 
 export function useSchedulerConfigPublication({
   production,
@@ -29,6 +23,7 @@ export function useSchedulerConfigPublication({
   currentConfig: SchedulerConfig | null
   onPublished: (config: SchedulerConfig) => Promise<void>
 }>) {
+  const { t } = useTranslation()
   const [pulseMinutes, setPulseMinutes] = useState(
     currentConfig?.pulseMinutes ?? initialPulseMinutes
   )
@@ -68,13 +63,11 @@ export function useSchedulerConfigPublication({
   const publish = async (): Promise<boolean> => {
     setError(null)
     if (!pulseMinutesValid || !foldRateValid) {
-      setError("Pulse duration and fold rate must both be positive.")
+      setError(t("settings.positiveValuesRequired"))
       return false
     }
     if (!stageFitConfirmed) {
-      setError(
-        "Confirm sorting, washing, and drying fit inside this exact pulse."
-      )
+      setError(t("settings.stageFitRequired"))
       return false
     }
 
@@ -104,7 +97,7 @@ export function useSchedulerConfigPublication({
       await onPublished(config)
       return true
     } catch (cause) {
-      setError(messageFor(cause))
+      setError(presentSettingsError(cause, t))
       return false
     } finally {
       setBusy(false)

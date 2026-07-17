@@ -23,11 +23,7 @@ export class RequestFailure extends Error {
     traceId?: string
   }) {
     const referenceId = input.traceId ?? input.requestId
-    super(
-      referenceId === undefined
-        ? input.message
-        : `${input.message} Reference: ${referenceId}`
-    )
+    super(input.message)
     this.name = "RequestFailure"
     this.kind = input.kind
     this.code = input.code

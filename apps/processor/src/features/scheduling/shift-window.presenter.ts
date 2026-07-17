@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next"
+
 export type LocalDateTimeParts = Readonly<{
   date: string
   time: string
@@ -29,13 +31,19 @@ export const parseLocalDateTime = (
 
 export const shiftWindowValidationError = (
   start: string,
-  end: string
+  end: string,
+  t?: TFunction
 ): string | null => {
   const startParts = parseLocalDateTime(start)
   const endParts = parseLocalDateTime(end)
   if (startParts === null || endParts === null)
-    return "Choose a complete shift date and times."
+    return (
+      t?.("shiftWindow.incomplete") ?? "Choose a complete shift date and times."
+    )
   if (startParts.time === endParts.time)
-    return "Start and end time must be different; equal times would create a 24-hour shift."
+    return (
+      t?.("shiftWindow.equalTimes") ??
+      "Start and end time must be different; equal times would create a 24-hour shift."
+    )
   return null
 }

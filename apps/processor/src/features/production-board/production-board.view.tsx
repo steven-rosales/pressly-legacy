@@ -5,6 +5,8 @@ import {
   useState,
   useSyncExternalStore,
 } from "react"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 import {
   IconAlertTriangle,
   IconCheck,
@@ -62,6 +64,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { cn } from "@/components/ui/class-names"
 import { EarlyStageStartDialog } from "./early-stage-start-dialog.view"
 import { FloorProgressReconciliationSheet } from "./floor-progress-reconciliation.view"
+import { presentPlacementFailure } from "./production-board.error.presenter"
 import {
   useProductionBoardModel,
   type ProductionBoardModelInput,
@@ -70,8 +73,9 @@ import {
   formatCountdown,
   formatMoment,
   formatStageWindow,
+  localeForLanguage,
+  presentPendingPlacementMessage,
   presentStage,
-  productionStageLabels,
   productionStages,
   selectDefaultStage,
   type ProductionStageKind,
@@ -128,6 +132,7 @@ function useBoardClock(asOf: string) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation()
   const positive =
     status === "completed" || status === "finished" || status === "accepted"
   const active =
@@ -141,7 +146,23 @@ function StatusBadge({ status }: { status: string }) {
         active && "bg-foreground text-background"
       )}
     >
-      {status.replaceAll("_", " ")}
+      {status === "completed" || status === "finished"
+        ? t("production.completed")
+        : status === "planned"
+          ? t("production.planned")
+          : status === "started"
+            ? t("production.started")
+            : status === "queued"
+              ? t("common.queued")
+              : status === "sorting"
+                ? t("common.stage.sorting")
+                : status === "washing"
+                  ? t("common.stage.washing")
+                  : status === "drying"
+                    ? t("common.stage.drying")
+                    : status === "folding_packaging"
+                      ? t("common.stage.foldingPackaging")
+                      : status.replaceAll("_", " ")}
     </Badge>
   )
 }
@@ -177,26 +198,70 @@ function StageCard({
   onEditMachines: () => void
   onAction: (stage: StageRun, action: "start" | "complete") => void
 }) {
+  const { t, i18n } = useTranslation()
+  const locale = localeForLanguage(i18n.resolvedLanguage)
+  const stageLabel = t(
+    stage.stage === "sorting"
+      ? "common.stage.sorting"
+      : stage.stage === "washing"
+        ? "common.stage.washing"
+        : stage.stage === "drying"
+          ? "common.stage.drying"
+          : "common.stage.foldingPackaging"
+  )
   const assignedMachines = stage.machineIds.map(
     (machineId) =>
       machines.find((machine) => machine.id === machineId)?.label ??
-      "Assigned machine"
+      t("production.assignedMachine")
   )
   const supportsMachines = stage.stage === "washing" || stage.stage === "drying"
   const action = presentation.action
   const startsEarly =
     stage.nextAction.state === "confirmation_required" &&
     stage.nextAction.action === "start"
+  const presentationLabel =
+    presentation.state === "completed"
+      ? t("production.statusCompleted")
+      : presentation.state === "ready"
+        ? presentation.action === "start"
+          ? t("production.readyToStart")
+          : t("production.readyToComplete")
+        : presentation.state === "needs_machines"
+          ? t("production.needsMachines")
+          : presentation.state === "upcoming"
+            ? t("production.scheduledToStart")
+            : presentation.state === "in_progress"
+              ? t("production.inProgress")
+              : presentation.label === "Waiting for previous stage"
+                ? t("production.waitingPrevious")
+                : presentation.label === "Resource occupied"
+                  ? t("production.resourceOccupied")
+                  : t("production.waitingClearance")
+  const presentationDetail =
+    presentation.detail === "Authorized by the server"
+      ? t("production.serverAuthorized")
+      : presentation.detail === "Start now if the batch is physically ready."
+        ? t("production.startIfReady")
+        : presentation.detail ===
+            "Completing before the planned pulse ends requires confirmation."
+          ? t("production.earlyConfirmation")
+          : presentation.detail
 
   return (
     <Card
       size="sm"
       className="gap-3 bg-background py-3"
-      aria-label={`Batch ${batchNumber}, ${productionStageLabels[stage.stage]}, ${stage.status}`}
+      aria-label={t("production.batchAria", {
+        number: batchNumber,
+        stage: stageLabel,
+        status: stage.status,
+      })}
     >
       <CardHeader className="gap-1.5 px-3">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle>Batch {batchNumber}</CardTitle>
+          <CardTitle>
+            {t("production.batch", { number: batchNumber })}
+          </CardTitle>
           <StatusBadge status={stage.status} />
         </div>
       </CardHeader>
@@ -208,25 +273,26 @@ function StageCard({
               stage.plannedStartAt,
               stage.plannedEndAt,
               referenceAt,
-              timezone
+              timezone,
+              locale
             )}
           </span>
           <span className="flex items-center gap-1.5">
             <IconScale />
-            {weight} lb
+            {t("common.pounds", { value: weight })}
           </span>
         </div>
         <div className="flex min-w-0 items-center gap-1.5">
           <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
             {orders}
           </p>
-          {pinned && <Badge variant="outline">Pinned</Badge>}
+          {pinned && <Badge variant="outline">{t("production.pinned")}</Badge>}
         </div>
         {supportsMachines && (
           <div className="flex items-center justify-between gap-2 text-sm">
             <span className="min-w-0 truncate text-muted-foreground">
               {assignedMachines.length === 0
-                ? "No machines assigned"
+                ? t("production.noMachines")
                 : assignedMachines.join(" + ")}
             </span>
             {stage.status === "planned" &&
@@ -238,7 +304,7 @@ function StageCard({
                   onClick={onEditMachines}
                   disabled={mutationDisabled}
                 >
-                  Edit machines
+                  {t("production.editMachines")}
                 </Button>
               )}
           </div>
@@ -246,15 +312,15 @@ function StageCard({
         <Separator />
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-sm font-medium">{presentation.label}</p>
-            {presentation.detail !== null && (
+            <p className="text-sm font-medium">{presentationLabel}</p>
+            {presentationDetail !== null && (
               <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
-                {presentation.detail}
+                {presentationDetail}
               </p>
             )}
             {presentation.availableAt !== null && (
               <p className="mt-0.5 text-sm text-muted-foreground">
-                {formatCountdown(presentation.availableAt, now)}
+                {formatCountdown(presentation.availableAt, now, t)}
               </p>
             )}
           </div>
@@ -275,9 +341,9 @@ function StageCard({
               )}
               {action === "start"
                 ? startsEarly
-                  ? `Start ${productionStageLabels[stage.stage]} now`
-                  : `Start ${productionStageLabels[stage.stage]}`
-                : `Complete ${productionStageLabels[stage.stage]}`}
+                  ? t("production.startNow", { stage: stageLabel })
+                  : t("production.startStage", { stage: stageLabel })
+                : t("production.completeStage", { stage: stageLabel })}
             </Button>
           )}
         </div>
@@ -289,6 +355,8 @@ function StageCard({
 export function ProductionBoardWorkspace({
   ...input
 }: ProductionBoardModelInput) {
+  const { t, i18n } = useTranslation()
+  const locale = localeForLanguage(i18n.resolvedLanguage)
   const {
     board,
     busyId,
@@ -421,9 +489,9 @@ export function ProductionBoardWorkspace({
   if (board === null)
     return (
       <Card className="mx-auto max-w-xl bg-background p-8 text-center">
-        <CardTitle>Loading production board…</CardTitle>
+        <CardTitle>{t("production.loading")}</CardTitle>
         <p className="mt-2 text-sm text-muted-foreground">
-          Reading current operational truth.
+          {t("production.readingTruth")}
         </p>
       </Card>
     )
@@ -432,7 +500,15 @@ export function ProductionBoardWorkspace({
     <section key={kind} aria-labelledby={`stage-${kind}`}>
       <div className="flex items-center justify-between py-2">
         <h2 id={`stage-${kind}`} className="text-sm font-semibold">
-          {productionStageLabels[kind]}
+          {t(
+            kind === "sorting"
+              ? "common.stage.sorting"
+              : kind === "washing"
+                ? "common.stage.washing"
+                : kind === "drying"
+                  ? "common.stage.drying"
+                  : "common.stage.foldingPackaging"
+          )}
         </h2>
         <Badge variant="outline">
           {
@@ -461,7 +537,7 @@ export function ProductionBoardWorkspace({
                 .map((order) => order.externalOrderId)
                 .join(" + ")}
               pinned={batch.orders.some((order) => order.pinnedAt !== null)}
-              presentation={presentStage({ stage, now })}
+              presentation={presentStage({ stage, now, t })}
               now={now}
               mutationDisabled={mutationsDisabled}
               busy={busyId === stage.id}
@@ -485,17 +561,26 @@ export function ProductionBoardWorkspace({
         {announcement}
       </span>
       <SectionHeading
-        title="Live production run"
-        description={`Shift ${formatStageWindow(board.productionShift.startsAt, board.productionShift.endsAt, board.asOf, input.timezone)} · updated ${formatMoment(board.asOf, board.asOf, input.timezone)}`}
+        title={t("production.liveRun")}
+        description={t("production.runDescription", {
+          window: formatStageWindow(
+            board.productionShift.startsAt,
+            board.productionShift.endsAt,
+            board.asOf,
+            input.timezone,
+            locale
+          ),
+          updated: formatMoment(board.asOf, board.asOf, input.timezone, locale),
+        })}
         action={
           <div className="flex flex-wrap items-center justify-end gap-2">
             {updatesUnavailable && (
               <Badge variant="outline">
                 {input.online === false
-                  ? "Offline"
+                  ? t("production.offlineShort")
                   : input.updatesState === "reconnecting"
-                    ? "Reconnecting"
-                    : "Connecting"}
+                    ? t("production.reconnectingShort")
+                    : t("production.connectingShort")}
               </Badge>
             )}
             <Button
@@ -507,7 +592,7 @@ export function ProductionBoardWorkspace({
               }
             >
               <IconHistory data-icon="inline-start" />
-              Record floor progress
+              {t("production.recordProgress")}
             </Button>
             <Button
               variant="outline"
@@ -516,7 +601,7 @@ export function ProductionBoardWorkspace({
               disabled={input.online === false}
             >
               <IconRefresh data-icon="inline-start" />
-              Refresh
+              {t("common.refresh")}
             </Button>
           </div>
         }
@@ -527,59 +612,75 @@ export function ProductionBoardWorkspace({
           <IconAlertTriangle />
           <AlertTitle>
             {input.online === false
-              ? "Board is offline"
+              ? t("production.offline")
               : input.updatesState === "reconnecting"
-                ? "Live updates are reconnecting"
-                : "Connecting live updates"}
+                ? t("production.reconnecting")
+                : t("production.connecting")}
           </AlertTitle>
-          <AlertDescription>
-            Production commands are paused until the live change stream is
-            current. You can still refresh this board manually.
-          </AlertDescription>
+          <AlertDescription>{t("production.updatesPaused")}</AlertDescription>
         </Alert>
       )}
 
       {error && (
         <Alert variant="destructive" role="alert">
           <IconAlertTriangle />
-          <AlertTitle>Board action needs attention</AlertTitle>
+          <AlertTitle>{t("production.actionAttention")}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       <MetricStrip
-        label="Production summary"
+        label={t("production.summary")}
         metrics={[
           {
-            label: "Production status",
+            label: t("production.productionStatus"),
             value:
               board.productionRun.status === "completed"
-                ? "Completed"
+                ? t("production.completed")
                 : board.productionRun.status === "planned"
-                  ? "Planned"
-                  : "Started",
-            detail: `Queue v${board.productionRun.queueVersion} · lifecycle v${board.productionRun.version}`,
+                  ? t("production.planned")
+                  : t("production.started"),
+            detail: t("production.queueLifecycle", {
+              queue: board.productionRun.queueVersion,
+              lifecycle: board.productionRun.version,
+            }),
           },
           {
-            label: "Scheduled demand",
-            value: `${totalLbs} lb`,
-            detail: `${board.batches.length} batches · finish ${formatMoment(board.productionRun.plannedCompletionAt, board.asOf, input.timezone)}${board.productionRun.overtimeAcknowledgement === null ? "" : " · overtime accepted"}`,
+            label: t("production.scheduledDemand"),
+            value: t("common.pounds", { value: totalLbs }),
+            detail: t("production.demandDetail", {
+              batches: t("common.batches", {
+                count: board.batches.length,
+              }),
+              finish: formatMoment(
+                board.productionRun.plannedCompletionAt,
+                board.asOf,
+                input.timezone,
+                locale
+              ),
+              overtime:
+                board.productionRun.overtimeAcknowledgement === null
+                  ? ""
+                  : t("production.overtimeAcceptedSuffix"),
+            }),
           },
           {
-            label: "Stage progress",
+            label: t("production.stageProgress"),
             value: `${completedStages}/${board.batches.length * 4}`,
-            detail: "Operator-confirmed pulses",
+            detail: t("production.operatorPulses"),
           },
           {
-            label: "Pulse",
+            label: t("production.pulse"),
             value:
               board.batches[0] === undefined
                 ? "—"
                 : `${board.batches[0].pulseMinutes} min`,
             detail:
               board.batches[0] === undefined
-                ? "No accepted capacity"
-                : `${board.batches[0].pulseCapacityLbs} lb maximum`,
+                ? t("production.noAcceptedCapacity")
+                : t("production.maximum", {
+                    weight: board.batches[0].pulseCapacityLbs,
+                  }),
           },
         ]}
       />
@@ -589,10 +690,9 @@ export function ProductionBoardWorkspace({
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle>Pending arrivals</CardTitle>
+                <CardTitle>{t("production.pendingArrivals")}</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  These eligible orders are visible but not yet in the live
-                  queue.
+                  {t("production.pendingDescription")}
                 </p>
               </div>
               <Badge variant="secondary">{board.eligibleOrders.length}</Badge>
@@ -615,11 +715,18 @@ export function ProductionBoardWorkspace({
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="min-w-48 flex-1">
                       <p className="font-medium">
-                        Order {order.externalOrderId}
+                        {t("production.order", {
+                          orderId: order.externalOrderId,
+                        })}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {order.derivedWeightLbs} lb · {order.bagCount} bags
-                        {order.priority ? " · priority" : ""}
+                        {t("production.orderDetail", {
+                          weight: order.derivedWeightLbs,
+                          bags: t("common.bags", { count: order.bagCount }),
+                          priority: order.priority
+                            ? t("production.prioritySuffix")
+                            : "",
+                        })}
                       </p>
                     </div>
                     <Button
@@ -629,7 +736,7 @@ export function ProductionBoardWorkspace({
                       onClick={() => void retryAutomaticPlacement(order)}
                     >
                       <IconWand data-icon="inline-start" />
-                      Retry automatic
+                      {t("production.retryAutomatic")}
                     </Button>
                   </div>
                   {(order.placement.status === "awaiting_run" ||
@@ -638,11 +745,11 @@ export function ProductionBoardWorkspace({
                       <IconAlertTriangle />
                       <AlertTitle>
                         {order.placement.status === "ambiguous_run"
-                          ? "Run selection required"
-                          : "Placement pending"}
+                          ? t("production.runSelectionRequired")
+                          : t("production.placementPending")}
                       </AlertTitle>
                       <AlertDescription>
-                        {order.placement.message}
+                        {presentPendingPlacementMessage(order.placement, t)}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -650,20 +757,21 @@ export function ProductionBoardWorkspace({
                     <Alert>
                       <IconAlertTriangle />
                       <AlertTitle>
-                        Automatic placement needs attention
+                        {t("production.automaticAttention")}
                       </AlertTitle>
                       <AlertDescription>
-                        {order.placement.message}
+                        {presentPlacementFailure(order.placement.reason, t)}
                         {order.placement.preview !== null && (
                           <span className="mt-1 block text-sm">
-                            Last proposal: queue v
-                            {order.placement.preview.queueVersion}, finish{" "}
-                            {formatMoment(
-                              order.placement.preview.projectedCompletionAt,
-                              board.asOf,
-                              input.timezone
-                            )}
-                            .
+                            {t("production.lastProposal", {
+                              queue: order.placement.preview.queueVersion,
+                              finish: formatMoment(
+                                order.placement.preview.projectedCompletionAt,
+                                board.asOf,
+                                input.timezone,
+                                locale
+                              ),
+                            })}
                           </span>
                         )}
                       </AlertDescription>
@@ -674,10 +782,9 @@ export function ProductionBoardWorkspace({
                       board.productionRun.id && (
                       <Alert>
                         <IconAlertTriangle />
-                        <AlertTitle>Proposal belongs to another run</AlertTitle>
+                        <AlertTitle>{t("production.anotherRun")}</AlertTitle>
                         <AlertDescription>
-                          Open that run to confirm its overtime proposal, or
-                          retry automatic placement into this queue.
+                          {t("production.anotherRunDescription")}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -685,7 +792,9 @@ export function ProductionBoardWorkspace({
                     <div className="flex flex-wrap items-center gap-2">
                       <NativeSelect
                         className="min-w-48 flex-1 [&_[data-slot=native-select]]:h-11"
-                        aria-label={`Exact batch for order ${order.externalOrderId}`}
+                        aria-label={t("production.exactBatchAria", {
+                          orderId: order.externalOrderId,
+                        })}
                         disabled={mutationsDisabled}
                         value={exactBatchSelections[order.id] ?? ""}
                         onChange={(event) =>
@@ -693,12 +802,15 @@ export function ProductionBoardWorkspace({
                         }
                       >
                         <NativeSelectOption value="" disabled>
-                          Choose exact queued batch
+                          {t("production.chooseExactBatch")}
                         </NativeSelectOption>
                         {mutableBatches.map((batch) => (
                           <NativeSelectOption key={batch.id} value={batch.id}>
-                            Batch {batch.sequence + 1} ·{" "}
-                            {batch.derivedWeightLbs}/{batch.pulseCapacityLbs} lb
+                            {t("production.batch", {
+                              number: batch.sequence + 1,
+                            })}{" "}
+                            {"·"} {batch.derivedWeightLbs}/
+                            {batch.pulseCapacityLbs} lb
                           </NativeSelectOption>
                         ))}
                       </NativeSelect>
@@ -711,24 +823,27 @@ export function ProductionBoardWorkspace({
                         }
                         onClick={() => void placeOrderExactly(order)}
                       >
-                        Place exactly
+                        {t("production.placeExactly")}
                       </Button>
                     </div>
                   )}
                   {confirmation !== undefined && (
                     <Alert className="border-warning-foreground/20 bg-warning text-warning-foreground">
                       <IconAlertTriangle />
-                      <AlertTitle>Overtime confirmation required</AlertTitle>
+                      <AlertTitle>
+                        {t("production.overtimeRequired")}
+                      </AlertTitle>
                       <AlertDescription className="flex flex-col items-start gap-2">
                         <span>
-                          This exact queue proposal adds{" "}
-                          {confirmation.overtimeMinutes} minutes and finishes at{" "}
-                          {formatMoment(
-                            confirmation.projectedCompletionAt,
-                            board.asOf,
-                            input.timezone
-                          )}
-                          .
+                          {t("production.overtimeDetail", {
+                            minutes: confirmation.overtimeMinutes,
+                            finish: formatMoment(
+                              confirmation.projectedCompletionAt,
+                              board.asOf,
+                              input.timezone,
+                              locale
+                            ),
+                          })}
                         </span>
                         {input.canManage ? (
                           <Button
@@ -736,12 +851,10 @@ export function ProductionBoardWorkspace({
                             disabled={mutationsDisabled}
                             onClick={() => void confirmOvertime(order)}
                           >
-                            Confirm overtime and place
+                            {t("production.confirmOvertime")}
                           </Button>
                         ) : (
-                          <span>
-                            Owner or administrator approval is required.
-                          </span>
+                          <span>{t("production.managerApproval")}</span>
                         )}
                       </AlertDescription>
                     </Alert>
@@ -756,7 +869,7 @@ export function ProductionBoardWorkspace({
       {board.batches.length > 0 && (
         <Card className="bg-background">
           <CardHeader>
-            <CardTitle>Queue membership</CardTitle>
+            <CardTitle>{t("production.queueMembership")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {board.batches.map((batch) => (
@@ -765,13 +878,15 @@ export function ProductionBoardWorkspace({
                 className="flex items-center justify-between gap-3 rounded-lg border p-3"
               >
                 <div>
-                  <p className="font-medium">Batch {batch.sequence + 1}</p>
+                  <p className="font-medium">
+                    {t("production.batch", { number: batch.sequence + 1 })}
+                  </p>
                   <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
                     <StatusBadge status={batch.status} />
                     <span>
                       {batch.membership.state === "frozen"
-                        ? "Membership frozen"
-                        : "Membership mutable"}
+                        ? t("production.membershipFrozen")
+                        : t("production.membershipMutable")}
                     </span>
                   </div>
                 </div>
@@ -783,7 +898,8 @@ export function ProductionBoardWorkspace({
                       disabled={mutationsDisabled}
                       onClick={() => void mutateMembership(batch, "freeze")}
                     >
-                      <IconLock data-icon="inline-start" /> Freeze
+                      <IconLock data-icon="inline-start" />{" "}
+                      {t("production.freeze")}
                     </Button>
                   )}
                 {input.canManage &&
@@ -795,7 +911,8 @@ export function ProductionBoardWorkspace({
                       disabled={mutationsDisabled}
                       onClick={() => void mutateMembership(batch, "unfreeze")}
                     >
-                      <IconLockOpen data-icon="inline-start" /> Unfreeze
+                      <IconLockOpen data-icon="inline-start" />{" "}
+                      {t("production.unfreeze")}
                     </Button>
                   )}
               </div>
@@ -808,9 +925,11 @@ export function ProductionBoardWorkspace({
         <Card className="grid min-h-72 place-items-center bg-background text-center">
           <div>
             <IconStack2 className="mx-auto text-muted-foreground" />
-            <p className="mt-3 font-medium">No accepted batches</p>
+            <p className="mt-3 font-medium">
+              {t("production.noAcceptedBatches")}
+            </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Start an accepted schedule to populate the floor board.
+              {t("production.noAcceptedBatchesDescription")}
             </p>
           </div>
         </Card>
@@ -824,7 +943,7 @@ export function ProductionBoardWorkspace({
             <Tabs defaultValue={defaultStage}>
               <TabsList
                 className="grid h-11 w-full grid-cols-4"
-                aria-label="Production stages"
+                aria-label={t("production.stages")}
               >
                 {productionStages.map((kind) => (
                   <TabsTrigger
@@ -833,8 +952,14 @@ export function ProductionBoardWorkspace({
                     className="min-w-0 px-1 text-xs sm:text-sm"
                   >
                     {kind === "folding_packaging"
-                      ? "Fold"
-                      : productionStageLabels[kind]}
+                      ? t("production.fold")
+                      : t(
+                          kind === "sorting"
+                            ? "common.stage.sorting"
+                            : kind === "washing"
+                              ? "common.stage.washing"
+                              : "common.stage.drying"
+                        )}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -854,24 +979,35 @@ export function ProductionBoardWorkspace({
           if (!open) closeMachineEditor()
         }}
       >
-        <SheetContent side={isMobile ? "bottom" : "right"} size="workspace">
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          size="workspace"
+          closeLabel={t("common.close")}
+        >
           {editingStage !== undefined && editingBatch !== undefined && (
             <>
               <SheetHeader className="border-b px-4 pe-16 pb-4">
                 <SheetTitle>
-                  Assign{" "}
-                  {productionStageLabels[editingStage.stage].toLowerCase()}{" "}
-                  machines
+                  {t("production.assignMachines", {
+                    stage: t(
+                      editingStage.stage === "washing"
+                        ? "common.stage.washing"
+                        : "common.stage.drying"
+                    ).toLocaleLowerCase(locale),
+                  })}
                 </SheetTitle>
                 <SheetDescription>
-                  Batch {editingBatch.sequence + 1} needs{" "}
-                  {editingBatch.derivedWeightLbs} lb of active compatible
-                  capacity. Saving replaces the full machine set for this stage.
+                  {t("production.assignMachinesDescription", {
+                    batch: editingBatch.sequence + 1,
+                    weight: editingBatch.derivedWeightLbs,
+                  })}
                 </SheetDescription>
               </SheetHeader>
               <ScrollArea className="min-h-0 flex-1 px-4">
                 <FieldSet>
-                  <FieldLegend>Active compatible machines</FieldLegend>
+                  <FieldLegend>
+                    {t("production.activeCompatibleMachines")}
+                  </FieldLegend>
                   <FieldGroup className="gap-2">
                     {editingMachines.map((machine) => (
                       <Field
@@ -910,14 +1046,14 @@ export function ProductionBoardWorkspace({
               {error !== null && (
                 <Alert variant="destructive" className="mx-4">
                   <IconAlertTriangle />
-                  <AlertTitle>Machine assignment not saved</AlertTitle>
+                  <AlertTitle>{t("production.assignmentFailed")}</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
               <SheetFooter className="border-t">
                 <div className="flex items-center justify-between gap-3 text-sm">
                   <span className="text-muted-foreground">
-                    Selected capacity
+                    {t("production.selectedCapacity")}
                   </span>
                   <span
                     className={cn(
@@ -931,7 +1067,7 @@ export function ProductionBoardWorkspace({
                 </div>
                 {selectedCapacity < editingBatch.derivedWeightLbs && (
                   <p className="text-sm text-warning-foreground">
-                    The server will reject capacity below the batch demand.
+                    {t("production.insufficientCapacity")}
                   </p>
                 )}
                 <div className="flex justify-end gap-2">
@@ -940,7 +1076,7 @@ export function ProductionBoardWorkspace({
                     className="h-11"
                     onClick={closeMachineEditor}
                   >
-                    Cancel
+                    {t("common.cancel")}
                   </Button>
                   <Button
                     className="h-11"
@@ -956,7 +1092,7 @@ export function ProductionBoardWorkspace({
                     {busyId === editingStage.id && (
                       <Spinner data-icon="inline-start" />
                     )}
-                    Save machines
+                    {t("production.saveMachines")}
                   </Button>
                 </div>
               </SheetFooter>
@@ -1007,16 +1143,40 @@ export function ProductionBoardWorkspace({
             <AlertDialogMedia className="bg-warning text-warning-foreground">
               <IconClock />
             </AlertDialogMedia>
-            <AlertDialogTitle>Complete this stage early?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("production.completeEarlyTitle")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {earlyCompletion === null
-                ? "The planned pulse is still running."
-                : `${productionStageLabels[earlyCompletion.stage.stage]} has run for ${formatDuration(earlyCompletion.result.timing.elapsedMilliseconds)} of its ${formatDuration(earlyCompletion.result.timing.plannedDurationMilliseconds)} planned pulse. ${formatDuration(earlyCompletion.result.timing.remainingMilliseconds)} remains.`}
+                ? t("production.pulseStillRunning")
+                : t("production.completeEarlyDescription", {
+                    stage: t(
+                      earlyCompletion.stage.stage === "sorting"
+                        ? "common.stage.sorting"
+                        : earlyCompletion.stage.stage === "washing"
+                          ? "common.stage.washing"
+                          : earlyCompletion.stage.stage === "drying"
+                            ? "common.stage.drying"
+                            : "common.stage.foldingPackaging"
+                    ),
+                    elapsed: formatDuration(
+                      earlyCompletion.result.timing.elapsedMilliseconds,
+                      t
+                    ),
+                    planned: formatDuration(
+                      earlyCompletion.result.timing.plannedDurationMilliseconds,
+                      t
+                    ),
+                    remaining: formatDuration(
+                      earlyCompletion.result.timing.remainingMilliseconds,
+                      t
+                    ),
+                  })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busyId !== null}>
-              Keep running
+              {t("production.keepRunning")}
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={busyId !== null}
@@ -1026,7 +1186,7 @@ export function ProductionBoardWorkspace({
               }}
             >
               {busyId !== null && <Spinner data-icon="inline-start" />}
-              Complete early
+              {t("production.completeEarly")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1035,10 +1195,13 @@ export function ProductionBoardWorkspace({
   )
 }
 
-const formatDuration = (milliseconds: number): string => {
+const formatDuration = (milliseconds: number, t: TFunction): string => {
   const totalMinutes = Math.max(0, Math.ceil(milliseconds / 60_000))
-  if (totalMinutes < 60) return `${totalMinutes} min`
+  if (totalMinutes < 60)
+    return t("common.minutesShort", { minutes: totalMinutes })
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
-  return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`
+  return minutes === 0
+    ? t("production.hoursShort", { hours })
+    : t("production.hoursMinutesShort", { hours, minutes })
 }

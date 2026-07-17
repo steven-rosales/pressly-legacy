@@ -514,3 +514,35 @@ The runtime snapshot preserved the active synthetic run and its 15 scheduled
 orders totaling 800.000 pounds and 34 bags; no production command was issued.
 This checkpoint does not establish live Cents, cloud, secret placement, alert
 routing, deployment, or pilot facts and therefore does not advance `H1`.
+
+## 2026-07-17 — Documented Cents unsigned compatibility
+
+Status: repository verified; not deployed
+
+- Steven explicitly authorized temporary unsigned compatibility with Cents'
+  documented HTTPS JSON webhook so launch does not depend on an undocumented
+  signing contract.
+- `CENTS_WEBHOOK_AUTH_MODE` now selects `hmac` or `unsigned`. HMAC remains the
+  default and retains exact-byte verification; unsigned mode skips only source
+  authentication and emits a redacted startup warning.
+- The documented unsigned order payload reached the same normalization and
+  durable inbox boundary and returned HTTP 202. JSON content type, 256 KB body
+  limit, validation, minimized persistence, source ordering, store binding,
+  and idempotency remain unchanged.
+- Canonical architecture, LPMS, operations, AWS environment examples, and this
+  active readiness package now distinguish configured ingress from proven
+  authenticity. Historical signed-ingress evidence above remains unchanged.
+
+```text
+command: pnpm --filter @pressly/api test; pnpm --filter @pressly/api typecheck; pnpm --filter @pressly/api lint
+exit: 0
+time: 2026-07-17T13:56:30-04:00
+summary: 14 API test files and 120 tests passed, including unsigned documented-payload HTTP 202 and durable receipt coverage; API source and test typechecks passed; API lint passed with zero warnings.
+```
+
+```text
+command: pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs; pnpm stateworks:validate stateworks/work/active/lpms-production-readiness/network.yaml; git diff --check
+exit: 0
+time: 2026-07-17T13:56:32-04:00
+summary: 60 architecture tests passed, the 27-task readiness network validated, and the working-tree diff contained no whitespace errors. No production endpoint, AWS host, Cents account, secret, or customer payload was touched.
+```

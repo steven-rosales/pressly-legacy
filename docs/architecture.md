@@ -664,11 +664,13 @@ architecture-boundary tests, including relative and aliased imports.
 
 Apps do not own business meaning. They assemble the program.
 
-For Cents ingress, `apps/api` owns the vendor wire adapter: exact raw-byte HMAC
-verification, event classification, alias normalization, decimal-money
-conversion, and payload minimization. It submits a source-neutral command to
-`modules/business/webhook-ingestion`, which owns the durable inbox, claims,
-retries, dead letters, and source-location bindings.
+For Cents ingress, `apps/api` owns the vendor wire adapter and its explicit
+authentication policy. HMAC mode verifies exact raw bytes; the temporary
+vendor-compatibility mode accepts Cents' documented unsigned HTTPS JSON
+request. Both modes share event classification, alias normalization,
+decimal-money conversion, payload minimization, and the same source-neutral
+command submitted to `modules/business/webhook-ingestion`, which owns the
+durable inbox, claims, retries, dead letters, and source-location bindings.
 
 `apps/worker` is the asynchronous composition root. A vendor consumer translates
 one claimed event into a canonical `ApplyOrderDemand` command and injects that

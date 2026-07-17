@@ -27,6 +27,7 @@ import {
 import type { ApiRuntime } from './common/runtime/runtime.ts';
 import { makeCorsOptions } from './common/security/cors.ts';
 import {
+  acceptUnsignedCentsWebhook,
   makeCentsWebhookHmacVerifier,
   type CentsWebhookVerifier,
 } from './vendors/cents/cents-webhook.security.ts';
@@ -61,6 +62,36 @@ export const makeApiApp = (
     clock,
     ids,
   });
+  const configuredCentsWebhookVerifier =
+    runtime.env.centsWebhook.authMode === 'unsigned'
+      ? acceptUnsignedCentsWebhook
+      : makeCentsWebhookHmacVerifier({
+          ...(runtime.env.centsWebhook.hmac.currentKey === undefined
+            ? {}
+            : {
+                currentKey: revealSecret(
+                  runtime.env.centsWebhook.hmac.currentKey,
+                ),
+              }),
+          ...(runtime.env.centsWebhook.hmac.previousKey === undefined
+            ? {}
+            : {
+                previousKey: revealSecret(
+                  runtime.env.centsWebhook.hmac.previousKey,
+                ),
+              }),
+          clock,
+          clockWindowSeconds: runtime.env.centsWebhook.hmac.clockWindowSeconds,
+        });
+
+  if (
+    overrides.centsWebhookVerifier === undefined &&
+    runtime.env.centsWebhook.authMode === 'unsigned'
+  )
+    runtime.logger.warn(
+      'Cents webhook authentication is disabled by configuration.',
+      { route: '/webhooks/cents', authMode: 'unsigned' },
+    );
 
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -136,25 +167,7 @@ export const makeApiApp = (
     '/webhooks/cents',
     makeCentsWebhookRoute({
       verifier:
-        overrides.centsWebhookVerifier ??
-        makeCentsWebhookHmacVerifier({
-          ...(runtime.env.centsWebhook.hmac.currentKey === undefined
-            ? {}
-            : {
-                currentKey: revealSecret(
-                  runtime.env.centsWebhook.hmac.currentKey,
-                ),
-              }),
-          ...(runtime.env.centsWebhook.hmac.previousKey === undefined
-            ? {}
-            : {
-                previousKey: revealSecret(
-                  runtime.env.centsWebhook.hmac.previousKey,
-                ),
-              }),
-          clock,
-          clockWindowSeconds: runtime.env.centsWebhook.hmac.clockWindowSeconds,
-        }),
+        overrides.centsWebhookVerifier ?? configuredCentsWebhookVerifier,
       ingestEvent: webhookIngestion.ingestEvent,
     }),
   );

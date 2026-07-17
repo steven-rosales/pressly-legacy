@@ -1,6 +1,10 @@
 import "@testing-library/jest-dom/vitest"
 import { cleanup, configure } from "@testing-library/react"
-import { afterEach } from "vitest"
+import { afterEach, beforeEach } from "vitest"
+import { processorLanguageStorageKey } from "@/adapters/localization/i18next-localization.adapter"
+import { initializeProcessorLocalization } from "@/app/localization/localization.composition"
+
+const localization = initializeProcessorLocalization(window.localStorage)
 
 configure({ asyncUtilTimeout: 5_000 })
 
@@ -12,5 +16,10 @@ if (HTMLElement.prototype.releasePointerCapture === undefined)
   HTMLElement.prototype.releasePointerCapture = () => undefined
 if (HTMLElement.prototype.scrollIntoView === undefined)
   HTMLElement.prototype.scrollIntoView = () => undefined
+
+beforeEach(() => {
+  void localization.changeLanguage("en")
+  window.localStorage.removeItem(processorLanguageStorageKey)
+})
 
 afterEach(cleanup)

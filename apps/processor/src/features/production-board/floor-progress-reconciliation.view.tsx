@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { IconAlertTriangle, IconCheck, IconHistory } from "@tabler/icons-react"
 import type {
   ProductionBatch,
@@ -36,15 +37,12 @@ import {
   activeStageForTarget,
   describeFinishedConsequences,
   describeFloorProgressChange,
-  floorProgressMilestoneLabels,
-  floorProgressReasonLabels,
   forwardMilestones,
   milestoneForBatch,
   targetForMilestone,
   targetRequiresMachines,
   type FloorProgressDraft,
 } from "./floor-progress.presenter"
-import { productionStageLabels } from "./production-board.presenter"
 
 export function FloorProgressReconciliationSheet({
   open,
@@ -71,6 +69,25 @@ export function FloorProgressReconciliationSheet({
   onConfirm: () => void
   onInvalidateConfirmation: () => void
 }>) {
+  const { t } = useTranslation()
+  const milestoneLabel = (value: string) =>
+    value === "waiting_to_sort"
+      ? t("floorProgress.waitingToSort")
+      : value === "sorting_started"
+        ? t("floorProgress.sorting")
+        : value === "sorting_completed"
+          ? t("floorProgress.waitingToWash")
+          : value === "washing_started"
+            ? t("floorProgress.washing")
+            : value === "washing_completed"
+              ? t("floorProgress.waitingToDry")
+              : value === "drying_started"
+                ? t("floorProgress.drying")
+                : value === "drying_completed"
+                  ? t("floorProgress.waitingToFold")
+                  : value === "folding_packaging_started"
+                    ? t("floorProgress.foldingPackaging")
+                    : t("floorProgress.finished")
   const defaultBatchId =
     batches.find((batch) => milestoneForBatch(batch) !== "finished")?.id ??
     batches[0]?.id ??
@@ -116,19 +133,22 @@ export function FloorProgressReconciliationSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side={isMobile ? "bottom" : "right"} size="workspace">
+      <SheetContent
+        side={isMobile ? "bottom" : "right"}
+        size="workspace"
+        closeLabel={t("common.close")}
+      >
         <SheetHeader className="border-b px-4 pe-16 pb-4">
-          <SheetTitle>Record floor progress</SheetTitle>
-          <SheetDescription>
-            Use this when the board is behind what physically happened. Planned
-            times stay unchanged, and missed event times remain unrecorded.
-          </SheetDescription>
+          <SheetTitle>{t("floorProgress.title")}</SheetTitle>
+          <SheetDescription>{t("floorProgress.description")}</SheetDescription>
         </SheetHeader>
 
         <ScrollArea className="min-h-0 flex-1 px-4">
           <FieldGroup className="gap-5 pb-4">
             <Field>
-              <FieldLabel htmlFor="floor-progress-batch">Batch</FieldLabel>
+              <FieldLabel htmlFor="floor-progress-batch">
+                {t("floorProgress.batch")}
+              </FieldLabel>
               <NativeSelect
                 id="floor-progress-batch"
                 className="w-full [&_[data-slot=native-select]]:h-11"
@@ -142,26 +162,28 @@ export function FloorProgressReconciliationSheet({
               >
                 {batches.map((candidate) => (
                   <NativeSelectOption key={candidate.id} value={candidate.id}>
-                    Batch {candidate.sequence + 1} ·{" "}
-                    {candidate.derivedWeightLbs} lb
+                    {t("floorProgress.batchOption", {
+                      number: candidate.sequence + 1,
+                      weight: candidate.derivedWeightLbs,
+                    })}
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
               {batch !== undefined && (
                 <FieldDescription className="flex items-center gap-2">
-                  Current record
+                  {t("floorProgress.currentRecord")}
                   <Badge variant="outline">
-                    {floorProgressMilestoneLabels[milestoneForBatch(batch)]}
+                    {milestoneLabel(milestoneForBatch(batch))}
                   </Badge>
                 </FieldDescription>
               )}
             </Field>
 
             <FieldSet>
-              <FieldLegend>Current floor state</FieldLegend>
+              <FieldLegend>{t("floorProgress.currentFloorState")}</FieldLegend>
               {milestones.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  This batch is already recorded as finished.
+                  {t("floorProgress.alreadyFinished")}
                 </p>
               ) : (
                 <RadioGroup
@@ -202,7 +224,7 @@ export function FloorProgressReconciliationSheet({
                           value={option}
                         />
                         <span className="text-sm font-medium">
-                          {floorProgressMilestoneLabels[option]}
+                          {milestoneLabel(option)}
                         </span>
                       </Field>
                     </FieldLabel>
@@ -214,9 +236,9 @@ export function FloorProgressReconciliationSheet({
             {batch !== undefined && target !== null && (
               <Alert>
                 <IconHistory />
-                <AlertTitle>Review the recorded change</AlertTitle>
+                <AlertTitle>{t("floorProgress.reviewChange")}</AlertTitle>
                 <AlertDescription>
-                  {describeFloorProgressChange(batch, target)}
+                  {describeFloorProgressChange(batch, target, t)}
                 </AlertDescription>
               </Alert>
             )}
@@ -224,9 +246,11 @@ export function FloorProgressReconciliationSheet({
             {batch !== undefined && milestone === "finished" && (
               <Alert className="border-warning-foreground/20 bg-warning text-warning-foreground">
                 <IconAlertTriangle />
-                <AlertTitle>Finished consequences</AlertTitle>
+                <AlertTitle>
+                  {t("floorProgress.finishedConsequences")}
+                </AlertTitle>
                 <AlertDescription>
-                  {describeFinishedConsequences(batch, batches)}
+                  {describeFinishedConsequences(batch, batches, t)}
                 </AlertDescription>
               </Alert>
             )}
@@ -237,11 +261,16 @@ export function FloorProgressReconciliationSheet({
               requiresMachines && (
                 <FieldSet>
                   <FieldLegend>
-                    {productionStageLabels[activeStage]} machines
+                    {t("floorProgress.machines", {
+                      stage: t(
+                        activeStage === "washing"
+                          ? "common.stage.washing"
+                          : "common.stage.drying"
+                      ),
+                    })}
                   </FieldLegend>
                   <FieldDescription>
-                    Select the machines this batch is using now. Historical
-                    machine use stays unrecorded.
+                    {t("floorProgress.machineHelp")}
                   </FieldDescription>
                   <FieldGroup className="gap-2">
                     {compatibleMachines.map((machine) => (
@@ -281,10 +310,9 @@ export function FloorProgressReconciliationSheet({
                   {compatibleMachines.length === 0 && (
                     <Alert>
                       <IconAlertTriangle />
-                      <AlertTitle>No active compatible machines</AlertTitle>
+                      <AlertTitle>{t("floorProgress.noMachines")}</AlertTitle>
                       <AlertDescription>
-                        Add or activate a compatible machine before recording
-                        this stage as active.
+                        {t("floorProgress.noMachinesDescription")}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -293,7 +321,7 @@ export function FloorProgressReconciliationSheet({
 
             <Field>
               <FieldLabel htmlFor="floor-progress-reason">
-                Why is the board behind?
+                {t("floorProgress.whyBehind")}
               </FieldLabel>
               <NativeSelect
                 id="floor-progress-reason"
@@ -304,31 +332,36 @@ export function FloorProgressReconciliationSheet({
                   setReason(event.target.value as ProductionFloorProgressReason)
                 }
               >
-                {Object.entries(floorProgressReasonLabels).map(
-                  ([value, label]) => (
-                    <NativeSelectOption key={value} value={value}>
-                      {label}
-                    </NativeSelectOption>
-                  )
-                )}
+                {(
+                  [
+                    ["lpms_unavailable", t("floorProgress.lpmsUnavailable")],
+                    ["updates_missed", t("floorProgress.updatesMissed")],
+                    ["other", t("floorProgress.somethingElse")],
+                  ] as const
+                ).map(([value, label]) => (
+                  <NativeSelectOption key={value} value={value}>
+                    {label}
+                  </NativeSelectOption>
+                ))}
               </NativeSelect>
             </Field>
 
             <Field>
               <FieldLabel htmlFor="floor-progress-note">
-                Note{reason === "other" ? "" : " (optional)"}
+                {t("floorProgress.note")}
+                {reason === "other" ? "" : ` (${t("floorProgress.optional")})`}
               </FieldLabel>
               <Textarea
                 id="floor-progress-note"
                 value={note}
                 disabled={locked}
                 maxLength={500}
-                placeholder="Anything the next operator should know"
+                placeholder={t("floorProgress.notePlaceholder")}
                 onChange={(event) => setNote(event.target.value)}
               />
               {missingOtherNote && (
                 <FieldDescription>
-                  Add a short note when the reason is Something else.
+                  {t("floorProgress.otherNoteRequired")}
                 </FieldDescription>
               )}
             </Field>
@@ -336,12 +369,13 @@ export function FloorProgressReconciliationSheet({
             {confirmation !== null && (
               <Alert className="border-warning-foreground/20 bg-warning text-warning-foreground">
                 <IconCheck />
-                <AlertTitle>Ready to record</AlertTitle>
+                <AlertTitle>{t("floorProgress.ready")}</AlertTitle>
                 <AlertDescription>
-                  The server rechecked queue v{confirmation.queueVersion}, Batch{" "}
-                  {batch?.sequence === undefined ? "" : batch.sequence + 1}, and
-                  all four stage versions. Confirm to make this the floor
-                  record.
+                  {t("floorProgress.readyDescription", {
+                    queue: confirmation.queueVersion,
+                    batch:
+                      batch?.sequence === undefined ? "" : batch.sequence + 1,
+                  })}
                 </AlertDescription>
               </Alert>
             )}
@@ -349,7 +383,7 @@ export function FloorProgressReconciliationSheet({
             {error !== null && (
               <Alert variant="destructive" role="alert">
                 <IconAlertTriangle />
-                <AlertTitle>Progress not recorded</AlertTitle>
+                <AlertTitle>{t("floorProgress.failed")}</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -369,7 +403,9 @@ export function FloorProgressReconciliationSheet({
                   : onInvalidateConfirmation()
               }
             >
-              {confirmation === null ? "Keep current record" : "Change details"}
+              {confirmation === null
+                ? t("floorProgress.keepCurrent")
+                : t("floorProgress.changeDetails")}
             </Button>
             <Button
               type="button"
@@ -396,7 +432,9 @@ export function FloorProgressReconciliationSheet({
               ) : (
                 <IconCheck data-icon="inline-start" />
               )}
-              {confirmation === null ? "Review progress" : "Confirm and record"}
+              {confirmation === null
+                ? t("floorProgress.review")
+                : t("floorProgress.confirm")}
             </Button>
           </div>
         </SheetFooter>

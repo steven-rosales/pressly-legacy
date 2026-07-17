@@ -1,4 +1,31 @@
-# Cents Webhook Local Proof
+# Cents Webhook Operations and Local Proof
+
+## Production compatibility mode
+
+Cents' public webhook documentation describes an ordinary HTTPS JSON `POST`
+and does not document authentication headers. Pressly can intentionally match
+that sender with:
+
+```text
+CENTS_WEBHOOK_AUTH_MODE=unsigned
+```
+
+Unsigned mode keeps the public route, JSON content-type requirement, 256 KB
+body limit, wire validation, source ordering, minimized persistence, and
+idempotent receipt behavior. It skips only the HMAC verifier. The API emits a
+startup warning while this mode is active.
+
+The production endpoint remains:
+
+```text
+POST https://api.trypressly.com/webhooks/cents
+Content-Type: application/json
+```
+
+HMAC remains the default and can be restored by setting
+`CENTS_WEBHOOK_AUTH_MODE=hmac` and configuring a usable current key.
+
+## Local HMAC proof
 
 Use this runbook to reproduce the Cents webhook authentication and ingress
 cases from Postman without manually calculating signatures.
@@ -65,6 +92,8 @@ filled.
 
 2. Put that value in the API's local-only environment as
    `CENTS_WEBHOOK_HMAC_CURRENT_KEY`.
+
+   Keep `CENTS_WEBHOOK_AUTH_MODE=hmac` for this proof.
 
 3. Start the local stack.
 
@@ -172,10 +201,9 @@ into a different delivery.
   key, the configured key is too short, or verification failed to run.
 - `401 invalid_cents_webhook_authentication`: key, timestamp, signature, or raw
   bytes do not match.
-- `400 invalid_cents_webhook_body`: authentication passed, but the body was not
-  valid JSON.
-- `400 invalid_cents_*`: authentication passed, but the Cents wire payload
-  could not be normalized.
+- `400 invalid_cents_webhook_body`: the accepted body was not valid JSON.
+- `400 invalid_cents_*`: the accepted Cents wire payload could not be
+  normalized.
 - A Postman pre-request error about `cents_hmac_key`: the selected environment
   has no local key of at least 32 UTF-8 bytes.
 - `Cannot find package 'npm:crypto-js@4.2.0'`: the current Postman runtime,

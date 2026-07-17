@@ -6,6 +6,7 @@ import {
   IconRefresh,
   IconSparkles,
 } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 import { MetricStrip } from "@/components/layout/workspace-primitives"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -28,20 +29,22 @@ import {
   type SchedulingModelInput,
 } from "./scheduling.model"
 import {
+  localeForLanguage,
   presentScheduleLifecycle,
+  presentScheduleWarning,
   summarizeScheduleDemand,
   zonedDateTimeInputToIso,
 } from "./scheduling.presenter"
 
 const stageLabels = {
-  sorting: "Sorting",
-  washing: "Washing",
-  drying: "Drying",
-  folding_packaging: "Folding & packaging",
+  sorting: "common.stage.sorting",
+  washing: "common.stage.washing",
+  drying: "common.stage.drying",
+  folding_packaging: "common.stage.foldingPackaging",
 } as const
 
-const formatClock = (value: string, timeZone: string): string =>
-  new Intl.DateTimeFormat("en-US", {
+const formatClock = (value: string, timeZone: string, locale: string): string =>
+  new Intl.DateTimeFormat(locale, {
     hour: "numeric",
     minute: "2-digit",
     timeZone,
@@ -66,17 +69,18 @@ const windowMinutes = (
   }
 }
 
-const pluralize = (count: number, singular: string) =>
-  count + " " + singular + (count === 1 ? "" : "s")
-
 export function SchedulingWorkspace(input: SchedulingModelInput) {
+  const { t, i18n } = useTranslation()
+  const locale = localeForLanguage(i18n.resolvedLanguage)
   const model = useSchedulingModel(input)
   const metricProposal = model.planDirty ? null : model.proposal
   const demand = summarizeScheduleDemand(model.proposal, model.orders)
   const demandLabel =
     model.planDirty && model.proposal !== null
-      ? "Previous plan demand"
-      : demand.label
+      ? t("scheduling.previousPlanDemand")
+      : demand.label === "Planned demand"
+        ? t("scheduling.plannedDemand")
+        : t("scheduling.readyDemand")
   const timelinePulseMinutes =
     model.proposal?.pulseMinutes ?? model.pulseMinutes
   const lifecycle = presentScheduleLifecycle({
@@ -84,6 +88,41 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
     dirty: model.planDirty,
     configurationReady: model.configurationReady,
   })
+  const lifecycleCopy =
+    lifecycle.state === "configuration_required"
+      ? {
+          badge: t("scheduling.setupRequired"),
+          title: t("scheduling.publishConfiguration"),
+          description: t("scheduling.configurationDescription"),
+          actionLabel: t("scheduling.openConfiguration"),
+        }
+      : lifecycle.state === "dirty"
+        ? {
+            badge: t("scheduling.changesNotComputed"),
+            title: t("scheduling.recomputePlan"),
+            description: t("scheduling.recomputeDescription"),
+            actionLabel: t("scheduling.recomputeSchedule"),
+          }
+        : lifecycle.state === "accepted"
+          ? {
+              badge: t("scheduling.planAccepted"),
+              title: t("scheduling.readyToStart"),
+              description: t("scheduling.startDescription"),
+              actionLabel: t("scheduling.startRun"),
+            }
+          : lifecycle.state === "draft"
+            ? {
+                badge: t("scheduling.reviewPlan"),
+                title: t("scheduling.acceptExactProposal"),
+                description: t("scheduling.acceptDescription"),
+                actionLabel: t("scheduling.acceptPlan"),
+              }
+            : {
+                badge: t("scheduling.readyToCompute"),
+                title: t("scheduling.buildShiftPlan"),
+                description: t("scheduling.buildDescription"),
+                actionLabel: t("scheduling.computeSchedule"),
+              }
   const shiftMinutes = windowMinutes(
     model.shiftStartsAt,
     model.shiftEndsAt,
@@ -96,44 +135,52 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
   const metrics = [
     {
       label: demandLabel,
-      value: demand.derivedWeightLbs + " lb",
+      value: t("common.pounds", { value: demand.derivedWeightLbs }),
       detail:
-        pluralize(demand.orderCount, "whole order") +
+        t("scheduling.wholeOrders", { count: demand.orderCount }) +
         " · " +
-        pluralize(demand.bagCount, "bag"),
+        t("common.bags", { count: demand.bagCount }),
     },
     {
-      label: "Pulse capacity",
+      label: t("scheduling.pulseCapacity"),
       value:
-        metricProposal === null ? "—" : metricProposal.pulseCapacityLbs + " lb",
+        metricProposal === null
+          ? "—"
+          : t("common.pounds", { value: metricProposal.pulseCapacityLbs }),
       detail: model.planDirty
-        ? "Recompute to refresh capacity"
-        : (metricProposal?.pulseMinutes ?? model.pulseMinutes) +
-          "-minute production pulse",
+        ? t("scheduling.recomputeCapacity")
+        : t("scheduling.productionPulse", {
+            minutes: metricProposal?.pulseMinutes ?? model.pulseMinutes,
+          }),
     },
     {
-      label: "Makespan",
+      label: t("scheduling.makespan"),
       value:
-        metricProposal === null ? "—" : metricProposal.makespanMinutes + " min",
+        metricProposal === null
+          ? "—"
+          : t("common.minutesShort", {
+              minutes: metricProposal.makespanMinutes,
+            }),
       detail: model.planDirty
-        ? "Recompute to refresh timeline"
-        : "Sorting through packaging",
+        ? t("scheduling.recomputeTimeline")
+        : t("scheduling.sortingThroughPackaging"),
     },
     {
-      label: "Forecast finish",
+      label: t("scheduling.forecastFinish"),
       value: metricProposal
         ? formatClock(
             metricProposal.plannedCompletionAt,
-            input.defaults.timezone
+            input.defaults.timezone,
+            locale
           )
         : "—",
       detail: model.planDirty
-        ? "Recompute to refresh forecast"
+        ? t("scheduling.recomputeForecast")
         : metricProposal === null
-          ? "Awaiting proposal"
+          ? t("scheduling.awaitingProposal")
           : overflowMinutes > 0
-            ? overflowMinutes + " min after shift"
-            : "Within the shift window",
+            ? t("scheduling.afterShift", { minutes: overflowMinutes })
+            : t("scheduling.withinShift"),
     },
   ] as const
   const actionDisabled =
@@ -145,12 +192,12 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
       !model.acknowledged)
   const actionLabel =
     model.busy === "generate"
-      ? "Computing…"
+      ? t("scheduling.computing")
       : model.busy === "accept"
-        ? "Accepting…"
+        ? t("scheduling.accepting")
         : model.busy === "start"
-          ? "Starting…"
-          : lifecycle.actionLabel
+          ? t("scheduling.starting")
+          : lifecycleCopy.actionLabel
 
   const performPrimaryAction = () => {
     if (lifecycle.action === "configure") input.onOpenConfiguration?.()
@@ -164,7 +211,7 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
       {model.error && (
         <Alert variant="destructive" role="alert">
           <IconAlertTriangle />
-          <AlertTitle>Schedule action failed</AlertTitle>
+          <AlertTitle>{t("scheduling.actionFailed")}</AlertTitle>
           <AlertDescription>{model.error}</AlertDescription>
         </Alert>
       )}
@@ -197,21 +244,21 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
             </div>
             <div className="min-w-0" role="status" aria-live="polite">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="font-semibold">{lifecycle.title}</p>
+                <p className="font-semibold">{lifecycleCopy.title}</p>
                 <Badge
                   variant={
                     lifecycle.state === "accepted" ? "default" : "secondary"
                   }
                 >
-                  {lifecycle.badge}
+                  {lifecycleCopy.badge}
                 </Badge>
               </div>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                {lifecycle.description}
+                {lifecycleCopy.description}
               </p>
               {!input.canManage && lifecycle.action !== "configure" && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  An owner or administrator must advance this plan.
+                  {t("scheduling.managerRequired")}
                 </p>
               )}
             </div>
@@ -259,21 +306,24 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
             <div className="flex flex-col gap-3 border-t px-4 py-3">
               <div
                 role="region"
-                aria-label="Blocking schedule warnings"
+                aria-label={t("scheduling.blockingWarnings")}
                 tabIndex={0}
                 className="max-h-[min(9rem,30vh)] overflow-y-auto overscroll-contain rounded-lg focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="flex flex-col gap-2 pe-1">
-                  {model.blockingWarnings.map((warning) => (
-                    <Alert
-                      key={warning.code}
-                      className="border-warning-foreground/20 bg-warning text-warning-foreground"
-                    >
-                      <IconAlertTriangle />
-                      <AlertTitle>Shift overflow</AlertTitle>
-                      <AlertDescription>{warning.message}</AlertDescription>
-                    </Alert>
-                  ))}
+                  {model.blockingWarnings.map((warning) => {
+                    const copy = presentScheduleWarning(warning, t)
+                    return (
+                      <Alert
+                        key={warning.code}
+                        className="border-warning-foreground/20 bg-warning text-warning-foreground"
+                      >
+                        <IconAlertTriangle />
+                        <AlertTitle>{copy.title}</AlertTitle>
+                        <AlertDescription>{copy.detail}</AlertDescription>
+                      </Alert>
+                    )
+                  })}
                 </div>
               </div>
               {model.accepted ? (
@@ -281,7 +331,7 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                   className="flex items-center gap-2 text-sm font-medium text-success-foreground [&_svg]:size-4"
                   role="status"
                 >
-                  <IconCheck /> Warnings acknowledged with the accepted plan.
+                  <IconCheck /> {t("scheduling.warningsAcknowledged")}
                 </p>
               ) : (
                 <Field orientation="horizontal">
@@ -296,7 +346,7 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                     htmlFor="acknowledge-warning"
                     className="font-normal"
                   >
-                    I acknowledge the blocking schedule warnings shown above.
+                    {t("scheduling.acknowledgeWarnings")}
                   </FieldLabel>
                 </Field>
               )}
@@ -304,7 +354,7 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
           )}
       </Card>
 
-      <MetricStrip label="Schedule summary" metrics={metrics} />
+      <MetricStrip label={t("scheduling.summary")} metrics={metrics} />
 
       <Card className="min-w-0 bg-background">
         <Tabs defaultValue="proposal">
@@ -313,17 +363,22 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
               <div>
                 <CardTitle>
                   {model.planDirty
-                    ? "Previous production timeline"
-                    : "Production timeline"}
+                    ? t("scheduling.previousTimeline")
+                    : t("scheduling.timelineTitle")}
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Whole orders stay together through four equal{" "}
-                  {timelinePulseMinutes}-minute stages.
+                  {t("scheduling.timelineDescription", {
+                    minutes: timelinePulseMinutes,
+                  })}
                 </CardDescription>
               </div>
               <TabsList variant="line">
-                <TabsTrigger value="proposal">Timeline</TabsTrigger>
-                <TabsTrigger value="orders">Orders</TabsTrigger>
+                <TabsTrigger value="proposal">
+                  {t("scheduling.timeline")}
+                </TabsTrigger>
+                <TabsTrigger value="orders">
+                  {t("scheduling.orders")}
+                </TabsTrigger>
               </TabsList>
             </div>
           </CardHeader>
@@ -333,19 +388,20 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                 <div className="grid min-h-64 place-items-center rounded-xl border border-dashed p-8 text-center">
                   <div>
                     <IconSparkles className="mx-auto text-muted-foreground" />
-                    <p className="mt-3 font-medium">No plan computed</p>
+                    <p className="mt-3 font-medium">{t("scheduling.noPlan")}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Compute the schedule above to build the production
-                      timeline.
+                      {t("scheduling.noPlanDescription")}
                     </p>
                   </div>
                 </div>
               ) : model.proposal.batches.length === 0 ? (
                 <div className="grid min-h-52 place-items-center rounded-xl border border-dashed p-8 text-center">
                   <div>
-                    <p className="font-medium">No eligible work</p>
+                    <p className="font-medium">
+                      {t("scheduling.noEligibleWork")}
+                    </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      This proposal has no production batches.
+                      {t("scheduling.noBatches")}
                     </p>
                   </div>
                 </div>
@@ -353,9 +409,9 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                 <div className="overflow-x-auto pb-2">
                   <div className="flex min-w-[820px] flex-col gap-3">
                     <div className="grid grid-cols-[96px_repeat(4,minmax(150px,1fr))] gap-2 px-1 text-sm font-medium text-muted-foreground">
-                      <span>Batch</span>
+                      <span>{t("scheduling.batch")}</span>
                       {Object.values(stageLabels).map((label) => (
-                        <span key={label}>{label}</span>
+                        <span key={label}>{t(label)}</span>
                       ))}
                     </div>
                     {model.proposal.batches.map((batch) => (
@@ -366,7 +422,10 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                         <div className="rounded-lg border bg-muted/40 p-3">
                           <p className="font-semibold">#{batch.sequence + 1}</p>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            {batch.derivedWeightLbs} lb · {batch.bagCount} bags
+                            {t("scheduling.batchDetail", {
+                              weight: batch.derivedWeightLbs,
+                              bags: t("common.bags", { count: batch.bagCount }),
+                            })}
                           </p>
                         </div>
                         {batch.stages.map((stage) => (
@@ -378,18 +437,22 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                               <IconClock className="text-muted-foreground" />
                               {formatClock(
                                 stage.startsAt,
-                                input.defaults.timezone
+                                input.defaults.timezone,
+                                locale
                               )}
                               –
                               {formatClock(
                                 stage.endsAt,
-                                input.defaults.timezone
+                                input.defaults.timezone,
+                                locale
                               )}
                             </div>
                             <p className="mt-2 truncate text-sm text-muted-foreground">
                               {stage.machineIds.length > 0
-                                ? pluralize(stage.machineIds.length, "machine")
-                                : "Team station"}
+                                ? t("scheduling.machines", {
+                                    count: stage.machineIds.length,
+                                  })
+                                : t("scheduling.teamStation")}
                             </p>
                           </div>
                         ))}
@@ -405,9 +468,11 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
               {model.orders.length === 0 ? (
                 <div className="grid min-h-52 place-items-center text-center">
                   <div>
-                    <p className="font-medium">No currently eligible orders</p>
+                    <p className="font-medium">
+                      {t("scheduling.noEligibleOrders")}
+                    </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Planned demand remains visible in the timeline above.
+                      {t("scheduling.demandRemains")}
                     </p>
                   </div>
                 </div>
@@ -420,16 +485,21 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                     >
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">
-                          Order {order.externalOrderId}
+                          {t("scheduling.order", {
+                            orderId: order.externalOrderId,
+                          })}
                         </p>
                         <p className="mt-0.5 text-sm text-muted-foreground">
-                          {order.derivedWeightLbs} lb · {order.bagCount} bags ·
-                          due {order.dueBucket}
+                          {t("scheduling.orderDetail", {
+                            weight: order.derivedWeightLbs,
+                            bags: t("common.bags", { count: order.bagCount }),
+                            due: order.dueBucket,
+                          })}
                         </p>
                       </div>
                       <Badge variant="outline">{order.dueBucket}</Badge>
                       <span className="text-sm font-medium text-muted-foreground">
-                        Priority
+                        {t("scheduling.priority")}
                       </span>
                       <Switch
                         checked={model.priorityIds.has(order.id)}
@@ -445,7 +515,9 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                             checked
                           )
                         }
-                        aria-label={"Prioritize order " + order.externalOrderId}
+                        aria-label={t("scheduling.prioritizeOrder", {
+                          orderId: order.externalOrderId,
+                        })}
                       />
                     </div>
                   ))}

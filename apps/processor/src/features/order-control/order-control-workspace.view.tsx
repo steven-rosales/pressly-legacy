@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 import type {
   ListProductionOrderControlQuery,
   ProductionBoard,
@@ -9,6 +11,7 @@ import type {
 import { useIsMobile } from "@/components/ui/use-mobile"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
+import { presentOrderControlError } from "./order-control.error.presenter"
 import {
   OrderControlWorkspace,
   type OrderControlCallbacks,
@@ -27,6 +30,9 @@ import type {
 const stages = ["sorting", "washing", "drying", "folding_packaging"] as const
 type Stage = (typeof stages)[number]
 
+const localeForLanguage = (language: string | undefined): "en-US" | "es-US" =>
+  language?.startsWith("es") === true ? "es-US" : "en-US"
+
 const emptyFilters: OrderControlFilters = {
   query: "",
   status: "all",
@@ -35,38 +41,30 @@ const emptyFilters: OrderControlFilters = {
   priority: "all",
 }
 
-const labels: Readonly<Record<string, string>> = {
-  intake_pending: "Intake needed",
-  eligible: "Eligible",
-  ineligible: "Not eligible",
-  scheduled: "In production",
-  finished: "Finished",
-  queued: "Queued",
-  sorting: "Sorting",
-  washing: "Washing",
-  drying: "Drying",
-  folding_packaging: "Folding & packaging",
-  automatic: "Automatic placement",
-  initial_schedule: "Initial schedule",
-  manager_exact: "Manager placement",
-  manual_rebatch: "Manual queued move",
-  exception_route: "Floor exception route",
-}
-
-const labelFor = (value: string): string =>
-  labels[value] ??
-  value
+const labelFor = (value: string, t: TFunction): string => {
+  if (value === "intake_pending") return t("orderControl.intakeNeeded")
+  if (value === "eligible") return t("orderControl.eligible")
+  if (value === "ineligible") return t("orderControl.notEligible")
+  if (value === "scheduled") return t("orderControl.inProduction")
+  if (value === "finished") return t("orderControl.finished")
+  if (value === "queued") return t("common.queued")
+  if (value === "sorting") return t("common.stage.sorting")
+  if (value === "washing") return t("common.stage.washing")
+  if (value === "drying") return t("common.stage.drying")
+  if (value === "folding_packaging") return t("common.stage.foldingPackaging")
+  if (value === "automatic") return t("orderControl.automaticPlacement")
+  if (value === "initial_schedule") return t("orderControl.initialSchedule")
+  if (value === "manager_exact") return t("orderControl.managerPlacement")
+  if (value === "manual_rebatch") return t("orderControl.manualMove")
+  if (value === "exception_route") return t("orderControl.exceptionRoute")
+  return value
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ")
+}
 
-const messageFor = (cause: unknown): string =>
-  cause instanceof Error
-    ? cause.message
-    : "The server could not complete this request."
-
-const formatDate = (value: string, timezone: string): string =>
-  new Intl.DateTimeFormat(undefined, {
+const formatDate = (value: string, timezone: string, locale: string): string =>
+  new Intl.DateTimeFormat(locale, {
     timeZone: timezone,
     month: "short",
     day: "numeric",
@@ -103,12 +101,32 @@ const stageFor = (item: ProductionOrderControlItem): Stage => {
 }
 
 const attentionFor = (
-  item: ProductionOrderControlItem
+  item: ProductionOrderControlItem,
+  t: TFunction
 ): OrderControlOrder["attention"] => {
   if (item.attention === null) return null
+  const copy =
+    item.attention.reason === "intake_required"
+      ? {
+          label: t("orderControl.attentionIntake"),
+          detail: t("orderControl.attentionIntakeDetail"),
+        }
+      : item.attention.reason === "placement_pending"
+        ? {
+            label: t("orderControl.attentionPlacementPending"),
+            detail: t("orderControl.attentionPlacementPendingDetail"),
+          }
+        : item.attention.reason === "placement_conflict"
+          ? {
+              label: t("orderControl.attentionPlacementConflict"),
+              detail: t("orderControl.attentionPlacementConflictDetail"),
+            }
+          : {
+              label: t("orderControl.attentionRouteBlocked"),
+              detail: t("orderControl.attentionRouteBlockedDetail"),
+            }
   return {
-    label: labelFor(item.attention.reason),
-    detail: item.attention.message,
+    ...copy,
     tone:
       item.attention.reason === "placement_conflict" ||
       item.attention.reason === "route_blocked"
@@ -120,7 +138,9 @@ const attentionFor = (
 const presentOrder = (
   item: ProductionOrderControlItem,
   timezone: string,
-  asOf: string
+  asOf: string,
+  locale: string,
+  t: TFunction
 ): OrderControlOrder => {
   const placement = item.currentPlacement
   const positionState =
@@ -138,32 +158,46 @@ const presentOrder = (
     id: item.order.id,
     externalOrderId: item.order.externalOrderId,
     secondaryLabel: null,
-    statusLabel: labelFor(item.order.status),
-    dueLabel: labelFor(item.order.dueBucket),
-    dueDetail: formatDate(item.order.dueAt, timezone),
-    weightLabel: `${item.order.derivedWeightLbs.toLocaleString()} lb`,
+    statusLabel: labelFor(item.order.status, t),
+    dueLabel: labelFor(item.order.dueBucket, t),
+    dueDetail: formatDate(item.order.dueAt, timezone, locale),
+    weightLabel: t("common.pounds", { value: item.order.derivedWeightLbs }),
     bagLabel:
       item.order.bagCount === null
-        ? "Bags not counted"
-        : `${item.order.bagCount} ${item.order.bagCount === 1 ? "bag" : "bags"}`,
+        ? t("orderControl.bagsNotCounted")
+        : t("common.bags", { count: item.order.bagCount }),
     priority: item.order.priority,
-    attention: attentionFor(item),
+    attention: attentionFor(item, t),
     position: {
       label:
         placement === null
           ? item.order.status === "finished"
-            ? "Production complete"
-            : "Not assigned"
-          : `Batch ${placement.batchSequence + 1}`,
+            ? t("orderControl.productionComplete")
+            : t("orderControl.notAssigned")
+          : t("orderControl.batch", {
+              number: placement.batchSequence + 1,
+            }),
       detail:
         placement === null
-          ? "This order is not currently assigned to a production batch."
-          : `${labelFor(placement.batchStatus)}${stage === null ? "" : ` · next: ${labelFor(stage)}`}`,
+          ? t("orderControl.unassignedDetail")
+          : t("orderControl.positionDetail", {
+              status: labelFor(placement.batchStatus, t),
+              next:
+                stage === null
+                  ? ""
+                  : t("orderControl.nextStage", {
+                      stage: labelFor(stage, t),
+                    }),
+            }),
       state: positionState,
       batchId: placement?.productionBatchId ?? null,
       batchLabel:
-        placement === null ? null : `Batch ${placement.batchSequence + 1}`,
-      stageLabel: stage === null ? null : labelFor(stage),
+        placement === null
+          ? null
+          : t("orderControl.batch", {
+              number: placement.batchSequence + 1,
+            }),
+      stageLabel: stage === null ? null : labelFor(stage, t),
       membership:
         placement === null
           ? null
@@ -175,61 +209,75 @@ const presentOrder = (
       placement === null
         ? null
         : {
-            label: labelFor(placement.placementProvenance),
+            label: labelFor(placement.placementProvenance, t),
             detail: placement.membershipFrozen
-              ? "Membership is frozen against normal queue changes."
-              : "Membership is still mutable while this batch remains queued.",
+              ? t("orderControl.membershipFrozen")
+              : t("orderControl.membershipMutable"),
             pinned: placement.pinnedAt !== null,
           },
-    lastUpdatedLabel: formatDate(asOf, timezone),
+    lastUpdatedLabel: formatDate(asOf, timezone, locale),
     move: {
       available: item.canMoveQueued,
-      reason: item.canMoveQueued
-        ? null
-        : "Normal moves require a mutable queued source batch.",
+      reason: item.canMoveQueued ? null : t("orderControl.moveUnavailable"),
     },
     leaveBehind: {
       available: item.canRouteException,
       reason: item.canRouteException
         ? null
-        : "Leave-behind is available after the source batch starts.",
+        : t("orderControl.leaveUnavailable"),
     },
     rework: {
       available: item.canRouteException,
       reason: item.canRouteException
         ? null
-        : "Rework is available after the source batch starts.",
+        : t("orderControl.reworkUnavailable"),
     },
   }
 }
 
 const previewPresentation = (
-  proposal: ProductionOrderRouteProposal
+  proposal: ProductionOrderRouteProposal,
+  t: TFunction
 ): OrderActionPreview => ({
   title:
     proposal.kind === "queued_move"
-      ? "Queued move is valid"
-      : "Floor route is valid",
-  destinationLabel: `Batch ${proposal.targetBatchSequence + 1}`,
-  destinationDetail: `${proposal.targetWeightLbs.toLocaleString()} of ${proposal.targetCapacityLbs.toLocaleString()} lb after this whole order moves.`,
+      ? t("orderControl.queuedMoveValid")
+      : t("orderControl.floorRouteValid"),
+  destinationLabel: t("orderControl.batch", {
+    number: proposal.targetBatchSequence + 1,
+  }),
+  destinationDetail: t("orderControl.destinationDetail", {
+    weight: proposal.targetWeightLbs,
+    capacity: proposal.targetCapacityLbs,
+  }),
   effects: [
-    `Release unfinished ${proposal.releasedStages.map(labelFor).join(", ")} work from Batch ${proposal.sourceBatchSequence + 1}.`,
-    `Assign ${proposal.assignedStages.map(labelFor).join(", ")} to Batch ${proposal.targetBatchSequence + 1}.`,
-    "Keep every bag in the customer order together and retain completed attempt history.",
+    t("orderControl.releaseWork", {
+      stages: proposal.releasedStages
+        .map((stage) => labelFor(stage, t))
+        .join(", "),
+      batch: proposal.sourceBatchSequence + 1,
+    }),
+    t("orderControl.assignWork", {
+      stages: proposal.assignedStages
+        .map((stage) => labelFor(stage, t))
+        .join(", "),
+      batch: proposal.targetBatchSequence + 1,
+    }),
+    t("orderControl.keepTogether"),
   ],
   warnings:
-    proposal.kind === "exception"
-      ? ["This records physical floor truth and cannot be silently undone."]
-      : [],
+    proposal.kind === "exception" ? [t("orderControl.irreversible")] : [],
   confirmationLabel:
     proposal.kind === "queued_move"
-      ? "Move whole order"
-      : "Confirm floor route",
+      ? t("orderControl.moveWholeOrder")
+      : t("orderControl.confirmFloorRoute"),
 })
 
 const targetOptions = (
   item: ProductionOrderControlItem | null,
-  board: ProductionBoard | null
+  board: ProductionBoard | null,
+  locale: string,
+  t: TFunction
 ): readonly OrderMoveTarget[] => {
   if (
     item?.currentPlacement === null ||
@@ -248,15 +296,15 @@ const targetOptions = (
     const disabled = isSource || !mutable || !fits
     return {
       batchId: batch.id,
-      label: `Batch ${batch.sequence + 1}`,
-      detail: `${batch.derivedWeightLbs.toLocaleString()} / ${batch.pulseCapacityLbs.toLocaleString()} lb`,
+      label: t("orderControl.batch", { number: batch.sequence + 1 }),
+      detail: `${batch.derivedWeightLbs.toLocaleString(locale)} / ${batch.pulseCapacityLbs.toLocaleString(locale)} lb`,
       disabled,
       disabledReason: isSource
-        ? "This is the current batch."
+        ? t("orderControl.currentBatch")
         : !mutable
-          ? "This batch has started or its membership is frozen."
+          ? t("orderControl.batchImmutable")
           : !fits
-            ? "The whole order would exceed hard pulse capacity."
+            ? t("orderControl.exceedsCapacity")
             : null,
     }
   })
@@ -279,6 +327,8 @@ export function OrderControlWorkspaceContainer({
   revision: string
   onMutated: () => Promise<void>
 }>) {
+  const { t, i18n } = useTranslation()
+  const locale = localeForLanguage(i18n.resolvedLanguage)
   const isMobile = useIsMobile()
   const [tab, setTab] =
     useState<OrderControlViewModel["tab"]>("needs_attention")
@@ -354,14 +404,15 @@ export function OrderControlWorkspaceContainer({
         setAction({ kind: "none" })
       }
     } catch (cause) {
-      if (sequence === refreshSequence.current) setError(messageFor(cause))
+      if (sequence === refreshSequence.current)
+        setError(presentOrderControlError(cause, "load", t))
     } finally {
       if (sequence === refreshSequence.current) {
         setHasLoaded(true)
         setLoading(false)
       }
     }
-  }, [locationId, production, query])
+  }, [locationId, production, query, t])
 
   useEffect(() => {
     void load()
@@ -370,8 +421,8 @@ export function OrderControlWorkspaceContainer({
   const selectedItem =
     items.find((item) => item.order.id === selectedOrderId) ?? null
   const orders = useMemo(
-    () => items.map((item) => presentOrder(item, timezone, asOf)),
-    [asOf, items, timezone]
+    () => items.map((item) => presentOrder(item, timezone, asOf, locale, t)),
+    [asOf, items, locale, t, timezone]
   )
   const selectedOrder =
     orders.find((order) => order.id === selectedOrderId) ?? null
@@ -403,22 +454,31 @@ export function OrderControlWorkspaceContainer({
           note: "",
         },
         reasonOptions: [
-          { value: "needs_more_drying", label: "Needs more drying" },
-          { value: "rewash_required", label: "Rewash required" },
-          { value: "sorting_incomplete", label: "Sorting incomplete" },
-          { value: "stage_incomplete", label: "Stage incomplete" },
-          { value: "other", label: "Other floor reason" },
+          {
+            value: "needs_more_drying",
+            label: t("orderControl.needsMoreDrying"),
+          },
+          { value: "rewash_required", label: t("orderControl.rewashRequired") },
+          {
+            value: "sorting_incomplete",
+            label: t("orderControl.sortingIncomplete"),
+          },
+          {
+            value: "stage_incomplete",
+            label: t("orderControl.stageIncomplete"),
+          },
+          { value: "other", label: t("orderControl.otherFloorReason") },
         ],
         restartStageOptions: stages.slice(0, currentIndex + 1).map((stage) => ({
           value: stage,
-          label: labelFor(stage),
+          label: labelFor(stage, t),
         })),
         preview: null,
         busy: false,
         error: null,
       })
     },
-    []
+    [t]
   )
 
   const startMove = useCallback(
@@ -441,7 +501,7 @@ export function OrderControlWorkspaceContainer({
           board?.productionRun.id === runId
             ? board
             : await production.loadBoard(locationId, runId)
-        const nextTargets = targetOptions(item, routeBoard)
+        const nextTargets = targetOptions(item, routeBoard, locale, t)
         const first =
           nextTargets.find((target) => !target.disabled)?.batchId ?? ""
         setAction({
@@ -450,10 +510,7 @@ export function OrderControlWorkspaceContainer({
           targets: nextTargets,
           preview: null,
           busy: false,
-          error:
-            first.length === 0
-              ? "No mutable queued batch can receive this whole order."
-              : null,
+          error: first.length === 0 ? t("orderControl.noTarget") : null,
         })
       } catch (cause) {
         setAction({
@@ -462,11 +519,11 @@ export function OrderControlWorkspaceContainer({
           targets: [],
           preview: null,
           busy: false,
-          error: messageFor(cause),
+          error: presentOrderControlError(cause, "load_targets", t),
         })
       }
     },
-    [board, items, locationId, production]
+    [board, items, locale, locationId, production, t]
   )
 
   const previewRoute = useCallback(
@@ -518,17 +575,21 @@ export function OrderControlWorkspaceContainer({
         setAction((current) =>
           current.kind === "none"
             ? current
-            : { ...current, preview: previewPresentation(next), busy: false }
+            : { ...current, preview: previewPresentation(next, t), busy: false }
         )
       } catch (cause) {
         setAction((current) =>
           current.kind === "none"
             ? current
-            : { ...current, busy: false, error: messageFor(cause) }
+            : {
+                ...current,
+                busy: false,
+                error: presentOrderControlError(cause, "preview", t),
+              }
         )
       }
     },
-    [action, locationId, production, selectedItem]
+    [action, locationId, production, selectedItem, t]
   )
 
   const commitRoute = useCallback(async () => {
@@ -599,7 +660,11 @@ export function OrderControlWorkspaceContainer({
       setAction((current) =>
         current.kind === "none"
           ? current
-          : { ...current, busy: false, error: messageFor(cause) }
+          : {
+              ...current,
+              busy: false,
+              error: presentOrderControlError(cause, "commit", t),
+            }
       )
     }
   }, [
@@ -611,6 +676,7 @@ export function OrderControlWorkspaceContainer({
     production,
     proposal,
     selectedItem,
+    t,
   ])
 
   const callbacks: OrderControlCallbacks = {
@@ -696,38 +762,45 @@ export function OrderControlWorkspaceContainer({
     filters,
     filterOptions: {
       statuses: [
-        { value: "all", label: "All statuses" },
-        { value: "intake_pending", label: "Intake needed" },
-        { value: "eligible", label: "Eligible" },
-        { value: "scheduled", label: "In production" },
-        { value: "finished", label: "Finished" },
+        { value: "all", label: t("orderControl.allStatuses") },
+        { value: "intake_pending", label: t("orderControl.intakeNeeded") },
+        { value: "eligible", label: t("orderControl.eligible") },
+        { value: "scheduled", label: t("orderControl.inProduction") },
+        { value: "finished", label: t("orderControl.finished") },
       ],
       dueWindows: [
-        { value: "all", label: "Any due date" },
-        { value: "today", label: "Due today" },
-        { value: "tomorrow", label: "Due tomorrow" },
-        { value: "later", label: "Due later" },
+        { value: "all", label: t("orderControl.anyDueDate") },
+        { value: "today", label: t("orderControl.dueToday") },
+        { value: "tomorrow", label: t("orderControl.dueTomorrow") },
+        { value: "later", label: t("orderControl.dueLater") },
       ],
       stages: [
-        { value: "all", label: "Any stage" },
-        ...stages.map((stage) => ({ value: stage, label: labelFor(stage) })),
+        { value: "all", label: t("orderControl.anyStage") },
+        ...stages.map((stage) => ({
+          value: stage,
+          label: labelFor(stage, t),
+        })),
       ],
       priorities: [
-        { value: "all", label: "Any priority" },
-        { value: "priority", label: "Priority only" },
-        { value: "standard", label: "Standard only" },
+        { value: "all", label: t("orderControl.anyPriority") },
+        { value: "priority", label: t("orderControl.priorityOnly") },
+        { value: "standard", label: t("orderControl.standardOnly") },
       ],
     },
     orders,
     page: {
-      rangeLabel: `Showing ${orders.length} ${orders.length === 1 ? "order" : "orders"}`,
+      rangeLabel: t("orderControl.showing", {
+        orders: t("common.orders", { count: orders.length }),
+      }),
       previousCursor:
         cursorHistory.length === 0
           ? null
           : (cursorHistory[cursorHistory.length - 1] ?? "first"),
       nextCursor,
     },
-    asOfLabel: `Updated ${formatDate(asOf, timezone)}`,
+    asOfLabel: t("orderControl.updated", {
+      date: formatDate(asOf, timezone, locale),
+    }),
     selectedOrder,
     detailAction: action,
     loading: loading && !hasLoaded,

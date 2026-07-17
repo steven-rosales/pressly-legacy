@@ -4,6 +4,7 @@ import type {
   ProductionFloorProgressReason,
   ProductionFloorProgressTarget,
 } from "@pressly/contracts"
+import type { TFunction } from "i18next"
 import {
   productionStageLabels,
   productionStages,
@@ -115,17 +116,36 @@ const targetStatusForStage = (
   return targetStatus
 }
 
-const joinEffects = (effects: readonly string[]): string => {
-  if (effects.length === 0) return "No stage changes will be recorded."
-  if (effects.length === 1) return `This will mark ${effects[0]}.`
+const joinEffects = (effects: readonly string[], t?: TFunction): string => {
+  if (effects.length === 0)
+    return (
+      t?.("floorProgress.noChanges") ?? "No stage changes will be recorded."
+    )
+  if (effects.length === 1)
+    return (
+      t?.("floorProgress.markOne", { first: effects[0] }) ??
+      `This will mark ${effects[0]}.`
+    )
   if (effects.length === 2)
-    return `This will mark ${effects[0]}, then ${effects[1]}.`
-  return `This will mark ${effects.slice(0, -1).join(", ")}, then ${effects.at(-1)}.`
+    return (
+      t?.("floorProgress.markTwo", {
+        first: effects[0],
+        second: effects[1],
+      }) ?? `This will mark ${effects[0]}, then ${effects[1]}.`
+    )
+  return (
+    t?.("floorProgress.markMany", {
+      earlier: effects.slice(0, -1).join(", "),
+      last: effects.at(-1) ?? "",
+    }) ??
+    `This will mark ${effects.slice(0, -1).join(", ")}, then ${effects.at(-1)}.`
+  )
 }
 
 export const describeFloorProgressChange = (
   batch: ProductionBatch,
-  target: ProductionFloorProgressTarget
+  target: ProductionFloorProgressTarget,
+  t?: TFunction
 ): string => {
   const effects = productionStages.flatMap((kind) => {
     const stage = batch.stages.find((candidate) => candidate.stage === kind)
@@ -133,10 +153,26 @@ export const describeFloorProgressChange = (
     const targetStatus = targetStatusForStage(target, kind)
     if (statusRank[targetStatus] <= statusRank[stage.status]) return []
     return [
-      `${productionStageLabels[kind]} ${targetStatus === "started" ? "started" : "completed"}`,
+      t?.(
+        targetStatus === "started"
+          ? "floorProgress.stageStarted"
+          : "floorProgress.stageCompleted",
+        {
+          stage: t(
+            kind === "sorting"
+              ? "common.stage.sorting"
+              : kind === "washing"
+                ? "common.stage.washing"
+                : kind === "drying"
+                  ? "common.stage.drying"
+                  : "common.stage.foldingPackaging"
+          ),
+        }
+      ) ??
+        `${productionStageLabels[kind]} ${targetStatus === "started" ? "started" : "completed"}`,
     ]
   })
-  return joinEffects(effects)
+  return joinEffects(effects, t)
 }
 
 export const targetRequiresMachines = (
@@ -152,7 +188,8 @@ export const activeStageForTarget = (
 
 export const describeFinishedConsequences = (
   batch: ProductionBatch,
-  batches: readonly ProductionBatch[]
+  batches: readonly ProductionBatch[],
+  t?: TFunction
 ): string => {
   const orderCount = batch.orders.length
   const bagCount = batch.orders.reduce((sum, order) => sum + order.bagCount, 0)
@@ -160,8 +197,13 @@ export const describeFinishedConsequences = (
     (candidate) =>
       candidate.id === batch.id || milestoneForBatch(candidate) === "finished"
   )
-  const base = `This finishes ${orderCount} ${orderCount === 1 ? "order" : "orders"} and ${bagCount} ${bagCount === 1 ? "bag" : "bags"}.`
+  const base =
+    t?.("floorProgress.finishConsequences", {
+      orders: t("common.orders", { count: orderCount }),
+      bags: t("common.bags", { count: bagCount }),
+    }) ??
+    `This finishes ${orderCount} ${orderCount === 1 ? "order" : "orders"} and ${bagCount} ${bagCount === 1 ? "bag" : "bags"}.`
   return closesRun
-    ? `${base} Because this is the last unfinished batch, the production run and shift will close.`
+    ? `${base} ${t?.("floorProgress.closeRun") ?? "Because this is the last unfinished batch, the production run and shift will close."}`
     : base
 }

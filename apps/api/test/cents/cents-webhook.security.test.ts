@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppError } from '@pressly/errors';
 import {
+  acceptUnsignedCentsWebhook,
   centsWebhookClockWindowSeconds,
   makeCentsWebhookBoundary,
   makeCentsWebhookHmacVerifier,
@@ -205,6 +206,18 @@ describe('Cents webhook HMAC verifier', () => {
 });
 
 describe('Cents webhook raw-body boundary', () => {
+  it('parses JSON in the explicit unsigned compatibility mode', async () => {
+    const body = Buffer.from('{"order":42}');
+    const boundary = await runBoundary({
+      verify: acceptUnsignedCentsWebhook,
+      body,
+    });
+
+    expect(boundary.next).toHaveBeenCalledWith();
+    expect(boundary.request.body).toEqual({ order: 42 });
+    expect(boundary.response.locals['centsWebhookRawBody']).toEqual(body);
+  });
+
   it('parses JSON only after successful authentication', async () => {
     const body = Buffer.from('{"order":42}');
     const boundary = await runBoundary({

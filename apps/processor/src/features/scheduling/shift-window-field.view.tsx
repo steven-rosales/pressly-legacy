@@ -1,5 +1,7 @@
 import { useId } from "react"
+import { useTranslation } from "react-i18next"
 import { IconCalendarEvent, IconWorld } from "@tabler/icons-react"
+import { enUS, es } from "date-fns/locale"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -30,6 +32,7 @@ import {
   parseLocalDateTime,
   shiftWindowValidationError,
 } from "./shift-window.presenter"
+import { localeForLanguage } from "./scheduling.presenter"
 
 export type ShiftWindowFieldProps = Readonly<{
   start: string
@@ -68,35 +71,44 @@ const timeToMinutes = (time: string): number => {
   return hours * 60 + minutes
 }
 
-const formatTime = (time: string): string => {
+const formatTime = (time: string, locale: string): string => {
   const [hours, minutes] = time.split(":").map(Number)
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(locale, {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(2000, 0, 1, hours, minutes))
 }
 
-const formatDate = (date: string, style: "short" | "long"): string => {
+const formatDate = (
+  date: string,
+  style: "short" | "long",
+  locale: string
+): string => {
   const calendarDate = toCalendarDate(date)
   if (!calendarDate) return date
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(locale, {
     month: style === "short" ? "short" : "long",
     day: "numeric",
     year: "numeric",
   }).format(calendarDate)
 }
 
-const timeOptions = Array.from({ length: 48 }, (_, index) => {
-  const hours = Math.floor(index / 2)
-  const minutes = (index % 2) * 30
-  const value = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
-  return { value, label: formatTime(value) }
-})
+const makeTimeOptions = (locale: string) =>
+  Array.from({ length: 48 }, (_, index) => {
+    const hours = Math.floor(index / 2)
+    const minutes = (index % 2) * 30
+    const value = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
+    return { value, label: formatTime(value, locale) }
+  })
 
-const optionsIncluding = (value: string) => {
+const optionsIncluding = (
+  value: string,
+  timeOptions: ReturnType<typeof makeTimeOptions>,
+  locale: string
+) => {
   if (timeOptions.some((option) => option.value === value)) return timeOptions
-  return [...timeOptions, { value, label: formatTime(value) }].sort((a, b) =>
-    a.value.localeCompare(b.value)
+  return [...timeOptions, { value, label: formatTime(value, locale) }].sort(
+    (a, b) => a.value.localeCompare(b.value)
   )
 }
 
@@ -118,6 +130,9 @@ export function ShiftWindowField({
   id,
   popoverSide = "top",
 }: ShiftWindowFieldProps) {
+  const { t, i18n } = useTranslation()
+  const locale = localeForLanguage(i18n.resolvedLanguage)
+  const timeOptions = makeTimeOptions(locale)
   const generatedId = useId()
   const controlId = id ?? `shift-window-${generatedId}`
   const startTimeId = `${controlId}-start-time`
@@ -134,11 +149,13 @@ export function ShiftWindowField({
     startParts !== null &&
     endParts !== null &&
     endParts.date !== startParts.date
-  const startOptions = optionsIncluding(startTime)
-  const endOptions = optionsIncluding(endTime)
-  const dateLabel = selectedDate ? formatDate(selectedDate, "short") : "Date"
-  const summary = `${dateLabel} · ${formatTime(startTime)} → ${formatTime(endTime)}${isOvernight ? " · next day" : ""}`
-  const validationError = shiftWindowValidationError(start, end)
+  const startOptions = optionsIncluding(startTime, timeOptions, locale)
+  const endOptions = optionsIncluding(endTime, timeOptions, locale)
+  const dateLabel = selectedDate
+    ? formatDate(selectedDate, "short", locale)
+    : t("shiftWindow.date")
+  const summary = `${dateLabel} · ${formatTime(startTime, locale)} → ${formatTime(endTime, locale)}${isOvernight ? ` · ${t("shiftWindow.nextDay")}` : ""}`
+  const validationError = shiftWindowValidationError(start, end, t)
   const describedBy = validationError
     ? `${descriptionId} ${errorId}`
     : descriptionId
@@ -158,7 +175,7 @@ export function ShiftWindowField({
       data-disabled={disabled || undefined}
       data-invalid={validationError !== null || undefined}
     >
-      <FieldLabel htmlFor={controlId}>Shift window</FieldLabel>
+      <FieldLabel htmlFor={controlId}>{t("shiftWindow.title")}</FieldLabel>
       <Popover>
         <PopoverTrigger asChild>
           <Button
@@ -169,7 +186,15 @@ export function ShiftWindowField({
             disabled={disabled}
             aria-invalid={validationError !== null || undefined}
             aria-describedby={describedBy}
-            aria-label={`Shift window: ${selectedDate ? formatDate(selectedDate, "long") : "choose a date"}, ${formatTime(startTime)} to ${formatTime(endTime)}${isOvernight ? " the next day" : ""}. Local time in ${timezone}.`}
+            aria-label={t("shiftWindow.ariaLabel", {
+              date: selectedDate
+                ? formatDate(selectedDate, "long", locale)
+                : t("shiftWindow.chooseDate"),
+              start: formatTime(startTime, locale),
+              end: formatTime(endTime, locale),
+              nextDay: isOvernight ? ` ${t("shiftWindow.nextDay")}` : "",
+              timezone,
+            })}
           >
             <IconCalendarEvent data-icon="inline-start" />
             <span className="truncate">{summary}</span>
@@ -181,17 +206,18 @@ export function ShiftWindowField({
           sideOffset={8}
           collisionPadding={8}
           className="max-h-[var(--radix-popover-content-available-height)] w-[calc(100vw-1rem)] max-w-[22rem] overflow-y-auto overscroll-contain p-3 sm:w-[22rem]"
-          aria-label="Choose shift date and times"
+          aria-label={t("shiftWindow.chooseDateAndTimes")}
           aria-describedby={popoverDescriptionId}
         >
           <PopoverHeader>
-            <PopoverTitle>Shift window</PopoverTitle>
+            <PopoverTitle>{t("shiftWindow.title")}</PopoverTitle>
             <PopoverDescription id={popoverDescriptionId}>
-              Choose the working date, then set the floor start and end times.
+              {t("shiftWindow.description")}
             </PopoverDescription>
           </PopoverHeader>
           <Calendar
             mode="single"
+            locale={i18n.resolvedLanguage === "es" ? es : enUS}
             selected={selectedDate ? toCalendarDate(selectedDate) : undefined}
             defaultMonth={
               selectedDate ? toCalendarDate(selectedDate) : undefined
@@ -207,7 +233,9 @@ export function ShiftWindowField({
           />
           <FieldGroup className="grid grid-cols-2 gap-3">
             <Field data-invalid={validationError !== null || undefined}>
-              <FieldLabel htmlFor={startTimeId}>Start time</FieldLabel>
+              <FieldLabel htmlFor={startTimeId}>
+                {t("shiftWindow.startTime")}
+              </FieldLabel>
               <Select
                 value={startTime}
                 onValueChange={(value) => {
@@ -240,8 +268,14 @@ export function ShiftWindowField({
             </Field>
             <Field data-invalid={validationError !== null || undefined}>
               <div className="flex min-h-5 items-center justify-between gap-2">
-                <FieldLabel htmlFor={endTimeId}>End time</FieldLabel>
-                {isOvernight && <Badge variant="secondary">Next day</Badge>}
+                <FieldLabel htmlFor={endTimeId}>
+                  {t("shiftWindow.endTime")}
+                </FieldLabel>
+                {isOvernight && (
+                  <Badge variant="secondary">
+                    {t("shiftWindow.nextDayBadge")}
+                  </Badge>
+                )}
               </div>
               <Select
                 value={endTime}
@@ -276,12 +310,13 @@ export function ShiftWindowField({
           </FieldGroup>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <IconWorld />
-            Local time · {timezone}
+            {t("shiftWindow.localTime", { timezone })}
           </div>
         </PopoverContent>
       </Popover>
       <FieldDescription id={descriptionId}>
-        {isOvernight ? "Overnight shift" : "Same-day shift"} · {timezone}
+        {isOvernight ? t("shiftWindow.overnight") : t("shiftWindow.sameDay")}{" "}
+        {"·"} {timezone}
       </FieldDescription>
       {validationError !== null && (
         <FieldError id={errorId}>{validationError}</FieldError>

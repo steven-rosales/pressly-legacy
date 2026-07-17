@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 import type {
   AdvanceProductionStageResult,
   ProductionBatch,
@@ -13,8 +15,11 @@ import type {
 } from "@pressly/contracts"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
-import { RequestFailure } from "@/ports/request.error"
 import type { FloorProgressDraft } from "./floor-progress.presenter"
+import {
+  presentPlacementFailure,
+  presentProductionBoardError,
+} from "./production-board.error.presenter"
 
 export type ProductionBoardModelInput = Readonly<{
   production: ProductionPort
@@ -30,26 +35,19 @@ export type ProductionBoardModelInput = Readonly<{
   canManage?: boolean
 }>
 
-const stageNames = {
-  sorting: "Sorting",
-  washing: "Washing",
-  drying: "Drying",
-  folding_packaging: "Folding & packaging",
-} as const
-
-const boardError = (cause: unknown) =>
-  cause instanceof RequestFailure
-    ? cause.message
-    : "The production board is unavailable."
-
-const conflictMessage = (cause: unknown, fallback: string) =>
-  cause instanceof RequestFailure && cause.kind === "conflict"
-    ? "The production queue changed while you were working. It has been refreshed."
-    : cause instanceof RequestFailure
-      ? cause.message
-      : fallback
+const stageName = (stage: StageRun["stage"], t: TFunction) =>
+  t(
+    stage === "sorting"
+      ? "common.stage.sorting"
+      : stage === "washing"
+        ? "common.stage.washing"
+        : stage === "drying"
+          ? "common.stage.drying"
+          : "common.stage.foldingPackaging"
+  )
 
 export function useProductionBoardModel(input: ProductionBoardModelInput) {
+  const { t } = useTranslation()
   const {
     locationId,
     production,
@@ -148,7 +146,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       setError(null)
       return next
     } catch (cause) {
-      setError(boardError(cause))
+      setError(presentProductionBoardError(cause, "load", t))
       return null
     }
   }, [
@@ -157,6 +155,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     production,
     productionRunId,
     refreshBoardFromWorkspace,
+    t,
   ])
 
   const totalLbs = useMemo(
@@ -195,24 +194,33 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       if (isStartConfirmation(result)) {
         setEarlyStart({ stage, result })
         setAnnouncement(
-          `${stageNames[stage.stage]} can start now after confirmation.`
+          t("production.canStartAfterConfirmation", {
+            stage: stageName(stage.stage, t),
+          })
         )
         return
       }
       if (isCompletionConfirmation(result)) {
         setEarlyCompletion({ stage, result })
         setAnnouncement(
-          `${stageNames[stage.stage]} can be completed early after confirmation.`
+          t("production.canCompleteAfterConfirmation", {
+            stage: stageName(stage.stage, t),
+          })
         )
         return
       }
       await refresh()
       setAnnouncement(
-        `${stageNames[stage.stage]} ${transition === "start" ? "started" : "completed"}.`
+        t(
+          transition === "start"
+            ? "production.stageStarted"
+            : "production.stageCompleted",
+          { stage: stageName(stage.stage, t) }
+        )
       )
     } catch (cause) {
       await refresh()
-      setError(conflictMessage(cause, "The stage action failed."))
+      setError(presentProductionBoardError(cause, "stage", t))
     } finally {
       setBusyId(null)
     }
@@ -246,16 +254,13 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       }
       setEarlyStart(null)
       await refresh()
-      setAnnouncement(`${stageNames[stage.stage]} started.`)
+      setAnnouncement(
+        t("production.stageStarted", { stage: stageName(stage.stage, t) })
+      )
     } catch (cause) {
       setEarlyStart(null)
       await refresh()
-      setError(
-        conflictMessage(
-          cause,
-          "The early start could not be confirmed. Review the current stage and try again."
-        )
-      )
+      setError(presentProductionBoardError(cause, "early_start", t))
     } finally {
       setBusyId(null)
     }
@@ -289,16 +294,13 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       }
       setEarlyCompletion(null)
       await refresh()
-      setAnnouncement(`${stageNames[stage.stage]} completed.`)
+      setAnnouncement(
+        t("production.stageCompleted", { stage: stageName(stage.stage, t) })
+      )
     } catch (cause) {
       setEarlyCompletion(null)
       await refresh()
-      setError(
-        conflictMessage(
-          cause,
-          "Early completion could not be confirmed. Review the current stage and try again."
-        )
-      )
+      setError(presentProductionBoardError(cause, "early_completion", t))
     } finally {
       setBusyId(null)
     }
@@ -322,7 +324,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
   const assignMachines = async (stage: StageRun) => {
     const machineIds = [...selectedMachineIds(stage)].sort()
     if (machineIds.length === 0) {
-      setError("Select at least one active machine for this stage.")
+      setError(t("production.selectMachine"))
       return false
     }
 
@@ -345,11 +347,15 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
         }),
       })
       await refresh()
-      setAnnouncement(`${stageNames[stage.stage]} machines assigned.`)
+      setAnnouncement(
+        t("production.machinesAssigned", {
+          stage: stageName(stage.stage, t),
+        })
+      )
       return true
     } catch (cause) {
       await refresh()
-      setError(conflictMessage(cause, "Machines could not be assigned."))
+      setError(presentProductionBoardError(cause, "machines", t))
       return false
     } finally {
       setBusyId(null)
@@ -384,16 +390,16 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       else await input.production.unfreezeBatch(command)
       await refresh()
       setAnnouncement(
-        `Batch ${batch.sequence + 1} ${action === "freeze" ? "frozen" : "unfrozen"}.`
+        t(
+          action === "freeze"
+            ? "production.batchFrozen"
+            : "production.batchUnfrozen",
+          { batch: batch.sequence + 1 }
+        )
       )
     } catch (cause) {
       await refresh()
-      setError(
-        conflictMessage(
-          cause,
-          `The batch could not be ${action === "freeze" ? "frozen" : "unfrozen"}.`
-        )
-      )
+      setError(presentProductionBoardError(cause, "membership", t))
     } finally {
       setBusyId(null)
     }
@@ -406,19 +412,24 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     await refresh()
     if (result.status === "confirmation_required") {
       setAnnouncement(
-        `Order ${order.externalOrderId} needs an overtime confirmation.`
+        t("production.orderNeedsOvertime", {
+          orderId: order.externalOrderId,
+        })
       )
       return
     }
 
-    if (result.status === "not_placed") setError(result.message)
+    if (result.status === "not_placed")
+      setError(presentPlacementFailure(result.reason, t))
     else {
       setExactBatchSelections((current) => {
         const next = { ...current }
         delete next[order.id]
         return next
       })
-      setAnnouncement(`Order ${order.externalOrderId} was placed.`)
+      setAnnouncement(
+        t("production.orderPlaced", { orderId: order.externalOrderId })
+      )
     }
   }
 
@@ -444,7 +455,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       await finishPlacement(order, result)
     } catch (cause) {
       await refresh()
-      setError(conflictMessage(cause, "Automatic placement could not run."))
+      setError(presentProductionBoardError(cause, "placement", t))
     } finally {
       setBusyId(null)
     }
@@ -463,7 +474,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       (candidate) => candidate.id === productionBatchId
     )
     if (batch === undefined) {
-      setError("Choose a mutable queued batch for exact placement.")
+      setError(t("production.chooseMutableBatch"))
       return
     }
     setBusyId(order.id)
@@ -490,7 +501,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       await finishPlacement(order, result)
     } catch (cause) {
       await refresh()
-      setError(conflictMessage(cause, "Exact placement could not be saved."))
+      setError(presentProductionBoardError(cause, "placement", t))
     } finally {
       setBusyId(null)
     }
@@ -522,7 +533,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       await finishPlacement(order, result)
     } catch (cause) {
       await refresh()
-      setError(conflictMessage(cause, "Overtime confirmation is stale."))
+      setError(presentProductionBoardError(cause, "overtime", t))
     } finally {
       setBusyId(null)
     }
@@ -539,10 +550,12 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     setFloorProgressOpen(false)
     await refresh()
     setAnnouncement(
-      "Batch " +
-        (batchSequence + 1) +
-        " floor progress recorded" +
-        (result.shiftClosed ? "; the shift is closed." : ".")
+      t("production.floorRecorded", {
+        batch: batchSequence + 1,
+        closed: result.shiftClosed
+          ? t("production.shiftClosedSuffix")
+          : t("production.period"),
+      })
     )
   }
 
@@ -552,7 +565,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       (candidate) => candidate.id === draft.productionBatchId
     )
     if (batch === undefined) {
-      setFloorProgressError("The selected batch is no longer on this board.")
+      setFloorProgressError(t("production.batchMissing"))
       return
     }
 
@@ -587,7 +600,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       if (result.status === "confirmation_required") {
         setFloorProgressConfirmation({ draft, result })
         setAnnouncement(
-          "Batch " + (batch.sequence + 1) + " progress is ready to confirm."
+          t("production.floorReady", { batch: batch.sequence + 1 })
         )
         return
       }
@@ -595,10 +608,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     } catch (cause) {
       await refresh()
       setFloorProgressError(
-        conflictMessage(
-          cause,
-          "Floor progress could not be reviewed. Check the batch and try again."
-        )
+        presentProductionBoardError(cause, "floor_preview", t)
       )
     } finally {
       setBusyId(null)
@@ -613,7 +623,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     )
     if (batch === undefined) {
       setFloorProgressConfirmation(null)
-      setFloorProgressError("The selected batch is no longer on this board.")
+      setFloorProgressError(t("production.batchMissing"))
       return
     }
     const command = {
@@ -649,10 +659,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       setFloorProgressConfirmation(null)
       await refresh()
       setFloorProgressError(
-        conflictMessage(
-          cause,
-          "The floor record changed. Review the current state and record again."
-        )
+        presentProductionBoardError(cause, "floor_commit", t)
       )
     } finally {
       setBusyId(null)

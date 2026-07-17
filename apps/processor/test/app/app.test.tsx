@@ -20,7 +20,7 @@ import {
   resolveLocationSelection,
   useProcessorAppModel,
 } from "@/app/app.model"
-import { workspaceCopy } from "@/app/app.navigation"
+import { englishAppMessages } from "@/app/app.messages"
 import { ThemeProvider } from "@/app/providers"
 import type { ProductionChangePort } from "@/ports/production-change.port"
 import {
@@ -568,7 +568,9 @@ describe("processor application composition", () => {
   it("follows browser back and forward navigation between real workspace paths", async () => {
     const user = userEvent.setup()
     renderApp(makeFetch())
-    await screen.findByRole("heading", { name: workspaceCopy.schedule[0] })
+    await screen.findByRole("heading", {
+      name: englishAppMessages.navigation.schedule,
+    })
 
     await user.click(screen.getAllByRole("button", { name: "Production" })[0]!)
     await waitFor(() =>
@@ -583,7 +585,9 @@ describe("processor application composition", () => {
 
     act(() => window.history.back())
     expect(
-      await screen.findByRole("heading", { name: workspaceCopy.board[0] })
+      await screen.findByRole("heading", {
+        name: englishAppMessages.navigation.production,
+      })
     ).toBeInTheDocument()
     expect(window.location.pathname).toBe(
       `/production/${testWorkspace.activeRuns[0]!.id}`
@@ -591,7 +595,9 @@ describe("processor application composition", () => {
 
     act(() => window.history.forward())
     expect(
-      await screen.findByRole("heading", { name: workspaceCopy.settings[0] })
+      await screen.findByRole("heading", {
+        name: englishAppMessages.navigation.configuration,
+      })
     ).toBeInTheDocument()
     expect(window.location.pathname).toBe("/configuration")
   })
@@ -606,7 +612,9 @@ describe("processor application composition", () => {
     renderApp(fetch)
 
     expect(
-      await screen.findByRole("heading", { name: workspaceCopy.board[0] })
+      await screen.findByRole("heading", {
+        name: englishAppMessages.navigation.production,
+      })
     ).toBeInTheDocument()
     expect(window.location.pathname).toBe(
       `/production/${testWorkspace.activeRuns[0]!.id}`
@@ -700,7 +708,9 @@ describe("processor application composition", () => {
     )
     renderApp(fetch)
 
-    await screen.findByRole("heading", { name: workspaceCopy.board[0] })
+    await screen.findByRole("heading", {
+      name: englishAppMessages.navigation.production,
+    })
     await user.click(screen.getByLabelText("Production location"))
     await user.click(await screen.findByRole("option", { name: "West Plant" }))
 
@@ -792,7 +802,9 @@ describe("processor application composition", () => {
     )
 
     expect(
-      await screen.findByRole("heading", { name: workspaceCopy.board[0] })
+      await screen.findByRole("heading", {
+        name: englishAppMessages.navigation.production,
+      })
     ).toBeInTheDocument()
     expect(window.location.pathname).toBe(
       `/production/${testWorkspace.activeRuns[0]!.id}`

@@ -8,6 +8,7 @@ import {
   IconRefresh,
   IconStack2,
 } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -51,6 +52,7 @@ function Fact({ label, value }: Readonly<{ label: string; value: string }>) {
 }
 
 function PreviewCard({ preview }: { preview: OrderActionPreview }) {
+  const { t } = useTranslation()
   return (
     <Card className="gap-3 bg-muted/35 py-4">
       <CardHeader className="px-4">
@@ -79,7 +81,7 @@ function PreviewCard({ preview }: { preview: OrderActionPreview }) {
         {preview.warnings.length > 0 && (
           <Alert className="border-warning-foreground/20 bg-warning text-warning-foreground">
             <IconAlertTriangle />
-            <AlertTitle>Review before confirming</AlertTitle>
+            <AlertTitle>{t("orderControl.reviewBeforeConfirming")}</AlertTitle>
             <AlertDescription>{preview.warnings.join(" ")}</AlertDescription>
           </Alert>
         )}
@@ -89,11 +91,12 @@ function PreviewCard({ preview }: { preview: OrderActionPreview }) {
 }
 
 function ActionError({ error }: { error: string | null }) {
+  const { t } = useTranslation()
   if (error === null) return null
   return (
     <Alert variant="destructive" role="alert">
       <IconAlertTriangle />
-      <AlertTitle>Order action not ready</AlertTitle>
+      <AlertTitle>{t("orderControl.actionNotReady")}</AlertTitle>
       <AlertDescription>{error}</AlertDescription>
     </Alert>
   )
@@ -106,6 +109,7 @@ function MoveActionView({
   action: OrderMoveAction
   callbacks: OrderControlCallbacks
 }>) {
+  const { t } = useTranslation()
   const selectedTarget = action.targets.find(
     (target) => target.batchId === action.selectedBatchId
   )
@@ -125,20 +129,18 @@ function MoveActionView({
             onClick={callbacks.onCancelAction}
           >
             <IconArrowLeft data-icon="inline-start" />
-            Back to order
+            {t("orderControl.backToOrder")}
           </Button>
           <Alert>
             <IconArrowsMove />
-            <AlertTitle>Queued work only</AlertTitle>
+            <AlertTitle>{t("orderControl.queuedOnly")}</AlertTitle>
             <AlertDescription>
-              LPMS will keep the order whole, enforce hard pulse capacity, and
-              record the manual placement. In-flight batches are not normal move
-              targets.
+              {t("orderControl.queuedOnlyDescription")}
             </AlertDescription>
           </Alert>
           <Field>
             <FieldLabel htmlFor="order-move-target">
-              Destination batch
+              {t("orderControl.destinationBatch")}
             </FieldLabel>
             <NativeSelect
               id="order-move-target"
@@ -150,7 +152,7 @@ function MoveActionView({
               }
             >
               <NativeSelectOption value="" disabled>
-                Choose a mutable queued batch
+                {t("orderControl.chooseQueuedBatch")}
               </NativeSelectOption>
               {action.targets.map((target) => (
                 <NativeSelectOption
@@ -182,7 +184,7 @@ function MoveActionView({
             disabled={action.busy}
             onClick={callbacks.onChangeActionDetails}
           >
-            Change destination
+            {t("orderControl.changeDestination")}
           </Button>
         )}
         <Button
@@ -198,7 +200,7 @@ function MoveActionView({
         >
           {action.busy && <Spinner data-icon="inline-start" />}
           {action.preview === null
-            ? "Review move"
+            ? t("orderControl.reviewMove")
             : action.preview.confirmationLabel}
         </Button>
       </SheetFooter>
@@ -208,15 +210,13 @@ function MoveActionView({
 
 const exceptionCopy = {
   leave_behind: {
-    title: "Leave this order behind",
-    description:
-      "Record that this order cannot continue with its current batch and choose where production must resume.",
+    titleKey: "orderControl.leaveTitle",
+    descriptionKey: "orderControl.leaveDescription",
     icon: IconPackageExport,
   },
   rework: {
-    title: "Send this order to rework",
-    description:
-      "Record the repeated production stage and review the later batch that can safely carry the work.",
+    titleKey: "orderControl.reworkTitle",
+    descriptionKey: "orderControl.reworkDescription",
     icon: IconRefresh,
   },
 } as const
@@ -228,6 +228,7 @@ function ExceptionActionView({
   action: OrderExceptionAction
   callbacks: OrderControlCallbacks
 }>) {
+  const { t } = useTranslation()
   const copy = exceptionCopy[action.kind]
   const Icon = copy.icon
   const locked = action.preview !== null || action.busy
@@ -251,16 +252,18 @@ function ExceptionActionView({
             onClick={callbacks.onCancelAction}
           >
             <IconArrowLeft data-icon="inline-start" />
-            Back to order
+            {t("orderControl.backToOrder")}
           </Button>
           <Alert className="border-warning-foreground/20 bg-warning text-warning-foreground">
             <Icon />
-            <AlertTitle>{copy.title}</AlertTitle>
-            <AlertDescription>{copy.description}</AlertDescription>
+            <AlertTitle>{t(copy.titleKey)}</AlertTitle>
+            <AlertDescription>{t(copy.descriptionKey)}</AlertDescription>
           </Alert>
           <FieldGroup className="gap-5">
             <Field>
-              <FieldLabel htmlFor="order-exception-reason">Reason</FieldLabel>
+              <FieldLabel htmlFor="order-exception-reason">
+                {t("orderControl.reason")}
+              </FieldLabel>
               <NativeSelect
                 id="order-exception-reason"
                 className="w-full [&_[data-slot=native-select]]:h-11"
@@ -274,7 +277,7 @@ function ExceptionActionView({
                 }
               >
                 <NativeSelectOption value="" disabled>
-                  Choose what happened
+                  {t("orderControl.chooseWhatHappened")}
                 </NativeSelectOption>
                 {action.reasonOptions.map((option) => (
                   <NativeSelectOption key={option.value} value={option.value}>
@@ -285,7 +288,7 @@ function ExceptionActionView({
             </Field>
             <Field>
               <FieldLabel htmlFor="order-exception-stage">
-                Resume production at
+                {t("orderControl.resumeAt")}
               </FieldLabel>
               <NativeSelect
                 id="order-exception-stage"
@@ -300,7 +303,7 @@ function ExceptionActionView({
                 }
               >
                 <NativeSelectOption value="" disabled>
-                  Choose the next required stage
+                  {t("orderControl.chooseNextStage")}
                 </NativeSelectOption>
                 {action.restartStageOptions.map((option) => (
                   <NativeSelectOption key={option.value} value={option.value}>
@@ -309,28 +312,29 @@ function ExceptionActionView({
                 ))}
               </NativeSelect>
               <FieldDescription>
-                Choose physical truth, not the stage LPMS currently expects.
+                {t("orderControl.physicalTruth")}
               </FieldDescription>
             </Field>
             <Alert>
               <IconStack2 />
-              <AlertTitle>Next compatible batch</AlertTitle>
+              <AlertTitle>{t("orderControl.nextCompatibleBatch")}</AlertTitle>
               <AlertDescription>
-                LPMS will preview the earliest later batch that can carry the
-                whole order through every required stage without exceeding hard
-                capacity.
+                {t("orderControl.nextCompatibleDescription")}
               </AlertDescription>
             </Alert>
             <Field>
               <FieldLabel htmlFor="order-exception-note">
-                Floor note{action.draft.reason === "other" ? "" : " (optional)"}
+                {t("orderControl.floorNote")}
+                {action.draft.reason === "other"
+                  ? ""
+                  : ` (${t("orderControl.optional")})`}
               </FieldLabel>
               <Textarea
                 id="order-exception-note"
                 value={action.draft.note}
                 disabled={locked}
                 maxLength={500}
-                placeholder="What should the next employee know?"
+                placeholder={t("orderControl.notePlaceholder")}
                 onChange={(event) =>
                   callbacks.onExceptionDraftChange({
                     ...action.draft,
@@ -340,7 +344,7 @@ function ExceptionActionView({
               />
               {missingOtherNote && (
                 <FieldDescription>
-                  Add a short floor note when the reason is Other.
+                  {t("orderControl.otherNoteRequired")}
                 </FieldDescription>
               )}
             </Field>
@@ -358,7 +362,7 @@ function ExceptionActionView({
             disabled={action.busy}
             onClick={callbacks.onChangeActionDetails}
           >
-            Change details
+            {t("orderControl.changeDetails")}
           </Button>
         )}
         <Button
@@ -374,7 +378,7 @@ function ExceptionActionView({
         >
           {action.busy && <Spinner data-icon="inline-start" />}
           {action.preview === null
-            ? "Review floor change"
+            ? t("orderControl.reviewFloorChange")
             : action.preview.confirmationLabel}
         </Button>
       </SheetFooter>
@@ -394,16 +398,17 @@ function OrderOverview({
   order: OrderControlOrder
   callbacks: OrderControlCallbacks
 }>) {
+  const { t } = useTranslation()
   return (
     <>
       <ScrollArea className="min-h-0 flex-1 px-5">
         <div className="flex flex-col gap-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{order.statusLabel}</Badge>
-            {order.priority && <Badge>Priority</Badge>}
+            {order.priority && <Badge>{t("orderControl.priority")}</Badge>}
             {order.position.membership === "frozen" && (
               <Badge variant="outline">
-                <IconLock data-icon="inline-start" /> Frozen
+                <IconLock data-icon="inline-start" /> {t("orderControl.frozen")}
               </Badge>
             )}
           </div>
@@ -428,7 +433,7 @@ function OrderOverview({
             <div className="flex items-center gap-2">
               <IconStack2 className="size-4 text-muted-foreground" />
               <h3 id="order-position-heading" className="text-sm font-medium">
-                Floor position
+                {t("orderControl.floorPosition")}
               </h3>
             </div>
             <Card className="mt-2 gap-2 bg-muted/35 py-4">
@@ -442,22 +447,25 @@ function OrderOverview({
           </section>
 
           <dl className="grid grid-cols-2 gap-2">
-            <Fact label="Due" value={order.dueLabel} />
-            <Fact label="Demand" value={order.weightLabel} />
-            <Fact label="Bags" value={order.bagLabel} />
-            <Fact label="Updated" value={order.lastUpdatedLabel} />
+            <Fact label={t("orderControl.due")} value={order.dueLabel} />
+            <Fact label={t("orderControl.demand")} value={order.weightLabel} />
+            <Fact label={t("orderControl.bags")} value={order.bagLabel} />
+            <Fact
+              label={t("orderControl.updatedLabel")}
+              value={order.lastUpdatedLabel}
+            />
           </dl>
 
           {order.placement !== null && (
             <section aria-labelledby="order-placement-heading">
               <h3 id="order-placement-heading" className="text-sm font-medium">
-                Placement
+                {t("orderControl.placement")}
               </h3>
               <div className="mt-2 rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium">{order.placement.label}</p>
                   {order.placement.pinned && (
-                    <Badge variant="outline">Pinned</Badge>
+                    <Badge variant="outline">{t("orderControl.pinned")}</Badge>
                   )}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -470,7 +478,7 @@ function OrderOverview({
           <Separator />
           <section aria-labelledby="order-actions-heading">
             <h3 id="order-actions-heading" className="text-sm font-medium">
-              Order actions
+              {t("orderControl.orderActions")}
             </h3>
             <div className="mt-3 grid gap-3">
               <div>
@@ -482,7 +490,7 @@ function OrderOverview({
                   onClick={() => callbacks.onStartMove(order.id)}
                 >
                   <IconArrowsMove data-icon="inline-start" />
-                  Move to queued batch
+                  {t("orderControl.moveToQueued")}
                 </Button>
                 <ActionReason>{order.move.reason}</ActionReason>
               </div>
@@ -497,7 +505,7 @@ function OrderOverview({
                   }
                 >
                   <IconPackageExport data-icon="inline-start" />
-                  Leave behind
+                  {t("orderControl.leaveBehind")}
                 </Button>
                 <ActionReason>{order.leaveBehind.reason}</ActionReason>
               </div>
@@ -510,7 +518,7 @@ function OrderOverview({
                   onClick={() => callbacks.onStartException(order.id, "rework")}
                 >
                   <IconRefresh data-icon="inline-start" />
-                  Send to rework
+                  {t("orderControl.sendToRework")}
                 </Button>
                 <ActionReason>{order.rework.reason}</ActionReason>
               </div>
@@ -525,7 +533,7 @@ function OrderOverview({
           className="h-11"
           onClick={callbacks.onCloseOrder}
         >
-          Close
+          {t("common.close")}
         </Button>
       </SheetFooter>
     </>
@@ -543,16 +551,19 @@ export function OrderDetailSheet({
   callbacks: OrderControlCallbacks
   isMobile: boolean
 }>) {
+  const { t } = useTranslation()
   const title =
     action.kind === "move"
-      ? "Move queued order"
+      ? t("orderControl.moveTitle")
       : action.kind === "leave_behind"
-        ? "Leave order behind"
+        ? t("orderControl.leaveOrderTitle")
         : action.kind === "rework"
-          ? "Record order rework"
+          ? t("orderControl.recordReworkTitle")
           : order === null
-            ? "Order details"
-            : `Order ${order.externalOrderId}`
+            ? t("orderControl.detailsTitle")
+            : t("orderControl.orderNumber", {
+                orderId: order.externalOrderId,
+              })
 
   return (
     <Sheet
@@ -561,12 +572,16 @@ export function OrderDetailSheet({
         if (!open) callbacks.onCloseOrder()
       }}
     >
-      <SheetContent side={isMobile ? "bottom" : "right"} size="workspace">
+      <SheetContent
+        side={isMobile ? "bottom" : "right"}
+        size="workspace"
+        closeLabel={t("common.close")}
+      >
         <SheetHeader className="border-b px-5 py-4 pe-16">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>
             {order === null
-              ? "Review the current production record."
+              ? t("orderControl.reviewRecord")
               : `${order.secondaryLabel ?? order.statusLabel} · ${order.dueDetail}`}
           </SheetDescription>
         </SheetHeader>

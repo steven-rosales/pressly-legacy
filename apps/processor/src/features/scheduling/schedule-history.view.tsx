@@ -3,10 +3,13 @@ import {
   IconHistory,
   IconLayoutBoard,
 } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 import type { ProductionRunSummary, ProductionShift } from "@pressly/contracts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { localeForLanguage } from "./scheduling.presenter"
 
 type ScheduleHistoryViewProps = Readonly<{
   shift: ProductionShift
@@ -19,15 +22,16 @@ type ScheduleHistoryViewProps = Readonly<{
 
 const formatShiftWindow = (
   shift: ProductionShift,
-  timezone: string
+  timezone: string,
+  locale: string
 ): string => {
-  const date = new Intl.DateTimeFormat("en-US", {
+  const date = new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
     timeZone: timezone,
   }).format(new Date(shift.startsAt))
-  const time = new Intl.DateTimeFormat("en-US", {
+  const time = new Intl.DateTimeFormat(locale, {
     hour: "numeric",
     minute: "2-digit",
     timeZone: timezone,
@@ -38,39 +42,37 @@ const formatShiftWindow = (
 }
 
 const historyCopy = (
-  input: Pick<ScheduleHistoryViewProps, "reason" | "productionRun">
+  input: Pick<ScheduleHistoryViewProps, "reason" | "productionRun">,
+  t: TFunction
 ) => {
   if (input.productionRun?.status === "started")
     return {
-      title: "Production is already running",
-      description:
-        "This shift already owns a production run. Continue floor work from the production board.",
-      badge: "In production",
+      title: t("scheduleHistory.runningTitle"),
+      description: t("scheduleHistory.runningDescription"),
+      badge: t("scheduleHistory.inProduction"),
     }
   if (input.productionRun?.status === "completed")
     return {
-      title: "This shift is complete",
-      description:
-        "Its accepted plan and production record are preserved. Start the waiting orders in a new shift.",
-      badge: "Completed",
+      title: t("scheduleHistory.completeTitle"),
+      description: t("scheduleHistory.completeDescription"),
+      badge: t("scheduleHistory.completed"),
     }
   if (input.reason === "closed")
     return {
-      title: "This shift is closed",
-      description:
-        "Closed shifts are read-only. Plan a new shift for the waiting orders.",
-      badge: "Closed",
+      title: t("scheduleHistory.closedTitle"),
+      description: t("scheduleHistory.closedDescription"),
+      badge: t("scheduleHistory.closed"),
     }
   return {
-    title: "This shift has ended",
-    description:
-      "It can no longer be computed, accepted, or started. Plan a new shift for the waiting orders.",
-    badge: "Ended",
+    title: t("scheduleHistory.endedTitle"),
+    description: t("scheduleHistory.endedDescription"),
+    badge: t("scheduleHistory.ended"),
   }
 }
 
 export function ScheduleHistoryView(input: ScheduleHistoryViewProps) {
-  const copy = historyCopy(input)
+  const { t, i18n } = useTranslation()
+  const copy = historyCopy(input, t)
   const productionRunning = input.productionRun?.status === "started"
   return (
     <Card className="bg-background py-0" data-testid="schedule-history">
@@ -91,7 +93,11 @@ export function ScheduleHistoryView(input: ScheduleHistoryViewProps) {
               {copy.description}
             </p>
             <p className="mt-2 text-xs font-medium text-muted-foreground">
-              {formatShiftWindow(input.shift, input.timezone)}
+              {formatShiftWindow(
+                input.shift,
+                input.timezone,
+                localeForLanguage(i18n.resolvedLanguage)
+              )}
             </p>
           </div>
         </div>
@@ -106,8 +112,8 @@ export function ScheduleHistoryView(input: ScheduleHistoryViewProps) {
             >
               <IconLayoutBoard data-icon="inline-start" />
               {input.productionRun?.status === "completed"
-                ? "Open production history"
-                : "Open production"}
+                ? t("scheduleHistory.openHistory")
+                : t("scheduleHistory.openProduction")}
             </Button>
           )}
           {!productionRunning && (
@@ -117,7 +123,7 @@ export function ScheduleHistoryView(input: ScheduleHistoryViewProps) {
               onClick={input.onPlanNewShift}
             >
               <IconCalendarPlus data-icon="inline-start" />
-              Plan a new shift
+              {t("scheduleHistory.planNewShift")}
             </Button>
           )}
         </div>

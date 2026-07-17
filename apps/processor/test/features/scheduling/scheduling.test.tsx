@@ -486,8 +486,11 @@ describe("scheduling workspace", () => {
       screen.getByRole("dialog", { name: "Shift settings" })
     ).toBeInTheDocument()
     expect(
-      (await screen.findAllByText("The shift changed. Refresh and try again."))
-        .length
+      (
+        await screen.findAllByText(
+          "Shift settings changed after this page loaded. The latest shift has been loaded; review it before continuing."
+        )
+      ).length
     ).toBeGreaterThan(0)
   })
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import type {
   ProductionOrderSummary,
   ProductionShift,
@@ -8,7 +9,7 @@ import type {
 } from "@pressly/contracts"
 import type { ProductionPort } from "@/ports/production.port"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
-import { RequestFailure } from "@/ports/request.error"
+import { presentSchedulingError } from "./scheduling.error.presenter"
 import {
   formatZonedDateTimeInput,
   zonedDateTimeInputToIso,
@@ -40,13 +41,6 @@ export type SchedulingModelInput = Readonly<{
     productionShiftId: string
   ) => Promise<void>
 }>
-
-const messageFor = (error: unknown) =>
-  error instanceof RequestFailure
-    ? error.message
-    : error instanceof TypeError
-      ? error.message
-      : "The schedule could not be updated. Try again."
 
 const initialPriorityIds = (orders: readonly ProductionOrderSummary[]) =>
   new Set(orders.filter((order) => order.priority).map(({ id }) => id))
@@ -107,6 +101,7 @@ const proposalMatchesVisibleDemand = (
 }
 
 export function useSchedulingModel(input: SchedulingModelInput) {
+  const { t } = useTranslation()
   const initialShiftStartsAt = formatZonedDateTimeInput(
     input.defaults.startsAt,
     input.defaults.timezone
@@ -206,13 +201,13 @@ export function useSchedulingModel(input: SchedulingModelInput) {
     let persistedShift: ProductionShift | null = null
     try {
       if (input.currentConfig == null) {
-        const message = "Publish a production configuration before computing."
+        const message = t("scheduling.publishBeforeComputing")
         setError(message)
         setSettingsError(message)
         return false
       }
       if (settings.folders <= 0) {
-        const message = "Enter a positive folder count before computing."
+        const message = t("scheduling.positiveFolders")
         setError(message)
         setSettingsError(message)
         return false
@@ -226,7 +221,7 @@ export function useSchedulingModel(input: SchedulingModelInput) {
         input.defaults.timezone
       )
       if (Date.parse(endsAt) <= Date.parse(startsAt)) {
-        const message = "Shift end must be after shift start."
+        const message = t("scheduling.endAfterStart")
         setError(message)
         setSettingsError(message)
         return false
@@ -310,7 +305,7 @@ export function useSchedulingModel(input: SchedulingModelInput) {
       await input.onScheduleChanged(persistedShift.id)
       return true
     } catch (cause) {
-      const message = messageFor(cause)
+      const message = presentSchedulingError(cause, "compute", t)
       setError(message)
       setSettingsError(message)
       if (persistedShift !== null) {
@@ -367,7 +362,7 @@ export function useSchedulingModel(input: SchedulingModelInput) {
         await input.onScheduleChanged(input.currentShift.id)
     } catch (cause) {
       setPriorityIds(previous)
-      setError(messageFor(cause))
+      setError(presentSchedulingError(cause, "priority", t))
     } finally {
       setPendingPriorityIds((current) => {
         const nextPending = new Set(current)
@@ -402,7 +397,7 @@ export function useSchedulingModel(input: SchedulingModelInput) {
       })
       await input.onScheduleChanged(result.productionShiftId)
     } catch (cause) {
-      setError(messageFor(cause))
+      setError(presentSchedulingError(cause, "accept", t))
     } finally {
       setBusy(null)
     }
@@ -428,7 +423,7 @@ export function useSchedulingModel(input: SchedulingModelInput) {
       })
       await input.onStarted(result, proposal.productionShiftId)
     } catch (cause) {
-      setError(messageFor(cause))
+      setError(presentSchedulingError(cause, "start", t))
       await input.onScheduleChanged(proposal.productionShiftId)
     } finally {
       setBusy(null)

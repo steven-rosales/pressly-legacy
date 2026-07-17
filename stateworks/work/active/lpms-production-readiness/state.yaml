@@ -1,10 +1,10 @@
 work_id: lpms-production-readiness
 status: active
-updated: 2026-07-12T15:48:21-04:00
+updated: 2026-07-17T14:00:00-04:00
 
 current_focus:
   - H1
-  - Human confirmation of the live Cents contract and identifiers is required.
+  - Unsigned documented-vendor compatibility was authorized for launch; live retry, store, bag-count, reconciliation, and any future signing facts remain to be confirmed.
 
 tasks:
   T0:

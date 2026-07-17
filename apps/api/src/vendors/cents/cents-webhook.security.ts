@@ -162,6 +162,13 @@ const normalizeVerificationResult = (
 export const rejectUnverifiedCentsWebhook: CentsWebhookVerifier = () =>
   verificationUnavailable();
 
+/**
+ * Explicit compatibility policy for Cents' documented unsigned webhook.
+ * Select this only through runtime configuration; HMAC remains the default.
+ */
+export const acceptUnsignedCentsWebhook: CentsWebhookVerifier = () =>
+  verified();
+
 export const makeCentsWebhookBoundary =
   (verify: CentsWebhookVerifier): RequestHandler =>
   async (request, response, next) => {
@@ -202,7 +209,7 @@ export const makeCentsWebhookBoundary =
         makeAppError({
           kind: 'ValidationError',
           code: 'invalid_cents_webhook_body',
-          message: 'Authenticated Cents webhook body was not valid JSON.',
+          message: 'Cents webhook body was not valid JSON.',
           safeMessage: 'The vendor webhook body is invalid.',
           status: 400,
         }),
@@ -210,7 +217,7 @@ export const makeCentsWebhookBoundary =
     }
   };
 
-export const readAuthenticatedCentsRawBody = (
+export const readCentsWebhookRawBody = (
   locals: Record<string, unknown>,
 ): Buffer | null => {
   const rawBody = locals['centsWebhookRawBody'];

@@ -20,36 +20,36 @@ export type WorkspaceRoute = Readonly<{
 }>
 
 export const workspaceNavigation = [
-  { id: "home" as const, label: "Home", icon: IconHome },
-  { id: "board" as const, label: "Production", icon: IconLayoutBoard },
-  { id: "schedule" as const, label: "Schedule", icon: IconCalendarClock },
-  { id: "history" as const, label: "History", icon: IconHistory },
+  { id: "home" as const, labelKey: "navigation.home" as const, icon: IconHome },
+  {
+    id: "board" as const,
+    labelKey: "navigation.production" as const,
+    icon: IconLayoutBoard,
+  },
+  {
+    id: "schedule" as const,
+    labelKey: "navigation.schedule" as const,
+    icon: IconCalendarClock,
+  },
+  {
+    id: "history" as const,
+    labelKey: "navigation.history" as const,
+    icon: IconHistory,
+  },
   {
     id: "settings" as const,
-    label: "Configuration",
+    labelKey: "navigation.configuration" as const,
     icon: IconAdjustmentsHorizontal,
   },
 ] as const
 
-export const workspaceCopy: Record<WorkspaceView, [string, string]> = {
-  home: [
-    "Home",
-    "Find orders, resolve floor exceptions, and keep whole-order production moving.",
-  ],
-  schedule: [
-    "Schedule",
-    "Plan whole orders through one fixed production pulse.",
-  ],
-  board: ["Production", "Advance started work from sorting through folding."],
-  history: [
-    "History",
-    "Review production runs, floor activity, and schedule-plan lineage.",
-  ],
-  settings: [
-    "Configuration",
-    "Manage appearance and review immutable scheduler inputs.",
-  ],
-}
+export const workspaceCopyKeys = {
+  home: ["navigation.home", "navigation.homeDescription"],
+  schedule: ["navigation.schedule", "navigation.scheduleDescription"],
+  board: ["navigation.production", "navigation.productionDescription"],
+  history: ["navigation.history", "navigation.historyDescription"],
+  settings: ["navigation.configuration", "navigation.configurationDescription"],
+} as const satisfies Record<WorkspaceView, readonly [string, string]>
 
 const decodeSegment = (segment: string | undefined): string | null => {
   if (segment === undefined || segment.length === 0) return null
