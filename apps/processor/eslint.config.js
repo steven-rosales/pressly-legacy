@@ -26,7 +26,6 @@ export default defineConfig([
       architecture: architecturePlugin,
     },
     rules: {
-      "architecture/processor-message-ownership": "error",
       "architecture/processor-zone-imports": "error",
     },
   },
@@ -122,7 +121,6 @@ export default defineConfig([
     files: ["src/features/**/*.{ts,tsx}"],
     ignores: [
       "src/features/**/*.model.ts",
-      "src/features/**/*.messages.ts",
       "src/features/**/*.presenter.ts",
       "src/features/**/*.view.tsx",
     ],
@@ -172,7 +170,6 @@ export default defineConfig([
     files: [
       "src/common/**/*.{ts,tsx}",
       "src/hooks/**/*.{ts,tsx}",
-      "src/i18n/**/*.{ts,tsx}",
       "src/shared/**/*.{ts,tsx}",
       "src/lib/**/*.{ts,tsx}",
       "src/localization/**/*.{ts,tsx}",

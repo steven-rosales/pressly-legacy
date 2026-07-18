@@ -20,7 +20,7 @@ import {
   resolveLocationSelection,
   useProcessorAppModel,
 } from "@/app/app.model"
-import { englishAppMessages } from "@/app/app.messages"
+import { englishAppMessages } from "@/i18n"
 import { ThemeProvider } from "@/app/providers"
 import type { ProductionChangePort } from "@/ports/production-change.port"
 import {

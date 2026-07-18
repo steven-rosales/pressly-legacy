@@ -1,0 +1,39 @@
+{
+  "authentication": {
+    "signInTitle": "Iniciar sesión en el Procesador",
+    "verifyTitle": "Verifica tu identidad",
+    "signInDescription": "Usa tu cuenta de operador de Pressly. Tu sesión permanece en una cookie protegida del navegador.",
+    "verifyDescription": "Completa la verificación protegida por el servidor para abrir el espacio de producción.",
+    "failed": "El inicio de sesión requiere atención",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "verificationMethod": "Método de verificación",
+    "authenticatorCode": "Código del autenticador",
+    "recoveryCode": "Código de recuperación",
+    "sixDigitCode": "Código de seis dígitos",
+    "invalidCode": "Ingresa un código {{kind}} válido.",
+    "sixDigit": "de seis dígitos",
+    "recovery": "de recuperación",
+    "signIn": "Iniciar sesión",
+    "verifyAndContinue": "Verificar y continuar",
+    "backToSignIn": "Volver al inicio de sesión",
+    "restoring": "Restaurando sesión",
+    "sessionExpired": "Tu sesión venció. Inicia sesión de nuevo para continuar.",
+    "accessNotAssigned": "El acceso al Procesador no está asignado",
+    "accessNotAssignedDescription": "{{name}} está autenticado, pero este espacio está limitado a propietarios, administradores y operadores de producción.",
+    "signOutFailed": "No se pudo cerrar la sesión",
+    "errors": {
+      "invalidCredentials": "El correo electrónico o la contraseña son incorrectos.",
+      "rateLimited": "Se hicieron demasiados intentos de inicio de sesión. Espera unos minutos y vuelve a intentarlo.",
+      "invalidMfaCode": "Ese código de verificación es incorrecto. Ingresa el código actual y vuelve a intentarlo.",
+      "expiredMfaChallenge": "Este intento de verificación venció. Vuelve al inicio de sesión y comienza de nuevo.",
+      "unavailable": "El Procesador no puede comunicarse con el servicio de inicio de sesión. Revisa tu conexión y vuelve a intentarlo.",
+      "invalidResponse": "El servicio de inicio de sesión devolvió una respuesta ilegible. Recarga el Procesador antes de volver a intentarlo.",
+      "forbidden": "Esta cuenta no tiene permiso para abrir el Procesador.",
+      "loginFailed": "El Procesador no pudo iniciar tu sesión. Revisa tus datos y conexión, y vuelve a intentarlo.",
+      "verificationFailed": "El Procesador no pudo verificar este código. Vuelve al inicio de sesión si el intento venció.",
+      "restoreFailed": "El Procesador no pudo restaurar tu sesión. Inicia sesión de nuevo para continuar.",
+      "logoutFailed": "El Procesador no pudo confirmar que se cerró tu sesión. Revisa tu conexión y vuelve a intentarlo."
+    }
+  }
+}

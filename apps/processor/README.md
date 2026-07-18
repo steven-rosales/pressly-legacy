@@ -70,10 +70,11 @@ composition boundary. Concrete effects never originate inside product
 features.
 
 ```text
-src/app/          runtime composition, navigation, providers, app shell, app-owned messages
+src/app/          runtime composition, navigation, providers, and app shell
 src/ports/        framework-free capabilities and expected errors
-src/adapters/     API, browser, and localization framework implementations
-src/features/     product model/view slices and their owned messages
+src/adapters/     API and browser implementations
+src/features/     product model/view slices
+src/i18n/         i18next setup and feature-grouped language catalogs
 src/components/   layout and shadcn UI primitives
 ```
 
@@ -84,13 +85,8 @@ primitives, and generic catch-all folders are rejected by ESLint and covered by
 the repository architecture tests. Feature, port, and adapter files also use an
 enforced role suffix.
 
-Localization follows the same ownership graph. Each feature owns its English
-and Spanish messages in `feature.messages.ts`; the app shell owns only shared
-shell copy in `app.messages.ts`. `src/app/localization/` is the sole composition
-point that assembles those catalogs, while
-`src/adapters/localization/i18next-localization.adapter.ts` owns i18next,
-browser preference storage, and document-language synchronization. Product
-features never import that adapter, and shadcn primitives receive localized
-labels through props instead of importing localization frameworks. Root-level
-`src/i18n`, `src/localization`, and `src/messages` catch-all buckets are
-explicitly forbidden.
+Localization has one explicit home. `src/i18n/index.ts` owns i18next, browser
+preference storage, and document-language synchronization. English and Spanish
+catalogs live under `src/i18n/locales/`, grouped by product feature. Product
+views use `react-i18next`, while shadcn primitives receive localized labels
+through props instead of importing localization frameworks.

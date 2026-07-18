@@ -1,0 +1,11 @@
+{
+  "location": {
+    "productionLocation": "Production location",
+    "choosePlaceholder": "Choose a location",
+    "unavailableTitle": "No production location is available",
+    "unavailableDescription": "Check the active location configuration or your assignment, then retry.",
+    "refreshAccess": "Refresh access",
+    "chooseTitle": "Choose a production location",
+    "chooseDescription": "Select the floor you are working in. The processor will remember this choice on this browser."
+  }
+}

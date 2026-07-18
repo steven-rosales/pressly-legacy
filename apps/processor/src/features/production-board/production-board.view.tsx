@@ -219,33 +219,9 @@ function StageCard({
   const startsEarly =
     stage.nextAction.state === "confirmation_required" &&
     stage.nextAction.action === "start"
-  const presentationLabel =
-    presentation.state === "completed"
-      ? t("production.statusCompleted")
-      : presentation.state === "ready"
-        ? presentation.action === "start"
-          ? t("production.readyToStart")
-          : t("production.readyToComplete")
-        : presentation.state === "needs_machines"
-          ? t("production.needsMachines")
-          : presentation.state === "upcoming"
-            ? t("production.scheduledToStart")
-            : presentation.state === "in_progress"
-              ? t("production.inProgress")
-              : presentation.label === "Waiting for previous stage"
-                ? t("production.waitingPrevious")
-                : presentation.label === "Resource occupied"
-                  ? t("production.resourceOccupied")
-                  : t("production.waitingClearance")
+  const presentationLabel = t(presentation.labelKey)
   const presentationDetail =
-    presentation.detail === "Authorized by the server"
-      ? t("production.serverAuthorized")
-      : presentation.detail === "Start now if the batch is physically ready."
-        ? t("production.startIfReady")
-        : presentation.detail ===
-            "Completing before the planned pulse ends requires confirmation."
-          ? t("production.earlyConfirmation")
-          : presentation.detail
+    presentation.detailKey === null ? null : t(presentation.detailKey)
 
   return (
     <Card
@@ -537,7 +513,7 @@ export function ProductionBoardWorkspace({
                 .map((order) => order.externalOrderId)
                 .join(" + ")}
               pinned={batch.orders.some((order) => order.pinnedAt !== null)}
-              presentation={presentStage({ stage, now, t })}
+              presentation={presentStage({ stage, now })}
               now={now}
               mutationDisabled={mutationsDisabled}
               busy={busyId === stage.id}

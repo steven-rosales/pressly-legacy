@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import i18next from "i18next"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ProductionBoardWorkspace } from "@/features/production-board/production-board.view"
 import { RequestFailure } from "@/ports/request.error"
@@ -22,6 +23,36 @@ const boardProps = {
 afterEach(() => vi.unstubAllGlobals())
 
 describe("production floor board", () => {
+  it("renders blocked stage meaning correctly in Spanish", async () => {
+    await i18next.changeLanguage("es")
+    const board = structuredClone(testBoard)
+    board.batches[0]!.stages[0]!.allowedActions = []
+    board.batches[0]!.stages[0]!.nextAction = {
+      state: "blocked",
+      action: "start",
+      code: "PREVIOUS_STAGE_INCOMPLETE",
+      message: "The previous stage is still running.",
+      availableAt: null,
+    }
+
+    render(
+      <ProductionBoardWorkspace
+        {...boardProps}
+        initialBoard={board}
+        production={makeTestProductionPort()}
+      />
+    )
+
+    expect(
+      screen.getAllByText("Esperando la etapa anterior").length
+    ).toBeGreaterThan(0)
+    expect(
+      screen.getAllByText(
+        "Completa la etapa anterior de este lote antes de iniciar esta."
+      ).length
+    ).toBeGreaterThan(0)
+  })
+
   it("renders the resume snapshot and refreshes authoritative actions", async () => {
     const user = userEvent.setup()
     const resumed = structuredClone(testBoard)

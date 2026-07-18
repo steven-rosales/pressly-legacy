@@ -613,13 +613,13 @@ describe('processor architecture boundaries', () => {
     );
   });
 
-  it('allows app composition to assemble owner-local messages into the localization adapter', async () => {
+  it('allows centralized localization setup and catalogs under src/i18n', async () => {
     await expectAllowed(
-      'apps/processor/src/app/localization/localization.composition.ts',
+      'apps/processor/src/i18n/index.ts',
       `
-        import { initializeI18nextLocalizationAdapter } from '@/adapters/localization/i18next-localization.adapter';
-        import { englishSchedulingMessages } from '@/features/scheduling/scheduling.messages';
-        export const dependencies = { initializeI18nextLocalizationAdapter, englishSchedulingMessages };
+        import i18next from 'i18next';
+        import scheduling from './locales/en/scheduling.json';
+        export const dependencies = { i18next, scheduling };
       `,
     );
   });
@@ -645,32 +645,13 @@ describe('processor architecture boundaries', () => {
     );
   });
 
-  it('allows product copy to live in an explicitly owned feature message file', async () => {
-    await expectAllowed(
+  it('rejects feature-local message catalogs', async () => {
+    await expectRejectedBy(
       'apps/processor/src/features/scheduling/scheduling.messages.ts',
       `
         export const englishSchedulingMessages = { scheduling: { title: 'Schedule' } } as const;
       `,
-    );
-  });
-
-  it('allows features to use their own and app-shared message namespaces', async () => {
-    await expectAllowed(
-      'apps/processor/src/features/history/history.view.tsx',
-      `
-        export const ownMessage = 'history.title';
-        export const sharedMessage = 'common.close';
-      `,
-    );
-  });
-
-  it('rejects hidden cross-feature dependencies through translation keys', async () => {
-    await expectRejectedBy(
-      'apps/processor/src/features/production-board/production-board.view.tsx',
-      `
-        export const leakedCopy = 'scheduling.sorting';
-      `,
-      'architecture/processor-message-ownership',
+      'no-restricted-syntax',
     );
   });
 
@@ -761,7 +742,7 @@ describe('processor architecture boundaries', () => {
     );
   });
 
-  it('rejects generic processor catch-all folders and unnamed feature roles', async () => {
+  it('rejects unowned processor catch-all folders and unnamed feature roles', async () => {
     await expectRejectedBy(
       'apps/processor/src/shared/production.ts',
       'export const value = 1;',
@@ -769,11 +750,6 @@ describe('processor architecture boundaries', () => {
     );
     await expectRejectedBy(
       'apps/processor/src/lib/utils.ts',
-      'export const value = 1;',
-      'no-restricted-syntax',
-    );
-    await expectRejectedBy(
-      'apps/processor/src/i18n/resources.ts',
       'export const value = 1;',
       'no-restricted-syntax',
     );

@@ -18,7 +18,7 @@ describe("production board presenter", () => {
     ).toEqual(
       expect.objectContaining({
         state: "ready",
-        label: "Ready to start",
+        labelKey: "production.readyToStart",
         action: "start",
       })
     )
@@ -44,8 +44,8 @@ describe("production board presenter", () => {
       presentStage({ stage, now: Date.parse("2026-08-01T14:00:00.000Z") })
     ).toEqual({
       state: "upcoming",
-      label: "Scheduled to start",
-      detail: "Start now if the batch is physically ready.",
+      labelKey: "production.scheduledToStart",
+      detailKey: "production.startIfReady",
       action: "start",
       availableAt: Date.parse("2026-08-01T14:05:00.000Z"),
     })
@@ -90,8 +90,8 @@ describe("production board presenter", () => {
 
     expect(presentStage({ stage, now: Date.parse(testBoard.asOf) })).toEqual({
       state: "in_progress",
-      label: "In progress",
-      detail: "Completing before the planned pulse ends requires confirmation.",
+      labelKey: "production.inProgress",
+      detailKey: "production.earlyConfirmation",
       action: "complete",
       availableAt: Date.parse("2026-08-01T14:50:00.000Z"),
     })

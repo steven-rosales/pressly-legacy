@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
-import { processorLanguageStorageKey } from "@/adapters/localization/i18next-localization.adapter"
+import { processorLanguageStorageKey } from "@/i18n"
 import { SettingsView } from "@/features/settings/settings.view"
 import {
   makeTestProductionPort,
