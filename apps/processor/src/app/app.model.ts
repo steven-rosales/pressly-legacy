@@ -12,10 +12,10 @@ import type {
 } from "@pressly/contracts"
 import { RequestFailure } from "@/ports/request.error"
 import { presentAuthenticationError } from "@/features/authentication/authentication.error.presenter"
+import { englishAppMessages, spanishAppMessages } from "@/i18n"
 import type { ProcessorRuntime } from "./app.composition"
 import { presentAppError, type AppErrorMessages } from "./app.error.presenter"
 import type { WorkspaceRoute } from "./app.navigation"
-import { englishAppMessages, spanishAppMessages } from "./app.messages"
 import { scheduleSessionExpiry } from "./session-expiry"
 import { observeProductionConnectionState } from "./processor-observability"
 import {

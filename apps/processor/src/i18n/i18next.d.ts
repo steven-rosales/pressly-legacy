@@ -1,5 +1,5 @@
 import "i18next"
-import type { englishProcessorMessages } from "./localization.composition"
+import type { englishProcessorMessages } from "./index"
 
 declare module "i18next" {
   interface CustomTypeOptions {

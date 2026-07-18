@@ -1,8 +1,10 @@
 import "@testing-library/jest-dom/vitest"
 import { cleanup, configure } from "@testing-library/react"
 import { afterEach, beforeEach } from "vitest"
-import { processorLanguageStorageKey } from "@/adapters/localization/i18next-localization.adapter"
-import { initializeProcessorLocalization } from "@/app/localization/localization.composition"
+import {
+  initializeProcessorLocalization,
+  processorLanguageStorageKey,
+} from "@/i18n"
 
 const localization = initializeProcessorLocalization(window.localStorage)
 

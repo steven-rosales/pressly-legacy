@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next"
 import { describe, expect, it } from "vitest"
-import { englishAppMessages } from "@/app/app.messages"
+import { englishAppMessages } from "@/i18n"
 import { presentAppError } from "@/app/app.error.presenter"
 import { presentAuthenticationError } from "@/features/authentication/authentication.error.presenter"
 import { presentHistoryError } from "@/features/history/history.error.presenter"

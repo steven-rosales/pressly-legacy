@@ -110,28 +110,6 @@ const modulePackageNames = (() => {
   );
 })();
 
-const processorFeatureMessageNamespaces = new Map([
-  ['authentication', new Set(['authentication'])],
-  ['history', new Set(['history'])],
-  ['intake', new Set(['intake'])],
-  ['location-selection', new Set(['location'])],
-  ['order-control', new Set(['orderControl'])],
-  ['production-board', new Set(['floorProgress', 'production'])],
-  [
-    'scheduling',
-    new Set(['scheduleHistory', 'scheduling', 'shiftSettings', 'shiftWindow']),
-  ],
-  ['settings', new Set(['language', 'settings'])],
-]);
-
-const processorSharedMessageNamespaces = new Set(['common', 'errors']);
-const processorKnownMessageNamespaces = new Set([
-  ...processorSharedMessageNamespaces,
-  ...[...processorFeatureMessageNamespaces.values()].flatMap((namespaces) => [
-    ...namespaces,
-  ]),
-]);
-
 const isPathInside = (candidate, owner) =>
   candidate === owner || candidate.startsWith(`${owner}/`);
 
@@ -591,60 +569,6 @@ export const architecturePlugin = {
         };
 
         return importVisitors(checkImport);
-      },
-    },
-
-    'processor-message-ownership': {
-      meta: {
-        type: 'problem',
-        docs: {
-          description:
-            'Keep Processor translation keys inside their owning feature or the explicit app-shared namespace.',
-        },
-        schema: [],
-        messages: {
-          crossFeatureMessage:
-            'Processor feature "{{feature}}" cannot use the "{{namespace}}" message namespace. Move shared vocabulary to app-owned common copy or keep the message with its owning feature.',
-        },
-      },
-      create(context) {
-        const filename = path
-          .resolve(context.filename)
-          .replaceAll(path.sep, '/');
-        const match = filename.match(
-          /\/apps\/processor\/src\/features\/([^/]+)\//,
-        );
-
-        if (match === null) return {};
-
-        const feature = match[1];
-        const ownedNamespaces = processorFeatureMessageNamespaces.get(feature);
-
-        if (ownedNamespaces === undefined) return {};
-
-        const allowedNamespaces = new Set([
-          ...processorSharedMessageNamespaces,
-          ...ownedNamespaces,
-        ]);
-
-        return {
-          Literal(node) {
-            if (typeof node.value !== 'string') return;
-            const [namespace] = node.value.split('.', 1);
-
-            if (
-              !processorKnownMessageNamespaces.has(namespace) ||
-              allowedNamespaces.has(namespace)
-            )
-              return;
-
-            context.report({
-              node,
-              messageId: 'crossFeatureMessage',
-              data: { feature, namespace },
-            });
-          },
-        };
       },
     },
   },

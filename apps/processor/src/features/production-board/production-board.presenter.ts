@@ -70,8 +70,27 @@ export type StagePresentation = Readonly<{
     | "waiting"
     | "upcoming"
     | "in_progress"
-  label: string
-  detail: string | null
+  labelKey:
+    | "production.statusCompleted"
+    | "production.readyToStart"
+    | "production.readyToComplete"
+    | "production.scheduledToStart"
+    | "production.inProgress"
+    | "production.needsMachines"
+    | "production.waitingPrevious"
+    | "production.resourceOccupied"
+    | "production.upcoming"
+    | "production.waitingForRun"
+  detailKey:
+    | "production.serverAuthorized"
+    | "production.startIfReady"
+    | "production.earlyConfirmation"
+    | "production.stageNeedsMachinesDetail"
+    | "production.stagePreviousIncompleteDetail"
+    | "production.stageKindActiveDetail"
+    | "production.stageMachineOverlapDetail"
+    | "production.stageRunNotStartedDetail"
+    | null
   action: "start" | "complete" | null
   availableAt: number | null
 }>
@@ -177,17 +196,15 @@ export const completionBoundary = (stage: StageRun): number | null => {
 export const presentStage = ({
   stage,
   now,
-  t,
 }: Readonly<{
   stage: StageRun
   now: number
-  t?: TFunction
 }>): StagePresentation => {
   if (stage.nextAction.state === "terminal")
     return {
       state: "completed",
-      label: t?.("production.statusCompleted") ?? "Completed",
-      detail: null,
+      labelKey: "production.statusCompleted",
+      detailKey: null,
       action: null,
       availableAt: null,
     }
@@ -195,11 +212,11 @@ export const presentStage = ({
   if (stage.nextAction.state === "available")
     return {
       state: "ready",
-      label:
+      labelKey:
         stage.nextAction.action === "start"
-          ? (t?.("production.readyToStart") ?? "Ready to start")
-          : (t?.("production.readyToComplete") ?? "Ready to complete"),
-      detail: t?.("production.serverAuthorized") ?? "Authorized by the server",
+          ? "production.readyToStart"
+          : "production.readyToComplete",
+      detailKey: "production.serverAuthorized",
       action: stage.nextAction.action,
       availableAt: null,
     }
@@ -210,10 +227,8 @@ export const presentStage = ({
   )
     return {
       state: "upcoming",
-      label: t?.("production.scheduledToStart") ?? "Scheduled to start",
-      detail:
-        t?.("production.startIfReady") ??
-        "Start now if the batch is physically ready.",
+      labelKey: "production.scheduledToStart",
+      detailKey: "production.startIfReady",
       action: "start",
       availableAt: Date.parse(stage.nextAction.availableAt),
     }
@@ -221,10 +236,8 @@ export const presentStage = ({
   if (stage.nextAction.state === "confirmation_required")
     return {
       state: "in_progress",
-      label: t?.("production.inProgress") ?? "In progress",
-      detail:
-        t?.("production.earlyConfirmation") ??
-        "Completing before the planned pulse ends requires confirmation.",
+      labelKey: "production.inProgress",
+      detailKey: "production.earlyConfirmation",
       action: "complete",
       availableAt: Date.parse(stage.nextAction.availableAt),
     }
@@ -233,10 +246,8 @@ export const presentStage = ({
   if (blocked.code === "MACHINE_ASSIGNMENT_REQUIRED")
     return {
       state: "needs_machines",
-      label: t?.("production.needsMachines") ?? "Needs machines",
-      detail:
-        t?.("production.stageNeedsMachinesDetail") ??
-        "Assign enough active compatible machines before starting this stage.",
+      labelKey: "production.needsMachines",
+      detailKey: "production.stageNeedsMachinesDetail",
       action: null,
       availableAt: null,
     }
@@ -244,10 +255,8 @@ export const presentStage = ({
   if (blocked.code === "PREVIOUS_STAGE_INCOMPLETE")
     return {
       state: "waiting",
-      label: t?.("production.waitingPrevious") ?? "Waiting for previous stage",
-      detail:
-        t?.("production.stagePreviousIncompleteDetail") ??
-        "Complete the previous stage for this batch before starting this one.",
+      labelKey: "production.waitingPrevious",
+      detailKey: "production.stagePreviousIncompleteDetail",
       action: null,
       availableAt: null,
     }
@@ -255,10 +264,8 @@ export const presentStage = ({
   if (blocked.code === "STAGE_KIND_ALREADY_ACTIVE")
     return {
       state: "waiting",
-      label: t?.("production.resourceOccupied") ?? "Resource occupied",
-      detail:
-        t?.("production.stageKindActiveDetail") ??
-        "Another batch is active in this stage. Complete it before starting this batch.",
+      labelKey: "production.resourceOccupied",
+      detailKey: "production.stageKindActiveDetail",
       action: null,
       availableAt: null,
     }
@@ -266,10 +273,8 @@ export const presentStage = ({
   if (blocked.code === "MACHINE_ASSIGNMENT_OVERLAPS")
     return {
       state: "waiting",
-      label: t?.("production.resourceOccupied") ?? "Resource occupied",
-      detail:
-        t?.("production.stageMachineOverlapDetail") ??
-        "One or more assigned machines are already in use. Choose free compatible machines.",
+      labelKey: "production.resourceOccupied",
+      detailKey: "production.stageMachineOverlapDetail",
       action: null,
       availableAt: null,
     }
@@ -279,23 +284,19 @@ export const presentStage = ({
   if (availableAt !== null && availableAt > now)
     return {
       state: blocked.action === "start" ? "upcoming" : "in_progress",
-      label:
+      labelKey:
         blocked.action === "start"
-          ? (t?.("production.upcoming") ?? "Upcoming")
-          : (t?.("production.inProgress") ?? "In progress"),
-      detail:
-        t?.("production.stageRunNotStartedDetail") ??
-        "Start the accepted production run before starting this batch.",
+          ? "production.upcoming"
+          : "production.inProgress",
+      detailKey: "production.stageRunNotStartedDetail",
       action: null,
       availableAt,
     }
 
   return {
     state: "waiting",
-    label: t?.("production.waitingForRun") ?? "Waiting for production to start",
-    detail:
-      t?.("production.stageRunNotStartedDetail") ??
-      "Start the accepted production run before starting this batch.",
+    labelKey: "production.waitingForRun",
+    detailKey: "production.stageRunNotStartedDetail",
     action: null,
     availableAt: null,
   }

@@ -12,7 +12,7 @@ import type { LocationPreferencePort } from "@/ports/location-preference.port"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import type { ProductionChangePort } from "@/ports/production-change.port"
-import { initializeProcessorLocalization } from "./localization/localization.composition"
+import { initializeProcessorLocalization } from "@/i18n"
 import { observeProcessorRequestFailure } from "./processor-observability"
 
 export type ProcessorRuntime = Readonly<{

@@ -1,0 +1,25 @@
+{
+  "intake": {
+    "title": "Bag intake",
+    "description": "Confirm physical bag counts and priority before these orders enter production.",
+    "pending": "{{count}} pending",
+    "attention": "Intake needs attention",
+    "order": "Order {{orderId}}",
+    "orderDetail": "{{weight, number}} lb estimated · due {{due}}",
+    "bags": "Bags",
+    "priority": "Priority",
+    "record": "Record intake",
+    "invalidBagCount": "Bag count must be a whole number of zero or more.",
+    "errors": {
+      "changed": "This order changed while intake was open. The current order has been loaded; review it before recording again.",
+      "noLongerPending": "This order has already left bag intake. The current order list has been loaded.",
+      "orderMissing": "This order is no longer available for bag intake. The current order list has been loaded.",
+      "bagCountRejected": "The server rejected this bag count. Enter a whole number of zero or more and record intake again.",
+      "unauthorized": "Your session expired. Sign in again before recording bag intake.",
+      "forbidden": "Your account cannot record bag intake. Ask an owner, administrator, or production operator for access.",
+      "unavailable": "LPMS could not confirm the final intake state. Review the refreshed bag count and priority before trying again.",
+      "invalidResponse": "The production service returned order data that Processor could not read. Refresh before recording intake.",
+      "recordFailed": "Bag intake was not confirmed. Review the refreshed order before trying again."
+    }
+  }
+}
