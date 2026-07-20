@@ -52,6 +52,8 @@ const productionTables = [
   'production_batches',
   'production_runs',
   'schedule_runs',
+  'production_shift_selected_orders',
+  'production_shift_selections',
   'scheduler_configs',
   'production_machines',
   'production_stations',
@@ -193,7 +195,8 @@ const seedLocationClosure = async (): Promise<void> => {
       locationId: location.first,
       revisionHash: 'eligible-source-hash',
       revisionAt: now,
-      status: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: due,
     },
     {
@@ -203,7 +206,8 @@ const seedLocationClosure = async (): Promise<void> => {
       locationId: location.first,
       revisionHash: 'pending-source-hash',
       revisionAt: now,
-      status: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: due,
     },
     {
@@ -213,7 +217,8 @@ const seedLocationClosure = async (): Promise<void> => {
       locationId: location.second,
       revisionHash: 'other-source-hash',
       revisionAt: now,
-      status: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: due,
     },
   ]);
@@ -255,6 +260,23 @@ const seedLocationClosure = async (): Promise<void> => {
       eligibleAt: now,
     },
   ]);
+  await testDb.db.insert(laundryProduction.productionShiftSelections).values({
+    productionShiftId: id.shift,
+    locationId: location.first,
+    version: 1,
+    selectedBy: id.actor,
+    selectedAt: now,
+    updatedAt: now,
+  });
+  await testDb.db
+    .insert(laundryProduction.productionShiftSelectedOrders)
+    .values({
+      productionShiftId: id.shift,
+      locationId: location.first,
+      productionOrderId: id.orderEligible,
+      selectedBy: id.actor,
+      selectedAt: now,
+    });
 };
 
 beforeAll(testDb.check);
@@ -277,14 +299,16 @@ describe('production location closure', () => {
       }),
     );
 
-    expect(input?.orders).toEqual([
+    if (input === null || typeof input === 'string')
+      throw new Error('Selected scheduling input missing.');
+    expect(input.orders).toEqual([
       expect.objectContaining({
         id: id.orderEligible,
         externalOrderId: 'eligible-first-location',
         bagCount: 2,
       }),
     ]);
-    expect(input?.machines.map((machine) => machine.id).sort()).toEqual(
+    expect(input.machines.map((machine) => machine.id).sort()).toEqual(
       [id.dryer, id.washer].sort(),
     );
 
@@ -349,7 +373,8 @@ describe('production location closure', () => {
         idempotencyKey: 'location-schedule-input',
       }),
     );
-    if (schedulingInput === null) throw new Error('Scheduling input missing.');
+    if (schedulingInput === null || typeof schedulingInput === 'string')
+      throw new Error('Selected scheduling input missing.');
     const output = simpleScheduler.propose(schedulingInput);
     const schedule = await scheduleRepository.transaction((repo) =>
       repo.saveSchedule({

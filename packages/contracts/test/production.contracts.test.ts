@@ -29,6 +29,7 @@ import {
   productionBootstrapManifestSchema,
   productionBootstrapResourceChangeSchema,
   productionBootstrapResultSchema,
+  productionDemandOutlookSchema,
   productionLocationSchema,
   productionOrderListItemSchema,
   productionOrderSummarySchema,
@@ -48,6 +49,8 @@ import {
   recordOrderIntakeCommandSchema,
   recordOrderIntakeRequestSchema,
   recordOrderIntakeResultSchema,
+  replaceProductionShiftSelectionCommandSchema,
+  replaceProductionShiftSelectionRequestSchema,
   scheduleRunParamsSchema,
   scheduleProposalSchema,
   schedulerConfigSchema,
@@ -674,6 +677,12 @@ describe('production discovery and intake contracts', () => {
   it('keeps schedulable summaries distinct from nullable intake list items', () => {
     expect(productionOrderSummarySchema.parse(summary).bagCount).toBe(2);
     expect(
+      productionOrderSummarySchema.parse({
+        ...summary,
+        dueBucket: 'overdue',
+      }).dueBucket,
+    ).toBe('overdue');
+    expect(
       productionOrderSummarySchema.safeParse({ ...summary, bagCount: null })
         .success,
     ).toBe(false);
@@ -798,18 +807,99 @@ describe('production discovery and intake contracts', () => {
         isActive: true,
       },
       currentShift: null,
+      shiftSelection: null,
       candidateShifts: [],
       currentSchedulerConfig: null,
       currentScheduleProposal: null,
       activeRuns: [],
       orders: [],
       pendingEligibleOrders: [],
+      demandOutlook: null,
       board: null,
       stations: [],
       machines: [],
       asOf: now,
     };
     expect(productionWorkspaceSchema.parse(workspace)).toEqual(workspace);
+  });
+
+  it('requires a unique, versioned order selection for a production shift', () => {
+    const command = {
+      locationId,
+      productionShiftId: ids.shift,
+      selectedOrderIds: [ids.order],
+      expectedVersion: 0,
+      idempotencyKey: 'replace-shift-selection',
+    };
+    expect(replaceProductionShiftSelectionCommandSchema.parse(command)).toEqual(
+      command,
+    );
+    expect(
+      replaceProductionShiftSelectionRequestSchema.parse({
+        selectedOrderIds: command.selectedOrderIds,
+        expectedVersion: command.expectedVersion,
+        idempotencyKey: command.idempotencyKey,
+      }),
+    ).toBeDefined();
+    expect(
+      replaceProductionShiftSelectionCommandSchema.safeParse({
+        ...command,
+        selectedOrderIds: [ids.order, ids.order],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('keeps demand forecasts explicitly advisory and separate from floor readiness', () => {
+    const outlook = {
+      productionShiftId: ids.shift,
+      horizonCutoffAt: '2026-07-13T04:00:00.000Z',
+      totalOrderCount: 1,
+      totalEstimatedWeightLbs: 42,
+      estimateMissingOrderCount: 0,
+      expectedOrderCount: 1,
+      expectedEstimatedWeightLbs: 42,
+      readyOrderCount: 0,
+      readyEstimatedWeightLbs: 0,
+      inProductionOrderCount: 0,
+      inProductionEstimatedWeightLbs: 0,
+      reconciliationCount: 0,
+      items: [
+        {
+          orderDemandId: ids.order,
+          productionOrderId: null,
+          externalOrderId: 'CENTS-1001',
+          phase: 'expected',
+          sourceStatusCode: 'SUBMITTED',
+          dueAt: '2026-07-12T20:00:00.000Z',
+          estimatedWeightLbs: 42,
+          readiness: 'not_admitted',
+          productionStatus: null,
+          bagCount: null,
+          reconciliation: 'none',
+        },
+      ],
+      forecast: {
+        algorithmVersion: 'fixed-pulse-demand-outlook-v1',
+        startsAt: now,
+        completesAt: '2026-07-12T17:44:00.000Z',
+        pulseMinutes: 56,
+        pulseCapacityLbs: 224,
+        batchCount: 1,
+        makespanMinutes: 224,
+        batches: [
+          {
+            sequence: 0,
+            demandIds: [ids.order],
+            estimatedWeightLbs: 42,
+            expectedOrderCount: 1,
+            readyOrderCount: 0,
+          },
+        ],
+        unplacedDemandIds: [],
+      },
+    };
+
+    expect(productionDemandOutlookSchema.parse(outlook)).toEqual(outlook);
   });
 });
 

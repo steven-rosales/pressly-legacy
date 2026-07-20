@@ -1,0 +1,77 @@
+id: memdelta-2026-07-19-shift-order-selection
+domain_id: laundry-production
+
+source:
+  type: implementation_evidence
+  path: stateworks/work/done/lpms-shift-order-selection/evidence.md
+
+changes:
+  - op: deprecate
+    kind: invariant
+    id: physical_intake_can_admit_lagging_source_v1
+
+  - op: assert
+    kind: invariant
+    id: pre_release_intake_does_not_admit_v1
+    statement: Physical bag intake may be recorded while Cents demand is
+      expected or inbound, but the order remains release_pending and cannot
+      enter an executable schedule until the source phase is
+      production_released.
+
+  - op: update
+    kind: policy
+    id: cents_in_progress_is_eligible
+    statement: A Cents order becomes an LPMS-ready candidate only when its
+      latest projected phase is production_released, its production estimate is
+      positive, and physical bag intake is recorded.
+
+  - op: deprecate
+    kind: policy
+    id: prestart_planning_includes_all_eligible_orders
+
+  - op: assert
+    kind: policy
+    id: shift_order_selection_is_explicit_v1
+    statement: Ready candidates are unselected by default and Compute includes
+      only the complete server-authoritative order set explicitly selected for
+      that production shift by an authorized manager.
+
+  - op: update
+    kind: invariant
+    id: schedule_proposals_are_deterministic
+    statement: The same selected ready-order snapshot, resource snapshot,
+      scheduler_config version, and operator directives produce the same
+      schedule proposal.
+
+  - op: update
+    kind: invariant
+    id: start_requires_current_accepted_snapshot
+    statement: Start succeeds only when the accepted schedule_run is still the
+      current revision and its exact selected ready-order snapshot is unchanged.
+
+  - op: deprecate
+    kind: invariant
+    id: eligible_snapshot_mutations_are_serialized_v1
+
+  - op: assert
+    kind: invariant
+    id: selected_snapshot_mutations_are_serialized_v1
+    statement: Compute, Accept, Start, shift selection, and demand, intake, or
+      priority commands that can change a selected scheduling snapshot
+      serialize per location before validating or mutating that snapshot.
+
+  - op: assert
+    kind: policy
+    id: post_start_arrival_requires_manager_placement_v1
+    statement: An order becoming ready after Start remains outside the existing
+      production run until an authorized manager explicitly requests placement;
+      webhook projection and physical intake never place it silently.
+
+verification:
+  - The source evidence records the confirmed release, intake, selection, and post-Start placement decisions.
+  - Policy, Production unit and Postgres integration, Contracts, Database, API, Worker, Processor, architecture, lint, formatting, and TypeScript checks passed as recorded.
+  - Migration 0023 applied on a clean temporary database and the existing local development database.
+  - No production database, deployment, webhook, secret, or customer payload was changed.
+  - The accepted delta was applied exactly once to laundry-production memory v11, advancing it to v12 before context-pack regeneration.
+
+status: applied

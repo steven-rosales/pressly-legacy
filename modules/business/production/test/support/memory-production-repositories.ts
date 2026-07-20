@@ -30,8 +30,10 @@ import type {
 } from '../../src/production.port.ts';
 import type {
   ApplyOrderDemandCommand,
+  DemandProductionMutation,
   StoredOrderDemand,
 } from '../../src/apply-order-demand/apply-order-demand.port.ts';
+import { productionDueBucket } from '../../src/persistence/production-due-bucket.policy.ts';
 import { scheduleCoversInputExactly } from '../../src/persistence/schedule-snapshot-validation.ts';
 
 type StoredOrder = {
@@ -40,13 +42,14 @@ type StoredOrder = {
   orderDemandId: string;
   externalOrderId: string;
   dueAt: string;
-  dueBucket: 'today' | 'tomorrow' | 'later';
+  dueBucket: ProductionOrderListItem['dueBucket'];
   priority: boolean;
   derivedWeightLbs: number;
   bagCount: number | null;
   finishedAt: string | null;
   version: number;
   status:
+    | 'release_pending'
     | 'intake_pending'
     | 'eligible'
     | 'ineligible'
@@ -87,6 +90,14 @@ type State = {
     Readonly<{ locationId: string; value: SchedulerConfig }>
   >;
   shifts: Map<string, ProductionShift>;
+  shiftSelections: Map<
+    string,
+    Readonly<{
+      locationId: string;
+      version: number;
+      selectedOrderIds: readonly string[];
+    }>
+  >;
   machines: Map<string, ProductionMachine>;
   schedules: Map<string, ScheduleProposal>;
   scheduleLocationIds: Map<string, string>;
@@ -120,6 +131,7 @@ const emptyState = (): State => ({
   orders: new Map(),
   configs: new Map(),
   shifts: new Map(),
+  shiftSelections: new Map(),
   machines: new Map(),
   schedules: new Map(),
   scheduleLocationIds: new Map(),
@@ -138,23 +150,11 @@ const emptyState = (): State => ({
   intakeVersions: new Map(),
 });
 
-const bucket = (dueAt: string, now: Date): 'today' | 'tomorrow' | 'later' => {
-  const day = 86_400_000;
-  const today = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-  );
-  const due = new Date(dueAt);
-  const dueDay = Date.UTC(
-    due.getUTCFullYear(),
-    due.getUTCMonth(),
-    due.getUTCDate(),
-  );
-  const distance = Math.floor((dueDay - today) / day);
-
-  return distance <= 0 ? 'today' : distance === 1 ? 'tomorrow' : 'later';
-};
+const bucket = (
+  dueAt: string,
+  now: Date,
+): ProductionOrderListItem['dueBucket'] =>
+  productionDueBucket(new Date(dueAt), now, 'America/New_York');
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -182,6 +182,7 @@ type MemoryProductionOperations = OperationsOf<'acceptSchedule'> &
   OperationsOf<'applyOrderDemand'> &
   OperationsOf<'publishSchedulerConfig'> &
   OperationsOf<'recordOrderIntake'> &
+  OperationsOf<'replaceShiftOrderSelection'> &
   OperationsOf<'setProductionOrderPriority'> &
   OperationsOf<'startSchedule'>;
 
@@ -217,18 +218,33 @@ export const makeMemoryProductionRepositories = (deps: {
 
     lockDemand: async () => undefined,
 
-    loadDemand: async (demandKey) =>
-      clone(state.demands.get(demandKey) ?? null),
+    loadDemand: async (demandKey) => {
+      const demand = state.demands.get(demandKey);
+      if (demand === undefined) return null;
+
+      const productionOrder =
+        demand.productionOrderId === null
+          ? undefined
+          : state.orders.get(demand.productionOrderId);
+
+      return clone({
+        ...demand,
+        bagCount: productionOrder?.bagCount ?? null,
+        productionStatus: productionOrder?.status ?? null,
+      });
+    },
 
     applyDemand: async ({
       command,
       orderDemandId,
-      productionStatus,
+      production,
+      effectiveBagCount,
       now,
     }: {
       command: ApplyOrderDemandCommand;
       orderDemandId: string;
-      productionStatus: 'eligible' | 'intake_pending' | 'ineligible';
+      production: DemandProductionMutation;
+      effectiveBagCount: number | null;
       now: Date;
     }) => {
       const stored = state.demands.get(command.demandKey);
@@ -238,9 +254,21 @@ export const makeMemoryProductionRepositories = (deps: {
           ? undefined
           : state.orders.get(productionOrderId);
 
-      if (productionStatus !== 'ineligible' || previous !== undefined) {
+      if (production.action === 'none' && previous !== undefined)
+        throw new Error('A no-op demand projection found production work.');
+      if (production.action === 'preserve' && previous === undefined)
+        throw new Error('A preserved demand is missing production work.');
+      if (production.action === 'create' && previous !== undefined)
+        throw new Error('A new demand projection found production work.');
+      if (production.action === 'update' && previous === undefined)
+        throw new Error('An updated demand is missing production work.');
+
+      if (production.action === 'create' || production.action === 'update') {
+        const derivedWeightLbs =
+          command.estimatedWeightLbs ?? previous?.derivedWeightLbs;
+        if (derivedWeightLbs === undefined)
+          throw new Error('Production work requires a positive estimate.');
         productionOrderId ??= deps.ids.next();
-        const bagCount = previous?.bagCount ?? command.bagCount;
         state.orders.set(productionOrderId, {
           id: productionOrderId,
           locationId: command.locationId,
@@ -249,21 +277,24 @@ export const makeMemoryProductionRepositories = (deps: {
           dueAt: command.dueAt,
           dueBucket: bucket(command.dueAt, now),
           priority: previous?.priority ?? false,
-          derivedWeightLbs: command.estimatedWeightLbs,
-          bagCount,
+          derivedWeightLbs,
+          bagCount: effectiveBagCount,
           finishedAt: previous?.finishedAt ?? null,
           version: (previous?.version ?? 0) + 1,
-          status: productionStatus,
+          status: production.status,
         });
-        if (bagCount !== null && !state.intakeVersions.has(productionOrderId))
+        if (
+          effectiveBagCount !== null &&
+          !state.intakeVersions.has(productionOrderId)
+        )
           state.intakeVersions.set(productionOrderId, 1);
         if (
-          bagCount !== null &&
+          effectiveBagCount !== null &&
           (previous === undefined || previous.bagCount === null)
         )
           state.bagStatuses.set(
             productionOrderId,
-            Array.from({ length: bagCount }, () => 'eligible'),
+            Array.from({ length: effectiveBagCount }, () => 'eligible'),
           );
       }
 
@@ -273,6 +304,10 @@ export const makeMemoryProductionRepositories = (deps: {
         locationId: command.locationId,
         revisionAt: command.revisionAt,
         revisionHash: command.revisionHash,
+        phase: command.phase,
+        sourceStatusCode: command.sourceStatusCode,
+        estimatedWeightLbs: command.estimatedWeightLbs,
+        estimatedWeightSource: command.estimatedWeightSource,
         bagCount:
           productionOrderId === null
             ? null
@@ -305,6 +340,12 @@ export const makeMemoryProductionRepositories = (deps: {
 
     lockOrder: async (locationId, orderId) => {
       const order = state.orders.get(orderId);
+      const demand =
+        order === undefined
+          ? undefined
+          : [...state.demands.values()].find(
+              (candidate) => candidate.orderDemandId === order.orderDemandId,
+            );
       return order === undefined || order.locationId !== locationId
         ? null
         : {
@@ -314,7 +355,7 @@ export const makeMemoryProductionRepositories = (deps: {
             productionVersion: order.version,
             intakeVersion: state.intakeVersions.get(orderId) ?? 0,
             derivedWeightLbs: order.derivedWeightLbs,
-            demandState: 'ready_for_production',
+            demandPhase: demand?.phase ?? 'production_released',
           };
     },
 
@@ -324,6 +365,7 @@ export const makeMemoryProductionRepositories = (deps: {
       bagCount,
       expectedVersion,
       currentIntakeVersion,
+      nextStatus,
     }) => {
       const order = state.orders.get(orderId);
       if (
@@ -337,7 +379,7 @@ export const makeMemoryProductionRepositories = (deps: {
       state.orders.set(orderId, {
         ...order,
         bagCount,
-        status: 'eligible',
+        status: nextStatus,
         version,
       });
       state.intakeVersions.set(orderId, intakeVersion);
@@ -416,6 +458,76 @@ export const makeMemoryProductionRepositories = (deps: {
       return clone(updated);
     },
 
+    lockSelection: async (locationId, productionShiftId) => {
+      const shift = state.shifts.get(productionShiftId);
+      if (shift === undefined || shift.locationId !== locationId)
+        return { state: 'not_found', version: 0, selectedOrderIds: [] };
+      if (
+        [...state.runs.values()].some(
+          (run) =>
+            run.locationId === locationId &&
+            run.productionShiftId === productionShiftId,
+        )
+      )
+        return { state: 'run_exists', version: 0, selectedOrderIds: [] };
+      const selection = state.shiftSelections.get(productionShiftId);
+      return {
+        state: 'available',
+        version: selection?.version ?? 0,
+        selectedOrderIds: [...(selection?.selectedOrderIds ?? [])].sort(),
+      };
+    },
+
+    selectedOrdersAreReady: async (locationId, productionOrderIds) =>
+      productionOrderIds.every((orderId) => {
+        const order = state.orders.get(orderId);
+        return (
+          order !== undefined &&
+          order.locationId === locationId &&
+          order.status === 'eligible' &&
+          order.bagCount !== null
+        );
+      }),
+
+    replaceSelection: async ({
+      locationId,
+      productionShiftId,
+      selectedOrderIds,
+      currentVersion,
+      now,
+    }) => {
+      const current = state.shiftSelections.get(productionShiftId);
+      if ((current?.version ?? 0) !== currentVersion) return null;
+      const version = currentVersion + 1;
+      state.shiftSelections.set(productionShiftId, {
+        locationId,
+        version,
+        selectedOrderIds: [...selectedOrderIds],
+      });
+      const schedule = [...state.schedules.values()].find(
+        (candidate) =>
+          state.scheduleLocationIds.get(candidate.scheduleRunId) ===
+            locationId &&
+          candidate.productionShiftId === productionShiftId &&
+          (candidate.status === 'draft' || candidate.status === 'accepted'),
+      );
+      if (schedule !== undefined)
+        state.schedules.set(schedule.scheduleRunId, {
+          ...schedule,
+          status: 'superseded',
+          supersededAt: now.toISOString(),
+        });
+      return {
+        selection: {
+          productionShiftId,
+          version,
+          selectedOrderIds: [...selectedOrderIds],
+        },
+        supersededScheduleRunId: schedule?.scheduleRunId ?? null,
+        replayed: false,
+      };
+    },
+
     supersedeCurrentSchedule: async ({
       locationId,
       productionShiftId,
@@ -469,14 +581,28 @@ export const makeMemoryProductionRepositories = (deps: {
         return null;
       const config = storedConfig.value;
       if (config.algorithmVersion !== 'fixed-pulse-ffd-v2') return null;
+      const selectedOrderIds =
+        state.shiftSelections.get(productionShiftId)?.selectedOrderIds ?? [];
+      if (selectedOrderIds.length === 0) return 'selection_empty';
+      const selectedOrders = selectedOrderIds.map((orderId) =>
+        state.orders.get(orderId),
+      );
+      if (
+        selectedOrders.some(
+          (order) =>
+            order === undefined ||
+            order.locationId !== locationId ||
+            order.status !== 'eligible' ||
+            order.bagCount === null,
+        )
+      )
+        return 'selection_invalid';
 
       return {
-        orders: [...state.orders.values()]
+        orders: selectedOrders
           .filter(
             (order): order is StoredOrder & { bagCount: number } =>
-              order.locationId === locationId &&
-              order.status === 'eligible' &&
-              order.bagCount !== null,
+              order !== undefined && order.bagCount !== null,
           )
           .map(
             ({
@@ -604,15 +730,12 @@ export const makeMemoryProductionRepositories = (deps: {
         record.inputSnapshot.orders.map((order) => [order.id, order]),
       );
       if (snapshots.size !== record.inputSnapshot.orders.length) return false;
-      const eligibleOrderIds = [...state.orders.values()]
-        .filter(
-          (order) =>
-            order.locationId === locationId && order.status === 'eligible',
-        )
-        .map((order) => order.id)
-        .sort();
+      const selectedOrderIds = [
+        ...(state.shiftSelections.get(record.schedule.productionShiftId)
+          ?.selectedOrderIds ?? []),
+      ].sort();
       if (
-        JSON.stringify(eligibleOrderIds) !==
+        JSON.stringify(selectedOrderIds) !==
         JSON.stringify([...snapshots.keys()].sort())
       )
         return false;
@@ -1485,6 +1608,18 @@ export const makeMemoryProductionRepositories = (deps: {
               isActive: true,
             },
             currentShift: clone(currentShift),
+            shiftSelection:
+              currentShift === null
+                ? null
+                : {
+                    productionShiftId: currentShift.id,
+                    version:
+                      state.shiftSelections.get(currentShift.id)?.version ?? 0,
+                    selectedOrderIds: [
+                      ...(state.shiftSelections.get(currentShift.id)
+                        ?.selectedOrderIds ?? []),
+                    ].sort(),
+                  },
             candidateShifts,
             currentSchedulerConfig:
               clone([...state.configs.values()].at(-1)?.value) ?? null,
@@ -1532,6 +1667,7 @@ export const makeMemoryProductionRepositories = (deps: {
                               : 'Automatic placement has not completed; it can be retried.',
                         } as const),
                 })),
+            demandOutlook: null,
             board: null,
             stations: [],
             machines: [...state.machines.values()].map((machine) =>
@@ -1540,6 +1676,7 @@ export const makeMemoryProductionRepositories = (deps: {
             asOf: now.toISOString(),
           },
           boardProjection,
+          demandOutlookRows: [],
         };
       },
     },
@@ -1553,6 +1690,8 @@ export const makeMemoryProductionRepositories = (deps: {
       transactional<OperationsOf<'publishSchedulerConfig'>>(allOperations),
     recordOrderIntake:
       transactional<OperationsOf<'recordOrderIntake'>>(allOperations),
+    replaceShiftOrderSelection:
+      transactional<OperationsOf<'replaceShiftOrderSelection'>>(allOperations),
     routeProductionOrder: unsupportedTransactional(),
     reconcileProductionBatchProgress:
       unsupportedTransactional<

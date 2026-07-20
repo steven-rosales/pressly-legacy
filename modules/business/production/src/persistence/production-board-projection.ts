@@ -14,6 +14,7 @@ import type {
   UnevaluatedProductionBatch,
   UnevaluatedStageRun,
 } from '../production-board-read.policy.ts';
+import { productionDueBucket } from './production-due-bucket.policy.ts';
 
 export type ProductionBoardShiftRow = Readonly<{
   id: string;
@@ -123,26 +124,9 @@ const groupBy = <Row, Key>(
   return groups;
 };
 
-const dueBucket = (
-  dueAt: Date,
-  now: Date,
-): ProductionOrderSummary['dueBucket'] => {
-  const start = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-  );
-  const due = Date.UTC(
-    dueAt.getUTCFullYear(),
-    dueAt.getUTCMonth(),
-    dueAt.getUTCDate(),
-  );
-  const distance = Math.floor((due - start) / 86_400_000);
-  return distance <= 0 ? 'today' : distance === 1 ? 'tomorrow' : 'later';
-};
-
 const mapOrderStatus = (value: string): ProductionOrderListItem['status'] => {
   switch (value) {
+    case 'release_pending':
     case 'intake_pending':
     case 'eligible':
     case 'ineligible':
@@ -169,6 +153,7 @@ const mapBagCountProvenance = (
 export const mapProductionOrderListItem = (
   row: ProductionBoardOrderRow,
   now: Date,
+  timezone: string,
 ): ProductionOrderListItem => {
   const status = mapOrderStatus(row.status);
   const bagCountProvenance = mapBagCountProvenance(row.bagCountSource);
@@ -180,7 +165,12 @@ export const mapProductionOrderListItem = (
     throw new Error('Recorded bag intake requires a positive version.');
   if (status === 'intake_pending' && row.bagCount !== null)
     throw new Error('An intake-pending order already has bag intake.');
-  if (status !== 'intake_pending' && row.bagCount === null)
+  if (
+    status !== 'release_pending' &&
+    status !== 'intake_pending' &&
+    status !== 'ineligible' &&
+    row.bagCount === null
+  )
     throw new Error('A non-pending order is missing bag intake.');
 
   return {
@@ -188,7 +178,7 @@ export const mapProductionOrderListItem = (
     locationId: row.locationId,
     externalOrderId: row.externalOrderId,
     dueAt: row.dueAt.toISOString(),
-    dueBucket: dueBucket(row.dueAt, now),
+    dueBucket: productionDueBucket(row.dueAt, now, timezone),
     priority: row.priority,
     status,
     derivedWeightLbs: row.derivedWeightLbs,
@@ -202,6 +192,7 @@ export const mapProductionOrderListItem = (
 const mapOrderSummary = (
   row: ProductionBoardOrderRow,
   now: Date,
+  timezone: string,
 ): ProductionOrderSummary => {
   if (row.bagCount === null)
     throw new Error('A production board order is missing completed intake.');
@@ -209,7 +200,7 @@ const mapOrderSummary = (
     id: row.id,
     externalOrderId: row.externalOrderId,
     dueAt: row.dueAt.toISOString(),
-    dueBucket: dueBucket(row.dueAt, now),
+    dueBucket: productionDueBucket(row.dueAt, now, timezone),
     priority: row.priority,
     derivedWeightLbs: row.derivedWeightLbs,
     bagCount: row.bagCount,
@@ -336,6 +327,7 @@ const defaultPendingPlacement = (
 const mapPendingOrder = (
   row: ProductionBoardOrderRow,
   now: Date,
+  timezone: string,
   activeProductionRunIds: readonly string[],
 ): ProductionPendingOrder => {
   const parsed = productionPendingPlacementSchema.safeParse(
@@ -344,7 +336,7 @@ const mapPendingOrder = (
   if (row.pendingPlacement !== null && !parsed.success)
     throw new Error('An eligible order has invalid pending placement state.');
   return {
-    ...mapOrderSummary(row, now),
+    ...mapOrderSummary(row, now, timezone),
     placement:
       parsed.success &&
       parsed.data.status !== 'awaiting_run' &&
@@ -464,7 +456,7 @@ export const projectProductionBoard = (input: {
             `Unknown placement provenance: ${membership.placementProvenance}.`,
           );
         return {
-          ...mapOrderSummary(order, input.now),
+          ...mapOrderSummary(order, input.now, input.shift.timezone),
           placementProvenance: membership.placementProvenance,
           pinnedAt: membership.pinnedAt?.toISOString() ?? null,
           pinnedBy: membership.pinnedBy,
@@ -503,13 +495,18 @@ export const projectProductionBoard = (input: {
           (order) => order.status === 'eligible' && order.bagCount !== null,
         )
         .map((order) =>
-          mapPendingOrder(order, input.now, input.activeProductionRunIds),
+          mapPendingOrder(
+            order,
+            input.now,
+            input.shift.timezone,
+            input.activeProductionRunIds,
+          ),
         ),
       asOf: input.now.toISOString(),
     },
     stageNextActionContexts,
     orders: input.orders.map((order) =>
-      mapProductionOrderListItem(order, input.now),
+      mapProductionOrderListItem(order, input.now, input.shift.timezone),
     ),
   };
 };

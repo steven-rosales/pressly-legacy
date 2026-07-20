@@ -246,7 +246,8 @@ const seed = async () => {
       locationId: 'location-1',
       revisionHash: 'c'.repeat(64),
       revisionAt: createdAt,
-      status: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date(shiftEndsAt),
     },
     {
@@ -256,7 +257,8 @@ const seed = async () => {
       locationId: 'location-1',
       revisionHash: 'd'.repeat(64),
       revisionAt: createdAt,
-      status: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date(shiftEndsAt),
     },
     {
@@ -266,7 +268,8 @@ const seed = async () => {
       locationId: 'location-1',
       revisionHash: 'e'.repeat(64),
       revisionAt: createdAt,
-      status: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date(shiftEndsAt),
     },
   ]);
@@ -1071,7 +1074,8 @@ describe('place production order Postgres commit', () => {
       locationId: 'location-1',
       revisionHash: '9'.repeat(64),
       revisionAt: now,
-      status: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date(shiftEndsAt),
     });
     await testDb.db.insert(laundryProduction.productionOrders).values({

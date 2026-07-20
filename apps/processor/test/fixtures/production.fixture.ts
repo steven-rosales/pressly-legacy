@@ -76,6 +76,12 @@ export const testOrders: readonly ProductionOrderSummary[] = [
   },
 ]
 
+export const testShiftSelection = {
+  productionShiftId: testShift.id,
+  version: 1,
+  selectedOrderIds: testOrders.map((order) => order.id),
+}
+
 export const testOrderItems: readonly ProductionOrderListItem[] = [
   ...testOrders.map((order) => ({
     ...order,
@@ -213,6 +219,7 @@ export const testBoard: ProductionBoard = {
 export const testWorkspace: ProductionWorkspace = {
   location: testLocation,
   currentShift: testShift,
+  shiftSelection: testShiftSelection,
   candidateShifts: [
     {
       productionShiftId: testShift.id,
@@ -228,6 +235,7 @@ export const testWorkspace: ProductionWorkspace = {
   activeRuns: [testBoard.productionRun],
   orders: [...testOrderItems],
   pendingEligibleOrders: [],
+  demandOutlook: null,
   board: testBoard,
   stations: [],
   machines: [
@@ -310,6 +318,15 @@ export const makeTestProductionPort = (
       endsAt: input.endsAt,
       effectiveFolderCount: input.effectiveFolderCount,
       version: input.expectedVersion + 1,
+    },
+    supersededScheduleRunId: testSchedule.scheduleRunId,
+    replayed: false,
+  }),
+  replaceShiftSelection: async (input) => ({
+    selection: {
+      productionShiftId: input.productionShiftId,
+      version: input.expectedVersion + 1,
+      selectedOrderIds: [...input.selectedOrderIds].sort(),
     },
     supersededScheduleRunId: testSchedule.scheduleRunId,
     replayed: false,

@@ -62,13 +62,40 @@ export const productionStageKindSchema = z.enum([
   'drying',
   'folding_packaging',
 ]);
-export const productionDueBucketSchema = z.enum(['today', 'tomorrow', 'later']);
+export const productionDueBucketSchema = z.enum([
+  'overdue',
+  'today',
+  'tomorrow',
+  'later',
+]);
 export const productionOrderStatusSchema = z.enum([
+  'release_pending',
   'intake_pending',
   'eligible',
   'ineligible',
   'scheduled',
   'finished',
+]);
+export const productionDemandPhaseSchema = z.enum([
+  'expected',
+  'inbound',
+  'production_released',
+  'post_production',
+  'withdrawn',
+]);
+export const productionDemandReconciliationSchema = z.enum([
+  'none',
+  'source_ahead',
+  'source_withdrawn',
+  'source_behind',
+]);
+export const productionDemandReadinessSchema = z.enum([
+  'awaiting_release',
+  'awaiting_intake',
+  'ready',
+  'in_production',
+  'finished',
+  'not_admitted',
 ]);
 export const productionBagCountProvenanceSchema = z.enum([
   'external_source',
@@ -144,7 +171,12 @@ export const productionOrderListItemSchema = z
         message: 'An intake-pending order cannot have a recorded bag count.',
       });
 
-    if (order.status !== 'intake_pending' && order.bagCount === null)
+    if (
+      order.status !== 'release_pending' &&
+      order.status !== 'intake_pending' &&
+      order.status !== 'ineligible' &&
+      order.bagCount === null
+    )
       context.addIssue({
         code: 'custom',
         path: ['bagCount'],
@@ -194,6 +226,25 @@ export const productionShiftSchema = z
     version: z.number().int().positive(),
   })
   .strict();
+
+export const productionShiftSelectionSchema = z
+  .object({
+    productionShiftId: productionIdSchema,
+    version: z.number().int().nonnegative(),
+    selectedOrderIds: z.array(productionIdSchema),
+  })
+  .strict()
+  .superRefine((selection, context) => {
+    if (
+      new Set(selection.selectedOrderIds).size !==
+      selection.selectedOrderIds.length
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['selectedOrderIds'],
+        message: 'Selected order IDs must be unique.',
+      });
+  });
 
 export const schedulerConfigSchema = z
   .object({
@@ -564,16 +615,77 @@ export const productionWorkspaceShiftCandidateSchema = z
   })
   .strict();
 
+export const productionDemandOutlookItemSchema = z
+  .object({
+    orderDemandId: productionIdSchema,
+    productionOrderId: productionIdSchema.nullable(),
+    externalOrderId: z.string().min(1),
+    phase: productionDemandPhaseSchema,
+    sourceStatusCode: z.string().min(1),
+    dueAt: utcIsoStringSchema,
+    estimatedWeightLbs: z.number().positive().nullable(),
+    readiness: productionDemandReadinessSchema,
+    productionStatus: productionOrderStatusSchema.nullable(),
+    bagCount: z.number().int().nonnegative().nullable(),
+    reconciliation: productionDemandReconciliationSchema,
+  })
+  .strict();
+
+export const productionDemandForecastBatchSchema = z
+  .object({
+    sequence: z.number().int().nonnegative(),
+    demandIds: z.array(productionIdSchema).min(1),
+    estimatedWeightLbs: z.number().positive(),
+    expectedOrderCount: z.number().int().nonnegative(),
+    readyOrderCount: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const productionDemandForecastSchema = z
+  .object({
+    algorithmVersion: z.literal('fixed-pulse-demand-outlook-v1'),
+    startsAt: utcIsoStringSchema,
+    completesAt: utcIsoStringSchema,
+    pulseMinutes: z.number().int().positive(),
+    pulseCapacityLbs: z.number().nonnegative(),
+    batchCount: z.number().int().nonnegative(),
+    makespanMinutes: z.number().int().nonnegative(),
+    batches: z.array(productionDemandForecastBatchSchema),
+    unplacedDemandIds: z.array(productionIdSchema),
+  })
+  .strict();
+
+export const productionDemandOutlookSchema = z
+  .object({
+    productionShiftId: productionIdSchema,
+    horizonCutoffAt: utcIsoStringSchema,
+    totalOrderCount: z.number().int().nonnegative(),
+    totalEstimatedWeightLbs: z.number().nonnegative(),
+    estimateMissingOrderCount: z.number().int().nonnegative(),
+    expectedOrderCount: z.number().int().nonnegative(),
+    expectedEstimatedWeightLbs: z.number().nonnegative(),
+    readyOrderCount: z.number().int().nonnegative(),
+    readyEstimatedWeightLbs: z.number().nonnegative(),
+    inProductionOrderCount: z.number().int().nonnegative(),
+    inProductionEstimatedWeightLbs: z.number().nonnegative(),
+    reconciliationCount: z.number().int().nonnegative(),
+    items: z.array(productionDemandOutlookItemSchema),
+    forecast: productionDemandForecastSchema.nullable(),
+  })
+  .strict();
+
 export const productionWorkspaceSchema = z
   .object({
     location: productionLocationSchema,
     currentShift: productionShiftSchema.nullable(),
+    shiftSelection: productionShiftSelectionSchema.nullable(),
     candidateShifts: z.array(productionWorkspaceShiftCandidateSchema),
     currentSchedulerConfig: schedulerConfigSchema.nullable(),
     currentScheduleProposal: scheduleProposalSchema.nullable(),
     activeRuns: z.array(productionRunSummarySchema),
     orders: z.array(productionOrderListItemSchema),
     pendingEligibleOrders: z.array(productionPendingOrderSchema),
+    demandOutlook: productionDemandOutlookSchema.nullable(),
     board: productionBoardSchema.nullable(),
     stations: z.array(productionStationSchema),
     machines: z.array(productionMachineSchema),
@@ -706,6 +818,41 @@ export const updateProductionShiftRequestSchema = z
 export const updateProductionShiftResultSchema = z
   .object({
     productionShift: productionShiftSchema,
+    supersededScheduleRunId: productionIdSchema.nullable(),
+    replayed: z.boolean(),
+  })
+  .strict();
+
+const replaceProductionShiftSelectionFields = {
+  selectedOrderIds: z
+    .array(productionIdSchema)
+    .max(1000)
+    .superRefine((orderIds, context) => {
+      if (new Set(orderIds).size !== orderIds.length)
+        context.addIssue({
+          code: 'custom',
+          message: 'Selected order IDs must be unique.',
+        });
+    }),
+  expectedVersion: z.number().int().nonnegative(),
+  idempotencyKey: z.string().min(8).max(200),
+} as const;
+
+export const replaceProductionShiftSelectionCommandSchema = z
+  .object({
+    locationId: z.string().min(1),
+    productionShiftId: productionIdSchema,
+    ...replaceProductionShiftSelectionFields,
+  })
+  .strict();
+
+export const replaceProductionShiftSelectionRequestSchema = z
+  .object(replaceProductionShiftSelectionFields)
+  .strict();
+
+export const replaceProductionShiftSelectionResultSchema = z
+  .object({
+    selection: productionShiftSelectionSchema,
     supersededScheduleRunId: productionIdSchema.nullable(),
     replayed: z.boolean(),
   })

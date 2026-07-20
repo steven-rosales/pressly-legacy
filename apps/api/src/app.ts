@@ -32,6 +32,7 @@ import {
   type CentsWebhookVerifier,
 } from './vendors/cents/cents-webhook.security.ts';
 import { makeCentsWebhookRoute } from './vendors/cents/cents-webhook.route.ts';
+import { makeCentsWebhookPayloadCipher } from './vendors/cents/cents-webhook.quarantine.ts';
 import { makeProcessorBrowserBoundary } from './common/security/processor-session.ts';
 import {
   makeIpRateLimiter,
@@ -61,7 +62,14 @@ export const makeApiApp = (
     db: runtime.database.db,
     clock,
     ids,
+    quarantineRetentionMs: runtime.env.centsWebhook.quarantine.retentionMs,
   });
+  const centsWebhookPayloadCipher =
+    runtime.env.centsWebhook.quarantine.encryptionKey === undefined
+      ? undefined
+      : makeCentsWebhookPayloadCipher(
+          revealSecret(runtime.env.centsWebhook.quarantine.encryptionKey),
+        );
   const configuredCentsWebhookVerifier =
     runtime.env.centsWebhook.authMode === 'unsigned'
       ? acceptUnsignedCentsWebhook
@@ -169,6 +177,15 @@ export const makeApiApp = (
       verifier:
         overrides.centsWebhookVerifier ?? configuredCentsWebhookVerifier,
       ingestEvent: webhookIngestion.ingestEvent,
+      ...(centsWebhookPayloadCipher === undefined
+        ? {}
+        : {
+            quarantine: {
+              captureReceipt: webhookIngestion.captureReceipt,
+              linkReceipt: webhookIngestion.linkReceipt,
+              payloadCipher: centsWebhookPayloadCipher,
+            },
+          }),
     }),
   );
 

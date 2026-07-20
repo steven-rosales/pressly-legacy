@@ -74,6 +74,17 @@ export const makeErrorHandler = (runtime: ApiRuntime): ErrorRequestHandler => {
 
     observeApiError(runtime, { appError, request: req, requestId });
 
+    if (
+      res.locals['webhookSource'] === 'cents' &&
+      appError.status >= 400 &&
+      appError.status < 500
+    )
+      runtime.observability.counters.increment('api.webhook_rejections', {
+        source: 'cents',
+        reason: appError.code,
+        status: String(appError.status),
+      });
+
     if (appError.code === 'invalid_cents_webhook_authentication')
       runtime.securityEvents.emit({
         name: 'vendor.webhook_authentication_failed',

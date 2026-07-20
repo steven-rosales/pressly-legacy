@@ -29,6 +29,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AuthenticationView } from "@/features/authentication/authentication.view"
+import { DemandOutlookView } from "@/features/demand-outlook/demand-outlook.view"
 import { IntakeWorkspace } from "@/features/intake/intake.view"
 import { HistoryWorkspaceContainer } from "@/features/history/history-workspace.view"
 import { ProductionLocationSelect } from "@/features/location-selection/location-selection.view"
@@ -435,6 +436,16 @@ function ProcessorWorkspace({
           </Empty>
         ) : (
           <>
+            {model.workspace.demandOutlook !== null &&
+              (route.view === "home" ||
+                (route.view === "schedule" &&
+                  scheduleContext?.kind === "planning")) && (
+                <DemandOutlookView
+                  outlook={model.workspace.demandOutlook}
+                  timezone={location.timezone}
+                  variant={route.view === "home" ? "compact" : "detailed"}
+                />
+              )}
             {(route.view === "schedule" || route.view === "board") &&
               model.intakeOrders.length > 0 && (
                 <IntakeWorkspace
@@ -477,7 +488,7 @@ function ProcessorWorkspace({
             {route.view === "schedule" &&
               scheduleContext?.kind === "planning" && (
                 <SchedulingWorkspace
-                  key={`${location.id}:${scheduleContext.shift?.id ?? "new"}:${scheduleContext.proposal?.scheduleRunId ?? "none"}:${scheduleContext.proposal?.status ?? "none"}`}
+                  key={`${location.id}:${scheduleContext.shift?.id ?? "new"}:${scheduleContext.proposal?.scheduleRunId ?? "none"}:${scheduleContext.proposal?.status ?? "none"}:${model.workspace.shiftSelection?.version ?? 0}`}
                   production={runtime.production}
                   idempotency={runtime.idempotency}
                   locationId={location.id}
@@ -485,6 +496,7 @@ function ProcessorWorkspace({
                   defaults={planningDefaults}
                   currentConfig={model.workspace.currentSchedulerConfig}
                   currentShift={scheduleContext.shift}
+                  shiftSelection={model.workspace.shiftSelection}
                   initialProposal={scheduleContext.proposal ?? undefined}
                   canManage={model.session.principal.roles.some(
                     (role) => role === "owner" || role === "admin"

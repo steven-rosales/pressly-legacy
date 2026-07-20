@@ -58,6 +58,7 @@ const lpmsTables = [
   'production_shifts',
   'order_demands',
   'webhook_events',
+  'webhook_receipt_quarantine',
   'source_location_bindings',
   'production_locations',
 ] as const;
@@ -430,11 +431,11 @@ describe('LPMS database invariants', () => {
     await runtime`
       insert into order_demands (
         id, demand_key, display_reference, location_id, revision_hash,
-        revision_at, status, due_at
+        revision_at, phase, source_status_code, due_at
       ) values (
         ${ids.orderDemand}, 'synthetic:order:1', 'synthetic-order-1',
         ${locations.first}, 'source-hash-1', '2026-07-10T14:00:00Z',
-        'ready_for_production',
+        'production_released', 'IN_PROGRESS',
         '2026-07-10T20:00:00Z'
       )
     `;
@@ -445,7 +446,7 @@ describe('LPMS database invariants', () => {
       ) values (
         ${ids.productionOrder}, ${ids.orderDemand}, ${locations.first},
         '2026-07-10T20:00:00Z', 'intake_pending', 80,
-        null, null, null, '2026-07-10T14:00:00Z'
+        null, null, null, null
       )
     `;
 
@@ -476,12 +477,12 @@ describe('LPMS database invariants', () => {
     await runtime`
       insert into order_demands (
         id, demand_key, display_reference, location_id, revision_hash,
-        revision_at, status, due_at
+        revision_at, phase, source_status_code, due_at
       ) values (
         ${ids.orderDemand}, 'synthetic:order:cross-location',
         'cross-location-order', ${locations.first},
         'source-hash-cross-location', '2026-07-10T14:00:00Z',
-        'ready_for_production', '2026-07-10T20:00:00Z'
+        'production_released', 'IN_PROGRESS', '2026-07-10T20:00:00Z'
       )
     `;
     await expect(

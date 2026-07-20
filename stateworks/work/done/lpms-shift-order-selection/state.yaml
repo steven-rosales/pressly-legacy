@@ -1,0 +1,35 @@
+work_id: lpms-shift-order-selection
+status: complete
+updated: 2026-07-19T00:00:00-04:00
+
+current_focus:
+  - complete
+  - Release-gated admission, versioned shift selection, explicit live placement, and verification are complete.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+      - stateworks/work/done/lpms-shift-order-selection/final-report.md
+      - stateworks/memory/domains/laundry-production/deltas/2026-07-19-shift-order-selection.memory-delta.yaml

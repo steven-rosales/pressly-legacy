@@ -15,11 +15,15 @@ source-neutral internal authority for scheduling and physical execution.
 
 - Authenticate every inbound vendor webhook against the exact raw body bytes
   before JSON parsing or durable ingestion.
-- Persist only the canonical LPMS input and a raw-body digest. Do not retain a
-  customer-bearing raw payload merely for replay convenience.
+- Persist only the canonical LPMS input and a raw-body digest in the durable
+  inbox. Keep full vendor payloads out of Production contracts and projections.
+- Capture the exact raw receipt in a separate AES-256-GCM encrypted diagnostic
+  quarantine for 30 days. The quarantine is not a replay source or product
+  read model, has no public read route, and is purged independently.
 - Acknowledge an order webhook only after its minimized canonical event is
-  durable. Authenticated non-production events retain source metadata and a
-  digest, but no customer payload.
+  durable and its accepted quarantine receipt is linked. Authenticated
+  non-production events retain only source metadata and a digest in the inbox;
+  their raw receipt remains encrypted and short-lived in quarantine.
 - Process ingested events at least once and make downstream commands
   idempotent.
 - Normalize only the source fields the target capability actually needs.
@@ -143,7 +147,9 @@ A separate message broker is not required for expected volume.
 Cents webhook
 -> API verifies the timestamped HMAC against exact raw bytes
 -> API parses, classifies, minimizes, and normalizes the Cents wire payload
+-> API encrypts the exact raw bytes into the short-lived receipt quarantine
 -> webhook-ingestion.ingestEvent(source = cents, status = pending)
+-> API links the quarantine receipt to the canonical event
 -> commit
 -> return a success response
 
@@ -164,8 +170,11 @@ same event is reclaimed, and the same Production command becomes a no-op before
 the inbox event is completed.
 
 Authenticated customer and marketing events are recorded as ignored without
-persisting customer payloads. Processable events retain only the canonical
-adapter payload required for deterministic downstream translation.
+putting customer payloads in `webhook_events`. Processable events retain only
+the canonical adapter payload required for deterministic downstream
+translation. The separate encrypted quarantine preserves the complete raw
+receipt temporarily for integration diagnosis, including normalization
+rejections, without widening the canonical LPMS contract.
 
 The worker provides at-least-once processing:
 
@@ -248,6 +257,35 @@ stable SHA-256 deduplication key from source, event type, subject identity,
 source occurrence time, and the exact raw-body digest. Equal deduplication keys
 with different payloads are rejected as divergence rather than overwritten.
 
+### `webhook_receipt_quarantine`
+
+Stores short-lived encrypted diagnostic receipts outside the canonical inbox.
+It is owned by generic webhook ingestion; the API vendor boundary owns exact
+raw-byte encryption and normalization metadata.
+
+```text
+webhook_receipt_quarantine
+- id
+- source
+- raw_body_sha256
+- adapter_version
+- event_type
+- normalization_outcome
+- normalization_error_code
+- payload_ciphertext
+- webhook_event_id
+- received_at
+- expires_at
+- linked_at
+```
+
+`payload_ciphertext` is a versioned AES-256-GCM envelope encrypted with a key
+dedicated to webhook quarantine. It must not reuse the MFA encryption key.
+Accepted receipts link to their canonical `webhook_events` row. Rejected
+receipts retain a safe normalization error code but never put customer data in
+logs, metrics, Sentry, API errors, or the Processor UI. A worker periodically
+purges all rows at or past `expires_at`.
+
 ### `source_location_bindings`
 
 Maps a source's location vocabulary into Pressly's location vocabulary without
@@ -274,8 +312,10 @@ cannot be silently reassigned, deactivated, or removed by a convergence run.
 
 LPMS does not need customer identity, contact details, marketing preferences,
 attribution, or customer metrics to schedule and execute laundry. Those fields
-are discarded at the Cents adapter. A future CRM product may own a separate,
-purpose-limited projection; LPMS does not create one incidentally.
+are discarded when creating the canonical Cents event and never enter a
+Production projection. They may exist only inside the encrypted, expiring raw
+receipt quarantine for integration diagnosis. A future CRM product may own a
+separate, purpose-limited projection; LPMS does not create one incidentally.
 
 ## LPMS Production Model
 
@@ -399,12 +439,15 @@ For v1:
 
 ```text
 order_demands.status must be ready_for_production before the production_order
-can be scheduled.
+can be scheduled. An active demand with no positive estimated weight is still
+stored, but it does not create an executable production_order until a newer
+source snapshot supplies a positive estimate.
 order_demands.location_id must equal production_order.location_id.
 bag_count must be recorded by an authoritative external field or a versioned
 operator intake command; absence is not zero.
 must_stay_together = true
-derived_weight_source = external_estimate for the initial Cents adapter
+derived_weight_source = external_estimate when the Cents adapter can derive a
+positive estimate from service pricing
 ```
 
 `intake_version` protects the operator-observed bag fact independently from the
@@ -1538,17 +1581,18 @@ The current repository implements the happy-path slice described above:
   assignment, Start, membership, placement, whole-order routing, and
   stage-transition decisions.
 - `modules/business/webhook-ingestion` owns source-neutral durable ingestion,
-  deduplication, leases, retries, dead letters, replay, and source-location
-  bindings.
+  encrypted-receipt quarantine persistence, retention purge, deduplication,
+  leases, retries, dead letters, replay, and source-location bindings.
 - `modules/business/production` owns canonical order demand, planning,
   acceptance, Start, online insertion, execution, idempotency, transactions,
   server-paginated order/history projections, whole-order routing,
   controllers, and routes.
   Its source contains no vendor, webhook, receipt, lease, or CRM concepts.
-- `apps/api` owns the explicit Cents authentication policy and wire
-  normalization, composes the isolated modules, and applies authentication,
-  authorization, validation, and HTTP error mapping. HMAC remains available;
-  the initial vendor-compatible mode is explicitly unsigned.
+- `apps/api` owns the explicit Cents authentication policy, exact raw-byte
+  encryption, and wire normalization, composes the isolated modules, and
+  applies authentication, authorization, validation, and HTTP error mapping.
+  HMAC remains available; the initial vendor-compatible mode is explicitly
+  unsigned.
 - `apps/worker` composes webhook ingestion with Production through a declarative
   source/subject consumer registry. The Cents consumer derives the canonical
   demand command; stable event-based idempotency closes the crash window between
@@ -1563,11 +1607,11 @@ The current repository implements the happy-path slice described above:
   commands and receives revision-only invalidations through authenticated SSE;
   it does not poll the workspace or board on a timer.
 
-Production readiness requires the timestamped-HMAC contract above. The current
-API adapter implements that contract and fails startup in production when its
-current key is absent. Live delivery remains disabled until the contract is
-verified with Cents. Automatic read/reconciliation also remains disabled until
-Cents proves an authoritative updated-since API. Queued rebatching and bounded
+Production readiness requires an explicit ingress mode. The current API
+adapter supports timestamped HMAC and Cents-compatible unsigned HTTPS JSON;
+production must configure the selected mode and a dedicated quarantine
+encryption key. Automatic read/reconciliation remains disabled until Cents
+proves an authoritative updated-since API. Queued rebatching and bounded
 in-flight leave-behind/rewash are implemented as whole-order routes. Manual
 holds, hard-confirmed cancellation, damaged-item, missing-bag, backward
 correction, and sole-order empty-batch workflows remain intentionally deferred.
@@ -1583,6 +1627,10 @@ Stop a worker after Production commits but before inbox completion -> redelivery
 uses the same idempotency key, becomes a Production no-op, and completes the
 inbox event.
 Deliver a permanently invalid payload -> the event becomes dead and raises an alert.
+Deliver a valid order before weighing -> retain advisory demand without an
+executable production_order; a later positive estimate promotes it normally.
+Reject a valid-JSON vendor body during normalization -> retain only its
+encrypted short-lived quarantine receipt and safe rejection telemetry.
 Omit a webhook -> reconciliation restores the missing vendor state only when a
 verified Cents updated-since API exists; otherwise alert and use bounded manual replay.
 Race two production commands -> optimistic concurrency and constraints allow only one valid write.
@@ -1672,8 +1720,10 @@ folding capacity is fold_lbs_per_folder_minute * effective_folder_count * pulse_
 The same scheduler_config version and input snapshot produce the same schedule proposal.
 The weight-based minimum batch count does not override whole-order packing.
 An order heavier than pulse_capacity_lbs is unplaced in v1; it is never silently split.
-The v1 Cents Worker adapter derives estimated weight from service pricing before
-calling Production; Production accepts the source-neutral positive estimate.
+The v1 Cents Worker adapter derives estimated weight from service pricing when
+the snapshot contains a positive calculable value. Missing pre-weigh pricing
+is represented as no estimate, not as zero or a dead webhook; Production keeps
+the advisory demand out of executable work until a later positive estimate.
 Finished means folding and packaging are complete.
 Stage completion is operator-confirmed, not hardware-confirmed.
 schedule_run input and output snapshots are immutable after creation.

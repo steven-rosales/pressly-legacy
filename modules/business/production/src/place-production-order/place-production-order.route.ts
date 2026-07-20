@@ -30,7 +30,6 @@ export const makePlaceProductionOrderRoutes = (input: {
   placeExactly: PlaceProductionOrderExactly;
   confirmOvertime: ConfirmProductionOrderOvertime;
   authenticate: RequestHandler;
-  authorizeQueue: RequestHandler;
   authorizeOverride: RequestHandler;
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
@@ -42,7 +41,7 @@ export const makePlaceProductionOrderRoutes = (input: {
       params: runOrderParamsSchema,
       body: placeProductionOrderAutomaticallyRequestSchema,
     }),
-    input.authorizeQueue,
+    input.authorizeOverride,
     makePlaceProductionOrderAutomaticallyController({
       place: input.placeAutomatically,
       readActorId: input.readActorId,

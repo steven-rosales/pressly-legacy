@@ -3,6 +3,7 @@ import { RequestFailure } from "@/ports/request.error"
 
 export type SchedulingErrorOperation =
   | "compute"
+  | "selection"
   | "priority"
   | "accept"
   | "start"
@@ -12,6 +13,7 @@ const fallbackMessage = (
   t: TFunction
 ): string => {
   if (operation === "compute") return t("scheduling.errors.computeFailed")
+  if (operation === "selection") return t("scheduling.errors.selectionFailed")
   if (operation === "priority") return t("scheduling.errors.priorityFailed")
   if (operation === "accept") return t("scheduling.errors.acceptFailed")
   return t("scheduling.errors.startUnknown")
@@ -25,6 +27,13 @@ export const presentSchedulingError = (
   if (!(cause instanceof RequestFailure)) return fallbackMessage(operation, t)
 
   switch (cause.code.toLowerCase()) {
+    case "production_shift_selection_version_conflict":
+      return t("scheduling.errors.selectionChanged")
+    case "production_shift_selection_not_ready":
+    case "schedule_selection_not_ready":
+      return t("scheduling.errors.selectionNotReady")
+    case "schedule_selection_empty":
+      return t("scheduling.selectBeforeComputing")
     case "production_shift_version_conflict":
       return t("scheduling.errors.shiftChanged")
     case "production_shift_already_started":
@@ -72,6 +81,8 @@ export const presentSchedulingError = (
   if (cause.kind === "conflict")
     return operation === "priority"
       ? t("scheduling.errors.priorityChanged")
-      : t("scheduling.errors.planStale")
+      : operation === "selection"
+        ? t("scheduling.errors.selectionChanged")
+        : t("scheduling.errors.planStale")
   return fallbackMessage(operation, t)
 }

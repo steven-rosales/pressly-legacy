@@ -599,7 +599,12 @@ export function useProcessorAppModel(
     [orders]
   )
   const intakeOrders = useMemo(
-    () => orders.filter((order) => order.status === "intake_pending"),
+    () =>
+      orders.filter(
+        (order) =>
+          order.status === "intake_pending" ||
+          (order.status === "release_pending" && order.bagCount === null)
+      ),
     [orders]
   )
   const selectedLocation =

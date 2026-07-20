@@ -14,16 +14,23 @@ describe('production order-control contracts', () => {
     expect(
       listProductionOrderControlQuerySchema.parse({
         view: 'active',
+        dueBucket: 'overdue',
         priority: 'true',
         movable: 'false',
         limit: '25',
       }),
     ).toMatchObject({
       view: 'active',
+      dueBucket: 'overdue',
       priority: true,
       movable: false,
       limit: 25,
     });
+    expect(
+      listProductionOrderControlQuerySchema.safeParse({
+        dueBefore: '2026-07-20T04:00:00.000Z',
+      }).success,
+    ).toBe(false);
   });
 
   it('requires an explanation for a non-enumerated floor reason', () => {

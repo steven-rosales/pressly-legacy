@@ -42,11 +42,16 @@ const emptyFilters: OrderControlFilters = {
 }
 
 const labelFor = (value: string, t: TFunction): string => {
+  if (value === "release_pending") return t("orderControl.awaitingCentsRelease")
   if (value === "intake_pending") return t("orderControl.intakeNeeded")
   if (value === "eligible") return t("orderControl.eligible")
   if (value === "ineligible") return t("orderControl.notEligible")
   if (value === "scheduled") return t("orderControl.inProduction")
   if (value === "finished") return t("orderControl.finished")
+  if (value === "overdue") return t("common.due.overdue")
+  if (value === "today") return t("common.due.today")
+  if (value === "tomorrow") return t("common.due.tomorrow")
+  if (value === "later") return t("common.due.later")
   if (value === "queued") return t("common.queued")
   if (value === "sorting") return t("common.stage.sorting")
   if (value === "washing") return t("common.stage.washing")
@@ -71,26 +76,6 @@ const formatDate = (value: string, timezone: string, locale: string): string =>
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value))
-
-const dueQuery = (
-  due: string,
-  now: Date
-): Pick<ListProductionOrderControlQuery, "dueAfter" | "dueBefore"> => {
-  if (due === "all") return {}
-  const startToday = new Date(now)
-  startToday.setHours(0, 0, 0, 0)
-  const startTomorrow = new Date(startToday)
-  startTomorrow.setDate(startTomorrow.getDate() + 1)
-  const startLater = new Date(startTomorrow)
-  startLater.setDate(startLater.getDate() + 1)
-  if (due === "today") return { dueBefore: startTomorrow.toISOString() }
-  if (due === "tomorrow")
-    return {
-      dueAfter: startTomorrow.toISOString(),
-      dueBefore: startLater.toISOString(),
-    }
-  return { dueAfter: startLater.toISOString() }
-}
 
 const stageFor = (item: ProductionOrderControlItem): Stage => {
   if (item.currentPlacement === null) return item.nextRequiredStage ?? "sorting"
@@ -159,7 +144,10 @@ const presentOrder = (
     externalOrderId: item.order.externalOrderId,
     secondaryLabel: null,
     statusLabel: labelFor(item.order.status, t),
-    dueLabel: labelFor(item.order.dueBucket, t),
+    dueLabel:
+      item.order.status === "finished"
+        ? t("orderControl.finished")
+        : labelFor(item.order.dueBucket, t),
     dueDetail: formatDate(item.order.dueAt, timezone, locale),
     weightLabel: t("common.pounds", { value: item.order.derivedWeightLbs }),
     bagLabel:
@@ -364,7 +352,6 @@ export function OrderControlWorkspaceContainer({
   }, [filters.query])
 
   const query = useMemo<ListProductionOrderControlQuery>(() => {
-    const now = new Date()
     return {
       view:
         tab === "needs_attention"
@@ -379,7 +366,7 @@ export function OrderControlWorkspaceContainer({
       ...(filters.priority === "all"
         ? {}
         : { priority: filters.priority === "priority" }),
-      ...dueQuery(filters.due, now),
+      ...(filters.due === "all" ? {} : { dueBucket: filters.due }),
       ...(cursor === undefined ? {} : { cursor }),
     }
   }, [cursor, debouncedSearch, filters, tab])
@@ -763,6 +750,10 @@ export function OrderControlWorkspaceContainer({
     filterOptions: {
       statuses: [
         { value: "all", label: t("orderControl.allStatuses") },
+        {
+          value: "release_pending",
+          label: t("orderControl.awaitingCentsRelease"),
+        },
         { value: "intake_pending", label: t("orderControl.intakeNeeded") },
         { value: "eligible", label: t("orderControl.eligible") },
         { value: "scheduled", label: t("orderControl.inProduction") },
@@ -770,6 +761,7 @@ export function OrderControlWorkspaceContainer({
       ],
       dueWindows: [
         { value: "all", label: t("orderControl.anyDueDate") },
+        { value: "overdue", label: t("orderControl.pastDue") },
         { value: "today", label: t("orderControl.dueToday") },
         { value: "tomorrow", label: t("orderControl.dueTomorrow") },
         { value: "later", label: t("orderControl.dueLater") },

@@ -36,7 +36,11 @@ describe('LPMS schema', () => {
       ]),
     );
     expect(Object.keys(webhookIngestion)).toEqual(
-      expect.arrayContaining(['webhookEvents', 'sourceLocationBindings']),
+      expect.arrayContaining([
+        'webhookEvents',
+        'webhookReceiptQuarantine',
+        'sourceLocationBindings',
+      ]),
     );
   });
 
@@ -51,10 +55,23 @@ describe('LPMS schema', () => {
     expect(webhookIngestion.webhookEvents.sourceOccurredAt.name).toBe(
       'source_occurred_at',
     );
+    expect(
+      webhookIngestion.webhookReceiptQuarantine.payloadCiphertext.name,
+    ).toBe('payload_ciphertext');
+    expect(webhookIngestion.webhookReceiptQuarantine.expiresAt.name).toBe(
+      'expires_at',
+    );
     expect(laundryProduction.orderDemands.revisionHash.name).toBe(
       'revision_hash',
     );
     expect(laundryProduction.orderDemands.revisionAt.name).toBe('revision_at');
+    expect(laundryProduction.orderDemands.phase.name).toBe('phase');
+    expect(laundryProduction.orderDemands.sourceStatusCode.name).toBe(
+      'source_status_code',
+    );
+    expect(laundryProduction.orderDemands.estimatedWeightLbs.name).toBe(
+      'estimated_weight_lbs',
+    );
     expect(laundryProduction.productionOrders.locationId.name).toBe(
       'location_id',
     );
@@ -323,5 +340,68 @@ describe('LPMS schema', () => {
       migration.indexOf(backfill),
     );
     expect(migration).not.toContain('DELETE FROM "production_batch_orders"');
+  });
+
+  it('backfills canonical demand lifecycle before enforcing constraints', async () => {
+    const migration = await readFile(
+      new URL(
+        '../src/migrations/0021_lpms-demand-lifecycle-outlook.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const sourceColumn =
+      'ALTER TABLE "order_demands" ADD COLUMN "source_status_code" text;';
+    const lifecycleBackfill = 'UPDATE "order_demands"\nSET';
+    const sourceRequired =
+      'ALTER TABLE "order_demands" ALTER COLUMN "source_status_code" SET NOT NULL;';
+
+    expect(migration).toContain('RENAME COLUMN "status" TO "phase"');
+    expect(migration).toContain("THEN 'production_released'");
+    expect(migration).toContain("ELSE 'expected'");
+    expect(migration).toContain('UPDATE "order_demands" AS "demand"');
+    expect(migration).toContain('WITH "latest_cents_receipt" AS');
+    expect(migration).toContain('SELECT DISTINCT ON ("subject_id")');
+    expect(migration).toContain(
+      '"demand"."demand_key" = \'cents:order:\' || "backfill"."subject_id"',
+    );
+    expect(migration).toContain("THEN 'external_estimate'");
+    expect(migration).toContain(
+      'ALTER TABLE "production_orders" ALTER COLUMN "eligible_at" DROP NOT NULL',
+    );
+    expect(migration.indexOf(lifecycleBackfill)).toBeGreaterThan(
+      migration.indexOf(sourceColumn),
+    );
+    expect(migration.indexOf(sourceRequired)).toBeGreaterThan(
+      migration.indexOf(lifecycleBackfill),
+    );
+  });
+
+  it('persists an explicit shift selection before planning can resume', async () => {
+    const migration = await readFile(
+      new URL(
+        '../src/migrations/0023_lpms-shift-order-selection.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const selectionUniqueness =
+      'CREATE UNIQUE INDEX "production_shift_selections_shift_location_unique"';
+    const selectionForeignKey =
+      'ADD CONSTRAINT "production_shift_selected_orders_selection_fk"';
+
+    expect(getTableName(laundryProduction.productionShiftSelections)).toBe(
+      'production_shift_selections',
+    );
+    expect(getTableName(laundryProduction.productionShiftSelectedOrders)).toBe(
+      'production_shift_selected_orders',
+    );
+    expect(migration.indexOf(selectionUniqueness)).toBeGreaterThanOrEqual(0);
+    expect(migration.indexOf(selectionForeignKey)).toBeGreaterThan(
+      migration.indexOf(selectionUniqueness),
+    );
+    expect(migration).toContain("WHEN 'expected' THEN 'release_pending'");
+    expect(migration).toContain("WHEN 'inbound' THEN 'release_pending'");
+    expect(migration).toContain("WHERE \"status\" IN ('draft', 'accepted')");
   });
 });

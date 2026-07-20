@@ -28,16 +28,106 @@ export const makeClock = (initial: string) => {
 };
 
 export const allowPolicy: ProductionPolicyPort = {
-  evaluateEligibility: ({ bagCount }) =>
-    bagCount === null
+  evaluateDemandReconciliation: ({
+    phase,
+    productionStatus,
+    currentBagCount,
+  }) => {
+    if (phase === 'post_production' && productionStatus !== 'finished')
+      return 'source_ahead';
+    if (
+      phase === 'withdrawn' &&
+      currentBagCount !== null &&
+      productionStatus !== 'finished'
+    )
+      return 'source_withdrawn';
+    if (
+      productionStatus === 'finished' &&
+      (phase === 'expected' ||
+        phase === 'inbound' ||
+        phase === 'production_released')
+    )
+      return 'source_behind';
+    return 'none';
+  },
+  evaluateDemandLifecycle: (input) => {
+    const effectiveBagCount = input.currentBagCount ?? input.incomingBagCount;
+    const reconciliation = allowPolicy.evaluateDemandReconciliation(input);
+    if (
+      input.productionStatus === 'scheduled' ||
+      input.productionStatus === 'finished'
+    )
+      return {
+        effectiveBagCount,
+        reconciliation,
+        production: { action: 'preserve' },
+      };
+    if (input.phase === 'post_production' || input.phase === 'withdrawn') {
+      if (input.productionStatus === null)
+        return {
+          effectiveBagCount,
+          reconciliation,
+          production: { action: 'none' },
+        };
+      return {
+        effectiveBagCount,
+        reconciliation,
+        production: { action: 'update', status: 'ineligible' },
+      };
+    }
+    if (
+      input.estimatedWeightLbs === null ||
+      !Number.isFinite(input.estimatedWeightLbs) ||
+      input.estimatedWeightLbs <= 0
+    )
+      return {
+        effectiveBagCount,
+        reconciliation,
+        production:
+          input.productionStatus === null
+            ? { action: 'none' }
+            : { action: 'update', status: 'ineligible' },
+      };
+    return {
+      effectiveBagCount,
+      reconciliation,
+      production: {
+        action: input.productionStatus === null ? 'create' : 'update',
+        status:
+          input.phase === 'production_released'
+            ? effectiveBagCount === null
+              ? 'intake_pending'
+              : 'eligible'
+            : 'release_pending',
+      },
+    };
+  },
+  evaluateIntakeAdmission: ({ phase, bagCount }) =>
+    phase === 'withdrawn' || phase === 'post_production'
       ? {
           tag: 'err',
           error: {
-            code: 'ORDER_BAG_COUNT_MISSING',
-            message: 'Bag intake is required before scheduling.',
+            code: 'ORDER_DEMAND_INTAKE_INVALID',
+            message: 'The order cannot be admitted to production.',
           },
         }
-      : { tag: 'ok', value: { eligible: true } },
+      : bagCount === null
+        ? {
+            tag: 'err',
+            error: {
+              code: 'ORDER_BAG_COUNT_MISSING',
+              message: 'Bag intake is required before scheduling.',
+            },
+          }
+        : {
+            tag: 'ok',
+            value: {
+              status:
+                phase === 'production_released'
+                  ? ('eligible' as const)
+                  : ('release_pending' as const),
+            },
+          },
   evaluateScheduleAcceptance: () => ({
     tag: 'ok',
     value: { accepted: true },
@@ -357,6 +447,17 @@ const addMinutes = (instant: string, minutes: number) =>
   new Date(Date.parse(instant) + minutes * 60_000).toISOString();
 
 export const simpleScheduler: ProductionSchedulerPort = {
+  forecastDemand: (input) => ({
+    algorithmVersion: 'fixed-pulse-demand-outlook-v1',
+    startsAt: input.shift.startsAt,
+    completesAt: input.shift.startsAt,
+    pulseMinutes: input.config.pulseMinutes,
+    pulseCapacityLbs: 224,
+    batchCount: 0,
+    makespanMinutes: 0,
+    batches: [],
+    unplacedDemandIds: [],
+  }),
   propose: (input: SchedulingInput): SchedulingOutput => {
     const batches = input.orders.map((order, sequence) => ({
       sequence,

@@ -1,6 +1,6 @@
 domain_id: laundry-production
 name: Laundry Production
-version: 9
+version: 12
 status: active
 summary: >
   Durable business memory for Pressly's wash-and-fold production process. LPMS
@@ -106,6 +106,14 @@ objects:
     status: active
     sources:
       - memdelta-2026-07-15-order-control-history
+  - id: demand_outlook
+    description:
+      A location- and shift-scoped read-only projection of external order
+      demand, production admission, and source-versus-floor comparison; it is
+      advisory planning context rather than executable production state.
+    status: active
+    sources:
+      - memdelta-2026-07-18-demand-lifecycle-outlook
 states:
   schedule_run:
     - draft
@@ -313,6 +321,23 @@ workflows:
     status: active
     sources:
       - memdelta-2026-07-15-order-control-history
+  - id: external_demand_to_production_admission
+    steps:
+      - a strictly newer Cents order revision is normalized to one canonical
+        demand phase at the vendor adapter boundary
+      - LPMS persists the source phase, source status, due time, estimated
+        weight, and weight provenance without treating them as floor truth
+      - active demand due through the shift's local service-day cutoff appears
+        in the advisory demand outlook
+      - physical bag intake or a production-released source phase may make the
+        order production-ready only when weight and bag-count rules hold
+      - executable scheduling reads only admitted production orders with known
+        bag counts
+      - a downstream, withdrawn, or lagging source status is compared with LPMS
+        and requires operator-confirmed reconciliation when the systems disagree
+    status: active
+    sources:
+      - memdelta-2026-07-18-demand-lifecycle-outlook
 invariants:
   - id: orders_do_not_split_across_batches
     statement:
@@ -433,12 +458,13 @@ invariants:
     sources:
       - memdelta-2026-07-10-fixed-pulse-scheduling
   - id: schedule_proposals_are_deterministic
-    statement:
-      The same eligible-order snapshot, resource snapshot, scheduler_config
-      version, and operator directives produce the same schedule proposal.
+    statement: The same selected ready-order snapshot, resource snapshot,
+      scheduler_config version, and operator directives produce the same
+      schedule proposal.
     status: active
     sources:
       - memdelta-2026-07-10-fixed-pulse-scheduling
+      - memdelta-2026-07-19-shift-order-selection
   - id: production_run_starts_before_stages
     statement: A stage_run cannot start until its owning production_run is started.
     status: active
@@ -487,11 +513,12 @@ invariants:
       - memdelta-2026-07-14-run-centered-online-scheduling-implementation
   - id: start_requires_current_accepted_snapshot
     statement: Start succeeds only when the accepted schedule_run is still the
-      current revision and its complete eligible-order snapshot is unchanged.
+      current revision and its exact selected ready-order snapshot is unchanged.
     status: active
     sources:
       - memdelta-2026-07-14-run-centered-online-scheduling
       - memdelta-2026-07-14-run-centered-online-scheduling-implementation
+      - memdelta-2026-07-19-shift-order-selection
   - id: post_start_orders_enter_existing_run
     statement: An order that becomes eligible after Start may enter only the
       existing production_run for its shift; LPMS never creates a sibling run
@@ -547,7 +574,7 @@ invariants:
       Compute, Accept, Start, and demand, intake, or priority commands that
       can change the eligible-order snapshot serialize per location before
       validating or mutating that snapshot.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-14-run-centered-online-scheduling-implementation
   - id: pending_live_placement_is_durable_v1
@@ -706,14 +733,69 @@ invariants:
     status: active
     sources:
       - memdelta-2026-07-15-order-control-history
+  - id: source_lifecycle_does_not_advance_floor_truth_v1
+    statement: A Cents lifecycle revision may update external demand and
+      reconciliation state, but it cannot start, advance, finish, cancel, or
+      rewind an LPMS order, batch, stage, run, or shift.
+    status: active
+    sources:
+      - memdelta-2026-07-18-demand-lifecycle-outlook
+  - id: physical_intake_can_admit_lagging_source_v1
+    statement: Physical intake with a recorded bag count may admit expected or
+      inbound demand to Production when weight and eligibility rules hold even
+      if the latest Cents status has not reached IN_PROGRESS.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-18-demand-lifecycle-outlook
+  - id: committed_work_survives_source_withdrawal_v1
+    statement:
+      A downstream or canceled Cents revision preserves physically received
+      or committed LPMS work and creates reconciliation attention instead of
+      silently removing or terminalizing that work.
+    status: active
+    sources:
+      - memdelta-2026-07-18-demand-lifecycle-outlook
+  - id: advisory_demand_forecast_is_non_executable_v1
+    statement:
+      The shift demand forecast is deterministic, read-only, weight-only,
+      and non-persistent; it cannot be accepted or started and it never
+      fabricates bag counts or changes the executable scheduling snapshot.
+    status: active
+    sources:
+      - memdelta-2026-07-18-demand-lifecycle-outlook
+  - id: finished_work_excluded_from_forward_demand_v1
+    statement: Finished LPMS orders may remain visible as source-versus-floor
+      reconciliation items, but they do not contribute to forward demand order
+      counts, weight totals, missing-estimate totals, or advisory forecast
+      inputs.
+    status: active
+    sources:
+      - memdelta-2026-07-19-demand-outlook-correctness
+  - id: pre_release_intake_does_not_admit_v1
+    statement:
+      Physical bag intake may be recorded while Cents demand is expected or
+      inbound, but the order remains release_pending and cannot enter an
+      executable schedule until the source phase is production_released.
+    status: active
+    sources:
+      - memdelta-2026-07-19-shift-order-selection
+  - id: selected_snapshot_mutations_are_serialized_v1
+    statement: Compute, Accept, Start, shift selection, and demand, intake, or
+      priority commands that can change a selected scheduling snapshot serialize
+      per location before validating or mutating that snapshot.
+    status: active
+    sources:
+      - memdelta-2026-07-19-shift-order-selection
 policies:
   - id: cents_in_progress_is_eligible
     statement:
-      A Cents order is eligible for LPMS production only when the latest
-      projected CRM order status is IN_PROGRESS.
+      A Cents order becomes an LPMS-ready candidate only when its latest
+      projected phase is production_released, its production estimate is
+      positive, and physical bag intake is recorded.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-19-shift-order-selection
   - id: cents_weight_derivation_v1
     statement: For v1, LPMS derives production weight from Cents laundry service
       pricing instead of measured bag-level weight.
@@ -748,11 +830,14 @@ policies:
       - memdelta-2026-07-08-laundry-production-core
   - id: due_bucket_selection_v1
     statement:
-      V1 scheduling should expose due-today, due-tomorrow, and later order
-      buckets for operator judgment.
+      V1 production views classify unfinished work due before the current
+      calendar day as overdue, followed by due-today, due-tomorrow, and later
+      buckets; finished work is presented as finished rather than as outstanding
+      overdue work while retaining its original due timestamp.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-19-demand-outlook-correctness
   - id: consistency_over_availability
     statement: Production writes prefer consistency over availability.
     status: active
@@ -785,7 +870,7 @@ policies:
     statement: Before Start, Compute includes every currently eligible
       production_order for the shift rather than an operator-selected planning
       horizon.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-14-run-centered-online-scheduling
       - memdelta-2026-07-14-run-centered-online-scheduling-implementation
@@ -875,6 +960,38 @@ policies:
     status: active
     sources:
       - memdelta-2026-07-15-order-control-history
+  - id: cents_lifecycle_phase_mapping_v1
+    statement:
+      SUBMITTED and READY_FOR_PICKUP are expected, PICKED_UP is inbound,
+      IN_PROGRESS is production released, READY_FOR_RETURN, OUT_FOR_DELIVERY,
+      and COMPLETED are post-production comparison signals, and canceled is
+      withdrawn.
+    status: active
+    sources:
+      - memdelta-2026-07-18-demand-lifecycle-outlook
+  - id: service_day_demand_horizon_v1
+    statement:
+      The advisory demand horizon includes overdue demand and active demand
+      due before the end of the local calendar day containing the production
+      shift end; later demand is outside that outlook.
+    status: active
+    sources:
+      - memdelta-2026-07-18-demand-lifecycle-outlook
+  - id: shift_order_selection_is_explicit_v1
+    statement:
+      Ready candidates are unselected by default and Compute includes only
+      the complete server-authoritative order set explicitly selected for that
+      production shift by an authorized manager.
+    status: active
+    sources:
+      - memdelta-2026-07-19-shift-order-selection
+  - id: post_start_arrival_requires_manager_placement_v1
+    statement: An order becoming ready after Start remains outside the existing
+      production run until an authorized manager explicitly requests placement;
+      webhook projection and physical intake never place it silently.
+    status: active
+    sources:
+      - memdelta-2026-07-19-shift-order-selection
 decisions:
   - id: domain_named_laundry_production
     statement: The durable Stateworks memory domain is named laundry-production
@@ -1118,6 +1235,14 @@ decisions:
     status: active
     sources:
       - memdelta-2026-07-15-order-control-history
+  - id: source_floor_mismatch_requires_operator_confirmation_v1
+    statement: Because Cents and LPMS are independent systems connected by the
+      webhook, a lifecycle disagreement is surfaced for comparison and LPMS
+      requires operator confirmation against physical truth before changing
+      canonical floor progression.
+    status: active
+    sources:
+      - memdelta-2026-07-18-demand-lifecycle-outlook
 assumptions:
   - id: cents_price_weight_good_enough_v1
     statement: Cents price-derived weight is good enough for first-version scheduling.
@@ -1240,3 +1365,12 @@ sources:
   - id: memdelta-2026-07-15-order-control-history
     path: stateworks/memory/domains/laundry-production/sessions/2026-07-15-order-control-history.md
     type: implementation_checkpoint
+  - id: memdelta-2026-07-18-demand-lifecycle-outlook
+    path: stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+    type: implementation_evidence
+  - id: memdelta-2026-07-19-demand-outlook-correctness
+    path: stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+    type: implementation_evidence
+  - id: memdelta-2026-07-19-shift-order-selection
+    path: stateworks/work/done/lpms-shift-order-selection/evidence.md
+    type: implementation_evidence

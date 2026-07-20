@@ -589,7 +589,7 @@ describe("production floor board", () => {
     )
 
     expect(screen.getByText("Order C-1003")).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "Retry automatic" }))
+    await user.click(screen.getByRole("button", { name: "Add to run" }))
     expect(await screen.findByText(/adds 30 minutes/)).toBeInTheDocument()
     await user.click(
       screen.getByRole("button", { name: "Confirm overtime and place" })

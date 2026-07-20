@@ -213,6 +213,62 @@ const loadWorkspace = async (
     currentShift === undefined
       ? undefined
       : runRows.find((run) => run.productionShiftId === currentShift.id);
+  const shiftSelection =
+    currentShift === undefined
+      ? null
+      : await Promise.all([
+          db
+            .select({
+              version: laundryProduction.productionShiftSelections.version,
+            })
+            .from(laundryProduction.productionShiftSelections)
+            .where(
+              and(
+                eq(
+                  laundryProduction.productionShiftSelections.productionShiftId,
+                  currentShift.id,
+                ),
+                eq(
+                  laundryProduction.productionShiftSelections.locationId,
+                  locationId,
+                ),
+              ),
+            )
+            .limit(1)
+            .then((rows) => rows[0]),
+          db
+            .select({
+              productionOrderId:
+                laundryProduction.productionShiftSelectedOrders
+                  .productionOrderId,
+            })
+            .from(laundryProduction.productionShiftSelectedOrders)
+            .where(
+              and(
+                eq(
+                  laundryProduction.productionShiftSelectedOrders
+                    .productionShiftId,
+                  currentShift.id,
+                ),
+                eq(
+                  laundryProduction.productionShiftSelectedOrders.locationId,
+                  locationId,
+                ),
+              ),
+            )
+            .orderBy(
+              asc(
+                laundryProduction.productionShiftSelectedOrders
+                  .productionOrderId,
+              ),
+            ),
+        ]).then(([selection, selectedOrders]) => ({
+          productionShiftId: currentShift.id,
+          version: selection?.version ?? 0,
+          selectedOrderIds: selectedOrders.map(
+            (order) => order.productionOrderId,
+          ),
+        }));
 
   const orderRows = await db
     .select({
@@ -245,11 +301,46 @@ const loadWorkspace = async (
       ),
     )
     .where(eq(laundryProduction.productionOrders.locationId, locationId));
+  const demandOutlookRows = (
+    await db
+      .select({
+        orderDemandId: laundryProduction.orderDemands.id,
+        productionOrderId: laundryProduction.productionOrders.id,
+        externalOrderId: laundryProduction.orderDemands.displayReference,
+        phase: laundryProduction.orderDemands.phase,
+        sourceStatusCode: laundryProduction.orderDemands.sourceStatusCode,
+        dueAt: laundryProduction.orderDemands.dueAt,
+        estimatedWeightLbs: laundryProduction.orderDemands.estimatedWeightLbs,
+        priority: laundryProduction.productionOrders.priority,
+        productionStatus: laundryProduction.productionOrders.status,
+        bagCount: laundryProduction.productionOrders.bagCount,
+      })
+      .from(laundryProduction.orderDemands)
+      .leftJoin(
+        laundryProduction.productionOrders,
+        and(
+          eq(
+            laundryProduction.productionOrders.orderDemandId,
+            laundryProduction.orderDemands.id,
+          ),
+          eq(
+            laundryProduction.productionOrders.locationId,
+            laundryProduction.orderDemands.locationId,
+          ),
+        ),
+      )
+      .where(eq(laundryProduction.orderDemands.locationId, locationId))
+  ).map((row) => ({ ...row, priority: row.priority ?? false }));
   const activeProductionRunIds = activeRunRows.map((run) => run.id);
   const pendingEligibleOrders = orderRows
     .filter((order) => order.status === 'eligible' && order.bagCount !== null)
     .map((order) =>
-      mapWorkspacePendingOrder(order, now, activeProductionRunIds),
+      mapWorkspacePendingOrder(
+        order,
+        now,
+        location.timezone,
+        activeProductionRunIds,
+      ),
     );
 
   const boardProjection =
@@ -267,14 +358,18 @@ const loadWorkspace = async (
       location: mapWorkspaceLocation(location),
       currentShift:
         currentShift === undefined ? null : mapWorkspaceShift(currentShift),
+      shiftSelection,
       candidateShifts,
       currentSchedulerConfig:
         configRow === undefined ? null : mapConfig(configRow),
       currentScheduleProposal:
         selectedSchedule === undefined ? null : mapSchedule(selectedSchedule),
       activeRuns: activeRunRows.map(mapWorkspaceRun),
-      orders: orderRows.map((order) => mapProductionOrderListItem(order, now)),
+      orders: orderRows.map((order) =>
+        mapProductionOrderListItem(order, now, location.timezone),
+      ),
       pendingEligibleOrders,
+      demandOutlook: null,
       board: null,
       stations: stationRows.map(mapWorkspaceStation),
       machines: machineRows.flatMap((machine) =>
@@ -291,6 +386,7 @@ const loadWorkspace = async (
       asOf: now.toISOString(),
     },
     boardProjection,
+    demandOutlookRows,
   };
 };
 

@@ -1,5 +1,12 @@
 export { makeProductionScheduler } from './main.ts';
 export type { ProductionScheduler } from './main.ts';
+export { forecastDemand } from './forecast-demand/forecast-demand.computation.ts';
+export type {
+  DemandForecastDisposition,
+  DemandForecastInput,
+  DemandForecastOutput,
+  ForecastDemand,
+} from './forecast-demand/forecast-demand.port.ts';
 export { proposeOnlinePlacement } from './online-placement/online-placement.computation.ts';
 export type {
   OnlinePlacementAlgorithmVersion,

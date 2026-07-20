@@ -6,6 +6,7 @@ import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
+  OrderDemandPhase,
   Transactional,
   WorkEventInput,
 } from '../production.port.ts';
@@ -21,7 +22,7 @@ export type LockedIntakeOrder = Readonly<{
   productionVersion: number;
   intakeVersion: number;
   derivedWeightLbs: number;
-  demandState: 'ready_for_production' | 'not_ready';
+  demandPhase: OrderDemandPhase;
 }>;
 
 export type RecordOrderIntakeRepository = Transactional<
@@ -38,6 +39,7 @@ export type RecordOrderIntakeRepository = Transactional<
       bagCount: number;
       expectedVersion: number;
       currentIntakeVersion: number;
+      nextStatus: 'release_pending' | 'eligible';
       now: Date;
     }) => Promise<RecordOrderIntakeResult | null>;
     appendWorkEvent: (event: WorkEventInput) => Promise<void>;

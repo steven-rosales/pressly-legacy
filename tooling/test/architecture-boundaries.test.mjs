@@ -117,6 +117,16 @@ describe('module architecture boundaries', () => {
     );
   });
 
+  it('allows scheduling capabilities to use the explicit fixed-pulse foundation', async () => {
+    await expectAllowed(
+      'modules/computation/scheduling/src/forecast-demand/forecast-demand.computation.ts',
+      `
+        import { pulseCapacity } from '../fixed-pulse/fixed-pulse.computation.ts';
+        export const capacity = pulseCapacity;
+      `,
+    );
+  });
+
   it('allows the intentionally HTTP-shaped access-control auth port to import HTTP types', async () => {
     await expectAllowed(
       'modules/policy/access-control/src/auth.port.ts',

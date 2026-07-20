@@ -4,7 +4,6 @@ import {
   eq,
   inArray,
   laundryProduction,
-  sql,
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
@@ -87,16 +86,41 @@ export const makeCreateScheduleRepository = (deps: {
         return null;
 
       const orderRows = await db
-        .select()
-        .from(laundryProduction.productionOrders)
+        .select({ order: laundryProduction.productionOrders })
+        .from(laundryProduction.productionShiftSelectedOrders)
+        .innerJoin(
+          laundryProduction.productionOrders,
+          and(
+            eq(
+              laundryProduction.productionOrders.id,
+              laundryProduction.productionShiftSelectedOrders.productionOrderId,
+            ),
+            eq(
+              laundryProduction.productionOrders.locationId,
+              laundryProduction.productionShiftSelectedOrders.locationId,
+            ),
+          ),
+        )
         .where(
           and(
-            eq(laundryProduction.productionOrders.locationId, locationId),
-            eq(laundryProduction.productionOrders.status, 'eligible'),
-            sql`${laundryProduction.productionOrders.bagCount} is not null`,
+            eq(
+              laundryProduction.productionShiftSelectedOrders.locationId,
+              locationId,
+            ),
+            eq(
+              laundryProduction.productionShiftSelectedOrders.productionShiftId,
+              productionShiftId,
+            ),
           ),
         )
         .orderBy(asc(laundryProduction.productionOrders.id));
+      if (orderRows.length === 0) return 'selection_empty';
+      if (
+        orderRows.some(
+          ({ order }) => order.status !== 'eligible' || order.bagCount === null,
+        )
+      )
+        return 'selection_invalid';
       const demandRows = await db
         .select()
         .from(laundryProduction.orderDemands)
@@ -116,7 +140,7 @@ export const makeCreateScheduleRepository = (deps: {
         .orderBy(asc(laundryProduction.machines.id));
 
       return {
-        orders: orderRows.map((order) => {
+        orders: orderRows.map(({ order }) => {
           const demand = demandById.get(order.orderDemandId);
           if (demand === undefined) throw new Error('Order demand not found.');
           if (order.bagCount === null)

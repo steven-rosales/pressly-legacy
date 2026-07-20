@@ -1,0 +1,292 @@
+work_id: lpms-demand-lifecycle-outlook
+title: LPMS demand lifecycle and advisory outlook
+status: complete
+
+goal:
+  - Make pre-intake Cents demand visible for shift planning without admitting it to executable production.
+  - Let physical intake admit an order despite a lagging Cents status while preserving whole-order production invariants.
+  - Surface downstream Cents and LPMS disagreements for operator-confirmed reconciliation rather than automatic completion.
+
+invariants:
+  - LPMS operator-confirmed stage and batch state remains the sole production-floor truth.
+  - The scheduler proposal path continues to include only admitted production orders with positive weight and a recorded bag count.
+  - Advisory demand forecasts are deterministic, read-only, non-persistent, non-acceptable, and non-executable.
+  - Vendor status strings terminate in the Worker adapter and never become Production policy branches.
+  - Source revisions remain serialized, idempotent, and location-bound.
+  - Expected demand is never represented as zero bags or silently promoted to floor work.
+  - A downstream Cents status cannot finish an LPMS order, batch, run, or shift.
+  - Cancellations cannot silently remove physically received or committed production work.
+  - Existing module boundaries remain intact and apps remain the composition roots.
+  - Processor UI composes existing shadcn primitives and the established ElevenLabs-derived visual language.
+  - Operator messages contain actionable domain language and no internal UUIDs.
+  - Existing unrelated worktree changes are preserved.
+  - No secret, credential, customer payload, or private token enters Stateworks or fixtures.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Freeze lifecycle policy and reconcile the implementation baseline
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - repo:apps/worker/src/vendors/cents
+      - repo:modules/business/production
+      - repo:modules/policy/production
+      - repo:modules/computation/scheduling
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/processor
+    writes:
+      - repo:stateworks/work/done/lpms-demand-lifecycle-outlook
+    preconditions:
+      - Steven has explicitly authorized implementation.
+      - Current unrelated worktree changes have been inventoried and excluded.
+    action:
+      - Record confirmed lifecycle, horizon, physical-intake, and reconciliation decisions.
+      - Reprove current demand, eligibility, schedule, read-model, and Processor boundaries before code edits.
+      - Name the minimum coherent feature slices and verification obligations.
+    postconditions:
+      - The active package is complete, valid, and grounded in current source.
+      - No unresolved domain question blocks implementation.
+    verifier:
+      - pnpm stateworks:validate stateworks/work/done/lpms-demand-lifecycle-outlook/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-demand-lifecycle-outlook/network.yaml --state stateworks/work/done/lpms-demand-lifecycle-outlook/state.yaml
+      - git diff --check
+    rollback:
+      - Remove only this unexecuted work package if its baseline is invalid.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+
+  - id: T1
+    title: Implement canonical demand lifecycle and safe projection
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:apps/worker/src/vendors/cents
+      - repo:modules/policy/production/src
+      - repo:modules/business/production/src/apply-order-demand
+      - repo:modules/business/production/src/record-order-intake
+      - repo:packages/contracts/src
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations
+    writes:
+      - repo:apps/worker/src/vendors/cents
+      - repo:modules/policy/production/src/demand-lifecycle
+      - repo:modules/business/production/src/apply-order-demand
+      - repo:modules/business/production/src/record-order-intake
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/src/migrations/meta
+      - repo:modules/policy/production/test
+      - repo:modules/business/production/test
+      - repo:apps/worker/test
+    preconditions:
+      - T0 confirms vendor status mapping and the current committed-order rejection seam.
+    action:
+      - Map Cents statuses to canonical expected, inbound, production_released, post_production, and withdrawn phases at the adapter boundary.
+      - Persist phase, source status code, estimated weight, weight provenance, and every strictly newer source revision.
+      - Separate source projection from safe Production mutation through a pure lifecycle policy.
+      - Permit operator intake to establish production readiness despite source lag without weakening bag-count or weight rules.
+      - Preserve committed floor state and derive reconciliation attention for downstream or cancellation conflicts.
+    postconditions:
+      - Production contains no Cents status branch.
+      - Strictly newer source revisions do not dead-letter merely because execution has begun.
+      - Physical intake can admit expected or inbound demand.
+      - Source reconciliation never mutates canonical floor progression.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production-policy typecheck
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production test:integration
+      - pnpm --filter @pressly/worker test
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/db test:integration
+    rollback:
+      - Revert code and add a forward corrective migration if the schema has reached a shared database; never rewrite deployed migration history.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+
+  - id: T2
+    title: Add shift-scoped demand outlook and advisory forecast
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:modules/computation/scheduling/src
+      - repo:modules/business/production/src/create-schedule
+      - repo:modules/business/production/src/load-production-workspace
+      - repo:packages/contracts/src/production
+    writes:
+      - repo:modules/computation/scheduling/src/forecast-demand
+      - repo:modules/business/production/src/load-production-workspace
+      - repo:packages/contracts/src/production
+      - repo:modules/computation/scheduling/test
+      - repo:modules/business/production/test
+    action:
+      - Compute the local service-day cutoff from the shift timezone and end date.
+      - Read non-withdrawn, in-horizon demand with its production admission and reconciliation state.
+      - Produce deterministic weight-only advisory batches without fabricating bag counts.
+      - Extend the existing location-authorized Production workspace with known, ready, expected, inbound, mismatch, batch, and forecast-finish summaries.
+    postconditions:
+      - Advisory totals and batches cannot be accepted, started, or written back as schedule runs.
+      - Existing executable schedule semantics and snapshot validation are unchanged.
+    verifier:
+      - pnpm --filter @pressly/production-scheduling test
+      - pnpm --filter @pressly/production-scheduling typecheck
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production test:integration
+      - pnpm --filter @pressly/contracts test
+    rollback:
+      - Remove the advisory read path without changing executable scheduling or persisted floor state.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+
+  - id: T3
+    title: Implement the ElevenLabs-style operator experience
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/components
+      - repo:apps/processor/src/index.css
+      - repo:apps/processor/src/i18n
+    writes:
+      - repo:apps/processor/src/features/demand-outlook
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/adapters/production
+      - repo:apps/processor/src/ports
+      - repo:apps/processor/src/i18n
+      - repo:apps/processor/test
+    preconditions:
+      - T2 exposes one canonical, location-scoped outlook read model.
+      - Existing Processor components and visual patterns are used as the design source.
+    action:
+      - Add a compact Home outlook summary that leaves Order control floor-focused.
+      - Add a clearly advisory Schedule outlook view with expected, inbound, and ready labels.
+      - Surface precise source-versus-floor mismatch copy and route the operator to existing batch review and reconciliation authority.
+      - Add complete English and Spanish messages and accessible loading, empty, error, and narrow-screen states.
+    postconditions:
+      - Operators can distinguish forecast demand from executable production at a glance.
+      - Every primary control and state uses existing shadcn and ElevenLabs-derived interaction patterns.
+      - UI code contains no lifecycle or scheduling policy duplication.
+    verifier:
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+      - pnpm --filter @pressly/processor build
+    rollback:
+      - Remove the new views and adapter calls while leaving the backend read model available and floor execution unchanged.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+
+  - id: V1
+    title: Prove lifecycle, forecast, and UI correctness
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+    reads:
+      - repo:apps/worker
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:modules/computation/scheduling
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/api
+      - repo:apps/processor
+    writes:
+      - repo:stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+    action:
+      - Run focused transition, stale-source, committed-order, physical-intake, horizon, forecast, authorization, contract, and UI tests.
+      - Run proportional repository typecheck, lint, build, architecture, and migration verification.
+      - Record exact commands, counts, environment boundaries, and any unrelated pre-existing failures.
+    postconditions:
+      - The implementation is source-proven without claiming deployment or production reprojection.
+      - Any failure remains active and bounded to the affected task rather than being hidden.
+    verifier:
+      - pnpm typecheck
+      - pnpm lint
+      - pnpm build
+      - pnpm test:lpms:int
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - git diff --check
+    rollback:
+      - Keep the package active and revert only the affected unverified slice if repair attempts are exhausted.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+
+  - id: T4
+    title: Close evidence and durable memory impact
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:stateworks/work/done/lpms-demand-lifecycle-outlook/final-report.md
+      - repo:stateworks/memory/domains/laundry-production/deltas
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+    action:
+      - Record the implemented boundary, proof, limitations, and production follow-up.
+      - Apply a source-backed memory delta for confirmed lifecycle, outlook, physical-admission, and reconciliation policy only after verification.
+      - Distinguish repository proof from deployment, existing-row reprojection, and live-vendor proof.
+    postconditions:
+      - Stateworks lifecycle and memory validate and the final report is evidence-backed.
+    verifier:
+      - pnpm stateworks:validate stateworks/work/done/lpms-demand-lifecycle-outlook/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-demand-lifecycle-outlook/network.yaml --state stateworks/work/done/lpms-demand-lifecycle-outlook/state.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - pnpm stateworks:memory:context laundry-production
+    rollback:
+      - Leave unsupported memory claims proposed and keep the package active.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/final-report.md
+      - stateworks/memory/domains/laundry-production/deltas/2026-07-18-demand-lifecycle-outlook.memory-delta.yaml

@@ -25,21 +25,20 @@ Durable business memory for Pressly's wash-and-fold production process. LPMS is 
 - pulse_capacity_is_the_stage_bottleneck: pulse_capacity_lbs equals the minimum of total active washer effective capacity, total active dryer effective capacity, and fold_lbs_per_folder_minute multiplied by effective_folder_count and pulse_minutes.
 - empty_pipeline_makespan: For the four-stage empty pipeline, makespan_minutes equals (actual_batch_count + 4 - 1) multiplied by pulse_minutes.
 - oversized_orders_are_unplaced_v1: A production_order heavier than pulse_capacity_lbs is returned as unplaced in v1 and is never silently split.
-- schedule_proposals_are_deterministic: The same eligible-order snapshot, resource snapshot, scheduler_config version, and operator directives produce the same schedule proposal.
+- schedule_proposals_are_deterministic: The same selected ready-order snapshot, resource snapshot, scheduler_config version, and operator directives produce the same schedule proposal.
 - production_run_starts_before_stages: A stage_run cannot start until its owning production_run is started.
 - cents_projection_source_version_serialized: Concurrent Cents projections for one external order are serialized, and only a strictly newer vendor source version may replace the current projection.
 - one_production_run_per_shift: Exactly one production_run may exist for one production shift, and Start is the only lifecycle transition that creates it.
 - new_production_run_begins_started: A newly created production_run begins directly in started execution; planned is retained only as a legacy-readable state for pre-migration history.
 - accept_does_not_create_execution: Accept records preference for the current immutable schedule_run revision and acknowledged warnings; it creates no production_run, batch, stage, assignment, or scheduled-order transition.
 - one_current_schedule_revision_per_shift: A production shift has at most one current draft or accepted schedule_run revision; every successful Compute supersedes the previous current revision and revokes its acceptance.
-- start_requires_current_accepted_snapshot: Start succeeds only when the accepted schedule_run is still the current revision and its complete eligible-order snapshot is unchanged.
+- start_requires_current_accepted_snapshot: Start succeeds only when the accepted schedule_run is still the current revision and its exact selected ready-order snapshot is unchanged.
 - post_start_orders_enter_existing_run: An order that becomes eligible after Start may enter only the existing production_run for its shift; LPMS never creates a sibling run for the arrival.
 - batch_membership_freeze_is_orthogonal: Batch execution status and membership mutability are separate; queued membership may be mutable or explicitly frozen, while every non-queued batch is permanently frozen.
 - online_insertion_has_zero_automatic_recourse_v1: V1 automatic live placement may place only the arriving order and may not relocate any existing production_order between batches.
 - pulse_capacity_is_hard: Neither automatic placement, manager-exact placement, nor overtime acceptance may make a production_batch exceed pulse_capacity_lbs.
 - queue_composition_is_versioned: Every committed queue-composition or membership mutation compares the expected production_run queue version and increments it exactly once.
 - overtime_acceptance_is_version_bound: Overtime acceptance applies only to the exact placement proposal hash and queue version that the manager reviewed; any later queue change invalidates it.
-- eligible_snapshot_mutations_are_serialized_v1: Compute, Accept, Start, and demand, intake, or priority commands that can change the eligible-order snapshot serialize per location before validating or mutating that snapshot.
 - pending_live_placement_is_durable_v1: When live placement cannot commit because confirmation or a recoverable condition is required, the production_order remains eligible and its pending placement outcome is durable and reloadable from the backend.
 - inactive_batch_membership_history_is_retained_v1: Completing production deactivates current batch membership without deleting its historical production_batch_order record.
 - shift_planning_commands_respect_operating_window_v1: Compute and Accept are allowed only before the production shift ends, while Start is allowed only at or after shift start and before shift end.
@@ -59,20 +58,25 @@ Durable business memory for Pressly's wash-and-fold production process. LPMS is 
 - batch_stage_transition_has_one_authority_v1: Canonical production_batch and stage_run progression changes only through the existing stage advance or floor-reconciliation authorities; order routing and production_order_stage_attempt records cannot independently start, complete, rewind, or finish a batch stage.
 - order_stage_attempt_assignment_is_immutable_v1: A production_order_stage_attempt retains its order, canonical stage_run, stage kind, attempt number, and assignment reason; completion or release terminalizes that assignment, and later routing creates a new numbered attempt instead of rewriting prior route history.
 - in_flight_order_route_moves_later_v1: An in-flight defer or rework route may target only a strictly later production_batch, may not skip the current or requested restart work, and must fit the complete order within hard capacity for every newly assigned target stage.
+- source_lifecycle_does_not_advance_floor_truth_v1: A Cents lifecycle revision may update external demand and reconciliation state, but it cannot start, advance, finish, cancel, or rewind an LPMS order, batch, stage, run, or shift.
+- committed_work_survives_source_withdrawal_v1: A downstream or canceled Cents revision preserves physically received or committed LPMS work and creates reconciliation attention instead of silently removing or terminalizing that work.
+- advisory_demand_forecast_is_non_executable_v1: The shift demand forecast is deterministic, read-only, weight-only, and non-persistent; it cannot be accepted or started and it never fabricates bag counts or changes the executable scheduling snapshot.
+- finished_work_excluded_from_forward_demand_v1: Finished LPMS orders may remain visible as source-versus-floor reconciliation items, but they do not contribute to forward demand order counts, weight totals, missing-estimate totals, or advisory forecast inputs.
+- pre_release_intake_does_not_admit_v1: Physical bag intake may be recorded while Cents demand is expected or inbound, but the order remains release_pending and cannot enter an executable schedule until the source phase is production_released.
+- selected_snapshot_mutations_are_serialized_v1: Compute, Accept, Start, shift selection, and demand, intake, or priority commands that can change a selected scheduling snapshot serialize per location before validating or mutating that snapshot.
 
 ## Policies
 
-- cents_in_progress_is_eligible: A Cents order is eligible for LPMS production only when the latest projected CRM order status is IN_PROGRESS.
+- cents_in_progress_is_eligible: A Cents order becomes an LPMS-ready candidate only when its latest projected phase is production_released, its production estimate is positive, and physical bag intake is recorded.
 - cents_weight_derivation_v1: For v1, LPMS derives production weight from Cents laundry service pricing instead of measured bag-level weight.
 - wash_fold_only_v1: V1 is scoped to wash-and-fold production only.
 - heijunka_pulse_v1: V1 uses deterministic heijunka-style leveling with configurable pulse_minutes; initial planning uses 56 minutes rather than deriving a stage duration.
 - washer_effective_capacity: Washer scheduling uses effective capacity below manufacturer capacity to preserve cleaning quality.
 - no_hardware_integration_v1: V1 has no washer or dryer hardware integration; operators confirm starts and completions manually.
-- due_bucket_selection_v1: V1 scheduling should expose due-today, due-tomorrow, and later order buckets for operator judgment.
+- due_bucket_selection_v1: V1 production views classify unfinished work due before the current calendar day as overdue, followed by due-today, due-tomorrow, and later buckets; finished work is presented as finished rather than as outstanding overdue work while retaining its original due timestamp.
 - consistency_over_availability: Production writes prefer consistency over availability.
 - greedy_scheduler_before_optimization_v1: V1 uses a deterministic and explainable greedy packing heuristic rather than claiming combinatorial optimality; deeper optimization requires operational evidence.
 - priority_means_earliest_feasible_batch: A priority production_order is placed in its earliest feasible batch ahead of non-priority peers, subject to eligibility, pulse capacity, and whole-order constraints; priority does not guarantee batch one.
-- prestart_planning_includes_all_eligible_orders: Before Start, Compute includes every currently eligible production_order for the shift rather than an operator-selected planning horizon.
 - priority_live_placement_v1: A priority arrival uses the earliest feasible mutable queued batch; if none fits, LPMS creates a batch after frozen or in-flight anchors and existing priority work but before the remaining ordinary mutable suffix.
 - ordinary_live_placement_v1: An ordinary arrival uses the best-fitting mutable queued batch with earliest sequence as the tie-breaker; if none fits, LPMS appends a new batch.
 - manager_exact_batch_placement_v1: An authorized manager may pin an arriving order to an exact requested mutable queued batch when the placement satisfies hard physical constraints; LPMS must not silently substitute another batch.
@@ -83,6 +87,10 @@ Durable business memory for Pressly's wash-and-fold production process. LPMS is 
 - queued_order_rebatch_v1: A queued whole-order move is allowed only from an unfrozen queued source to the exact employee-selected mutable queued target; LPMS rejects the move rather than substituting another batch.
 - in_flight_order_defer_or_rework_v1: A started but unfinished whole order may be left behind or assigned bounded rework by releasing its unfinished source-stage attempts and assigning the required stage suffix in a later batch while preserving completed attempts as history.
 - earliest_feasible_later_order_route_v1: For an in-flight defer or rework command, LPMS chooses the earliest stable later batch whose required stage suffix remains planned and whose per-stage assigned load can accept the complete order without exceeding hard capacity.
+- cents_lifecycle_phase_mapping_v1: SUBMITTED and READY_FOR_PICKUP are expected, PICKED_UP is inbound, IN_PROGRESS is production released, READY_FOR_RETURN, OUT_FOR_DELIVERY, and COMPLETED are post-production comparison signals, and canceled is withdrawn.
+- service_day_demand_horizon_v1: The advisory demand horizon includes overdue demand and active demand due before the end of the local calendar day containing the production shift end; later demand is outside that outlook.
+- shift_order_selection_is_explicit_v1: Ready candidates are unselected by default and Compute includes only the complete server-authoritative order set explicitly selected for that production shift by an authorized manager.
+- post_start_arrival_requires_manager_placement_v1: An order becoming ready after Start remains outside the existing production run until an authorized manager explicitly requests placement; webhook projection and physical intake never place it silently.
 
 ## Decisions
 
@@ -114,6 +122,7 @@ Durable business memory for Pressly's wash-and-fold production process. LPMS is 
 - server_paginated_order_home_and_history_v1: The Processor root is an order-first Home surface and /history is a read-only production audit surface; both use bounded server keyset pagination and server-side filters rather than loading an unbounded location history into browser state.
 - sanitized_history_projection_v1: Public production history exposes typed event summaries and selected operational detail only; raw work_event payloads and private idempotency records remain internal, and run detail activity is capped with an explicit continuation signal.
 - defer_sole_order_empty_batch_routing_v1: V1 rejects routing the only active order out of a source batch because empty-batch retention or deletion, queue resequencing, planned reservation cleanup, in-flight compensation, and completion effects require an explicit separate policy.
+- source_floor_mismatch_requires_operator_confirmation_v1: Because Cents and LPMS are independent systems connected by the webhook, a lifecycle disagreement is surfaced for comparison and LPMS requires operator confirmation against physical truth before changing canonical floor progression.
 
 ## Workflows
 
@@ -128,6 +137,7 @@ Durable business memory for Pressly's wash-and-fold production process. LPMS is 
 - floor_truth_recovery_after_reconnect: the backend becomes reachable after physical work continued or floor updates were missed -> the operator selects one batch, a strictly later milestone, a reason, an optional note, and machines only when the target leaves washing or drying active -> LPMS locks the run, batch, and canonical stages and validates exact queue, batch, and stage versions -> LPMS validates sequential progress, one active batch per stage kind, machine compatibility and availability, and hard capacity -> LPMS returns the exact projected effects and a canonical confirmation hash without mutating state -> operator confirmation recomputes and commits only when the hash and all versions remain current -> LPMS updates the current projection atomically, preserves unknown skipped boundaries, and appends one batch_progress_reconciled work_event -> the work_event advances one live revision and the Processor reloads the authoritative board
 - order_level_routing: employee opens one order from the server-paginated Home projection -> queued rebatch requires an unfrozen queued source and an exact selected mutable queued target -> in-flight defer or rework selects a reason and restart stage that does not skip required work -> pure policy chooses the earliest feasible later batch for an in-flight route and validates whole-order hard capacity across the required stage suffix -> LPMS returns an exact version-bound proposal hash without mutation -> confirmation reloads and locks the current routing context, recomputes the proposal, and rejects drift -> one transaction releases the source membership and unfinished attempts, inserts the target membership and new attempts, updates aggregate weights and versions, and appends one order-routing work_event -> the Processor refreshes authoritative order and board projections
 - production_history_review: authorized user opens the read-only History workspace -> LPMS returns bounded keyset pages for production runs, sanitized activity, or schedule plans -> cursors remain bound to the selected history view and filters -> opening a run loads batches, canonical stage progress, every historical order-membership episode, schedule lineage, and a bounded newest-first activity window -> raw work_event payloads and private idempotency data remain server-internal
+- external_demand_to_production_admission: a strictly newer Cents order revision is normalized to one canonical demand phase at the vendor adapter boundary -> LPMS persists the source phase, source status, due time, estimated weight, and weight provenance without treating them as floor truth -> active demand due through the shift's local service-day cutoff appears in the advisory demand outlook -> physical bag intake or a production-released source phase may make the order production-ready only when weight and bag-count rules hold -> executable scheduling reads only admitted production orders with known bag counts -> a downstream, withdrawn, or lagging source status is compared with LPMS and requires operator-confirmed reconciliation when the systems disagree
 
 ## Vocabulary
 
@@ -146,6 +156,7 @@ Durable business memory for Pressly's wash-and-fold production process. LPMS is 
 - object:scheduler_config: Versioned configuration for pulse duration, folding rate, algorithm version, and scheduler behavior.
 - object:work_event: The authoritative mutation ledger and audit trail for production changes.
 - object:production_order_stage_attempt: A numbered assignment of one production_order to one canonical stage_run; its assignment identity is immutable, while its lifecycle closes as completed or released to preserve order routing history.
+- object:demand_outlook: A location- and shift-scoped read-only projection of external order demand, production admission, and source-versus-floor comparison; it is advisory planning context rather than executable production state.
 - states:schedule_run: draft, accepted, superseded, rejected
 - states:production_run: planned, started, completed, canceled
 - states:production_batch: queued, sorting, washing, drying, folding_packaging, finished, canceled, blocked

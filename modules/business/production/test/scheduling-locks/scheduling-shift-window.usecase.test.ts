@@ -114,7 +114,11 @@ describe('scheduling shift-window orchestration', () => {
     };
     const compute = makeCreateSchedule({
       repo: { transaction: (work) => work(operations) },
-      scheduler: { propose, proposeOnlinePlacement: vi.fn() },
+      scheduler: {
+        forecastDemand: vi.fn(),
+        propose,
+        proposeOnlinePlacement: vi.fn(),
+      },
       policy: expiredPolicy,
       clock: { now: () => now },
       ids: { next: () => scheduleRunId },

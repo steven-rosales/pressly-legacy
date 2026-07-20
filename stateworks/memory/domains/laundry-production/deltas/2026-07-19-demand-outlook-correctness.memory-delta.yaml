@@ -1,0 +1,32 @@
+id: memdelta-2026-07-19-demand-outlook-correctness
+domain_id: laundry-production
+
+source:
+  type: implementation_evidence
+  path: stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+
+changes:
+  - op: assert
+    kind: invariant
+    id: finished_work_excluded_from_forward_demand_v1
+    statement: Finished LPMS orders may remain visible as source-versus-floor
+      reconciliation items, but they do not contribute to forward demand order
+      counts, weight totals, missing-estimate totals, or advisory forecast
+      inputs.
+
+  - op: update
+    kind: policy
+    id: due_bucket_selection_v1
+    statement: V1 production views classify unfinished work due before the
+      current calendar day as overdue, followed by due-today, due-tomorrow, and
+      later buckets; finished work is presented as finished rather than as
+      outstanding overdue work while retaining its original due timestamp.
+
+verification:
+  - The source evidence records deterministic projection tests for excluding finished reconciliation history from forward demand totals.
+  - Contract, Production, Processor, and architecture suites passed after the overdue contract and presentation changes.
+  - The local service-day projection reported 5 forward-demand orders, 165 lb, and 0 reviews after correcting only 46 legacy development fixtures.
+  - No production database, webhook, deployment, or live Cents row was changed.
+  - The accepted delta was applied exactly once to laundry-production memory v10, advancing it to v11 before context-pack regeneration.
+
+status: applied

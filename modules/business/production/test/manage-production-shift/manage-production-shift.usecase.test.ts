@@ -46,6 +46,34 @@ const createAcceptedSchedule = async (
   application: ReturnType<typeof setup>['application'],
   productionShiftId: string,
 ) => {
+  const demand = await application.applyOrderDemand({
+    demandKey: `test:shift-update:${productionShiftId}`,
+    displayReference: 'shift-update-order',
+    locationId,
+    revisionAt: '2026-07-15T11:59:00.000Z',
+    revisionHash: 'a'.repeat(64),
+    phase: 'production_released',
+    sourceStatusCode: 'IN_PROGRESS',
+    dueAt: '2026-07-15T20:00:00.000Z',
+    estimatedWeightLbs: 40,
+    estimatedWeightSource: 'external_estimate',
+    bagCount: 1,
+    idempotencyKey: 'demand-for-shift-update',
+  });
+  if (demand.tag === 'err' || demand.value.productionOrderId === null)
+    throw demand.tag === 'err'
+      ? demand.error
+      : new Error('Production order was not created.');
+  const selection = await application.replaceShiftOrderSelection({
+    locationId,
+    productionShiftId,
+    selectedOrderIds: [demand.value.productionOrderId],
+    expectedVersion: 0,
+    actorId,
+    idempotencyKey: 'selection-for-shift-update',
+  });
+  if (selection.tag === 'err') throw selection.error;
+
   const config = await application.publishSchedulerConfig({
     locationId,
     pulseMinutes: 56,

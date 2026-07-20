@@ -1,6 +1,10 @@
 import { evaluateBatchMembershipTransition } from './batch-membership/batch-membership.policy.ts';
 import { evaluateCurrentPlanAcceptance } from './current-plan/current-plan.policy.ts';
-import { evaluateProductionEligibility } from './eligibility/production-eligibility.policy.ts';
+import {
+  evaluateDemandLifecycle,
+  evaluateDemandReconciliation,
+} from './demand-lifecycle/demand-lifecycle.policy.ts';
+import { evaluateIntakeAdmission } from './eligibility/production-eligibility.policy.ts';
 import { evaluateMachineAssignment } from './machine-assignment/machine-assignment.policy.ts';
 import { evaluateOrderRouting } from './order-routing/order-routing.policy.ts';
 import { evaluatePlacementCommit } from './placement-commit/placement-commit.policy.ts';
@@ -15,7 +19,9 @@ import {
 } from './stage-transition/stage-transition.policy.ts';
 
 export const makeProductionPolicy = () => ({
-  evaluateEligibility: evaluateProductionEligibility,
+  evaluateDemandLifecycle,
+  evaluateDemandReconciliation,
+  evaluateIntakeAdmission,
   evaluateScheduleAcceptance,
   evaluateCurrentPlanAcceptance,
   evaluateScheduleStart,

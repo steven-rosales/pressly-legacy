@@ -16,7 +16,7 @@ import type {
 import { makeLoadProductionWorkspace } from '../../src/load-production-workspace/load-production-workspace.usecase.ts';
 import { projectProductionBoard } from '../../src/persistence/production-board-projection.ts';
 import { evaluateProductionBoardProjection } from '../../src/production-board-read.policy.ts';
-import { allowPolicy } from '../support/production.fake.ts';
+import { allowPolicy, simpleScheduler } from '../support/production.fake.ts';
 
 const ids = {
   shift: '00000000-0000-4000-8000-000000000001',
@@ -65,12 +65,14 @@ const run = {
 const emptyWorkspace: ProductionWorkspace = {
   location,
   currentShift: null,
+  shiftSelection: null,
   candidateShifts: [],
   currentSchedulerConfig: null,
   currentScheduleProposal: null,
   activeRuns: [],
   orders: [],
   pendingEligibleOrders: [],
+  demandOutlook: null,
   board: null,
   stations: [],
   machines: [],
@@ -177,6 +179,7 @@ const resumedWorkspace = (): ProductionWorkspaceReadModel => {
       board: null,
     },
     boardProjection: projection,
+    demandOutlookRows: [],
   };
 };
 
@@ -185,11 +188,13 @@ const setup = (repo: LoadProductionWorkspaceRepository) =>
     repo,
     clock: { now: () => fixedNow },
     policy: allowPolicy,
+    scheduler: simpleScheduler,
   });
 
 const emptyReadModel: ProductionWorkspaceReadModel = {
   workspace: { ...emptyWorkspace, board: null },
   boardProjection: null,
+  demandOutlookRows: [],
 };
 
 describe('load production workspace', () => {

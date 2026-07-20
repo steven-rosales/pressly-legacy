@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import type {
   ProductionOrderSummary,
   ProductionShift,
+  ProductionShiftSelection,
   ScheduleProposal,
   SchedulerConfig,
   StartScheduleResult,
@@ -32,6 +33,7 @@ export type SchedulingModelInput = Readonly<{
   defaults: SchedulingDefaults
   currentConfig?: SchedulerConfig | null
   currentShift?: ProductionShift | null
+  shiftSelection?: ProductionShiftSelection | null
   initialProposal?: ScheduleProposal
   canManage: boolean
   onOpenConfiguration?: () => void
@@ -51,30 +53,40 @@ const schedulingInputKey = ({
   shiftEndsAt,
   orders,
   priorityIds,
+  selectedOrderIds,
 }: Readonly<{
   folders: number
   shiftStartsAt: string
   shiftEndsAt: string
   orders: readonly ProductionOrderSummary[]
   priorityIds: ReadonlySet<string>
+  selectedOrderIds: ReadonlySet<string>
 }>): string =>
   JSON.stringify({
     folders,
     shiftStartsAt,
     shiftEndsAt,
-    orders: orders.map((order) => `${order.id}:${order.version}`).sort(),
-    priorityIds: [...priorityIds].sort(),
+    orders: orders
+      .filter((order) => selectedOrderIds.has(order.id))
+      .map((order) => `${order.id}:${order.version}`)
+      .sort(),
+    priorityIds: [...priorityIds]
+      .filter((orderId) => selectedOrderIds.has(orderId))
+      .sort(),
+    selectedOrderIds: [...selectedOrderIds].sort(),
   })
 
 const proposalMatchesVisibleDemand = (
   proposal: ScheduleProposal,
-  orders: readonly ProductionOrderSummary[]
+  orders: readonly ProductionOrderSummary[],
+  selectedOrderIds: ReadonlySet<string>
 ): boolean => {
   const placedOrderIds = proposal.batches.flatMap((batch) => batch.orderIds)
   const proposalOrderIds = [...placedOrderIds, ...proposal.unplacedOrderIds]
     .sort()
     .join(":")
   const visibleOrderIds = orders
+    .filter((order) => selectedOrderIds.has(order.id))
     .map((order) => order.id)
     .sort()
     .join(":")
@@ -111,6 +123,9 @@ export function useSchedulingModel(input: SchedulingModelInput) {
     input.defaults.timezone
   )
   const initialPriorities = initialPriorityIds(input.orders)
+  const initialSelectedOrderIds = new Set(
+    input.shiftSelection?.selectedOrderIds ?? []
+  )
   const [proposal, setProposal] = useState<ScheduleProposal | null>(
     input.initialProposal ?? null
   )
@@ -118,6 +133,13 @@ export function useSchedulingModel(input: SchedulingModelInput) {
   const [shiftStartsAt, setShiftStartsAt] = useState(initialShiftStartsAt)
   const [shiftEndsAt, setShiftEndsAt] = useState(initialShiftEndsAt)
   const [priorityIds, setPriorityIds] = useState(initialPriorities)
+  const [selectedOrderIds, setSelectedOrderIds] = useState(
+    initialSelectedOrderIds
+  )
+  const [selectionVersion, setSelectionVersion] = useState(
+    input.shiftSelection?.version ?? 0
+  )
+  const [selectionBusy, setSelectionBusy] = useState(false)
   const [pendingPriorityIds, setPendingPriorityIds] = useState<Set<string>>(
     () => new Set()
   )
@@ -127,13 +149,18 @@ export function useSchedulingModel(input: SchedulingModelInput) {
   const [computedInputKey, setComputedInputKey] = useState<string | null>(() =>
     input.initialProposal === undefined
       ? null
-      : proposalMatchesVisibleDemand(input.initialProposal, input.orders)
+      : proposalMatchesVisibleDemand(
+            input.initialProposal,
+            input.orders,
+            initialSelectedOrderIds
+          )
         ? schedulingInputKey({
             folders: input.defaults.effectiveFolderCount,
             shiftStartsAt: initialShiftStartsAt,
             shiftEndsAt: initialShiftEndsAt,
             orders: input.orders,
             priorityIds: initialPriorities,
+            selectedOrderIds: initialSelectedOrderIds,
           })
         : "stale-proposal:" + input.initialProposal.inputSnapshotHash
   )
@@ -163,8 +190,16 @@ export function useSchedulingModel(input: SchedulingModelInput) {
         shiftEndsAt,
         orders: input.orders,
         priorityIds,
+        selectedOrderIds,
       }),
-    [folders, input.orders, priorityIds, shiftEndsAt, shiftStartsAt]
+    [
+      folders,
+      input.orders,
+      priorityIds,
+      selectedOrderIds,
+      shiftEndsAt,
+      shiftStartsAt,
+    ]
   )
   const planDirty = proposal !== null && computedInputKey !== currentInputKey
 
@@ -204,6 +239,11 @@ export function useSchedulingModel(input: SchedulingModelInput) {
         const message = t("scheduling.publishBeforeComputing")
         setError(message)
         setSettingsError(message)
+        return false
+      }
+      if (selectedOrderIds.size === 0) {
+        const message = t("scheduling.selectBeforeComputing")
+        setError(message)
         return false
       }
       if (settings.folders <= 0) {
@@ -284,7 +324,28 @@ export function useSchedulingModel(input: SchedulingModelInput) {
         shiftEndsAt: settings.shiftEndsAt,
         orders: input.orders,
         priorityIds,
+        selectedOrderIds,
       })
+      const selection = await input.production.replaceShiftSelection({
+        locationId: input.locationId,
+        productionShiftId: persistedShift.id,
+        selectedOrderIds: [...selectedOrderIds].sort(),
+        expectedVersion:
+          input.currentShift?.id === persistedShift.id ? selectionVersion : 0,
+        idempotencyKey: await input.idempotency.key({
+          operation: "replace-shift-order-selection",
+          payload: {
+            locationId: input.locationId,
+            productionShiftId: persistedShift.id,
+            selectedOrderIds: [...selectedOrderIds].sort(),
+            expectedVersion:
+              input.currentShift?.id === persistedShift.id
+                ? selectionVersion
+                : 0,
+          },
+        }),
+      })
+      setSelectionVersion(selection.selection.version)
       const nextProposal = await input.production.createSchedule({
         locationId: input.locationId,
         productionShiftId: persistedShift.id,
@@ -295,6 +356,8 @@ export function useSchedulingModel(input: SchedulingModelInput) {
             locationId: input.locationId,
             productionShiftId: persistedShift.id,
             schedulerConfigId: input.currentConfig.id,
+            selectionVersion: selection.selection.version,
+            selectedOrderIds: selection.selection.selectedOrderIds,
             supersedesScheduleRunId: proposal?.scheduleRunId ?? null,
           },
         }),
@@ -328,6 +391,53 @@ export function useSchedulingModel(input: SchedulingModelInput) {
     shiftStartsAt: string
     shiftEndsAt: string
   }) => computeForSettings(settings)
+
+  const replaceSelectedOrders = async (next: Set<string>) => {
+    if (selectionBusy || !input.canManage) return
+    const previous = selectedOrderIds
+    setSelectedOrderIds(next)
+    setError(null)
+    if (input.currentShift == null) return
+
+    setSelectionBusy(true)
+    try {
+      const orderIds = [...next].sort()
+      const replaced = await input.production.replaceShiftSelection({
+        locationId: input.locationId,
+        productionShiftId: input.currentShift.id,
+        selectedOrderIds: orderIds,
+        expectedVersion: selectionVersion,
+        idempotencyKey: await input.idempotency.key({
+          operation: "replace-shift-order-selection",
+          payload: {
+            locationId: input.locationId,
+            productionShiftId: input.currentShift.id,
+            selectedOrderIds: orderIds,
+            expectedVersion: selectionVersion,
+          },
+        }),
+      })
+      setSelectionVersion(replaced.selection.version)
+      await input.onScheduleChanged(input.currentShift.id)
+    } catch (cause) {
+      setSelectedOrderIds(previous)
+      setError(presentSchedulingError(cause, "selection", t))
+    } finally {
+      setSelectionBusy(false)
+    }
+  }
+
+  const toggleSelection = (orderId: string, selected: boolean) => {
+    const next = new Set(selectedOrderIds)
+    if (selected) next.add(orderId)
+    else next.delete(orderId)
+    return replaceSelectedOrders(next)
+  }
+
+  const selectAllReady = () =>
+    replaceSelectedOrders(new Set(input.orders.map((order) => order.id)))
+
+  const clearSelection = () => replaceSelectedOrders(new Set())
 
   const togglePriority = async (
     orderId: string,
@@ -446,6 +556,21 @@ export function useSchedulingModel(input: SchedulingModelInput) {
     shiftEndsAt,
     setShiftEndsAt,
     priorityIds,
+    selectedOrderIds,
+    selectedOrders: input.orders.filter((order) =>
+      selectedOrderIds.has(order.id)
+    ),
+    selectedOrderCount: input.orders.filter((order) =>
+      selectedOrderIds.has(order.id)
+    ).length,
+    selectedWeightLbs: input.orders
+      .filter((order) => selectedOrderIds.has(order.id))
+      .reduce((total, order) => total + order.derivedWeightLbs, 0),
+    staleSelectedOrderCount: [...selectedOrderIds].filter(
+      (orderId) => !input.orders.some((order) => order.id === orderId)
+    ).length,
+    selectionVersion,
+    selectionBusy,
     pendingPriorityIds,
     acknowledged,
     setAcknowledged,
@@ -459,6 +584,9 @@ export function useSchedulingModel(input: SchedulingModelInput) {
     generate,
     saveSettings,
     togglePriority,
+    toggleSelection,
+    selectAllReady,
+    clearSelection,
     accept,
     start,
   }

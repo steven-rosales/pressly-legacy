@@ -1,28 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateProductionEligibility } from '../../src/eligibility/production-eligibility.policy.ts';
+import { evaluateIntakeAdmission } from '../../src/eligibility/production-eligibility.policy.ts';
 
 describe('production eligibility policy', () => {
-  it('accepts weighted demand that is ready for production', () => {
+  it('accepts physically received active demand', () => {
     expect(
-      evaluateProductionEligibility({
-        state: 'ready_for_production',
+      evaluateIntakeAdmission({
+        phase: 'inbound',
         derivedWeightLbs: 74,
         bagCount: 2,
       }),
-    ).toEqual({ tag: 'ok', value: { eligible: true } });
+    ).toEqual({ tag: 'ok', value: { status: 'release_pending' } });
+  });
+
+  it('admits physically received source-released demand', () => {
+    expect(
+      evaluateIntakeAdmission({
+        phase: 'production_released',
+        derivedWeightLbs: 74,
+        bagCount: 2,
+      }),
+    ).toEqual({ tag: 'ok', value: { status: 'eligible' } });
   });
 
   it.each([
-    ['not_ready', 74, 2, 'ORDER_NOT_READY_FOR_PRODUCTION'],
-    ['ready_for_production', 0, 2, 'ORDER_WEIGHT_INVALID'],
-    ['ready_for_production', 74, null, 'ORDER_BAG_COUNT_MISSING'],
-    ['ready_for_production', 74, -1, 'ORDER_BAG_COUNT_INVALID'],
+    ['withdrawn', 74, 2, 'ORDER_DEMAND_WITHDRAWN'],
+    ['post_production', 74, 2, 'ORDER_SOURCE_ALREADY_POST_PRODUCTION'],
+    ['production_released', 0, 2, 'ORDER_WEIGHT_INVALID'],
+    ['production_released', 74, null, 'ORDER_BAG_COUNT_MISSING'],
+    ['production_released', 74, -1, 'ORDER_BAG_COUNT_INVALID'],
   ] as const)(
     'rejects invalid eligibility input',
-    (state, weight, bags, code) => {
+    (phase, weight, bags, code) => {
       expect(
-        evaluateProductionEligibility({
-          state,
+        evaluateIntakeAdmission({
+          phase,
           derivedWeightLbs: weight,
           bagCount: bags,
         }),

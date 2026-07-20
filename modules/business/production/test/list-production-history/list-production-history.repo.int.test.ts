@@ -162,7 +162,8 @@ const seed = async () => {
       locationId: 'location-1',
       revisionHash: 'revision-1',
       revisionAt: new Date('2026-07-15T10:00:00.000Z'),
-      status: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date('2026-07-15T20:00:00.000Z'),
     },
     {
@@ -172,7 +173,8 @@ const seed = async () => {
       locationId: 'location-1',
       revisionHash: 'revision-2',
       revisionAt: new Date('2026-07-15T10:00:00.000Z'),
-      status: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date('2026-07-15T20:00:00.000Z'),
     },
   ]);

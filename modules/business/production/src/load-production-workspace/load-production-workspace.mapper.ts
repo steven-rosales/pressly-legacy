@@ -9,6 +9,7 @@ import type {
   ProductionShift,
   ProductionStation,
 } from '@pressly/contracts';
+import { productionDueBucket } from '../persistence/production-due-bucket.policy.ts';
 
 export type WorkspaceShiftRow = Readonly<{
   id: string;
@@ -50,27 +51,10 @@ export type WorkspaceRunRow = Readonly<{
   version: number;
 }>;
 
-const dueBucket = (
-  dueAt: Date,
-  now: Date,
-): ProductionOrderSummary['dueBucket'] => {
-  const start = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-  );
-  const due = Date.UTC(
-    dueAt.getUTCFullYear(),
-    dueAt.getUTCMonth(),
-    dueAt.getUTCDate(),
-  );
-  const distance = Math.floor((due - start) / 86_400_000);
-  return distance <= 0 ? 'today' : distance === 1 ? 'tomorrow' : 'later';
-};
-
 const mapOrder = (
   row: WorkspaceOrderRow,
   now: Date,
+  timezone: string,
 ): ProductionOrderSummary => {
   if (row.bagCount === null)
     throw new Error('A board order is missing completed bag intake.');
@@ -79,7 +63,7 @@ const mapOrder = (
     id: row.id,
     externalOrderId: row.externalOrderId,
     dueAt: row.dueAt.toISOString(),
-    dueBucket: dueBucket(row.dueAt, now),
+    dueBucket: productionDueBucket(row.dueAt, now, timezone),
     priority: row.priority,
     derivedWeightLbs: row.derivedWeightLbs,
     bagCount: row.bagCount,
@@ -114,6 +98,7 @@ const defaultPendingPlacement = (
 export const mapWorkspacePendingOrder = (
   row: WorkspaceOrderRow,
   now: Date,
+  timezone: string,
   activeProductionRunIds: readonly string[],
 ): ProductionPendingOrder => {
   const parsed = productionPendingPlacementSchema.safeParse(
@@ -122,7 +107,7 @@ export const mapWorkspacePendingOrder = (
   if (row.pendingPlacement != null && !parsed.success)
     throw new Error('An eligible order has invalid pending placement state.');
   return {
-    ...mapOrder(row, now),
+    ...mapOrder(row, now, timezone),
     placement:
       parsed.success &&
       parsed.data.status !== 'awaiting_run' &&

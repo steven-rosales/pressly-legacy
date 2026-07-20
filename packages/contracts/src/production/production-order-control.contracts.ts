@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { utcIsoStringSchema } from '../utc-iso.contracts.ts';
 import {
   productionBatchStatusSchema,
+  productionDueBucketSchema,
   productionHashSchema,
   productionIdSchema,
   productionOrderListItemSchema,
@@ -110,8 +111,7 @@ export const listProductionOrderControlQuerySchema = z
     view: z.enum(['attention', 'active', 'all']).default('attention'),
     search: z.string().trim().min(1).max(120).optional(),
     status: productionOrderStatusSchema.optional(),
-    dueAfter: utcIsoStringSchema.optional(),
-    dueBefore: utcIsoStringSchema.optional(),
+    dueBucket: productionDueBucketSchema.optional(),
     productionRunId: productionIdSchema.optional(),
     productionBatchId: productionIdSchema.optional(),
     stage: productionStageKindSchema.optional(),
@@ -120,14 +120,7 @@ export const listProductionOrderControlQuerySchema = z
     cursor: z.string().min(1).max(1000).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
-  .strict()
-  .refine(
-    (query) =>
-      query.dueAfter === undefined ||
-      query.dueBefore === undefined ||
-      Date.parse(query.dueBefore) > Date.parse(query.dueAfter),
-    { path: ['dueBefore'], message: 'dueBefore must be after dueAfter.' },
-  );
+  .strict();
 
 export const listProductionOrderControlResultSchema = z
   .object({

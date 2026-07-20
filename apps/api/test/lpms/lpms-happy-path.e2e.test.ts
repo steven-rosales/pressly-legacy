@@ -41,9 +41,11 @@ const demandCommand = (
     locationId: input.locationId ?? locationId,
     revisionAt,
     revisionHash: (index + 101).toString(16).padStart(64, '0'),
-    state: 'ready_for_production' as const,
+    phase: 'production_released' as const,
+    sourceStatusCode: 'IN_PROGRESS',
     dueAt: '2026-07-10T21:00:00.000Z',
     estimatedWeightLbs: order.weight,
+    estimatedWeightSource: 'external_estimate' as const,
     bagCount: null,
     idempotencyKey: `demand-${index + 1}`,
   };
@@ -207,6 +209,7 @@ describe('LPMS run-centered app-composed happy path', () => {
       clock,
       ids,
     });
+    const productionOrderIds: string[] = [];
 
     for (const [index, order] of orders.entries()) {
       const demand = demandCommand(order, index);
@@ -221,6 +224,7 @@ describe('LPMS run-centered app-composed happy path', () => {
       });
       if (projected.tag === 'err' || projected.value.productionOrderId === null)
         return;
+      productionOrderIds.push(projected.value.productionOrderId);
       if (index === 0)
         await expect(
           application.listProductionOrders({
@@ -295,6 +299,25 @@ describe('LPMS run-centered app-composed happy path', () => {
     expect(config.tag).toBe('ok');
     expect(shift.tag).toBe('ok');
     if (config.tag === 'err' || shift.tag === 'err') return;
+
+    await expect(
+      application.replaceShiftOrderSelection({
+        locationId,
+        productionShiftId: shift.value.id,
+        selectedOrderIds: productionOrderIds,
+        expectedVersion: 0,
+        actorId,
+        idempotencyKey: 'select-shift-orders-v1',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: {
+        selection: {
+          productionShiftId: shift.value.id,
+          selectedOrderIds: expect.arrayContaining(productionOrderIds),
+        },
+      },
+    });
 
     const schedule = await application.createSchedule({
       locationId,
@@ -421,9 +444,11 @@ describe('LPMS run-centered app-composed happy path', () => {
       locationId,
       revisionAt: centsOrder.sourceUpdatedAt,
       revisionHash: normalized.value.receipt.rawBodySha256,
-      state: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: centsOrder.status,
       dueAt: centsOrder.dueAt,
       estimatedWeightLbs: centsWeightLbs,
+      estimatedWeightSource: 'external_estimate',
       bagCount: centsOrder.bagCount,
       idempotencyKey: 'webhook:cents-arrival-12001',
     });
@@ -455,6 +480,24 @@ describe('LPMS run-centered app-composed happy path', () => {
         idempotencyKey: 'intake-cents-arrival-12001',
       }),
     ).resolves.toMatchObject({ tag: 'ok', value: { version: 3 } });
+    expect(placementCommits).toEqual([]);
+    await expect(
+      application.placeProductionOrder.placeAutomatically({
+        locationId,
+        productionRunId: started.value.productionRunId,
+        productionOrderId: arrival.value.productionOrderId,
+        expectedQueueVersion: 1,
+        actorId,
+        actorRole: 'owner',
+        idempotencyKey: 'manager-add-arrival-12001',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: {
+        status: 'placed',
+        productionOrderId: arrival.value.productionOrderId,
+      },
+    });
     expect(placementCommits).toEqual([
       expect.objectContaining({
         status: 'placed',

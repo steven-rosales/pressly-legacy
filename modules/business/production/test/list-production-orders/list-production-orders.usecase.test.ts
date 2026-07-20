@@ -90,7 +90,9 @@ describe('production order read mapping', () => {
   } as const;
 
   it('represents missing intake honestly and derives the due bucket', () => {
-    expect(mapProductionOrderListItem(row, fixedNow)).toEqual({
+    expect(
+      mapProductionOrderListItem(row, fixedNow, 'America/New_York'),
+    ).toEqual({
       id: orderId,
       locationId: 'location-a',
       externalOrderId: 'C-1001',
@@ -106,6 +108,30 @@ describe('production order read mapping', () => {
     });
   });
 
+  it('distinguishes a past due date from the current day', () => {
+    expect(
+      mapProductionOrderListItem(
+        { ...row, dueAt: new Date('2026-07-11T16:00:00.000Z') },
+        fixedNow,
+        'America/New_York',
+      ).dueBucket,
+    ).toBe('overdue');
+    expect(
+      mapProductionOrderListItem(
+        { ...row, dueAt: new Date('2026-07-12T01:00:00.000Z') },
+        fixedNow,
+        'America/New_York',
+      ).dueBucket,
+    ).toBe('overdue');
+    expect(
+      mapProductionOrderListItem(
+        { ...row, dueAt: new Date('2026-07-12T04:00:00.000Z') },
+        fixedNow,
+        'America/New_York',
+      ).dueBucket,
+    ).toBe('today');
+  });
+
   it('maps completed operator intake without changing its provenance', () => {
     expect(
       mapProductionOrderListItem(
@@ -117,6 +143,7 @@ describe('production order read mapping', () => {
           intakeVersion: 1,
         },
         fixedNow,
+        'America/New_York',
       ),
     ).toMatchObject({
       status: 'eligible',
@@ -128,7 +155,11 @@ describe('production order read mapping', () => {
 
   it('rejects persistence states that fabricate or lose intake truth', () => {
     expect(() =>
-      mapProductionOrderListItem({ ...row, status: 'eligible' }, fixedNow),
+      mapProductionOrderListItem(
+        { ...row, status: 'eligible' },
+        fixedNow,
+        'America/New_York',
+      ),
     ).toThrow(/missing bag intake/i);
     expect(() =>
       mapProductionOrderListItem(
@@ -139,6 +170,7 @@ describe('production order read mapping', () => {
           intakeVersion: 1,
         },
         fixedNow,
+        'America/New_York',
       ),
     ).toThrow(/provenance/i);
   });

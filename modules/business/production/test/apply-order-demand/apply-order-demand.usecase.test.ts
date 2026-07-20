@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { makeProductionApplication } from '../../src/main.ts';
-import { makeApplyOrderDemand } from '../../src/apply-order-demand/apply-order-demand.usecase.ts';
 import { makeMemoryProductionRepositories } from '../support/memory-production-repositories.ts';
 import {
   allowPolicy,
@@ -15,9 +14,11 @@ const command = (overrides: Record<string, unknown> = {}) => ({
   locationId: 'location-1',
   revisionAt: '2026-07-10T13:59:00.000Z',
   revisionHash: 'a'.repeat(64),
-  state: 'ready_for_production' as const,
+  phase: 'expected' as const,
+  sourceStatusCode: 'SUBMITTED',
   dueAt: '2026-07-10T20:00:00.000Z',
   estimatedWeightLbs: 74,
+  estimatedWeightSource: 'external_estimate' as const,
   bagCount: null,
   idempotencyKey: 'demand-command-1',
   ...overrides,
@@ -39,7 +40,7 @@ const setup = () => {
 };
 
 describe('source-neutral order demand', () => {
-  it('creates an intake-pending production order without source concepts', async () => {
+  it('creates a release-pending production order without source concepts', async () => {
     const { application, memory } = setup();
     await expect(
       application.applyOrderDemand(command()),
@@ -50,10 +51,62 @@ describe('source-neutral order demand', () => {
     expect([...memory.inspect().orders.values()]).toMatchObject([
       {
         externalOrderId: '1001',
-        status: 'intake_pending',
+        status: 'release_pending',
         derivedWeightLbs: 74,
         bagCount: null,
       },
+    ]);
+  });
+
+  it('stores unweighed demand without fabricating production work', async () => {
+    const { application, memory } = setup();
+    await expect(
+      application.applyOrderDemand(
+        command({
+          estimatedWeightLbs: null,
+          estimatedWeightSource: null,
+        }),
+      ),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: { outcome: 'applied', productionOrderId: null },
+    });
+    expect([...memory.inspect().orders.values()]).toEqual([]);
+    expect([...memory.inspect().demands.values()]).toMatchObject([
+      {
+        sourceStatusCode: 'SUBMITTED',
+        estimatedWeightLbs: null,
+        estimatedWeightSource: null,
+        productionOrderId: null,
+      },
+    ]);
+  });
+
+  it('admits a previously unweighed demand when a newer estimate arrives', async () => {
+    const { application, memory } = setup();
+    await application.applyOrderDemand(
+      command({
+        estimatedWeightLbs: null,
+        estimatedWeightSource: null,
+      }),
+    );
+    await expect(
+      application.applyOrderDemand(
+        command({
+          revisionAt: '2026-07-10T14:01:00.000Z',
+          revisionHash: 'b'.repeat(64),
+          idempotencyKey: 'demand-command-weighed',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: {
+        outcome: 'applied',
+        productionOrderId: expect.any(String),
+      },
+    });
+    expect([...memory.inspect().orders.values()]).toMatchObject([
+      { status: 'release_pending', derivedWeightLbs: 74 },
     ]);
   });
 
@@ -129,46 +182,23 @@ describe('source-neutral order demand', () => {
     });
   });
 
-  it('attempts placement only after an applied revision is eligible', async () => {
-    const ids = makeIds();
-    const memory = makeMemoryProductionRepositories({ ids });
-    const attemptAutomaticPlacement = vi.fn(async () => undefined);
-    const applyDemand = makeApplyOrderDemand({
-      repo: memory.repositories.applyOrderDemand,
-      policy: allowPolicy,
-      clock: makeClock('2026-07-10T14:00:00.000Z').clock,
-      ids,
-      attemptAutomaticPlacement,
-    });
+  it('admits released demand with physical intake without automatic run placement', async () => {
+    const { application, memory } = setup();
     const eligible = command({
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       bagCount: 2,
       idempotencyKey: 'eligible-demand-command',
     });
 
-    await applyDemand(eligible);
-    await applyDemand(eligible);
-    await applyDemand(
-      command({
-        bagCount: 2,
-        revisionAt: '2026-07-10T13:58:00.000Z',
-        revisionHash: 'b'.repeat(64),
-        idempotencyKey: 'older-eligible-demand-command',
-      }),
+    await expect(application.applyOrderDemand(eligible)).resolves.toMatchObject(
+      {
+        tag: 'ok',
+        value: { outcome: 'applied', replayed: false },
+      },
     );
-    await applyDemand(
-      command({
-        demandKey: 'source:order:1002',
-        displayReference: '1002',
-        idempotencyKey: 'intake-pending-demand-command',
-      }),
-    );
-
-    expect(attemptAutomaticPlacement).toHaveBeenCalledOnce();
-    expect(attemptAutomaticPlacement).toHaveBeenCalledWith(
-      expect.objectContaining({
-        locationId: 'location-1',
-        idempotencyKey: 'eligible-demand-command',
-      }),
-    );
+    expect([...memory.inspect().orders.values()]).toMatchObject([
+      { status: 'eligible', bagCount: 2 },
+    ]);
   });
 });

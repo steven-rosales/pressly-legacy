@@ -16,6 +16,9 @@ import { z } from 'zod';
 
 export const CENTS_WEBHOOK_MAX_BODY_BYTES = 256 * 1024;
 
+export const hashCentsWebhookRawBody = (rawBody: Uint8Array): string =>
+  createHash('sha256').update(rawBody).digest('hex');
+
 export type CentsWebhookNormalizationErrorCode =
   | 'cents_webhook_body_too_large'
   | 'invalid_cents_webhook_envelope'
@@ -325,9 +328,7 @@ export const normalizeCentsWebhook = (input: {
   const eventKind = resolveEventKind(parsedEnvelope.data);
   if (typeof eventKind !== 'string') return eventKind;
 
-  const rawBodySha256 = createHash('sha256')
-    .update(input.rawBody)
-    .digest('hex');
+  const rawBodySha256 = hashCentsWebhookRawBody(input.rawBody);
 
   if (centsOrderWebhookEventKindSchema.safeParse(eventKind).success)
     return normalizeOrder({

@@ -1,21 +1,19 @@
 import { createHash } from 'node:crypto';
+import {
+  addMinutes,
+  fixedPulseMakespanMinutes,
+  fixedPulseStages,
+  packFixedPulseItems,
+  pulseCapacity,
+  sortFixedPulseItems,
+} from '../fixed-pulse/fixed-pulse.computation.ts';
 import type {
   ProposedStage,
   ProposeSchedule,
   SchedulingBatch,
-  SchedulingInput,
   SchedulingMachine,
-  SchedulingOrder,
-  SchedulingStageKind,
   SchedulingWarning,
 } from './propose-schedule.port.ts';
-
-const fixedPulseStages: readonly SchedulingStageKind[] = [
-  'sorting',
-  'washing',
-  'drying',
-  'folding_packaging',
-];
 
 const canonicalize = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -35,52 +33,6 @@ export const canonicalJson = (value: unknown): string =>
 
 export const sha256 = (value: string): string =>
   createHash('sha256').update(value).digest('hex');
-
-const addMinutes = (instant: string, minutes: number): string =>
-  new Date(Date.parse(instant) + minutes * 60_000).toISOString();
-
-const localDate = (instant: string, timezone: string): string => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date(instant));
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((candidate) => candidate.type === type)?.value ?? '';
-
-  return `${part('year')}-${part('month')}-${part('day')}`;
-};
-
-const dayNumber = (date: string): number =>
-  Date.parse(`${date}T00:00:00.000Z`) / 86_400_000;
-
-const dueBucket = (order: SchedulingOrder, input: SchedulingInput): number => {
-  const shiftDay = dayNumber(
-    localDate(input.shift.startsAt, input.shift.timezone),
-  );
-  const dueDay = dayNumber(localDate(order.dueAt, input.shift.timezone));
-  const distance = dueDay - shiftDay;
-
-  return distance <= 0 ? 0 : distance === 1 ? 1 : 2;
-};
-
-const compareOrders =
-  (input: SchedulingInput) =>
-  (left: SchedulingOrder, right: SchedulingOrder): number =>
-    Number(right.priority) - Number(left.priority) ||
-    dueBucket(left, input) - dueBucket(right, input) ||
-    right.derivedWeightLbs - left.derivedWeightLbs ||
-    Date.parse(left.dueAt) - Date.parse(right.dueAt) ||
-    left.id.localeCompare(right.id);
-
-const fleetCapacity = (
-  machines: readonly SchedulingMachine[],
-  kind: SchedulingMachine['stationKind'],
-): number =>
-  machines
-    .filter((machine) => machine.active && machine.stationKind === kind)
-    .reduce((total, machine) => total + machine.effectiveCapacityLbs, 0);
 
 const selectMachines = (
   machines: readonly SchedulingMachine[],
@@ -105,34 +57,6 @@ const selectMachines = (
   }
 
   return selected.sort();
-};
-
-type MutableBatch = {
-  orders: SchedulingOrder[];
-  weightLbs: number;
-};
-
-const packOrders = (
-  orders: readonly SchedulingOrder[],
-  capacityLbs: number,
-): readonly MutableBatch[] => {
-  const batches: MutableBatch[] = [];
-
-  for (const order of orders) {
-    const target = batches.find(
-      (batch) => batch.weightLbs + order.derivedWeightLbs <= capacityLbs,
-    );
-
-    if (target === undefined) {
-      batches.push({ orders: [order], weightLbs: order.derivedWeightLbs });
-      continue;
-    }
-
-    target.orders.push(order);
-    target.weightLbs += order.derivedWeightLbs;
-  }
-
-  return batches;
 };
 
 const buildFixedPulseStages = (
@@ -195,30 +119,34 @@ const capacityWarnings = (
 
 export const proposeSchedule: ProposeSchedule = (input) => {
   const inputSnapshotHash = sha256(canonicalJson(input));
-  const washerCapacity = fleetCapacity(input.machines, 'washing');
-  const dryerCapacity = fleetCapacity(input.machines, 'drying');
-  const foldingCapacity =
-    input.config.foldLbsPerFolderMinute *
-    input.shift.effectiveFolderCount *
-    input.config.pulseMinutes;
-  const pulseCapacityLbs = Math.min(
-    washerCapacity,
-    dryerCapacity,
-    foldingCapacity,
-  );
+  const capacity = pulseCapacity({
+    machines: input.machines,
+    foldLbsPerFolderMinute: input.config.foldLbsPerFolderMinute,
+    effectiveFolderCount: input.shift.effectiveFolderCount,
+    pulseMinutes: input.config.pulseMinutes,
+  });
+  const { pulseCapacityLbs } = capacity;
   const warnings = capacityWarnings(
-    washerCapacity,
-    dryerCapacity,
-    foldingCapacity,
+    capacity.washerCapacityLbs,
+    capacity.dryerCapacityLbs,
+    capacity.foldingCapacityLbs,
   );
-  const candidates = input.orders.slice().sort(compareOrders(input));
+  const candidates = sortFixedPulseItems(
+    input.orders.map((order) => ({
+      id: order.id,
+      dueAt: order.dueAt,
+      priority: order.priority,
+      weightLbs: order.derivedWeightLbs,
+      value: order,
+    })),
+    input.shift,
+  );
   const oversized =
     pulseCapacityLbs > 0
-      ? candidates.filter((order) => order.derivedWeightLbs > pulseCapacityLbs)
+      ? candidates.filter((order) => order.weightLbs > pulseCapacityLbs)
       : candidates;
   const placeable = candidates.filter(
-    (order) =>
-      pulseCapacityLbs > 0 && order.derivedWeightLbs <= pulseCapacityLbs,
+    (order) => pulseCapacityLbs > 0 && order.weightLbs <= pulseCapacityLbs,
   );
 
   if (oversized.length > 0)
@@ -229,14 +157,17 @@ export const proposeSchedule: ProposeSchedule = (input) => {
       orderIds: oversized.map((order) => order.id).sort(),
     });
 
-  const batches: readonly SchedulingBatch[] = packOrders(
+  const batches: readonly SchedulingBatch[] = packFixedPulseItems(
     placeable,
     pulseCapacityLbs,
   ).map((batch, sequence) => ({
     sequence,
-    orderIds: batch.orders.map((order) => order.id),
+    orderIds: batch.items.map((order) => order.id),
     derivedWeightLbs: batch.weightLbs,
-    bagCount: batch.orders.reduce((total, order) => total + order.bagCount, 0),
+    bagCount: batch.items.reduce(
+      (total, order) => total + order.value.bagCount,
+      0,
+    ),
     stages: buildFixedPulseStages({
       startsAt: input.shift.startsAt,
       pulseMinutes: input.config.pulseMinutes,
@@ -245,11 +176,10 @@ export const proposeSchedule: ProposeSchedule = (input) => {
       machines: input.machines,
     }),
   }));
-  const makespanMinutes =
-    batches.length === 0
-      ? 0
-      : (batches.length + fixedPulseStages.length - 1) *
-        input.config.pulseMinutes;
+  const makespanMinutes = fixedPulseMakespanMinutes(
+    batches.length,
+    input.config.pulseMinutes,
+  );
   const plannedCompletionAt = addMinutes(input.shift.startsAt, makespanMinutes);
 
   if (Date.parse(plannedCompletionAt) > Date.parse(input.shift.endsAt))

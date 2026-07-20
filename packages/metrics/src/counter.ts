@@ -18,6 +18,7 @@ export type CounterName =
   | 'worker.reconciliation_drift'
   | 'api.command_conflicts'
   | 'api.http_requests'
+  | 'api.webhook_rejections'
   | 'api.sse_connections'
   | 'api.sse_events'
   | 'api.sse_resyncs'

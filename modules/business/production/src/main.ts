@@ -82,6 +82,10 @@ import { makeRecordOrderIntake } from './record-order-intake/record-order-intake
 import { makeRecordOrderIntakeRoute } from './record-order-intake/record-order-intake.route.ts';
 import { makeRecordOrderIntakeRepository } from './record-order-intake/record-order-intake.repo.ts';
 import type { RecordOrderIntakeRepository } from './record-order-intake/record-order-intake.port.ts';
+import { makeReplaceShiftOrderSelection } from './replace-shift-order-selection/replace-shift-order-selection.usecase.ts';
+import { makeReplaceShiftOrderSelectionRoute } from './replace-shift-order-selection/replace-shift-order-selection.route.ts';
+import { makeReplaceShiftOrderSelectionRepository } from './replace-shift-order-selection/replace-shift-order-selection.repo.ts';
+import type { ReplaceShiftOrderSelectionRepository } from './replace-shift-order-selection/replace-shift-order-selection.port.ts';
 import { makeRouteProductionOrder } from './route-production-order/route-production-order.usecase.ts';
 import { makeRouteProductionOrderRoutes } from './route-production-order/route-production-order.route.ts';
 import { makeRouteProductionOrderRepository } from './route-production-order/route-production-order.repo.ts';
@@ -101,7 +105,6 @@ import type { StartScheduleRepository } from './start-schedule/start-schedule.po
 import { Router, type RequestHandler, type Response } from 'express';
 import type { Database } from '@pressly/db';
 import type { ProductionOrderPlacementResult } from '@pressly/contracts';
-import { automaticPlacementIdempotencyKey } from './automatic-placement-idempotency.policy.ts';
 
 export type ProductionRepositories = Readonly<{
   acceptSchedule: AcceptScheduleRepository;
@@ -122,6 +125,7 @@ export type ProductionRepositories = Readonly<{
   placeProductionOrder: PlaceProductionOrderRepository;
   publishSchedulerConfig: PublishSchedulerConfigRepository;
   recordOrderIntake: RecordOrderIntakeRepository;
+  replaceShiftOrderSelection: ReplaceShiftOrderSelectionRepository;
   routeProductionOrder: RouteProductionOrderRepository;
   reconcileProductionBatchProgress: ReconcileProductionBatchProgressRepository;
   setProductionOrderPriority: SetProductionOrderPriorityRepository;
@@ -216,30 +220,12 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
     clock: deps.clock,
     signals,
   });
-  const attemptAutomaticPlacement = async (input: {
-    locationId: string;
-    productionOrderId: string;
-    actorId: string;
-    idempotencyKey: string;
-  }): Promise<void> => {
-    const outcome = await rawPlaceProductionOrder.attemptAutomaticPlacement({
-      locationId: input.locationId,
-      productionOrderId: input.productionOrderId,
-      idempotencyKey: automaticPlacementIdempotencyKey(input.idempotencyKey),
-      actorId: input.actorId,
-      actorRole: 'operator',
-    });
-    if (outcome.tag === 'ok' && outcome.value !== null)
-      reportPlacement(outcome.value, 'automatic_placement');
-  };
-
   return {
     applyOrderDemand: makeApplyOrderDemand({
       repo: deps.repositories.applyOrderDemand,
       policy: deps.policy,
       clock: deps.clock,
       ids: deps.ids,
-      attemptAutomaticPlacement,
     }),
     publishSchedulerConfig: makePublishSchedulerConfig({
       repo: deps.repositories.publishSchedulerConfig,
@@ -299,6 +285,7 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
       repo: deps.repositories.loadProductionWorkspace,
       clock: deps.clock,
       policy: deps.policy,
+      scheduler: deps.scheduler,
     }),
     manageBatchMembership,
     manageProductionResources: makeManageProductionResources({
@@ -310,7 +297,11 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
       repo: deps.repositories.recordOrderIntake,
       policy: deps.policy,
       clock: deps.clock,
-      attemptAutomaticPlacement,
+    }),
+    replaceShiftOrderSelection: makeReplaceShiftOrderSelection({
+      repo: deps.repositories.replaceShiftOrderSelection,
+      clock: deps.clock,
+      signals,
     }),
     routeProductionOrder: makeRouteProductionOrder({
       repo: deps.repositories.routeProductionOrder,
@@ -438,6 +429,13 @@ export const makeProductionRoutes = (input: {
     }),
   );
   routes.use(
+    makeReplaceShiftOrderSelectionRoute({
+      replace: input.application.replaceShiftOrderSelection,
+      ...scheduleSecurity,
+      ...actor,
+    }),
+  );
+  routes.use(
     makeCreateScheduleRoute({
       createSchedule: input.application.createSchedule,
       ...scheduleSecurity,
@@ -487,7 +485,6 @@ export const makeProductionRoutes = (input: {
     makePlaceProductionOrderRoutes({
       ...input.application.placeProductionOrder,
       authenticate: input.security.authenticate,
-      authorizeQueue: input.security.queue,
       authorizeOverride: input.security.override,
       ...actor,
     }),
@@ -554,6 +551,8 @@ export const makePostgresProductionApplication = (
       placeProductionOrder: makePlaceProductionOrderRepository(deps),
       publishSchedulerConfig: makePublishSchedulerConfigRepository(deps),
       recordOrderIntake: makeRecordOrderIntakeRepository(deps),
+      replaceShiftOrderSelection:
+        makeReplaceShiftOrderSelectionRepository(deps),
       routeProductionOrder: makeRouteProductionOrderRepository(deps),
       reconcileProductionBatchProgress:
         makeReconcileProductionBatchProgressRepository(deps),

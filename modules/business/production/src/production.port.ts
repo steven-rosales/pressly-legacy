@@ -7,6 +7,19 @@ import type {
   ProductionStageStartTiming,
 } from '@pressly/contracts';
 
+export type OrderDemandPhase =
+  | 'expected'
+  | 'inbound'
+  | 'production_released'
+  | 'post_production'
+  | 'withdrawn';
+
+export type DemandReconciliationStatus =
+  | 'none'
+  | 'source_ahead'
+  | 'source_withdrawn'
+  | 'source_behind';
+
 export type PolicyDecision<T> =
   | Readonly<{ tag: 'ok'; value: T }>
   | Readonly<{
@@ -132,14 +145,54 @@ export const nullProductionSignals: ProductionSignalsPort = {
 };
 
 export type ProductionPolicyPort = Readonly<{
+  evaluateDemandLifecycle: (input: {
+    phase: OrderDemandPhase;
+    productionStatus:
+      | 'release_pending'
+      | 'intake_pending'
+      | 'eligible'
+      | 'ineligible'
+      | 'scheduled'
+      | 'finished'
+      | null;
+    currentBagCount: number | null;
+    incomingBagCount: number | null;
+    estimatedWeightLbs: number | null;
+  }) => Readonly<{
+    effectiveBagCount: number | null;
+    reconciliation: DemandReconciliationStatus;
+    production:
+      | Readonly<{ action: 'none' }>
+      | Readonly<{ action: 'preserve' }>
+      | Readonly<{
+          action: 'create' | 'update';
+          status:
+            | 'release_pending'
+            | 'intake_pending'
+            | 'eligible'
+            | 'ineligible';
+        }>;
+  }>;
+  evaluateDemandReconciliation: (input: {
+    phase: OrderDemandPhase;
+    productionStatus:
+      | 'release_pending'
+      | 'intake_pending'
+      | 'eligible'
+      | 'ineligible'
+      | 'scheduled'
+      | 'finished'
+      | null;
+    currentBagCount: number | null;
+  }) => DemandReconciliationStatus;
   evaluateOrderRouting: (
     input: OrderRoutingPolicyInput,
   ) => OrderRoutingPolicyDecision;
-  evaluateEligibility: (input: {
-    state: 'ready_for_production' | 'not_ready';
+  evaluateIntakeAdmission: (input: {
+    phase: OrderDemandPhase;
     derivedWeightLbs: number;
     bagCount: number | null;
-  }) => PolicyDecision<Readonly<{ eligible: true }>>;
+  }) => PolicyDecision<Readonly<{ status: 'release_pending' | 'eligible' }>>;
   evaluateScheduleAcceptance: (input: {
     status: string;
     expectedOutputPlanHash: string;
@@ -382,6 +435,43 @@ export type SchedulingOutput = Readonly<{
   }>[];
 }>;
 
+export type DemandForecastInput = Readonly<{
+  demand: readonly Readonly<{
+    id: string;
+    dueAt: string;
+    priority: boolean;
+    estimatedWeightLbs: number;
+    disposition: 'expected' | 'ready';
+  }>[];
+  machines: SchedulingInput['machines'];
+  shift: Pick<
+    SchedulingInput['shift'],
+    'startsAt' | 'timezone' | 'effectiveFolderCount'
+  >;
+  config: Pick<
+    SchedulingInput['config'],
+    'pulseMinutes' | 'foldLbsPerFolderMinute'
+  >;
+}>;
+
+export type DemandForecastOutput = Readonly<{
+  algorithmVersion: 'fixed-pulse-demand-outlook-v1';
+  startsAt: string;
+  completesAt: string;
+  pulseMinutes: number;
+  pulseCapacityLbs: number;
+  batchCount: number;
+  makespanMinutes: number;
+  batches: readonly Readonly<{
+    sequence: number;
+    demandIds: readonly string[];
+    estimatedWeightLbs: number;
+    expectedOrderCount: number;
+    readyOrderCount: number;
+  }>[];
+  unplacedDemandIds: readonly string[];
+}>;
+
 export type OnlinePlacementInput = Readonly<{
   order: Readonly<{
     id: string;
@@ -479,6 +569,7 @@ export type OnlinePlacementResult =
     }>;
 
 export type ProductionSchedulerPort = Readonly<{
+  forecastDemand: (input: DemandForecastInput) => DemandForecastOutput;
   propose: (input: SchedulingInput) => SchedulingOutput;
   proposeOnlinePlacement: (
     input: OnlinePlacementInput,

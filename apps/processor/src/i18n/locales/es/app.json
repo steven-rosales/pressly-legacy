@@ -28,6 +28,12 @@
     "minutesUnit": "minutos",
     "minutesShort": "{{minutes}} min",
     "queued": "En cola",
+    "due": {
+      "overdue": "Vencido",
+      "today": "Hoy",
+      "tomorrow": "Mañana",
+      "later": "Más adelante"
+    },
     "stage": {
       "sorting": "Clasificación",
       "washing": "Lavado",

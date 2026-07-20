@@ -19,6 +19,7 @@ import {
   productionOrderRouteProposalSchema,
   productionWorkspaceSchema,
   recordOrderIntakeResultSchema,
+  replaceProductionShiftSelectionResultSchema,
   productionShiftSchema,
   scheduleProposalSchema,
   schedulerConfigSchema,
@@ -182,6 +183,15 @@ export const makeApiProductionAdapter = (
         body,
       },
       updateProductionShiftResultSchema
+    ),
+  replaceShiftSelection: ({ locationId, productionShiftId, ...body }) =>
+    request(
+      {
+        method: "PUT",
+        path: `/production/locations/${encodeURIComponent(locationId)}/shifts/${encodeURIComponent(productionShiftId)}/selection`,
+        body,
+      },
+      replaceProductionShiftSelectionResultSchema
     ),
   createSchedule: ({ locationId, ...body }) =>
     request(

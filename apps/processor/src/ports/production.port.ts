@@ -26,6 +26,7 @@ import type {
   ProductionOrderRouteProposal,
   ProductionWorkspace,
   RecordOrderIntakeResult,
+  ReplaceProductionShiftSelectionResult,
   ReconcileProductionBatchProgressCommand,
   ProductionShift,
   ScheduleProposal,
@@ -120,6 +121,13 @@ export type ProductionPort = Readonly<{
     expectedVersion: number
     idempotencyKey: string
   }) => Promise<UpdateProductionShiftResult>
+  replaceShiftSelection: (input: {
+    locationId: string
+    productionShiftId: string
+    selectedOrderIds: readonly string[]
+    expectedVersion: number
+    idempotencyKey: string
+  }) => Promise<ReplaceProductionShiftSelectionResult>
   createSchedule: (input: {
     locationId: string
     productionShiftId: string

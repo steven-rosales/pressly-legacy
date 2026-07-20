@@ -14,6 +14,43 @@ import type {
   StoredOrderDemand,
 } from './apply-order-demand.port.ts';
 
+const mapDemandPhase = (value: string): StoredOrderDemand['phase'] => {
+  switch (value) {
+    case 'expected':
+    case 'inbound':
+    case 'production_released':
+    case 'post_production':
+    case 'withdrawn':
+      return value;
+    default:
+      throw new Error(`Unknown order-demand phase: ${value}.`);
+  }
+};
+
+const mapProductionStatus = (
+  value: string | null,
+): StoredOrderDemand['productionStatus'] => {
+  switch (value) {
+    case null:
+    case 'release_pending':
+    case 'intake_pending':
+    case 'eligible':
+    case 'ineligible':
+    case 'scheduled':
+    case 'finished':
+      return value;
+    default:
+      throw new Error(`Unknown production-order status: ${value}.`);
+  }
+};
+
+const mapEstimatedWeightSource = (
+  value: string | null,
+): StoredOrderDemand['estimatedWeightSource'] => {
+  if (value === null || value === 'external_estimate') return value;
+  throw new Error(`Unknown demand weight provenance: ${value}.`);
+};
+
 export const makeApplyOrderDemandRepository = (deps: {
   db: Database;
   ids: Readonly<{ next: () => string }>;
@@ -66,12 +103,24 @@ export const makeApplyOrderDemandRepository = (deps: {
         locationId: demand.locationId,
         revisionAt: demand.revisionAt.toISOString(),
         revisionHash: demand.revisionHash,
+        phase: mapDemandPhase(demand.phase),
+        sourceStatusCode: demand.sourceStatusCode,
+        estimatedWeightLbs: demand.estimatedWeightLbs,
+        estimatedWeightSource: mapEstimatedWeightSource(
+          demand.estimatedWeightSource,
+        ),
         bagCount: productionOrder?.bagCount ?? null,
-        productionStatus: productionOrder?.status ?? null,
+        productionStatus: mapProductionStatus(productionOrder?.status ?? null),
       };
     },
 
-    applyDemand: async ({ command, orderDemandId, productionStatus, now }) => {
+    applyDemand: async ({
+      command,
+      orderDemandId,
+      production,
+      effectiveBagCount,
+      now,
+    }) => {
       const [storedDemand] = await db
         .select({ id: laundryProduction.orderDemands.id })
         .from(laundryProduction.orderDemands)
@@ -88,7 +137,10 @@ export const makeApplyOrderDemandRepository = (deps: {
           locationId: command.locationId,
           revisionHash: command.revisionHash,
           revisionAt,
-          status: command.state,
+          phase: command.phase,
+          sourceStatusCode: command.sourceStatusCode,
+          estimatedWeightLbs: command.estimatedWeightLbs,
+          estimatedWeightSource: command.estimatedWeightSource,
           dueAt,
           createdAt: now,
           updatedAt: now,
@@ -100,7 +152,10 @@ export const makeApplyOrderDemandRepository = (deps: {
             displayReference: command.displayReference,
             revisionHash: command.revisionHash,
             revisionAt,
-            status: command.state,
+            phase: command.phase,
+            sourceStatusCode: command.sourceStatusCode,
+            estimatedWeightLbs: command.estimatedWeightLbs,
+            estimatedWeightSource: command.estimatedWeightSource,
             dueAt,
             updatedAt: now,
           })
@@ -115,7 +170,55 @@ export const makeApplyOrderDemandRepository = (deps: {
         .limit(1)
         .for('update');
 
-      if (existing === undefined && productionStatus !== 'ineligible') {
+      const stored = (
+        productionOrderId: string | null,
+        bagCount: number | null,
+        productionStatus: StoredOrderDemand['productionStatus'],
+      ): StoredOrderDemand => ({
+        orderDemandId,
+        productionOrderId,
+        locationId: command.locationId,
+        revisionAt: command.revisionAt,
+        revisionHash: command.revisionHash,
+        phase: command.phase,
+        sourceStatusCode: command.sourceStatusCode,
+        estimatedWeightLbs: command.estimatedWeightLbs,
+        estimatedWeightSource: command.estimatedWeightSource,
+        bagCount,
+        productionStatus,
+      });
+
+      if (production.action === 'none') {
+        if (existing !== undefined)
+          throw new Error('A no-op demand projection found production work.');
+        return stored(null, null, null);
+      }
+
+      if (production.action === 'preserve') {
+        if (existing === undefined)
+          throw new Error('A preserved demand is missing production work.');
+        return stored(
+          existing.id,
+          existing.bagCount,
+          mapProductionStatus(existing.status),
+        );
+      }
+
+      if (production.action === 'create') {
+        if (existing !== undefined)
+          throw new Error('A new demand projection found production work.');
+        if (
+          command.estimatedWeightLbs === null ||
+          command.estimatedWeightSource === null
+        )
+          throw new Error('Production work requires a positive estimate.');
+        if (
+          (production.status === 'intake_pending' &&
+            effectiveBagCount !== null) ||
+          (production.status === 'eligible' && effectiveBagCount === null)
+        )
+          throw new Error('Demand lifecycle and intake state disagree.');
+
         const productionOrderId = deps.ids.next();
         await db.insert(laundryProduction.productionOrders).values({
           id: productionOrderId,
@@ -123,59 +226,59 @@ export const makeApplyOrderDemandRepository = (deps: {
           locationId: command.locationId,
           dueAt,
           priority: false,
-          status: productionStatus,
+          status: production.status,
           derivedWeightLbs: command.estimatedWeightLbs,
-          derivedWeightSource: 'external_estimate',
-          bagCount: command.bagCount,
-          bagCountSource: command.bagCount === null ? null : 'external_source',
-          intakeRecordedAt: command.bagCount === null ? null : now,
-          intakeVersion: command.bagCount === null ? 0 : 1,
+          derivedWeightSource: command.estimatedWeightSource,
+          bagCount: effectiveBagCount,
+          bagCountSource: effectiveBagCount === null ? null : 'external_source',
+          intakeRecordedAt: effectiveBagCount === null ? null : now,
+          intakeVersion: effectiveBagCount === null ? 0 : 1,
           mustStayTogether: true,
           version: 1,
-          eligibleAt: now,
+          eligibleAt: production.status === 'eligible' ? now : null,
           createdAt: now,
           updatedAt: now,
         });
-        if (command.bagCount !== null && command.bagCount > 0)
+        if (effectiveBagCount !== null && effectiveBagCount > 0)
           await db.insert(laundryProduction.bags).values(
-            Array.from({ length: command.bagCount }, (_, bagIndex) => ({
+            Array.from({ length: effectiveBagCount }, (_, bagIndex) => ({
               id: deps.ids.next(),
               productionOrderId,
               bagIndex,
               status: 'eligible',
             })),
           );
-        return {
-          orderDemandId,
-          productionOrderId,
-          locationId: command.locationId,
-          revisionAt: command.revisionAt,
-          revisionHash: command.revisionHash,
-          bagCount: command.bagCount,
-          productionStatus,
-        } satisfies StoredOrderDemand;
+        return stored(productionOrderId, effectiveBagCount, production.status);
       }
 
       if (existing === undefined)
-        return {
-          orderDemandId,
-          productionOrderId: null,
-          locationId: command.locationId,
-          revisionAt: command.revisionAt,
-          revisionHash: command.revisionHash,
-          bagCount: null,
-          productionStatus: null,
-        } satisfies StoredOrderDemand;
+        throw new Error('An updated demand is missing production work.');
 
       const adoptsSourceBagCount =
         existing.bagCount === null && command.bagCount !== null;
       const bagCount = existing.bagCount ?? command.bagCount;
+      const derivedWeightLbs =
+        command.estimatedWeightLbs ?? Number(existing.derivedWeightLbs);
+      const derivedWeightSource =
+        command.estimatedWeightSource ??
+        mapEstimatedWeightSource(existing.derivedWeightSource);
+      if (derivedWeightSource === null)
+        throw new Error(
+          'Existing production work is missing weight provenance.',
+        );
+      if (bagCount !== effectiveBagCount)
+        throw new Error('Demand lifecycle and persisted intake disagree.');
       const [updated] = await db
         .update(laundryProduction.productionOrders)
         .set({
           dueAt,
-          status: productionStatus,
-          derivedWeightLbs: command.estimatedWeightLbs,
+          status: production.status,
+          derivedWeightLbs,
+          derivedWeightSource,
+          eligibleAt:
+            production.status === 'eligible'
+              ? (existing.eligibleAt ?? now)
+              : null,
           ...(adoptsSourceBagCount
             ? {
                 bagCount,
@@ -214,15 +317,11 @@ export const makeApplyOrderDemandRepository = (deps: {
             })),
           );
       }
-      return {
-        orderDemandId,
-        productionOrderId: updated.id,
-        locationId: command.locationId,
-        revisionAt: command.revisionAt,
-        revisionHash: command.revisionHash,
-        bagCount: updated.bagCount,
-        productionStatus: updated.status,
-      } satisfies StoredOrderDemand;
+      return stored(
+        updated.id,
+        updated.bagCount,
+        mapProductionStatus(updated.status),
+      );
     },
 
     appendWorkEvent: (event) => appendWorkEvent(db, deps.ids, event),

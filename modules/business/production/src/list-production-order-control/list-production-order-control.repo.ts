@@ -4,6 +4,7 @@ import {
   count,
   eq,
   gt,
+  gte,
   inArray,
   laundryProduction,
   lt,
@@ -16,7 +17,10 @@ import type {
   ProductionOrderControlItem,
   ProductionOrderRouteAttempt,
 } from '@pressly/contracts';
-import { mapProductionOrderListItem } from '../persistence/production-order-list-item.ts';
+import {
+  mapProductionOrderListItem,
+  productionDueFilter,
+} from '../persistence/production-order-list-item.ts';
 import {
   decodeProductionOrderControlCursor,
   encodeProductionOrderControlCursor,
@@ -141,7 +145,8 @@ const attentionFor = (
   if (order.status === 'intake_pending')
     return {
       reason: 'intake_required',
-      message: 'Bag intake must be recorded before this order can be planned.',
+      message:
+        'The source released this order to production, but physical bag intake has not been recorded.',
     };
   if (order.status !== 'eligible' || pendingPlacement === null) return null;
   const queueConflict =
@@ -171,7 +176,10 @@ export const makeListProductionOrderControlRepository = (
     if (cursor === null) return { tag: 'invalid_cursor' };
 
     const [location] = await db
-      .select({ id: laundryProduction.productionLocations.id })
+      .select({
+        id: laundryProduction.productionLocations.id,
+        timezone: laundryProduction.productionLocations.timezone,
+      })
       .from(laundryProduction.productionLocations)
       .where(
         and(
@@ -182,11 +190,31 @@ export const makeListProductionOrderControlRepository = (
       .limit(1);
     if (location === undefined) return { tag: 'location_not_found' };
 
-    const attentionCondition = or(
-      eq(laundryProduction.productionOrders.status, 'intake_pending'),
+    const dueFilter =
+      command.dueBucket === undefined
+        ? null
+        : productionDueFilter(command.dueBucket, now, location.timezone);
+
+    const floorVisibleCondition = or(
+      inArray(laundryProduction.productionOrders.status, [
+        'release_pending',
+        'eligible',
+        'scheduled',
+        'finished',
+      ]),
       and(
-        eq(laundryProduction.productionOrders.status, 'eligible'),
-        sql<boolean>`${laundryProduction.productionOrders.pendingPlacement} is not null`,
+        eq(laundryProduction.productionOrders.status, 'intake_pending'),
+        eq(laundryProduction.orderDemands.phase, 'production_released'),
+      ),
+    );
+    const attentionCondition = and(
+      floorVisibleCondition,
+      or(
+        eq(laundryProduction.productionOrders.status, 'intake_pending'),
+        and(
+          eq(laundryProduction.productionOrders.status, 'eligible'),
+          sql<boolean>`${laundryProduction.productionOrders.pendingPlacement} is not null`,
+        ),
       ),
     );
     const activeCondition = eq(
@@ -345,22 +373,24 @@ export const makeListProductionOrderControlRepository = (
       .where(
         and(
           eq(laundryProduction.productionOrders.locationId, command.locationId),
+          floorVisibleCondition,
           viewCondition,
           command.status === undefined
             ? undefined
             : eq(laundryProduction.productionOrders.status, command.status),
-          command.dueAfter === undefined
+          dueFilter?.dueAtOrAfter === null ||
+            dueFilter?.dueAtOrAfter === undefined
             ? undefined
-            : gt(
+            : gte(
                 laundryProduction.productionOrders.dueAt,
-                new Date(command.dueAfter),
+                dueFilter.dueAtOrAfter,
               ),
-          command.dueBefore === undefined
+          dueFilter?.dueBefore === null || dueFilter?.dueBefore === undefined
             ? undefined
-            : lt(
-                laundryProduction.productionOrders.dueAt,
-                new Date(command.dueBefore),
-              ),
+            : lt(laundryProduction.productionOrders.dueAt, dueFilter.dueBefore),
+          command.dueBucket === undefined
+            ? undefined
+            : ne(laundryProduction.productionOrders.status, 'finished'),
           command.productionRunId === undefined
             ? undefined
             : eq(laundryProduction.productionRuns.id, command.productionRunId),
@@ -505,6 +535,13 @@ export const makeListProductionOrderControlRepository = (
       db
         .select({ value: count() })
         .from(laundryProduction.productionOrders)
+        .innerJoin(
+          laundryProduction.orderDemands,
+          eq(
+            laundryProduction.orderDemands.id,
+            laundryProduction.productionOrders.orderDemandId,
+          ),
+        )
         .where(
           and(
             eq(
@@ -517,6 +554,13 @@ export const makeListProductionOrderControlRepository = (
       db
         .select({ value: count() })
         .from(laundryProduction.productionOrders)
+        .innerJoin(
+          laundryProduction.orderDemands,
+          eq(
+            laundryProduction.orderDemands.id,
+            laundryProduction.productionOrders.orderDemandId,
+          ),
+        )
         .where(
           and(
             eq(
@@ -529,13 +573,26 @@ export const makeListProductionOrderControlRepository = (
       db
         .select({ value: count() })
         .from(laundryProduction.productionOrders)
+        .innerJoin(
+          laundryProduction.orderDemands,
+          eq(
+            laundryProduction.orderDemands.id,
+            laundryProduction.productionOrders.orderDemandId,
+          ),
+        )
         .where(
-          eq(laundryProduction.productionOrders.locationId, command.locationId),
+          and(
+            eq(
+              laundryProduction.productionOrders.locationId,
+              command.locationId,
+            ),
+            floorVisibleCondition,
+          ),
         ),
     ]);
 
     const items: ProductionOrderControlItem[] = pageRows.map((row) => {
-      const order = mapProductionOrderListItem(row, now);
+      const order = mapProductionOrderListItem(row, now, location.timezone);
       const attempts = attemptsByOrder.get(row.id) ?? [];
       const assigned = attempts
         .filter((attempt) => attempt.status === 'assigned')
