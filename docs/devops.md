@@ -177,6 +177,13 @@ server, not in GitHub:
 /opt/pressly/env/{compose,caddy,web,api,worker,processor,postgres,migration,backup}.env
 ```
 
+`api.env` must include a dedicated 32-byte base64
+`CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY` and may set
+`CENTS_WEBHOOK_QUARANTINE_RETENTION_DAYS` (default `30`, maximum `90`). Generate
+the key with `openssl rand -base64 32`; do not reuse
+`AUTH_MFA_ENCRYPTION_KEY`. A release that includes the quarantine schema will
+fail API startup in production until this value is present.
+
 The deploy workflow needs only its SSH boundary credentials; image-building
 telemetry configuration is separate and documented below:
 

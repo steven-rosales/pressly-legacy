@@ -12,17 +12,21 @@ import type {
   EventConsumerOutcome,
   WebhookEventConsumer,
 } from '../../lpms/processor.ts';
+import { mapCentsDemandPhase } from './cents-demand-phase.ts';
 
 export const deriveCentsWeightLbs = (
   services: CentsCanonicalOrderInput['services'],
-): number =>
-  Math.round(
-    services.reduce(
-      (total, service) =>
-        total + service.totalPriceCents / service.unitPriceCents,
-      0,
-    ) * 1_000,
-  ) / 1_000;
+): number | null => {
+  const weight =
+    Math.round(
+      services.reduce(
+        (total, service) =>
+          total + service.totalPriceCents / service.unitPriceCents,
+        0,
+      ) * 1_000,
+    ) / 1_000;
+  return Number.isFinite(weight) && weight > 0 ? weight : null;
+};
 
 const permanentFailure = (error: AppError): EventConsumerOutcome => ({
   tag: 'err',
@@ -81,11 +85,6 @@ export const makeCentsOrderConsumer =
       );
 
     const estimatedWeightLbs = deriveCentsWeightLbs(order.services);
-    if (!Number.isFinite(estimatedWeightLbs) || estimatedWeightLbs <= 0)
-      return invalidEvent(
-        'cents_order_weight_invalid',
-        'The Cents order does not contain a positive production estimate.',
-      );
 
     const applied = await deps.applyOrderDemand({
       demandKey: `cents:order:${order.externalOrderId}`,
@@ -93,10 +92,12 @@ export const makeCentsOrderConsumer =
       locationId,
       revisionAt: order.sourceUpdatedAt,
       revisionHash: event.payloadHash,
-      state:
-        order.status === 'IN_PROGRESS' ? 'ready_for_production' : 'not_ready',
+      phase: mapCentsDemandPhase(order.status),
+      sourceStatusCode: order.status,
       dueAt: order.dueAt,
       estimatedWeightLbs,
+      estimatedWeightSource:
+        estimatedWeightLbs === null ? null : 'external_estimate',
       bagCount: order.bagCount,
       idempotencyKey: `webhook:${event.eventId}`,
     });

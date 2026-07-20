@@ -5,27 +5,12 @@ import type {
   SchedulerConfig,
 } from '@pressly/contracts';
 import type { laundryProduction } from '@pressly/db';
+import { productionDueBucket } from './production-due-bucket.policy.ts';
 import type { SchedulingOutput } from '../production.port.ts';
 
 export const asDate = (value: string): Date => new Date(value);
 
 export const iso = (value: Date): string => value.toISOString();
-
-const dueBucket = (dueAt: Date, now: Date): 'today' | 'tomorrow' | 'later' => {
-  const day = 86_400_000;
-  const start = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-  );
-  const due = Date.UTC(
-    dueAt.getUTCFullYear(),
-    dueAt.getUTCMonth(),
-    dueAt.getUTCDate(),
-  );
-  const distance = Math.floor((due - start) / day);
-  return distance <= 0 ? 'today' : distance === 1 ? 'tomorrow' : 'later';
-};
 
 export const mapSchedule = (
   row: typeof laundryProduction.scheduleRuns.$inferSelect,
@@ -101,6 +86,7 @@ export const mapOrder = (
   row: typeof laundryProduction.productionOrders.$inferSelect,
   externalOrderId: string,
   now: Date,
+  timezone: string,
 ): ProductionOrderSummary => {
   if (row.bagCount === null)
     throw new Error('Production order bag intake is incomplete.');
@@ -109,7 +95,7 @@ export const mapOrder = (
     id: row.id,
     externalOrderId,
     dueAt: iso(row.dueAt),
-    dueBucket: dueBucket(row.dueAt, now),
+    dueBucket: productionDueBucket(row.dueAt, now, timezone),
     priority: row.priority,
     derivedWeightLbs: row.derivedWeightLbs,
     bagCount: row.bagCount,

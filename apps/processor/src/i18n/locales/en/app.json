@@ -28,6 +28,12 @@
     "minutesUnit": "minutes",
     "minutesShort": "{{minutes}} min",
     "queued": "Queued",
+    "due": {
+      "overdue": "Past due",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "later": "Later"
+    },
     "stage": {
       "sorting": "Sorting",
       "washing": "Washing",

@@ -40,6 +40,7 @@ type IngestionWorkerPort = Pick<
   | 'completeEvent'
   | 'retryEvent'
   | 'deadLetterEvent'
+  | 'purgeExpiredReceipts'
 >;
 
 export const makeInboxProcessor = (deps: {
@@ -96,6 +97,20 @@ export const makeInboxProcessor = (deps: {
     } catch (error: unknown) {
       deps.logger.warn(
         'worker backlog measurement failed',
+        redactLogFields({ error }) as LogFields,
+      );
+    }
+
+    try {
+      const purged = await deps.ingestion.purgeExpiredReceipts();
+      if (purged.tag === 'err') throw purged.error;
+      if (purged.value.purgedCount > 0)
+        deps.logger.info('expired webhook quarantine receipts purged', {
+          purgedCount: purged.value.purgedCount,
+        });
+    } catch (error: unknown) {
+      deps.logger.warn(
+        'webhook quarantine purge failed',
         redactLogFields({ error }) as LogFields,
       );
     }

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type {
@@ -228,6 +228,161 @@ describe("connected order control workspace", () => {
     })
     expect(
       await screen.findByRole("heading", { name: "No orders need attention" })
+    ).toBeInTheDocument()
+  })
+
+  it("sends a semantic due bucket instead of browser-local timestamps", async () => {
+    const user = userEvent.setup()
+    const listOrderControl = vi.fn(async () => ({
+      items: [inFlightOrder],
+      counts: { attention: 1, active: 1, all: 1 },
+      nextCursor: null,
+      asOf: "2026-08-01T15:00:00.000Z",
+    }))
+    const production = makeTestProductionPort({ listOrderControl })
+
+    render(
+      <OrderControlWorkspaceContainer
+        production={production}
+        idempotency={testIdempotency}
+        locationId={testLocation.id}
+        timezone={testLocation.timezone}
+        board={testBoard}
+        revision="2026-08-01T15:00:00.000Z"
+        onMutated={async () => undefined}
+      />
+    )
+
+    await screen.findByRole("button", {
+      name: `Order ${inFlightOrder.order.externalOrderId}`,
+    })
+    await user.selectOptions(screen.getByLabelText("Due window"), "overdue")
+
+    await waitFor(() => expect(listOrderControl).toHaveBeenCalledTimes(2))
+    expect(listOrderControl).toHaveBeenLastCalledWith({
+      locationId: testLocation.id,
+      query: expect.objectContaining({ dueBucket: "overdue" }),
+    })
+    expect(listOrderControl).not.toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        query: expect.objectContaining({ dueAfter: expect.anything() }),
+      })
+    )
+    expect(listOrderControl).not.toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        query: expect.objectContaining({ dueBefore: expect.anything() }),
+      })
+    )
+  })
+
+  it("labels unfinished past work as past due and completed work as finished", async () => {
+    const pastDueOrder: ProductionOrderControlItem = {
+      order: {
+        ...structuredClone(testOrderItems[0]!),
+        id: id(501),
+        externalOrderId: "PAST-DUE",
+        dueAt: "2026-07-16T21:00:00.000Z",
+        dueBucket: "overdue",
+      },
+      attention: null,
+      currentPlacement: null,
+      nextRequiredStage: "sorting",
+      routeAttempts: [],
+      canMoveQueued: false,
+      canRouteException: false,
+    }
+    const finishedOrder: ProductionOrderControlItem = {
+      ...pastDueOrder,
+      order: {
+        ...pastDueOrder.order,
+        id: id(502),
+        externalOrderId: "FINISHED",
+        status: "finished",
+      },
+      nextRequiredStage: null,
+    }
+    const production = makeTestProductionPort({
+      listOrderControl: async () => ({
+        items: [pastDueOrder, finishedOrder],
+        counts: { attention: 0, active: 0, all: 2 },
+        nextCursor: null,
+        asOf: "2026-08-01T15:00:00.000Z",
+      }),
+    })
+
+    render(
+      <OrderControlWorkspaceContainer
+        production={production}
+        idempotency={testIdempotency}
+        locationId={testLocation.id}
+        timezone={testLocation.timezone}
+        board={testBoard}
+        revision="2026-08-01T15:00:00.000Z"
+        onMutated={async () => undefined}
+      />
+    )
+
+    const pastDueRow = (
+      await screen.findByRole("button", { name: "Order PAST-DUE" })
+    ).closest("tr")
+    const finishedRow = screen
+      .getByRole("button", { name: "Order FINISHED" })
+      .closest("tr")
+
+    expect(pastDueRow).not.toBeNull()
+    expect(finishedRow).not.toBeNull()
+    expect(within(pastDueRow!).getByText("Past due")).toBeInTheDocument()
+    expect(within(finishedRow!).getAllByText("Finished")).not.toHaveLength(0)
+  })
+
+  it("labels pre-release demand as waiting for Cents IN_PROGRESS", async () => {
+    const waitingOrder: ProductionOrderControlItem = {
+      order: {
+        ...structuredClone(testOrderItems[0]!),
+        status: "release_pending",
+        bagCount: null,
+        bagCountProvenance: null,
+        intakeVersion: null,
+      },
+      attention: null,
+      currentPlacement: null,
+      nextRequiredStage: null,
+      routeAttempts: [],
+      canMoveQueued: false,
+      canRouteException: false,
+    }
+    const production = makeTestProductionPort({
+      listOrderControl: async () => ({
+        items: [waitingOrder],
+        counts: { attention: 0, active: 0, all: 1 },
+        nextCursor: null,
+        asOf: "2026-08-01T15:00:00.000Z",
+      }),
+    })
+
+    render(
+      <OrderControlWorkspaceContainer
+        production={production}
+        idempotency={testIdempotency}
+        locationId={testLocation.id}
+        timezone={testLocation.timezone}
+        board={testBoard}
+        revision="2026-08-01T15:00:00.000Z"
+        onMutated={async () => undefined}
+      />
+    )
+
+    const waitingRow = (
+      await screen.findByRole("button", {
+        name: `Order ${waitingOrder.order.externalOrderId}`,
+      })
+    ).closest("tr")
+    expect(waitingRow).not.toBeNull()
+    expect(
+      within(waitingRow!).getByText("Waiting for Cents IN_PROGRESS")
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", { name: "Waiting for Cents IN_PROGRESS" })
     ).toBeInTheDocument()
   })
 

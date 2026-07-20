@@ -11,6 +11,7 @@ describe('production order-control cursor', () => {
   it('binds the keyset position to the complete server filter', () => {
     const activeFilter = productionOrderControlFilterKey({
       view: 'active',
+      dueBucket: 'overdue',
       priority: true,
       limit: 25,
     });
@@ -28,6 +29,7 @@ describe('production order-control cursor', () => {
         cursor,
         productionOrderControlFilterKey({
           view: 'active',
+          dueBucket: 'today',
           priority: false,
           limit: 25,
         }),

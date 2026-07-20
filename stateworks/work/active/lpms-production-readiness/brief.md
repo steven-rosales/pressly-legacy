@@ -139,10 +139,13 @@ classify them, persist only minimal event metadata and a digest, then
 acknowledge them as ignored.
 Do not retain irrelevant customer PII merely because it appeared in the body.
 
-For order events, durable storage contains the minimized canonical projection
-input plus a raw-body digest. Raw PII is not retained by default. Encrypted
-short-retention raw quarantine requires a later explicit decision and is not
-silently introduced by this work.
+For order events, durable processing storage contains the minimized canonical
+projection input plus a raw-body digest. Steven explicitly approved a separate
+encrypted, short-retention raw quarantine on 2026-07-19 for launch diagnosis.
+The quarantine is not a Production contract, has no Processor or public read
+surface, expires automatically, and never changes the canonical inbox payload.
+Normalization rejections are recorded before returning a client error so an
+undocumented Cents shape does not disappear without evidence.
 
 ## Missing Operational Truth
 
@@ -153,6 +156,13 @@ An order can be projected before intake, but it is not schedulable until the
 operator records a non-negative bag count through a versioned, idempotent
 production command. If Cents later proves it supplies an authoritative bag
 count, the adapter may populate the same fact with provenance.
+
+Cents documents zero service price before weighing. That is missing estimate
+truth, not a malformed order: retain the demand with a null estimate, keep it
+outside executable scheduling, and let a strictly newer source revision supply
+the first positive estimate. Deployment migration backfill uses the latest
+processed canonical Cents receipt when available instead of degrading known
+status and weight to legacy placeholders.
 
 Every Cents `storeId` must map to exactly one Pressly location. Unknown stores
 are retained as inspectable ingress failures and never leak into another

@@ -635,6 +635,7 @@ const mapOrderStatus = (
   status: string,
 ): ProductionHistoryOrderMembership['orderStatus'] => {
   switch (status) {
+    case 'release_pending':
     case 'intake_pending':
     case 'eligible':
     case 'ineligible':

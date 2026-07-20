@@ -1,7 +1,12 @@
 import { result } from '@pressly/kernel';
 import { productionError } from '../production.error.ts';
-import type { ClockPort, ProductionPolicyPort } from '../production.port.ts';
+import type {
+  ClockPort,
+  ProductionPolicyPort,
+  ProductionSchedulerPort,
+} from '../production.port.ts';
 import { evaluateProductionBoardProjection } from '../production-board-read.policy.ts';
+import { projectDemandOutlook } from './demand-outlook.policy.ts';
 import type {
   LoadProductionWorkspace,
   LoadProductionWorkspaceRepository,
@@ -11,7 +16,11 @@ export const makeLoadProductionWorkspace =
   (deps: {
     repo: LoadProductionWorkspaceRepository;
     clock: ClockPort;
-    policy: Pick<ProductionPolicyPort, 'evaluateStageNextAction'>;
+    policy: Pick<
+      ProductionPolicyPort,
+      'evaluateDemandReconciliation' | 'evaluateStageNextAction'
+    >;
+    scheduler: Pick<ProductionSchedulerPort, 'forecastDemand'>;
   }): LoadProductionWorkspace =>
   async ({ locationId, shiftId }) => {
     const workspace = await deps.repo.loadWorkspace(
@@ -38,6 +47,22 @@ export const makeLoadProductionWorkspace =
       );
     return result.ok({
       ...workspace.workspace,
+      demandOutlook:
+        workspace.workspace.currentShift === null
+          ? null
+          : projectDemandOutlook({
+              shift: workspace.workspace.currentShift,
+              config: workspace.workspace.currentSchedulerConfig,
+              machines: workspace.workspace.machines,
+              activeRunExists: workspace.workspace.activeRuns.some(
+                (run) =>
+                  run.productionShiftId ===
+                  workspace.workspace.currentShift?.id,
+              ),
+              rows: workspace.demandOutlookRows,
+              policy: deps.policy,
+              scheduler: deps.scheduler,
+            }),
       board:
         workspace.boardProjection === null
           ? null

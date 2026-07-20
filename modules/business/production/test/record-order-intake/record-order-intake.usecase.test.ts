@@ -59,11 +59,11 @@ const makeHarness = (
       ? {
           orderId,
           locationId,
-          productionStatus: 'intake_pending',
+          productionStatus: 'release_pending',
           productionVersion: 1,
           intakeVersion: 0,
           derivedWeightLbs: 42,
-          demandState: 'ready_for_production',
+          demandPhase: 'expected',
         }
       : input.order;
   let bagCount: number | null = null;
@@ -99,6 +99,7 @@ const makeHarness = (
       bagCount: number;
       expectedVersion: number;
       currentIntakeVersion: number;
+      nextStatus: 'release_pending' | 'eligible';
       now: Date;
     }) => {
       if (
@@ -112,7 +113,7 @@ const makeHarness = (
 
       order = {
         ...order,
-        productionStatus: 'eligible',
+        productionStatus: record.nextStatus,
         productionVersion: record.expectedVersion + 1,
         intakeVersion: record.currentIntakeVersion + 1,
       };
@@ -171,20 +172,24 @@ const makeHarness = (
       }
     },
   };
-  const evaluateEligibility = vi.fn(() =>
-    input.policyError === undefined
-      ? result.ok({ eligible: true as const })
-      : result.err(input.policyError),
+  const evaluateIntakeAdmission = vi.fn(
+    (admission: { phase: LockedIntakeOrder['demandPhase'] }) =>
+      input.policyError === undefined
+        ? result.ok({
+            status:
+              admission.phase === 'production_released'
+                ? ('eligible' as const)
+                : ('release_pending' as const),
+          })
+        : result.err(input.policyError),
   );
   const policy = {
-    evaluateEligibility,
+    evaluateIntakeAdmission,
   } as unknown as ProductionPolicyPort;
-  const attemptAutomaticPlacement = vi.fn(async () => undefined);
   const intake = makeRecordOrderIntake({
     repo,
     policy,
     clock: { now: () => now },
-    attemptAutomaticPlacement,
   });
 
   return {
@@ -194,8 +199,7 @@ const makeHarness = (
     lockOrder,
     recordIntake,
     appendWorkEvent,
-    evaluateEligibility,
-    attemptAutomaticPlacement,
+    evaluateIntakeAdmission,
     inspect: () => ({
       order,
       bagCount,
@@ -226,20 +230,14 @@ describe('record order intake', () => {
     expect(
       harness.lockLocationScheduling.mock.invocationCallOrder[0],
     ).toBeLessThan(harness.lockOrder.mock.invocationCallOrder[0]!);
-    expect(harness.evaluateEligibility).toHaveBeenCalledWith({
-      state: 'ready_for_production',
+    expect(harness.evaluateIntakeAdmission).toHaveBeenCalledWith({
+      phase: 'expected',
       derivedWeightLbs: 42,
       bagCount: 3,
     });
-    expect(harness.attemptAutomaticPlacement).toHaveBeenCalledWith({
-      locationId,
-      productionOrderId: orderId,
-      actorId,
-      idempotencyKey: command.idempotencyKey,
-    });
     expect(harness.inspect()).toMatchObject({
       order: {
-        productionStatus: 'eligible',
+        productionStatus: 'release_pending',
         productionVersion: 2,
         intakeVersion: 1,
       },
@@ -275,7 +273,7 @@ describe('record order intake', () => {
         productionVersion: 4,
         intakeVersion: 1,
         derivedWeightLbs: 42,
-        demandState: 'ready_for_production' as const,
+        demandPhase: 'production_released' as const,
       },
     });
 
@@ -303,10 +301,9 @@ describe('record order intake', () => {
     });
     expect(harness.lockLocationScheduling).not.toHaveBeenCalled();
     expect(harness.lockOrder).not.toHaveBeenCalled();
-    expect(harness.evaluateEligibility).not.toHaveBeenCalled();
+    expect(harness.evaluateIntakeAdmission).not.toHaveBeenCalled();
     expect(harness.recordIntake).not.toHaveBeenCalled();
     expect(harness.appendWorkEvent).not.toHaveBeenCalled();
-    expect(harness.attemptAutomaticPlacement).not.toHaveBeenCalled();
   });
 
   it('rejects reuse of an intake idempotency key for a different command', async () => {
@@ -329,11 +326,11 @@ describe('record order intake', () => {
       {
         orderId,
         locationId,
-        productionStatus: 'intake_pending',
+        productionStatus: 'release_pending',
         productionVersion: 1,
         intakeVersion: 0,
         derivedWeightLbs: 42,
-        demandState: 'ready_for_production' as const,
+        demandPhase: 'production_released' as const,
       },
     ],
   ])('fails closed for a %s', async (_name, scope, order) => {
@@ -345,7 +342,7 @@ describe('record order intake', () => {
       tag: 'err',
       error: { code: 'production_order_not_found', status: 404 },
     });
-    expect(harness.evaluateEligibility).not.toHaveBeenCalled();
+    expect(harness.evaluateIntakeAdmission).not.toHaveBeenCalled();
     expect(harness.recordIntake).not.toHaveBeenCalled();
   });
 
@@ -357,7 +354,7 @@ describe('record order intake', () => {
       tag: 'err',
       error: { code: 'production_order_version_conflict' },
     });
-    expect(stale.evaluateEligibility).not.toHaveBeenCalled();
+    expect(stale.evaluateIntakeAdmission).not.toHaveBeenCalled();
 
     const scheduled = makeHarness({
       order: {
@@ -367,27 +364,36 @@ describe('record order intake', () => {
         productionVersion: 1,
         intakeVersion: 0,
         derivedWeightLbs: 42,
-        demandState: 'ready_for_production',
+        demandPhase: 'production_released',
       },
     });
     await expect(scheduled.intake(command)).resolves.toMatchObject({
       tag: 'err',
       error: { code: 'production_order_intake_state_invalid' },
     });
-    expect(scheduled.evaluateEligibility).not.toHaveBeenCalled();
+    expect(scheduled.evaluateIntakeAdmission).not.toHaveBeenCalled();
   });
 
-  it('honors order-demand state and weight policy rejection before any write', async () => {
+  it('honors demand lifecycle policy rejection before any write', async () => {
     const harness = makeHarness({
+      order: {
+        orderId,
+        locationId,
+        productionStatus: 'intake_pending',
+        productionVersion: 1,
+        intakeVersion: 0,
+        derivedWeightLbs: 42,
+        demandPhase: 'post_production',
+      },
       policyError: {
-        code: 'ORDER_NOT_READY_FOR_PRODUCTION',
-        message: 'Only ready order demand are eligible for production.',
+        code: 'ORDER_SOURCE_ALREADY_POST_PRODUCTION',
+        message: 'Review the source mismatch before recording intake.',
       },
     });
 
     await expect(harness.intake(command)).resolves.toMatchObject({
       tag: 'err',
-      error: { code: 'order_not_ready_for_production', status: 409 },
+      error: { code: 'order_source_already_post_production', status: 409 },
     });
     expect(harness.recordIntake).not.toHaveBeenCalled();
     expect(harness.appendWorkEvent).not.toHaveBeenCalled();
@@ -402,7 +408,7 @@ describe('record order intake', () => {
     });
     expect(harness.inspect()).toMatchObject({
       order: {
-        productionStatus: 'intake_pending',
+        productionStatus: 'release_pending',
         productionVersion: 1,
         intakeVersion: 0,
       },

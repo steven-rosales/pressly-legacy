@@ -93,6 +93,22 @@ export const makeCreateSchedule =
               404,
             ),
           );
+        if (schedulingInput === 'selection_empty')
+          return result.err(
+            productionError(
+              'SCHEDULE_SELECTION_EMPTY',
+              'Select at least one ready order before computing the schedule.',
+              409,
+            ),
+          );
+        if (schedulingInput === 'selection_invalid')
+          return result.err(
+            productionError(
+              'SCHEDULE_SELECTION_NOT_READY',
+              'One or more selected orders are no longer ready to schedule. Refresh the shift and review the selection.',
+              409,
+            ),
+          );
 
         const now = deps.clock.now();
         const shiftWindow = deps.policy.evaluateShiftPlanningWindow({

@@ -24,7 +24,7 @@ export const makeRecordOrderIntakeRepository = (deps: {
       const [row] = await db
         .select({
           order: laundryProduction.productionOrders,
-          demandState: laundryProduction.orderDemands.status,
+          demandPhase: laundryProduction.orderDemands.phase,
         })
         .from(laundryProduction.productionOrders)
         .innerJoin(
@@ -50,10 +50,13 @@ export const makeRecordOrderIntakeRepository = (deps: {
         .for('update');
       if (row === undefined) return null;
       if (
-        row.demandState !== 'ready_for_production' &&
-        row.demandState !== 'not_ready'
+        row.demandPhase !== 'expected' &&
+        row.demandPhase !== 'inbound' &&
+        row.demandPhase !== 'production_released' &&
+        row.demandPhase !== 'post_production' &&
+        row.demandPhase !== 'withdrawn'
       )
-        throw new Error(`Unknown order-demand state: ${row.demandState}.`);
+        throw new Error(`Unknown order-demand phase: ${row.demandPhase}.`);
 
       return {
         orderId: row.order.id,
@@ -62,7 +65,7 @@ export const makeRecordOrderIntakeRepository = (deps: {
         productionVersion: row.order.version,
         intakeVersion: row.order.intakeVersion,
         derivedWeightLbs: row.order.derivedWeightLbs,
-        demandState: row.demandState,
+        demandPhase: row.demandPhase,
       };
     },
 
@@ -72,6 +75,7 @@ export const makeRecordOrderIntakeRepository = (deps: {
       bagCount,
       expectedVersion,
       currentIntakeVersion,
+      nextStatus,
       now,
     }) => {
       const nextVersion = expectedVersion + 1;
@@ -83,8 +87,8 @@ export const makeRecordOrderIntakeRepository = (deps: {
           bagCountSource: 'operator_intake',
           intakeRecordedAt: now,
           intakeVersion: nextIntakeVersion,
-          status: 'eligible',
-          eligibleAt: now,
+          status: nextStatus,
+          eligibleAt: nextStatus === 'eligible' ? now : null,
           version: nextVersion,
           updatedAt: now,
         })

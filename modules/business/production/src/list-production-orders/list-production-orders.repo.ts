@@ -25,7 +25,10 @@ export const makeListProductionOrdersRepository = (
     if (cursorOrderId === null) return { tag: 'invalid_cursor' };
 
     const [location] = await db
-      .select({ id: laundryProduction.productionLocations.id })
+      .select({
+        id: laundryProduction.productionLocations.id,
+        timezone: laundryProduction.productionLocations.timezone,
+      })
       .from(laundryProduction.productionLocations)
       .where(
         and(
@@ -92,7 +95,9 @@ export const makeListProductionOrdersRepository = (
 
     const hasNextPage = rows.length > command.limit;
     const pageRows = rows.slice(0, command.limit);
-    const items = pageRows.map((row) => mapProductionOrderListItem(row, now));
+    const items = pageRows.map((row) =>
+      mapProductionOrderListItem(row, now, location.timezone),
+    );
     const last = pageRows.at(-1);
 
     return {

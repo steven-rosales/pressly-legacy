@@ -13,6 +13,8 @@ const productionTables = [
   'production_batches',
   'production_runs',
   'schedule_runs',
+  'production_shift_selected_orders',
+  'production_shift_selections',
   'scheduler_configs',
   'production_machines',
   'production_stations',

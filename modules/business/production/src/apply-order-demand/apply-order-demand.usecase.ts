@@ -26,15 +26,8 @@ export const makeApplyOrderDemand =
     policy: ProductionPolicyPort;
     clock: ClockPort;
     ids: IdPort;
-    attemptAutomaticPlacement?: (input: {
-      locationId: string;
-      productionOrderId: string;
-      actorId: string;
-      idempotencyKey: string;
-    }) => Promise<void>;
   }): ApplyOrderDemand =>
   async (command) => {
-    let shouldAttemptAutomaticPlacement = false;
     try {
       const outcome = await deps.repo.transaction(async (repo) => {
         const idempotency = defineWorkEventCommand({
@@ -47,9 +40,11 @@ export const makeApplyOrderDemand =
             displayReference: command.displayReference,
             revisionAt: command.revisionAt,
             revisionHash: command.revisionHash,
-            state: command.state,
+            phase: command.phase,
+            sourceStatusCode: command.sourceStatusCode,
             dueAt: command.dueAt,
             estimatedWeightLbs: command.estimatedWeightLbs,
+            estimatedWeightSource: command.estimatedWeightSource,
             bagCount: command.bagCount,
           },
         });
@@ -148,36 +143,34 @@ export const makeApplyOrderDemand =
         }
 
         if (
-          existing?.productionStatus === 'scheduled' ||
-          existing?.productionStatus === 'finished'
+          (command.estimatedWeightLbs !== null &&
+            (!Number.isFinite(command.estimatedWeightLbs) ||
+              command.estimatedWeightLbs <= 0)) ||
+          (command.estimatedWeightLbs === null) !==
+            (command.estimatedWeightSource === null)
         )
           return result.err(
             productionError(
-              'ORDER_DEMAND_COMMITTED',
-              'The order demand changed after entering production.',
+              'ORDER_DEMAND_WEIGHT_INVALID',
+              'The order demand estimate and provenance are inconsistent.',
+              422,
             ),
           );
 
-        const effectiveBagCount = existing?.bagCount ?? command.bagCount;
-        const eligibility = deps.policy.evaluateEligibility({
-          state: command.state,
-          derivedWeightLbs: command.estimatedWeightLbs,
-          bagCount: effectiveBagCount,
+        const lifecycle = deps.policy.evaluateDemandLifecycle({
+          phase: command.phase,
+          productionStatus: existing?.productionStatus ?? null,
+          currentBagCount: existing?.bagCount ?? null,
+          incomingBagCount: command.bagCount,
+          estimatedWeightLbs: command.estimatedWeightLbs,
         });
-        const productionStatus =
-          eligibility.tag === 'ok'
-            ? ('eligible' as const)
-            : eligibility.error.code === 'ORDER_BAG_COUNT_MISSING'
-              ? ('intake_pending' as const)
-              : ('ineligible' as const);
         const applied = await repo.applyDemand({
           command,
           orderDemandId,
-          productionStatus,
+          production: lifecycle.production,
+          effectiveBagCount: lifecycle.effectiveBagCount,
           now: deps.clock.now(),
         });
-        shouldAttemptAutomaticPlacement =
-          applied.productionStatus === 'eligible';
         const value: ApplyOrderDemandResult = {
           orderDemandId,
           productionOrderId: applied.productionOrderId,
@@ -187,22 +180,6 @@ export const makeApplyOrderDemand =
         await appendOutcome(value);
         return result.ok(value);
       });
-      if (
-        outcome.tag === 'ok' &&
-        shouldAttemptAutomaticPlacement &&
-        outcome.value.productionOrderId !== null &&
-        deps.attemptAutomaticPlacement !== undefined
-      )
-        try {
-          await deps.attemptAutomaticPlacement({
-            locationId: command.locationId,
-            productionOrderId: outcome.value.productionOrderId,
-            actorId: systemActorId,
-            idempotencyKey: command.idempotencyKey,
-          });
-        } catch {
-          // Demand remains committed; the eligible order is visible for retry.
-        }
       return outcome;
     } catch (error) {
       return result.err(

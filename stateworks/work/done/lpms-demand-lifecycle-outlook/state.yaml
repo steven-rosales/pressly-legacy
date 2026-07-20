@@ -1,0 +1,35 @@
+work_id: lpms-demand-lifecycle-outlook
+status: complete
+updated: 2026-07-18T00:00:00-04:00
+
+current_focus:
+  - complete
+  - Demand lifecycle, advisory outlook, operator experience, and laundry-production memory v10 are complete.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/evidence.md
+      - stateworks/work/done/lpms-demand-lifecycle-outlook/final-report.md
+      - stateworks/memory/domains/laundry-production/deltas/2026-07-18-demand-lifecycle-outlook.memory-delta.yaml

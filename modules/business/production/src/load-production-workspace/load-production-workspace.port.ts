@@ -6,6 +6,20 @@ import type { ProductionBoardProjection } from '../production-board-read.policy.
 export type ProductionWorkspaceReadModel = Readonly<{
   workspace: ProductionWorkspace & Readonly<{ board: null }>;
   boardProjection: ProductionBoardProjection | null;
+  demandOutlookRows: readonly DemandOutlookRow[];
+}>;
+
+export type DemandOutlookRow = Readonly<{
+  orderDemandId: string;
+  productionOrderId: string | null;
+  externalOrderId: string;
+  phase: string;
+  sourceStatusCode: string;
+  dueAt: Date;
+  estimatedWeightLbs: number | null;
+  priority: boolean;
+  productionStatus: string | null;
+  bagCount: number | null;
 }>;
 
 export type LoadProductionWorkspace = (command: {

@@ -69,6 +69,47 @@ export const webhookEvents = pgTable(
   ],
 );
 
+export const webhookReceiptQuarantine = pgTable(
+  'webhook_receipt_quarantine',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    source: text('source').notNull(),
+    rawBodySha256: text('raw_body_sha256').notNull(),
+    adapterVersion: text('adapter_version').notNull(),
+    eventType: text('event_type'),
+    normalizationOutcome: text('normalization_outcome').notNull(),
+    normalizationErrorCode: text('normalization_error_code'),
+    payloadCiphertext: text('payload_ciphertext').notNull(),
+    webhookEventId: uuid('webhook_event_id').references(() => webhookEvents.id),
+    receivedAt: timestamp('received_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    linkedAt: timestamp('linked_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('webhook_receipt_quarantine_body_version_unique').on(
+      table.source,
+      table.rawBodySha256,
+      table.adapterVersion,
+    ),
+    index('webhook_receipt_quarantine_expiry_idx').on(table.expiresAt),
+    index('webhook_receipt_quarantine_event_idx').on(table.webhookEventId),
+    check(
+      'webhook_receipt_quarantine_outcome_valid',
+      sql`${table.normalizationOutcome} in ('accepted', 'rejected')`,
+    ),
+    check(
+      'webhook_receipt_quarantine_error_consistent',
+      sql`(${table.normalizationOutcome} = 'accepted' and ${table.normalizationErrorCode} is null) or (${table.normalizationOutcome} = 'rejected' and ${table.normalizationErrorCode} is not null)`,
+    ),
+    check(
+      'webhook_receipt_quarantine_link_consistent',
+      sql`(${table.webhookEventId} is null and ${table.linkedAt} is null) or (${table.webhookEventId} is not null and ${table.linkedAt} is not null)`,
+    ),
+  ],
+);
+
 export const sourceLocationBindings = pgTable(
   'source_location_bindings',
   {

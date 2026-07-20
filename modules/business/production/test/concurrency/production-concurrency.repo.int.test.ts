@@ -157,7 +157,8 @@ const seedNearlyCompleteRun = async (): Promise<void> => {
     locationId,
     revisionHash: 'c'.repeat(64),
     revisionAt: start,
-    status: 'ready_for_production',
+    phase: 'production_released',
+    sourceStatusCode: 'IN_PROGRESS',
     dueAt: new Date(endsAt),
   });
   await testDb.db.insert(laundryProduction.productionOrders).values({
@@ -277,9 +278,11 @@ describe('production aggregate races', () => {
       locationId,
       revisionAt: '2026-07-14T14:59:00.000Z',
       revisionHash: 'd'.repeat(64),
-      state: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: endsAt,
       estimatedWeightLbs: 20,
+      estimatedWeightSource: 'external_estimate',
       bagCount: 1,
       idempotencyKey: 'race-arrival-demand',
     });
@@ -358,7 +361,7 @@ describe('production aggregate races', () => {
       status: 'eligible',
       bagCount: 1,
     });
-    expect(arrivingOrder?.pendingPlacement).not.toBeNull();
+    expect(arrivingOrder?.pendingPlacement).toBeNull();
     expect(arrivingMemberships).toEqual([]);
     expect(completedAttempt).toMatchObject({
       status: 'completed',

@@ -23,6 +23,7 @@ import type {
   publishSchedulerConfigCommandSchema,
   recordOrderIntakeCommandSchema,
   reconcileProductionBatchProgressCommandSchema,
+  replaceProductionShiftSelectionCommandSchema,
   scheduleRunParamsSchema,
   schedulerConfigResourceInputSchema,
   setProductionOrderPriorityCommandSchema,
@@ -90,6 +91,9 @@ export type ConfirmProductionOrderOvertimeCommand = z.infer<
 >;
 export type RecordOrderIntakeCommand = z.infer<
   typeof recordOrderIntakeCommandSchema
+>;
+export type ReplaceProductionShiftSelectionCommand = z.infer<
+  typeof replaceProductionShiftSelectionCommandSchema
 >;
 export type ReconcileProductionBatchProgressCommand = z.infer<
   typeof reconcileProductionBatchProgressCommandSchema

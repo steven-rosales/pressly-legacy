@@ -10,6 +10,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -58,7 +59,10 @@ export const orderDemands = pgTable(
     revisionAt: timestamp('revision_at', {
       withTimezone: true,
     }).notNull(),
-    status: text('status').notNull(),
+    phase: text('phase').notNull(),
+    sourceStatusCode: text('source_status_code').notNull(),
+    estimatedWeightLbs: weight('estimated_weight_lbs'),
+    estimatedWeightSource: text('estimated_weight_source'),
     dueAt: timestamp('due_at', { withTimezone: true }).notNull(),
     ...timestamps,
   },
@@ -68,9 +72,18 @@ export const orderDemands = pgTable(
       table.id,
       table.locationId,
     ),
-    index('order_demands_location_status_idx').on(
-      table.locationId,
-      table.status,
+    index('order_demands_location_phase_idx').on(table.locationId, table.phase),
+    check(
+      'order_demands_phase_valid',
+      sql`${table.phase} in ('expected', 'inbound', 'production_released', 'post_production', 'withdrawn')`,
+    ),
+    check(
+      'order_demands_estimated_weight_positive',
+      sql`${table.estimatedWeightLbs} is null or ${table.estimatedWeightLbs} > 0`,
+    ),
+    check(
+      'order_demands_estimated_weight_provenance_consistent',
+      sql`(${table.estimatedWeightLbs} is null) = (${table.estimatedWeightSource} is null)`,
     ),
   ],
 );
@@ -128,7 +141,7 @@ export const productionOrders = pgTable(
     intakeVersion: integer('intake_version').notNull().default(0),
     mustStayTogether: boolean('must_stay_together').notNull().default(true),
     version: integer('version').notNull().default(1),
-    eligibleAt: timestamp('eligible_at', { withTimezone: true }).notNull(),
+    eligibleAt: timestamp('eligible_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
     pendingPlacement: jsonb('pending_placement'),
     ...timestamps,
@@ -154,6 +167,10 @@ export const productionOrders = pgTable(
       'production_orders_intake_version_nonnegative',
       sql`${table.intakeVersion} >= 0`,
     ),
+    check(
+      'production_orders_status_valid',
+      sql`${table.status} in ('release_pending', 'intake_pending', 'eligible', 'ineligible', 'scheduled', 'finished')`,
+    ),
     index('production_orders_location_status_idx').on(
       table.locationId,
       table.status,
@@ -171,6 +188,73 @@ export const productionOrders = pgTable(
       name: 'production_orders_order_demand_location_fk',
       columns: [table.orderDemandId, table.locationId],
       foreignColumns: [orderDemands.id, orderDemands.locationId],
+    }),
+  ],
+);
+
+export const productionShiftSelections = pgTable(
+  'production_shift_selections',
+  {
+    productionShiftId: uuid('production_shift_id').primaryKey(),
+    locationId: text('location_id').notNull(),
+    version: integer('version').notNull().default(1),
+    selectedBy: uuid('selected_by').notNull(),
+    selectedAt: timestamp('selected_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'production_shift_selections_positive_version',
+      sql`${table.version} > 0`,
+    ),
+    uniqueIndex('production_shift_selections_shift_location_unique').on(
+      table.productionShiftId,
+      table.locationId,
+    ),
+    foreignKey({
+      name: 'production_shift_selections_shift_location_fk',
+      columns: [table.productionShiftId, table.locationId],
+      foreignColumns: [productionShifts.id, productionShifts.locationId],
+    }).onDelete('cascade'),
+  ],
+);
+
+export const productionShiftSelectedOrders = pgTable(
+  'production_shift_selected_orders',
+  {
+    productionShiftId: uuid('production_shift_id').notNull(),
+    locationId: text('location_id').notNull(),
+    productionOrderId: uuid('production_order_id').notNull(),
+    selectedBy: uuid('selected_by').notNull(),
+    selectedAt: timestamp('selected_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'production_shift_selected_orders_pk',
+      columns: [table.productionShiftId, table.productionOrderId],
+    }),
+    index('production_shift_selected_orders_location_shift_idx').on(
+      table.locationId,
+      table.productionShiftId,
+    ),
+    foreignKey({
+      name: 'production_shift_selected_orders_selection_fk',
+      columns: [table.productionShiftId, table.locationId],
+      foreignColumns: [
+        productionShiftSelections.productionShiftId,
+        productionShiftSelections.locationId,
+      ],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'production_shift_selected_orders_order_location_fk',
+      columns: [table.productionOrderId, table.locationId],
+      foreignColumns: [productionOrders.id, productionOrders.locationId],
     }),
   ],
 );

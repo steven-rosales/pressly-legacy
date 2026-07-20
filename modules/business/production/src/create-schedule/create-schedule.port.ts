@@ -26,7 +26,9 @@ export type CreateScheduleRepository = Transactional<
     ) => Promise<'available' | 'not_found' | 'run_exists'>;
     loadSchedulingInput: (
       input: CreateScheduleCommand & { locationId: string },
-    ) => Promise<SchedulingInput | null>;
+    ) => Promise<
+      SchedulingInput | 'selection_empty' | 'selection_invalid' | null
+    >;
     currentPlanExists: (
       locationId: string,
       productionShiftId: string,

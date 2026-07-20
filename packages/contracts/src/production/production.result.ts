@@ -22,6 +22,9 @@ import type {
   productionBatchOrderSchema,
   productionBoardSchema,
   productionLocationSchema,
+  productionDemandForecastSchema,
+  productionDemandOutlookItemSchema,
+  productionDemandOutlookSchema,
   productionMachineSchema,
   productionMutationResultSchema,
   productionOrderListItemSchema,
@@ -34,6 +37,7 @@ import type {
   productionPlacementTargetSchema,
   productionRunSummarySchema,
   productionShiftSchema,
+  productionShiftSelectionSchema,
   productionStageActionBlockCodeSchema,
   productionStageCompletionConfirmationRequiredResultSchema,
   productionStageCompletionTimingSchema,
@@ -45,6 +49,7 @@ import type {
   productionWorkspaceSchema,
   proposedBatchSchema,
   recordOrderIntakeResultSchema,
+  replaceProductionShiftSelectionResultSchema,
   scheduleProposalSchema,
   schedulerConfigSchema,
   startScheduleResultSchema,
@@ -53,6 +58,15 @@ import type {
 } from './production.contracts.ts';
 
 export type ProductionWarning = z.infer<typeof productionWarningSchema>;
+export type ProductionDemandOutlookItem = z.infer<
+  typeof productionDemandOutlookItemSchema
+>;
+export type ProductionDemandForecast = z.infer<
+  typeof productionDemandForecastSchema
+>;
+export type ProductionDemandOutlook = z.infer<
+  typeof productionDemandOutlookSchema
+>;
 export type ProductionOrderSummary = z.infer<
   typeof productionOrderSummarySchema
 >;
@@ -67,6 +81,12 @@ export type ProductionPlacementPreview = z.infer<
 >;
 export type ProductionMachine = z.infer<typeof productionMachineSchema>;
 export type ProductionShift = z.infer<typeof productionShiftSchema>;
+export type ProductionShiftSelection = z.infer<
+  typeof productionShiftSelectionSchema
+>;
+export type ReplaceProductionShiftSelectionResult = z.infer<
+  typeof replaceProductionShiftSelectionResultSchema
+>;
 export type UpdateProductionShiftResult = z.infer<
   typeof updateProductionShiftResultSchema
 >;

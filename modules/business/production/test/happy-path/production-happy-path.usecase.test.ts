@@ -14,9 +14,11 @@ const orderDemand = {
   locationId: 'location-1',
   revisionAt: '2026-07-10T13:59:00.000Z',
   revisionHash: '2'.repeat(64),
-  state: 'ready_for_production' as const,
+  phase: 'production_released' as const,
+  sourceStatusCode: 'IN_PROGRESS',
   dueAt: '2026-07-10T20:00:00.000Z',
   estimatedWeightLbs: 74,
+  estimatedWeightSource: 'external_estimate' as const,
   bagCount: null,
   idempotencyKey: 'order-demand-1',
 };
@@ -152,6 +154,21 @@ describe('production happy path', () => {
     expect(shift.tag).toBe('ok');
     if (config.tag === 'err' || shift.tag === 'err') return;
 
+    const selection = await app.replaceShiftOrderSelection({
+      locationId,
+      productionShiftId: shift.value.id,
+      selectedOrderIds: [intake.value.orderId],
+      expectedVersion: 0,
+      actorId: '11111111-1111-4111-8111-111111111111',
+      idempotencyKey: 'shift-selection-command-1',
+    });
+    expect(selection).toMatchObject({
+      tag: 'ok',
+      value: {
+        selection: { version: 1, selectedOrderIds: [intake.value.orderId] },
+      },
+    });
+
     const schedule = await app.createSchedule({
       locationId,
       productionShiftId: shift.value.id,
@@ -218,6 +235,27 @@ describe('production happy path', () => {
     ).resolves.toMatchObject({
       tag: 'err',
       error: { code: 'production_idempotency_conflict', status: 409 },
+    });
+
+    await expect(
+      app.applyOrderDemand({
+        ...orderDemand,
+        revisionAt: '2026-07-10T14:10:00.000Z',
+        revisionHash: '3'.repeat(64),
+        phase: 'post_production',
+        sourceStatusCode: 'READY_FOR_RETURN',
+        idempotencyKey: 'order-demand-source-ahead',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: { outcome: 'applied' },
+    });
+    expect(memory.inspect().demands.get(orderDemand.demandKey)).toMatchObject({
+      phase: 'post_production',
+      sourceStatusCode: 'READY_FOR_RETURN',
+    });
+    expect(memory.inspect().orders.get(intake.value.orderId)).toMatchObject({
+      status: 'scheduled',
     });
 
     const plannedBoard = await app.loadProductionBoard({

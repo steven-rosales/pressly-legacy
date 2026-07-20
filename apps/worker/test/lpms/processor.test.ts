@@ -42,6 +42,7 @@ type WorkerIngestion = Pick<
   | 'completeEvent'
   | 'retryEvent'
   | 'deadLetterEvent'
+  | 'purgeExpiredReceipts'
 >;
 
 const ingestion = (
@@ -56,6 +57,10 @@ const ingestion = (
   completeEvent: vi.fn(async () => 'applied' as const),
   retryEvent: vi.fn(async () => 'applied' as const),
   deadLetterEvent: vi.fn(async () => 'applied' as const),
+  purgeExpiredReceipts: vi.fn(async () => ({
+    tag: 'ok' as const,
+    value: { purgedCount: 0 },
+  })),
   ...overrides,
 });
 
@@ -142,6 +147,7 @@ describe('generic webhook inbox processor', () => {
 
     expect(store.claimEvents).toHaveBeenCalledTimes(3);
     expect(store.measureBacklog).toHaveBeenCalledTimes(2);
+    expect(store.purgeExpiredReceipts).toHaveBeenCalledTimes(2);
     expect(observe.mock.calls).toEqual([
       [
         'worker.inbox_oldest_pending_age_seconds',
@@ -173,6 +179,7 @@ describe('generic webhook inbox processor', () => {
 
     expect(store.claimEvents).toHaveBeenCalledTimes(2);
     expect(store.measureBacklog).toHaveBeenCalledOnce();
+    expect(store.purgeExpiredReceipts).toHaveBeenCalledOnce();
     expect(consume).toHaveBeenCalledTimes(2);
     expect(store.completeEvent).toHaveBeenCalledTimes(2);
   });

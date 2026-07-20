@@ -92,7 +92,7 @@ const activeFilterCount = (filters: OrderControlFilters) =>
     (value) => !defaultFilterValue(value)
   ).length + (filters.query.trim().length > 0 ? 1 : 0)
 
-function FilterSelect({
+function FilterSelect<TValue extends string>({
   id,
   label,
   value,
@@ -101,9 +101,9 @@ function FilterSelect({
 }: Readonly<{
   id: string
   label: string
-  value: string
-  options: readonly OrderControlFilterOption[]
-  onValueChange: (value: string) => void
+  value: TValue
+  options: readonly OrderControlFilterOption<TValue>[]
+  onValueChange: (value: TValue) => void
 }>) {
   return (
     <NativeSelect
@@ -111,7 +111,7 @@ function FilterSelect({
       aria-label={label}
       className="min-w-36 flex-1 sm:flex-none [&_[data-slot=native-select]]:h-11"
       value={value}
-      onChange={(event) => onValueChange(event.target.value)}
+      onChange={(event) => onValueChange(event.target.value as TValue)}
     >
       {options.map((option) => (
         <NativeSelectOption key={option.value} value={option.value}>

@@ -1,23 +1,40 @@
 import { result, type Result } from '@pressly/kernel';
 
+type EligibilityDemandPhase =
+  | 'expected'
+  | 'inbound'
+  | 'production_released'
+  | 'post_production'
+  | 'withdrawn';
+
 export type ProductionPolicyRejection = Readonly<{
   code: string;
   message: string;
 }>;
 
 export type EligibilityInput = Readonly<{
-  state: 'ready_for_production' | 'not_ready';
+  phase: EligibilityDemandPhase;
   derivedWeightLbs: number;
   bagCount: number | null;
 }>;
 
-export const evaluateProductionEligibility = (
+export const evaluateIntakeAdmission = (
   input: EligibilityInput,
-): Result<Readonly<{ eligible: true }>, ProductionPolicyRejection> => {
-  if (input.state !== 'ready_for_production')
+): Result<
+  Readonly<{ status: 'release_pending' | 'eligible' }>,
+  ProductionPolicyRejection
+> => {
+  if (input.phase === 'withdrawn')
     return result.err({
-      code: 'ORDER_NOT_READY_FOR_PRODUCTION',
-      message: 'Only ready order demand is eligible for production.',
+      code: 'ORDER_DEMAND_WITHDRAWN',
+      message: 'A withdrawn order cannot be admitted to production.',
+    });
+
+  if (input.phase === 'post_production')
+    return result.err({
+      code: 'ORDER_SOURCE_ALREADY_POST_PRODUCTION',
+      message:
+        'The source says this order has passed production. Review the mismatch before recording intake.',
     });
 
   if (!Number.isFinite(input.derivedWeightLbs) || input.derivedWeightLbs <= 0)
@@ -38,5 +55,8 @@ export const evaluateProductionEligibility = (
       message: 'Bag count must be a nonnegative integer.',
     });
 
-  return result.ok({ eligible: true });
+  return result.ok({
+    status:
+      input.phase === 'production_released' ? 'eligible' : 'release_pending',
+  });
 };

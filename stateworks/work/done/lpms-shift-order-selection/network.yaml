@@ -1,0 +1,236 @@
+work_id: lpms-shift-order-selection
+title: LPMS production admission and shift order selection
+status: complete
+
+goal:
+  - Keep pre-IN_PROGRESS Cents demand forecast-only while preserving physical intake facts.
+  - Require IN_PROGRESS and completed intake before an order is selectable for production.
+  - Make schedule inclusion an explicit, server-authoritative, shift-scoped manager decision.
+
+invariants:
+  - Source lifecycle, physical intake, production readiness, and shift selection are separate facts.
+  - Expected or inbound demand cannot become executable production work.
+  - Physical intake may be recorded before release but cannot bypass the IN_PROGRESS gate.
+  - Only production-released orders with positive weight and recorded bag count are ready candidates.
+  - Ready candidates are unselected by default.
+  - Shift selection is versioned, audited, location-bound, and manager-authorized.
+  - Compute reads exactly the selected ready candidates for its shift.
+  - Selection changes supersede the current plan and revoke acceptance before Start.
+  - New unselected candidates do not change an immutable selected schedule snapshot.
+  - Start freezes the selected set as schedule provenance.
+  - A post-start ready order requires explicit manager placement and is never silently committed.
+  - The scheduler remains pure and does not own selection persistence.
+  - Processor contains no lifecycle, eligibility, or concurrency policy.
+  - Existing unrelated worktree changes and deployed migration history are preserved.
+  - No secret, credential, customer payload, or private token enters Stateworks or fixtures.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Freeze the admission and selection model
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/done/lpms-demand-lifecycle-outlook
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/processor
+    writes:
+      - repo:stateworks/work/active/lpms-shift-order-selection
+    action:
+      - Record Steven's three confirmed policy answers and the current conflicting implementation paths.
+      - Define the minimum release, intake, selection, snapshot, and post-start boundaries.
+    verifier:
+      - pnpm stateworks:validate stateworks/work/done/lpms-shift-order-selection/network.yaml
+      - git diff --check -- stateworks/work/done/lpms-shift-order-selection
+    rollback:
+      - Remove only this unexecuted active package.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+
+  - id: T1
+    title: Enforce source release and intake admission
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:modules/policy/production/src/demand-lifecycle
+      - repo:modules/business/production/src/apply-order-demand
+      - repo:modules/business/production/src/record-order-intake
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:packages/contracts
+      - repo:packages/db
+    action:
+      - Add an explicit pre-release production state that can retain intake without becoming eligible.
+      - Require production_released and completed intake for eligibility.
+      - Preserve committed floor truth for later source revisions.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/db test
+    rollback:
+      - Revert code and use only a forward corrective migration after shared migration execution.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+
+  - id: T2
+    title: Add versioned shift selection and exact planning snapshots
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps: [T1]
+    reads:
+      - repo:modules/business/production/src/create-schedule
+      - repo:modules/business/production/src/accept-schedule
+      - repo:modules/business/production/src/start-schedule
+      - repo:modules/business/production/src/load-production-workspace
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:modules/business/production
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/api
+    action:
+      - Persist selected shift/order associations under the shift planning lock.
+      - Replace the full selected set through one idempotent versioned manager command.
+      - Supersede current plans on material selection changes.
+      - Make Compute, Accept, and Start read and validate the exact selected set.
+    verifier:
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production test:integration
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/db test:integration
+      - pnpm --filter @pressly/api test
+    rollback:
+      - Remove the command and read surface; preserve immutable schedule history.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+
+  - id: T3
+    title: Implement explicit scheduling and live-placement UX
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T2]
+    reads:
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/features/demand-outlook
+      - repo:apps/processor/src/features/production-board
+      - repo:apps/processor/src/components
+      - repo:apps/processor/src/i18n
+    writes:
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/features/production-board
+      - repo:apps/processor/src/adapters
+      - repo:apps/processor/src/ports
+      - repo:apps/processor/src/i18n
+      - repo:apps/processor/test
+    action:
+      - Add explicit candidate selection, bulk actions, selected totals, disabled reasons, and empty-selection prevention.
+      - Keep forecast-only demand visually separate from ready candidates.
+      - Replace automatic-arrival language with explicit manager-placement language.
+      - Add complete English and Spanish accessible states using existing visual primitives.
+    verifier:
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+    rollback:
+      - Revert the new controls while leaving the backend selection boundary intact.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+
+  - id: V1
+    title: Prove admission, selection, concurrency, and presentation
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T3]
+    reads:
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/api
+      - repo:apps/processor
+      - repo:tooling/test
+    writes:
+      - repo:stateworks/work/done/lpms-shift-order-selection/evidence.md
+      - repo:stateworks/work/done/lpms-shift-order-selection/state.yaml
+    action:
+      - Run focused unit, integration, contract, architecture, typecheck, lint, and local runtime proofs in proportion to risk.
+      - Record exact results and every environment boundary without overstating deployment.
+    verifier:
+      - pnpm test:lpms:int
+      - pnpm --filter @pressly/processor test
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - git diff --check
+    rollback:
+      - Repair only verified failures up to the configured limit; stop on invariant violation.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+
+  - id: T4
+    title: Reconcile durable memory and close the package
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps: [V1]
+    reads:
+      - repo:stateworks/work/done/lpms-shift-order-selection/evidence.md
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+    writes:
+      - repo:stateworks/memory/domains/laundry-production
+      - repo:stateworks/work/done/lpms-shift-order-selection
+    action:
+      - Deprecate the superseded lagging-source admission and all-eligible planning beliefs.
+      - Apply only implementation-backed replacement invariants and regenerate the context pack.
+      - Close the package only after all verification evidence exists.
+    verifier:
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-shift-order-selection/network.yaml --state stateworks/work/done/lpms-shift-order-selection/state.yaml
+      - git diff --check
+    rollback:
+      - Leave the work active and the memory delta unapplied if verification is incomplete.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-shift-order-selection/evidence.md
+      - stateworks/work/done/lpms-shift-order-selection/final-report.md
+      - stateworks/memory/domains/laundry-production/deltas/2026-07-19-shift-order-selection.memory-delta.yaml

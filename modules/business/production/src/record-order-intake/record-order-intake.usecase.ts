@@ -20,12 +20,6 @@ export const makeRecordOrderIntake =
     repo: RecordOrderIntakeRepository;
     policy: ProductionPolicyPort;
     clock: ClockPort;
-    attemptAutomaticPlacement?: (input: {
-      locationId: string;
-      productionOrderId: string;
-      actorId: string;
-      idempotencyKey: string;
-    }) => Promise<void>;
   }): RecordOrderIntake =>
   async (command) => {
     try {
@@ -66,7 +60,11 @@ export const makeRecordOrderIntake =
             ),
           );
 
-        if (!['intake_pending', 'eligible'].includes(order.productionStatus))
+        if (
+          !['release_pending', 'intake_pending', 'eligible'].includes(
+            order.productionStatus,
+          )
+        )
           return result.err(
             productionError(
               'PRODUCTION_ORDER_INTAKE_STATE_INVALID',
@@ -74,18 +72,14 @@ export const makeRecordOrderIntake =
             ),
           );
 
-        const eligibility = deps.policy.evaluateEligibility({
-          state: order.demandState,
+        const admission = deps.policy.evaluateIntakeAdmission({
+          phase: order.demandPhase,
           derivedWeightLbs: order.derivedWeightLbs,
           bagCount: command.bagCount,
         });
-        if (eligibility.tag === 'err')
+        if (admission.tag === 'err')
           return result.err(
-            productionError(
-              eligibility.error.code,
-              eligibility.error.message,
-              409,
-            ),
+            productionError(admission.error.code, admission.error.message, 409),
           );
 
         const recorded = await repo.recordIntake({
@@ -94,6 +88,7 @@ export const makeRecordOrderIntake =
           bagCount: command.bagCount,
           expectedVersion: command.expectedVersion,
           currentIntakeVersion: order.intakeVersion,
+          nextStatus: admission.value.status,
           now: deps.clock.now(),
         });
         if (recorded === null)
@@ -123,21 +118,6 @@ export const makeRecordOrderIntake =
 
         return result.ok(recorded);
       });
-      if (
-        outcome.tag === 'ok' &&
-        !outcome.value.replayed &&
-        deps.attemptAutomaticPlacement !== undefined
-      )
-        try {
-          await deps.attemptAutomaticPlacement({
-            locationId: command.locationId,
-            productionOrderId: command.orderId,
-            actorId: command.actorId,
-            idempotencyKey: command.idempotencyKey,
-          });
-        } catch {
-          // Intake remains committed; the eligible order is visible for retry.
-        }
       return outcome;
     } catch (error) {
       return result.err(

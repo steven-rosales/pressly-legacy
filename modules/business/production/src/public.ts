@@ -10,7 +10,9 @@ export {
 } from './main.ts';
 export type {
   ClockPort,
+  DemandForecastInput,
   IdPort,
+  OrderDemandPhase,
   PolicyDecision,
   ProductionPolicyPort,
   ProductionSignalsPort,
@@ -23,5 +25,5 @@ export type {
   ApplyOrderDemand,
   ApplyOrderDemandCommand,
   ApplyOrderDemandResult,
-  OrderDemandState,
 } from './apply-order-demand/apply-order-demand.port.ts';
+export type { ReplaceShiftOrderSelection } from './replace-shift-order-selection/replace-shift-order-selection.port.ts';

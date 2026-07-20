@@ -141,6 +141,27 @@
       "when": 1784159769678,
       "tag": "0020_fair_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1784421352992,
+      "tag": "0021_lpms-demand-lifecycle-outlook",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1784473873714,
+      "tag": "0022_cents-webhook-quarantine",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1784488962291,
+      "tag": "0023_lpms-shift-order-selection",
+      "breakpoints": true
     }
   ]
 }

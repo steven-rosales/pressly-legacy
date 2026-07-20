@@ -94,9 +94,11 @@ describe('production Postgres repositories', () => {
       locationId,
       revisionAt: '2026-07-10T13:59:00.000Z',
       revisionHash: '2'.repeat(64),
-      state: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: '2026-07-10T20:00:00.000Z',
       estimatedWeightLbs: 74,
+      estimatedWeightSource: 'external_estimate',
       bagCount: null,
       idempotencyKey: 'order-demand-1',
     });
@@ -197,6 +199,26 @@ describe('production Postgres repositories', () => {
     ).resolves.toMatchObject({
       tag: 'err',
       error: { code: 'production_shift_not_found', status: 404 },
+    });
+
+    await expect(
+      application.replaceShiftOrderSelection({
+        locationId,
+        productionShiftId: shift.value.id,
+        selectedOrderIds: [projected.value.productionOrderId],
+        expectedVersion: 0,
+        actorId,
+        idempotencyKey: 'selection-1',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: {
+        selection: {
+          productionShiftId: shift.value.id,
+          version: 1,
+          selectedOrderIds: [projected.value.productionOrderId],
+        },
+      },
     });
 
     const schedule = await application.createSchedule({

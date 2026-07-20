@@ -87,7 +87,11 @@ describe('scheduling idempotency after the location lock', () => {
     };
     const compute = makeCreateSchedule({
       repo,
-      scheduler: { propose: vi.fn(), proposeOnlinePlacement: vi.fn() },
+      scheduler: {
+        forecastDemand: vi.fn(),
+        propose: vi.fn(),
+        proposeOnlinePlacement: vi.fn(),
+      },
       policy: {} as ProductionPolicyPort,
       clock: { now: () => now },
       ids: { next: () => scheduleRunId },

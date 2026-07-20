@@ -8,3 +8,11 @@ export type {
   WebhookEventClaim,
   WebhookEventCompletion,
 } from './webhook-ingestion.port.ts';
+export type {
+  CaptureWebhookReceipt,
+  CaptureWebhookReceiptCommand,
+  CaptureWebhookReceiptResult,
+  LinkWebhookReceipt,
+  PurgeExpiredWebhookReceipts,
+  WebhookReceiptNormalization,
+} from './quarantine-receipts/quarantine-receipts.port.ts';

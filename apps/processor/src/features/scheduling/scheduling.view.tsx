@@ -30,6 +30,7 @@ import {
 } from "./scheduling.model"
 import {
   localeForLanguage,
+  presentSchedulingDueBucket,
   presentScheduleLifecycle,
   presentScheduleWarning,
   summarizeScheduleDemand,
@@ -74,13 +75,13 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
   const locale = localeForLanguage(i18n.resolvedLanguage)
   const model = useSchedulingModel(input)
   const metricProposal = model.planDirty ? null : model.proposal
-  const demand = summarizeScheduleDemand(model.proposal, model.orders)
+  const demand = summarizeScheduleDemand(model.proposal, model.selectedOrders)
   const demandLabel =
     model.planDirty && model.proposal !== null
       ? t("scheduling.previousPlanDemand")
       : demand.label === "Planned demand"
         ? t("scheduling.plannedDemand")
-        : t("scheduling.readyDemand")
+        : t("scheduling.selectedDemand")
   const timelinePulseMinutes =
     model.proposal?.pulseMinutes ?? model.pulseMinutes
   const lifecycle = presentScheduleLifecycle({
@@ -96,33 +97,40 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
           description: t("scheduling.configurationDescription"),
           actionLabel: t("scheduling.openConfiguration"),
         }
-      : lifecycle.state === "dirty"
+      : lifecycle.action === "generate" && model.selectedOrderCount === 0
         ? {
-            badge: t("scheduling.changesNotComputed"),
-            title: t("scheduling.recomputePlan"),
-            description: t("scheduling.recomputeDescription"),
-            actionLabel: t("scheduling.recomputeSchedule"),
+            badge: t("scheduling.selectionRequired"),
+            title: t("scheduling.selectShiftOrders"),
+            description: t("scheduling.selectShiftOrdersDescription"),
+            actionLabel: t("scheduling.computeSchedule"),
           }
-        : lifecycle.state === "accepted"
+        : lifecycle.state === "dirty"
           ? {
-              badge: t("scheduling.planAccepted"),
-              title: t("scheduling.readyToStart"),
-              description: t("scheduling.startDescription"),
-              actionLabel: t("scheduling.startRun"),
+              badge: t("scheduling.changesNotComputed"),
+              title: t("scheduling.recomputePlan"),
+              description: t("scheduling.recomputeDescription"),
+              actionLabel: t("scheduling.recomputeSchedule"),
             }
-          : lifecycle.state === "draft"
+          : lifecycle.state === "accepted"
             ? {
-                badge: t("scheduling.reviewPlan"),
-                title: t("scheduling.acceptExactProposal"),
-                description: t("scheduling.acceptDescription"),
-                actionLabel: t("scheduling.acceptPlan"),
+                badge: t("scheduling.planAccepted"),
+                title: t("scheduling.readyToStart"),
+                description: t("scheduling.startDescription"),
+                actionLabel: t("scheduling.startRun"),
               }
-            : {
-                badge: t("scheduling.readyToCompute"),
-                title: t("scheduling.buildShiftPlan"),
-                description: t("scheduling.buildDescription"),
-                actionLabel: t("scheduling.computeSchedule"),
-              }
+            : lifecycle.state === "draft"
+              ? {
+                  badge: t("scheduling.reviewPlan"),
+                  title: t("scheduling.acceptExactProposal"),
+                  description: t("scheduling.acceptDescription"),
+                  actionLabel: t("scheduling.acceptPlan"),
+                }
+              : {
+                  badge: t("scheduling.readyToCompute"),
+                  title: t("scheduling.buildShiftPlan"),
+                  description: t("scheduling.buildDescription"),
+                  actionLabel: t("scheduling.computeSchedule"),
+                }
   const shiftMinutes = windowMinutes(
     model.shiftStartsAt,
     model.shiftEndsAt,
@@ -185,11 +193,14 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
   ] as const
   const actionDisabled =
     model.busy !== null ||
+    model.selectionBusy ||
     (lifecycle.action !== "configure" && !input.canManage) ||
     (lifecycle.action === "configure" && input.onOpenConfiguration == null) ||
     (lifecycle.action === "accept" &&
       model.blockingWarnings.length > 0 &&
-      !model.acknowledged)
+      !model.acknowledged) ||
+    (lifecycle.action === "generate" &&
+      (model.selectedOrderCount === 0 || model.staleSelectedOrderCount > 0))
   const actionLabel =
     model.busy === "generate"
       ? t("scheduling.computing")
@@ -277,7 +288,9 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                   shiftStartsAt: model.shiftStartsAt,
                   shiftEndsAt: model.shiftEndsAt,
                 }}
-                disabled={model.busy !== null || !input.canManage}
+                disabled={
+                  model.busy !== null || model.selectionBusy || !input.canManage
+                }
                 error={model.settingsError}
                 onApply={model.saveSettings}
               />
@@ -377,7 +390,8 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                   {t("scheduling.timeline")}
                 </TabsTrigger>
                 <TabsTrigger value="orders">
-                  {t("scheduling.orders")}
+                  {t("scheduling.orders")} · {model.selectedOrderCount}/
+                  {model.orders.length}
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -464,7 +478,72 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
             </CardContent>
           </TabsContent>
           <TabsContent value="orders">
-            <CardContent className="pt-1">
+            <CardContent className="pt-0">
+              <div className="flex flex-col gap-3 border-b py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium">
+                    {t("scheduling.readyOrdersForShift")}
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {t("scheduling.selectionSummary", {
+                      selected: model.selectedOrderCount,
+                      total: model.orders.length,
+                      weight: model.selectedWeightLbs,
+                    })}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("scheduling.selectionEligibility")}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={
+                      !input.canManage ||
+                      model.selectionBusy ||
+                      model.busy !== null ||
+                      model.orders.length === 0 ||
+                      model.selectedOrderCount === model.orders.length
+                    }
+                    onClick={() => void model.selectAllReady()}
+                  >
+                    {t("scheduling.selectAllReady")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={
+                      !input.canManage ||
+                      model.selectionBusy ||
+                      model.busy !== null ||
+                      (model.selectedOrderIds.size === 0 &&
+                        model.staleSelectedOrderCount === 0)
+                    }
+                    onClick={() => void model.clearSelection()}
+                  >
+                    {t("scheduling.clearSelection")}
+                  </Button>
+                </div>
+              </div>
+              {model.staleSelectedOrderCount > 0 && (
+                <Alert
+                  className="mt-3 border-warning-foreground/20 bg-warning text-warning-foreground"
+                  role="status"
+                >
+                  <IconAlertTriangle />
+                  <AlertTitle>
+                    {t("scheduling.selectionNeedsReview")}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {t("scheduling.staleSelection", {
+                      count: model.staleSelectedOrderCount,
+                    })}
+                  </AlertDescription>
+                </Alert>
+              )}
               {model.orders.length === 0 ? (
                 <div className="grid min-h-52 place-items-center text-center">
                   <div>
@@ -483,6 +562,21 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                       key={order.id}
                       className="flex min-h-14 items-center gap-3 py-3"
                     >
+                      <Checkbox
+                        id={`schedule-order-${order.id}`}
+                        checked={model.selectedOrderIds.has(order.id)}
+                        disabled={
+                          model.busy !== null ||
+                          model.selectionBusy ||
+                          !input.canManage
+                        }
+                        onCheckedChange={(checked) =>
+                          void model.toggleSelection(order.id, checked === true)
+                        }
+                        aria-label={t("scheduling.selectOrder", {
+                          orderId: order.externalOrderId,
+                        })}
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">
                           {t("scheduling.order", {
@@ -493,11 +587,13 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                           {t("scheduling.orderDetail", {
                             weight: order.derivedWeightLbs,
                             bags: t("common.bags", { count: order.bagCount }),
-                            due: order.dueBucket,
+                            due: presentSchedulingDueBucket(order.dueBucket, t),
                           })}
                         </p>
                       </div>
-                      <Badge variant="outline">{order.dueBucket}</Badge>
+                      <Badge variant="outline">
+                        {presentSchedulingDueBucket(order.dueBucket, t)}
+                      </Badge>
                       <span className="text-sm font-medium text-muted-foreground">
                         {t("scheduling.priority")}
                       </span>
@@ -505,6 +601,7 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                         checked={model.priorityIds.has(order.id)}
                         disabled={
                           model.busy !== null ||
+                          model.selectionBusy ||
                           model.pendingPriorityIds.has(order.id) ||
                           !input.canManage
                         }

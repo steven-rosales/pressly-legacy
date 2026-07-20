@@ -195,7 +195,8 @@ const seedScheduledOrder = async () => {
     locationId: 'location-1',
     revisionHash: 'c'.repeat(64),
     revisionAt: now,
-    status: 'ready_for_production',
+    phase: 'production_released',
+    sourceStatusCode: 'IN_PROGRESS',
     dueAt: new Date('2026-07-15T20:00:00.000Z'),
   });
   await testDb.db.insert(laundryProduction.productionOrders).values({

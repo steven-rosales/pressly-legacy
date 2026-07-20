@@ -2,6 +2,7 @@ import {
   and,
   asc,
   eq,
+  inArray,
   laundryProduction,
   type Database,
   type DatabaseExecutor,
@@ -53,6 +54,35 @@ export const makeAcceptScheduleRepository = (deps: {
       if (!scheduleCoversInputExactly(record.schedule, record.inputSnapshot))
         return false;
 
+      const selectedRows = await db
+        .select({
+          id: laundryProduction.productionShiftSelectedOrders.productionOrderId,
+        })
+        .from(laundryProduction.productionShiftSelectedOrders)
+        .where(
+          and(
+            eq(
+              laundryProduction.productionShiftSelectedOrders.locationId,
+              locationId,
+            ),
+            eq(
+              laundryProduction.productionShiftSelectedOrders.productionShiftId,
+              record.schedule.productionShiftId,
+            ),
+          ),
+        )
+        .orderBy(
+          asc(
+            laundryProduction.productionShiftSelectedOrders.productionOrderId,
+          ),
+        );
+      const selectedOrderIds = selectedRows.map((row) => row.id);
+      if (
+        selectedOrderIds.length === 0 ||
+        selectedOrderIds.length !== snapshots.size
+      )
+        return false;
+
       const rows = await db
         .select({
           id: laundryProduction.productionOrders.id,
@@ -68,7 +98,7 @@ export const makeAcceptScheduleRepository = (deps: {
         .where(
           and(
             eq(laundryProduction.productionOrders.locationId, locationId),
-            eq(laundryProduction.productionOrders.status, 'eligible'),
+            inArray(laundryProduction.productionOrders.id, selectedOrderIds),
           ),
         )
         .orderBy(asc(laundryProduction.productionOrders.id))
@@ -81,6 +111,7 @@ export const makeAcceptScheduleRepository = (deps: {
           snapshot !== undefined &&
           order.locationId === locationId &&
           order.status === 'eligible' &&
+          order.bagCount !== null &&
           order.version === snapshot.version &&
           order.derivedWeightLbs === snapshot.derivedWeightLbs &&
           order.bagCount === snapshot.bagCount &&

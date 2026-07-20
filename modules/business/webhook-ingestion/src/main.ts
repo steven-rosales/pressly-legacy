@@ -23,6 +23,13 @@ import {
   makeManageSourceLocationBindings,
   makeResolveSourceLocation,
 } from './source-location-bindings/source-location-bindings.usecase.ts';
+import { makeQuarantineWebhookReceiptsRepository } from './quarantine-receipts/quarantine-receipts.repo.ts';
+import {
+  DEFAULT_WEBHOOK_QUARANTINE_RETENTION_MS,
+  makeCaptureWebhookReceipt,
+  makeLinkWebhookReceipt,
+  makePurgeExpiredWebhookReceipts,
+} from './quarantine-receipts/quarantine-receipts.usecase.ts';
 import type {
   WebhookIngestionClockPort,
   WebhookIngestionIdPort,
@@ -32,6 +39,7 @@ export type WebhookIngestionApplicationDeps = Readonly<{
   db: Database;
   clock: WebhookIngestionClockPort;
   ids: WebhookIngestionIdPort;
+  quarantineRetentionMs?: number;
 }>;
 
 export const makePostgresWebhookIngestionApplication = (
@@ -42,10 +50,27 @@ export const makePostgresWebhookIngestionApplication = (
   const failureRepo = makeFailWebhookEventRepository(deps.db);
   const recoveryRepo = makeRecoverWebhookEventsRepository(deps.db);
   const bindingsRepo = makeSourceLocationBindingsRepository(deps.db);
+  const quarantineRepo = makeQuarantineWebhookReceiptsRepository(deps.db);
+  const quarantineRetentionMs =
+    deps.quarantineRetentionMs ?? DEFAULT_WEBHOOK_QUARANTINE_RETENTION_MS;
 
   return {
     ingestEvent: makeIngestWebhookEvent({
       repo: makeIngestWebhookEventRepository(deps),
+      clock: deps.clock,
+    }),
+    captureReceipt: makeCaptureWebhookReceipt({
+      repo: quarantineRepo,
+      clock: deps.clock,
+      ids: deps.ids,
+      retentionMs: quarantineRetentionMs,
+    }),
+    linkReceipt: makeLinkWebhookReceipt({
+      repo: quarantineRepo,
+      clock: deps.clock,
+    }),
+    purgeExpiredReceipts: makePurgeExpiredWebhookReceipts({
+      repo: quarantineRepo,
       clock: deps.clock,
     }),
     measureBacklog: makeMeasureWebhookBacklog({

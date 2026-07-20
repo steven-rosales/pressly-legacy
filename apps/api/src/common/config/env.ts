@@ -33,6 +33,13 @@ const hmacKey = secret.refine(
   'HMAC keys must contain at least 32 bytes.',
 );
 
+const base64EncryptionKey = secret.refine(
+  (value) => Buffer.from(value, 'base64').length === 32,
+  'Encryption keys must be base64 for exactly 32 bytes.',
+);
+
+const quarantineRetentionDays = z.coerce.number().int().min(1).max(90);
+
 const localProcessorCsrfSecret = hmacKey.parse(
   'local-dev-processor-csrf-key-32-bytes-minimum',
 );
@@ -74,6 +81,9 @@ const apiEnvSchema = z
     CENTS_WEBHOOK_HMAC_CURRENT_KEY: hmacKey.optional(),
     CENTS_WEBHOOK_HMAC_PREVIOUS_KEY: hmacKey.optional(),
     CENTS_WEBHOOK_CLOCK_WINDOW_SECONDS: envInteger.default(300),
+    CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY: base64EncryptionKey.optional(),
+    CENTS_WEBHOOK_QUARANTINE_RETENTION_DAYS:
+      quarantineRetentionDays.default(30),
 
     FEATURE_METRICS_ENABLED: featureFlag,
     FEATURE_JOBS_ENABLED: featureFlag,
@@ -100,6 +110,17 @@ const apiEnvSchema = z
         code: 'custom',
         path: ['CENTS_WEBHOOK_HMAC_CURRENT_KEY'],
         message: 'CENTS_WEBHOOK_HMAC_CURRENT_KEY is required in production.',
+      });
+
+    if (
+      env.NODE_ENV === 'production' &&
+      env.CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY === undefined
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY'],
+        message:
+          'CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY is required in production.',
       });
 
     if (env.NODE_ENV === 'production' && env.PROCESSOR_ORIGIN === undefined)
@@ -175,6 +196,15 @@ const configuredApiEnv = {
       currentKey: rawApiEnv.CENTS_WEBHOOK_HMAC_CURRENT_KEY,
       previousKey: rawApiEnv.CENTS_WEBHOOK_HMAC_PREVIOUS_KEY,
       clockWindowSeconds: rawApiEnv.CENTS_WEBHOOK_CLOCK_WINDOW_SECONDS,
+    },
+    quarantine: {
+      encryptionKey: rawApiEnv.CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY,
+      retentionMs:
+        rawApiEnv.CENTS_WEBHOOK_QUARANTINE_RETENTION_DAYS *
+        24 *
+        60 *
+        60 *
+        1_000,
     },
   },
   features: {

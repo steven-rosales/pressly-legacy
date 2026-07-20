@@ -708,11 +708,11 @@ export function ProductionBoardWorkspace({
                     <Button
                       variant="outline"
                       className="h-11"
-                      disabled={mutationsDisabled}
+                      disabled={mutationsDisabled || !input.canManage}
                       onClick={() => void retryAutomaticPlacement(order)}
                     >
                       <IconWand data-icon="inline-start" />
-                      {t("production.retryAutomatic")}
+                      {t("production.addToRun")}
                     </Button>
                   </div>
                   {(order.placement.status === "awaiting_run" ||

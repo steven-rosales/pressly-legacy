@@ -10,6 +10,7 @@ import {
   testOrders,
   testSchedule,
   testShift,
+  testShiftSelection,
 } from "../../fixtures/production.fixture"
 
 const defaults = {
@@ -23,6 +24,7 @@ const defaults = {
 
 const lifecycleCallbacks = {
   canManage: true,
+  shiftSelection: testShiftSelection,
   onScheduleChanged: vi.fn(async () => undefined),
   onStarted: vi.fn(async () => undefined),
 }
@@ -88,7 +90,7 @@ describe("scheduling workspace", () => {
       />
     )
 
-    expect(screen.getByText("Ready demand")).toBeInTheDocument()
+    expect(screen.getByText("Selected demand")).toBeInTheDocument()
     expect(
       screen.getByRole("button", { name: "Compute schedule" })
     ).toBeEnabled()
@@ -109,6 +111,15 @@ describe("scheduling workspace", () => {
     }
     const createShift = vi.fn(async () => newShift)
     const updateShift = vi.fn()
+    const replaceShiftSelection = vi.fn(async () => ({
+      selection: {
+        productionShiftId: newShift.id,
+        version: 1,
+        selectedOrderIds: testOrders.map((order) => order.id),
+      },
+      supersededScheduleRunId: null,
+      replayed: false,
+    }))
     const createSchedule = vi.fn(async () => ({
       ...testSchedule,
       productionShiftId: newShift.id,
@@ -118,6 +129,7 @@ describe("scheduling workspace", () => {
         production={makeTestProductionPort({
           createShift,
           updateShift,
+          replaceShiftSelection,
           createSchedule,
         })}
         idempotency={testIdempotency}
@@ -127,10 +139,13 @@ describe("scheduling workspace", () => {
         currentConfig={testConfig}
         currentShift={null}
         {...lifecycleCallbacks}
+        shiftSelection={null}
       />
     )
 
     expect(screen.getByRole("button", { name: "Set shift" })).toBeEnabled()
+    await user.click(screen.getByRole("tab", { name: /Orders/ }))
+    await user.click(screen.getByRole("button", { name: "Select all ready" }))
     await user.click(screen.getByRole("button", { name: "Compute schedule" }))
 
     expect(createShift).toHaveBeenCalledWith(
@@ -142,6 +157,13 @@ describe("scheduling workspace", () => {
       })
     )
     expect(updateShift).not.toHaveBeenCalled()
+    expect(replaceShiftSelection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productionShiftId: newShift.id,
+        selectedOrderIds: testOrders.map((order) => order.id),
+        expectedVersion: 0,
+      })
+    )
     expect(createSchedule).toHaveBeenCalledWith(
       expect.objectContaining({ productionShiftId: newShift.id })
     )
@@ -169,7 +191,7 @@ describe("scheduling workspace", () => {
     expect(screen.getByText("50-minute production pulse")).toBeInTheDocument()
   })
 
-  it("requires recompute when a new eligible order appears before reload", () => {
+  it("keeps an accepted plan valid when a new unselected order appears", () => {
     const acceptedProposal = {
       ...structuredClone(testSchedule),
       status: "accepted" as const,
@@ -198,10 +220,10 @@ describe("scheduling workspace", () => {
     )
 
     expect(
-      screen.getByRole("button", { name: "Recompute schedule" })
-    ).toBeInTheDocument()
+      screen.getByRole("button", { name: "Start production run" })
+    ).toBeEnabled()
     expect(
-      screen.queryByRole("button", { name: "Start production run" })
+      screen.queryByRole("button", { name: "Recompute schedule" })
     ).not.toBeInTheDocument()
   })
 
@@ -550,7 +572,7 @@ describe("scheduling workspace", () => {
       />
     )
 
-    await user.click(screen.getByRole("tab", { name: "Orders" }))
+    await user.click(screen.getByRole("tab", { name: /^Orders/ }))
     await user.click(
       screen.getByRole("switch", { name: "Prioritize order C-1002" })
     )
@@ -590,7 +612,7 @@ describe("scheduling workspace", () => {
         orders={[...testOrders, priorityArrival]}
       />
     )
-    await user.click(screen.getByRole("tab", { name: "Orders" }))
+    await user.click(screen.getByRole("tab", { name: /^Orders/ }))
 
     expect(
       await screen.findByRole("switch", {
@@ -631,6 +653,7 @@ describe("scheduling workspace", () => {
         defaults={defaults}
         currentConfig={testConfig}
         currentShift={testShift}
+        shiftSelection={testShiftSelection}
         initialProposal={acceptedProposal}
         canManage
         onScheduleChanged={vi.fn(async () => undefined)}

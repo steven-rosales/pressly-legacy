@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { useIntakeModel, type IntakeModelInput } from "./intake.model"
+import { presentIntakeDueBucket } from "./intake.presenter"
 
 export function IntakeWorkspace(input: IntakeModelInput) {
   const { t } = useTranslation()
@@ -70,7 +71,7 @@ export function IntakeWorkspace(input: IntakeModelInput) {
                   <p className="text-sm text-muted-foreground">
                     {t("intake.orderDetail", {
                       weight: order.derivedWeightLbs,
-                      due: order.dueBucket,
+                      due: presentIntakeDueBucket(order.dueBucket, t),
                     })}
                   </p>
                 </div>

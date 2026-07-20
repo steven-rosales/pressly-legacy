@@ -10,6 +10,22 @@ export type ScheduleWarningPresentation = Readonly<{
   detail: string
 }>
 
+export const presentSchedulingDueBucket = (
+  bucket: ProductionOrderSummary["dueBucket"],
+  t: TFunction
+): string => {
+  switch (bucket) {
+    case "overdue":
+      return t("common.due.overdue")
+    case "today":
+      return t("common.due.today")
+    case "tomorrow":
+      return t("common.due.tomorrow")
+    case "later":
+      return t("common.due.later")
+  }
+}
+
 export const presentScheduleWarning = (
   warning: ProductionWarning,
   t: TFunction

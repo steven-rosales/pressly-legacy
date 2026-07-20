@@ -546,3 +546,62 @@ exit: 0
 time: 2026-07-17T13:56:32-04:00
 summary: 60 architecture tests passed, the 27-task readiness network validated, and the working-tree diff contained no whitespace errors. No production endpoint, AWS host, Cents account, secret, or customer payload was touched.
 ```
+
+## 2026-07-19 — Cents intake hardening authorized
+
+Status: repository and local runtime verified; not deployed
+
+- The current Cents article and production receipts were rechecked. Successful
+  order status is copied from `order.status`; Pressly does not translate
+  `IN_PROGRESS` into `SUBMITTED`.
+- Steven approved three bounded repairs before deployment: retain valid
+  unweighed demand with a missing estimate, recover historical lifecycle and
+  weight from the latest canonical receipt, and add encrypted short-retention
+  raw quarantine plus rejection observability.
+- The canonical `webhook_events.payload_json` remains minimized worker input.
+  Raw receipt data remains outside Production, public APIs, Processor, logs,
+  Sentry, fixtures, and durable Stateworks evidence.
+
+### Implemented boundary
+
+- The Cents Worker now represents zero or non-calculable pre-weigh pricing as
+  a missing estimate. Production persists the advisory `order_demand` without
+  creating executable floor work; a strictly newer positive estimate admits
+  the existing demand through the normal policy.
+- Migration `0021_lpms-demand-lifecycle-outlook` backfills the latest processed
+  canonical Cents phase, source status, and positive calculable estimate before
+  enforcing the new constraints. Legacy Production weight remains the final
+  authority for already-created production work.
+- Migration `0022_cents-webhook-quarantine` adds a source-neutral diagnostic
+  receipt table. The Cents API boundary encrypts exact valid-JSON raw bytes in
+  a versioned AES-256-GCM envelope, records accepted or rejected normalization,
+  links accepted receipts to the canonical inbox event, and retains them for
+  30 days by default. No public retrieval route was added.
+- Worker maintenance purges expired quarantine receipts on the bounded backlog
+  sampling cadence. API rejection counters contain only source, safe reason
+  code, and HTTP status.
+- Production startup now requires a distinct 32-byte base64
+  `CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY`; the retention may be configured
+  with `CENTS_WEBHOOK_QUARANTINE_RETENTION_DAYS` from 1 through 90. The key may
+  not reuse MFA key material.
+
+```text
+command: pnpm test:lpms:int
+exit: 0
+time: 2026-07-19T11:25:49-04:00
+summary: all 22 migrations applied; 47 database integration/schema tests, 5 quarantine/inbox repository tests, 11 ingestion unit tests, 33 Worker tests, 19 Production repository tests, 105 Production unit tests, and 6 Cents asset tests passed. The historical Cents lifecycle/weight migration and encrypted quarantine repository both ran against isolated Postgres roles.
+```
+
+```text
+command: focused typecheck and lint; pnpm --filter @pressly/api test; pnpm format:check; architecture boundaries; Stateworks validation; git diff --check
+exit: 0
+time: 2026-07-19T11:33:50-04:00
+summary: affected API, Worker, Production, policy, ingestion, database, metrics, and contract boundaries typechecked and linted; all 126 API tests and 58 architecture tests passed; repository formatting, the 27-task readiness network, and whitespace checks passed.
+```
+
+```text
+command: rebuilt local API and Worker; signed documented-shape synthetic webhook plus valid-JSON normalization rejection; read-only SQL verification
+exit: 0
+time: 2026-07-19T11:31:00-04:00
+summary: the zero-price SUBMITTED order returned 202, reached processed demand phase expected with no estimate and no production_order, and linked to a versioned encrypted receipt with exactly 30-day retention. The malformed order returned 400 and retained an encrypted rejected receipt with invalid_cents_order_payload and no canonical event. No raw payload, key, customer data, production endpoint, AWS host, or Cents account was exposed or contacted.
+```

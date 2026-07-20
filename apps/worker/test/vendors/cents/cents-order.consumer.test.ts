@@ -1,3 +1,4 @@
+import type { CentsCanonicalOrderInput } from '@pressly/contracts';
 import { makeAppError } from '@pressly/errors';
 import type { ClaimedWebhookEvent } from '@pressly/webhook-ingestion';
 import { describe, expect, it, vi } from 'vitest';
@@ -63,6 +64,21 @@ describe('Cents order consumer adapter', () => {
     ).toBe(89);
   });
 
+  it('represents an unweighed Cents order as a missing estimate', () => {
+    expect(
+      deriveCentsWeightLbs([
+        {
+          externalServiceId: 'one',
+          name: 'One',
+          category: 'LAUNDRY',
+          quantity: 0,
+          totalPriceCents: 0,
+          unitPriceCents: 167,
+        },
+      ]),
+    ).toBeNull();
+  });
+
   it('translates Cents into one source-neutral Production command', async () => {
     const applyOrderDemand = vi.fn(async () => ({
       tag: 'ok' as const,
@@ -84,12 +100,55 @@ describe('Cents order consumer adapter', () => {
       locationId: 'location-1',
       revisionAt: '2026-07-10T13:00:00.000Z',
       revisionHash: 'a'.repeat(64),
-      state: 'ready_for_production',
+      phase: 'production_released',
+      sourceStatusCode: 'IN_PROGRESS',
       dueAt: '2026-07-10T20:00:00.000Z',
       estimatedWeightLbs: 74,
+      estimatedWeightSource: 'external_estimate',
       bagCount: null,
       idempotencyKey: 'webhook:00000000-0000-4000-8000-000000000001',
     });
+  });
+
+  it('projects an unweighed order instead of dead-lettering it', async () => {
+    const applyOrderDemand = vi.fn(async () => ({
+      tag: 'ok' as const,
+      value: {
+        orderDemandId: 'demand-1',
+        productionOrderId: null,
+        outcome: 'applied' as const,
+        replayed: false,
+      },
+    }));
+    const consumer = makeCentsOrderConsumer({
+      resolveSourceLocation: vi.fn(async () => 'location-1'),
+      applyOrderDemand,
+    });
+    const unweighed = event();
+    const payload = unweighed.payload as CentsCanonicalOrderInput;
+
+    await expect(
+      consumer(
+        event({
+          payload: {
+            ...payload,
+            status: 'SUBMITTED',
+            services: payload.services.map((service) => ({
+              ...service,
+              quantity: 0,
+              totalPriceCents: 0,
+            })),
+          },
+        }),
+      ),
+    ).resolves.toEqual({ tag: 'ok' });
+    expect(applyOrderDemand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'expected',
+        estimatedWeightLbs: null,
+        estimatedWeightSource: null,
+      }),
+    );
   });
 
   it('fails permanently for unmapped locations and malformed payloads', async () => {

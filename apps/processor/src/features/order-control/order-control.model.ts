@@ -6,17 +6,24 @@ export type OrderControlFilterOption<TValue extends string = string> =
     label: string
   }>
 
+export type OrderControlDueFilter =
+  | "all"
+  | "overdue"
+  | "today"
+  | "tomorrow"
+  | "later"
+
 export type OrderControlFilters = Readonly<{
   query: string
   status: string
-  due: string
+  due: OrderControlDueFilter
   stage: string
   priority: string
 }>
 
 export type OrderControlFilterOptions = Readonly<{
   statuses: readonly OrderControlFilterOption[]
-  dueWindows: readonly OrderControlFilterOption[]
+  dueWindows: readonly OrderControlFilterOption<OrderControlDueFilter>[]
   stages: readonly OrderControlFilterOption[]
   priorities: readonly OrderControlFilterOption[]
 }>

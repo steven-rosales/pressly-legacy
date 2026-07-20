@@ -138,6 +138,7 @@ const makeRuntime = (
     centsWebhookAuthMode?: 'hmac' | 'unsigned';
     centsWebhookCurrentKey?: Secret;
     centsWebhookPreviousKey?: Secret;
+    centsWebhookQuarantineKey?: Secret;
   } = {},
 ): {
   runtime: ApiRuntime;
@@ -189,6 +190,10 @@ const makeRuntime = (
           currentKey: input.centsWebhookCurrentKey,
           previousKey: input.centsWebhookPreviousKey,
           clockWindowSeconds: 300,
+        },
+        quarantine: {
+          encryptionKey: input.centsWebhookQuarantineKey,
+          retentionMs: 30 * 24 * 60 * 60 * 1_000,
         },
       },
       features: {
@@ -692,6 +697,14 @@ describe('API app HTTP boundary', () => {
       error: { code: 'invalid_cents_order_payload' },
     });
     expect(database.insert).not.toHaveBeenCalled();
+    expect(harness.counters).toContainEqual({
+      name: 'api.webhook_rejections',
+      labels: {
+        source: 'cents',
+        reason: 'invalid_cents_order_payload',
+        status: '400',
+      },
+    });
     expect(JSON.stringify(responseBody)).not.toContain(
       'private@example.invalid',
     );
