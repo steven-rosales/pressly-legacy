@@ -52,7 +52,7 @@ describe('production topology', () => {
     expect(services.worker.read_only).toBe(true);
     expect(services.worker.cap_drop).toContain('ALL');
     expect(services.worker.healthcheck.test).toContain(
-      'apps/worker/dist/healthcheck.js',
+      'apps/worker/dist/runtime/healthcheck.js',
     );
     expect(services.processor.expose).toEqual(['80']);
     expect(services.processor.read_only).toBe(true);

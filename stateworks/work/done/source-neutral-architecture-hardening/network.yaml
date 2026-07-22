@@ -1,0 +1,231 @@
+work_id: source-neutral-architecture-hardening
+title: Source-neutral hexagonal architecture hardening
+status: complete
+
+goal:
+  - Repair the semantic authorization, durable-contract, transaction-ownership, read-model, and Processor presentation boundaries identified by the 2026-07-21 architecture audit.
+
+invariants:
+  - Users, Orders, Auth, Production, and Webhook Ingestion remain isolated peer modules.
+  - API and Worker own cross-module composition; business modules own business decisions.
+  - Authorization is checked against the actual mutated resource scope.
+  - Order state and every downstream outbox effect remain atomic.
+  - Source lifecycle mapping remains upstream of Production.
+  - Release-gated scheduling and operator-confirmed floor truth remain unchanged.
+  - The queued LPMS order-control correctness gaps remain out of scope.
+  - Existing unrelated worktree changes are preserved.
+  - No deployment, production migration, or webhook replay is authorized by this work item.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Freeze the audit scope and baseline
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/done/source-neutral-users-orders
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - repo:docs/architecture.md
+      - repo:tooling/test/architecture-boundaries.test.mjs
+    writes:
+      - repo:stateworks/work/active/source-neutral-architecture-hardening/evidence.md
+    action:
+      - Record confirmed defects, unaffected invariants, and the exact changed dependency path before implementation.
+    postconditions:
+      - The repair remains bounded to source-neutral architecture hardening.
+    verifier:
+      - Evidence distinguishes launch-risk defects from structural debt and unrelated queued work.
+    rollback:
+      - Revert only this work item's baseline evidence.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/active/source-neutral-architecture-hardening/evidence.md
+
+  - id: T1
+    title: Repair authorization and HTTP boundaries
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:modules/policy/access-control
+      - repo:apps/api/src/routes/canonical-commands.routes.ts
+      - repo:packages/contracts/src/users
+      - repo:packages/contracts/src/orders
+    writes:
+      - repo:packages/auth/src/authorization
+      - repo:modules/policy/access-control
+      - repo:apps/api/src/routes/canonical-commands.routes.ts
+      - repo:modules/business/users/src
+      - repo:modules/business/orders/src
+      - repo:apps/api/test/canonical
+    action:
+      - Add Order-management resource policy, propagate location scope through Order commands, verify scope under the aggregate transaction, and standardize success envelopes.
+    postconditions:
+      - A principal cannot mutate a User, Order, or Fulfillment outside the authorized scope.
+    verifier:
+      - Access-control policy, API authorization, cross-location, contract, and module tests pass.
+    rollback:
+      - Remove the new routes or guards before weakening aggregate scope checks.
+    secret_handling: pii_not_logged
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+
+  - id: T2
+    title: Version and bound the Order outbox lifecycle
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:packages/contracts/src/orders
+      - repo:modules/business/orders/src
+      - repo:apps/worker/src/order-outbox
+      - repo:packages/db/src/schema/orders.schema.ts
+    writes:
+      - repo:packages/contracts/src/orders
+      - repo:modules/business/orders/src
+      - repo:apps/worker/src/order-outbox
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+    action:
+      - Define one versioned integration event, validate it at write and read boundaries, classify permanent versus retryable failures, and add lease-fenced terminal dead-letter handling.
+    postconditions:
+      - Invalid or exhausted events stop retrying and remain inspectable; valid events preserve exactly-once effects.
+    verifier:
+      - Contract, Orders integration, Worker retry/dead-letter, migration, and crash-window tests pass.
+    rollback:
+      - Recover forward from durable outbox rows; do not delete committed events.
+    secret_handling: no_payload_logging
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+
+  - id: T3
+    title: Move User and Order decisions into use cases
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1, T2]
+    reads:
+      - repo:modules/business/users/src
+      - repo:modules/business/orders/src
+      - repo:modules/business/production/src/apply-fulfillment-demand
+    writes:
+      - repo:modules/business/users/src
+      - repo:modules/business/users/test
+      - repo:modules/business/orders/src
+      - repo:modules/business/orders/test
+    action:
+      - Replace module-wide repositories with capability-shaped transactional ports and move source ordering, authority, lifecycle, next-state, and effect decisions into use cases.
+    postconditions:
+      - Postgres adapters own mechanisms only and use-case tests prove behavior with fake ports.
+    verifier:
+      - Users and Orders unit, integration, concurrency, idempotency, lint, and type checks pass.
+    rollback:
+      - Revert one capability at a time while retaining passing behavior and schema compatibility.
+    secret_handling: pii_not_logged
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+
+  - id: T4
+    title: Repair typed read composition and Processor ownership
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T2, T3]
+    reads:
+      - repo:apps/api/src/read-models/processor-orders
+      - repo:apps/processor/src/features/order-control
+      - repo:packages/contracts/src/processor
+    writes:
+      - repo:modules/business/orders/src
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:apps/api/src/read-models/processor-orders
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/test/features/order-control
+    action:
+      - Persist typed source lifecycle metadata, move comparison to a pure projection, and separate Processor presenter, orchestration model, and declarative views.
+    postconditions:
+      - API composition does not inspect vendor snapshot shapes or own comparison policy, and the workspace view does not own asynchronous orchestration.
+    verifier:
+      - Read-model, projection, Processor interaction, accessibility, localization, lint, and type checks pass.
+    rollback:
+      - Retain compatible response fields while reverting presentation-only changes.
+    secret_handling: pii_not_logged_or_persisted_in_browser_storage
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+
+  - id: T5
+    title: Synchronize architecture documentation and enforcement
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1, T2, T3, T4]
+    reads:
+      - repo:docs/architecture.md
+      - repo:tooling/test/architecture-boundaries.test.mjs
+    writes:
+      - repo:docs/architecture.md
+      - repo:tooling/test/architecture-boundaries.test.mjs
+    action:
+      - Document the actual Users-to-Orders-to-outbox-to-Production path and add structural checks for resource scope, integration-event ownership, and Processor role separation where deterministic.
+    postconditions:
+      - The architecture document and automated rules describe the implementation accurately.
+    verifier:
+      - Architecture-boundary tests pass and no stale direct Cents-to-Production path remains documented.
+    rollback:
+      - Revert only assertions unsupported by the final implementation.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+
+  - id: T6
+    title: Verify and close the architecture hardening
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T5]
+    reads:
+      - repo
+      - repo:stateworks/work/active/source-neutral-architecture-hardening/evidence.md
+    writes:
+      - repo:stateworks/work/active/source-neutral-architecture-hardening/evidence.md
+      - repo:stateworks/work/active/source-neutral-architecture-hardening/final-report.md
+    action:
+      - Run focused, database, API, Worker, Processor, architecture, lint, typecheck, and full workspace verification and record redacted evidence.
+    postconditions:
+      - Every repaired boundary has direct proof and any remaining limitation is explicit.
+    verifier:
+      - Stateworks network and state verify after every implementation verifier passes.
+    rollback:
+      - Keep the item active and record the exact failing verifier; do not claim completion.
+    secret_handling: redacted_evidence_only
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+      - stateworks/work/done/source-neutral-architecture-hardening/final-report.md

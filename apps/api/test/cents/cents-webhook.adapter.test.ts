@@ -5,14 +5,17 @@ import {
   CENTS_WEBHOOK_MAX_BODY_BYTES,
   deriveCentsDeduplicationKey,
   normalizeCentsWebhook,
-} from '../../src/vendors/cents/cents-webhook.adapter.ts';
+} from '../../src/http/webhooks/cents/cents-webhook.normalizer.ts';
 
 const orderPayload = (overrides: Record<string, unknown> = {}) => ({
   action: 'order_updated',
   order: {
     id: 12345,
     storeId: 24,
+    orderCode: '00123',
     status: 'IN_PROGRESS',
+    orderTotal: 29.99,
+    balanceDue: 24.99,
     dueDate: '2026-07-10T20:00:00.000Z',
     updatedAt: '2026-07-10T14:00:00.000Z',
   },
@@ -43,7 +46,7 @@ const normalize = (payload: unknown, rawBody?: Uint8Array) =>
   });
 
 describe('Cents order webhook adapter', () => {
-  it('normalizes documented fields and strips unrelated customer PII', () => {
+  it('normalizes documented order and customer fields for canonical processing', () => {
     const result = normalize(orderPayload());
 
     expect(result).toMatchObject({
@@ -57,11 +60,14 @@ describe('Cents order webhook adapter', () => {
         },
         order: {
           externalOrderId: '12345',
+          orderCode: '00123',
           externalStoreId: '24',
           status: 'IN_PROGRESS',
           dueAt: '2026-07-10T20:00:00.000Z',
           sourceUpdatedAt: '2026-07-10T14:00:00.000Z',
           bagCount: null,
+          totalAmountCents: 2999,
+          balanceDueCents: 2499,
           services: [
             {
               externalServiceId: '43',
@@ -70,6 +76,12 @@ describe('Cents order webhook adapter', () => {
               unitPriceCents: 200,
             },
           ],
+          customer: {
+            externalUserId: 'customer-fixture-123',
+            firstName: 'Fixture',
+            phone: '+15550000000',
+            email: 'fixture@example.invalid',
+          },
         },
       },
     });
@@ -77,8 +89,6 @@ describe('Cents order webhook adapter', () => {
       centsIngressDecisionSchema.safeParse(result.ok ? result.value : null)
         .success,
     ).toBe(true);
-    expect(JSON.stringify(result)).not.toContain('fixture@example.invalid');
-    expect(JSON.stringify(result)).not.toContain('+15550000000');
     expect(JSON.stringify(result)).not.toContain('sourceVersion');
     expect(JSON.stringify(result)).not.toContain('occurredAt');
     expect(JSON.stringify(result)).not.toContain('eventId');
@@ -226,13 +236,13 @@ describe('Cents order webhook adapter', () => {
   });
 });
 
-describe('non-production Cents webhook classification', () => {
+describe('Cents customer and marketing classification', () => {
   it.each([
     ['customer_created', 'customer'],
     ['customer_updated', 'customer'],
     ['customer_marketing_optin', 'marketing'],
   ] as const)(
-    'minimizes %s as an ignored %s receipt',
+    'normalizes %s as a processable %s observation',
     (event, classification) => {
       const payload = {
         event,
@@ -246,21 +256,43 @@ describe('non-production Cents webhook classification', () => {
         customerMetrics: { totalOrderValue: 447.35 },
       };
       const result = normalize(payload);
-      const serialized = JSON.stringify(result);
-
-      expect(result).toMatchObject({
-        ok: true,
-        value: {
-          disposition: 'ignore',
-          receipt: { eventKind: event, classification },
-          reason: 'non_production_event',
-        },
-      });
-      expect(serialized).not.toContain('customer-fixture-815');
-      expect(serialized).not.toContain('Private Fixture');
-      expect(serialized).not.toContain('private@example.invalid');
-      expect(serialized).not.toContain('+15550000001');
-      expect(serialized).not.toContain('customerMetrics');
+      expect(result).toMatchObject(
+        classification === 'customer'
+          ? {
+              ok: true,
+              value: {
+                disposition: 'project_customer',
+                receipt: { eventKind: event, classification },
+                customer: {
+                  externalUserId: 'customer-fixture-815',
+                  firstName: 'Private Fixture',
+                  phone: '+15550000001',
+                  email: 'private@example.invalid',
+                  sourceSnapshot: {
+                    customerMetrics: { totalOrderValue: 447.35 },
+                  },
+                },
+              },
+            }
+          : {
+              ok: true,
+              value: {
+                disposition: 'record_marketing',
+                receipt: { eventKind: event, classification },
+                marketing: {
+                  granted: true,
+                  customer: {
+                    externalUserId: 'customer-fixture-815',
+                    firstName: 'Private Fixture',
+                  },
+                },
+              },
+            },
+      );
+      expect(
+        centsIngressDecisionSchema.safeParse(result.ok ? result.value : null)
+          .success,
+      ).toBe(true);
     },
   );
 

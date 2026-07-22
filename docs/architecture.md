@@ -86,19 +86,31 @@ pressly/
       src/config/       static site configuration
 
     api/              Express HTTP process
+      src/main.ts     minimal process entrypoint
+      src/bootstrap/  runtime and module composition
+      src/http/       protocol middleware and capability-owned routes
+      src/runtime/    environment, telemetry, and process foundations
     worker/           background and scheduled process
+      src/main.ts     minimal process entrypoint
+      src/bootstrap/  module and durable-job composition
+      src/jobs/       independently named durable work
+      src/runtime/    polling, retry, heartbeat, and telemetry mechanics
     processor/        LPMS operator interface and protocol adapter
     cli/              operator/developer CLI tools
 
   modules/
     business/
       auth/           authentication/session capability module
+      users/          canonical customer identity and source links
+      orders/         source-neutral commercial Orders and fulfillments
       pricing/        business capability module
       production/     LPMS state, transactions, routes, and use cases
+      webhook-ingestion/ durable external-event inbox and location bindings
     policy/
       access-control/ authorization policy module
       production/     headless production invariants and transitions
     computation/
+      order-control/  source-versus-floor comparison projection
       scheduling/     deterministic fixed-pulse schedule proposals
 
   packages/
@@ -587,6 +599,23 @@ Apps own runtime composition.
 - Expose health/readiness endpoints
 - Shut down cleanly
 
+Its source tree follows one explicit dependency shape:
+
+```txt
+main -> bootstrap -> HTTP capabilities + module public ports
+                  -> runtime foundations
+HTTP capability -> its own files + module public ports
+runtime -> packages only
+```
+
+`main.ts` starts the process; it does not assemble routes. `bootstrap/` is the
+only place allowed to connect peer modules or peer HTTP capabilities. Routes
+live under the capability they expose (`order-management/`, `production/`,
+`webhook-ingestion/`, `processor/`, or a vendor webhook boundary). Peer HTTP
+capabilities do not import one another. Generic request mechanics live under
+`http/middleware/`; vendor normalization stays inside the owning webhook
+boundary. `runtime/` cannot import HTTP code, jobs, or business modules.
+
 `apps/worker` responsibilities:
 
 - Create job context
@@ -597,6 +626,23 @@ Apps own runtime composition.
 - Invoke production use cases through injected module capabilities
 - Emit sparse heartbeat, lag, retry, dead-letter, and fatal signals without a
   public HTTP route
+
+Its source tree is organized around durable work rather than vendors or the
+LPMS product name:
+
+```txt
+main -> bootstrap -> process-webhook-inbox job
+                  -> project-fulfillment-demand job
+                  -> runtime foundations
+job -> its own handlers + module public ports
+runtime -> packages only
+```
+
+The Cents handlers are private adapters of `process-webhook-inbox`; they are
+not a top-level Worker architecture. Jobs do not import peer jobs. Polling,
+retry, cancellation, heartbeat, and observability remain source-neutral runtime
+mechanics. Bootstrap composes jobs sequentially and is the only layer that
+connects their module dependencies.
 
 `apps/processor` responsibilities:
 
@@ -636,6 +682,9 @@ Rules:
 
 - Feature models own local view state, asynchronous orchestration, and expected
   error presentation. Views remain declarative.
+- Feature presenters own pure protocol-to-display transformations. A workspace
+  view may select a model and responsive primitive, but it does not own request
+  sequencing, mutation workflows, or product copy decisions.
 - Features receive ports from app composition and cannot import adapters or
   peer features.
 - Adapters cannot import app composition, product features, or UI.
@@ -662,6 +711,10 @@ architecture-boundary tests, including relative and aliased imports.
 - Call module/application capabilities safely
 - Fail loudly with structured errors
 
+Production topology bootstrap is an operator command under `apps/cli`; it is
+built into the API operations image for deployment use, but it is not API
+runtime source.
+
 Apps do not own business meaning. They assemble the program.
 
 For Cents ingress, `apps/api` owns the vendor wire adapter and its explicit
@@ -673,12 +726,35 @@ command submitted to `modules/business/webhook-ingestion`, which owns the
 durable inbox, claims, retries, dead letters, and source-location bindings.
 
 `apps/worker` is the asynchronous composition root. A vendor consumer translates
-one claimed event into a canonical `ApplyOrderDemand` command and injects that
-command into `modules/business/production`. Production owns order-demand and
-physical-production rules; it has no knowledge of Cents, HTTP webhooks, inbox
-receipts, or worker leases. Modules remain isolated peers and never import or
-declare package dependencies on one another. API and worker applications are
-the only places that connect their public ports.
+one claimed event into source-neutral User and Order observations. The Users
+module resolves exact source identity without silently merging people. The
+Orders module persists commercial state, fulfillment admission, typed source
+lifecycle metadata, and a versioned `fulfillment_demand_changed` outbox event in
+one transaction. A separate bounded projector claims that event and calls
+Production's source-neutral fulfillment-demand capability. Invalid, permanent,
+or retry-exhausted events are lease-fenced into an inspectable terminal state.
+
+```txt
+Cents HTTP -> webhook inbox -> Worker vendor adapter
+                              -> Users observation
+                              -> Orders observation + durable outbox
+                              -> bounded outbox projector
+                              -> Production fulfillment demand
+```
+
+Production owns physical-production rules and has no knowledge of Cents, HTTP
+webhooks, inbox receipts, or worker leases. The Processor read composition joins
+typed Users, Orders, and Production facts, then delegates source-versus-floor
+comparison to `modules/computation/order-control`; it never parses archived
+vendor JSON. Modules remain isolated peers and never import or declare package
+dependencies on one another. API and worker applications are the only places
+that connect their public ports.
+
+The current Orders application deliberately supports exactly one fulfillment
+per Order. The relational schema retains a one-to-many shape for future order
+types, but command adapters reject missing or ambiguous fulfillment aggregates
+instead of guessing. Multi-fulfillment workflow is a future policy change, not
+an implicit behavior in the current release.
 
 `apps/api` may wire route guards produced by a policy module. It should not
 define application authorization policy itself.

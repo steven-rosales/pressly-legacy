@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   makeIpRateLimiter,
   makeMemoryRateLimitStore,
-} from '../../src/common/security/rate-limit.ts';
+} from '../../src/http/middleware/rate-limit.middleware.ts';
 
 const logger = {
   child: () => logger,

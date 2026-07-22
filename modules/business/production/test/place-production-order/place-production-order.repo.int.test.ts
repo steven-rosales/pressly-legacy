@@ -21,7 +21,10 @@ import { makeListProductionOrderControlRepository } from '../../src/list-product
 import { makeRouteProductionOrderRepository } from '../../src/route-production-order/route-production-order.repo.ts';
 import { makeRouteProductionOrder } from '../../src/route-production-order/route-production-order.usecase.ts';
 import { lockLocationScheduling } from '../../src/persistence/scheduling-locks.ts';
-import { createProductionTestDatabase } from '../support/database.ts';
+import {
+  createProductionTestDatabase,
+  seedProductionDemands,
+} from '../support/database.ts';
 import { allowPolicy, makeIds } from '../support/production.fake.ts';
 
 const testDb = createProductionTestDatabase();
@@ -238,7 +241,7 @@ const seed = async () => {
     version: 1,
   });
 
-  await testDb.db.insert(laundryProduction.orderDemands).values([
+  await seedProductionDemands(testDb.db, [
     {
       id: ids.frozenDemand,
       demandKey: 'placement:frozen',
@@ -1067,7 +1070,7 @@ describe('place production order Postgres commit', () => {
       'folding_packaging',
     ] as const;
 
-    await testDb.db.insert(laundryProduction.orderDemands).values({
+    await seedProductionDemands(testDb.db, {
       id: targetDemand,
       demandKey: 'placement:route-target',
       displayReference: 'route-target-order',

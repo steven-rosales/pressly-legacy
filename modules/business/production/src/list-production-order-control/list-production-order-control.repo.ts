@@ -141,7 +141,33 @@ const asRouteReason = (
 const attentionFor = (
   order: ReturnType<typeof mapProductionOrderListItem>,
   pendingPlacement: unknown,
+  demand: Readonly<{ commercialState: string; admissionState: string }>,
 ): ProductionOrderControlItem['attention'] => {
+  if (
+    demand.admissionState === 'withdrawn' ||
+    demand.commercialState === 'canceled'
+  )
+    return order.status === 'finished'
+      ? null
+      : {
+          reason: 'source_comparison_required',
+          message:
+            'The commercial order was withdrawn while LPMS still has unfinished floor work. Confirm physical truth before changing Production.',
+        };
+  if (demand.commercialState === 'completed')
+    return order.status === 'finished'
+      ? null
+      : {
+          reason: 'source_comparison_required',
+          message:
+            'The commercial order is complete while LPMS still has unfinished floor work. Confirm physical completion in LPMS; no floor state changed automatically.',
+        };
+  if (order.status === 'finished')
+    return {
+      reason: 'source_comparison_required',
+      message:
+        'LPMS production is finished while the commercial order remains open. Confirm whether the commercial system should be updated.',
+    };
   if (order.status === 'intake_pending')
     return {
       reason: 'intake_required',
@@ -210,6 +236,21 @@ export const makeListProductionOrderControlRepository = (
     const attentionCondition = and(
       floorVisibleCondition,
       or(
+        and(
+          eq(laundryProduction.orderDemands.commercialState, 'completed'),
+          ne(laundryProduction.productionOrders.status, 'finished'),
+        ),
+        and(
+          or(
+            eq(laundryProduction.orderDemands.admissionState, 'withdrawn'),
+            eq(laundryProduction.orderDemands.commercialState, 'canceled'),
+          ),
+          ne(laundryProduction.productionOrders.status, 'finished'),
+        ),
+        and(
+          eq(laundryProduction.orderDemands.commercialState, 'open'),
+          eq(laundryProduction.productionOrders.status, 'finished'),
+        ),
         eq(laundryProduction.productionOrders.status, 'intake_pending'),
         and(
           eq(laundryProduction.productionOrders.status, 'eligible'),
@@ -302,6 +343,8 @@ export const makeListProductionOrderControlRepository = (
         intakeVersion: laundryProduction.productionOrders.intakeVersion,
         version: laundryProduction.productionOrders.version,
         pendingPlacement: laundryProduction.productionOrders.pendingPlacement,
+        admissionState: laundryProduction.orderDemands.admissionState,
+        commercialState: laundryProduction.orderDemands.commercialState,
         productionBatchId:
           laundryProduction.productionBatchOrders.productionBatchId,
         placementProvenance:
@@ -630,7 +673,10 @@ export const makeListProductionOrderControlRepository = (
         !currentPlacement.membershipFrozen;
       return {
         order,
-        attention: attentionFor(order, row.pendingPlacement),
+        attention: attentionFor(order, row.pendingPlacement, {
+          admissionState: row.admissionState,
+          commercialState: row.commercialState,
+        }),
         currentPlacement,
         nextRequiredStage: assigned[0]?.stage ?? null,
         routeAttempts: attempts,

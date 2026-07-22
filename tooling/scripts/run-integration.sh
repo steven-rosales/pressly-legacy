@@ -11,6 +11,10 @@ export PRESSLY_TEST_DATABASE_RESET_URL="${PRESSLY_TEST_DATABASE_RESET_URL:-$PRES
 tooling/scripts/configure-test-database-roles.sh
 DATABASE_URL="$PRESSLY_TEST_MIGRATION_DATABASE_URL" pnpm -F @pressly/db migrate
 pnpm -F @pressly/db test:integration
+pnpm -F @pressly/users test:integration
+pnpm -F @pressly/users test
+pnpm -F @pressly/orders test:integration
+pnpm -F @pressly/orders test
 pnpm -F @pressly/webhook-ingestion test:integration
 pnpm -F @pressly/webhook-ingestion test
 pnpm -F @pressly/worker test

@@ -59,7 +59,9 @@ Non-browser clients such as `curl` and malicious servers do not have to enforce 
 
 ### Implementation
 
-The API policy lives in `apps/api/src/common/security/cors.ts` and is composed before routes in `apps/api/src/app.ts`.
+The API policy lives in
+`apps/api/src/http/middleware/cors.middleware.ts` and is composed before routes
+in `apps/api/src/bootstrap/api.composition.ts`.
 
 The policy:
 
@@ -118,15 +120,12 @@ It serializes structured data and escapes `<` before writing the script body.
 
 ### HTML Sanitizer
 
-The standalone sanitizer lives in `apps/api/src/common/security/html-sanitizer.ts`.
+**Current status:** Pressly does not accept or render user-controlled rich HTML,
+so the API has no dormant global sanitizer.
 
-It uses DOMPurify with an explicit allowlist for limited rich-text elements.
-It removes dangerous tags, inline styling, DOM-clobbering attributes, data attributes, and unsafe link protocols.
-
-**Current status:** the sanitizer is not composed into an API route because Pressly does not currently accept or render user-controlled rich HTML.
-
-When a feature introduces rich HTML, sanitize at that feature's trust boundary and store or render only the sanitized result.
-Do not apply the sanitizer indiscriminately to ordinary JSON or plain text.
+When a feature introduces rich HTML, its adapter must add an explicit sanitizer
+at that feature's trust boundary and store or render only the sanitized result.
+Do not apply HTML sanitization indiscriminately to ordinary JSON or plain text.
 
 ### Content Security Policy
 
@@ -172,7 +171,6 @@ untrusted URL
 
 Pressly has no production API path that accepts a URL and performs an outbound request from it.
 Therefore, no SSRF middleware is composed today.
-`apps/api/src/common/security/ssrf.ts` is only a reserved location and currently provides no protection.
 
 Fixed destinations configured by the operator, such as telemetry providers, are configuration trust boundaries rather than user-directed SSRF surfaces.
 
@@ -210,7 +208,8 @@ JavaScript never receives the reusable session token. A successful login or
 session restore returns a session-bound CSRF proof. The Processor keeps that
 proof in memory and sends it in `X-CSRF-Token` on unsafe requests.
 
-`apps/api/src/common/security/processor-session.ts` enforces the protocol:
+`apps/api/src/http/processor/session/processor-session.boundary.ts` composes the
+protocol from explicit cookie, CSRF, session, route, and mapping roles:
 
 1. Login requires the exact configured Processor `Origin`.
 2. `POST`, `PUT`, `PATCH`, `DELETE`, and any other unsafe method require both
@@ -220,10 +219,6 @@ proof in memory and sends it in `X-CSRF-Token` on unsafe requests.
 4. `GET`, `HEAD`, and `OPTIONS` remain free of state changes. Authenticated safe
    requests still require a valid session cookie.
 5. Session responses use `Cache-Control: no-store`.
-
-The zero-byte `apps/api/src/common/security/csrf.middleware.ts` file is a
-reserved generic location. It is not the active Processor control; the composed
-control is the Processor browser boundary above.
 
 Other non-browser API boundaries may use explicit bearer authentication. Do not
 add cookie support to one of those routes without defining its origin and CSRF
@@ -244,7 +239,8 @@ Boundary schemas for mutable commands use strict objects so unknown properties a
 
 ### Parsing Limits
 
-`apps/api/src/app.ts` applies controls before route composition:
+`apps/api/src/bootstrap/api.composition.ts` applies controls before route
+composition:
 
 - JSON content types are required on routes that accept JSON bodies.
 - Login bodies are limited to `8kb`.

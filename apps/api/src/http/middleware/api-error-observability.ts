@@ -1,0 +1,97 @@
+import type { AppError } from '@pressly/errors';
+import { redactLogFields } from '@pressly/logging';
+import {
+  decideObservation,
+  type ErrorReportContext,
+  type ObservationDecision,
+} from '@pressly/metrics';
+import type { Request } from 'express';
+import type { ApiRuntime } from '../../runtime/api-runtime.ts';
+import {
+  logObservation,
+  toObservationLogFields,
+} from '../../runtime/observability/observation-log.ts';
+import { normalizedApiRoute } from './api-route.ts';
+
+const reportContext = (input: {
+  appError: AppError;
+  decision: ObservationDecision;
+  request: Request;
+  requestId?: string | undefined;
+}): ErrorReportContext => ({
+  source: 'api',
+  operation: `${input.request.method} ${normalizedApiRoute(input.request)}`,
+  ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
+  traceId: input.appError.traceId ?? input.requestId,
+  route: normalizedApiRoute(input.request),
+  tags: {
+    reason: input.decision.reason,
+    error_kind: input.appError.kind,
+    error_code: input.appError.code,
+    status: String(input.appError.status),
+  },
+  extra: {
+    details: redactLogFields(input.appError.details),
+  },
+});
+
+export const observeApiError = (
+  runtime: ApiRuntime,
+  input: {
+    appError: AppError;
+    request: Request;
+    requestId?: string | undefined;
+  },
+): ObservationDecision => {
+  const route = normalizedApiRoute(input.request);
+  const decision = decideObservation({
+    kind: 'error',
+    source: 'api',
+    rail: 'http',
+    route,
+    operation: `${input.request.method} ${route}`,
+    error: {
+      kind: input.appError.kind,
+      code: input.appError.code,
+      status: input.appError.status,
+      traceId: input.appError.traceId ?? input.requestId,
+    },
+  });
+
+  if (decision.logLevel !== undefined)
+    logObservation(
+      runtime.logger,
+      decision.logLevel,
+      'api.error.observed',
+      toObservationLogFields({
+        kind: input.appError.kind,
+        code: input.appError.code,
+        status: input.appError.status,
+        reason: decision.reason,
+        requestId: input.requestId,
+        method: input.request.method,
+        route,
+        details: input.appError.details,
+      }),
+    );
+
+  if (decision.counter !== undefined)
+    runtime.observability.counters.increment(decision.counter, {
+      reason: decision.reason,
+      status: String(input.appError.status),
+      route,
+    });
+
+  if (decision.report)
+    runtime.observability.errors.capture(
+      input.appError,
+      reportContext({
+        appError: input.appError,
+        decision,
+        request: input.request,
+        requestId: input.requestId,
+      }),
+    );
+
+  return decision;
+};

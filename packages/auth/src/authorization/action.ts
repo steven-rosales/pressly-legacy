@@ -10,6 +10,8 @@ export type Action =
   | 'pricing:plan'
   | 'pricing:publish'
   | 'pricing:rollback'
+  | 'order-management:user:write'
+  | 'order-management:order:write'
   | 'production:read'
   | 'production:schedule'
   | 'production:accept'

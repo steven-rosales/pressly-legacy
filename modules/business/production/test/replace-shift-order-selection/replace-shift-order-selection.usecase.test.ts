@@ -46,17 +46,17 @@ const createShift = async (
 const createOrder = async (
   application: ReturnType<typeof setup>['application'],
   reference: string,
-  phase: 'expected' | 'production_released',
+  admissionState: 'unreleased' | 'released',
 ) => {
-  const demand = await application.applyOrderDemand({
-    demandKey: `test:selection:${reference}`,
+  const demand = await application.applyFulfillmentDemand({
+    fulfillmentId: `fulfillment:selection:${reference}`,
+    fulfillmentVersion: 1,
     displayReference: reference,
     locationId,
-    revisionAt: '2026-07-19T13:59:00.000Z',
-    revisionHash: reference.padEnd(64, 'a').slice(0, 64),
-    phase,
-    sourceStatusCode:
-      phase === 'production_released' ? 'IN_PROGRESS' : 'SUBMITTED',
+    observedAt: '2026-07-19T13:59:00.000Z',
+    projectionHash: 'a'.repeat(64),
+    admissionState,
+    commercialState: 'open',
     dueAt: '2026-07-19T20:00:00.000Z',
     estimatedWeightLbs: 40,
     estimatedWeightSource: 'external_estimate',
@@ -77,17 +77,17 @@ describe('replace shift order selection', () => {
     const firstOrderId = await createOrder(
       application,
       'ready-order-1',
-      'production_released',
+      'released',
     );
     const secondOrderId = await createOrder(
       application,
       'ready-order-2',
-      'production_released',
+      'released',
     );
     const unreleasedOrderId = await createOrder(
       application,
       'expected-order',
-      'expected',
+      'unreleased',
     );
     const config = await application.publishSchedulerConfig({
       locationId,

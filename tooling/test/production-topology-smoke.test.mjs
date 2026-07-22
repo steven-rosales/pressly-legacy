@@ -56,6 +56,8 @@ const renderSmokeCompose = () =>
           PRESSLY_SMOKE_MFA_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
           PRESSLY_SMOKE_CSRF_SECRET: runtimeSecret,
           PRESSLY_SMOKE_CENTS_HMAC_KEY: runtimeSecret,
+          PRESSLY_SMOKE_CENTS_QUARANTINE_KEY:
+            randomBytes(32).toString('base64'),
         },
       },
     ),
@@ -83,12 +85,19 @@ describe('offline production topology smoke harness', () => {
       'swap_metadata_for_rollback',
       "docker inspect --format '{{.Config.Image}}'",
       'X-Cents-Signature',
+      'orderCode: process.env.ORDER_CODE',
+      'order_source_links',
+      'order_fulfillments',
+      'demand.fulfillment_id = fulfillment.id',
       '/api/processor/auth/login',
       'X-CSRF-Token',
       'login_lpms_processor_session',
       'prepare_lpms_before_api_restart',
+      'code=${code}; message=${message}',
+      'offline-smoke-selection-v1',
       'resume_lpms_after_api_restart',
       'finish_lpms_live_flow',
+      'offline-smoke-live-placement-v1',
       'processor_csrf_rejected',
       'invalid_session',
       'docker stats --no-stream',
@@ -99,6 +108,7 @@ describe('offline production topology smoke harness', () => {
     expect(script).not.toMatch(/\bgh\s/);
     expect(script).not.toContain('trypressly.com');
     expect(script).not.toContain('OfflineSmoke!Passphrase2026');
+    expect(script).not.toContain("demand_key in ('cents:order");
     expect(script).toContain("randomBytes(24).toString('base64url') + 'Aa1!'");
   });
 
@@ -150,6 +160,7 @@ describe('offline production topology smoke harness', () => {
       PROCESSOR_ORIGIN: `https://processor.pressly.test:${port}`,
       FEATURE_METRICS_ENABLED: 'false',
       SENTRY_ENABLED: 'false',
+      CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY: expect.any(String),
     });
     expect(config.services.web.build.args).toMatchObject({
       NEXT_PUBLIC_API_BASE_URL: `https://api.pressly.test:${port}`,

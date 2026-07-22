@@ -1,0 +1,52 @@
+work_id: source-neutral-users-orders
+status: complete
+updated: 2026-07-21T13:40:36-04:00
+
+current_focus:
+  - complete
+  - Source-neutral Users, Orders, Cents ingestion, Production projection, and Processor composition are locally verified.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+  T6:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+  T7:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+  T8:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+  T9:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+      - stateworks/work/done/source-neutral-users-orders/final-report.md
+      - stateworks/memory/domains/order-management/deltas/2026-07-20-source-neutral-users-orders.memory-delta.yaml
+      - stateworks/memory/domains/laundry-production/deltas/2026-07-20-source-neutral-order-boundary.memory-delta.yaml

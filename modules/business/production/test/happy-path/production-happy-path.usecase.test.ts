@@ -9,13 +9,14 @@ import {
 } from '../support/production.fake.ts';
 
 const orderDemand = {
-  demandKey: 'test:order:order-1',
+  fulfillmentId: 'fulfillment:test:order-1',
+  fulfillmentVersion: 1,
   displayReference: 'order-1',
   locationId: 'location-1',
-  revisionAt: '2026-07-10T13:59:00.000Z',
-  revisionHash: '2'.repeat(64),
-  phase: 'production_released' as const,
-  sourceStatusCode: 'IN_PROGRESS',
+  observedAt: '2026-07-10T13:59:00.000Z',
+  projectionHash: '2'.repeat(64),
+  admissionState: 'released' as const,
+  commercialState: 'open' as const,
   dueAt: '2026-07-10T20:00:00.000Z',
   estimatedWeightLbs: 74,
   estimatedWeightSource: 'external_estimate' as const,
@@ -53,7 +54,7 @@ describe('production happy path', () => {
       ids,
     });
 
-    const appliedDemand = await app.applyOrderDemand(orderDemand);
+    const appliedDemand = await app.applyFulfillmentDemand(orderDemand);
     expect(appliedDemand).toMatchObject({
       tag: 'ok',
       value: { outcome: 'applied' },
@@ -238,21 +239,23 @@ describe('production happy path', () => {
     });
 
     await expect(
-      app.applyOrderDemand({
+      app.applyFulfillmentDemand({
         ...orderDemand,
-        revisionAt: '2026-07-10T14:10:00.000Z',
-        revisionHash: '3'.repeat(64),
-        phase: 'post_production',
-        sourceStatusCode: 'READY_FOR_RETURN',
+        fulfillmentVersion: 2,
+        observedAt: '2026-07-10T14:10:00.000Z',
+        projectionHash: '3'.repeat(64),
+        commercialState: 'completed',
         idempotencyKey: 'order-demand-source-ahead',
       }),
     ).resolves.toMatchObject({
       tag: 'ok',
       value: { outcome: 'applied' },
     });
-    expect(memory.inspect().demands.get(orderDemand.demandKey)).toMatchObject({
-      phase: 'post_production',
-      sourceStatusCode: 'READY_FOR_RETURN',
+    expect(
+      memory.inspect().demands.get(orderDemand.fulfillmentId),
+    ).toMatchObject({
+      admissionState: 'released',
+      commercialState: 'completed',
     });
     expect(memory.inspect().orders.get(intake.value.orderId)).toMatchObject({
       status: 'scheduled',

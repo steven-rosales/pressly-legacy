@@ -8,6 +8,7 @@ export type ClaimedWebhookEvent = Readonly<
     subjectId: string | null;
     sourceLocationId: string | null;
     sourceOccurredAt: string | null;
+    receivedAt: string;
     payload: unknown;
     payloadHash: string;
     recoveredLease: boolean;

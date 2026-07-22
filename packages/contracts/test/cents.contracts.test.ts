@@ -44,11 +44,14 @@ describe('Cents wire contracts', () => {
 describe('canonical Cents ingress contracts', () => {
   const order = {
     externalOrderId: '12345',
+    orderCode: '00123',
     externalStoreId: '24',
     status: 'IN_PROGRESS',
     dueAt: '2026-07-10T20:00:00.000Z',
     sourceUpdatedAt: '2026-07-10T14:00:00.000Z',
     bagCount: null,
+    totalAmountCents: 2999,
+    balanceDueCents: 2499,
     services: [
       {
         externalServiceId: '43',
@@ -57,8 +60,11 @@ describe('canonical Cents ingress contracts', () => {
         quantity: 1,
         totalPriceCents: 2999,
         unitPriceCents: 200,
+        sourceMetadata: {},
       },
     ],
+    customer: null,
+    sourceSnapshot: {},
   };
 
   it('requires missing bag count to remain explicit', () => {
@@ -77,17 +83,17 @@ describe('canonical Cents ingress contracts', () => {
     ).toThrow();
   });
 
-  it('keeps ignored decisions minimized and strict', () => {
+  it('keeps unknown ignored decisions minimized and strict', () => {
     const ignored = {
       disposition: 'ignore',
       receipt: {
         deduplicationKey: 'a'.repeat(64),
-        eventKind: 'customer_updated',
-        classification: 'customer',
+        eventKind: 'future_event',
+        classification: 'unknown',
         rawBodySha256: 'b'.repeat(64),
         sourceUpdatedAt: null,
       },
-      reason: 'non_production_event',
+      reason: 'unsupported_event',
     };
 
     expect(centsIngressDecisionSchema.parse(ignored)).toEqual(ignored);
@@ -97,5 +103,34 @@ describe('canonical Cents ingress contracts', () => {
         customer: { id: 'customer-fixture' },
       }),
     ).toThrow();
+  });
+
+  it('requires supported customer observations to remain processable', () => {
+    const projected = {
+      disposition: 'project_customer',
+      receipt: {
+        deduplicationKey: 'a'.repeat(64),
+        eventKind: 'customer_updated',
+        classification: 'customer',
+        rawBodySha256: 'b'.repeat(64),
+        sourceUpdatedAt: null,
+      },
+      customer: {
+        externalUserId: 'customer-1',
+        centsCustomerId: '815',
+        firstName: 'Fixture',
+        lastName: null,
+        phone: null,
+        businessName: null,
+        email: null,
+        isCommercial: false,
+        isInvoicingEnabled: false,
+        referralCode: null,
+        sourceUpdatedAt: null,
+        sourceSnapshot: {},
+      },
+    };
+
+    expect(centsIngressDecisionSchema.parse(projected)).toEqual(projected);
   });
 });

@@ -93,6 +93,7 @@ export PRESSLY_SMOKE_AUTH_SECRET="$(node --input-type=module -e "import { random
 export PRESSLY_SMOKE_MFA_ENCRYPTION_KEY="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(32).toString('base64')); ")"
 export PRESSLY_SMOKE_CSRF_SECRET="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(48).toString('base64url')); ")"
 export PRESSLY_SMOKE_CENTS_HMAC_KEY="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(48).toString('base64url')); ")"
+export PRESSLY_SMOKE_CENTS_QUARANTINE_KEY="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(32).toString('base64')); ")"
 OWNER_PASSWORD="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(24).toString('base64url') + 'Aa1!'); ")"
 
 RELEASE_A_SOURCE="$(printf 'a%.0s' {1..40})"
@@ -569,7 +570,9 @@ NODE
 
 LPMS_LOCATION_ID='offline-smoke-location'
 LPMS_FIRST_EXTERNAL_ORDER_ID='offline-smoke-order-prestart'
+LPMS_FIRST_ORDER_CODE='OFFLINE-PRESTART-001'
 LPMS_LIVE_EXTERNAL_ORDER_ID='offline-smoke-order-live'
+LPMS_LIVE_ORDER_CODE='OFFLINE-LIVE-002'
 LPMS_COOKIE_JAR="$WORK_DIR/lpms-processor-cookies.txt"
 LPMS_CSRF_TOKEN=''
 LPMS_FIRST_ORDER_ID=''
@@ -656,8 +659,26 @@ processor_request() {
 
   local status
   status="$(curl "${arguments[@]}" "${origin}${path}")"
-  [[ "$status" == "$expected_status" ]] ||
-    fail "Processor $method $path returned $status; expected $expected_status."
+  if [[ "$status" != "$expected_status" ]]; then
+    local error_summary
+    error_summary="$(node --input-type=module - "$response_file" <<'NODE'
+import { readFileSync } from 'node:fs';
+try {
+  const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  const code = response?.error?.code;
+  const message = response?.error?.message;
+  process.stdout.write(
+    typeof code === 'string' && typeof message === 'string'
+      ? `code=${code}; message=${message}`
+      : 'response did not contain a public API error',
+  );
+} catch {
+  process.stdout.write('response was not valid JSON');
+}
+NODE
+    )"
+    fail "Processor $method $path returned $status; expected $expected_status; $error_summary."
+  fi
   node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
@@ -683,12 +704,25 @@ wait_for_projection() {
   while ((SECONDS < deadline)); do
     local state
     state="$(database_scalar "
+      with projected as (
+        select production_order.status
+        from order_source_links source_link
+        join order_fulfillments fulfillment
+          on fulfillment.order_id = source_link.order_id
+         and fulfillment.type_code = 'wash_fold'
+        join order_demands demand
+          on demand.fulfillment_id = fulfillment.id
+        join production_orders production_order
+          on production_order.order_demand_id = demand.id
+        where source_link.source = 'cents'
+          and source_link.external_order_id = '$external_order_id'
+      )
       select concat(
         coalesce((select status from webhook_events where source = 'cents' and subject_type = 'order' and subject_id = '$external_order_id' limit 1), 'missing'),
         '|',
-        coalesce((select po.status from production_orders po join order_demands demand on demand.id = po.order_demand_id where demand.demand_key = 'cents:order:$external_order_id' limit 1), 'missing'),
+        coalesce((select status from projected limit 1), 'missing'),
         '|',
-        (select count(*) from production_orders po join order_demands demand on demand.id = po.order_demand_id where demand.demand_key = 'cents:order:$external_order_id')
+        (select count(*) from projected)
       );
     ")"
     if [[ "$state" == "processed|${expected_status}|1" ]]; then
@@ -701,11 +735,12 @@ wait_for_projection() {
 
 send_signed_webhook() {
   local external_order_id="$1"
-  local updated_at="$2"
-  local due_at="$3"
+  local order_code="$2"
+  local updated_at="$3"
+  local due_at="$4"
   local body_file="$WORK_DIR/cents-${external_order_id}.json"
   local response_file="$WORK_DIR/cents-${external_order_id}-response.json"
-  BODY_FILE="$body_file" EXTERNAL_ORDER_ID="$external_order_id" UPDATED_AT="$updated_at" DUE_AT="$due_at" \
+  BODY_FILE="$body_file" EXTERNAL_ORDER_ID="$external_order_id" ORDER_CODE="$order_code" UPDATED_AT="$updated_at" DUE_AT="$due_at" \
     node --input-type=module -e "
       import { writeFileSync } from 'node:fs';
       writeFileSync(
@@ -714,6 +749,7 @@ send_signed_webhook() {
           action: 'order_updated',
           order: {
             id: process.env.EXTERNAL_ORDER_ID,
+            orderCode: process.env.ORDER_CODE,
             storeId: 'offline-smoke-store',
             status: 'IN_PROGRESS',
             dueDate: process.env.DUE_AT,
@@ -773,7 +809,7 @@ NODE
 }
 
 load_order_identity() {
-  local external_order_id="$1"
+  local display_reference="$1"
   local expected_status="$2"
   local response_file="$3"
   processor_request \
@@ -782,12 +818,12 @@ load_order_identity() {
     '' \
     "$response_file" \
     200
-  EXPECTED_EXTERNAL_ORDER_ID="$external_order_id" EXPECTED_STATUS="$expected_status" \
+  EXPECTED_DISPLAY_REFERENCE="$display_reference" EXPECTED_STATUS="$expected_status" \
     node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const matches = response.data.items.filter(
-  (order) => order.externalOrderId === process.env.EXPECTED_EXTERNAL_ORDER_ID,
+  (order) => order.externalOrderId === process.env.EXPECTED_DISPLAY_REFERENCE,
 );
 if (matches.length !== 1 || matches[0].status !== process.env.EXPECTED_STATUS)
   throw new Error('The expected synthetic production order was not uniquely visible.');
@@ -803,8 +839,8 @@ for (const value of [
   new Date(now - 20 * 60_000),
   new Date(now - 10 * 60_000),
   new Date(now + 60 * 60_000),
-  new Date(now - 12 * 60 * 60_000),
-  new Date(now - 4 * 60 * 60_000),
+  new Date(now - 5 * 60 * 60_000),
+  new Date(now + 3 * 60 * 60_000),
 ]) console.log(value.toISOString());
 NODE
   )
@@ -818,6 +854,7 @@ NODE
   echo '[v2] projecting the pre-Start signed Cents order, then setting priority before intake'
   send_signed_webhook \
     "$LPMS_FIRST_EXTERNAL_ORDER_ID" \
+    "$LPMS_FIRST_ORDER_CODE" \
     "$LPMS_FIRST_UPDATED_AT" \
     "$LPMS_DUE_AT"
   wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" intake_pending
@@ -825,7 +862,7 @@ NODE
   login_lpms_processor_session
   local order_identity order_version
   order_identity="$(load_order_identity \
-    "$LPMS_FIRST_EXTERNAL_ORDER_ID" \
+    "$LPMS_FIRST_ORDER_CODE" \
     intake_pending \
     "$WORK_DIR/lpms-prestart-orders.json")"
   IFS='|' read -r LPMS_FIRST_ORDER_ID order_version <<< "$order_identity"
@@ -881,7 +918,7 @@ process.stdout.write(config.id);
 NODE
   )"
 
-  echo '[v2] creating a past synthetic shift and executing Compute -> Accept without execution rows'
+  echo '[v2] creating an active synthetic shift and executing Select -> Compute -> Accept without execution rows'
   local shift_request="$WORK_DIR/lpms-shift-request.json"
   local shift_response="$WORK_DIR/lpms-shift-response.json"
   write_json_file "$shift_request" "{\"startsAt\":\"${shift_starts_at}\",\"endsAt\":\"${shift_ends_at}\",\"timezone\":\"America/New_York\",\"effectiveFolderCount\":2,\"idempotencyKey\":\"offline-smoke-shift-v1\"}"
@@ -894,11 +931,35 @@ NODE
   LPMS_SHIFT_ID="$(node --input-type=module - "$shift_response" <<'NODE'
 import { readFileSync } from 'node:fs';
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
-if (Date.parse(response.data.endsAt) >= Date.now())
-  throw new Error('The synthetic shift must end in the past for stage-boundary proof.');
+const now = Date.now();
+if (!(Date.parse(response.data.startsAt) <= now && now < Date.parse(response.data.endsAt)))
+  throw new Error('The synthetic shift must be active for scheduling proof.');
 process.stdout.write(response.data.id);
 NODE
   )"
+
+  local selection_request="$WORK_DIR/lpms-selection-request.json"
+  local selection_response="$WORK_DIR/lpms-selection-response.json"
+  write_json_file "$selection_request" "{\"selectedOrderIds\":[\"${LPMS_FIRST_ORDER_ID}\"],\"expectedVersion\":0,\"idempotencyKey\":\"offline-smoke-selection-v1\"}"
+  processor_request \
+    PUT \
+    "/api/production/locations/${LPMS_LOCATION_ID}/shifts/${LPMS_SHIFT_ID}/selection" \
+    "$selection_request" \
+    "$selection_response" \
+    200
+  EXPECTED_ORDER_ID="$LPMS_FIRST_ORDER_ID" EXPECTED_SHIFT_ID="$LPMS_SHIFT_ID" \
+    node --input-type=module - "$selection_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const selection = response.data.selection;
+if (
+  selection.productionShiftId !== process.env.EXPECTED_SHIFT_ID ||
+  selection.version !== 1 ||
+  selection.selectedOrderIds.length !== 1 ||
+  selection.selectedOrderIds[0] !== process.env.EXPECTED_ORDER_ID ||
+  response.data.replayed !== false
+) throw new Error('The explicit shift selection did not persist the ready order.');
+NODE
 
   local compute_request="$WORK_DIR/lpms-compute-request.json"
   local compute_response="$WORK_DIR/lpms-compute-response.json"
@@ -1065,16 +1126,17 @@ fast_forward_started_stage() {
 }
 
 finish_lpms_live_flow() {
-  echo '[v2] projecting the post-Start signed arrival, then setting priority before automatic intake placement'
+  echo '[v2] projecting the post-Start signed arrival, then explicitly requesting compatible placement after intake'
   send_signed_webhook \
     "$LPMS_LIVE_EXTERNAL_ORDER_ID" \
+    "$LPMS_LIVE_ORDER_CODE" \
     "$LPMS_LIVE_UPDATED_AT" \
     "$LPMS_DUE_AT"
   wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" intake_pending
 
   local order_identity order_version
   order_identity="$(load_order_identity \
-    "$LPMS_LIVE_EXTERNAL_ORDER_ID" \
+    "$LPMS_LIVE_ORDER_CODE" \
     intake_pending \
     "$WORK_DIR/lpms-live-orders.json")"
   IFS='|' read -r LPMS_LIVE_ORDER_ID order_version <<< "$order_identity"
@@ -1104,6 +1166,30 @@ NODE
     "$intake_request" \
     "$intake_response" \
     200
+  wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" eligible
+
+  local placement_request="$WORK_DIR/lpms-live-placement-request.json"
+  local placement_response="$WORK_DIR/lpms-live-placement-response.json"
+  write_json_file "$placement_request" '{"expectedQueueVersion":1,"idempotencyKey":"offline-smoke-live-placement-v1"}'
+  processor_request \
+    POST \
+    "/api/production/locations/${LPMS_LOCATION_ID}/runs/${LPMS_PRODUCTION_RUN_ID}/orders/${LPMS_LIVE_ORDER_ID}/place" \
+    "$placement_request" \
+    "$placement_response" \
+    200
+  EXPECTED_RUN_ID="$LPMS_PRODUCTION_RUN_ID" EXPECTED_ORDER_ID="$LPMS_LIVE_ORDER_ID" \
+    node --input-type=module - "$placement_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (
+  response.data.status !== 'placed' ||
+  response.data.mode !== 'automatic' ||
+  response.data.productionRunId !== process.env.EXPECTED_RUN_ID ||
+  response.data.productionOrderId !== process.env.EXPECTED_ORDER_ID ||
+  response.data.queueVersion !== 2 ||
+  response.data.replayed !== false
+) throw new Error('The explicit compatible-placement request did not place the live order.');
+NODE
   wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" scheduled
 
   local placed_board="$WORK_DIR/lpms-board-after-live-placement.json"
@@ -1249,7 +1335,13 @@ NODE
     select concat(
       (select count(*) from webhook_events where source = 'cents' and subject_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
       '|',
-      (select count(*) from order_demands where demand_key in ('cents:order:${LPMS_FIRST_EXTERNAL_ORDER_ID}', 'cents:order:${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
+      (select count(*)
+       from order_demands demand
+       join order_fulfillments fulfillment on fulfillment.id = demand.fulfillment_id
+       join order_source_links source_link on source_link.order_id = fulfillment.order_id
+       where source_link.source = 'cents'
+         and source_link.external_order_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')
+         and fulfillment.type_code = 'wash_fold'),
       '|',
       (select count(*) from production_orders where id in ('${LPMS_FIRST_ORDER_ID}', '${LPMS_LIVE_ORDER_ID}') and status = 'finished' and priority = true and bag_count = 1),
       '|',
@@ -1284,7 +1376,7 @@ run_migrations
 
 echo '[v2] applying the explicit synthetic facility bootstrap fixture'
 compose --profile tools run --rm --workdir /repo migrate \
-  node apps/api/dist/commands/bootstrap-production.command.js \
+  node apps/cli/dist/commands/bootstrap-production.command.js \
   --file /repo/tooling/fixtures/production-topology/production-bootstrap.json \
   --actor-id 00000000-0000-4000-8000-000000000901 \
   --idempotency-key offline-smoke-bootstrap-v1 \
@@ -1380,7 +1472,14 @@ RUNTIME_COUNTS="$(database_scalar "
   select concat(
     (select count(*) from webhook_events where source = 'cents' and subject_type = 'order' and subject_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
     '|',
-    (select count(*) from production_orders po join order_demands demand on demand.id = po.order_demand_id where demand.demand_key in ('cents:order:${LPMS_FIRST_EXTERNAL_ORDER_ID}', 'cents:order:${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
+    (select count(*)
+     from production_orders production_order
+     join order_demands demand on demand.id = production_order.order_demand_id
+     join order_fulfillments fulfillment on fulfillment.id = demand.fulfillment_id
+     join order_source_links source_link on source_link.order_id = fulfillment.order_id
+     where source_link.source = 'cents'
+       and source_link.external_order_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')
+       and fulfillment.type_code = 'wash_fold'),
     '|',
     (select count(*) from production_orders where id in ('${LPMS_FIRST_ORDER_ID}', '${LPMS_LIVE_ORDER_ID}') and status = 'finished'),
     '|',

@@ -2,8 +2,8 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type {
+  ProcessorOrderControlItem,
   ProductionBoard,
-  ProductionOrderControlItem,
   ProductionOrderRouteProposal,
 } from "@pressly/contracts"
 import { OrderControlWorkspaceContainer } from "@/features/order-control/order-control-workspace.view"
@@ -18,7 +18,7 @@ import {
 const id = (value: number) =>
   `00000000-0000-4000-8000-${value.toString().padStart(12, "0")}`
 
-const inFlightOrder: ProductionOrderControlItem = {
+const inFlightOrder: ProcessorOrderControlItem = {
   order: {
     ...structuredClone(testOrderItems[0]!),
     status: "scheduled",
@@ -42,6 +42,7 @@ const inFlightOrder: ProductionOrderControlItem = {
   routeAttempts: [],
   canMoveQueued: false,
   canRouteException: true,
+  canonical: null,
 }
 
 const exceptionProposal: ProductionOrderRouteProposal = {
@@ -173,14 +174,14 @@ describe("connected order control workspace", () => {
     const user = userEvent.setup()
     let resolveRefresh:
       | ((value: {
-          items: readonly ProductionOrderControlItem[]
+          items: readonly ProcessorOrderControlItem[]
           counts: { attention: number; active: number; all: number }
           nextCursor: null
           asOf: string
         }) => void)
       | undefined
     const refresh = new Promise<{
-      items: readonly ProductionOrderControlItem[]
+      items: readonly ProcessorOrderControlItem[]
       counts: { attention: number; active: number; all: number }
       nextCursor: null
       asOf: string
@@ -276,7 +277,7 @@ describe("connected order control workspace", () => {
   })
 
   it("labels unfinished past work as past due and completed work as finished", async () => {
-    const pastDueOrder: ProductionOrderControlItem = {
+    const pastDueOrder: ProcessorOrderControlItem = {
       order: {
         ...structuredClone(testOrderItems[0]!),
         id: id(501),
@@ -290,8 +291,9 @@ describe("connected order control workspace", () => {
       routeAttempts: [],
       canMoveQueued: false,
       canRouteException: false,
+      canonical: null,
     }
-    const finishedOrder: ProductionOrderControlItem = {
+    const finishedOrder: ProcessorOrderControlItem = {
       ...pastDueOrder,
       order: {
         ...pastDueOrder.order,
@@ -335,8 +337,8 @@ describe("connected order control workspace", () => {
     expect(within(finishedRow!).getAllByText("Finished")).not.toHaveLength(0)
   })
 
-  it("labels pre-release demand as waiting for Cents IN_PROGRESS", async () => {
-    const waitingOrder: ProductionOrderControlItem = {
+  it("labels pre-release demand as forecast only", async () => {
+    const waitingOrder: ProcessorOrderControlItem = {
       order: {
         ...structuredClone(testOrderItems[0]!),
         status: "release_pending",
@@ -350,6 +352,7 @@ describe("connected order control workspace", () => {
       routeAttempts: [],
       canMoveQueued: false,
       canRouteException: false,
+      canonical: null,
     }
     const production = makeTestProductionPort({
       listOrderControl: async () => ({
@@ -379,11 +382,79 @@ describe("connected order control workspace", () => {
     ).closest("tr")
     expect(waitingRow).not.toBeNull()
     expect(
-      within(waitingRow!).getByText("Waiting for Cents IN_PROGRESS")
+      within(waitingRow!).getByText("Customer unavailable")
     ).toBeInTheDocument()
+    expect(within(waitingRow!).getByText("Forecast only")).toBeInTheDocument()
     expect(
-      screen.getByRole("option", { name: "Waiting for Cents IN_PROGRESS" })
+      screen.getByRole("option", { name: "Forecast only" })
     ).toBeInTheDocument()
+  })
+
+  it("shows canonical customer and source-versus-floor context without exposing source-specific primary state", async () => {
+    const user = userEvent.setup()
+    const composedOrder: ProcessorOrderControlItem = {
+      ...inFlightOrder,
+      attention: {
+        reason: "source_comparison_required",
+        message: "Commercial complete; floor work remains.",
+      },
+      canonical: {
+        canonicalOrderId: id(601),
+        canonicalFulfillmentId: id(602),
+        displayNumber: "P-1001",
+        customer: {
+          resolution: "resolved",
+          userId: id(603),
+          firstName: "Ada",
+          lastName: "Rivera",
+          businessName: null,
+          phone: "+12015550101",
+        },
+        commercialState: "completed",
+        admissionState: "released",
+        source: { name: "cents", status: "COMPLETED" },
+        comparison: "source_ahead",
+      },
+    }
+    const production = makeTestProductionPort({
+      listOrderControl: async () => ({
+        items: [composedOrder],
+        counts: { attention: 1, active: 1, all: 1 },
+        nextCursor: null,
+        asOf: "2026-08-01T15:00:00.000Z",
+      }),
+    })
+
+    render(
+      <OrderControlWorkspaceContainer
+        production={production}
+        idempotency={testIdempotency}
+        locationId={testLocation.id}
+        timezone={testLocation.timezone}
+        board={testBoard}
+        revision="2026-08-01T15:00:00.000Z"
+        onMutated={async () => undefined}
+      />
+    )
+
+    const row = (
+      await screen.findByRole("button", { name: "Order P-1001" })
+    ).closest("tr")
+    expect(row).not.toBeNull()
+    expect(within(row!).getByText("Ada Rivera")).toBeInTheDocument()
+    expect(
+      within(row!).getByText("Systems need confirmation")
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Order P-1001" }))
+    expect(
+      screen.getByRole("heading", { name: "Customer and order" })
+    ).toBeInTheDocument()
+    expect(screen.getByText("+12015550101")).toBeInTheDocument()
+    expect(
+      screen.getByText("Commercial complete; floor unfinished")
+    ).toBeInTheDocument()
+    expect(screen.getByText("cents · COMPLETED")).toBeInTheDocument()
   })
 
   it("loads the order's own run before offering cross-workspace move targets", async () => {
@@ -391,7 +462,7 @@ describe("connected order control workspace", () => {
     const sourceRunId = id(401)
     const sourceBatchId = id(402)
     const targetBatchId = id(403)
-    const queuedOrder: ProductionOrderControlItem = {
+    const queuedOrder: ProcessorOrderControlItem = {
       order: {
         ...structuredClone(testOrderItems[1]!),
         status: "scheduled",
@@ -415,6 +486,7 @@ describe("connected order control workspace", () => {
       routeAttempts: [],
       canMoveQueued: true,
       canRouteException: false,
+      canonical: null,
     }
     const sourceBatch = {
       ...structuredClone(testBoard.batches[0]!),

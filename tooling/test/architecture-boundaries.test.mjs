@@ -36,6 +36,18 @@ const readFiles = (directory) =>
     return entry.isDirectory() ? readFiles(entryPath) : [entryPath];
   });
 
+const importSpecifiers = (source) => [
+  ...[...source.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map(
+    (match) => match[1],
+  ),
+  ...[...source.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm)].map(
+    (match) => match[1],
+  ),
+];
+
+const relativeImportTarget = (filePath, specifier) =>
+  path.resolve(path.dirname(filePath), specifier).replace(/\.js$/, '.ts');
+
 const businessSourceRoots = (() => {
   const groupRoot = path.join(repoRoot, 'modules', 'business');
 
@@ -279,6 +291,105 @@ describe('module architecture boundaries', () => {
     });
 
     expect(violations).toEqual([]);
+  });
+
+  it('keeps Users and Orders as isolated peer modules', async () => {
+    await expectRejectedBy(
+      'modules/business/users/src/observe-user/observe-user.usecase.ts',
+      `import type { OrdersApplication } from '@pressly/orders'; export type Leak = OrdersApplication;`,
+      'architecture/module-isolation',
+    );
+    await expectRejectedBy(
+      'modules/business/orders/src/observe-order/observe-order.usecase.ts',
+      `import type { UsersApplication } from '@pressly/users'; export type Leak = UsersApplication;`,
+      'architecture/module-isolation',
+    );
+  });
+
+  it('keeps Users and Orders persistence capability-shaped', () => {
+    const sources = [
+      path.join(repoRoot, 'modules/business/users/src'),
+      path.join(repoRoot, 'modules/business/orders/src'),
+    ].flatMap((sourceRoot) =>
+      readFiles(sourceRoot).map((filePath) => ({
+        filePath,
+        source: readFileSync(filePath, 'utf8'),
+      })),
+    );
+    const moduleWideRepositories = sources.flatMap(({ filePath, source }) =>
+      /\b(?:UsersRepository|OrdersRepository|UserMutationRepository|UserMutationOperations|OrderOutboxRepository)\b/.test(
+        source,
+      )
+        ? [path.relative(repoRoot, filePath)]
+        : [],
+    );
+
+    expect(moduleWideRepositories).toEqual([]);
+    expect(
+      existsSync(
+        path.join(
+          repoRoot,
+          'modules/business/users/src/persistence/postgres-users.ts',
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      existsSync(
+        path.join(
+          repoRoot,
+          'modules/business/orders/src/persistence/postgres-orders.ts',
+        ),
+      ),
+    ).toBe(false);
+    for (const legacyAdapter of [
+      'modules/business/users/src/user-mutations/user-mutations.repo.ts',
+      'modules/business/users/src/user-mutations/user-mutations.port.ts',
+      'modules/business/orders/src/order-mutations/order-mutations.repo.ts',
+      'modules/business/orders/src/order-mutations/order-mutations.port.ts',
+      'modules/business/orders/src/order-outbox/order-outbox.repo.ts',
+      'modules/business/orders/src/order-outbox/order-outbox.port.ts',
+    ])
+      expect(existsSync(path.join(repoRoot, legacyAdapter))).toBe(false);
+  });
+
+  it('keeps the versioned Order integration event owned by contracts', () => {
+    const contract = readFileSync(
+      path.join(
+        repoRoot,
+        'packages/contracts/src/orders/fulfillment-demand-event.contracts.ts',
+      ),
+      'utf8',
+    );
+    const worker = readFileSync(
+      path.join(
+        repoRoot,
+        'apps/worker/src/jobs/project-fulfillment-demand/fulfillment-demand.job.ts',
+      ),
+      'utf8',
+    );
+
+    expect(contract).toContain('schemaVersion: z.literal(1)');
+    expect(worker).toContain(
+      "import type { FulfillmentDemandChangedEvent } from '@pressly/contracts'",
+    );
+    expect(worker).not.toMatch(/\bz\.object\s*\(/);
+  });
+
+  it('keeps canonical mutations scoped and success-enveloped', () => {
+    const routes = [
+      'apps/api/src/http/order-management/users/user-command.route.ts',
+      'apps/api/src/http/order-management/orders/order-command.route.ts',
+      'apps/api/src/http/order-management/orders/fulfillment-release.route.ts',
+    ]
+      .map((filePath) => readFileSync(path.join(repoRoot, filePath), 'utf8'))
+      .join('\n');
+
+    expect(routes).toContain("'/order-management/users'");
+    expect(routes).toContain(
+      "'/order-management/locations/:locationId/orders/:orderId'",
+    );
+    expect(routes).toContain("locationId: request.params['locationId']");
+    expect(routes.match(/apiSuccess\(/g)?.length).toBe(5);
   });
 
   it('includes every module manifest in cached API and Worker Docker installs', () => {
@@ -788,5 +899,172 @@ describe('processor architecture boundaries', () => {
       'export const value = 1;',
       'no-restricted-syntax',
     );
+  });
+
+  it('separates Order Control read composition, presentation, orchestration, and view', () => {
+    const readModel = readFileSync(
+      path.join(
+        repoRoot,
+        'apps/api/src/http/processor/order-control/order-control.query.ts',
+      ),
+      'utf8',
+    );
+    const presenter = readFileSync(
+      path.join(
+        repoRoot,
+        'apps/processor/src/features/order-control/order-control.presenter.ts',
+      ),
+      'utf8',
+    );
+    const workspaceView = readFileSync(
+      path.join(
+        repoRoot,
+        'apps/processor/src/features/order-control/order-control-workspace.view.tsx',
+      ),
+      'utf8',
+    );
+
+    expect(readModel).toContain('sourceLifecycleCode');
+    expect(readModel).toContain('projectSourceComparison');
+    expect(readModel).not.toContain('normalizedPayload');
+    expect(readModel).not.toContain('Reflect.get');
+    expect(presenter).not.toMatch(/from ["']react["']/);
+    expect(workspaceView).toContain('useOrderControlWorkspaceModel');
+    expect(workspaceView).not.toMatch(
+      /\b(?:useState|useEffect|useMemo|useCallback|useRef)\b/,
+    );
+    expect(workspaceView.split('\n').length).toBeLessThan(40);
+  });
+});
+
+describe('API and Worker runtime boundaries', () => {
+  it('removes the legacy catch-all application directories', () => {
+    for (const legacyRoot of [
+      'apps/api/src/common',
+      'apps/api/src/routes',
+      'apps/api/src/read-models',
+      'apps/api/src/vendors',
+      'apps/api/src/commands',
+      'apps/worker/src/common',
+      'apps/worker/src/lpms',
+      'apps/worker/src/order-outbox',
+      'apps/worker/src/vendors',
+    ]) {
+      const legacyPath = path.join(repoRoot, legacyRoot);
+      expect(
+        existsSync(legacyPath) ? readFiles(legacyPath) : [],
+        legacyRoot,
+      ).toEqual([]);
+    }
+
+    expect(
+      existsSync(
+        path.join(
+          repoRoot,
+          'apps/cli/src/commands/bootstrap-production.command.ts',
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps application entrypoints limited to bootstrap and runtime setup', () => {
+    const allowed = {
+      api: (specifier) =>
+        specifier.startsWith('./bootstrap/') ||
+        specifier.startsWith('./runtime/'),
+      worker: (specifier) =>
+        specifier === '@pressly/logging' ||
+        specifier.startsWith('./bootstrap/') ||
+        specifier.startsWith('./runtime/'),
+    };
+
+    for (const [application, accepts] of Object.entries(allowed)) {
+      const filePath = path.join(
+        repoRoot,
+        'apps',
+        application,
+        'src',
+        'main.ts',
+      );
+      const imports = importSpecifiers(readFileSync(filePath, 'utf8'));
+      expect(imports.filter((specifier) => !accepts(specifier))).toEqual([]);
+    }
+  });
+
+  it('keeps runtime mechanics independent from HTTP, jobs, and business modules', () => {
+    const violations = ['api', 'worker'].flatMap((application) => {
+      const runtimeRoot = path.join(
+        repoRoot,
+        'apps',
+        application,
+        'src',
+        'runtime',
+      );
+
+      return readFiles(runtimeRoot).flatMap((filePath) =>
+        importSpecifiers(readFileSync(filePath, 'utf8')).flatMap(
+          (specifier) => {
+            const relativeTarget = specifier.startsWith('.')
+              ? relativeImportTarget(filePath, specifier)
+              : null;
+            const crossesApplicationZone =
+              relativeTarget !== null &&
+              ['/http/', '/jobs/', '/bootstrap/'].some((segment) =>
+                relativeTarget.includes(segment),
+              );
+            const importsBusinessModule = modulePackageNames.has(specifier);
+
+            return crossesApplicationZone || importsBusinessModule
+              ? [`${path.relative(repoRoot, filePath)} -> ${specifier}`]
+              : [];
+          },
+        ),
+      );
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps API HTTP capabilities and Worker jobs peer-independent', () => {
+    const apiHttpRoot = path.join(repoRoot, 'apps/api/src/http');
+    const apiViolations = readFiles(apiHttpRoot).flatMap((filePath) => {
+      const sourceRelative = path.relative(apiHttpRoot, filePath);
+      const sourceCapability = sourceRelative.split(path.sep)[0];
+
+      return importSpecifiers(readFileSync(filePath, 'utf8')).flatMap(
+        (specifier) => {
+          if (!specifier.startsWith('.')) return [];
+          const target = relativeImportTarget(filePath, specifier);
+          const targetRelative = path.relative(apiHttpRoot, target);
+          if (targetRelative.startsWith(`..${path.sep}`)) return [];
+          const targetCapability = targetRelative.split(path.sep)[0];
+          return targetCapability !== sourceCapability
+            ? [`${sourceRelative} -> ${specifier}`]
+            : [];
+        },
+      );
+    });
+
+    const workerJobsRoot = path.join(repoRoot, 'apps/worker/src/jobs');
+    const workerViolations = readFiles(workerJobsRoot).flatMap((filePath) => {
+      const sourceRelative = path.relative(workerJobsRoot, filePath);
+      const sourceJob = sourceRelative.split(path.sep)[0];
+
+      return importSpecifiers(readFileSync(filePath, 'utf8')).flatMap(
+        (specifier) => {
+          if (!specifier.startsWith('.')) return [];
+          const target = relativeImportTarget(filePath, specifier);
+          const targetRelative = path.relative(workerJobsRoot, target);
+          if (targetRelative.startsWith(`..${path.sep}`)) return [];
+          const targetJob = targetRelative.split(path.sep)[0];
+          return targetJob !== sourceJob
+            ? [`${sourceRelative} -> ${specifier}`]
+            : [];
+        },
+      );
+    });
+
+    expect(apiViolations).toEqual([]);
+    expect(workerViolations).toEqual([]);
   });
 });

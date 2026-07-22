@@ -15,9 +15,12 @@ COPY apps/processor/package.json apps/processor/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
 COPY modules/business/auth/package.json modules/business/auth/package.json
+COPY modules/business/orders/package.json modules/business/orders/package.json
 COPY modules/business/pricing/package.json modules/business/pricing/package.json
 COPY modules/business/production/package.json modules/business/production/package.json
+COPY modules/business/users/package.json modules/business/users/package.json
 COPY modules/business/webhook-ingestion/package.json modules/business/webhook-ingestion/package.json
+COPY modules/computation/order-control/package.json modules/computation/order-control/package.json
 COPY modules/computation/scheduling/package.json modules/computation/scheduling/package.json
 COPY modules/policy/access-control/package.json modules/policy/access-control/package.json
 COPY modules/policy/production/package.json modules/policy/production/package.json
@@ -48,5 +51,5 @@ RUN rm -rf /pnpm/store \
     && adduser -S -D -H -u 1001 -G pressly pressly
 USER pressly
 STOPSIGNAL SIGTERM
-HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 CMD ["node", "apps/worker/dist/healthcheck.js"]
-CMD ["node", "apps/worker/dist/index.js"]
+HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 CMD ["node", "apps/worker/dist/runtime/healthcheck.js"]
+CMD ["node", "apps/worker/dist/main.js"]

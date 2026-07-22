@@ -53,7 +53,9 @@ const restrictedFileNameRule = (message) => ({
 
 const moduleFoundationTargets = new Map([
   ['business/auth', new Set(['http', 'persistence'])],
+  ['business/orders', new Set(['persistence'])],
   ['business/production', new Set(['http', 'persistence'])],
+  ['business/users', new Set(['persistence'])],
   ['computation/scheduling', new Set(['fixed-pulse'])],
   ['policy/access-control', new Set(['identity'])],
 ]);

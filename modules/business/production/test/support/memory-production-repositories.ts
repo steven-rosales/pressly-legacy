@@ -29,10 +29,10 @@ import type {
   WorkEventInput,
 } from '../../src/production.port.ts';
 import type {
-  ApplyOrderDemandCommand,
-  DemandProductionMutation,
-  StoredOrderDemand,
-} from '../../src/apply-order-demand/apply-order-demand.port.ts';
+  ApplyFulfillmentDemandCommand,
+  FulfillmentProductionMutation,
+  StoredFulfillmentDemand,
+} from '../../src/apply-fulfillment-demand/apply-fulfillment-demand.port.ts';
 import { productionDueBucket } from '../../src/persistence/production-due-bucket.policy.ts';
 import { scheduleCoversInputExactly } from '../../src/persistence/schedule-snapshot-validation.ts';
 
@@ -83,7 +83,7 @@ type StoredBatch = Omit<ProductionBatch, 'orders' | 'stages'> & {
 };
 
 type State = {
-  demands: Map<string, StoredOrderDemand>;
+  demands: Map<string, StoredFulfillmentDemand>;
   orders: Map<string, StoredOrder>;
   configs: Map<
     string,
@@ -179,7 +179,7 @@ type MemoryProductionOperations = OperationsOf<'acceptSchedule'> &
   }> &
   OperationsOf<'manageProductionResources'> &
   OperationsOf<'manageProductionShift'> &
-  OperationsOf<'applyOrderDemand'> &
+  OperationsOf<'applyFulfillmentDemand'> &
   OperationsOf<'publishSchedulerConfig'> &
   OperationsOf<'recordOrderIntake'> &
   OperationsOf<'replaceShiftOrderSelection'> &
@@ -216,10 +216,10 @@ export const makeMemoryProductionRepositories = (deps: {
 
     locationIsActive: async (locationId) => locationId === 'location-1',
 
-    lockDemand: async () => undefined,
+    lockFulfillment: async () => undefined,
 
-    loadDemand: async (demandKey) => {
-      const demand = state.demands.get(demandKey);
+    loadDemand: async (fulfillmentId) => {
+      const demand = state.demands.get(fulfillmentId);
       if (demand === undefined) return null;
 
       const productionOrder =
@@ -241,13 +241,13 @@ export const makeMemoryProductionRepositories = (deps: {
       effectiveBagCount,
       now,
     }: {
-      command: ApplyOrderDemandCommand;
+      command: ApplyFulfillmentDemandCommand;
       orderDemandId: string;
-      production: DemandProductionMutation;
+      production: FulfillmentProductionMutation;
       effectiveBagCount: number | null;
       now: Date;
     }) => {
-      const stored = state.demands.get(command.demandKey);
+      const stored = state.demands.get(command.fulfillmentId);
       let productionOrderId = stored?.productionOrderId ?? null;
       const previous =
         productionOrderId === null
@@ -273,7 +273,7 @@ export const makeMemoryProductionRepositories = (deps: {
           id: productionOrderId,
           locationId: command.locationId,
           orderDemandId,
-          externalOrderId: command.displayReference,
+          externalOrderId: command.displayReference ?? command.fulfillmentId,
           dueAt: command.dueAt,
           dueBucket: bucket(command.dueAt, now),
           priority: previous?.priority ?? false,
@@ -298,14 +298,15 @@ export const makeMemoryProductionRepositories = (deps: {
           );
       }
 
-      const demand: StoredOrderDemand = {
+      const demand: StoredFulfillmentDemand = {
         orderDemandId,
         productionOrderId,
+        fulfillmentId: command.fulfillmentId,
+        fulfillmentVersion: command.fulfillmentVersion,
+        projectionHash: command.projectionHash,
         locationId: command.locationId,
-        revisionAt: command.revisionAt,
-        revisionHash: command.revisionHash,
-        phase: command.phase,
-        sourceStatusCode: command.sourceStatusCode,
+        admissionState: command.admissionState,
+        commercialState: command.commercialState,
         estimatedWeightLbs: command.estimatedWeightLbs,
         estimatedWeightSource: command.estimatedWeightSource,
         bagCount:
@@ -317,7 +318,7 @@ export const makeMemoryProductionRepositories = (deps: {
             ? null
             : (state.orders.get(productionOrderId)?.status ?? null),
       };
-      state.demands.set(command.demandKey, demand);
+      state.demands.set(command.fulfillmentId, demand);
       return clone(demand);
     },
 
@@ -355,7 +356,12 @@ export const makeMemoryProductionRepositories = (deps: {
             productionVersion: order.version,
             intakeVersion: state.intakeVersions.get(orderId) ?? 0,
             derivedWeightLbs: order.derivedWeightLbs,
-            demandPhase: demand?.phase ?? 'production_released',
+            demandPhase:
+              demand?.admissionState === 'withdrawn'
+                ? 'withdrawn'
+                : demand?.admissionState === 'unreleased'
+                  ? 'expected'
+                  : 'production_released',
           };
     },
 
@@ -1414,8 +1420,8 @@ export const makeMemoryProductionRepositories = (deps: {
   const repositories: ProductionRepositories = {
     acceptSchedule:
       transactional<OperationsOf<'acceptSchedule'>>(allOperations),
-    applyOrderDemand:
-      transactional<OperationsOf<'applyOrderDemand'>>(allOperations),
+    applyFulfillmentDemand:
+      transactional<OperationsOf<'applyFulfillmentDemand'>>(allOperations),
     advanceProductionStage:
       transactional<OperationsOf<'advanceProductionStage'>>(allOperations),
     assignStageMachines:

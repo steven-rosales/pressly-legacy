@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   ProductionChange,
   ProductionChangeFeed,
-} from '../../src/common/live/production-change-feed.ts';
-import { makeProductionChangeRoutes } from '../../src/routes/production-change.routes.ts';
+} from '../../src/http/production/live/postgres-production-change-feed.adapter.ts';
+import { makeProductionChangeRoutes } from '../../src/http/production/live/production-change.route.ts';
 
 const servers: Server[] = [];
 

@@ -54,6 +54,10 @@ describe('access-control module composition', () => {
       enroll: expect.any(Function),
       manage: expect.any(Function),
     });
+    expect(module.orderManagement).toEqual({
+      writeUsers: expect.any(Function),
+      writeOrders: expect.any(Function),
+    });
     expect(module.production).toEqual({
       authenticate: expect.any(Function),
       read: expect.any(Function),

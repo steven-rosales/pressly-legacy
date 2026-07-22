@@ -46,14 +46,15 @@ const createAcceptedSchedule = async (
   application: ReturnType<typeof setup>['application'],
   productionShiftId: string,
 ) => {
-  const demand = await application.applyOrderDemand({
-    demandKey: `test:shift-update:${productionShiftId}`,
+  const demand = await application.applyFulfillmentDemand({
+    fulfillmentId: `fulfillment:shift-update:${productionShiftId}`,
+    fulfillmentVersion: 1,
     displayReference: 'shift-update-order',
     locationId,
-    revisionAt: '2026-07-15T11:59:00.000Z',
-    revisionHash: 'a'.repeat(64),
-    phase: 'production_released',
-    sourceStatusCode: 'IN_PROGRESS',
+    observedAt: '2026-07-15T11:59:00.000Z',
+    projectionHash: 'a'.repeat(64),
+    admissionState: 'released',
+    commercialState: 'open',
     dueAt: '2026-07-15T20:00:00.000Z',
     estimatedWeightLbs: 40,
     estimatedWeightSource: 'external_estimate',

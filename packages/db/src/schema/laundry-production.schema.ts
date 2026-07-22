@@ -16,6 +16,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { orderFulfillments } from './orders.schema.ts';
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true })
@@ -50,6 +51,13 @@ export const orderDemands = pgTable(
   'order_demands',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    fulfillmentId: uuid('fulfillment_id')
+      .notNull()
+      .references(() => orderFulfillments.id),
+    fulfillmentVersion: integer('fulfillment_version').notNull(),
+    projectionHash: text('projection_hash').notNull(),
+    admissionState: text('admission_state').notNull(),
+    commercialState: text('commercial_state').notNull(),
     demandKey: text('demand_key').notNull(),
     displayReference: text('display_reference').notNull(),
     locationId: text('location_id')
@@ -67,12 +75,29 @@ export const orderDemands = pgTable(
     ...timestamps,
   },
   (table) => [
+    uniqueIndex('order_demands_fulfillment_unique').on(table.fulfillmentId),
     uniqueIndex('order_demands_demand_key_unique').on(table.demandKey),
     uniqueIndex('order_demands_id_location_unique').on(
       table.id,
       table.locationId,
     ),
     index('order_demands_location_phase_idx').on(table.locationId, table.phase),
+    check(
+      'order_demands_fulfillment_version_positive',
+      sql`${table.fulfillmentVersion} > 0`,
+    ),
+    check(
+      'order_demands_projection_hash_shape',
+      sql`${table.projectionHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'order_demands_admission_state_valid',
+      sql`${table.admissionState} in ('unreleased', 'released', 'withdrawn')`,
+    ),
+    check(
+      'order_demands_commercial_state_valid',
+      sql`${table.commercialState} in ('open', 'completed', 'canceled')`,
+    ),
     check(
       'order_demands_phase_valid',
       sql`${table.phase} in ('expected', 'inbound', 'production_released', 'post_production', 'withdrawn')`,

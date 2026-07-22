@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   makePostgresProductionChangeFeed,
   parseProductionChangeNotification,
-} from '../../src/common/live/production-change-feed.ts';
+} from '../../src/http/production/live/postgres-production-change-feed.adapter.ts';
 
 describe('production change feed', () => {
   it('accepts only bounded internal notification shapes', () => {

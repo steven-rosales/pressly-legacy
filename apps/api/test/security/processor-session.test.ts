@@ -11,7 +11,7 @@ import {
   deriveProcessorCsrfToken,
   makeProcessorBrowserBoundary,
   processorCookieNames,
-} from '../../src/common/security/processor-session.ts';
+} from '../../src/http/processor/session/processor-session.boundary.ts';
 
 const origin = 'http://processor.test';
 const csrfSecret = 'test-processor-csrf-secret-at-least-32-bytes';

@@ -1,0 +1,34 @@
+{
+  "name": "@pressly/users",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "vitest run --exclude 'test/**/*.int.test.ts'",
+    "test:integration": "vitest run test/users.repo.int.test.ts --no-file-parallelism",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pressly/db": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/kernel": "workspace:*"
+  },
+  "devDependencies": {
+    "@pressly/testkit": "workspace:*",
+    "@pressly/tsconfig": "workspace:*",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.5"
+  }
+}

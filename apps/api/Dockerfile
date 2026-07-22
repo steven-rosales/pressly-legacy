@@ -15,6 +15,8 @@ COPY apps/cli/package.json apps/cli/package.json
 COPY apps/processor/package.json apps/processor/package.json
 COPY modules/policy/access-control/package.json modules/policy/access-control/package.json
 COPY modules/business/auth/package.json modules/business/auth/package.json
+COPY modules/business/orders/package.json modules/business/orders/package.json
+COPY modules/business/users/package.json modules/business/users/package.json
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
@@ -23,6 +25,7 @@ COPY modules/business/pricing/package.json modules/business/pricing/package.json
 COPY modules/business/production/package.json modules/business/production/package.json
 COPY modules/business/webhook-ingestion/package.json modules/business/webhook-ingestion/package.json
 COPY modules/policy/production/package.json modules/policy/production/package.json
+COPY modules/computation/order-control/package.json modules/computation/order-control/package.json
 COPY modules/computation/scheduling/package.json modules/computation/scheduling/package.json
 COPY packages/auth/package.json packages/auth/package.json
 COPY packages/config/package.json packages/config/package.json
@@ -52,7 +55,7 @@ FROM deps AS builder
 
 COPY . .
 
-RUN pnpm turbo build --filter=@pressly/api...
+RUN pnpm turbo build --filter=@pressly/api... --filter=@pressly/cli...
 
 FROM builder AS runner
 
@@ -66,4 +69,4 @@ USER pressly
 
 EXPOSE 4000
 
-CMD ["node", "apps/api/dist/index.js"]
+CMD ["node", "apps/api/dist/main.js"]

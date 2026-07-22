@@ -7,6 +7,7 @@ import {
   IconPackageExport,
   IconRefresh,
   IconStack2,
+  IconUser,
 } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -428,6 +429,38 @@ function OrderOverview({
               <AlertDescription>{order.attention.detail}</AlertDescription>
             </Alert>
           )}
+
+          <section aria-labelledby="order-customer-heading">
+            <div className="flex items-center gap-2">
+              <IconUser className="size-4 text-muted-foreground" />
+              <h3 id="order-customer-heading" className="text-sm font-medium">
+                {t("orderControl.customerAndOrder")}
+              </h3>
+            </div>
+            <dl className="mt-2 grid grid-cols-2 gap-2">
+              <Fact
+                label={t("orderControl.customer")}
+                value={order.customerLabel}
+              />
+              <Fact label={t("orderControl.phone")} value={order.phoneLabel} />
+              <Fact
+                label={t("orderControl.commercialState")}
+                value={order.commercialStateLabel}
+              />
+              <Fact
+                label={t("orderControl.productionAdmission")}
+                value={order.admissionStateLabel}
+              />
+              <Fact
+                label={t("orderControl.sourceState")}
+                value={order.sourceStateLabel}
+              />
+              <Fact
+                label={t("orderControl.systemComparison")}
+                value={order.comparisonLabel}
+              />
+            </dl>
+          </section>
 
           <section aria-labelledby="order-position-heading">
             <div className="flex items-center gap-2">

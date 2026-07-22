@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CounterSink, ErrorReporter } from '@pressly/metrics';
-import { makeSecurityEventSink } from '../../src/common/logging/security-events.ts';
+import { makeSecurityEventSink } from '../../src/runtime/security/security-events.ts';
 
 const makeAlerts = () => {
   const capture = vi.fn();

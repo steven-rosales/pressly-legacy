@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeCentsWebhookPayloadCipher } from '../../src/vendors/cents/cents-webhook.quarantine.ts';
+import { makeCentsWebhookPayloadCipher } from '../../src/http/webhooks/cents/cents-webhook.quarantine.ts';
 
 const key = Buffer.alloc(32, 7).toString('base64');
 

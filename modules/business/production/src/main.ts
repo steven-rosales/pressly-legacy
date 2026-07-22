@@ -2,9 +2,9 @@ import { makeAcceptSchedule } from './accept-schedule/accept-schedule.usecase.ts
 import { makeAcceptScheduleRoute } from './accept-schedule/accept-schedule.route.ts';
 import { makeAcceptScheduleRepository } from './accept-schedule/accept-schedule.repo.ts';
 import type { AcceptScheduleRepository } from './accept-schedule/accept-schedule.port.ts';
-import { makeApplyOrderDemandRepository } from './apply-order-demand/apply-order-demand.repo.ts';
-import { makeApplyOrderDemand } from './apply-order-demand/apply-order-demand.usecase.ts';
-import type { ApplyOrderDemandRepository } from './apply-order-demand/apply-order-demand.port.ts';
+import { makeApplyFulfillmentDemandRepository } from './apply-fulfillment-demand/apply-fulfillment-demand.repo.ts';
+import { makeApplyFulfillmentDemand } from './apply-fulfillment-demand/apply-fulfillment-demand.usecase.ts';
+import type { ApplyFulfillmentDemandRepository } from './apply-fulfillment-demand/apply-fulfillment-demand.port.ts';
 import { makeAdvanceProductionStage } from './advance-production-stage/advance-production-stage.usecase.ts';
 import { makeAdvanceProductionStageRoute } from './advance-production-stage/advance-production-stage.route.ts';
 import { makeAdvanceProductionStageRepository } from './advance-production-stage/advance-production-stage.repo.ts';
@@ -108,7 +108,7 @@ import type { ProductionOrderPlacementResult } from '@pressly/contracts';
 
 export type ProductionRepositories = Readonly<{
   acceptSchedule: AcceptScheduleRepository;
-  applyOrderDemand: ApplyOrderDemandRepository;
+  applyFulfillmentDemand: ApplyFulfillmentDemandRepository;
   advanceProductionStage: AdvanceProductionStageRepository;
   assignStageMachines: AssignStageMachinesRepository;
   createSchedule: CreateScheduleRepository;
@@ -221,8 +221,8 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
     signals,
   });
   return {
-    applyOrderDemand: makeApplyOrderDemand({
-      repo: deps.repositories.applyOrderDemand,
+    applyFulfillmentDemand: makeApplyFulfillmentDemand({
+      repo: deps.repositories.applyFulfillmentDemand,
       policy: deps.policy,
       clock: deps.clock,
       ids: deps.ids,
@@ -532,7 +532,7 @@ export const makePostgresProductionApplication = (
     ...deps,
     repositories: {
       acceptSchedule: makeAcceptScheduleRepository(deps),
-      applyOrderDemand: makeApplyOrderDemandRepository(deps),
+      applyFulfillmentDemand: makeApplyFulfillmentDemandRepository(deps),
       advanceProductionStage: makeAdvanceProductionStageRepository(deps),
       assignStageMachines: makeAssignStageMachinesRepository(deps),
       createSchedule: makeCreateScheduleRepository(deps),
