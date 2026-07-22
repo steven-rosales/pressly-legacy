@@ -46,7 +46,21 @@ RUN pnpm turbo build --filter=@pressly/worker...
 
 FROM builder AS runner
 ENV NODE_ENV=production
-RUN rm -rf /pnpm/store \
+# Production executes Node directly. Package managers and their caches are
+# build-only payloads, so keep them out of the runtime attack surface.
+RUN rm -rf \
+    /pnpm \
+    /root/.cache/node/corepack \
+    /usr/local/lib/node_modules/corepack \
+    /usr/local/lib/node_modules/npm \
+    /usr/local/bin/corepack \
+    /usr/local/bin/npm \
+    /usr/local/bin/npx \
+    /usr/local/bin/pnpm \
+    /usr/local/bin/pnpx \
+    /usr/local/bin/yarn \
+    /usr/local/bin/yarnpkg \
+    /opt/yarn-v1.22.22 \
     && addgroup -S -g 1001 pressly \
     && adduser -S -D -H -u 1001 -G pressly pressly
 USER pressly
