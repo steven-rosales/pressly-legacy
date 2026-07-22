@@ -4,6 +4,17 @@ import { describe, expect, it } from 'vitest';
 
 const workflowPath = new URL('../../.github/workflows/ci.yml', import.meta.url);
 const workflowSource = await readFile(workflowPath, 'utf8');
+const nodeRuntimeDockerfiles = Object.fromEntries(
+  await Promise.all(
+    ['api', 'web', 'worker'].map(async (application) => [
+      application,
+      await readFile(
+        new URL(`../../apps/${application}/Dockerfile`, import.meta.url),
+        'utf8',
+      ),
+    ]),
+  ),
+);
 const processorDockerfile = await readFile(
   new URL('../../apps/processor/Dockerfile', import.meta.url),
   'utf8',
@@ -43,6 +54,13 @@ const step = (name) => {
 
 const stepIndex = (name) =>
   productionSteps.findIndex((candidate) => candidate.name === name);
+
+const runtimeStage = (dockerfile) => {
+  const runnerMarker = dockerfile.lastIndexOf(' AS runner');
+  if (runnerMarker === -1) throw new Error('Dockerfile has no runner stage.');
+  const stageStart = dockerfile.lastIndexOf('\nFROM ', runnerMarker);
+  return dockerfile.slice(stageStart + 1);
+};
 
 describe('four-image CI release', () => {
   it('keeps branch CI build-only for all four application images', () => {
@@ -153,6 +171,41 @@ describe('four-image CI release', () => {
     );
     expect(processorDockerfile).not.toMatch(/ARG SENTRY_AUTH_TOKEN/);
     expect(processorDockerfile).not.toMatch(/ENV SENTRY_AUTH_TOKEN/);
+  });
+
+  it('keeps build-only package managers out of every Node runtime image', () => {
+    const removedRuntimePaths = [
+      '/pnpm',
+      '/root/.cache/node/corepack',
+      '/usr/local/lib/node_modules/corepack',
+      '/usr/local/lib/node_modules/npm',
+      '/usr/local/bin/corepack',
+      '/usr/local/bin/npm',
+      '/usr/local/bin/npx',
+      '/usr/local/bin/pnpm',
+      '/usr/local/bin/pnpx',
+      '/usr/local/bin/yarn',
+      '/usr/local/bin/yarnpkg',
+      '/opt/yarn-v1.22.22',
+    ];
+
+    for (const [application, dockerfile] of Object.entries(
+      nodeRuntimeDockerfiles,
+    )) {
+      const runner = runtimeStage(dockerfile);
+      const cleanupStart = runner.indexOf('RUN rm -rf');
+      const userStart = runner.indexOf('\nUSER ');
+      expect(
+        cleanupStart,
+        `${application} runtime cleanup`,
+      ).toBeGreaterThanOrEqual(0);
+      expect(userStart, `${application} non-root user`).toBeGreaterThan(
+        cleanupStart,
+      );
+      const cleanup = runner.slice(cleanupStart, userStart);
+      for (const path of removedRuntimePaths)
+        expect(cleanup, `${application} removes ${path}`).toContain(path);
+    }
   });
 
   it('generates four SBOMs and blocks every critical scan before publishing', () => {
