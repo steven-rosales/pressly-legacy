@@ -86,6 +86,7 @@ export const makeClaimWebhookEventsRepository = (
           subjectId: event.subjectId,
           sourceLocationId: event.sourceLocationId,
           sourceOccurredAt: event.sourceOccurredAt?.toISOString() ?? null,
+          receivedAt: event.receivedAt.toISOString(),
           payload: event.payload,
           payloadHash: event.payloadHash,
           recoveredLease,

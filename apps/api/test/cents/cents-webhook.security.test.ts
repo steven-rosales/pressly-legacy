@@ -9,7 +9,7 @@ import {
   makeCentsWebhookHmacVerifier,
   rejectUnverifiedCentsWebhook,
   type CentsWebhookVerifier,
-} from '../../src/vendors/cents/cents-webhook.security.ts';
+} from '../../src/http/webhooks/cents/cents-webhook.verifier.ts';
 
 const now = new Date('2026-07-12T16:00:00.000Z');
 const nowSeconds = Math.floor(now.getTime() / 1_000);

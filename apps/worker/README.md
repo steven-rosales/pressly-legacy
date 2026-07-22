@@ -2,8 +2,20 @@
 
 The Worker runs LPMS eventual work. It claims source-neutral inbox rows through
 the webhook-ingestion module, dispatches them by `source:subjectType`, and
-invokes injected downstream capabilities. The initial `cents:order` consumer
-translates Cents data into Production's canonical `ApplyOrderDemand` command.
+invokes injected downstream capabilities. Cents handlers translate vendor
+observations into canonical Users and Orders. Orders emits a versioned outbox
+event in the same transaction; a separate source-neutral job projects eligible
+wash-and-fold fulfillment demand into Production.
+
+```txt
+src/main.ts
+  -> bootstrap/   module and job composition
+  -> jobs/        durable inbox processing and demand projection
+  -> runtime/     polling, retry, heartbeat, cancellation, observability
+```
+
+Runtime mechanics do not know Cents or LPMS. Vendor handlers are private to the
+webhook-inbox job, and jobs never import peer jobs.
 
 ## Run
 
@@ -23,14 +35,14 @@ the worker exposes no HTTP route or host port.
 - Expired processing leases are reclaimable after a crash.
 - Transient failures use bounded exponential backoff with jitter.
 - Permanent failures and exhausted retries remain inspectable as dead rows.
-- Production and inbox completion commit in separate module-owned
-  transactions. A stable `webhook:<event-id>` Production idempotency key closes
-  the crash window between them.
-- Crash-after-Production-commit redelivery is an idempotent no-op followed by
-  inbox completion.
-- Reconciliation uses the same generic ingestion and consumer path when an
-  authoritative Cents read API is available; unsupported reconciliation is
-  reported plainly.
+- Canonical Order observation and its integration outbox event commit in one
+  Orders-owned transaction. Inbox completion is a separate ingestion-owned
+  transaction, so a crash can safely replay an idempotent source revision.
+- The fulfillment-demand projector uses a stable outbox-event idempotency key;
+  a crash after Production commits is an idempotent no-op on redelivery.
+- Automatic Cents reconciliation is not implemented because Cents has not
+  provided an authoritative read-updated-orders API. The runtime reports that
+  limitation plainly instead of carrying an inactive reconciliation subsystem.
 - A database outage is retried with bounded loop-level backoff. The heartbeat
   intentionally becomes stale until a complete database pass succeeds again.
 - Counters are emitted to Sentry Metrics for work, retries, dead letters,
@@ -53,7 +65,8 @@ Authorized operators inspect minimized event metadata at
 `GET /webhook-ingestion/dead-letters` and replay one event at
 `POST /webhook-ingestion/dead-letters/:eventId/replay` with the explicit
 `replay-dead-webhook-event` confirmation. Replay only queues the generic event;
-the Worker then dispatches it through the same consumer and Production command.
+the Worker then dispatches it through the same canonical Users/Orders path and
+durable demand projector.
 
 ## Production alerts
 
@@ -62,15 +75,15 @@ notification routes. An operator must connect the Cron monitor and metric
 alerts to the production on-call destination and confirm that Metrics and
 Crons are enabled for the Sentry project. Start with these exact rules:
 
-| Signal                                    | Recommended alert                                                                                                                                        |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pressly-worker-heartbeat` Cron           | Alert on one missed check-in. The SDK declares a 1-minute schedule and 1-minute grace margin; recover after one successful check-in.                     |
-| `worker.inbox_oldest_pending_age_seconds` | Warning when `max >= 120` for 5 minutes; critical when `max >= 300` for 5 minutes.                                                                       |
-| `worker.inbox_pending_count`              | Warning when `min >= 1` for 10 minutes.                                                                                                                  |
-| `worker.jobs_retried`                     | Warning when `sum >= 5` over 10 minutes.                                                                                                                 |
-| `worker.dead_letters`                     | Critical when `sum >= 1` over 5 minutes.                                                                                                                 |
-| `worker.lease_losses`                     | Critical when `sum >= 1` over 5 minutes.                                                                                                                 |
-| `worker.loop_failures`                    | Critical when `sum >= 1` over 5 minutes. Keep the existing Sentry issue alert for captured `inbox_loop` and `worker_runtime` exceptions enabled as well. |
+| Signal                                    | Recommended alert                                                                                                                                         |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pressly-worker-heartbeat` Cron           | Alert on one missed check-in. The SDK declares a 1-minute schedule and 1-minute grace margin; recover after one successful check-in.                      |
+| `worker.inbox_oldest_pending_age_seconds` | Warning when `max >= 120` for 5 minutes; critical when `max >= 300` for 5 minutes.                                                                        |
+| `worker.inbox_pending_count`              | Warning when `min >= 1` for 10 minutes.                                                                                                                   |
+| `worker.jobs_retried`                     | Warning when `sum >= 5` over 10 minutes.                                                                                                                  |
+| `worker.dead_letters`                     | Critical when `sum >= 1` over 5 minutes.                                                                                                                  |
+| `worker.lease_losses`                     | Critical when `sum >= 1` over 5 minutes.                                                                                                                  |
+| `worker.loop_failures`                    | Critical when `sum >= 1` over 5 minutes. Keep the existing Sentry issue alert for captured `worker_loop` and `worker_runtime` exceptions enabled as well. |
 
 Validate the production wiring in staging before launch:
 

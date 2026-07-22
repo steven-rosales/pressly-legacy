@@ -149,7 +149,7 @@ docker compose \
   --workdir /repo \
   --entrypoint node \
   api \
-  apps/api/dist/commands/bootstrap-production.command.js \
+  apps/cli/dist/commands/bootstrap-production.command.js \
   --file /run/pressly/lpms-bootstrap.json \
   --actor-id "$actor_id" \
   --idempotency-key "$idempotency_key" \
@@ -165,7 +165,7 @@ docker compose \
   --workdir /repo \
   --entrypoint node \
   api \
-  apps/api/dist/commands/bootstrap-production.command.js \
+  apps/cli/dist/commands/bootstrap-production.command.js \
   --file /run/pressly/lpms-bootstrap.json \
   --actor-id "$actor_id" \
   --idempotency-key "$idempotency_key" \

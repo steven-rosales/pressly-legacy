@@ -6,9 +6,10 @@
     "pressly-admin": "./dist/main.js"
   },
   "scripts": {
-    "build:workspace-deps": "pnpm --dir ../../packages/kernel run build && pnpm --dir ../../packages/time run build && pnpm --dir ../../packages/errors run build && pnpm --dir ../../packages/contracts run build && pnpm --dir ../../packages/money run build",
+    "build:workspace-deps": "pnpm --dir ../.. exec turbo build --filter=@pressly/cli...",
     "dev": "pnpm run build:workspace-deps && tsx src/main.ts",
     "start": "node dist/main.js",
+    "bootstrap:production": "pnpm run build:workspace-deps && pnpm --dir ../.. exec tsx apps/cli/src/commands/bootstrap-production.command.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
@@ -18,12 +19,18 @@
   },
   "dependencies": {
     "@pressly/contracts": "workspace:*",
+    "@pressly/db": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/kernel": "workspace:*",
     "@pressly/money": "workspace:*",
+    "@pressly/production": "workspace:*",
+    "@pressly/production-policy": "workspace:*",
+    "@pressly/production-scheduling": "workspace:*",
+    "@pressly/webhook-ingestion": "workspace:*",
     "dotenv": "^17.4.2",
     "ink": "^6.8.0",
-    "react": "^19.2.6"
+    "react": "^19.2.6",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",

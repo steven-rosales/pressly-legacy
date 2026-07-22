@@ -8,9 +8,22 @@
     "types": ["node", "vitest"],
     "paths": {
       "@pressly/contracts": ["../../packages/contracts/src/index.ts"],
+      "@pressly/db": ["../../packages/db/src/index.ts"],
       "@pressly/errors": ["../../packages/errors/src/index.ts"],
       "@pressly/kernel": ["../../packages/kernel/src/index.ts"],
       "@pressly/money": ["../../packages/money/src/index.ts"],
+      "@pressly/production": [
+        "../../modules/business/production/src/public.ts"
+      ],
+      "@pressly/production-policy": [
+        "../../modules/policy/production/src/public.ts"
+      ],
+      "@pressly/production-scheduling": [
+        "../../modules/computation/scheduling/src/public.ts"
+      ],
+      "@pressly/webhook-ingestion": [
+        "../../modules/business/webhook-ingestion/src/public.ts"
+      ],
       "@pressly/time": ["../../packages/time/src/index.ts"]
     }
   },

@@ -22,8 +22,10 @@ export type {
   Transactional,
 } from './production.port.ts';
 export type {
-  ApplyOrderDemand,
-  ApplyOrderDemandCommand,
-  ApplyOrderDemandResult,
-} from './apply-order-demand/apply-order-demand.port.ts';
+  ApplyFulfillmentDemand,
+  ApplyFulfillmentDemandCommand,
+  ApplyFulfillmentDemandResult,
+  FulfillmentAdmissionState,
+  FulfillmentCommercialState,
+} from './apply-fulfillment-demand/apply-fulfillment-demand.port.ts';
 export type { ReplaceShiftOrderSelection } from './replace-shift-order-selection/replace-shift-order-selection.port.ts';

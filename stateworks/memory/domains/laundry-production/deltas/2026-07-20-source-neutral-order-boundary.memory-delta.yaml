@@ -1,0 +1,66 @@
+id: memdelta-2026-07-20-source-neutral-order-boundary
+domain_id: laundry-production
+
+source:
+  type: interrogation_session
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-20-source-neutral-order-boundary.md
+
+changes:
+  - op: update
+    kind: object
+    id: production_order
+    description: The internal LPMS execution projection of one source-neutral Order fulfillment that may become eligible for production scheduling.
+
+  - op: deprecate
+    kind: policy
+    id: cents_in_progress_is_eligible
+
+  - op: assert
+    kind: policy
+    id: released_fulfillment_is_eligible_v1
+    statement: A fulfillment becomes an LPMS-ready candidate only when its canonical release state is released, its production estimate is positive, and physical bag intake is recorded.
+
+  - op: deprecate
+    kind: policy
+    id: cents_lifecycle_phase_mapping_v1
+
+  - op: assert
+    kind: policy
+    id: source_lifecycle_mapping_lives_upstream_v1
+    statement: Vendor lifecycle codes are normalized into commercial lifecycle, fulfillment release, and comparison metadata before Production; Production never interprets a vendor status string.
+
+  - op: assert
+    kind: invariant
+    id: production_demand_is_fulfillment_keyed_v1
+    statement: Production demand is keyed by a canonical fulfillment identity and cannot use a vendor source key as its business identity.
+
+  - op: assert
+    kind: decision
+    id: production_reads_do_not_own_user_or_order_data
+    statement: Processor views may compose User, Order, and Production facts, but Production persists only the demand and floor facts required for laundry execution.
+
+  - op: update
+    kind: decision
+    id: isolated_lpms_module_composition
+    statement: Users, Orders, Production business, Production policy, and fixed-pulse scheduling are isolated peer modules composed through narrow ports only in API and Worker applications.
+
+  - op: update
+    kind: workflow
+    id: external_demand_to_production_admission
+    steps:
+      - a strictly newer external order observation is normalized at its source adapter boundary
+      - Users resolves the exact external customer identity and retains the latest source snapshot without overriding explicit Pressly field authority
+      - Orders records the canonical commercial order, generic items, fulfillment, source identity, latest source snapshot, and source-neutral release state
+      - active unreleased fulfillment demand due through the shift service-day cutoff contributes only to advisory forecasting
+      - an Orders outbox event applies the fulfillment-keyed production demand idempotently without carrying a vendor lifecycle code
+      - physical bag intake may be recorded before release but the production order remains release_pending
+      - released demand becomes ready only when positive weight and bag-count rules hold
+      - executable scheduling reads only explicitly selected ready production orders
+      - downstream, withdrawn, or lagging source observations are composed with LPMS state and require operator-confirmed reconciliation when the systems disagree
+
+verification:
+  - Steven explicitly accepted the Users and Orders boundary and the source-neutral fulfillment release model.
+  - Existing laundry-production memory already establishes that source lifecycle cannot advance floor truth, committed work survives source withdrawal, and pre-release intake cannot enter executable scheduling.
+  - Repository inspection confirms the current Cents Worker directly supplies demandKey, sourceStatusCode, and mapped Cents phase to Production, so this delta names a real boundary change rather than an already-implemented fact.
+
+status: applied

@@ -132,7 +132,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'node', 'apps/worker/dist/healthcheck.js']
+      test: ['CMD', 'node', 'apps/worker/dist/runtime/healthcheck.js']
       interval: 10s
       timeout: 3s
       start_period: 30s

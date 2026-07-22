@@ -1,0 +1,178 @@
+id: memdelta-2026-07-20-source-neutral-users-orders
+domain_id: order-management
+
+source:
+  type: interrogation_session
+  path: stateworks/memory/domains/order-management/sessions/2026-07-20-source-neutral-users-orders.md
+
+changes:
+  - op: assert
+    kind: external_system
+    id: cents
+    description: An external source of customer, order, marketing-consent, and lifecycle observations; it is not Pressly's canonical database or production-floor authority.
+
+  - op: assert
+    kind: object
+    id: user_profile
+    description: A canonical Pressly person or business profile that may exist without authentication and may be linked to one or more exact external identities.
+
+  - op: assert
+    kind: object
+    id: commercial_order
+    description: A source-neutral customer order with a stable Pressly identity, human-facing order number, customer association, lifecycle, totals, and generic line items.
+
+  - op: assert
+    kind: object
+    id: order_fulfillment
+    description: A source-neutral unit of work required to fulfill a commercial order; its fulfillment type routes work to an execution capability without making the Order lifecycle specific to wash-and-fold.
+
+  - op: assert
+    kind: object
+    id: source_link
+    description: The exact mapping from one canonical entity to one source and external entity identity.
+
+  - op: assert
+    kind: object
+    id: source_snapshot
+    description: The durable latest normalized representation, revision, schema version, and payload hash observed for one linked external entity.
+
+  - op: assert
+    kind: object
+    id: order_outbox_event
+    description: A durable source-neutral event written atomically with an Order mutation and consumed idempotently by downstream capabilities.
+
+  - op: assert
+    kind: invariant
+    id: user_profile_exists_without_auth_identity
+    statement: A canonical User profile may exist without credentials or a login, and linking an Auth identity to a User is explicit rather than inferred from contact information.
+
+  - op: assert
+    kind: invariant
+    id: source_identity_links_are_exact
+    statement: External entities resolve through a unique source and external-identity link; source observations never select a canonical User or Order by fuzzy contact matching.
+
+  - op: assert
+    kind: invariant
+    id: contacts_never_silently_merge_users
+    statement: Matching phone or email values may create a possible-duplicate signal but can never silently merge two canonical User profiles.
+
+  - op: assert
+    kind: invariant
+    id: source_observations_enter_through_commands
+    statement: Webhooks and other external channels submit validated observations through application commands and never write canonical User or Order tables directly.
+
+  - op: assert
+    kind: invariant
+    id: source_revision_order_is_monotonic
+    statement: For one exact source entity, older revisions are ignored, exact revision-and-hash replays are idempotent, and equal revisions with different hashes are recorded as conflicts rather than resolved by last-write-wins.
+
+  - op: assert
+    kind: invariant
+    id: order_identity_differs_from_display_number
+    statement: A canonical Order ID and each external source ID remain stable identities, while the human-facing order number is a separate mutable display value with provenance.
+
+  - op: assert
+    kind: invariant
+    id: commercial_order_is_not_production_execution
+    statement: Commercial Order lifecycle and fulfillment release cannot directly start, advance, finish, cancel, or rewind physical Production execution.
+
+  - op: assert
+    kind: invariant
+    id: fulfillment_release_is_source_neutral
+    statement: Downstream execution receives a canonical fulfillment identity and source-neutral release state rather than a vendor lifecycle code.
+
+  - op: assert
+    kind: invariant
+    id: order_outbox_is_atomic
+    statement: An Order mutation and every downstream outbox event caused by that mutation commit in the same database transaction.
+
+  - op: assert
+    kind: policy
+    id: canonical_field_authority_v1
+    statement: A direct Pressly edit becomes the canonical authority for that field until an explicit follow-source command restores source authority; later source values remain retained and inspectable in the latest snapshot.
+
+  - op: assert
+    kind: policy
+    id: cents_order_code_is_display_number_v1
+    statement: The Cents orderCode is used as the human-facing order number, while Cents order.id is retained only as the exact external Order identity.
+
+  - op: assert
+    kind: policy
+    id: cents_customer_resolution_v1
+    statement: Cents customer observations and embedded order customers resolve or create a User through the exact Cents customer ID before the Order is recorded; contact values only produce possible-duplicate signals.
+
+  - op: assert
+    kind: policy
+    id: cents_fulfillment_release_mapping_v1
+    statement: Cents states before IN_PROGRESS leave the fulfillment unreleased, IN_PROGRESS and later non-canceled states leave it released, and cancellation withdraws it; the raw Cents state remains source metadata outside Production.
+
+  - op: assert
+    kind: policy
+    id: source_completion_requires_floor_comparison_v1
+    statement: A source that reports downstream or completed work may update commercial and source records, but unfinished Production remains unchanged and is surfaced for operator comparison.
+
+  - op: assert
+    kind: policy
+    id: source_snapshot_retention_v1
+    statement: Pressly retains the latest normalized source snapshot permanently for each linked entity and retains raw webhook bodies only in encrypted, access-restricted, bounded quarantine.
+
+  - op: assert
+    kind: decision
+    id: users_orders_auth_and_production_are_peer_modules
+    statement: Users, Orders, Auth, and Production remain isolated peer business modules inside the modular monolith and are composed only at application boundaries.
+
+  - op: assert
+    kind: decision
+    id: orders_are_fulfillment_extensible
+    statement: Orders owns generic items and fulfillment records; wash-and-fold is a fulfillment type consumed by Production rather than the shape of the Order aggregate.
+
+  - op: assert
+    kind: decision
+    id: mutation_channels_share_use_cases
+    statement: Webhooks, dashboards, customer accounts, and future channels invoke the same canonical User and Order use cases with explicit origin, actor, idempotency, and concurrency metadata.
+
+  - op: assert
+    kind: decision
+    id: processor_uses_composed_order_views
+    statement: Processor queries compose User contact data, Order commercial data, and Production floor data in an application-owned read model without transferring write authority between modules.
+
+  - op: assert
+    kind: decision
+    id: order_management_is_not_event_sourced_v1
+    statement: Canonical tables remain current state, source snapshots preserve external observations, and a transactional outbox distributes changes; v1 does not reconstruct aggregates from a full event log.
+
+  - op: assert
+    kind: workflow
+    id: cents_order_observation
+    steps:
+      - API authenticates and validates one Cents webhook envelope and records one idempotent inbox event
+      - Worker resolves the exact source location and converts the Cents payload into typed source observations
+      - Users resolves the exact Cents customer identity, applies non-overridden fields, retains the latest customer snapshot, and records any possible duplicate
+      - Orders resolves the exact Cents order identity, records orderCode, generic items, fulfillment, lifecycle, and the latest order snapshot
+      - Orders writes any fulfillment-demand outbox event in the same transaction as the canonical Order mutation
+      - Worker claims the outbox event and applies the source-neutral fulfillment demand to Production idempotently
+      - Processor reads compose User, Order, and Production state and surface disagreements without changing floor truth
+
+  - op: assert
+    kind: workflow
+    id: direct_pressly_mutation
+    steps:
+      - authorized Pressly channel submits a typed command with actor, origin, idempotency key, and expected aggregate version
+      - User or Order use case loads current canonical state and source authority
+      - pure policy validates the command and derives the next state and effects
+      - repository commits the versioned canonical change and any outbox event atomically
+      - source snapshots remain unchanged and any resulting source disagreement stays visible
+
+  - op: assert
+    kind: open_question
+    id: manual_user_duplicate_resolution
+    question: What audited operator workflow should confirm or reject a possible duplicate and, if confirmed, move source links and dependent records without losing history?
+
+verification:
+  - Steven explicitly agreed that canonical Users and Orders must be independent of Cents and other input channels.
+  - Steven confirmed that a User may exist without Auth, that contact matches must not silently merge Users, and that direct Pressly mutation must coexist with source observations.
+  - Steven agreed that Orders should remain fulfillment-neutral and that Production should behave as a machine consuming released wash-and-fold work rather than Cents orders.
+  - Steven agreed that Cents lifecycle is metadata at the source boundary, that IN_PROGRESS releases work without becoming Production state, and that downstream source status requires LPMS comparison.
+  - Repository inspection confirms isolated peer business modules, app-owned composition, an existing durable webhook inbox, a bounded encrypted quarantine, and reusable Result, Spec, StateMachine, Pipe, and Workflow kernel primitives.
+
+status: applied

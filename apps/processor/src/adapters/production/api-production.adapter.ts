@@ -8,7 +8,7 @@ import {
   listProductionHistoryActivityResultSchema,
   listProductionHistoryPlansResultSchema,
   listProductionHistoryRunsResultSchema,
-  listProductionOrderControlResultSchema,
+  listProcessorOrderControlResultSchema,
   productionBatchMembershipMutationResultSchema,
   productionBatchProgressReconciliationResultSchema,
   listProductionLocationsResultSchema,
@@ -70,7 +70,7 @@ export const makeApiProductionAdapter = (
         path: `/production/locations/${encodeURIComponent(locationId)}/order-control?${query.toString()}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      listProductionOrderControlResultSchema
+      listProcessorOrderControlResultSchema
     )
   },
   previewOrderRoute: ({

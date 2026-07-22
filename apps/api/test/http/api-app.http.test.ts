@@ -14,10 +14,11 @@ import type {
   LogLevel,
   SecurityEvent,
 } from '@pressly/logging';
-import { makeApiApp } from '../../src/app.ts';
-import type { ApiRuntime } from '../../src/common/runtime/runtime.ts';
+import { makeApiApp } from '../../src/bootstrap/api.composition.ts';
+import type { ApiRuntime } from '../../src/runtime/api-runtime.ts';
 import {
   documentedCentsCustomerWebhook,
+  documentedCentsMarketingWebhook,
   documentedCentsOrderWebhook,
   unsupportedCentsWebhook,
 } from '../cents/cents-webhook.fixtures.ts';
@@ -531,11 +532,14 @@ describe('API app HTTP boundary', () => {
       sourceLocationId: '24',
       payload: {
         externalOrderId: '12345',
+        orderCode: '00123',
         externalStoreId: '24',
         status: 'IN_PROGRESS',
         dueAt: '2026-07-12T21:00:00.000Z',
         sourceUpdatedAt: '2026-07-12T15:59:00.000Z',
         bagCount: null,
+        totalAmountCents: 2999,
+        balanceDueCents: 2499,
         services: [
           {
             externalServiceId: '43',
@@ -543,13 +547,18 @@ describe('API app HTTP boundary', () => {
             unitPriceCents: 200,
           },
         ],
+        customer: {
+          externalUserId: '815',
+          firstName: 'Private Fixture',
+          phone: '+15550000001',
+        },
       },
       status: 'pending',
     });
-    const durableReceipt = JSON.stringify(database.receipts[0]);
-    expect(durableReceipt).not.toContain('private@example.invalid');
-    expect(durableReceipt).not.toContain('+15550000001');
-    expect(durableReceipt).not.toContain('Private Fixture');
+    const observable = JSON.stringify(harness.logs);
+    expect(observable).not.toContain('private@example.invalid');
+    expect(observable).not.toContain('+15550000001');
+    expect(observable).not.toContain('Private Fixture');
   });
 
   it.each([
@@ -716,16 +725,34 @@ describe('API app HTTP boundary', () => {
       payload: documentedCentsCustomerWebhook,
       classification: 'customer',
       eventKind: 'customer_updated',
+      processingStatus: 'pending',
+      subjectId: '815',
+    },
+    {
+      name: 'documented marketing event',
+      payload: documentedCentsMarketingWebhook,
+      classification: 'marketing',
+      eventKind: 'customer_marketing_optin',
+      processingStatus: 'pending',
+      subjectId: '815',
     },
     {
       name: 'unsupported future event',
       payload: unsupportedCentsWebhook,
       classification: 'unknown',
       eventKind: 'order_rescheduled_v2',
+      processingStatus: 'ignored',
+      subjectId: null,
     },
   ])(
-    'stores only a minimal ignored event for an authenticated $name',
-    async ({ payload, classification, eventKind }) => {
+    'stores the correct canonical disposition for an authenticated $name',
+    async ({
+      payload,
+      classification,
+      eventKind,
+      processingStatus,
+      subjectId,
+    }) => {
       const database = makeCentsReceiptDatabase();
       const harness = makeRuntime({
         db: database.db,
@@ -747,21 +774,41 @@ describe('API app HTTP boundary', () => {
       expect(response.status).toBe(202);
       expect(responseBody).toMatchObject({
         ok: true,
-        data: { status: 'ignored', duplicate: false },
+        data: { status: processingStatus, duplicate: false },
       });
       expect(database.receipts).toHaveLength(1);
       expect(database.receipts[0]).toMatchObject({
         source: 'cents',
         subjectType: classification,
         eventType: eventKind,
-        subjectId: null,
+        subjectId,
         sourceLocationId: null,
-        payload: null,
-        payloadHash: null,
-        status: 'processed',
+        status: processingStatus === 'ignored' ? 'processed' : 'pending',
       });
+      if (processingStatus === 'ignored') {
+        expect(database.receipts[0]).toMatchObject({
+          payload: null,
+          payloadHash: null,
+        });
+      } else if (classification === 'customer') {
+        expect(database.receipts[0]?.['payload']).toMatchObject({
+          externalUserId: '815',
+          firstName: 'Private Fixture',
+          phone: '+15550000001',
+        });
+        expect(database.receipts[0]?.['payloadHash']).toMatch(/^[a-f0-9]{64}$/);
+      } else {
+        expect(database.receipts[0]?.['payload']).toMatchObject({
+          granted: true,
+          customer: {
+            externalUserId: '815',
+            firstName: 'Private Fixture',
+            phone: '+15550000001',
+          },
+        });
+        expect(database.receipts[0]?.['payloadHash']).toMatch(/^[a-f0-9]{64}$/);
+      }
       const observable = JSON.stringify({
-        receipt: database.receipts[0],
         response: responseBody,
         logs: harness.logs,
       });

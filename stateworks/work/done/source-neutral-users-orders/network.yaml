@@ -1,0 +1,415 @@
+work_id: source-neutral-users-orders
+title: Source-neutral Users, Orders, and Production admission
+status: complete
+
+goal:
+  - Persist canonical Users, Orders, all supported Cents business observations, and source-neutral fulfillment admission without allowing source lifecycle to own Production floor truth.
+  - Expose customer name and phone through composed Processor order views while preserving module isolation and retry-safe consistency.
+
+invariants:
+  - Peer business modules do not import one another; API and Worker own composition.
+  - Auth identity, canonical User profile, commercial Order, fulfillment release, and Production execution remain separate facts.
+  - Exact source links resolve external entities; phone and email never silently merge Users.
+  - Every valid Order is canonicalized regardless of customer availability; a null customer User ID carries an explicit missingness reason.
+  - A known exact source customer identity resolves or creates a skeletal User before Order persistence.
+  - Cents lifecycle strings do not cross into Production business logic.
+  - Pre-release work remains forecast-only and cannot enter executable scheduling.
+  - Source completion cannot finish Production without LPMS confirmation.
+  - Canonical Order mutation and its outbox event commit atomically.
+  - No secret, raw customer payload, token, or private key enters Stateworks evidence, logs, or commits.
+  - Existing unrelated worktree changes are preserved.
+  - Domain memory changes require a separate verified source-backed delta.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconfirm the baseline and cutover contract
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - repo:apps/api/src/vendors/cents
+      - repo:apps/worker/src/vendors/cents
+      - repo:modules/business/auth
+      - repo:modules/business/production
+      - repo:modules/business/webhook-ingestion
+      - repo:packages/db/src/schema
+    writes:
+      - repo:stateworks/work/done/source-neutral-users-orders/evidence.md
+    preconditions:
+      - The work item has been intentionally promoted from queued to active.
+      - Known overlapping Production and Processor changes have been reconciled or completed.
+    action:
+      - Reinspect the live branch, schema journal, module boundaries, Cents fixtures, and active deployment assumptions.
+      - Record the exact migration numbers, compatibility window, backfill inputs, and files owned by this work.
+      - Stop if the current Cents payload or module architecture contradicts the accepted memory.
+    postconditions:
+      - Evidence names the exact current seams and a non-destructive expand-backfill-switch-contract sequence.
+    verifier:
+      - Evidence distinguishes confirmed repository facts, accepted decisions, assumptions, and external unknowns.
+      - No runtime or database state is mutated.
+    rollback:
+      - Revert only the T0 evidence entry.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+
+  - id: T1
+    title: Enforce the source-neutral architecture and declarative core
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/kernel/src
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - repo:eslint.config.mjs
+      - repo:modules/business
+    writes:
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - repo:eslint.config.mjs
+      - repo:packages/kernel/src
+      - repo:packages/kernel/test
+      - repo:modules/business/users/package.json
+      - repo:modules/business/orders/package.json
+      - repo:apps/api/Dockerfile
+      - repo:apps/worker/Dockerfile
+    action:
+      - Add Users and Orders to the existing module-isolation and Docker-manifest checks before feature code depends on them.
+      - Reuse Result, Spec, StateMachine, Pipe, and explicit ports where they clarify data flow.
+      - Add a kernel primitive only if at least two independent modules require the same mechanism-free algebra and focused tests prove it.
+      - Keep domain, vendor, database, HTTP, and outbox vocabulary out of the kernel.
+    postconditions:
+      - The repository rejects sibling-module imports, vendor vocabulary in Production, and unowned shared buckets for the new modules.
+    verifier:
+      - pnpm --filter @pressly/kernel test
+      - pnpm --filter @pressly/kernel typecheck
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+    rollback:
+      - Revert only T1 boundary and kernel changes; do not weaken existing rules.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+
+  - id: T2
+    title: Add the source-neutral database expansion
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/db/src/schema
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+    writes:
+      - repo:packages/db/src/schema/users.schema.ts
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/schema/auth.schema.ts
+      - repo:packages/db/src/schema/index.ts
+      - repo:packages/db/src/migrations/0024_source-neutral-users-orders.sql
+      - repo:packages/db/src/migrations/meta
+      - repo:packages/db/test
+    action:
+      - Add canonical Users, exact source links, latest snapshots, field authority, consent history, duplicate candidates, Orders, items, fulfillments, source links, snapshots, and Order outbox tables.
+      - Add the nullable explicit Auth-to-User link and indexes for exact identity, revision ordering, queries, and outbox claims.
+      - Constrain customer resolution so resolved Orders require a User ID and unresolved Orders retain an explicit missingness reason rather than an ambiguous null.
+      - Keep phone and email indexes non-unique and enforce no automatic merge in constraints and tests.
+    postconditions:
+      - The migration is additive, rerunnable through the normal migration system, and valid on empty and representative pre-migration databases.
+    verifier:
+      - Database schema safety and migration tests pass.
+      - Foreign keys, uniqueness, checks, and indexes match the accepted memory.
+      - Migration rollback is documented without deleting pre-existing data.
+    rollback:
+      - Before production use, revert the additive migration and schema exports; after production use, compensate with a forward migration rather than destructive rollback.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+
+  - id: T3
+    title: Implement the Users module
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+    reads:
+      - memory:domain:order-management/context-pack
+      - repo:modules/business/auth
+      - repo:modules/business/pricing
+      - repo:packages/db/src/schema/users.schema.ts
+    writes:
+      - repo:modules/business/users/src
+      - repo:modules/business/users/test
+      - repo:modules/business/users/tsconfig.json
+      - repo:modules/business/users/tsconfig.test.json
+      - repo:modules/business/users/vitest.config.ts
+    action:
+      - Implement source observation, direct create and update, follow-source field authority, consent recording, duplicate signaling, public ports, and Postgres adapters.
+      - Keep decision functions pure and return typed Results for expected stale, conflict, duplicate, and validation outcomes.
+      - Resolve only exact source links; never auto-link Auth or merge by contact.
+    postconditions:
+      - A User may be created by Cents or a Pressly command, updated consistently, and retained without Auth.
+    verifier:
+      - Users pure policy, use-case, persistence, ordering, concurrency, and idempotency tests pass.
+      - Module lint and typecheck pass with no sibling-module import.
+    rollback:
+      - Revert the Users module code; additive database objects remain harmless until a forward cleanup.
+    secret_handling: pii_not_logged_or_recorded_in_evidence
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+
+  - id: T4
+    title: Implement the Orders module and transactional outbox
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+    reads:
+      - memory:domain:order-management/context-pack
+      - repo:modules/business/pricing
+      - repo:modules/business/webhook-ingestion
+      - repo:packages/db/src/schema/orders.schema.ts
+    writes:
+      - repo:modules/business/orders/src
+      - repo:modules/business/orders/test
+      - repo:modules/business/orders/tsconfig.json
+      - repo:modules/business/orders/tsconfig.test.json
+      - repo:modules/business/orders/vitest.config.ts
+    action:
+      - Implement source observation, direct create and update, field authority, generic items, fulfillment release, source snapshots, and Order-local outbox claims and completion.
+      - Accept User IDs as opaque values without importing Users.
+      - Make order mutation and outbox insertion one transaction and make claims lease-fenced and retryable.
+    postconditions:
+      - Orders are source-neutral, fulfillment-extensible, versioned, idempotent, and able to publish durable downstream demand.
+    verifier:
+      - Orders pure policy, state-machine, use-case, persistence, outbox crash-window, concurrency, and idempotency tests pass.
+      - Module lint and typecheck pass with no sibling-module import.
+    rollback:
+      - Revert Orders module code; preserve committed canonical data and outbox rows for forward recovery.
+    secret_handling: pii_not_logged_or_recorded_in_evidence
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+
+  - id: T5
+    title: Process every supported Cents business observation
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+      - T4
+    reads:
+      - repo:packages/contracts/src/cents
+      - repo:apps/api/src/vendors/cents
+      - repo:apps/worker/src/vendors/cents
+      - repo:modules/business/webhook-ingestion
+    writes:
+      - repo:packages/contracts/src/cents
+      - repo:packages/contracts/test/cents
+      - repo:apps/api/src/vendors/cents
+      - repo:apps/api/test/vendors/cents
+      - repo:apps/worker/src/vendors/cents
+      - repo:apps/worker/test/vendors/cents
+    action:
+      - Replace ignore decisions for customer and marketing events with typed observations and retain extra source fields in normalized snapshots.
+      - Map orderCode, customer, services, money, due time, order lifecycle, and fulfillment release without leaking Cents vocabulary into a business module.
+      - Compose exact User resolution before Order observation and make retries reuse earlier successful steps.
+      - Create a skeletal User whenever an exact external customer ID exists, but persist the Order with an explicit unresolved-customer reason when the source genuinely supplies no customer identity.
+      - Preserve the existing authenticated or explicitly unsigned ingress, size limit, deduplication, quarantine, and source-location binding behavior.
+    postconditions:
+      - Every supported Cents event kind reaches the correct canonical module and unsupported or malformed events remain diagnosable without exposing PII.
+    verifier:
+      - Contract and adapter fixtures cover all documented event kinds, aliases, extra fields, orderCode, embedded customer, and malformed payloads.
+      - Worker tests cover existing-account linkage, skeletal User creation, absent-customer Order persistence, later reconciliation, User-before-Order sequencing, retry after partial success, stale source updates, and exact replay.
+    rollback:
+      - Restore the prior event consumers while leaving additive canonical data intact; do not replay or delete production events automatically.
+    secret_handling: raw_payloads_only_in_encrypted_quarantine
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+
+  - id: T6
+    title: Cut Production over to fulfillment-keyed demand
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T4
+      - T5
+    reads:
+      - memory:domain:laundry-production/context-pack
+      - repo:modules/business/production/src/apply-order-demand
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:apps/worker/src/lpms
+    writes:
+      - repo:modules/business/production/src/apply-fulfillment-demand
+      - repo:modules/business/production/src/apply-order-demand
+      - repo:modules/business/production/test
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations/0025_source-neutral-production-demand.sql
+      - repo:packages/db/src/migrations/meta
+      - repo:apps/worker/src/order-outbox
+      - repo:apps/worker/test/order-outbox
+    action:
+      - Add the fulfillment-keyed, source-neutral Production demand command and idempotent Order-outbox projector.
+      - Backfill canonical Orders and fulfillments for legacy Production demand without inventing orderCode or customer data.
+      - Preserve pre-release intake, eligibility, explicit selection, committed-work withdrawal, and source-versus-floor comparison invariants.
+      - Keep legacy columns readable for one compatibility release and prevent two active projection paths.
+    postconditions:
+      - New Production demand is identified only by canonical fulfillment ID and contains no vendor lifecycle authority.
+    verifier:
+      - Empty and legacy migration tests pass with row-count and identity parity.
+      - Production tests prove release gating, committed-work preservation, source completion isolation, and idempotent projection.
+      - Worker crash and replay tests prove exactly-once effects after Order commit.
+    rollback:
+      - Switch back to the compatible legacy projector only before new-path-only data is accepted; otherwise recover forward from durable outbox and canonical rows.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+
+  - id: T7
+    title: Add canonical command APIs and the composed Processor read model
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+      - T4
+      - T6
+    reads:
+      - repo:apps/api/src
+      - repo:modules/policy/access-control
+      - repo:packages/contracts/src
+    writes:
+      - repo:packages/contracts/src/users
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/src/production
+      - repo:apps/api/src/read-models/processor-orders
+      - repo:apps/api/src/routes
+      - repo:apps/api/test
+    action:
+      - Add authorized direct User and Order command routes using the same module use cases as source ingestion.
+      - Add an API-owned read-only ProcessorOrderView that composes User, Order, source comparison, and Production data in bounded pages.
+      - Keep cross-module joins and presentation mapping out of business modules.
+    postconditions:
+      - Direct commands are versioned and authorized, and Processor reads expose customer name and phone without copying PII into Production ownership.
+    verifier:
+      - API contract, authorization, pagination, missing-customer, disagreement, optimistic concurrency, and idempotency tests pass.
+      - Architecture checks prove read composition cannot mutate peer modules directly.
+    rollback:
+      - Remove the new routes and read composition while preserving canonical records for forward recovery.
+    secret_handling: pii_returned_only_to_authorized_scopes
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+
+  - id: T8
+    title: Enrich the Processor order experience
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T7
+    reads:
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/components/ui
+      - repo:apps/processor/src/i18n
+      - memory:domain:steven-collaboration/context-pack
+    writes:
+      - repo:apps/processor/src/ports
+      - repo:apps/processor/src/adapters
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/i18n
+      - repo:apps/processor/test
+    action:
+      - Use Product Design and the current ElevenLabs-derived shadcn language to add customer name and phone, source-neutral commercial and fulfillment labels, and precise source-versus-floor comparison.
+      - Preserve backend-owned action availability and do not expose write actions for pre-release forecast-only work.
+      - Provide explicit fallbacks when customer or orderCode was unavailable during legacy backfill.
+    postconditions:
+      - Operators can identify the customer and understand commercial, release, and floor state without interpreting raw Cents lifecycle codes.
+    verifier:
+      - Processor model, adapter, interaction, accessibility, localization, lint, typecheck, and focused visual-regression checks pass.
+    rollback:
+      - Revert the enriched projection rendering while retaining the compatible API fields.
+    secret_handling: pii_not_logged_or_persisted_in_browser_storage
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+
+  - id: T9
+    title: Verify the complete path and record implementation evidence
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+      - T6
+      - T7
+      - T8
+    reads:
+      - repo
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/done/source-neutral-users-orders/evidence.md
+    writes:
+      - repo:stateworks/work/done/source-neutral-users-orders/evidence.md
+      - repo:stateworks/work/done/source-neutral-users-orders/final-report.md
+      - repo:stateworks/memory/domains/order-management/deltas
+      - repo:stateworks/memory/domains/order-management/memory.yaml
+      - repo:stateworks/memory/domains/order-management/context-pack.md
+      - repo:stateworks/memory/domains/laundry-production/deltas
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+    action:
+      - Run scoped and full repository verification, both migration paths, Docker build topology, and a local end-to-end Cents-to-Processor simulation with redacted fixtures.
+      - Record concrete commands, exit status, counts, hashes, and redacted outcome evidence.
+      - Apply implementation-evidence memory deltas only for behavior actually proven by this completed work.
+      - Do not claim deployment, production migration, webhook replay, or live Cents proof without separate external evidence and authorization.
+    postconditions:
+      - Every invariant has passing evidence, remaining limitations are explicit, and Stateworks is internally consistent.
+    verifier:
+      - Full formatting, lint, typecheck, unit, integration, migration, architecture, API, Worker, Processor, and Docker-topology checks pass.
+      - pnpm stateworks:validate stateworks/work/done/source-neutral-users-orders/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/source-neutral-users-orders/network.yaml --state stateworks/work/done/source-neutral-users-orders/state.yaml
+      - All changed domain memory and deltas validate and context packs regenerate deterministically.
+    rollback:
+      - Revert only unproven implementation and proposed memory deltas; preserve accepted domain decisions and all unrelated worktree changes.
+    secret_handling: redacted_evidence_only
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-users-orders/evidence.md
+      - stateworks/work/done/source-neutral-users-orders/final-report.md

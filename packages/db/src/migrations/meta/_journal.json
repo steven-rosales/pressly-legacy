@@ -162,6 +162,41 @@
       "when": 1784488962291,
       "tag": "0023_lpms-shift-order-selection",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784648760659,
+      "tag": "0024_source-neutral-users-orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1784650868423,
+      "tag": "0025_source-neutral-production-demand",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1784653585686,
+      "tag": "0026_source-neutral-command-context",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784669814711,
+      "tag": "0027_order-outbox-dead-letter",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784671630048,
+      "tag": "0028_order-source-lifecycle-code",
+      "breakpoints": true
     }
   ]
 }

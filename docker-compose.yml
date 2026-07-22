@@ -73,7 +73,7 @@ services:
       sh -c "pnpm install --frozen-lockfile
       && pnpm -F @pressly/db migrate
       && pnpm -F @pressly/db seed:pricing
-      && pnpm -F @pressly/api bootstrap:production --
+      && pnpm -F @pressly/cli bootstrap:production --
       --file /repo/tooling/fixtures/pressly-one.production-bootstrap.json
       --actor-id 00000000-0000-4000-8000-000000000001
       --idempotency-key local-pressly-one-topology-$$(sha256sum

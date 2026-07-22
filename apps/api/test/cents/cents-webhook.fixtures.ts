@@ -3,7 +3,10 @@ export const documentedCentsOrderWebhook = {
   order: {
     id: 12345,
     storeId: 24,
+    orderCode: '00123',
     status: 'IN_PROGRESS',
+    orderTotal: 29.99,
+    balanceDue: 24.99,
     dueDate: '2026-07-12T21:00:00.000Z',
     updatedAt: '2026-07-12T15:59:00.000Z',
   },
@@ -39,6 +42,18 @@ export const documentedCentsCustomerWebhook = {
   },
   customerMetrics: {
     totalOrderValue: 447.35,
+  },
+} as const;
+
+export const documentedCentsMarketingWebhook = {
+  event: 'customer_marketing_optin',
+  customer: {
+    id: 815,
+    firstName: 'Private Fixture',
+    lastName: 'Customer',
+    email: 'private@example.invalid',
+    phoneNumber: '+15550000001',
+    updatedAt: '2026-07-12T15:59:00.000Z',
   },
 } as const;
 

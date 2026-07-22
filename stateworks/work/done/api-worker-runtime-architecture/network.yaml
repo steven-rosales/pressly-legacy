@@ -1,0 +1,189 @@
+work_id: api-worker-runtime-architecture
+title: API and Worker executable-edge architecture
+status: complete
+
+goal:
+  - Refactor API and Worker executable edges into explicit bootstrap, runtime, and capability-owned delivery or job slices without changing behavior.
+
+invariants:
+  - Business modules remain isolated peers and own business meaning.
+  - API and Worker remain the only cross-module composition roots.
+  - Canonical Orders, Users, Production, and Webhook Ingestion APIs remain application-neutral.
+  - Only Processor-specific session and composed-view behavior lives under the Processor HTTP surface.
+  - Public HTTP paths, contracts, authorization outcomes, webhook behavior, queue semantics, retries, metrics, and shutdown behavior remain unchanged.
+  - No database migration, production mutation, deployment, webhook replay, or secret access is authorized.
+  - Existing unrelated worktree changes are preserved.
+  - The queued LPMS order-control correctness work remains out of scope.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Freeze runtime-host scope and baseline
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:apps/api/src
+      - repo:apps/worker/src
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+    writes:
+      - repo:stateworks/work/done/api-worker-runtime-architecture/evidence.md
+    action:
+      - Record current ownership defects, preserved behavior, and the exact target dependency direction.
+    postconditions:
+      - Work remains a behavior-preserving application-shell refactor.
+    verifier:
+      - Evidence distinguishes executable-edge structure from business-domain policy.
+    rollback:
+      - Revert only this work item's baseline evidence.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+
+  - id: T1
+    title: Reshape API runtime and HTTP capabilities
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:apps/api/src
+      - repo:apps/api/test
+    writes:
+      - repo:apps/api/src
+      - repo:apps/api/test
+    action:
+      - Move API composition, runtime mechanisms, and HTTP delivery into closed zones organized by canonical capability and trust boundary.
+    postconditions:
+      - Canonical capability routes are application-neutral and only Processor-specific behavior remains under processor.
+    verifier:
+      - API lint, typecheck, and tests pass with unchanged route contracts.
+    rollback:
+      - Restore one HTTP slice at a time without modifying module behavior.
+    secret_handling: pii_not_logged
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+
+  - id: T2
+    title: Reshape Worker runtime and durable jobs
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:apps/worker/src
+      - repo:apps/worker/test
+    writes:
+      - repo:apps/worker/src
+      - repo:apps/worker/test
+    action:
+      - Replace common, lpms, vendor, and outbox buckets with a closed runtime foundation and behavior-named durable jobs.
+    postconditions:
+      - Job handlers preserve inbox and outbox behavior and runtime mechanics do not own business composition.
+    verifier:
+      - Worker lint, typecheck, tests, heartbeat, retry, lease, and dead-letter checks pass.
+    rollback:
+      - Restore one job slice at a time without changing durable queue state or contracts.
+    secret_handling: no_payload_logging
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+
+  - id: T3
+    title: Relocate operator command and remove dead runtime code
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1, T2]
+    reads:
+      - repo:apps/api/src/commands
+      - repo:apps/cli
+      - repo:apps/worker/src/lpms/reconciliation.ts
+    writes:
+      - repo:apps/api/package.json
+      - repo:apps/cli
+      - repo:apps/worker
+    action:
+      - Move production bootstrap to CLI and remove unwired unsupported reconciliation source while preserving operator commands and documentation.
+    postconditions:
+      - Each executable contains only code reachable from or necessary to its runtime responsibilities.
+    verifier:
+      - CLI, API, and Worker build, typecheck, lint, and focused tests pass.
+    rollback:
+      - Restore command entrypoint or unwired source from version control if verification reveals a hidden consumer.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+
+  - id: T4
+    title: Enforce executable-edge architecture
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1, T2, T3]
+    reads:
+      - repo:docs/architecture.md
+      - repo:eslint.config.mjs
+      - repo:tooling/test/architecture-boundaries.test.mjs
+    writes:
+      - repo:docs/architecture.md
+      - repo:eslint.config.mjs
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - repo:apps/worker/README.md
+    action:
+      - Document and enforce API and Worker zones, closed role vocabularies, and forbidden legacy catch-all directories.
+    postconditions:
+      - Deterministic checks reject runtime-to-surface, cross-capability, and cross-job dependency leaks.
+    verifier:
+      - Architecture-boundary tests and repository lint pass.
+    rollback:
+      - Revert only rules unsupported by the final verified dependency graph.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+
+  - id: T5
+    title: Verify and close runtime architecture
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T4]
+    reads:
+      - repo
+      - repo:stateworks/work/done/api-worker-runtime-architecture/evidence.md
+    writes:
+      - repo:stateworks/work/done/api-worker-runtime-architecture/evidence.md
+      - repo:stateworks/work/done/api-worker-runtime-architecture/final-report.md
+    action:
+      - Run focused and full repository verification and record exact local evidence and remaining limitations.
+    postconditions:
+      - All moved behavior and architecture rules are locally proven or the item remains active with a precise failure.
+    verifier:
+      - Stateworks verifies after all relevant checks pass.
+    rollback:
+      - Keep the item active and record the exact failing verifier; do not claim completion.
+    secret_handling: redacted_evidence_only
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+      - stateworks/work/done/api-worker-runtime-architecture/final-report.md

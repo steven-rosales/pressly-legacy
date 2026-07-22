@@ -1,0 +1,34 @@
+work_id: api-worker-runtime-architecture
+status: complete
+updated: 2026-07-22T00:00:00-04:00
+
+current_focus:
+  - complete
+  - API and Worker executable edges are function-shaped, locally verified, and complete.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/api-worker-runtime-architecture/evidence.md
+      - stateworks/work/done/api-worker-runtime-architecture/final-report.md

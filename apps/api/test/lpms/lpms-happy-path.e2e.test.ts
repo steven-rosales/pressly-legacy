@@ -7,7 +7,7 @@ import { makeMemoryProductionRepositories } from '@pressly/production/testing';
 import { makeProductionPolicy } from '@pressly/production-policy';
 import { makeProductionScheduler } from '@pressly/production-scheduling';
 import { describe, expect, it } from 'vitest';
-import { normalizeCentsWebhook } from '../../src/vendors/cents/cents-webhook.adapter.ts';
+import { normalizeCentsWebhook } from '../../src/http/webhooks/cents/cents-webhook.normalizer.ts';
 
 const actorId = '11111111-1111-4111-8111-111111111111';
 const locationId = 'location-1';
@@ -32,17 +32,18 @@ const orders = [
 const demandCommand = (
   order: Readonly<{ externalOrderId: string; weight: number; bags: number }>,
   index: number,
-  input: { revisionAt?: string; locationId?: string } = {},
+  input: { observedAt?: string; locationId?: string; version?: number } = {},
 ) => {
-  const revisionAt = input.revisionAt ?? '2026-07-10T13:59:00.000Z';
+  const observedAt = input.observedAt ?? '2026-07-10T13:59:00.000Z';
   return {
-    demandKey: `test:order:${order.externalOrderId}`,
+    fulfillmentId: `fulfillment:test:${order.externalOrderId}`,
+    fulfillmentVersion: input.version ?? 2,
     displayReference: order.externalOrderId,
     locationId: input.locationId ?? locationId,
-    revisionAt,
-    revisionHash: (index + 101).toString(16).padStart(64, '0'),
-    phase: 'production_released' as const,
-    sourceStatusCode: 'IN_PROGRESS',
+    observedAt,
+    projectionHash: (index + 101).toString(16).padStart(64, '0'),
+    admissionState: 'released' as const,
+    commercialState: 'open' as const,
     dueAt: '2026-07-10T21:00:00.000Z',
     estimatedWeightLbs: order.weight,
     estimatedWeightSource: 'external_estimate' as const,
@@ -213,10 +214,10 @@ describe('LPMS run-centered app-composed happy path', () => {
 
     for (const [index, order] of orders.entries()) {
       const demand = demandCommand(order, index);
-      const projected = await application.applyOrderDemand(demand);
+      const projected = await application.applyFulfillmentDemand(demand);
       if (index === 0)
         await expect(
-          application.applyOrderDemand(demand),
+          application.applyFulfillmentDemand(demand),
         ).resolves.toMatchObject({ tag: 'ok', value: { replayed: true } });
       expect(projected).toMatchObject({
         tag: 'ok',
@@ -252,9 +253,10 @@ describe('LPMS run-centered app-composed happy path', () => {
     }
 
     await expect(
-      application.applyOrderDemand(
+      application.applyFulfillmentDemand(
         demandCommand(orders[0], 20, {
-          revisionAt: '2026-07-10T13:58:00.000Z',
+          observedAt: '2026-07-10T13:58:00.000Z',
+          version: 1,
         }),
       ),
     ).resolves.toMatchObject({
@@ -263,7 +265,7 @@ describe('LPMS run-centered app-composed happy path', () => {
     });
 
     await expect(
-      application.applyOrderDemand(
+      application.applyFulfillmentDemand(
         demandCommand(
           { externalOrderId: 'unmapped-order', weight: 10, bags: 1 },
           21,
@@ -438,14 +440,15 @@ describe('LPMS run-centered app-composed happy path', () => {
         total + service.totalPriceCents / service.unitPriceCents,
       0,
     );
-    const arrival = await application.applyOrderDemand({
-      demandKey: `cents:order:${centsOrder.externalOrderId}`,
-      displayReference: centsOrder.externalOrderId,
+    const arrival = await application.applyFulfillmentDemand({
+      fulfillmentId: `fulfillment:cents:${centsOrder.externalOrderId}`,
+      fulfillmentVersion: 1,
+      displayReference: centsOrder.orderCode,
       locationId,
-      revisionAt: centsOrder.sourceUpdatedAt,
-      revisionHash: normalized.value.receipt.rawBodySha256,
-      phase: 'production_released',
-      sourceStatusCode: centsOrder.status,
+      observedAt: centsOrder.sourceUpdatedAt,
+      projectionHash: normalized.value.receipt.rawBodySha256,
+      admissionState: 'released',
+      commercialState: centsOrder.status === 'COMPLETED' ? 'completed' : 'open',
       dueAt: centsOrder.dueAt,
       estimatedWeightLbs: centsWeightLbs,
       estimatedWeightSource: 'external_estimate',

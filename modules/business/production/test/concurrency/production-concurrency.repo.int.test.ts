@@ -1,7 +1,10 @@
 import { and, eq, laundryProduction } from '@pressly/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makePostgresProductionApplication } from '../../src/main.ts';
-import { createProductionTestDatabase } from '../support/database.ts';
+import {
+  createProductionTestDatabase,
+  seedCanonicalFulfillment,
+} from '../support/database.ts';
 import {
   allowPolicy,
   makeClock,
@@ -28,6 +31,10 @@ const fixed = {
   demand: '99999999-9999-4999-8999-999999999999',
   order: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   bag: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  canonicalOrder: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  fulfillment: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  arrivingCanonicalOrder: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+  arrivingFulfillment: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
 } as const;
 
 const locationId = 'location-1';
@@ -45,6 +52,13 @@ const seedNearlyCompleteRun = async (): Promise<void> => {
     id: locationId,
     name: 'Concurrency Test Facility',
     timezone: 'America/New_York',
+  });
+  await seedCanonicalFulfillment(testDb.db, {
+    orderId: fixed.canonicalOrder,
+    fulfillmentId: fixed.fulfillment,
+    locationId,
+    displayNumber: 'existing-order',
+    dueAt: endsAt,
   });
   await testDb.db.insert(laundryProduction.productionShifts).values({
     id: fixed.shift,
@@ -152,6 +166,11 @@ const seedNearlyCompleteRun = async (): Promise<void> => {
   });
   await testDb.db.insert(laundryProduction.orderDemands).values({
     id: fixed.demand,
+    fulfillmentId: fixed.fulfillment,
+    fulfillmentVersion: 1,
+    projectionHash: 'c'.repeat(64),
+    admissionState: 'released',
+    commercialState: 'open',
     demandKey: 'existing-order',
     displayReference: 'existing-order',
     locationId,
@@ -272,14 +291,22 @@ describe('production aggregate races', () => {
       idempotencyKey: 'race-final-completion',
     });
     await delay(30);
-    const arrival = application.applyOrderDemand({
-      demandKey: 'arriving-during-completion',
+    await seedCanonicalFulfillment(testDb.db, {
+      orderId: fixed.arrivingCanonicalOrder,
+      fulfillmentId: fixed.arrivingFulfillment,
+      locationId,
+      displayNumber: 'arriving-during-completion',
+      dueAt: endsAt,
+    });
+    const arrival = application.applyFulfillmentDemand({
+      fulfillmentId: fixed.arrivingFulfillment,
+      fulfillmentVersion: 1,
       displayReference: 'arriving-during-completion',
       locationId,
-      revisionAt: '2026-07-14T14:59:00.000Z',
-      revisionHash: 'd'.repeat(64),
-      phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
+      observedAt: '2026-07-14T14:59:00.000Z',
+      projectionHash: 'd'.repeat(64),
+      admissionState: 'released',
+      commercialState: 'open',
       dueAt: endsAt,
       estimatedWeightLbs: 20,
       estimatedWeightSource: 'external_estimate',
@@ -300,8 +327,8 @@ describe('production aggregate races', () => {
               laundryProduction.productionOrders.orderDemandId,
             ),
             eq(
-              laundryProduction.orderDemands.demandKey,
-              'arriving-during-completion',
+              laundryProduction.orderDemands.fulfillmentId,
+              fixed.arrivingFulfillment,
             ),
           ),
         );

@@ -1,11 +1,9 @@
 import { EventEmitter } from 'node:events';
 import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  makeLoggingCounterSink,
-  makeProductionDomainSignals,
-  makeProductionSignals,
-} from '../../src/common/observability/production-signals.ts';
+import { makeProductionDomainSignals } from '../../src/bootstrap/production-signals.adapter.ts';
+import { makeProductionSignals } from '../../src/http/middleware/production-signals.middleware.ts';
+import { makeLoggingCounterSink } from '../../src/runtime/observability/logging-counter.adapter.ts';
 
 const run = (
   originalUrl: string,

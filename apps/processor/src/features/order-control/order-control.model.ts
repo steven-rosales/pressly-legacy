@@ -59,6 +59,12 @@ export type OrderControlOrder = Readonly<{
   id: string
   externalOrderId: string
   secondaryLabel: string | null
+  customerLabel: string
+  phoneLabel: string
+  commercialStateLabel: string
+  admissionStateLabel: string
+  sourceStateLabel: string
+  comparisonLabel: string
   statusLabel: string
   dueLabel: string
   dueDetail: string

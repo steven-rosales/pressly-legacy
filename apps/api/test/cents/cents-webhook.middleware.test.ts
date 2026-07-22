@@ -5,7 +5,7 @@ import { makeAppError } from '@pressly/errors';
 import {
   makeCentsWebhookNormalizationBoundary,
   readCentsWebhookQuarantineReceiptId,
-} from '../../src/vendors/cents/cents-webhook.middleware.ts';
+} from '../../src/http/webhooks/cents/cents-webhook-normalization.middleware.ts';
 import { documentedCentsOrderWebhook } from './cents-webhook.fixtures.ts';
 
 const run = async (input: {

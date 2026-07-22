@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { laundryProduction } from '@pressly/db';
 import { makeListProductionOrderControlRepository } from '../../src/list-production-order-control/list-production-order-control.repo.ts';
-import { createProductionTestDatabase } from '../support/database.ts';
+import {
+  createProductionTestDatabase,
+  seedProductionDemands,
+} from '../support/database.ts';
 
 const testDb = createProductionTestDatabase();
 
@@ -26,7 +29,7 @@ const seedOrder = async (input: {
   status: 'eligible' | 'finished';
 }) => {
   const dueAt = new Date(input.dueAt);
-  await testDb.db.insert(laundryProduction.orderDemands).values({
+  await seedProductionDemands(testDb.db, {
     id: input.demandId,
     demandKey: `test:${input.reference}`,
     displayReference: input.reference,

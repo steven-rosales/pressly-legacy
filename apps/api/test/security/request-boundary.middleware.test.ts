@@ -3,8 +3,8 @@ import express, { type Express } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import { makeAppError } from '@pressly/errors';
 import { requireJsonContentType } from '@pressly/http/express';
-import { makeErrorHandler } from '../../src/common/http/error-handler.ts';
-import { makeRequestContext } from '../../src/common/http/request-context.ts';
+import { makeErrorHandler } from '../../src/http/middleware/error.middleware.ts';
+import { makeRequestContext } from '../../src/http/middleware/request-context.middleware.ts';
 
 const logEntries: Array<Readonly<Record<string, unknown>> | undefined> = [];
 const capturedErrors: unknown[] = [];

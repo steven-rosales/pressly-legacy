@@ -14,7 +14,7 @@ import type {
   ListProductionHistoryRunsQuery,
   ListProductionHistoryRunsResult,
   ListProductionOrderControlQuery,
-  ListProductionOrderControlResult,
+  ListProcessorOrderControlResult,
   ListProductionLocationsResult,
   ListProductionOrdersResult,
   ProductionBoard,
@@ -53,7 +53,7 @@ export type ProductionPort = Readonly<{
     locationId: string
     query: ListProductionOrderControlQuery
     signal?: AbortSignal
-  }) => Promise<ListProductionOrderControlResult>
+  }) => Promise<ListProcessorOrderControlResult>
   previewOrderRoute: (input: {
     locationId: string
     productionRunId: string

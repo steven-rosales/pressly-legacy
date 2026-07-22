@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   check,
 } from 'drizzle-orm/pg-core';
+import { users } from './users.schema.ts';
 
 export const authRoleEnum = pgEnum('auth_role', [
   'owner',
@@ -43,6 +44,7 @@ export const authMfaStatusEnum = pgEnum('auth_mfa_status', [
 
 export const authIdentities = pgTable('auth_identities', {
   id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id),
   kind: text('kind').notNull(),
   displayName: text('display_name').notNull(),
   email: text('email').unique(),

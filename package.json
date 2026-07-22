@@ -44,7 +44,7 @@
     "db:seed:pricing": "pnpm -F @pressly/db seed:pricing",
     "db:setup": "pnpm db:migrate && pnpm db:seed:pricing",
     "auth:bootstrap:owner": "pnpm -F @pressly/auth-module bootstrap:owner",
-    "production:bootstrap": "pnpm -F @pressly/api bootstrap:production --",
+    "production:bootstrap": "pnpm -F @pressly/cli bootstrap:production --",
     "admin": "node ./tooling/scripts/run-admin-cli.mjs",
     "admin:docker": "node ./tooling/scripts/run-admin-cli.mjs --docker",
     "admin:env": "pnpm -F @pressly/cli dev --",

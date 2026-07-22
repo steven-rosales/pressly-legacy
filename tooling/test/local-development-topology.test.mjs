@@ -13,6 +13,9 @@ const manifest = JSON.parse(
     'utf8',
   ),
 );
+const cliPackage = JSON.parse(
+  readFileSync(resolve(root, 'apps/cli/package.json'), 'utf8'),
+);
 
 describe('local development topology', () => {
   it('bootstraps Pressly One before starting the API', () => {
@@ -21,6 +24,7 @@ describe('local development topology', () => {
     const api = command.lastIndexOf('@pressly/api dev');
 
     expect(bootstrap).toBeGreaterThan(-1);
+    expect(command).toContain('@pressly/cli bootstrap:production');
     expect(api).toBeGreaterThan(bootstrap);
     expect(command).toContain(
       '/repo/tooling/fixtures/pressly-one.production-bootstrap.json',
@@ -29,6 +33,9 @@ describe('local development topology', () => {
       'local-pressly-one-topology-$$(sha256sum /repo/tooling/fixtures/pressly-one.production-bootstrap.json | cut -c1-16)',
     );
     expect(command).toContain('--apply');
+    expect(cliPackage.scripts['build:workspace-deps']).toContain(
+      'exec turbo build',
+    );
   });
 
   it('keeps the local fixture topology-only and outside production Compose', () => {

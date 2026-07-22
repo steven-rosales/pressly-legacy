@@ -276,7 +276,7 @@
           "host": ["{{base_url}}"],
           "path": ["webhooks", "cents"]
         },
-        "description": "Proof case: order_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: normalizes documented fields and strips unrelated customer PII\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: authenticates and normalizes a documented Cents order before durable ingestion"
+        "description": "Proof case: order_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: normalizes documented order and customer fields for canonical processing\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: authenticates and normalizes a documented Cents order before durable ingestion"
       }
     },
     {
@@ -328,18 +328,18 @@
       }
     },
     {
-      "name": "07 - Accept and minimize customer event",
+      "name": "07 - Accept and process customer event",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('acknowledges the customer event as ignored', () => {",
+              "pm.test('queues the customer event for processing', () => {",
               "  pm.response.to.have.status(202);",
               "  const response = pm.response.json();",
               "  pm.expect(response.ok).to.eql(true);",
-              "  pm.expect(response.data.status).to.eql('ignored');",
+              "  pm.expect(response.data.status).to.eql('pending');",
               "  pm.expect(response.data.duplicate).to.eql(false);",
               "});"
             ]
@@ -372,22 +372,22 @@
           "host": ["{{base_url}}"],
           "path": ["webhooks", "cents"]
         },
-        "description": "Proof case: customer_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: minimizes %s as an ignored %s receipt\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: stores only a minimal ignored event for an authenticated $name"
+        "description": "Proof case: customer_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: normalizes %s as a processable %s observation\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: stores the correct canonical disposition for an authenticated $name"
       }
     },
     {
-      "name": "08 - Accept and minimize marketing event",
+      "name": "08 - Accept and process marketing event",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('acknowledges the marketing event as ignored', () => {",
+              "pm.test('queues the marketing event for processing', () => {",
               "  pm.response.to.have.status(202);",
               "  const response = pm.response.json();",
               "  pm.expect(response.ok).to.eql(true);",
-              "  pm.expect(response.data.status).to.eql('ignored');",
+              "  pm.expect(response.data.status).to.eql('pending');",
               "  pm.expect(response.data.duplicate).to.eql(false);",
               "});"
             ]
@@ -420,7 +420,7 @@
           "host": ["{{base_url}}"],
           "path": ["webhooks", "cents"]
         },
-        "description": "Proof case: marketing_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: minimizes %s as an ignored %s receipt\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: stores only a minimal ignored event for an authenticated $name"
+        "description": "Proof case: marketing_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: normalizes %s as a processable %s observation\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: stores the correct canonical disposition for an authenticated $name"
       }
     }
   ]

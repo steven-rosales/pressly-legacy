@@ -1,7 +1,7 @@
 import { isAppError } from '@pressly/errors';
 import type { CorsOptions } from 'cors';
 import { describe, expect, it } from 'vitest';
-import { makeCorsOptions } from '../../src/common/security/cors.ts';
+import { makeCorsOptions } from '../../src/http/middleware/cors.middleware.ts';
 
 const isOriginAllowed = (
   options: CorsOptions,

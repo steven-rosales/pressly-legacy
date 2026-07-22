@@ -5,6 +5,9 @@ domains:
   - id: laundry-production
     path: domains/laundry-production/memory.yaml
     default_context_pack: domains/laundry-production/context-pack.md
+  - id: order-management
+    path: domains/order-management/memory.yaml
+    default_context_pack: domains/order-management/context-pack.md
 
 context_budget:
   max_tokens: 3000

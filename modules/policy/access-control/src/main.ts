@@ -15,11 +15,16 @@ import {
   makeProductionAccessControl,
   type ProductionAccessControl,
 } from './production/production.guard.ts';
+import {
+  makeOrderManagementAccessControl,
+  type OrderManagementAccessControl,
+} from './order-management/order-management.guard.ts';
 
 export type AccessControlModule = Readonly<{
   pricing: PricingAccessControl;
   authSessions: AuthSessionAccessControl;
   mfa: MfaAccessControl;
+  orderManagement: OrderManagementAccessControl;
   production: ProductionAccessControl;
 }>;
 
@@ -54,5 +59,6 @@ export const makeAccessControlModule = (
     auth: input.auth,
     freshSessionMaxAgeMinutes: input.policies.mfa.freshSessionMaxAgeMinutes,
   }),
+  orderManagement: makeOrderManagementAccessControl({ auth: input.auth }),
   production: makeProductionAccessControl({ auth: input.auth }),
 });

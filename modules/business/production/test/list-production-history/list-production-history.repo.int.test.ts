@@ -2,7 +2,10 @@ import { auth, laundryProduction } from '@pressly/db';
 import { productionHistoryRunDetailSchema } from '@pressly/contracts';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makeListProductionHistoryRepository } from '../../src/list-production-history/list-production-history.repo.ts';
-import { createProductionTestDatabase } from '../support/database.ts';
+import {
+  createProductionTestDatabase,
+  seedProductionDemands,
+} from '../support/database.ts';
 
 const testDb = createProductionTestDatabase();
 
@@ -154,7 +157,7 @@ const seed = async () => {
       version: 6,
     },
   ]);
-  await testDb.db.insert(laundryProduction.orderDemands).values([
+  await seedProductionDemands(testDb.db, [
     {
       id: ids.demand,
       demandKey: 'history-order-demand',

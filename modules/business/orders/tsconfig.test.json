@@ -1,0 +1,23 @@
+{
+  "extends": "../../../packages/tsconfig/node.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": "../../..",
+    "types": ["node"],
+    "paths": {
+      "@pressly/contracts": ["../../../packages/contracts/src/index.ts"],
+      "@pressly/db": ["../../../packages/db/src/index.ts"],
+      "@pressly/errors": ["../../../packages/errors/src/index.ts"],
+      "@pressly/kernel": ["../../../packages/kernel/src/index.ts"],
+      "@pressly/testkit": ["../../../packages/testkit/src/index.ts"],
+      "@pressly/testkit/*": ["../../../packages/testkit/src/*.ts"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "../../../packages/testkit/src/**/*.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}

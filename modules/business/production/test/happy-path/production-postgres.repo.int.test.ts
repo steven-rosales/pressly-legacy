@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, laundryProduction } from '@pressly/db';
 import { makePostgresProductionApplication } from '../../src/main.ts';
-import { createProductionTestDatabase } from '../support/database.ts';
+import {
+  createProductionTestDatabase,
+  seedCanonicalFulfillment,
+} from '../support/database.ts';
 import {
   allowPolicy,
   makeClock,
@@ -88,14 +91,23 @@ describe('production Postgres repositories', () => {
       ids,
     });
 
-    const projected = await application.applyOrderDemand({
-      demandKey: 'test:order:order-1',
+    const fulfillmentId = '00000000-0000-4000-8000-000000003001';
+    await seedCanonicalFulfillment(testDb.db, {
+      orderId: '00000000-0000-4000-8000-000000004001',
+      fulfillmentId,
+      locationId,
+      displayNumber: 'order-1',
+      dueAt: '2026-07-10T20:00:00.000Z',
+    });
+    const projected = await application.applyFulfillmentDemand({
+      fulfillmentId,
+      fulfillmentVersion: 1,
       displayReference: 'order-1',
       locationId,
-      revisionAt: '2026-07-10T13:59:00.000Z',
-      revisionHash: '2'.repeat(64),
-      phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
+      observedAt: '2026-07-10T13:59:00.000Z',
+      projectionHash: '2'.repeat(64),
+      admissionState: 'released',
+      commercialState: 'open',
       dueAt: '2026-07-10T20:00:00.000Z',
       estimatedWeightLbs: 74,
       estimatedWeightSource: 'external_estimate',

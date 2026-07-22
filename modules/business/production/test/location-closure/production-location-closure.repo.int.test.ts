@@ -17,6 +17,7 @@ import {
   makeIds,
   simpleScheduler,
 } from '../support/production.fake.ts';
+import { seedProductionDemands } from '../support/database.ts';
 
 const location = {
   first: 'test-location-closure-1',
@@ -61,6 +62,14 @@ const productionTables = [
   'production_orders',
   'production_shifts',
   'order_demands',
+  'order_outbox_events',
+  'order_field_authorities',
+  'order_source_snapshots',
+  'order_source_customer_refs',
+  'order_source_links',
+  'order_items',
+  'order_fulfillments',
+  'orders',
   'webhook_events',
   'source_location_bindings',
   'production_locations',
@@ -187,7 +196,7 @@ const seedLocationClosure = async (): Promise<void> => {
       assertedBy: id.actor,
     },
   ]);
-  await testDb.db.insert(laundryProduction.orderDemands).values([
+  await seedProductionDemands(testDb.db, [
     {
       id: id.demandEligible,
       demandKey: 'test:eligible-first-location',

@@ -2,7 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { asc, eq, laundryProduction } from '@pressly/db';
 import { makeReconcileProductionBatchProgressRepository } from '../../src/reconcile-production-batch-progress/reconcile-production-batch-progress.repo.ts';
 import { makeReconcileProductionBatchProgress } from '../../src/reconcile-production-batch-progress/reconcile-production-batch-progress.usecase.ts';
-import { createProductionTestDatabase } from '../support/database.ts';
+import {
+  createProductionTestDatabase,
+  seedProductionDemands,
+} from '../support/database.ts';
 import { allowPolicy, makeIds } from '../support/production.fake.ts';
 
 const testDb = createProductionTestDatabase();
@@ -188,7 +191,7 @@ const seed = async () => {
 
 const seedScheduledOrder = async () => {
   const now = new Date('2026-07-15T12:00:00.000Z');
-  await testDb.db.insert(laundryProduction.orderDemands).values({
+  await seedProductionDemands(testDb.db, {
     id: fixed.demand,
     demandKey: 'reconciled-order',
     displayReference: 'Reconciled order',

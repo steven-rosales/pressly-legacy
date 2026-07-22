@@ -2,12 +2,12 @@ import { EventEmitter } from 'node:events';
 import type { Logger } from '@pressly/logging';
 import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import { makeApiRequestMetrics } from '../../src/common/observability/api-metrics.ts';
+import { makeApiRequestMetrics } from '../../src/http/middleware/api-metrics.middleware.ts';
 import {
   normalizedApiRoute,
   unmatchedApiRoute,
-} from '../../src/common/observability/api-route.ts';
-import { makeApiSignalSinks } from '../../src/common/observability/sentry.ts';
+} from '../../src/http/middleware/api-route.ts';
+import { makeApiSignalSinks } from '../../src/runtime/observability/sentry.ts';
 
 describe('API request metrics', () => {
   it('uses the route template and records count plus duration', () => {

@@ -1,0 +1,38 @@
+work_id: source-neutral-architecture-hardening
+status: complete
+updated: 2026-07-21T18:50:08-04:00
+
+current_focus:
+  - complete
+  - Source-neutral authorization, durable delivery, module decisions, typed reads, and Processor ownership are locally verified.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/active/source-neutral-architecture-hardening/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+  T6:
+    status: committed
+    evidence:
+      - stateworks/work/done/source-neutral-architecture-hardening/evidence.md
+      - stateworks/work/done/source-neutral-architecture-hardening/final-report.md
