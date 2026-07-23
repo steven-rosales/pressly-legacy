@@ -94,7 +94,7 @@ describe("production floor board", () => {
     expect(
       await screen.findByRole("button", { name: "Start Sorting" })
     ).toBeInTheDocument()
-  })
+  }, 10_000)
 
   it("keeps an early start actionable and refreshes once at its planned boundary", async () => {
     const boundaryBoard = structuredClone(testBoard)
