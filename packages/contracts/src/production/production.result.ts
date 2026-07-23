@@ -4,6 +4,7 @@ import type {
   advanceProductionStageResultSchema,
   automaticProductionOrderPlacementResultSchema,
   confirmProductionOrderOvertimeResultSchema,
+  changeProductionAdmissionResultSchema,
   exactProductionOrderPlacementResultSchema,
   listProductionLocationsResultSchema,
   listProductionOrdersResultSchema,
@@ -181,6 +182,9 @@ export type ListProductionOrdersResult = z.infer<
 >;
 export type RecordOrderIntakeResult = z.infer<
   typeof recordOrderIntakeResultSchema
+>;
+export type ChangeProductionAdmissionResult = z.infer<
+  typeof changeProductionAdmissionResultSchema
 >;
 export type ProductionBootstrapResourceChange = z.infer<
   typeof productionBootstrapResourceChangeSchema

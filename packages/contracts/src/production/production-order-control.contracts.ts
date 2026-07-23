@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { utcIsoStringSchema } from '../utc-iso.contracts.ts';
 import {
+  productionAdmissionOverrideSchema,
   productionBatchStatusSchema,
   productionDueBucketSchema,
   productionHashSchema,
@@ -10,6 +11,20 @@ import {
   productionPlacementProvenanceSchema,
   productionStageKindSchema,
 } from './production.contracts.ts';
+
+export const productionAdmissionActionSchema = z.enum([
+  'release',
+  'return_to_source',
+]);
+
+export const productionOrderAdmissionSchema = z
+  .object({
+    sourceState: z.enum(['unreleased', 'released', 'withdrawn']),
+    override: productionAdmissionOverrideSchema,
+    effectiveState: z.enum(['unreleased', 'released', 'withdrawn']),
+    allowedActions: z.array(productionAdmissionActionSchema),
+  })
+  .strict();
 
 export const productionOrderAttentionReasonSchema = z.enum([
   'intake_required',
@@ -87,6 +102,7 @@ export const productionOrderCurrentPlacementSchema = z
 export const productionOrderControlItemSchema = z
   .object({
     order: productionOrderListItemSchema,
+    admission: productionOrderAdmissionSchema,
     attention: z
       .object({
         reason: productionOrderAttentionReasonSchema,
@@ -109,7 +125,7 @@ const queryBooleanSchema = z.union([
 
 export const listProductionOrderControlQuerySchema = z
   .object({
-    view: z.enum(['attention', 'active', 'all']).default('attention'),
+    view: z.enum(['attention', 'active', 'intake', 'all']).default('attention'),
     search: z.string().trim().min(1).max(120).optional(),
     status: productionOrderStatusSchema.optional(),
     dueBucket: productionDueBucketSchema.optional(),
@@ -261,6 +277,12 @@ export type ProductionOrderRouteAttempt = z.infer<
 >;
 export type ProductionOrderControlItem = z.infer<
   typeof productionOrderControlItemSchema
+>;
+export type ProductionAdmissionAction = z.infer<
+  typeof productionAdmissionActionSchema
+>;
+export type ProductionOrderAdmission = z.infer<
+  typeof productionOrderAdmissionSchema
 >;
 export type ListProductionOrderControlQuery = z.infer<
   typeof listProductionOrderControlQuerySchema

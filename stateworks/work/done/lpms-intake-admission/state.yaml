@@ -1,0 +1,35 @@
+work_id: lpms-intake-admission
+status: complete
+updated: 2026-07-23T00:00:00-04:00
+
+current_focus:
+  - complete
+  - Manual Production admission, the dedicated Intake workspace, and verification are complete.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+      - stateworks/work/done/lpms-intake-admission/final-report.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+  V2:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+      - stateworks/work/done/lpms-intake-admission/final-report.md

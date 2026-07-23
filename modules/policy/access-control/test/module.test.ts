@@ -68,6 +68,7 @@ describe('access-control module composition', () => {
       override: expect.any(Function),
       priority: expect.any(Function),
       intake: expect.any(Function),
+      admission: expect.any(Function),
       resources: expect.any(Function),
       stage: expect.any(Function),
       readActorId: expect.any(Function),

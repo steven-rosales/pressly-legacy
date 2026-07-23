@@ -309,6 +309,14 @@ export const makeTestProductionPort = (
     version: input.expectedVersion + 1,
     replayed: false,
   }),
+  changeAdmission: async (input) => ({
+    locationId: input.locationId,
+    orderId: input.productionOrderId,
+    admissionOverride: input.target === "released" ? "released" : null,
+    status: input.target === "released" ? "intake_pending" : "release_pending",
+    version: input.expectedVersion + 1,
+    replayed: false,
+  }),
   publishConfig: async () => structuredClone(testConfig),
   createShift: async () => structuredClone(testShift),
   updateShift: async (input) => ({

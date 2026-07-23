@@ -129,6 +129,26 @@ describe("processor application composition", () => {
     expect(window.location.pathname).toBe("/")
   })
 
+  it("keeps incoming-order work on the dedicated Intake route", async () => {
+    const fetch = makeFetch()
+    window.history.replaceState(null, "", "/intake")
+
+    renderApp(fetch)
+
+    expect(await screen.findByRole("heading", { name: "Intake" })).toBeVisible()
+    expect(
+      await screen.findByText("Pressly controls production readiness")
+    ).toBeVisible()
+    expect(window.location.pathname).toBe("/intake")
+    expect(
+      fetch.mock.calls.some(([request]) =>
+        String(request).includes(
+          `/production/locations/${testLocation.id}/order-control?`
+        )
+      )
+    ).toBe(true)
+  })
+
   it("restores a cookie session, discovers locations, and resumes live workspace", async () => {
     const fetch = makeFetch()
     renderApp(fetch)
@@ -619,8 +639,10 @@ describe("processor application composition", () => {
     expect(window.location.pathname).toBe(
       `/production/${testWorkspace.activeRuns[0]!.id}`
     )
-    expect(await screen.findByText("Bag intake")).toBeInTheDocument()
-    expect(screen.getByLabelText("Priority")).toBeInTheDocument()
+    expect(
+      screen.queryByText("Pressly controls production readiness")
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Priority")).not.toBeInTheDocument()
     expect(
       fetch.mock.calls.filter(([request]) =>
         String(request).includes(

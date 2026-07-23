@@ -164,6 +164,11 @@ export const productionOrders = pgTable(
     bagCountSource: text('bag_count_source'),
     intakeRecordedAt: timestamp('intake_recorded_at', { withTimezone: true }),
     intakeVersion: integer('intake_version').notNull().default(0),
+    admissionOverride: text('admission_override'),
+    admissionOverrideAt: timestamp('admission_override_at', {
+      withTimezone: true,
+    }),
+    admissionOverrideBy: uuid('admission_override_by'),
     mustStayTogether: boolean('must_stay_together').notNull().default(true),
     version: integer('version').notNull().default(1),
     eligibleAt: timestamp('eligible_at', { withTimezone: true }),
@@ -191,6 +196,19 @@ export const productionOrders = pgTable(
     check(
       'production_orders_intake_version_nonnegative',
       sql`${table.intakeVersion} >= 0`,
+    ),
+    check(
+      'production_orders_admission_override_consistent',
+      sql`(
+        ${table.admissionOverride} is null
+        and ${table.admissionOverrideAt} is null
+        and ${table.admissionOverrideBy} is null
+      ) or (
+        ${table.admissionOverride} is not null
+        and ${table.admissionOverride} = 'released'
+        and ${table.admissionOverrideAt} is not null
+        and ${table.admissionOverrideBy} is not null
+      )`,
     ),
     check(
       'production_orders_status_valid',

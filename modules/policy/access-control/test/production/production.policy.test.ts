@@ -59,6 +59,7 @@ describe('production access-control policy', () => {
         'production:override',
         'production:priority',
         'production:intake',
+        'production:admission',
         'production:resources',
         'production:stage',
       ] as const)
@@ -71,6 +72,7 @@ describe('production access-control policy', () => {
       'production:read',
       'production:priority',
       'production:intake',
+      'production:admission',
       'production:stage',
       'production:queue',
     ] as const)

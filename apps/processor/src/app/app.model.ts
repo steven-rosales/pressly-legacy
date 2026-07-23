@@ -598,15 +598,6 @@ export function useProcessorAppModel(
     () => orders.flatMap((order) => toSchedulingOrder(order) ?? []),
     [orders]
   )
-  const intakeOrders = useMemo(
-    () =>
-      orders.filter(
-        (order) =>
-          order.status === "intake_pending" ||
-          (order.status === "release_pending" && order.bagCount === null)
-      ),
-    [orders]
-  )
   const selectedLocation =
     locations.find((location) => location.id === selectedLocationId) ?? null
   const liveConnectionState:
@@ -635,7 +626,6 @@ export function useProcessorAppModel(
     workspace,
     orders,
     schedulingOrders,
-    intakeOrders,
     workspaceLoading,
     workspaceError,
     online,

@@ -446,16 +446,15 @@ function ProcessorWorkspace({
                   variant={route.view === "home" ? "compact" : "detailed"}
                 />
               )}
-            {(route.view === "schedule" || route.view === "board") &&
-              model.intakeOrders.length > 0 && (
-                <IntakeWorkspace
-                  production={runtime.production}
-                  idempotency={runtime.idempotency}
-                  locationId={location.id}
-                  orders={model.intakeOrders}
-                  onRecorded={model.refreshWorkspace}
-                />
-              )}
+            {route.view === "intake" && (
+              <IntakeWorkspace
+                production={runtime.production}
+                idempotency={runtime.idempotency}
+                locationId={location.id}
+                revision={model.workspace.asOf}
+                onMutated={model.refreshWorkspace}
+              />
+            )}
             {route.view === "home" && (
               <OrderControlWorkspaceContainer
                 production={runtime.production}

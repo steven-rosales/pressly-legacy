@@ -50,6 +50,12 @@ describe('Processor Order control route', () => {
             intakeVersion: null,
             version: 1,
           },
+          admission: {
+            sourceState: 'unreleased',
+            override: null,
+            effectiveState: 'unreleased',
+            allowedActions: ['release'],
+          },
           attention: null,
           currentPlacement: null,
           nextRequiredStage: null,

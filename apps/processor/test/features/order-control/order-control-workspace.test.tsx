@@ -25,6 +25,12 @@ const inFlightOrder: ProcessorOrderControlItem = {
     derivedWeightLbs: 40,
     version: 7,
   },
+  admission: {
+    sourceState: "released",
+    override: null,
+    effectiveState: "released",
+    allowedActions: [],
+  },
   attention: null,
   currentPlacement: {
     productionRunId: testBoard.productionRun.id,
@@ -285,6 +291,12 @@ describe("connected order control workspace", () => {
         dueAt: "2026-07-16T21:00:00.000Z",
         dueBucket: "overdue",
       },
+      admission: {
+        sourceState: "released",
+        override: null,
+        effectiveState: "released",
+        allowedActions: [],
+      },
       attention: null,
       currentPlacement: null,
       nextRequiredStage: "sorting",
@@ -345,6 +357,12 @@ describe("connected order control workspace", () => {
         bagCount: null,
         bagCountProvenance: null,
         intakeVersion: null,
+      },
+      admission: {
+        sourceState: "unreleased",
+        override: null,
+        effectiveState: "unreleased",
+        allowedActions: ["release"],
       },
       attention: null,
       currentPlacement: null,
@@ -468,6 +486,12 @@ describe("connected order control workspace", () => {
         status: "scheduled",
         derivedWeightLbs: 50,
         version: 3,
+      },
+      admission: {
+        sourceState: "released",
+        override: null,
+        effectiveState: "released",
+        allowedActions: [],
       },
       attention: null,
       currentPlacement: {

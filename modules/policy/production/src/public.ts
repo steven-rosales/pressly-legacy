@@ -1,5 +1,17 @@
 export { makeProductionPolicy } from './main.ts';
 export type { ProductionPolicy } from './main.ts';
+export {
+  allowedProductionAdmissionActions,
+  evaluateProductionAdmission,
+} from './admission-override/admission-override.policy.ts';
+export type {
+  ProductionAdmissionAction,
+  ProductionAdmissionDecision,
+  ProductionAdmissionInput,
+  ProductionAdmissionOverride,
+  ProductionAdmissionStatus,
+  ProductionAdmissionTarget,
+} from './admission-override/admission-override.policy.ts';
 export type { BatchMembershipTransitionInput } from './batch-membership/batch-membership.policy.ts';
 export type { CurrentPlanAcceptanceInput } from './current-plan/current-plan.policy.ts';
 export {
