@@ -183,8 +183,13 @@ export const makeApplyFulfillmentDemand =
           return result.ok(value);
         }
 
+        const effectiveAdmissionState =
+          command.admissionState === 'unreleased' &&
+          existing?.admissionOverride === 'released'
+            ? 'released'
+            : command.admissionState;
         const lifecycle = deps.policy.evaluateDemandLifecycle({
-          phase: demandPhase(command.admissionState),
+          phase: demandPhase(effectiveAdmissionState),
           productionStatus: existing?.productionStatus ?? null,
           currentBagCount: existing?.bagCount ?? null,
           incomingBagCount: command.bagCount,

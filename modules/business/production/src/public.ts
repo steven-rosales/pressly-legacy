@@ -28,4 +28,5 @@ export type {
   FulfillmentAdmissionState,
   FulfillmentCommercialState,
 } from './apply-fulfillment-demand/apply-fulfillment-demand.port.ts';
+export type { ChangeProductionAdmission } from './change-production-admission/change-production-admission.port.ts';
 export type { ReplaceShiftOrderSelection } from './replace-shift-order-selection/replace-shift-order-selection.port.ts';

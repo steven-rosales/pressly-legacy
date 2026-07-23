@@ -13,6 +13,10 @@ import { makeAssignStageMachines } from './assign-stage-machines/assign-stage-ma
 import { makeAssignStageMachinesRoute } from './assign-stage-machines/assign-stage-machines.route.ts';
 import { makeAssignStageMachinesRepository } from './assign-stage-machines/assign-stage-machines.repo.ts';
 import type { AssignStageMachinesRepository } from './assign-stage-machines/assign-stage-machines.port.ts';
+import { makeChangeProductionAdmission } from './change-production-admission/change-production-admission.usecase.ts';
+import { makeChangeProductionAdmissionRoute } from './change-production-admission/change-production-admission.route.ts';
+import { makeChangeProductionAdmissionRepository } from './change-production-admission/change-production-admission.repo.ts';
+import type { ChangeProductionAdmissionRepository } from './change-production-admission/change-production-admission.port.ts';
 import { makeCreateSchedule } from './create-schedule/create-schedule.usecase.ts';
 import { makeCreateScheduleRoute } from './create-schedule/create-schedule.route.ts';
 import { makeCreateScheduleRepository } from './create-schedule/create-schedule.repo.ts';
@@ -111,6 +115,7 @@ export type ProductionRepositories = Readonly<{
   applyFulfillmentDemand: ApplyFulfillmentDemandRepository;
   advanceProductionStage: AdvanceProductionStageRepository;
   assignStageMachines: AssignStageMachinesRepository;
+  changeProductionAdmission: ChangeProductionAdmissionRepository;
   createSchedule: CreateScheduleRepository;
   listProductionLocations: ListProductionLocationsRepository;
   listProductionOrders: ListProductionOrdersRepository;
@@ -246,6 +251,11 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
       repo: deps.repositories.setProductionOrderPriority,
       clock: deps.clock,
     }),
+    changeProductionAdmission: makeChangeProductionAdmission({
+      repo: deps.repositories.changeProductionAdmission,
+      policy: deps.policy,
+      clock: deps.clock,
+    }),
     createSchedule: makeCreateSchedule({
       repo: deps.repositories.createSchedule,
       scheduler: deps.scheduler,
@@ -339,6 +349,7 @@ export type ProductionRouteSecurity = Readonly<{
   override: RequestHandler;
   priority: RequestHandler;
   intake: RequestHandler;
+  admission: RequestHandler;
   resources: RequestHandler;
   stage: RequestHandler;
   readActorId: (response: Response) => string;
@@ -425,6 +436,14 @@ export const makeProductionRoutes = (input: {
       recordIntake: input.application.recordOrderIntake,
       authenticate: input.security.authenticate,
       authorize: input.security.intake,
+      ...actor,
+    }),
+  );
+  routes.use(
+    makeChangeProductionAdmissionRoute({
+      changeAdmission: input.application.changeProductionAdmission,
+      authenticate: input.security.authenticate,
+      authorize: input.security.admission,
       ...actor,
     }),
   );
@@ -535,12 +554,14 @@ export const makePostgresProductionApplication = (
       applyFulfillmentDemand: makeApplyFulfillmentDemandRepository(deps),
       advanceProductionStage: makeAdvanceProductionStageRepository(deps),
       assignStageMachines: makeAssignStageMachinesRepository(deps),
+      changeProductionAdmission: makeChangeProductionAdmissionRepository(deps),
       createSchedule: makeCreateScheduleRepository(deps),
       listProductionLocations: makeListProductionLocationsRepository(deps.db),
       listProductionOrders: makeListProductionOrdersRepository(deps.db),
-      listProductionOrderControl: makeListProductionOrderControlRepository(
-        deps.db,
-      ),
+      listProductionOrderControl: makeListProductionOrderControlRepository({
+        db: deps.db,
+        policy: deps.policy,
+      }),
       productionHistory: makeListProductionHistoryRepository(deps.db),
       loadProductionBoard: makeLoadProductionBoardRepository(deps),
       loadSchedule: makeLoadScheduleRepository(deps.db),

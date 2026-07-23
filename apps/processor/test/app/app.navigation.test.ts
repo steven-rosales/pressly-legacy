@@ -8,6 +8,7 @@ import {
 describe("processor browser routes", () => {
   it.each([
     ["/", { view: "home", shiftId: null, runId: null }],
+    ["/intake", { view: "intake", shiftId: null, runId: null }],
     ["/schedule", { view: "schedule", shiftId: null, runId: null }],
     [
       "/schedule/shift%20one",
@@ -51,6 +52,7 @@ describe("processor browser routes", () => {
       "/configuration"
     )
     expect(workspaceRoutePath(workspaceRouteForView("home"))).toBe("/")
+    expect(workspaceRoutePath(workspaceRouteForView("intake"))).toBe("/intake")
     expect(workspaceRoutePath(workspaceRouteForView("history"))).toBe(
       "/history"
     )

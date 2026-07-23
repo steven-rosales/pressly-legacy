@@ -1,0 +1,230 @@
+work_id: lpms-intake-admission
+title: LPMS manual production admission and dedicated Intake workspace
+status: complete
+
+goal:
+  - Let authorized floor staff manually admit lagging Cents orders without changing vendor truth.
+  - Keep intake work out of planning and live-production workspaces.
+  - Permit safe pre-commit reversal under Production concurrency authority.
+  - Remove prelaunch Cents-only orders through one fixed, idempotent production migration.
+
+invariants:
+  - Raw Cents lifecycle remains an external observation and is never forged by Processor.
+  - The manual override is source-neutral and owned by Production admission policy.
+  - Orders remains the authority for canonical order, fulfillment, customer, and source data.
+  - Release and reversal serialize through the location scheduling lock.
+  - Reversal is impossible after shift selection, scheduling, or active batch membership.
+  - Manual release never selects an order or places it into a started run.
+  - Valid weight and recorded bag intake remain required for executable eligibility.
+  - Processor renders server-projected actions and owns no lifecycle policy.
+  - Owner, admin, and operator authorization remains location-scoped.
+  - Prelaunch cleanup preserves canonical users, webhook audit records, post-cutoff orders, and orders linked to any non-Cents source.
+  - No secret, credential, customer payload, or private token enters Stateworks or fixtures.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Freeze the admission override and Intake workspace model
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/done/lpms-shift-order-selection
+      - repo:modules/business/orders
+      - repo:modules/business/production
+      - repo:modules/policy/production
+      - repo:apps/api
+      - repo:apps/processor
+    writes:
+      - repo:stateworks/work/active/lpms-intake-admission
+    action:
+      - Record the confirmed roles, source-truth boundary, reversal boundary, and UI ownership.
+      - Keep the override in Production so commitment validation and mutation share one lock.
+    verifier:
+      - pnpm stateworks:validate stateworks/work/active/lpms-intake-admission/network.yaml
+      - git diff --check -- stateworks/work/active/lpms-intake-admission
+    rollback:
+      - Remove only this unexecuted active package.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+
+  - id: T1
+    title: Implement manual production admission
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:modules/policy/access-control
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/api
+    writes:
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:modules/policy/access-control
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/api
+    action:
+      - Persist override provenance and expose server-authoritative action availability.
+      - Add one versioned idempotent command for release and safe reversal.
+      - Preserve manual release across lagging source revisions while allowing source withdrawal to create reconciliation.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production test:integration
+      - pnpm --filter @pressly/access-control test
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/api test
+    rollback:
+      - Revert code and use only a forward corrective migration after shared migration execution.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+
+  - id: T2
+    title: Build the dedicated Intake workspace
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1]
+    reads:
+      - repo:apps/processor/src/app
+      - repo:apps/processor/src/features/intake
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/components
+      - repo:apps/processor/src/i18n
+    writes:
+      - repo:apps/processor/src/app
+      - repo:apps/processor/src/features/intake
+      - repo:apps/processor/src/adapters
+      - repo:apps/processor/src/ports
+      - repo:apps/processor/src/i18n
+      - repo:apps/processor/test
+    action:
+      - Add the Intake route and navigation item.
+      - Move intake work out of Schedule and Production.
+      - Present source state, Pressly readiness, bag intake, priority, release, and reversal with compact accessible controls.
+    verifier:
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+    rollback:
+      - Revert the new workspace while leaving backend admission authority intact.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+
+  - id: V1
+    title: Prove concurrency, contracts, and product behavior
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T2]
+    reads:
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:modules/policy/access-control
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/api
+      - repo:apps/processor
+      - repo:tooling/test
+    writes:
+      - repo:stateworks/work/done/lpms-intake-admission/evidence.md
+      - repo:stateworks/work/done/lpms-intake-admission/state.yaml
+    action:
+      - Run focused policy, persistence, contract, API, Processor, architecture, type, lint, and formatting proof.
+      - Visually inspect the local Intake route when the selected runtime surface is available.
+      - Record exact results without claiming deployment.
+    verifier:
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - pnpm stateworks:verify stateworks/work/done/lpms-intake-admission/network.yaml --state stateworks/work/done/lpms-intake-admission/state.yaml
+      - git diff --check
+    rollback:
+      - Repair only verified failures up to the configured limit; stop on invariant violation.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+      - stateworks/work/done/lpms-intake-admission/final-report.md
+
+  - id: T3
+    title: Add the fixed prelaunch Cents order cleanup
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps: [V1]
+    reads:
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/schema/webhook-ingestion.schema.ts
+      - repo:infra/aws/lightsail/deploy.sh
+    writes:
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+    action:
+      - Select only canonical orders owned exclusively by Cents whose first source link predates July 23, 2026 in America/New_York.
+      - Remove their complete order and Production projections in foreign-key-safe order while preserving users and webhook audit history.
+      - Acquire bounded table locks so the deployment migration cannot race application writes.
+    verifier:
+      - pnpm db:test:migrate
+      - pnpm --filter @pressly/db test:integration
+    rollback:
+      - Restore the pre-deployment database backup; never attempt to reconstruct deleted prelaunch rows from partial application state.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+
+  - id: V2
+    title: Prove cleanup scope and repeat safety
+    type: verification
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps: [T3]
+    reads:
+      - repo:packages/db/src/migrations/0030_prelaunch-cents-order-cleanup.sql
+      - repo:packages/db/test/prelaunch-cents-order-cleanup.int.test.ts
+    writes:
+      - repo:stateworks/work/done/lpms-intake-admission/evidence.md
+    action:
+      - Apply the complete migration chain to the isolated migration database.
+      - Prove the cleanup removes old Cents-only aggregates, preserves users, webhook audit history, exact-cutoff orders, multi-source orders, and manual orders, and becomes a no-op on repeat execution.
+    verifier:
+      - pnpm --filter @pressly/db test:integration
+      - pnpm stateworks:verify stateworks/work/done/lpms-intake-admission/network.yaml --state stateworks/work/done/lpms-intake-admission/state.yaml
+      - git diff --check
+    rollback:
+      - Repair only the migration and its synthetic proof before publication.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-intake-admission/evidence.md
+      - stateworks/work/done/lpms-intake-admission/final-report.md

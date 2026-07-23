@@ -3,6 +3,7 @@ import {
   advanceProductionStageResultSchema,
   automaticProductionOrderPlacementResultSchema,
   confirmProductionOrderOvertimeResultSchema,
+  changeProductionAdmissionResultSchema,
   exactProductionOrderPlacementResultSchema,
   commitProductionOrderRouteResultSchema,
   listProductionHistoryActivityResultSchema,
@@ -156,6 +157,15 @@ export const makeApiProductionAdapter = (
         body,
       },
       recordOrderIntakeResultSchema
+    ),
+  changeAdmission: ({ locationId, productionOrderId, ...body }) =>
+    request(
+      {
+        method: "PUT",
+        path: `/production/locations/${encodeURIComponent(locationId)}/orders/${encodeURIComponent(productionOrderId)}/admission`,
+        body,
+      },
+      changeProductionAdmissionResultSchema
     ),
   publishConfig: ({ locationId, ...body }) =>
     request(

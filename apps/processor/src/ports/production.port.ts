@@ -3,6 +3,7 @@ import type {
   AdvanceProductionStageResult,
   AutomaticProductionOrderPlacementResult,
   CompleteStageCommand,
+  ChangeProductionAdmissionResult,
   ConfirmProductionOrderOvertimeResult,
   ExactProductionOrderPlacementResult,
   CommitProductionOrderRouteRequest,
@@ -93,6 +94,13 @@ export type ProductionPort = Readonly<{
     expectedVersion: number
     idempotencyKey: string
   }) => Promise<RecordOrderIntakeResult>
+  changeAdmission: (input: {
+    locationId: string
+    productionOrderId: string
+    target: "released" | "source"
+    expectedVersion: number
+    idempotencyKey: string
+  }) => Promise<ChangeProductionAdmissionResult>
   publishConfig: (input: {
     locationId: string
     pulseMinutes: number

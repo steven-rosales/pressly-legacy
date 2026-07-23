@@ -16,6 +16,7 @@ export type ProductionAccessControl = Readonly<{
   override: RequestHandler;
   priority: RequestHandler;
   intake: RequestHandler;
+  admission: RequestHandler;
   resources: RequestHandler;
   stage: RequestHandler;
   readActorId: (response: Response) => string;
@@ -51,6 +52,7 @@ export const makeProductionAccessControl = (input: {
     override: locationGuard('production:override'),
     priority: locationGuard('production:priority'),
     intake: locationGuard('production:intake'),
+    admission: locationGuard('production:admission'),
     resources: input.auth.authorize({
       action: 'production:resources',
       policies,

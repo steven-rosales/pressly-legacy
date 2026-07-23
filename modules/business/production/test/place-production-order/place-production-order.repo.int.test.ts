@@ -1280,9 +1280,10 @@ describe('place production order Postgres commit', () => {
       attempts.filter((attempt) => attempt.status === 'assigned'),
     ).toHaveLength(4);
 
-    const orderControl = await makeListProductionOrderControlRepository(
-      testDb.db,
-    ).list({ locationId: 'location-1', view: 'all', limit: 25 }, now);
+    const orderControl = await makeListProductionOrderControlRepository({
+      db: testDb.db,
+      policy: allowPolicy,
+    }).list({ locationId: 'location-1', view: 'all', limit: 25 }, now);
     expect(orderControl.tag).toBe('found');
     if (orderControl.tag !== 'found') return;
     expect(
@@ -1302,7 +1303,10 @@ describe('place production order Postgres commit', () => {
       ]),
     });
     await expect(
-      makeListProductionOrderControlRepository(testDb.db).list(
+      makeListProductionOrderControlRepository({
+        db: testDb.db,
+        policy: allowPolicy,
+      }).list(
         {
           locationId: 'location-1',
           view: 'all',

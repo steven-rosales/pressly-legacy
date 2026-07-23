@@ -204,6 +204,60 @@ describe('canonical fulfillment demand', () => {
     ]);
   });
 
+  it('preserves a manual Pressly release across lagging source updates and lets source withdrawal win', async () => {
+    const { application, memory } = setup();
+    await application.applyFulfillmentDemand(command({ bagCount: 2 }));
+    const created = [...memory.inspect().orders.values()][0]!;
+
+    await expect(
+      application.changeProductionAdmission({
+        locationId: 'location-1',
+        orderId: created.id,
+        target: 'released',
+        expectedVersion: created.version,
+        idempotencyKey: 'manual-admission-release',
+        actorId: '00000000-0000-4000-8000-000000009001',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: { admissionOverride: 'released', status: 'eligible' },
+    });
+
+    await application.applyFulfillmentDemand(
+      command({
+        fulfillmentVersion: 3,
+        observedAt: '2026-07-10T14:01:00.000Z',
+        projectionHash: 'b'.repeat(64),
+        bagCount: 2,
+        idempotencyKey: 'lagging-unreleased-source-update',
+      }),
+    );
+    expect([...memory.inspect().orders.values()]).toMatchObject([
+      {
+        status: 'eligible',
+        admissionOverride: 'released',
+        bagCount: 2,
+      },
+    ]);
+
+    await application.applyFulfillmentDemand(
+      command({
+        fulfillmentVersion: 4,
+        observedAt: '2026-07-10T14:02:00.000Z',
+        projectionHash: 'c'.repeat(64),
+        admissionState: 'withdrawn',
+        bagCount: 2,
+        idempotencyKey: 'source-withdrawal',
+      }),
+    );
+    expect([...memory.inspect().orders.values()]).toMatchObject([
+      {
+        status: 'ineligible',
+        admissionOverride: null,
+      },
+    ]);
+  });
+
   it('keeps commercial completion separate from unfinished floor work', async () => {
     const { application, memory } = setup();
     await application.applyFulfillmentDemand(

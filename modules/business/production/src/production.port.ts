@@ -145,6 +145,46 @@ export const nullProductionSignals: ProductionSignalsPort = {
 };
 
 export type ProductionPolicyPort = Readonly<{
+  evaluateProductionAdmission: (input: {
+    target: 'released' | 'source';
+    sourceAdmissionState: 'unreleased' | 'released' | 'withdrawn';
+    productionStatus:
+      | 'release_pending'
+      | 'intake_pending'
+      | 'eligible'
+      | 'ineligible'
+      | 'scheduled'
+      | 'finished';
+    admissionOverride: 'released' | null;
+    bagCount: number | null;
+    selectedForShift: boolean;
+    hasActivePlacement: boolean;
+  }) =>
+    | Readonly<{
+        tag: 'ok';
+        value: Readonly<{
+          admissionOverride: 'released' | null;
+          productionStatus: 'release_pending' | 'intake_pending' | 'eligible';
+        }>;
+      }>
+    | Readonly<{
+        tag: 'err';
+        error: Readonly<{ code: string; message: string }>;
+      }>;
+  allowedProductionAdmissionActions: (input: {
+    sourceAdmissionState: 'unreleased' | 'released' | 'withdrawn';
+    productionStatus:
+      | 'release_pending'
+      | 'intake_pending'
+      | 'eligible'
+      | 'ineligible'
+      | 'scheduled'
+      | 'finished';
+    admissionOverride: 'released' | null;
+    bagCount: number | null;
+    selectedForShift: boolean;
+    hasActivePlacement: boolean;
+  }) => readonly ('release' | 'return_to_source')[];
   evaluateDemandLifecycle: (input: {
     phase: OrderDemandPhase;
     productionStatus:

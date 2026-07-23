@@ -10,6 +10,7 @@ const floorActions: readonly Action[] = [
   'production:read',
   'production:priority',
   'production:intake',
+  'production:admission',
   'production:stage',
   'production:queue',
 ];

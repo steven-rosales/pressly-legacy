@@ -28,6 +28,75 @@ export const makeClock = (initial: string) => {
 };
 
 export const allowPolicy: ProductionPolicyPort = {
+  evaluateProductionAdmission: (input) => {
+    if (input.sourceAdmissionState === 'withdrawn')
+      return {
+        tag: 'err',
+        error: {
+          code: 'PRODUCTION_ADMISSION_SOURCE_WITHDRAWN',
+          message: 'The source withdrew the order.',
+        },
+      };
+    if (input.target === 'released')
+      return input.sourceAdmissionState === 'unreleased' &&
+        input.admissionOverride === null &&
+        input.productionStatus === 'release_pending'
+        ? {
+            tag: 'ok',
+            value: {
+              admissionOverride: 'released' as const,
+              productionStatus:
+                input.bagCount === null
+                  ? ('intake_pending' as const)
+                  : ('eligible' as const),
+            },
+          }
+        : {
+            tag: 'err',
+            error: {
+              code: 'PRODUCTION_ADMISSION_RELEASE_STATE_INVALID',
+              message: 'The order cannot be released.',
+            },
+          };
+    return input.sourceAdmissionState === 'unreleased' &&
+      input.admissionOverride === 'released' &&
+      !input.selectedForShift &&
+      !input.hasActivePlacement &&
+      input.productionStatus !== 'scheduled' &&
+      input.productionStatus !== 'finished'
+      ? {
+          tag: 'ok',
+          value: {
+            admissionOverride: null,
+            productionStatus: 'release_pending' as const,
+          },
+        }
+      : {
+          tag: 'err',
+          error: {
+            code: 'PRODUCTION_ADMISSION_ALREADY_COMMITTED',
+            message: 'The order cannot return to forecast-only.',
+          },
+        };
+  },
+  allowedProductionAdmissionActions: (input) => {
+    const actions: ('release' | 'return_to_source')[] = [];
+    if (
+      allowPolicy.evaluateProductionAdmission({
+        ...input,
+        target: 'released',
+      }).tag === 'ok'
+    )
+      actions.push('release');
+    if (
+      allowPolicy.evaluateProductionAdmission({
+        ...input,
+        target: 'source',
+      }).tag === 'ok'
+    )
+      actions.push('return_to_source');
+    return actions;
+  },
   evaluateDemandReconciliation: ({
     phase,
     productionStatus,

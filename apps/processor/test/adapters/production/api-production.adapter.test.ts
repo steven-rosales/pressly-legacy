@@ -129,6 +129,40 @@ describe("production API gateway", () => {
     )
   })
 
+  it("uses the dedicated Pressly admission resource without sending Cents state", async () => {
+    const orderId = testBoard.batches[0]!.orders[0]!.id
+    const request = vi.fn().mockResolvedValue({
+      locationId: testWorkspace.location.id,
+      orderId,
+      admissionOverride: "released",
+      status: "eligible",
+      version: 3,
+      replayed: false,
+    })
+    const gateway = makeApiProductionAdapter(request)
+
+    await gateway.changeAdmission({
+      locationId: testWorkspace.location.id,
+      productionOrderId: orderId,
+      target: "released",
+      expectedVersion: 2,
+      idempotencyKey: "admission-command-1",
+    })
+
+    expect(request).toHaveBeenCalledWith(
+      {
+        method: "PUT",
+        path: `/production/locations/${testWorkspace.location.id}/orders/${orderId}/admission`,
+        body: {
+          target: "released",
+          expectedVersion: 2,
+          idempotencyKey: "admission-command-1",
+        },
+      },
+      expect.anything()
+    )
+  })
+
   it("forwards the operator-confirmed stage-fit assertion without inventing it", async () => {
     const request = vi
       .fn()

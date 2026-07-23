@@ -46,6 +46,7 @@ type StoredOrder = {
   priority: boolean;
   derivedWeightLbs: number;
   bagCount: number | null;
+  admissionOverride: 'released' | null;
   finishedAt: string | null;
   version: number;
   status:
@@ -169,6 +170,7 @@ type OperationsOf<Key extends keyof ProductionRepositories> =
 type MemoryProductionOperations = OperationsOf<'acceptSchedule'> &
   OperationsOf<'advanceProductionStage'> &
   OperationsOf<'assignStageMachines'> &
+  OperationsOf<'changeProductionAdmission'> &
   OperationsOf<'createSchedule'> &
   Readonly<{
     loadBoard: (
@@ -230,6 +232,7 @@ export const makeMemoryProductionRepositories = (deps: {
       return clone({
         ...demand,
         bagCount: productionOrder?.bagCount ?? null,
+        admissionOverride: productionOrder?.admissionOverride ?? null,
         productionStatus: productionOrder?.status ?? null,
       });
     },
@@ -279,6 +282,10 @@ export const makeMemoryProductionRepositories = (deps: {
           priority: previous?.priority ?? false,
           derivedWeightLbs,
           bagCount: effectiveBagCount,
+          admissionOverride:
+            command.admissionState === 'unreleased'
+              ? (previous?.admissionOverride ?? null)
+              : null,
           finishedAt: previous?.finishedAt ?? null,
           version: (previous?.version ?? 0) + 1,
           status: production.status,
@@ -313,6 +320,10 @@ export const makeMemoryProductionRepositories = (deps: {
           productionOrderId === null
             ? null
             : (state.orders.get(productionOrderId)?.bagCount ?? null),
+        admissionOverride:
+          productionOrderId === null
+            ? null
+            : (state.orders.get(productionOrderId)?.admissionOverride ?? null),
         productionStatus:
           productionOrderId === null
             ? null
@@ -356,6 +367,17 @@ export const makeMemoryProductionRepositories = (deps: {
             productionVersion: order.version,
             intakeVersion: state.intakeVersions.get(orderId) ?? 0,
             derivedWeightLbs: order.derivedWeightLbs,
+            sourceAdmissionState: demand?.admissionState ?? 'unreleased',
+            admissionOverride: order.admissionOverride,
+            bagCount: order.bagCount,
+            selectedForShift: [...state.shiftSelections.values()].some(
+              (selection) =>
+                selection.locationId === locationId &&
+                selection.selectedOrderIds.includes(orderId),
+            ),
+            hasActivePlacement: [...state.activeBatchOrderIds.values()].some(
+              (activeOrderIds) => activeOrderIds.has(orderId),
+            ),
             demandPhase:
               demand?.admissionState === 'withdrawn'
                 ? 'withdrawn'
@@ -400,6 +422,39 @@ export const makeMemoryProductionRepositories = (deps: {
         bagCountProvenance: 'operator_intake',
         intakeVersion,
         version,
+        replayed: false,
+      };
+    },
+
+    changeAdmission: async ({
+      locationId,
+      orderId,
+      actorId: _actorId,
+      expectedVersion,
+      admissionOverride,
+      nextStatus,
+      now: _now,
+    }) => {
+      const order = state.orders.get(orderId);
+      if (
+        order === undefined ||
+        order.locationId !== locationId ||
+        order.version !== expectedVersion
+      )
+        return null;
+      const updated = {
+        ...order,
+        admissionOverride,
+        status: nextStatus,
+        version: expectedVersion + 1,
+      };
+      state.orders.set(orderId, updated);
+      return {
+        locationId,
+        orderId,
+        admissionOverride,
+        status: nextStatus,
+        version: updated.version,
         replayed: false,
       };
     },
@@ -1426,6 +1481,8 @@ export const makeMemoryProductionRepositories = (deps: {
       transactional<OperationsOf<'advanceProductionStage'>>(allOperations),
     assignStageMachines:
       transactional<OperationsOf<'assignStageMachines'>>(allOperations),
+    changeProductionAdmission:
+      transactional<OperationsOf<'changeProductionAdmission'>>(allOperations),
     createSchedule:
       transactional<OperationsOf<'createSchedule'>>(allOperations),
     listProductionLocations: {

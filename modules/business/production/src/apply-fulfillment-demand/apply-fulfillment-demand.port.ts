@@ -49,6 +49,7 @@ export type StoredFulfillmentDemand = Readonly<{
   estimatedWeightLbs: number | null;
   estimatedWeightSource: 'external_estimate' | null;
   bagCount: number | null;
+  admissionOverride: 'released' | null;
   productionStatus:
     | 'release_pending'
     | 'intake_pending'

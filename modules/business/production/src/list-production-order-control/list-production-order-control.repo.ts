@@ -17,6 +17,7 @@ import type {
   ProductionOrderControlItem,
   ProductionOrderRouteAttempt,
 } from '@pressly/contracts';
+import type { ProductionPolicyPort } from '../production.port.ts';
 import {
   mapProductionOrderListItem,
   productionDueFilter,
@@ -138,6 +139,24 @@ const asRouteReason = (
   }
 };
 
+const asSourceAdmissionState = (
+  value: string,
+): 'unreleased' | 'released' | 'withdrawn' => {
+  switch (value) {
+    case 'unreleased':
+    case 'released':
+    case 'withdrawn':
+      return value;
+    default:
+      throw new Error(`Unknown source admission state: ${value}.`);
+  }
+};
+
+const asAdmissionOverride = (value: string | null): 'released' | null => {
+  if (value === null || value === 'released') return value;
+  throw new Error(`Unknown production admission override: ${value}.`);
+};
+
 const attentionFor = (
   order: ReturnType<typeof mapProductionOrderListItem>,
   pendingPlacement: unknown,
@@ -191,9 +210,10 @@ const attentionFor = (
 };
 
 export const makeListProductionOrderControlRepository = (
-  db: Database,
+  deps: Readonly<{ db: Database; policy: ProductionPolicyPort }>,
 ): ListProductionOrderControlRepository => ({
   list: async (command, now) => {
+    const db = deps.db;
     const filterKey = productionOrderControlFilterKey(command);
     const cursor =
       command.cursor === undefined
@@ -230,7 +250,10 @@ export const makeListProductionOrderControlRepository = (
       ]),
       and(
         eq(laundryProduction.productionOrders.status, 'intake_pending'),
-        eq(laundryProduction.orderDemands.phase, 'production_released'),
+        or(
+          eq(laundryProduction.orderDemands.phase, 'production_released'),
+          eq(laundryProduction.productionOrders.admissionOverride, 'released'),
+        ),
       ),
     );
     const attentionCondition = and(
@@ -262,12 +285,19 @@ export const makeListProductionOrderControlRepository = (
       laundryProduction.productionOrders.status,
       'scheduled',
     );
+    const intakeCondition = inArray(laundryProduction.productionOrders.status, [
+      'release_pending',
+      'intake_pending',
+      'eligible',
+    ]);
     const viewCondition =
       command.view === 'attention'
         ? attentionCondition
         : command.view === 'active'
           ? activeCondition
-          : undefined;
+          : command.view === 'intake'
+            ? intakeCondition
+            : undefined;
     const movableCondition =
       command.movable === undefined
         ? undefined
@@ -343,6 +373,7 @@ export const makeListProductionOrderControlRepository = (
         intakeVersion: laundryProduction.productionOrders.intakeVersion,
         version: laundryProduction.productionOrders.version,
         pendingPlacement: laundryProduction.productionOrders.pendingPlacement,
+        admissionOverride: laundryProduction.productionOrders.admissionOverride,
         admissionState: laundryProduction.orderDemands.admissionState,
         commercialState: laundryProduction.orderDemands.commercialState,
         productionBatchId:
@@ -358,6 +389,16 @@ export const makeListProductionOrderControlRepository = (
           laundryProduction.productionBatches.membershipFrozenAt,
         productionRunId: laundryProduction.productionRuns.id,
         queueVersion: laundryProduction.productionRuns.queueVersion,
+        selectedForShift: sql<boolean>`exists (
+          select 1
+          from ${laundryProduction.productionShiftSelectedOrders} selected_order
+          inner join ${laundryProduction.productionShifts} selected_shift
+            on selected_shift.id = selected_order.production_shift_id
+           and selected_shift.location_id = selected_order.location_id
+          where selected_order.production_order_id = ${laundryProduction.productionOrders.id}
+            and selected_order.location_id = ${command.locationId}
+            and selected_shift.status = 'open'
+        )`,
       })
       .from(laundryProduction.productionOrders)
       .innerJoin(
@@ -671,8 +712,31 @@ export const makeListProductionOrderControlRepository = (
       const canMoveQueued =
         currentPlacement?.batchStatus === 'queued' &&
         !currentPlacement.membershipFrozen;
+      const sourceState = asSourceAdmissionState(row.admissionState);
+      const admissionOverride = asAdmissionOverride(row.admissionOverride);
+      const effectiveState =
+        sourceState === 'withdrawn'
+          ? 'withdrawn'
+          : admissionOverride === 'released'
+            ? 'released'
+            : sourceState;
       return {
         order,
+        admission: {
+          sourceState,
+          override: admissionOverride,
+          effectiveState,
+          allowedActions: [
+            ...deps.policy.allowedProductionAdmissionActions({
+              sourceAdmissionState: sourceState,
+              productionStatus: order.status,
+              admissionOverride,
+              bagCount: order.bagCount,
+              selectedForShift: row.selectedForShift,
+              hasActivePlacement: currentPlacement !== null,
+            }),
+          ],
+        },
         attention: attentionFor(order, row.pendingPlacement, {
           admissionState: row.admissionState,
           commercialState: row.commercialState,

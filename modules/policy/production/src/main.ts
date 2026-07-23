@@ -1,3 +1,7 @@
+import {
+  allowedProductionAdmissionActions,
+  evaluateProductionAdmission,
+} from './admission-override/admission-override.policy.ts';
 import { evaluateBatchMembershipTransition } from './batch-membership/batch-membership.policy.ts';
 import { evaluateCurrentPlanAcceptance } from './current-plan/current-plan.policy.ts';
 import {
@@ -19,6 +23,8 @@ import {
 } from './stage-transition/stage-transition.policy.ts';
 
 export const makeProductionPolicy = () => ({
+  evaluateProductionAdmission,
+  allowedProductionAdmissionActions,
   evaluateDemandLifecycle,
   evaluateDemandReconciliation,
   evaluateIntakeAdmission,

@@ -76,6 +76,10 @@ export const productionOrderStatusSchema = z.enum([
   'scheduled',
   'finished',
 ]);
+export const productionAdmissionTargetSchema = z.enum(['released', 'source']);
+export const productionAdmissionOverrideSchema = z
+  .literal('released')
+  .nullable();
 export const productionDemandPhaseSchema = z.enum([
   'expected',
   'inbound',
@@ -1261,6 +1265,33 @@ export const recordOrderIntakeResultSchema = z
     bagCount: z.number().int().nonnegative(),
     bagCountProvenance: z.literal('operator_intake'),
     intakeVersion: z.number().int().positive(),
+    version: z.number().int().positive(),
+    replayed: z.boolean(),
+  })
+  .strict();
+
+export const changeProductionAdmissionCommandSchema = z
+  .object({
+    locationId: z.string().min(1),
+    orderId: productionIdSchema,
+    target: productionAdmissionTargetSchema,
+    expectedVersion: z.number().int().positive(),
+    idempotencyKey: z.string().min(8).max(200),
+  })
+  .strict();
+
+export const changeProductionAdmissionRequestSchema =
+  changeProductionAdmissionCommandSchema.omit({
+    locationId: true,
+    orderId: true,
+  });
+
+export const changeProductionAdmissionResultSchema = z
+  .object({
+    locationId: z.string().min(1),
+    orderId: productionIdSchema,
+    admissionOverride: productionAdmissionOverrideSchema,
+    status: productionOrderStatusSchema,
     version: z.number().int().positive(),
     replayed: z.boolean(),
   })

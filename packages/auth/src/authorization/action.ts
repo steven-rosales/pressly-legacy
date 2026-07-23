@@ -20,5 +20,6 @@ export type Action =
   | 'production:override'
   | 'production:priority'
   | 'production:intake'
+  | 'production:admission'
   | 'production:resources'
   | 'production:stage';

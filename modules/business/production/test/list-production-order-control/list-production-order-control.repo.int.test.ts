@@ -5,6 +5,7 @@ import {
   createProductionTestDatabase,
   seedProductionDemands,
 } from '../support/database.ts';
+import { allowPolicy } from '../support/production.fake.ts';
 
 const testDb = createProductionTestDatabase();
 
@@ -87,9 +88,10 @@ describe('list production order control due filtering', () => {
       status: 'finished',
     });
 
-    const result = await makeListProductionOrderControlRepository(
-      testDb.db,
-    ).list(
+    const result = await makeListProductionOrderControlRepository({
+      db: testDb.db,
+      policy: allowPolicy,
+    }).list(
       {
         locationId: 'location-1',
         view: 'all',

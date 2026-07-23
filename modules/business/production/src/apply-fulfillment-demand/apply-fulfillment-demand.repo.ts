@@ -57,6 +57,11 @@ const mapProductionStatus = (
   }
 };
 
+const asAdmissionOverride = (value: string | null): 'released' | null => {
+  if (value === null || value === 'released') return value;
+  throw new Error(`Unknown production admission override: ${value}.`);
+};
+
 const mapEstimatedWeightSource = (
   value: string | null,
 ): StoredFulfillmentDemand['estimatedWeightSource'] => {
@@ -123,6 +128,8 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           id: laundryProduction.productionOrders.id,
           bagCount: laundryProduction.productionOrders.bagCount,
           status: laundryProduction.productionOrders.status,
+          admissionOverride:
+            laundryProduction.productionOrders.admissionOverride,
         })
         .from(laundryProduction.productionOrders)
         .where(eq(laundryProduction.productionOrders.orderDemandId, demand.id))
@@ -142,6 +149,9 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           demand.estimatedWeightSource,
         ),
         bagCount: productionOrder?.bagCount ?? null,
+        admissionOverride: asAdmissionOverride(
+          productionOrder?.admissionOverride ?? null,
+        ),
         productionStatus: mapProductionStatus(productionOrder?.status ?? null),
       };
     },
@@ -210,6 +220,7 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
       const stored = (
         productionOrderId: string | null,
         bagCount: number | null,
+        admissionOverride: 'released' | null,
         productionStatus: StoredFulfillmentDemand['productionStatus'],
       ): StoredFulfillmentDemand => ({
         orderDemandId,
@@ -223,13 +234,14 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         estimatedWeightLbs: command.estimatedWeightLbs,
         estimatedWeightSource: command.estimatedWeightSource,
         bagCount,
+        admissionOverride,
         productionStatus,
       });
 
       if (production.action === 'none') {
         if (existing !== undefined)
           throw new Error('A no-op demand projection found production work.');
-        return stored(null, null, null);
+        return stored(null, null, null, null);
       }
 
       if (production.action === 'preserve') {
@@ -238,6 +250,7 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         return stored(
           existing.id,
           existing.bagCount,
+          asAdmissionOverride(existing.admissionOverride),
           mapProductionStatus(existing.status),
         );
       }
@@ -286,7 +299,12 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
               status: 'eligible',
             })),
           );
-        return stored(productionOrderId, effectiveBagCount, production.status);
+        return stored(
+          productionOrderId,
+          effectiveBagCount,
+          null,
+          production.status,
+        );
       }
 
       if (existing === undefined)
@@ -317,6 +335,13 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
             production.status === 'eligible'
               ? (existing.eligibleAt ?? now)
               : null,
+          ...(command.admissionState === 'unreleased'
+            ? {}
+            : {
+                admissionOverride: null,
+                admissionOverrideAt: null,
+                admissionOverrideBy: null,
+              }),
           ...(adoptsSourceBagCount
             ? {
                 bagCount,
@@ -338,6 +363,8 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           id: laundryProduction.productionOrders.id,
           bagCount: laundryProduction.productionOrders.bagCount,
           status: laundryProduction.productionOrders.status,
+          admissionOverride:
+            laundryProduction.productionOrders.admissionOverride,
         });
       if (updated === undefined)
         throw new Error('Production order changed during demand application.');
@@ -358,6 +385,7 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
       return stored(
         updated.id,
         updated.bagCount,
+        asAdmissionOverride(updated.admissionOverride),
         mapProductionStatus(updated.status),
       );
     },
