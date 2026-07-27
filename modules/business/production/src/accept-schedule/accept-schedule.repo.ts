@@ -87,7 +87,7 @@ export const makeAcceptScheduleRepository = (deps: {
         .select({
           id: laundryProduction.productionOrders.id,
           locationId: laundryProduction.productionOrders.locationId,
-          status: laundryProduction.productionOrders.status,
+          status: laundryProduction.productionOrders.operationalStatus,
           version: laundryProduction.productionOrders.version,
           derivedWeightLbs: laundryProduction.productionOrders.derivedWeightLbs,
           bagCount: laundryProduction.productionOrders.bagCount,
@@ -145,12 +145,13 @@ export const makeAcceptScheduleRepository = (deps: {
       acknowledgedWarningCodes,
       idempotencyKey,
       idempotency,
+      lifecycle,
       now,
     ) => {
       const [accepted] = await db
         .update(laundryProduction.scheduleRuns)
         .set({
-          status: 'accepted',
+          status: lifecycle.state,
           acceptedAt: now,
           acceptedBy: actorId,
           acknowledgedWarningCodes: [...acknowledgedWarningCodes].sort(),
@@ -159,7 +160,7 @@ export const makeAcceptScheduleRepository = (deps: {
           and(
             eq(laundryProduction.scheduleRuns.locationId, locationId),
             eq(laundryProduction.scheduleRuns.id, schedule.scheduleRunId),
-            eq(laundryProduction.scheduleRuns.status, 'draft'),
+            eq(laundryProduction.scheduleRuns.status, lifecycle.from),
           ),
         )
         .returning({

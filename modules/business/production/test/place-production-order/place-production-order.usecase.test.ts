@@ -12,6 +12,7 @@ import type {
   StoredOvertimeProposal,
 } from '../../src/place-production-order/place-production-order.port.ts';
 import { makePlaceProductionOrder } from '../../src/place-production-order/place-production-order.usecase.ts';
+import { allowPolicy } from '../support/production.fake.ts';
 
 const ids = {
   run: '11111111-1111-4111-8111-111111111111',
@@ -83,6 +84,8 @@ const makeContext = (queueVersion = 4): PlacementContext => ({
   },
   runStatus: 'started',
   orderStatus: 'eligible',
+  orderExecutionStatus: 'unassigned',
+  orderVersion: 2,
   orderAlreadyAssigned: false,
   batchVersions: { [ids.batchA]: 2, [ids.batchB]: 3 },
 });
@@ -156,8 +159,9 @@ const makePolicy = (
   decide: ProductionPolicyPort['evaluatePlacementCommit'],
 ): ProductionPolicyPort =>
   ({
+    ...allowPolicy,
     evaluatePlacementCommit: vi.fn(decide),
-  }) as unknown as ProductionPolicyPort;
+  }) satisfies ProductionPolicyPort;
 
 const allowPlacement: ProductionPolicyPort['evaluatePlacementCommit'] = () => ({
   tag: 'ok',

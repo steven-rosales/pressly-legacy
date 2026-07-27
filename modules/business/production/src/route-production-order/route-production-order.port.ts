@@ -9,6 +9,8 @@ import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
   OrderRoutingStage,
+  ProductionOrderExecutionState,
+  ProductionOrderStageAttemptMutation,
   Transactional,
   WorkEventCommandIdentity,
 } from '../production.port.ts';
@@ -52,7 +54,9 @@ export type ProductionOrderRoutingContext = Readonly<{
   }>;
   order: Readonly<{
     id: string;
-    status: string;
+    operationalStatus: string;
+    executionStatus: string;
+    resolutionState: string;
     version: number;
     weightLbs: number;
   }>;
@@ -101,6 +105,9 @@ export type CommitProductionOrderRouteInput = Readonly<{
   idempotency: WorkEventCommandIdentity;
   context: ProductionOrderRoutingContext;
   proposal: ProductionOrderRouteProposal;
+  orderExecutionState: ProductionOrderExecutionState;
+  attemptLifecycles: readonly ProductionOrderStageAttemptMutation[];
+  initialAttemptState: 'assigned';
   now: Date;
 }>;
 

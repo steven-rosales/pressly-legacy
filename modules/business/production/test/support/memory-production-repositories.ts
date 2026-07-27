@@ -21,6 +21,9 @@ import type { ProductionRepositories } from '../../src/main.ts';
 import type {
   IdPort,
   OnlinePlacementProposal,
+  ProductionOrderExecutionState,
+  ProductionOrderSchedulingMutation,
+  ProductionOrderStageAttemptState,
   SchedulingInput,
   StageTransitionContext,
   StoredWorkEvent,
@@ -49,6 +52,8 @@ type StoredOrder = {
   admissionOverride: 'released' | null;
   finishedAt: string | null;
   version: number;
+  executionStatus: ProductionOrderExecutionState;
+  resolutionState: 'open' | 'resolved_without_production';
   status:
     | 'release_pending'
     | 'intake_pending'
@@ -110,6 +115,15 @@ type State = {
     string,
     StoredStage & { locationId: string; actualEndAt: string | null }
   >;
+  stageAttempts: Map<
+    string,
+    Readonly<{
+      id: string;
+      productionOrderId: string;
+      stageRunId: string;
+      status: ProductionOrderStageAttemptState;
+    }>
+  >;
   stageMachineStatuses: Map<string, 'planned' | 'active' | 'completed'>;
   bagStatuses: Map<string, ('eligible' | 'finished')[]>;
   activeBatchOrderIds: Map<string, Set<string>>;
@@ -141,6 +155,7 @@ const emptyState = (): State => ({
   runIdBySchedule: new Map(),
   batches: new Map(),
   stages: new Map(),
+  stageAttempts: new Map(),
   stageMachineStatuses: new Map(),
   bagStatuses: new Map(),
   activeBatchOrderIds: new Map(),
@@ -171,6 +186,7 @@ type MemoryProductionOperations = OperationsOf<'acceptSchedule'> &
   OperationsOf<'advanceProductionStage'> &
   OperationsOf<'assignStageMachines'> &
   OperationsOf<'changeProductionAdmission'> &
+  OperationsOf<'changeProductionOrderResolution'> &
   OperationsOf<'createSchedule'> &
   Readonly<{
     loadBoard: (
@@ -204,6 +220,10 @@ export type MemoryProductionRepositories = Readonly<{
     mode: 'automatic' | 'manager_exact';
     proposal: OnlinePlacementProposal;
     overtimeConfirmed: boolean;
+    orderLifecycle: ProductionOrderSchedulingMutation;
+    initialBatchState: 'queued';
+    initialStageState: 'planned';
+    initialAttemptState: 'assigned';
     now: Date;
   }) => ProductionOrderPlacementResult;
 }>;
@@ -233,6 +253,8 @@ export const makeMemoryProductionRepositories = (deps: {
         ...demand,
         bagCount: productionOrder?.bagCount ?? null,
         admissionOverride: productionOrder?.admissionOverride ?? null,
+        productionExecutionStatus: productionOrder?.executionStatus ?? null,
+        productionResolutionState: productionOrder?.resolutionState ?? null,
         productionStatus: productionOrder?.status ?? null,
       });
     },
@@ -242,12 +264,14 @@ export const makeMemoryProductionRepositories = (deps: {
       orderDemandId,
       production,
       effectiveBagCount,
+      initialExecutionState,
       now,
     }: {
       command: ApplyFulfillmentDemandCommand;
       orderDemandId: string;
       production: FulfillmentProductionMutation;
       effectiveBagCount: number | null;
+      initialExecutionState: 'unassigned';
       now: Date;
     }) => {
       const stored = state.demands.get(command.fulfillmentId);
@@ -288,6 +312,8 @@ export const makeMemoryProductionRepositories = (deps: {
               : null,
           finishedAt: previous?.finishedAt ?? null,
           version: (previous?.version ?? 0) + 1,
+          executionStatus: previous?.executionStatus ?? initialExecutionState,
+          resolutionState: previous?.resolutionState ?? 'open',
           status: production.status,
         });
         if (
@@ -314,6 +340,7 @@ export const makeMemoryProductionRepositories = (deps: {
         locationId: command.locationId,
         admissionState: command.admissionState,
         commercialState: command.commercialState,
+        dueAt: command.dueAt,
         estimatedWeightLbs: command.estimatedWeightLbs,
         estimatedWeightSource: command.estimatedWeightSource,
         bagCount:
@@ -324,6 +351,14 @@ export const makeMemoryProductionRepositories = (deps: {
           productionOrderId === null
             ? null
             : (state.orders.get(productionOrderId)?.admissionOverride ?? null),
+        productionExecutionStatus:
+          productionOrderId === null
+            ? null
+            : (state.orders.get(productionOrderId)?.executionStatus ?? null),
+        productionResolutionState:
+          productionOrderId === null
+            ? null
+            : (state.orders.get(productionOrderId)?.resolutionState ?? null),
         productionStatus:
           productionOrderId === null
             ? null
@@ -364,10 +399,23 @@ export const makeMemoryProductionRepositories = (deps: {
             orderId,
             locationId,
             productionStatus: order.status,
+            operationalStatus: order.status,
             productionVersion: order.version,
+            resolutionState: order.resolutionState,
             intakeVersion: state.intakeVersions.get(orderId) ?? 0,
             derivedWeightLbs: order.derivedWeightLbs,
             sourceAdmissionState: demand?.admissionState ?? 'unreleased',
+            sourceCommercialState: demand?.commercialState ?? 'open',
+            sourceDueAt: new Date(demand?.dueAt ?? order.dueAt),
+            sourceEstimatedWeightLbs:
+              demand === undefined
+                ? order.derivedWeightLbs
+                : demand.estimatedWeightLbs,
+            sourceEstimatedWeightSource:
+              demand === undefined
+                ? 'external_estimate'
+                : demand.estimatedWeightSource,
+            executionStatus: order.executionStatus,
             admissionOverride: order.admissionOverride,
             bagCount: order.bagCount,
             selectedForShift: [...state.shiftSelections.values()].some(
@@ -378,12 +426,44 @@ export const makeMemoryProductionRepositories = (deps: {
             hasActivePlacement: [...state.activeBatchOrderIds.values()].some(
               (activeOrderIds) => activeOrderIds.has(orderId),
             ),
+            hasIntake:
+              (state.intakeVersions.get(orderId) ?? 0) > 0 ||
+              order.bagCount !== null,
+            hasManualAdmission: order.admissionOverride !== null,
+            isPriority: order.priority,
+            hasPendingPlacement: false,
+            hasShiftSelection: [...state.shiftSelections.values()].some(
+              (selection) =>
+                selection.locationId === locationId &&
+                selection.selectedOrderIds.includes(orderId),
+            ),
+            hasHistoricalPlanSelection: false,
+            hasBatchMembership: [...state.activeBatchOrderIds.values()].some(
+              (activeOrderIds) => activeOrderIds.has(orderId),
+            ),
+            hasStageAttempt: [...state.stageAttempts.values()].some(
+              (attempt) => attempt.productionOrderId === orderId,
+            ),
+            hasRoute: false,
             demandPhase:
-              demand?.admissionState === 'withdrawn'
-                ? 'withdrawn'
-                : demand?.admissionState === 'unreleased'
-                  ? 'expected'
-                  : 'production_released',
+              demand?.commercialState !== undefined &&
+              demand.commercialState !== 'open'
+                ? 'post_production'
+                : demand?.admissionState === 'withdrawn'
+                  ? 'withdrawn'
+                  : demand?.admissionState === 'unreleased'
+                    ? 'expected'
+                    : 'production_released',
+          };
+    },
+
+    lockPriorityOrder: async (locationId, productionOrderId) => {
+      const order = state.orders.get(productionOrderId);
+      return order === undefined || order.locationId !== locationId
+        ? null
+        : {
+            version: order.version,
+            resolutionState: order.resolutionState,
           };
     },
 
@@ -459,6 +539,56 @@ export const makeMemoryProductionRepositories = (deps: {
       };
     },
 
+    changeResolution: async ({
+      locationId,
+      orderId,
+      expectedVersion,
+      lifecycle,
+      restoredSourceProjection,
+      now,
+    }) => {
+      const order = state.orders.get(orderId);
+      if (
+        order === undefined ||
+        order.locationId !== locationId ||
+        order.version !== expectedVersion ||
+        order.resolutionState !== lifecycle.from
+      )
+        return null;
+      const updated = {
+        ...order,
+        resolutionState: lifecycle.state,
+        ...(restoredSourceProjection === null
+          ? {}
+          : {
+              dueAt: restoredSourceProjection.dueAt.toISOString(),
+              dueBucket: bucket(
+                restoredSourceProjection.dueAt.toISOString(),
+                now,
+              ),
+              derivedWeightLbs: restoredSourceProjection.derivedWeightLbs,
+              status: restoredSourceProjection.operationalStatus,
+              admissionOverride: restoredSourceProjection.clearAdmissionOverride
+                ? null
+                : order.admissionOverride,
+            }),
+        version: expectedVersion + 1,
+      };
+      state.orders.set(orderId, updated);
+      return {
+        locationId,
+        orderId,
+        action:
+          lifecycle.state === 'resolved_without_production'
+            ? ('resolve_without_production' as const)
+            : ('restore' as const),
+        resolutionState: lifecycle.state,
+        transitionedAt: now.toISOString(),
+        version: updated.version,
+        replayed: false,
+      };
+    },
+
     nextSchedulerConfigVersion: async (locationId) =>
       Math.max(
         0,
@@ -522,7 +652,12 @@ export const makeMemoryProductionRepositories = (deps: {
     lockSelection: async (locationId, productionShiftId) => {
       const shift = state.shifts.get(productionShiftId);
       if (shift === undefined || shift.locationId !== locationId)
-        return { state: 'not_found', version: 0, selectedOrderIds: [] };
+        return {
+          state: 'not_found',
+          version: 0,
+          selectedOrderIds: [],
+          currentSchedule: null,
+        };
       if (
         [...state.runs.values()].some(
           (run) =>
@@ -530,12 +665,31 @@ export const makeMemoryProductionRepositories = (deps: {
             run.productionShiftId === productionShiftId,
         )
       )
-        return { state: 'run_exists', version: 0, selectedOrderIds: [] };
+        return {
+          state: 'run_exists',
+          version: 0,
+          selectedOrderIds: [],
+          currentSchedule: null,
+        };
       const selection = state.shiftSelections.get(productionShiftId);
+      const currentSchedule = [...state.schedules.values()].find(
+        (schedule) =>
+          state.scheduleLocationIds.get(schedule.scheduleRunId) ===
+            locationId &&
+          schedule.productionShiftId === productionShiftId &&
+          (schedule.status === 'draft' || schedule.status === 'accepted'),
+      );
       return {
         state: 'available',
         version: selection?.version ?? 0,
         selectedOrderIds: [...(selection?.selectedOrderIds ?? [])].sort(),
+        currentSchedule:
+          currentSchedule === undefined
+            ? null
+            : {
+                scheduleRunId: currentSchedule.scheduleRunId,
+                status: currentSchedule.status,
+              },
       };
     },
 
@@ -555,6 +709,7 @@ export const makeMemoryProductionRepositories = (deps: {
       productionShiftId,
       selectedOrderIds,
       currentVersion,
+      supersede,
       now,
     }) => {
       const current = state.shiftSelections.get(productionShiftId);
@@ -565,17 +720,22 @@ export const makeMemoryProductionRepositories = (deps: {
         version,
         selectedOrderIds: [...selectedOrderIds],
       });
-      const schedule = [...state.schedules.values()].find(
-        (candidate) =>
-          state.scheduleLocationIds.get(candidate.scheduleRunId) ===
-            locationId &&
-          candidate.productionShiftId === productionShiftId &&
-          (candidate.status === 'draft' || candidate.status === 'accepted'),
-      );
-      if (schedule !== undefined)
+      const schedule =
+        supersede === null
+          ? undefined
+          : state.schedules.get(supersede.scheduleRunId);
+      if (
+        supersede !== null &&
+        (schedule === undefined ||
+          state.scheduleLocationIds.get(schedule.scheduleRunId) !==
+            locationId ||
+          schedule.status !== supersede.lifecycle.from)
+      )
+        throw new Error('Current schedule revision changed unexpectedly.');
+      if (schedule !== undefined && supersede !== null)
         state.schedules.set(schedule.scheduleRunId, {
           ...schedule,
-          status: 'superseded',
+          status: supersede.lifecycle.state,
           supersededAt: now.toISOString(),
         });
       return {
@@ -589,11 +749,7 @@ export const makeMemoryProductionRepositories = (deps: {
       };
     },
 
-    supersedeCurrentSchedule: async ({
-      locationId,
-      productionShiftId,
-      now,
-    }) => {
+    lockCurrentSchedule: async (locationId, productionShiftId) => {
       const current = [...state.schedules.values()].filter(
         (schedule) =>
           state.scheduleLocationIds.get(schedule.scheduleRunId) ===
@@ -604,10 +760,27 @@ export const makeMemoryProductionRepositories = (deps: {
       if (current.length > 1)
         throw new Error('More than one current schedule revision was found.');
       const schedule = current[0];
-      if (schedule === undefined) return null;
+      return schedule === undefined
+        ? null
+        : { scheduleRunId: schedule.scheduleRunId, status: schedule.status };
+    },
+
+    supersedeCurrentSchedule: async ({
+      locationId,
+      scheduleRunId,
+      lifecycle,
+      now,
+    }) => {
+      const schedule = state.schedules.get(scheduleRunId);
+      if (
+        schedule === undefined ||
+        state.scheduleLocationIds.get(schedule.scheduleRunId) !== locationId ||
+        schedule.status !== lifecycle.from
+      )
+        throw new Error('Current schedule revision changed unexpectedly.');
       state.schedules.set(schedule.scheduleRunId, {
         ...schedule,
-        status: 'superseded',
+        status: lifecycle.state,
         supersededAt: now.toISOString(),
       });
       return schedule.scheduleRunId;
@@ -706,32 +879,47 @@ export const makeMemoryProductionRepositories = (deps: {
       };
     },
 
-    currentPlanExists: async (locationId, productionShiftId) =>
-      [...state.schedules.values()].some(
+    loadCurrentPlan: async (locationId, productionShiftId) => {
+      const current = [...state.schedules.values()].find(
         (schedule) =>
           state.scheduleLocationIds.get(schedule.scheduleRunId) ===
             locationId &&
           schedule.productionShiftId === productionShiftId &&
           (schedule.status === 'draft' || schedule.status === 'accepted'),
-      ),
+      );
+      return current === undefined
+        ? null
+        : { scheduleRunId: current.scheduleRunId, status: current.status };
+    },
 
-    saveSchedule: async ({ locationId, id, schedulingInput, output, now }) => {
-      for (const [scheduleId, existing] of state.schedules)
+    saveSchedule: async ({
+      locationId,
+      id,
+      schedulingInput,
+      output,
+      initialStatus,
+      supersede,
+      now,
+    }) => {
+      if (supersede !== null) {
+        const existing = state.schedules.get(supersede.scheduleRunId);
         if (
-          existing.productionShiftId === schedulingInput.shift.id &&
-          (existing.status === 'draft' || existing.status === 'accepted')
+          existing === undefined ||
+          existing.status !== supersede.lifecycle.from
         )
-          state.schedules.set(scheduleId, {
-            ...existing,
-            status: 'superseded',
-            supersededAt: now.toISOString(),
-          });
+          throw new Error('Current schedule revision changed unexpectedly.');
+        state.schedules.set(existing.scheduleRunId, {
+          ...existing,
+          status: supersede.lifecycle.state,
+          supersededAt: now.toISOString(),
+        });
+      }
 
       const schedule: ScheduleProposal = {
         scheduleRunId: id,
         productionShiftId: schedulingInput.shift.id,
         schedulerConfigId: schedulingInput.config.id,
-        status: 'draft',
+        status: initialStatus,
         inputSnapshotHash: output.inputSnapshotHash,
         outputPlanHash: output.outputPlanHash,
         algorithmVersion: output.algorithmVersion,
@@ -800,7 +988,6 @@ export const makeMemoryProductionRepositories = (deps: {
         JSON.stringify([...snapshots.keys()].sort())
       )
         return false;
-
       return record.inputSnapshot.orders.every((snapshot) => {
         const order = state.orders.get(snapshot.id);
         return (
@@ -816,6 +1003,50 @@ export const makeMemoryProductionRepositories = (deps: {
       });
     },
 
+    lockAndLoadStartOrders: async (locationId, record) => {
+      if (!scheduleCoversInputExactly(record.schedule, record.inputSnapshot))
+        return null;
+      const snapshots = new Map(
+        record.inputSnapshot.orders.map((order) => [order.id, order]),
+      );
+      if (snapshots.size !== record.inputSnapshot.orders.length) return null;
+      const selectedOrderIds = [
+        ...(state.shiftSelections.get(record.schedule.productionShiftId)
+          ?.selectedOrderIds ?? []),
+      ].sort();
+      if (
+        JSON.stringify(selectedOrderIds) !==
+        JSON.stringify([...snapshots.keys()].sort())
+      )
+        return null;
+
+      const lockedOrders = record.inputSnapshot.orders.map((snapshot) => {
+        const order = state.orders.get(snapshot.id);
+        const valid =
+          order !== undefined &&
+          order.locationId === locationId &&
+          order.status === 'eligible' &&
+          order.version === snapshot.version &&
+          order.derivedWeightLbs === snapshot.derivedWeightLbs &&
+          order.bagCount === snapshot.bagCount &&
+          order.priority === snapshot.priority &&
+          order.dueAt === snapshot.dueAt;
+        return valid
+          ? {
+              id: order.id,
+              operationalStatus: order.status,
+              executionStatus: order.executionStatus,
+              version: order.version,
+            }
+          : null;
+      });
+      if (lockedOrders.some((order) => order === null)) return null;
+      return lockedOrders.filter(
+        (order): order is Exclude<(typeof lockedOrders)[number], null> =>
+          order !== null,
+      );
+    },
+
     acceptSchedule: async (
       locationId,
       schedule,
@@ -823,6 +1054,7 @@ export const makeMemoryProductionRepositories = (deps: {
       acknowledgedWarningCodes,
       idempotencyKey,
       idempotency,
+      lifecycle,
       now,
     ) => {
       if (state.scheduleLocationIds.get(schedule.scheduleRunId) !== locationId)
@@ -832,7 +1064,7 @@ export const makeMemoryProductionRepositories = (deps: {
 
       state.schedules.set(schedule.scheduleRunId, {
         ...schedule,
-        status: 'accepted',
+        status: lifecycle.state,
         acceptedAt: now.toISOString(),
         acceptedBy: actorId,
         acknowledgedWarningCodes: schedule.warnings
@@ -869,6 +1101,11 @@ export const makeMemoryProductionRepositories = (deps: {
     startSchedule: async ({
       locationId,
       record,
+      productionRunStatus,
+      orderLifecycles,
+      initialBatchState,
+      initialStageState,
+      initialAttemptState,
       idempotencyKey,
       idempotency,
       now,
@@ -876,6 +1113,17 @@ export const makeMemoryProductionRepositories = (deps: {
       const replay = state.startResults.get(idempotencyKey);
       if (replay !== undefined) return { ...clone(replay), replayed: true };
       const { schedule } = record;
+      const lifecycleByOrderId = new Map(
+        orderLifecycles.map((order) => [order.productionOrderId, order]),
+      );
+      const selectedOrderIds = schedule.batches.flatMap(
+        (batch) => batch.orderIds,
+      );
+      if (
+        lifecycleByOrderId.size !== selectedOrderIds.length ||
+        selectedOrderIds.some((orderId) => !lifecycleByOrderId.has(orderId))
+      )
+        throw new Error('Order execution decisions are incomplete at Start.');
       const productionRunId = deps.ids.next();
       const productionBatchIds: string[] = [];
       state.runs.set(productionRunId, {
@@ -883,7 +1131,7 @@ export const makeMemoryProductionRepositories = (deps: {
         locationId,
         scheduleRunId: schedule.scheduleRunId,
         productionShiftId: schedule.productionShiftId,
-        status: 'started',
+        status: productionRunStatus,
         queueVersion: 1,
         plannedCompletionAt: schedule.plannedCompletionAt,
         overtimeProposalHash: null,
@@ -907,7 +1155,7 @@ export const makeMemoryProductionRepositories = (deps: {
             locationId,
             productionBatchId: batchId,
             stage: proposedStage.stage,
-            status: 'planned',
+            status: initialStageState,
             plannedStartAt: proposedStage.startsAt,
             plannedEndAt: proposedStage.endsAt,
             actualStartAt: null,
@@ -927,7 +1175,7 @@ export const makeMemoryProductionRepositories = (deps: {
           locationId,
           productionRunId,
           sequence: proposed.sequence,
-          status: 'queued',
+          status: initialBatchState,
           derivedWeightLbs: proposed.derivedWeightLbs,
           pulseCapacityLbs: schedule.pulseCapacityLbs,
           pulseMinutes: schedule.pulseMinutes,
@@ -941,11 +1189,21 @@ export const makeMemoryProductionRepositories = (deps: {
         state.activeBatchOrderIds.set(batchId, new Set(proposed.orderIds));
         for (const orderId of proposed.orderIds) {
           const order = state.orders.get(orderId);
+          const lifecycle = lifecycleByOrderId.get(orderId);
           if (order === undefined)
             throw new Error('Scheduled order not found.');
+          if (
+            lifecycle === undefined ||
+            lifecycle.expectedVersion !== order.version ||
+            lifecycle.persistedState !== order.executionStatus ||
+            lifecycle.lifecycle.from !== order.executionStatus ||
+            lifecycle.lifecycle.state !== 'scheduled'
+          )
+            throw new Error('Scheduled order lifecycle changed.');
           state.orders.set(orderId, {
             ...order,
             status: 'scheduled',
+            executionStatus: 'scheduled',
             version: order.version + 1,
           });
           state.batchOrderMetadata.set(batchOrderKey(batchId, orderId), {
@@ -953,6 +1211,15 @@ export const makeMemoryProductionRepositories = (deps: {
             pinnedAt: null,
             pinnedBy: null,
           });
+          for (const stageId of stageIds) {
+            const attemptId = deps.ids.next();
+            state.stageAttempts.set(attemptId, {
+              id: attemptId,
+              productionOrderId: orderId,
+              stageRunId: stageId,
+              status: initialAttemptState,
+            });
+          }
         }
       }
 
@@ -1149,9 +1416,41 @@ export const makeMemoryProductionRepositories = (deps: {
           )
           .flatMap((candidate) => candidate.machineIds),
       );
+      const activeOrders = [
+        ...(state.activeBatchOrderIds.get(batch.id) ?? []),
+      ].map((orderId) => {
+        const order = state.orders.get(orderId);
+        if (order === undefined)
+          throw new Error('Active production order not found.');
+        return {
+          id: order.id,
+          status: order.status,
+          executionStatus: order.executionStatus,
+          resolutionState: order.resolutionState,
+          version: order.version,
+        };
+      });
 
       const context: StageTransitionContext = {
         stage: clone(stage),
+        batch: {
+          id: batch.id,
+          status: batch.status,
+          version: batch.version,
+        },
+        attempts: [...state.stageAttempts.values()]
+          .filter((attempt) => attempt.stageRunId === stage.id)
+          .map((attempt) => ({
+            id: attempt.id,
+            status: attempt.status,
+          })),
+        activeOrders,
+        productionRunStatus:
+          state.runs.get(batch.productionRunId)?.status ?? 'unknown',
+        productionShiftStatus:
+          state.shifts.get(
+            state.runs.get(batch.productionRunId)?.productionShiftId ?? '',
+          )?.status ?? 'unknown',
         productionRunStarted:
           state.runs.get(batch.productionRunId)?.status === 'started',
         batchMembershipFrozen: batch.membership.state === 'frozen',
@@ -1201,17 +1500,45 @@ export const makeMemoryProductionRepositories = (deps: {
       locationId,
       stageRunId,
       expectedVersion,
-      nextState,
+      stageLifecycle,
+      batchId,
+      batchExpectedVersion,
+      batchState,
+      batchLifecycle,
+      freezeMembership,
+      attemptLifecycles,
+      terminalLifecycle,
       actorId,
       now,
     }) => {
       const stage = state.stages.get(stageRunId);
+      const batch =
+        stage === undefined
+          ? undefined
+          : state.batches.get(stage.productionBatchId);
       if (
         stage === undefined ||
         stage.locationId !== locationId ||
-        stage.version !== expectedVersion
+        stage.version !== expectedVersion ||
+        stage.status !== stageLifecycle.from ||
+        batch === undefined ||
+        batch.id !== batchId ||
+        batch.version !== batchExpectedVersion ||
+        batch.status !== batchState ||
+        (batchLifecycle !== null && batchLifecycle.from !== batch.status)
       )
         return null;
+      for (const mutation of attemptLifecycles) {
+        const attempt = state.stageAttempts.get(mutation.attemptId);
+        if (
+          attempt === undefined ||
+          attempt.stageRunId !== stage.id ||
+          mutation.stageRunId !== stage.id ||
+          attempt.status !== mutation.lifecycle.from
+        )
+          return null;
+      }
+      const nextState = stageLifecycle.state;
       const updated = {
         ...stage,
         status: nextState,
@@ -1231,15 +1558,21 @@ export const makeMemoryProductionRepositories = (deps: {
         );
       }
       state.stages.set(stage.id, updated);
-      const batch = state.batches.get(stage.productionBatchId);
-      if (batch === undefined) throw new Error('Batch not found.');
+      for (const mutation of attemptLifecycles) {
+        const attempt = state.stageAttempts.get(mutation.attemptId)!;
+        state.stageAttempts.set(attempt.id, {
+          ...attempt,
+          status: mutation.lifecycle.state,
+        });
+      }
 
       if (nextState === 'started') {
-        const freezesMembership = batch.membership.state === 'mutable';
+        if (batchLifecycle === null)
+          throw new Error('Batch lifecycle decision is missing.');
         state.batches.set(batch.id, {
           ...batch,
-          status: stage.stage,
-          membership: freezesMembership
+          status: batchLifecycle.state,
+          membership: freezeMembership
             ? {
                 state: 'frozen',
                 frozenAt: now.toISOString(),
@@ -1249,7 +1582,7 @@ export const makeMemoryProductionRepositories = (deps: {
           startedAt: batch.startedAt ?? now.toISOString(),
           version: batch.version + 1,
         });
-        if (freezesMembership) {
+        if (freezeMembership) {
           const run = state.runs.get(batch.productionRunId);
           if (run === undefined) throw new Error('Production run not found.');
           state.runs.set(run.id, {
@@ -1262,9 +1595,11 @@ export const makeMemoryProductionRepositories = (deps: {
           });
         }
       } else if (stage.stage === 'folding_packaging') {
+        if (batchLifecycle === null)
+          throw new Error('Terminal batch lifecycle decision is missing.');
         state.batches.set(batch.id, {
           ...batch,
-          status: 'finished',
+          status: batchLifecycle.state,
           finishedAt: now.toISOString(),
           version: batch.version + 1,
         });
@@ -1276,13 +1611,36 @@ export const makeMemoryProductionRepositories = (deps: {
           throw new Error(
             'Finished batch active order links are inconsistent.',
           );
+        if (terminalLifecycle === null)
+          throw new Error('Terminal lifecycle decisions are missing.');
+        const orderLifecycleById = new Map(
+          terminalLifecycle.orders.map((order) => [
+            order.productionOrderId,
+            order,
+          ]),
+        );
+        if (
+          orderLifecycleById.size !== batch.orderIds.length ||
+          batch.orderIds.some((orderId) => !orderLifecycleById.has(orderId))
+        )
+          throw new Error('Terminal order lifecycles are incomplete.');
         for (const orderId of batch.orderIds) {
           const order = state.orders.get(orderId);
+          const lifecycle = orderLifecycleById.get(orderId);
           if (order === undefined || order.status !== 'scheduled')
             throw new Error('Finished batch order is not scheduled.');
+          if (
+            lifecycle === undefined ||
+            lifecycle.persistedState !== order.executionStatus ||
+            lifecycle.expectedVersion !== order.version ||
+            lifecycle.lifecycle.from !== order.executionStatus ||
+            lifecycle.lifecycle.state !== 'finished'
+          )
+            throw new Error('Finished order lifecycle changed.');
           state.orders.set(orderId, {
             ...order,
             status: 'finished',
+            executionStatus: 'finished',
             finishedAt: now.toISOString(),
             version: order.version + 1,
           });
@@ -1314,7 +1672,7 @@ export const makeMemoryProductionRepositories = (deps: {
         ) {
           state.runs.set(run.id, {
             ...run,
-            status: 'completed',
+            status: terminalLifecycle?.run.state ?? run.status,
             completedAt: now.toISOString(),
             version: run.version + 1,
           });
@@ -1330,7 +1688,7 @@ export const makeMemoryProductionRepositories = (deps: {
               throw new Error('Production shift not found.');
             state.shifts.set(shift.id, {
               ...shift,
-              status: 'closed',
+              status: terminalLifecycle?.shift.state ?? shift.status,
               version: shift.version + 1,
             });
           }
@@ -1483,6 +1841,10 @@ export const makeMemoryProductionRepositories = (deps: {
       transactional<OperationsOf<'assignStageMachines'>>(allOperations),
     changeProductionAdmission:
       transactional<OperationsOf<'changeProductionAdmission'>>(allOperations),
+    changeProductionOrderResolution:
+      transactional<OperationsOf<'changeProductionOrderResolution'>>(
+        allOperations,
+      ),
     createSchedule:
       transactional<OperationsOf<'createSchedule'>>(allOperations),
     listProductionLocations: {
@@ -1730,6 +2092,7 @@ export const makeMemoryProductionRepositories = (deps: {
                               : 'Automatic placement has not completed; it can be retried.',
                         } as const),
                 })),
+            liveRunChanges: null,
             demandOutlook: null,
             board: null,
             stations: [],
@@ -1740,6 +2103,7 @@ export const makeMemoryProductionRepositories = (deps: {
           },
           boardProjection,
           demandOutlookRows: [],
+          livePlacement: null,
         };
       },
     },
@@ -1753,6 +2117,16 @@ export const makeMemoryProductionRepositories = (deps: {
       transactional<OperationsOf<'publishSchedulerConfig'>>(allOperations),
     recordOrderIntake:
       transactional<OperationsOf<'recordOrderIntake'>>(allOperations),
+    reviewProductionOrderBacklog: {
+      ...unsupportedTransactional<
+        OperationsOf<'reviewProductionOrderBacklog'>
+      >(),
+      loadSnapshot: async () => {
+        throw new Error(
+          'The memory backlog-review repository is not supported.',
+        );
+      },
+    },
     replaceShiftOrderSelection:
       transactional<OperationsOf<'replaceShiftOrderSelection'>>(allOperations),
     routeProductionOrder: unsupportedTransactional(),
@@ -1832,30 +2206,35 @@ export const makeMemoryProductionRepositories = (deps: {
         if (projection.sourceBatchId === null) createdBatchId = batchId;
         if (!projection.changed) continue;
 
-        if (stored !== undefined)
-          for (const stageId of stored.stageIds) {
+        const existingStageByKind = new Map(
+          (stored?.stageIds ?? []).map((stageId) => {
             const stage = state.stages.get(stageId);
             if (stage === undefined || stage.status !== 'planned')
               throw new Error('Affected batch contains a non-planned stage.');
-            for (const machineId of stage.machineIds)
-              state.stageMachineStatuses.delete(`${stage.id}:${machineId}`);
-            state.stages.delete(stage.id);
-          }
+            return [stage.stage, stage] as const;
+          }),
+        );
 
         const stageIds = projection.stages.map((projectedStage) => {
-          const stageId = deps.ids.next();
+          const existingStage = existingStageByKind.get(projectedStage.stage);
+          const stageId = existingStage?.id ?? deps.ids.next();
+          if (existingStage !== undefined)
+            for (const machineId of existingStage.machineIds)
+              state.stageMachineStatuses.delete(
+                `${existingStage.id}:${machineId}`,
+              );
           state.stages.set(stageId, {
             id: stageId,
             locationId: input.locationId,
             productionBatchId: batchId,
             stage: projectedStage.stage,
-            status: 'planned',
+            status: input.initialStageState,
             plannedStartAt: projectedStage.startsAt,
             plannedEndAt: projectedStage.endsAt,
             actualStartAt: null,
             actualEndAt: null,
             machineIds: [...projectedStage.machineIds],
-            version: 1,
+            version: (existingStage?.version ?? 0) + 1,
           });
           for (const machineId of projectedStage.machineIds)
             state.stageMachineStatuses.set(
@@ -1869,7 +2248,8 @@ export const makeMemoryProductionRepositories = (deps: {
           locationId: input.locationId,
           productionRunId: input.productionRunId,
           sequence: projection.sequence,
-          status: projection.status,
+          status:
+            stored === undefined ? input.initialBatchState : projection.status,
           derivedWeightLbs: projection.derivedWeightLbs,
           pulseCapacityLbs:
             stored?.pulseCapacityLbs ?? runTemplateBatch.pulseCapacityLbs,
@@ -1890,6 +2270,16 @@ export const makeMemoryProductionRepositories = (deps: {
           : createdBatchId;
       if (targetBatchId === null)
         throw new Error('Placement target was not materialized.');
+      const targetBatch = state.batches.get(targetBatchId);
+      if (targetBatch === undefined)
+        throw new Error('Placement target batch is missing.');
+      if (
+        input.orderLifecycle.productionOrderId !== order.id ||
+        input.orderLifecycle.persistedState !== order.executionStatus ||
+        input.orderLifecycle.expectedVersion !== order.version ||
+        input.orderLifecycle.lifecycle.from !== order.executionStatus
+      )
+        throw new Error('Placed order lifecycle changed.');
       state.batchOrderMetadata.set(
         batchOrderKey(targetBatchId, input.productionOrderId),
         {
@@ -1900,10 +2290,20 @@ export const makeMemoryProductionRepositories = (deps: {
           pinnedBy: input.mode === 'manager_exact' ? input.actorId : null,
         },
       );
+      for (const stageId of targetBatch.stageIds) {
+        const attemptId = deps.ids.next();
+        state.stageAttempts.set(attemptId, {
+          id: attemptId,
+          productionOrderId: order.id,
+          stageRunId: stageId,
+          status: input.initialAttemptState,
+        });
+      }
       state.orders.set(order.id, {
         ...order,
-        status: 'scheduled',
-        version: order.version + 1,
+        status: input.orderLifecycle.lifecycle.state,
+        executionStatus: input.orderLifecycle.lifecycle.state,
+        version: input.orderLifecycle.expectedVersion + 1,
       });
       const queueVersion = run.queueVersion + 1;
       const acknowledgesOvertime =

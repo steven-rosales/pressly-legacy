@@ -23,6 +23,9 @@ export type LockedIntakeOrder = Readonly<{
   intakeVersion: number;
   derivedWeightLbs: number;
   demandPhase: OrderDemandPhase;
+  admissionOverride: 'released' | null;
+  executionStatus: string;
+  resolutionState: string;
 }>;
 
 export type RecordOrderIntakeRepository = Transactional<

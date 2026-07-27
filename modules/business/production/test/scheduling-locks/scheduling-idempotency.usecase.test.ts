@@ -78,7 +78,7 @@ describe('scheduling idempotency after the location lock', () => {
       lockLocationScheduling,
       lockShiftForPlanning,
       loadSchedulingInput: vi.fn(),
-      currentPlanExists: vi.fn(),
+      loadCurrentPlan: vi.fn(),
       saveSchedule: vi.fn(),
       appendWorkEvent: vi.fn(),
     };
@@ -199,7 +199,7 @@ describe('scheduling idempotency after the location lock', () => {
       lockLocationScheduling,
       lockShiftForStart: vi.fn(),
       loadSchedule,
-      lockAndValidateScheduleInput: vi.fn(),
+      lockAndLoadStartOrders: vi.fn(),
       productionRunExists: vi.fn(),
       startSchedule: vi.fn(),
     };

@@ -12,7 +12,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { workspaceNavigation, type WorkspaceView } from "./app.navigation"
+import {
+  workspaceHomeNavigation,
+  workspaceNavigationSections,
+  type WorkspaceView,
+} from "./app.navigation"
 
 function Navigation({
   current,
@@ -22,21 +26,43 @@ function Navigation({
   onNavigate: (view: WorkspaceView) => void
 }) {
   const { t } = useTranslation()
+  const HomeIcon = workspaceHomeNavigation.icon
 
   return (
-    <nav aria-label={t("navigation.label")} className="flex flex-col gap-1">
-      {workspaceNavigation.map(({ id, labelKey, icon: Icon }) => (
-        <Button
-          key={id}
-          type="button"
-          variant={current === id ? "secondary" : "ghost"}
-          className="w-full justify-start"
-          aria-current={current === id ? "page" : undefined}
-          onClick={() => onNavigate(id)}
-        >
-          <Icon data-icon="inline-start" />
-          {t(labelKey)}
-        </Button>
+    <nav aria-label={t("navigation.label")} className="flex flex-col gap-4">
+      <Button
+        type="button"
+        variant={current === workspaceHomeNavigation.id ? "secondary" : "ghost"}
+        className="w-full justify-start"
+        aria-current={
+          current === workspaceHomeNavigation.id ? "page" : undefined
+        }
+        onClick={() => onNavigate(workspaceHomeNavigation.id)}
+      >
+        <HomeIcon data-icon="inline-start" />
+        {t(workspaceHomeNavigation.labelKey)}
+      </Button>
+      {workspaceNavigationSections.map((section) => (
+        <div key={section.id}>
+          <p className="mb-1 px-3 text-xs text-muted-foreground">
+            {t(section.labelKey)}
+          </p>
+          <div className="flex flex-col gap-1">
+            {section.items.map(({ id, labelKey, icon: Icon }) => (
+              <Button
+                key={id}
+                type="button"
+                variant={current === id ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                aria-current={current === id ? "page" : undefined}
+                onClick={() => onNavigate(id)}
+              >
+                <Icon data-icon="inline-start" />
+                {t(labelKey)}
+              </Button>
+            ))}
+          </div>
+        </div>
       ))}
     </nav>
   )

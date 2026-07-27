@@ -60,6 +60,14 @@ export const makeRecordOrderIntake =
             ),
           );
 
+        const access = deps.policy.evaluateProductionOrderOperationalAccess({
+          resolutionState: order.resolutionState,
+        });
+        if (access.tag === 'err')
+          return result.err(
+            productionError(access.error.code, access.error.message, 409),
+          );
+
         if (
           !['release_pending', 'intake_pending', 'eligible'].includes(
             order.productionStatus,
@@ -82,13 +90,52 @@ export const makeRecordOrderIntake =
             productionError(admission.error.code, admission.error.message, 409),
           );
 
+        const execution = deps.policy.resolveProductionOrderExecutionState({
+          executionState: order.executionStatus,
+          operationalStatus: order.productionStatus,
+        });
+        if (execution.tag === 'err')
+          return result.err(
+            productionError(execution.error.code, execution.error.message, 409),
+          );
+        if (execution.value !== 'unassigned')
+          return result.err(
+            productionError(
+              'PRODUCTION_ORDER_INTAKE_STATE_INVALID',
+              'Bag intake cannot change after an order enters production.',
+              409,
+            ),
+          );
+        const nextStatus = deps.policy.deriveProductionOrderOperationalStatus({
+          executionState: execution.value,
+          admission:
+            order.demandPhase === 'production_released'
+              ? 'released'
+              : order.demandPhase === 'withdrawn'
+                ? 'withdrawn'
+                : order.demandPhase === 'post_production'
+                  ? 'post_production'
+                  : 'unreleased',
+          admissionOverride: order.admissionOverride,
+          hasPositiveDemand: order.derivedWeightLbs > 0,
+          bagCount: command.bagCount,
+        });
+        if (nextStatus !== 'release_pending' && nextStatus !== 'eligible')
+          return result.err(
+            productionError(
+              'PRODUCTION_ORDER_INTAKE_STATE_INVALID',
+              'Bag intake does not produce an admissible production state.',
+              409,
+            ),
+          );
+
         const recorded = await repo.recordIntake({
           locationId: command.locationId,
           orderId: command.orderId,
           bagCount: command.bagCount,
           expectedVersion: command.expectedVersion,
           currentIntakeVersion: order.intakeVersion,
-          nextStatus: admission.value.status,
+          nextStatus,
           now: deps.clock.now(),
         });
         if (recorded === null)

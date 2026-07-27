@@ -1,0 +1,136 @@
+work_id: lpms-operational-authority-remaining-day-forecast
+status: done
+updated: 2026-07-26T23:32:31-04:00
+
+current_focus:
+  - complete
+  - Operational authority, lifecycle graphs, remaining-day forecast, live placement, and Processor information architecture are verified locally.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - docs/plan/lpms-state-transitions.md
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - modules/business/orders/src/observe-order-source
+      - modules/business/orders/test/order-policies.test.ts
+      - modules/business/orders/test/orders.usecase.test.ts
+      - modules/business/orders/test/orders.repo.int.test.ts
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - apps/worker/src/jobs/process-webhook-inbox/cents/cents-order.handler.ts
+      - apps/worker/test/jobs/process-webhook-inbox/cents/cents-order.handler.test.ts
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - modules/policy/production/src/lifecycle
+      - modules/policy/production/test/lifecycle/production-lifecycle.test.ts
+      - modules/business/production/src/create-schedule
+      - modules/business/production/src/accept-schedule
+      - modules/business/production/src/start-schedule
+      - modules/business/production/src/persistence/complete-production-batch.ts
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  T4:
+    status: committed
+    evidence:
+      - modules/policy/production/src/lifecycle
+      - modules/policy/production/test/lifecycle
+      - modules/business/production/src/advance-production-stage
+      - modules/business/production/src/reconcile-production-batch-progress
+      - modules/business/production/src/place-production-order
+      - modules/business/production/src/route-production-order
+      - modules/business/production/src/start-schedule
+      - packages/db/src/migrations/0032_production-order-execution-state.sql
+      - packages/db/test/production-order-execution-state-migration.int.test.ts
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  T5:
+    status: committed
+    evidence:
+      - modules/business/production/src/list-production-order-control
+      - modules/business/production/test/list-production-order-control/list-production-order-control.repo.int.test.ts
+      - apps/api/src/http/processor/order-control/order-control.query.ts
+      - apps/processor/src/features/order-control
+      - apps/processor/src/features/intake
+      - apps/processor/src/features/demand-outlook
+      - packages/contracts/src/processor/processor-order-control.contracts.ts
+      - packages/contracts/src/production/production-order-control.contracts.ts
+      - packages/contracts/src/production/production.contracts.ts
+      - docs/architecture.md
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  T6:
+    status: committed
+    evidence:
+      - packages/contracts/src/production/production-forecast.contracts.ts
+      - modules/computation/scheduling/src/remaining-day-forecast
+      - modules/business/production/src/load-remaining-day-forecast
+      - modules/business/production/test/load-remaining-day-forecast
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - modules/business/orders/test
+      - modules/policy/production/test
+      - modules/computation/scheduling/test
+      - modules/business/production/test
+      - packages/contracts/test
+      - packages/db/test
+      - apps/api/test
+      - apps/worker/test
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  T7:
+    status: committed
+    evidence:
+      - apps/processor/src/features/forecast
+      - apps/processor/src/features/intake/intake-queue.view.tsx
+      - apps/processor/src/features/scheduling/scheduling.view.tsx
+      - apps/processor/src/app
+      - apps/processor/test/features/forecast
+      - apps/processor/test/features/intake/intake.test.tsx
+      - apps/processor/test/app
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  T7A:
+    status: committed
+    evidence:
+      - packages/contracts/src/production
+      - packages/contracts/test/production.contracts.test.ts
+      - modules/business/production/src/live-run-changes.policy.ts
+      - modules/business/production/src/load-production-workspace
+      - modules/business/production/src/persistence/production-order-placement-context.ts
+      - modules/business/production/src/main.ts
+      - modules/business/production/test/live-run-changes
+      - modules/business/production/test/load-production-workspace
+      - modules/business/production/test/place-production-order
+      - modules/business/production/test/happy-path/production-postgres.repo.int.test.ts
+      - modules/business/production/test/support/memory-production-repositories.ts
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  T7B:
+    status: committed
+    evidence:
+      - apps/processor/src/app
+      - apps/processor/src/ports/production.port.ts
+      - apps/processor/src/adapters/production/api-production.adapter.ts
+      - apps/processor/src/features/scheduling
+      - apps/processor/src/features/production-board
+      - apps/processor/src/features/forecast
+      - apps/processor/src/i18n
+      - apps/processor/test
+      - design-qa.md
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  V2:
+    status: committed
+    evidence:
+      - design-qa.md
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+  T8:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/final-report.md
+      - stateworks/work/queued/lpms-order-control-correctness-hardening
+      - stateworks/work/active/lpms-production-readiness

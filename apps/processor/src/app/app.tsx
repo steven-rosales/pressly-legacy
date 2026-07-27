@@ -29,12 +29,14 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AuthenticationView } from "@/features/authentication/authentication.view"
-import { DemandOutlookView } from "@/features/demand-outlook/demand-outlook.view"
+import { ForecastWorkspaceContainer } from "@/features/forecast/forecast-workspace.view"
 import { IntakeWorkspace } from "@/features/intake/intake.view"
 import { HistoryWorkspaceContainer } from "@/features/history/history-workspace.view"
 import { ProductionLocationSelect } from "@/features/location-selection/location-selection.view"
 import { OrderControlWorkspaceContainer } from "@/features/order-control/order-control-workspace.view"
+import { OrderResolutionReviewContainer } from "@/features/order-resolution/order-resolution-review.container.view"
 import { ProductionBoardWorkspace } from "@/features/production-board/production-board.view"
+import { LiveRunChangesWorkspace } from "@/features/scheduling/live-run-changes.view"
 import { ScheduleHistoryView } from "@/features/scheduling/schedule-history.view"
 import { SchedulingWorkspace } from "@/features/scheduling/scheduling.view"
 import { SettingsView } from "@/features/settings/settings.view"
@@ -230,6 +232,16 @@ function ProcessorWorkspace({
     next: WorkspaceView,
     identifiers: Partial<Pick<WorkspaceRoute, "shiftId" | "runId">> = {}
   ) => goToRoute(workspaceRouteForView(next, identifiers))
+  const navigateFromForecast = (
+    target:
+      | Readonly<{ view: "intake" }>
+      | Readonly<{ view: "production"; runId: string }>
+      | Readonly<{ view: "schedule" }>
+  ) => {
+    if (target.view === "production")
+      navigateToView("board", { runId: target.runId })
+    else navigateToView(target.view)
+  }
 
   const resolvedRunId =
     route.runId ??
@@ -436,34 +448,101 @@ function ProcessorWorkspace({
           </Empty>
         ) : (
           <>
-            {model.workspace.demandOutlook !== null &&
-              (route.view === "home" ||
-                (route.view === "schedule" &&
-                  scheduleContext?.kind === "planning")) && (
-                <DemandOutlookView
-                  outlook={model.workspace.demandOutlook}
-                  timezone={location.timezone}
-                  variant={route.view === "home" ? "compact" : "detailed"}
-                />
-              )}
+            {route.view === "forecast" && (
+              <ForecastWorkspaceContainer
+                key={`${location.id}:${location.timezone}:forecast`}
+                production={runtime.production}
+                locationId={location.id}
+                timezone={location.timezone}
+                revision={model.workspace.asOf}
+                now={runtime.now}
+                variant="full"
+                onNavigate={navigateFromForecast}
+                onOpenForecast={() => navigateToView("forecast")}
+              />
+            )}
             {route.view === "intake" && (
               <IntakeWorkspace
                 production={runtime.production}
                 idempotency={runtime.idempotency}
                 locationId={location.id}
+                timezone={location.timezone}
                 revision={model.workspace.asOf}
                 onMutated={model.refreshWorkspace}
               />
             )}
             {route.view === "home" && (
-              <OrderControlWorkspaceContainer
+              <>
+                <ForecastWorkspaceContainer
+                  key={`${location.id}:${location.timezone}:home`}
+                  production={runtime.production}
+                  locationId={location.id}
+                  timezone={location.timezone}
+                  revision={model.workspace.asOf}
+                  now={runtime.now}
+                  variant="home"
+                  onNavigate={navigateFromForecast}
+                  onOpenForecast={() => navigateToView("forecast")}
+                />
+                <OrderResolutionReviewContainer
+                  production={runtime.production}
+                  idempotency={runtime.idempotency}
+                  locationId={location.id}
+                  timezone={location.timezone}
+                  canManage={model.session.principal.roles.some(
+                    (role) => role === "owner" || role === "admin"
+                  )}
+                  now={runtime.now}
+                  onMutated={model.refreshWorkspace}
+                  onOpenHistory={() => navigateToView("history")}
+                />
+                <OrderControlWorkspaceContainer
+                  production={runtime.production}
+                  idempotency={runtime.idempotency}
+                  locationId={location.id}
+                  timezone={location.timezone}
+                  board={model.workspace.board}
+                  revision={model.workspace.asOf}
+                  onMutated={model.refreshWorkspace}
+                />
+              </>
+            )}
+            {route.view === "schedule" && scheduleContext?.kind === "live" && (
+              <LiveRunChangesWorkspace
                 production={runtime.production}
                 idempotency={runtime.idempotency}
                 locationId={location.id}
                 timezone={location.timezone}
-                board={model.workspace.board}
-                revision={model.workspace.asOf}
-                onMutated={model.refreshWorkspace}
+                shift={scheduleContext.shift}
+                productionRun={scheduleContext.productionRun}
+                changes={scheduleContext.changes}
+                canManage={model.session.principal.roles.some(
+                  (role) => role === "owner" || role === "admin"
+                )}
+                online={model.online}
+                updatesState={model.liveConnectionState}
+                remainingDayContext={
+                  <ForecastWorkspaceContainer
+                    key={`${location.id}:${location.timezone}:schedule-live`}
+                    production={runtime.production}
+                    locationId={location.id}
+                    timezone={location.timezone}
+                    revision={model.workspace.asOf}
+                    now={runtime.now}
+                    variant="schedule"
+                    onNavigate={navigateFromForecast}
+                    onOpenForecast={() => navigateToView("forecast")}
+                  />
+                }
+                onMutated={() =>
+                  model.refreshWorkspace(scheduleContext.shift.id)
+                }
+                onOpenProduction={() =>
+                  navigateToView("board", {
+                    runId: scheduleContext.productionRun.id,
+                  })
+                }
+                onOpenForecast={() => navigateToView("forecast")}
               />
             )}
             {route.view === "schedule" &&
@@ -500,6 +579,19 @@ function ProcessorWorkspace({
                   canManage={model.session.principal.roles.some(
                     (role) => role === "owner" || role === "admin"
                   )}
+                  remainingDayContext={
+                    <ForecastWorkspaceContainer
+                      key={`${location.id}:${location.timezone}:schedule`}
+                      production={runtime.production}
+                      locationId={location.id}
+                      timezone={location.timezone}
+                      revision={model.workspace.asOf}
+                      now={runtime.now}
+                      variant="schedule"
+                      onNavigate={navigateFromForecast}
+                      onOpenForecast={() => navigateToView("forecast")}
+                    />
+                  }
                   onOpenConfiguration={() => navigateToView("settings")}
                   onScheduleChanged={async (productionShiftId) => {
                     goToRoute(
@@ -540,6 +632,11 @@ function ProcessorWorkspace({
                 canManage={model.session.principal.roles.some(
                   (role) => role === "owner" || role === "admin"
                 )}
+                onOpenSchedule={(productionShiftId) =>
+                  navigateToView("schedule", {
+                    shiftId: productionShiftId,
+                  })
+                }
               />
             )}
             {route.view === "board" && resolvedRunId === null && (
@@ -591,9 +688,14 @@ function ProcessorWorkspace({
             {route.view === "history" && (
               <HistoryWorkspaceContainer
                 production={runtime.production}
+                idempotency={runtime.idempotency}
                 locationId={location.id}
                 timezone={location.timezone}
                 revision={model.workspace.asOf}
+                canManage={model.session.principal.roles.some(
+                  (role) => role === "owner" || role === "admin"
+                )}
+                onMutated={model.refreshWorkspace}
               />
             )}
             {route.view === "settings" && (

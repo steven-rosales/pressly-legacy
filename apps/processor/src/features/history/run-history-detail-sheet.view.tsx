@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/components/ui/class-names"
+import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
 import type {
   HistoryActivityItem,
   HistoryCallbacks,
@@ -243,8 +244,10 @@ export function RunHistoryDetailSheet({
                     <TableBody>
                       {run.orders.map((order) => (
                         <TableRow key={order.id}>
-                          <TableCell className="px-3 font-medium">
-                            {order.externalOrderId}
+                          <TableCell className="px-3">
+                            <OperationalOrderIdentity
+                              identity={order.identity}
+                            />
                           </TableCell>
                           <TableCell>{order.statusLabel}</TableCell>
                           <TableCell>{order.batchLabel}</TableCell>

@@ -605,3 +605,19 @@ exit: 0
 time: 2026-07-19T11:31:00-04:00
 summary: the zero-price SUBMITTED order returned 202, reached processed demand phase expected with no estimate and no production_order, and linked to a versioned encrypted receipt with exactly 30-day retention. The malformed order returned 400 and retained an encrypted rejected receipt with invalid_cents_order_payload and no canonical event. No raw payload, key, customer data, production endpoint, AWS host, or Cents account was exposed or contacted.
 ```
+
+## 2026-07-26 Repository-Proof Rebaseline
+
+The completed `lpms-operational-authority-remaining-day-forecast` package
+changed source handoff, Orders and Production lifecycle ownership,
+production-order execution persistence, forecast contracts, Home, Schedule,
+Production, Intake, and History assumptions after the prior readiness proof.
+
+The historical commands and results below remain valid evidence for their
+recorded revision, but V2 is invalidated for the current worktree. Repository
+proof must be rerun after `lpms-order-control-correctness-hardening` and the
+queued production-order resolution work complete or are explicitly
+rebaselined.
+
+H1 and later live-vendor, deployment, production-data, and pilot gates remain
+stopped. No live external state was changed.

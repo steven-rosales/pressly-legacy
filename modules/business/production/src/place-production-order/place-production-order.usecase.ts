@@ -21,6 +21,7 @@ import type {
   ProductionPolicyPort,
   ProductionSchedulerPort,
 } from '../production.port.ts';
+import { productionPlacementFailureReason } from '../production-placement.policy.ts';
 import type {
   ConfirmProductionOrderOvertime,
   PlaceProductionOrderAutomatically,
@@ -62,34 +63,6 @@ type PendingRunResolution = Extract<
   { status: 'awaiting_run' | 'ambiguous_run' }
 >;
 
-const failureReason = (
-  code: string,
-): Extract<
-  ProductionOrderPlacementResult,
-  { status: 'not_placed' }
->['reason'] => {
-  switch (code) {
-    case 'PRODUCTION_RUN_NOT_STARTED':
-      return 'run_not_started';
-    case 'PRODUCTION_RUN_COMPLETED':
-      return 'run_completed';
-    case 'ORDER_NOT_ELIGIBLE':
-      return 'order_not_eligible';
-    case 'ORDER_ALREADY_PLACED':
-      return 'order_already_scheduled';
-    case 'QUEUE_VERSION_CONFLICT':
-      return 'queue_conflict';
-    case 'OVERTIME_CONFIRMATION_STALE':
-      return 'proposal_stale';
-    case 'ORDER_EXCEEDS_PULSE_CAPACITY':
-    case 'TARGET_BATCH_CAPACITY_EXCEEDED':
-    case 'BATCH_CAPACITY_EXCEEDED':
-      return 'hard_capacity_exceeded';
-    default:
-      return 'no_mutable_position';
-  }
-};
-
 const notPlaced = (input: {
   command: PlacementCommand;
   mode: PlacementMode;
@@ -101,7 +74,7 @@ const notPlaced = (input: {
   mode: input.mode.type,
   productionRunId: input.command.productionRunId,
   productionOrderId: input.command.productionOrderId,
-  reason: failureReason(input.code),
+  reason: productionPlacementFailureReason(input.code),
   message: input.message,
   queueVersion: input.queueVersion,
   replayed: false,
@@ -346,6 +319,54 @@ const executePlacementInTransaction = async (deps: {
     return result.ok(outcome);
   }
 
+  const resolvedExecution = deps.policy.resolveProductionOrderExecutionState({
+    executionState: context.orderExecutionStatus,
+    operationalStatus: context.orderStatus,
+  });
+  if (resolvedExecution.tag === 'err')
+    return result.err(
+      productionError(
+        resolvedExecution.error.code,
+        resolvedExecution.error.message,
+        409,
+      ),
+    );
+  const orderDecision = deps.policy.evaluateProductionOrderExecutionTransition({
+    state: resolvedExecution.value,
+    event: 'schedule_or_place',
+  });
+  if (orderDecision.tag === 'err')
+    return result.err(
+      productionError(
+        orderDecision.error.code,
+        orderDecision.error.message,
+        409,
+      ),
+    );
+  if (
+    orderDecision.value.from !== 'unassigned' ||
+    orderDecision.value.state !== 'scheduled'
+  )
+    return result.err(
+      productionError(
+        'PRODUCTION_ORDER_EXECUTION_TRANSITION_INVALID',
+        'The production order cannot be committed by placement.',
+        409,
+      ),
+    );
+  if (
+    context.orderExecutionStatus !== 'unassigned' &&
+    context.orderExecutionStatus !== 'scheduled' &&
+    context.orderExecutionStatus !== 'finished'
+  )
+    return result.err(
+      productionError(
+        'PRODUCTION_ORDER_EXECUTION_STATE_INVALID',
+        'The production order execution state is invalid.',
+        409,
+      ),
+    );
+
   return result.ok(
     await repo.commitPlacement({
       ...deps.command,
@@ -361,6 +382,18 @@ const executePlacementInTransaction = async (deps: {
       targetBatchId:
         deps.mode.type === 'manager_exact' ? deps.mode.targetBatchId : null,
       overtimeConfirmed: deps.expectedProposalHash !== null,
+      orderLifecycle: {
+        productionOrderId: deps.command.productionOrderId,
+        persistedState: context.orderExecutionStatus,
+        expectedVersion: context.orderVersion,
+        lifecycle: {
+          from: orderDecision.value.from,
+          state: orderDecision.value.state,
+        },
+      },
+      initialBatchState: deps.policy.initialProductionBatchState,
+      initialStageState: deps.policy.initialProductionStageState,
+      initialAttemptState: deps.policy.initialProductionOrderStageAttemptState,
       now: deps.clock.now(),
     }),
   );

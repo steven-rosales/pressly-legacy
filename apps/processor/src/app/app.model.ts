@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type {
   ProcessorAuthenticatedSession,
+  ProcessorProductionOrderListItem,
+  ProcessorProductionOrderSummary,
+  ProcessorProductionWorkspace,
   ProductionLocation,
-  ProductionOrderListItem,
-  ProductionOrderSummary,
   ProductionRunSummary,
   ProductionShift,
-  ProductionWorkspace,
   ScheduleProposal,
 } from "@pressly/contracts"
 import { RequestFailure } from "@/ports/request.error"
@@ -65,7 +65,7 @@ const roundUp = (date: Date, intervalMinutes: number): Date => {
 
 export const derivePlanningDefaults = (input: {
   now: Date
-  workspace: ProductionWorkspace
+  workspace: ProcessorProductionWorkspace
   shift?: ProductionShift | null
 }) => {
   const shift =
@@ -92,6 +92,12 @@ export type ScheduleContext =
       proposal: ScheduleProposal | null
     }>
   | Readonly<{
+      kind: "live"
+      shift: ProductionShift
+      productionRun: ProductionRunSummary
+      changes: ProcessorProductionWorkspace["liveRunChanges"]
+    }>
+  | Readonly<{
       kind: "history"
       shift: ProductionShift
       proposal: ScheduleProposal | null
@@ -100,7 +106,7 @@ export type ScheduleContext =
     }>
 
 export const classifyScheduleContext = (input: {
-  workspace: ProductionWorkspace
+  workspace: ProcessorProductionWorkspace
   requestedShiftId: string | null
   now: Date
 }): ScheduleContext => {
@@ -111,6 +117,16 @@ export const classifyScheduleContext = (input: {
     input.workspace.board?.productionShift.id === shift.id
       ? input.workspace.board.productionRun
       : null
+  if (boardRun?.status === "started")
+    return {
+      kind: "live",
+      shift,
+      productionRun: boardRun,
+      changes:
+        input.workspace.liveRunChanges?.productionRunId === boardRun.id
+          ? input.workspace.liveRunChanges
+          : null,
+    }
   const reason =
     boardRun !== null
       ? "run_owned"
@@ -143,8 +159,8 @@ export const classifyScheduleContext = (input: {
 }
 
 const toSchedulingOrder = (
-  order: ProductionOrderListItem
-): ProductionOrderSummary | null =>
+  order: ProcessorProductionOrderListItem
+): ProcessorProductionOrderSummary | null =>
   order.status === "eligible" && order.bagCount !== null
     ? {
         id: order.id,
@@ -155,6 +171,7 @@ const toSchedulingOrder = (
         derivedWeightLbs: order.derivedWeightLbs,
         bagCount: order.bagCount,
         version: order.version,
+        identity: order.identity,
       }
     : null
 
@@ -168,7 +185,7 @@ const syncKey = (locationId: string, route: WorkspaceRoute): string =>
   [locationId, route.view, route.shiftId ?? "", route.runId ?? ""].join(":")
 
 const snapshotMatchesRoute = (
-  workspace: ProductionWorkspace | null,
+  workspace: ProcessorProductionWorkspace | null,
   locationId: string,
   route: WorkspaceRoute
 ): boolean =>
@@ -198,8 +215,11 @@ export function useProcessorAppModel(
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
     null
   )
-  const [workspace, setWorkspace] = useState<ProductionWorkspace | null>(null)
-  const [orders, setOrders] = useState<readonly ProductionOrderListItem[]>([])
+  const [workspace, setWorkspace] =
+    useState<ProcessorProductionWorkspace | null>(null)
+  const [orders, setOrders] = useState<
+    readonly ProcessorProductionOrderListItem[]
+  >([])
   const [workspaceLoading, setWorkspaceLoading] = useState(false)
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
   const [online, setOnline] = useState(() => navigator.onLine)
@@ -214,7 +234,7 @@ export function useProcessorAppModel(
   const selectedLocationIdRef = useRef<string | null>(null)
   const requestedRouteRef = useRef<WorkspaceRoute>(requestedRoute)
   const [sync] = useState(() =>
-    makeProductionSyncCoordinator<ProductionWorkspace>({
+    makeProductionSyncCoordinator<ProcessorProductionWorkspace>({
       onStart: () => {
         setWorkspaceLoading(true)
         setWorkspaceError(null)
@@ -401,7 +421,7 @@ export function useProcessorAppModel(
     (
       locationId: string,
       route: WorkspaceRoute
-    ): ProductionSyncTarget<ProductionWorkspace> => ({
+    ): ProductionSyncTarget<ProcessorProductionWorkspace> => ({
       key: syncKey(locationId, route),
       load: async (signal) => {
         const nextWorkspace = await runtime.production.loadWorkspace(
@@ -500,7 +520,7 @@ export function useProcessorAppModel(
   ])
 
   const refreshWorkspaceSnapshot = useCallback(
-    async (shiftId?: string): Promise<ProductionWorkspace | null> => {
+    async (shiftId?: string): Promise<ProcessorProductionWorkspace | null> => {
       const locationId = selectedLocationIdRef.current
       if (locationId === null) return null
       const route =
@@ -525,7 +545,7 @@ export function useProcessorAppModel(
   )
 
   const refreshBoard = useCallback(async (): Promise<
-    ProductionWorkspace["board"]
+    ProcessorProductionWorkspace["board"]
   > => {
     const nextWorkspace = await refreshWorkspaceSnapshot()
     const runId = requestedRouteRef.current.runId

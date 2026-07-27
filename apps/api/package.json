@@ -34,7 +34,6 @@
     "@pressly/http": "workspace:*",
     "@pressly/logging": "workspace:*",
     "@pressly/metrics": "workspace:*",
-    "@pressly/order-control-projection": "workspace:*",
     "@pressly/orders": "workspace:*",
     "@pressly/pricing": "workspace:*",
     "@pressly/production": "workspace:*",

@@ -1,6 +1,6 @@
 domain_id: laundry-production
 name: Laundry Production
-version: 13
+version: 16
 status: active
 summary: >
   Durable business memory for Pressly's wash-and-fold production process. LPMS
@@ -112,9 +112,28 @@ objects:
       A location- and shift-scoped read-only projection of external order
       demand, production admission, and source-versus-floor comparison; it is
       advisory planning context rather than executable production state.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
+  - id: remaining_day_outlook
+    description:
+      A location- and local-service-day-scoped deterministic, read-only
+      projection of unfinished Pressly work still relevant today, partitioned
+      into active production, ready placement, expected later, and another-shift
+      or unassigned work; it is operational planning context, not executable
+      state.
+    status: active
+    sources:
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+  - id: production_order_resolution
+    description:
+      An orthogonal persistent Production lifecycle for work that will
+      not be produced in Pressly; it removes the work from active operations
+      while retaining an audited, restorable record and does not represent
+      execution, completion, source cancellation, or deletion.
+    status: active
+    sources:
+      - memdelta-2026-07-27-production-order-resolution
 states:
   schedule_run:
     - draft
@@ -329,26 +348,54 @@ workflows:
       - Users resolves the exact external customer identity and retains the
         latest source snapshot without overriding explicit Pressly field
         authority
-      - Orders records the canonical commercial order, generic items,
-        fulfillment, source identity, latest source snapshot, and source-neutral
-        release state
-      - active unreleased fulfillment demand due through the shift service-day
-        cutoff contributes only to advisory forecasting
-      - an Orders outbox event applies the fulfillment-keyed production demand
-        idempotently without carrying a vendor lifecycle code
-      - physical bag intake may be recorded before release but the production
-        order remains release_pending
-      - released demand becomes ready only when positive weight and bag-count
-        rules hold
-      - executable scheduling reads only explicitly selected ready production
-        orders
-      - downstream, withdrawn, or lagging source observations are composed with
-        LPMS state and require operator-confirmed reconciliation when the
-        systems disagree
+      - Orders retains the valid newer order observation separately from any
+        canonical lifecycle adoption
+      - before handoff, prospective source lifecycle may update or withdraw
+        uncommitted demand under Orders policy
+      - the first IN_PROGRESS-or-later non-canceled Cents observation may cross
+        the one-way source-neutral fulfillment handoff
+      - after handoff, later source lifecycle values remain audit metadata and
+        cannot rewind, complete, cancel, withdraw, or otherwise change canonical
+        Pressly lifecycle
+      - an Orders outbox event applies fulfillment-keyed canonical demand
+        changes to Production idempotently without carrying vendor lifecycle
+        authority
+      - physical bag intake may be recorded before release, but intake alone
+        does not admit the production order
+      - effective Production admission becomes released through canonical
+        upstream fulfillment release or a current manual Production override
+      - a manual override leaves source truth unchanged and becomes ready only
+        when positive production demand and bag-count rules also hold
+      - manual admission never selects or places an order, and executable
+        scheduling reads only explicitly selected ready production orders
+      - a pre-handoff source withdrawal may supersede a still-prospective manual
+        override, while physically received or committed Pressly work is
+        preserved
+      - Processor floor views derive attention and actions from canonical
+        Pressly state; downstream source differences remain integration and
+        audit context
     status: active
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
       - memdelta-2026-07-20-source-neutral-order-boundary
+      - memdelta-2026-07-26-manual-production-admission
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+  - id: production_order_resolution
+    steps:
+      - a manager requests a bounded backlog preview or reviews one order
+      - the server classifies current eligibility and safety facts under the
+        Production scheduling lock
+      - the Production resolution graph decides resolve_without_production from
+        open or restore from resolved_without_production
+      - the current lifecycle projection and sanitized audit event are persisted
+        atomically with version and idempotency evidence
+      - resolved work is excluded from operational projections, counts, and
+        forward actions while History retains its resolution evidence
+      - an explicit manager restore re-reads current source-owned demand, due,
+        provenance, admission, and phase facts before reopening the work
+    status: active
+    sources:
+      - memdelta-2026-07-27-production-order-resolution
 invariants:
   - id: orders_do_not_split_across_batches
     statement:
@@ -745,12 +792,18 @@ invariants:
     sources:
       - memdelta-2026-07-15-order-control-history
   - id: source_lifecycle_does_not_advance_floor_truth_v1
-    statement: A Cents lifecycle revision may update external demand and
-      reconciliation state, but it cannot start, advance, finish, cancel, or
-      rewind an LPMS order, batch, stage, run, or shift.
+    statement:
+      An external lifecycle observation may update retained source metadata
+      and source-owned demand fields, but it cannot start, advance, finish,
+      cancel, rewind, delete, resolve, restore, reopen, or otherwise change an
+      LPMS order, batch, stage, run, shift, or Production resolution lifecycle;
+      after handoff its lifecycle value is observation-only and cannot resurrect
+      resolved Production work.
     status: active
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+      - memdelta-2026-07-27-production-order-resolution
   - id: physical_intake_can_admit_lagging_source_v1
     statement: Physical intake with a recorded bag count may admit expected or
       inbound demand to Production when weight and eligibility rules hold even
@@ -759,37 +812,40 @@ invariants:
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
   - id: committed_work_survives_source_withdrawal_v1
-    statement:
-      A downstream or canceled Cents revision preserves physically received
-      or committed LPMS work and creates reconciliation attention instead of
-      silently removing or terminalizing that work.
+    statement: A downstream or canceled source observation cannot remove or
+      terminalize physically received, selected, scheduled, batched, active, or
+      finished Pressly work; the observation remains integration and audit
+      context without creating a production-floor comparison task.
     status: active
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
   - id: advisory_demand_forecast_is_non_executable_v1
     statement:
       The shift demand forecast is deterministic, read-only, weight-only,
       and non-persistent; it cannot be accepted or started and it never
       fabricates bag counts or changes the executable scheduling snapshot.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
   - id: finished_work_excluded_from_forward_demand_v1
-    statement: Finished LPMS orders may remain visible as source-versus-floor
-      reconciliation items, but they do not contribute to forward demand order
-      counts, weight totals, missing-estimate totals, or advisory forecast
-      inputs.
+    statement:
+      Finished Pressly orders are excluded from remaining-day order counts,
+      weight totals, capacity risk, and forecast groups, while their latest
+      source observations remain available in audit and integration history.
     status: active
     sources:
       - memdelta-2026-07-19-demand-outlook-correctness
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
   - id: pre_release_intake_does_not_admit_v1
-    statement:
-      Physical bag intake may be recorded while Cents demand is expected or
-      inbound, but the order remains release_pending and cannot enter an
-      executable schedule until the source phase is production_released.
+    statement: Physical bag intake alone never admits pre-release demand to
+      executable Production; effective admission requires canonical upstream
+      release or a current manual Production override, and readiness still
+      requires positive production demand and recorded bag intake.
     status: active
     sources:
       - memdelta-2026-07-19-shift-order-selection
+      - memdelta-2026-07-26-manual-production-admission
   - id: selected_snapshot_mutations_are_serialized_v1
     statement: Compute, Accept, Start, shift selection, and demand, intake, or
       priority commands that can change a selected scheduling snapshot serialize
@@ -804,6 +860,62 @@ invariants:
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-order-boundary
+  - id: manual_admission_preserves_source_truth_v1
+    statement: Manual Production admission changes only effective Production
+      eligibility and never mutates canonical fulfillment release, vendor
+      lifecycle status, or the latest source observation.
+    status: active
+    sources:
+      - memdelta-2026-07-26-manual-production-admission
+  - id: manual_admission_does_not_select_or_place_v1
+    statement: Manual Production admission never selects an order for a shift,
+      commits it to a schedule, or places it into a production batch or run.
+    status: active
+    sources:
+      - memdelta-2026-07-26-manual-production-admission
+  - id: source_withdrawal_supersedes_manual_admission_v1
+    statement:
+      Source withdrawal supersedes a manual Production admission override
+      as the effective admission signal, while physically received or committed
+      LPMS work remains preserved under the existing reconciliation policy.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-26-manual-production-admission
+  - id: remaining_day_outlook_is_non_executable_v1
+    statement: The remaining-day outlook is deterministic, read-only, and
+      non-persistent; it includes current Pressly execution and placement state
+      but cannot accept, start, select, place, or mutate work and never
+      fabricates bag counts, shifts, batches, physical progress, or completion
+      times.
+    status: active
+    sources:
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+  - id: pre_handoff_source_withdrawal_supersedes_prospective_admission_v1
+    statement: Before the source handoff, source withdrawal may supersede a
+      still-prospective manual Production admission override; it cannot erase
+      physically received, selected, scheduled, batched, active, or finished
+      Pressly work.
+    status: active
+    sources:
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+  - id: resolved_without_production_is_not_execution_v1
+    statement: Resolving a Production order without production never means
+      scheduled, batched, started, finished, physically completed, canceled in a
+      source system, deleted, or otherwise advanced through the execution
+      lifecycle.
+    status: active
+    sources:
+      - memdelta-2026-07-27-production-order-resolution
+  - id: resolved_work_is_excluded_from_forward_operations_v1
+    statement:
+      A Production order in resolved_without_production remains retained
+      and auditable but is excluded from operational actions, active order
+      counts, scheduling, placement, routing, intake, admission, production
+      workspaces, and remaining-day demand until an explicit valid restore
+      reopens it.
+    status: active
+    sources:
+      - memdelta-2026-07-27-production-order-resolution
 policies:
   - id: cents_in_progress_is_eligible
     statement:
@@ -988,13 +1100,14 @@ policies:
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
   - id: service_day_demand_horizon_v1
-    statement:
-      The advisory demand horizon includes overdue demand and active demand
-      due before the end of the local calendar day containing the production
-      shift end; later demand is outside that outlook.
+    statement: The remaining-day horizon is the selected local service day and
+      includes overdue unfinished work, unfinished work due before that local
+      day ends, and work already admitted or executing for that day; later
+      demand is outside the outlook.
     status: active
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
   - id: shift_order_selection_is_explicit_v1
     statement:
       Ready candidates are unselected by default and Compute includes only
@@ -1012,12 +1125,14 @@ policies:
       - memdelta-2026-07-19-shift-order-selection
   - id: released_fulfillment_is_eligible_v1
     statement:
-      A fulfillment becomes an LPMS-ready candidate only when its canonical
-      release state is released, its production estimate is positive, and
-      physical bag intake is recorded.
+      A fulfillment becomes an LPMS-ready candidate only when its effective
+      Production admission is released through canonical upstream release or a
+      current manual Production override, its production estimate is positive,
+      and physical bag intake is recorded.
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-order-boundary
+      - memdelta-2026-07-26-manual-production-admission
   - id: source_lifecycle_mapping_lives_upstream_v1
     statement: Vendor lifecycle codes are normalized into commercial lifecycle,
       fulfillment release, and comparison metadata before Production; Production
@@ -1025,6 +1140,41 @@ policies:
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-order-boundary
+  - id: manual_admission_reversal_is_precommit_only_v1
+    statement: Manual Production admission may be reversed only before shift
+      selection, scheduling commitment, or production-batch assignment, with
+      availability revalidated under the location scheduling lock.
+    status: active
+    sources:
+      - memdelta-2026-07-26-manual-production-admission
+  - id: manual_admission_is_location_authorized_v1
+    statement: Owner, administrator, and operator roles may manually release or
+      reverse Production admission only within a location they are authorized to
+      operate.
+    status: active
+    sources:
+      - memdelta-2026-07-26-manual-production-admission
+  - id: remaining_day_outlook_partition_v1
+    statement:
+      The remaining-day outlook partitions unfinished work into the active
+      production run, ready work that the server can currently place, expected
+      work that is not yet executable, and work that needs another shift or
+      remains unassigned today; appendability uses the same server-authoritative
+      hard-capacity and placement rules as execution.
+    status: active
+    sources:
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+  - id: production_order_resolution_lifecycle_v1
+    statement: Production-order resolution is governed by the explicit
+      open-to-resolved_without_production and
+      resolved_without_production-to-open graph; manager authorization, current
+      operational guards, expected version, idempotency, audit, and location
+      serialization must succeed around the graph decision, and selected,
+      scheduled, batched, active, routed, reconciled, finished, or historically
+      participating work cannot use backlog cleanup.
+    status: active
+    sources:
+      - memdelta-2026-07-27-production-order-resolution
 decisions:
   - id: domain_named_laundry_production
     statement: The durable Stateworks memory domain is named laundry-production
@@ -1104,12 +1254,17 @@ decisions:
     sources:
       - memdelta-2026-07-10-lpms-v1-implementation
   - id: processor_uses_backend_action_availability
-    statement:
-      The LPMS processor renders stage actions returned by the production
-      API and does not recreate stage-transition policy in the browser.
+    statement: The Processor renders Production action availability and backlog
+      classification from server-owned lifecycle graphs and policies, including
+      stage, admission, archive, restore, and bounded bulk-review actions, and
+      does not recreate lifecycle transitions, cleanup eligibility, source
+      comparison, placement, or forecast classification in the browser.
     status: active
     sources:
       - memdelta-2026-07-10-lpms-v1-implementation
+      - memdelta-2026-07-26-manual-production-admission
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+      - memdelta-2026-07-27-production-order-resolution
   - id: isolated_lpms_module_composition
     statement: Users, Orders, Production business, Production policy, and
       fixed-pulse scheduling are isolated peer modules composed through narrow
@@ -1273,7 +1428,7 @@ decisions:
       webhook, a lifecycle disagreement is surfaced for comparison and LPMS
       requires operator confirmation against physical truth before changing
       canonical floor progression.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
   - id: production_reads_do_not_own_user_or_order_data
@@ -1284,6 +1439,42 @@ decisions:
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-order-boundary
+  - id: production_owns_manual_admission_override_v1
+    statement: Production owns the source-neutral manual admission override and
+      applies versioned, idempotent, actor-audited, location-authorized commands
+      under the same location scheduling lock used by planning.
+    status: active
+    sources:
+      - memdelta-2026-07-26-manual-production-admission
+  - id: persistent_production_lifecycles_use_authoritative_graphs_v1
+    statement: Each persistent Production aggregate lifecycle, including the
+      execution, admission, and orthogonal production-order resolution
+      lifecycles, is governed by one authoritative explicit state-and-event
+      graph; cross-aggregate use cases orchestrate graph decisions and effects,
+      local adapters and repositories cannot define parallel transitions,
+      derived operational and forecast values remain pure projections, and no
+      global workflow engine is introduced.
+    status: active
+    sources:
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+      - memdelta-2026-07-27-production-order-resolution
+  - id: processor_forecast_surface_owns_remaining_day_detail_v1
+    statement:
+      The Processor exposes detailed remaining-day planning at /forecast,
+      keeps Home to a compact operational summary and link, and keeps Schedule
+      focused on scheduling-ready orders with only bounded forecast context.
+    status: active
+    sources:
+      - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+  - id: production_order_archive_is_nondestructive_resolution_v1
+    statement:
+      Processor Archive from active work is the manager-facing presentation
+      of Production resolved_without_production; records and sanitized History
+      are retained, work is not marked produced, routine hard deletion is not
+      introduced, and restoration is a separate explicit graph transition.
+    status: active
+    sources:
+      - memdelta-2026-07-27-production-order-resolution
 assumptions:
   - id: cents_price_weight_good_enough_v1
     statement: Cents price-derived weight is good enough for first-version scheduling.
@@ -1418,3 +1609,12 @@ sources:
   - id: memdelta-2026-07-20-source-neutral-order-boundary
     path: stateworks/memory/domains/laundry-production/sessions/2026-07-20-source-neutral-order-boundary.md
     type: interrogation_session
+  - id: memdelta-2026-07-26-manual-production-admission
+    path: stateworks/memory/domains/laundry-production/sessions/2026-07-26-manual-production-admission.md
+    type: implementation_evidence
+  - id: memdelta-2026-07-26-operational-truth-remaining-day-outlook
+    path: stateworks/memory/domains/laundry-production/sessions/2026-07-26-operational-truth-remaining-day-outlook.md
+    type: interrogation_session
+  - id: memdelta-2026-07-27-production-order-resolution
+    path: stateworks/work/done/lpms-production-order-resolution-and-identity/final-report.md
+    type: implementation_evidence

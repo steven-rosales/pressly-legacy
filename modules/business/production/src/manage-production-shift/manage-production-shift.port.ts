@@ -10,6 +10,7 @@ import type {
   FindWorkEvent,
   Transactional,
   WorkEventInput,
+  ScheduleRevisionLifecycleDecision,
 } from '../production.port.ts';
 
 export type CreateProductionShift = (
@@ -45,9 +46,14 @@ export type ManageProductionShiftRepository = Transactional<
       expectedVersion: number;
       now: Date;
     }) => Promise<ProductionShift | null>;
+    lockCurrentSchedule: (
+      locationId: string,
+      productionShiftId: string,
+    ) => Promise<Readonly<{ scheduleRunId: string; status: string }> | null>;
     supersedeCurrentSchedule: (input: {
       locationId: string;
-      productionShiftId: string;
+      scheduleRunId: string;
+      lifecycle: ScheduleRevisionLifecycleDecision;
       now: Date;
     }) => Promise<string | null>;
     appendWorkEvent: (event: WorkEventInput) => Promise<void>;

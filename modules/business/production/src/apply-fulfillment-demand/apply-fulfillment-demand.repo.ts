@@ -57,6 +57,13 @@ const mapProductionStatus = (
   }
 };
 
+const asResolutionState = (
+  value: string,
+): 'open' | 'resolved_without_production' => {
+  if (value === 'open' || value === 'resolved_without_production') return value;
+  throw new Error(`Unknown production-order resolution state: ${value}.`);
+};
+
 const asAdmissionOverride = (value: string | null): 'released' | null => {
   if (value === null || value === 'released') return value;
   throw new Error(`Unknown production admission override: ${value}.`);
@@ -127,7 +134,9 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         .select({
           id: laundryProduction.productionOrders.id,
           bagCount: laundryProduction.productionOrders.bagCount,
-          status: laundryProduction.productionOrders.status,
+          status: laundryProduction.productionOrders.operationalStatus,
+          executionStatus: laundryProduction.productionOrders.executionStatus,
+          resolutionState: laundryProduction.productionOrders.resolutionState,
           admissionOverride:
             laundryProduction.productionOrders.admissionOverride,
         })
@@ -144,6 +153,7 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         locationId: demand.locationId,
         admissionState: mapAdmissionState(demand.admissionState),
         commercialState: mapCommercialState(demand.commercialState),
+        dueAt: demand.dueAt.toISOString(),
         estimatedWeightLbs: demand.estimatedWeightLbs,
         estimatedWeightSource: mapEstimatedWeightSource(
           demand.estimatedWeightSource,
@@ -153,6 +163,11 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           productionOrder?.admissionOverride ?? null,
         ),
         productionStatus: mapProductionStatus(productionOrder?.status ?? null),
+        productionExecutionStatus: productionOrder?.executionStatus ?? null,
+        productionResolutionState:
+          productionOrder === undefined
+            ? null
+            : asResolutionState(productionOrder.resolutionState),
       };
     },
 
@@ -161,6 +176,7 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
       orderDemandId,
       production,
       effectiveBagCount,
+      initialExecutionState,
       now,
     }) => {
       const [storedDemand] = await db
@@ -222,6 +238,11 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         bagCount: number | null,
         admissionOverride: 'released' | null,
         productionStatus: StoredFulfillmentDemand['productionStatus'],
+        productionExecutionStatus: string | null,
+        productionResolutionState:
+          | 'open'
+          | 'resolved_without_production'
+          | null,
       ): StoredFulfillmentDemand => ({
         orderDemandId,
         productionOrderId,
@@ -231,17 +252,20 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         locationId: command.locationId,
         admissionState: command.admissionState,
         commercialState: command.commercialState,
+        dueAt: command.dueAt,
         estimatedWeightLbs: command.estimatedWeightLbs,
         estimatedWeightSource: command.estimatedWeightSource,
         bagCount,
         admissionOverride,
         productionStatus,
+        productionExecutionStatus,
+        productionResolutionState,
       });
 
       if (production.action === 'none') {
         if (existing !== undefined)
           throw new Error('A no-op demand projection found production work.');
-        return stored(null, null, null, null);
+        return stored(null, null, null, null, null, null);
       }
 
       if (production.action === 'preserve') {
@@ -251,7 +275,9 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           existing.id,
           existing.bagCount,
           asAdmissionOverride(existing.admissionOverride),
-          mapProductionStatus(existing.status),
+          mapProductionStatus(existing.operationalStatus),
+          existing.executionStatus,
+          asResolutionState(existing.resolutionState),
         );
       }
 
@@ -277,7 +303,8 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           locationId: command.locationId,
           dueAt,
           priority: false,
-          status: production.status,
+          operationalStatus: production.status,
+          executionStatus: initialExecutionState,
           derivedWeightLbs: command.estimatedWeightLbs,
           derivedWeightSource: command.estimatedWeightSource,
           bagCount: effectiveBagCount,
@@ -304,6 +331,8 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           effectiveBagCount,
           null,
           production.status,
+          initialExecutionState,
+          'open',
         );
       }
 
@@ -328,7 +357,7 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         .update(laundryProduction.productionOrders)
         .set({
           dueAt,
-          status: production.status,
+          operationalStatus: production.status,
           derivedWeightLbs,
           derivedWeightSource,
           eligibleAt:
@@ -357,14 +386,17 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           and(
             eq(laundryProduction.productionOrders.id, existing.id),
             eq(laundryProduction.productionOrders.version, existing.version),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
           ),
         )
         .returning({
           id: laundryProduction.productionOrders.id,
           bagCount: laundryProduction.productionOrders.bagCount,
-          status: laundryProduction.productionOrders.status,
+          status: laundryProduction.productionOrders.operationalStatus,
           admissionOverride:
             laundryProduction.productionOrders.admissionOverride,
+          executionStatus: laundryProduction.productionOrders.executionStatus,
+          resolutionState: laundryProduction.productionOrders.resolutionState,
         });
       if (updated === undefined)
         throw new Error('Production order changed during demand application.');
@@ -387,6 +419,8 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         updated.bagCount,
         asAdmissionOverride(updated.admissionOverride),
         mapProductionStatus(updated.status),
+        updated.executionStatus,
+        asResolutionState(updated.resolutionState),
       );
     },
 

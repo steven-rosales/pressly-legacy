@@ -282,7 +282,8 @@ const seed = async () => {
       orderDemandId: ids.frozenDemand,
       locationId: 'location-1',
       dueAt: new Date(shiftEndsAt),
-      status: 'scheduled',
+      operationalStatus: 'scheduled',
+      executionStatus: 'scheduled',
       derivedWeightLbs: 50,
       bagCount: 2,
       bagCountSource: 'operator_intake',
@@ -294,7 +295,8 @@ const seed = async () => {
       orderDemandId: ids.queuedDemand,
       locationId: 'location-1',
       dueAt: new Date(shiftEndsAt),
-      status: 'scheduled',
+      operationalStatus: 'scheduled',
+      executionStatus: 'scheduled',
       derivedWeightLbs: 40,
       bagCount: 1,
       bagCountSource: 'operator_intake',
@@ -306,7 +308,8 @@ const seed = async () => {
       orderDemandId: ids.arrivingDemand,
       locationId: 'location-1',
       dueAt: new Date(shiftEndsAt),
-      status: 'eligible',
+      operationalStatus: 'eligible',
+      executionStatus: 'unassigned',
       derivedWeightLbs: 20,
       bagCount: 1,
       bagCountSource: 'operator_intake',
@@ -528,11 +531,12 @@ describe('place production order Postgres commit', () => {
     const place = makePlaceProductionOrder({
       repo: repository,
       policy: {
+        ...allowPolicy,
         evaluatePlacementCommit: () => ({
           tag: 'ok' as const,
           value: { commit: true as const },
         }),
-      } as unknown as ProductionPolicyPort,
+      } satisfies ProductionPolicyPort,
       scheduler: {
         proposeOnlinePlacement: () => proposal,
       } as unknown as ProductionSchedulerPort,
@@ -765,11 +769,12 @@ describe('place production order Postgres commit', () => {
       proposeOnlinePlacement: vi.fn(() => proposal),
     } as unknown as ProductionSchedulerPort;
     const policy = {
+      ...allowPolicy,
       evaluatePlacementCommit: vi.fn(() => ({
         tag: 'ok' as const,
         value: { commit: true as const },
       })),
-    } as unknown as ProductionPolicyPort;
+    } satisfies ProductionPolicyPort;
     const place = makePlaceProductionOrder({
       repo: makePlaceProductionOrderRepository({
         db: testDb.db,
@@ -891,7 +896,11 @@ describe('place production order Postgres commit', () => {
       overtimeProposalHash: null,
     });
     expect(run?.plannedCompletionAt.toISOString()).toBe(projectedCompletionAt);
-    expect(arrivingOrder).toMatchObject({ status: 'scheduled', version: 2 });
+    expect(arrivingOrder).toMatchObject({
+      operationalStatus: 'scheduled',
+      executionStatus: 'scheduled',
+      version: 2,
+    });
   });
 
   it('serializes freeze ahead of a competing exact placement without partial membership', async () => {
@@ -933,6 +942,7 @@ describe('place production order Postgres commit', () => {
       },
     };
     const racePolicy = {
+      ...allowPolicy,
       evaluatePlacementCommit: () => ({
         tag: 'ok' as const,
         value: { commit: true as const },
@@ -941,7 +951,7 @@ describe('place production order Postgres commit', () => {
         tag: 'ok' as const,
         value: { membershipFrozen: true as const },
       }),
-    } as unknown as ProductionPolicyPort;
+    } satisfies ProductionPolicyPort;
     const place = makePlaceProductionOrder({
       repo: makePlaceProductionOrderRepository({
         db: testDb.db,
@@ -1030,7 +1040,11 @@ describe('place production order Postgres commit', () => {
       derivedWeightLbs: 40,
     });
     expect(arrivingMembership).toEqual([]);
-    expect(arrivingOrder).toMatchObject({ status: 'eligible', version: 1 });
+    expect(arrivingOrder).toMatchObject({
+      operationalStatus: 'eligible',
+      executionStatus: 'unassigned',
+      version: 1,
+    });
   });
 
   it('atomically moves one whole queued order and preserves its released route history', async () => {
@@ -1086,7 +1100,8 @@ describe('place production order Postgres commit', () => {
       orderDemandId: targetDemand,
       locationId: 'location-1',
       dueAt: new Date(shiftEndsAt),
-      status: 'scheduled',
+      operationalStatus: 'scheduled',
+      executionStatus: 'scheduled',
       derivedWeightLbs: 10,
       bagCount: 1,
       bagCountSource: 'operator_intake',
@@ -1095,7 +1110,10 @@ describe('place production order Postgres commit', () => {
     });
     await testDb.db
       .update(laundryProduction.productionOrders)
-      .set({ status: 'scheduled' })
+      .set({
+        operationalStatus: 'scheduled',
+        executionStatus: 'scheduled',
+      })
       .where(eq(laundryProduction.productionOrders.id, ids.arrivingOrder));
     await testDb.db
       .update(laundryProduction.productionBatches)

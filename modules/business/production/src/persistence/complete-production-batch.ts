@@ -6,6 +6,7 @@ import {
   sql,
   type DatabaseExecutor,
 } from '@pressly/db';
+import type { ProductionTerminalLifecycleDecisions } from '../production.port.ts';
 
 export type ProductionBatchTerminalization = Readonly<{
   finishedOrderCount: number;
@@ -20,6 +21,7 @@ export const completeProductionBatch = async (
     locationId: string;
     productionBatchId: string;
     productionRunId: string;
+    lifecycle: ProductionTerminalLifecycleDecisions;
     now: Date;
   }>,
 ): Promise<ProductionBatchTerminalization> => {
@@ -46,29 +48,61 @@ export const completeProductionBatch = async (
   if (orderIds.length === 0)
     throw new Error('Finished batch has no active production orders.');
 
-  const finishedOrders = await db
-    .update(laundryProduction.productionOrders)
-    .set({
-      status: 'finished',
-      finishedAt: input.now,
-      version: sql`${laundryProduction.productionOrders.version} + 1`,
-      updatedAt: input.now,
-    })
-    .where(
-      and(
-        eq(laundryProduction.productionOrders.locationId, input.locationId),
-        inArray(laundryProduction.productionOrders.id, orderIds),
-        eq(laundryProduction.productionOrders.status, 'scheduled'),
-      ),
+  const lifecycleByOrderId = new Map(
+    input.lifecycle.orders.map((order) => [order.productionOrderId, order]),
+  );
+  if (
+    lifecycleByOrderId.size !== orderIds.length ||
+    orderIds.some((orderId) => !lifecycleByOrderId.has(orderId)) ||
+    input.lifecycle.orders.some(
+      (order) =>
+        order.lifecycle.from !== 'scheduled' ||
+        order.lifecycle.state !== 'finished',
     )
-    .returning({
-      id: laundryProduction.productionOrders.id,
-      bagCount: laundryProduction.productionOrders.bagCount,
-    });
-  if (finishedOrders.length !== orderIds.length)
-    throw new Error(
-      'Finished batch contains an order outside scheduled production.',
-    );
+  )
+    throw new Error('Production-order lifecycle decisions are incomplete.');
+
+  const finishedOrders: { id: string; bagCount: number | null }[] = [];
+  for (const orderId of orderIds) {
+    const lifecycle = lifecycleByOrderId.get(orderId)!;
+    const [finishedOrder] = await db
+      .update(laundryProduction.productionOrders)
+      .set({
+        operationalStatus: lifecycle.lifecycle.state,
+        executionStatus: lifecycle.lifecycle.state,
+        finishedAt: input.now,
+        version: lifecycle.expectedVersion + 1,
+        updatedAt: input.now,
+      })
+      .where(
+        and(
+          eq(laundryProduction.productionOrders.locationId, input.locationId),
+          eq(laundryProduction.productionOrders.id, orderId),
+          eq(
+            laundryProduction.productionOrders.operationalStatus,
+            lifecycle.lifecycle.from,
+          ),
+          eq(
+            laundryProduction.productionOrders.executionStatus,
+            lifecycle.persistedState,
+          ),
+          eq(
+            laundryProduction.productionOrders.version,
+            lifecycle.expectedVersion,
+          ),
+          eq(laundryProduction.productionOrders.resolutionState, 'open'),
+        ),
+      )
+      .returning({
+        id: laundryProduction.productionOrders.id,
+        bagCount: laundryProduction.productionOrders.bagCount,
+      });
+    if (finishedOrder === undefined)
+      throw new Error(
+        'Finished batch contains an order outside scheduled production.',
+      );
+    finishedOrders.push(finishedOrder);
+  }
 
   if (finishedOrders.some((order) => order.bagCount === null))
     throw new Error('Finished production order is missing bag intake.');
@@ -141,7 +175,7 @@ export const completeProductionBatch = async (
   const [completedRun] = await db
     .update(laundryProduction.productionRuns)
     .set({
-      status: 'completed',
+      status: input.lifecycle.run.state,
       completedAt: input.now,
       version: run.version + 1,
       updatedAt: input.now,
@@ -150,7 +184,7 @@ export const completeProductionBatch = async (
       and(
         eq(laundryProduction.productionRuns.locationId, input.locationId),
         eq(laundryProduction.productionRuns.id, run.id),
-        eq(laundryProduction.productionRuns.status, 'started'),
+        eq(laundryProduction.productionRuns.status, input.lifecycle.run.from),
         eq(laundryProduction.productionRuns.version, run.version),
       ),
     )
@@ -181,7 +215,7 @@ export const completeProductionBatch = async (
   const [closedShift] = await db
     .update(laundryProduction.productionShifts)
     .set({
-      status: 'closed',
+      status: input.lifecycle.shift.state,
       version: sql`${laundryProduction.productionShifts.version} + 1`,
       updatedAt: input.now,
     })
@@ -189,7 +223,10 @@ export const completeProductionBatch = async (
       and(
         eq(laundryProduction.productionShifts.locationId, input.locationId),
         eq(laundryProduction.productionShifts.id, run.productionShiftId),
-        eq(laundryProduction.productionShifts.status, 'open'),
+        eq(
+          laundryProduction.productionShifts.status,
+          input.lifecycle.shift.from,
+        ),
       ),
     )
     .returning({ id: laundryProduction.productionShifts.id });

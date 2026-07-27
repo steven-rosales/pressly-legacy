@@ -73,6 +73,10 @@ describe('Processor Order control route', () => {
       items: [
         {
           ...base.items[0]!,
+          identity: {
+            displayNumber: 'fulfillment:legacy',
+            customerDisplayName: null,
+          },
           canonical: {
             canonicalOrderId: id(2),
             canonicalFulfillmentId: id(3),
@@ -88,7 +92,6 @@ describe('Processor Order control route', () => {
             commercialState: 'open',
             admissionState: 'unreleased',
             source: { name: 'cents', status: 'SUBMITTED' },
-            comparison: 'aligned',
           },
         },
       ],
@@ -124,6 +127,10 @@ describe('Processor Order control route', () => {
       data: {
         items: [
           {
+            identity: {
+              displayNumber: 'fulfillment:legacy',
+              customerDisplayName: null,
+            },
             canonical: {
               displayNumber: null,
               customer: {

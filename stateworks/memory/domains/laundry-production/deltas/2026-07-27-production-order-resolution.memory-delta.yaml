@@ -1,0 +1,125 @@
+id: memdelta-2026-07-27-production-order-resolution
+domain_id: laundry-production
+
+source:
+  type: implementation_evidence
+  path: stateworks/work/done/lpms-production-order-resolution-and-identity/final-report.md
+
+changes:
+  - op: assert
+    kind: object
+    id: production_order_resolution
+    description: An orthogonal persistent Production lifecycle for work that
+      will not be produced in Pressly; it removes the work from active
+      operations while retaining an audited, restorable record and does not
+      represent execution, completion, source cancellation, or deletion.
+
+  - op: assert
+    kind: workflow
+    id: production_order_resolution
+    steps:
+      - a manager requests a bounded backlog preview or reviews one order
+      - the server classifies current eligibility and safety facts under the
+        Production scheduling lock
+      - the Production resolution graph decides resolve_without_production from
+        open or restore from resolved_without_production
+      - the current lifecycle projection and sanitized audit event are persisted
+        atomically with version and idempotency evidence
+      - resolved work is excluded from operational projections, counts, and
+        forward actions while History retains its resolution evidence
+      - an explicit manager restore re-reads current source-owned demand, due,
+        provenance, admission, and phase facts before reopening the work
+
+  - op: assert
+    kind: invariant
+    id: resolved_without_production_is_not_execution_v1
+    statement: Resolving a Production order without production never means
+      scheduled, batched, started, finished, physically completed, canceled in
+      a source system, deleted, or otherwise advanced through the execution
+      lifecycle.
+
+  - op: assert
+    kind: invariant
+    id: resolved_work_is_excluded_from_forward_operations_v1
+    statement: A Production order in resolved_without_production remains
+      retained and auditable but is excluded from operational actions, active
+      order counts, scheduling, placement, routing, intake, admission,
+      production workspaces, and remaining-day demand until an explicit valid
+      restore reopens it.
+
+  - op: update
+    kind: invariant
+    id: source_lifecycle_does_not_advance_floor_truth_v1
+    statement: An external lifecycle observation may update retained source
+      metadata and source-owned demand fields, but it cannot start, advance,
+      finish, cancel, rewind, delete, resolve, restore, reopen, or otherwise
+      change an LPMS order, batch, stage, run, shift, or Production resolution
+      lifecycle; after handoff its lifecycle value is observation-only and
+      cannot resurrect resolved Production work.
+
+  - op: assert
+    kind: policy
+    id: production_order_resolution_lifecycle_v1
+    statement: Production-order resolution is governed by the explicit
+      open-to-resolved_without_production and resolved_without_production-to-open
+      graph; manager authorization, current operational guards, expected
+      version, idempotency, audit, and location serialization must succeed
+      around the graph decision, and selected, scheduled, batched, active,
+      routed, reconciled, finished, or historically participating work cannot
+      use backlog cleanup.
+
+  - op: assert
+    kind: decision
+    id: production_order_archive_is_nondestructive_resolution_v1
+    statement: Processor Archive from active work is the manager-facing
+      presentation of Production resolved_without_production; records and
+      sanitized History are retained, work is not marked produced, routine hard
+      deletion is not introduced, and restoration is a separate explicit
+      graph transition.
+
+  - op: update
+    kind: decision
+    id: persistent_production_lifecycles_use_authoritative_graphs_v1
+    statement: Each persistent Production aggregate lifecycle, including the
+      execution, admission, and orthogonal production-order resolution
+      lifecycles, is governed by one authoritative explicit state-and-event
+      graph; cross-aggregate use cases orchestrate graph decisions and effects,
+      local adapters and repositories cannot define parallel transitions,
+      derived operational and forecast values remain pure projections, and no
+      global workflow engine is introduced.
+
+  - op: update
+    kind: decision
+    id: processor_uses_backend_action_availability
+    statement: The Processor renders Production action availability and backlog
+      classification from server-owned lifecycle graphs and policies,
+      including stage, admission, archive, restore, and bounded bulk-review
+      actions, and does not recreate lifecycle transitions, cleanup
+      eligibility, source comparison, placement, or forecast classification in
+      the browser.
+
+verification:
+  - The implemented resolution graph and exhaustive Production policy suite
+    passed 15 files and 146 tests.
+  - Production passed 35 files and 167 unit and HTTP tests plus 15 files and 33
+    Postgres integration tests covering authorization, guards, locking,
+    versioning, idempotency, replay, audit, restore, source non-resurrection,
+    and concurrency.
+  - Contracts passed 11 files and 92 tests, database unit and schema checks
+    passed 5 files and 30 tests, API passed 19 files and 135 tests, and
+    Processor passed 37 files and 230 tests.
+  - Full LPMS integration and end-to-end commands, repository typecheck, lint,
+    build, architecture-boundary tests, implementation formatting, and
+    whitespace checks passed.
+  - Rebuilt local Docker services were healthy and Chrome desktop and mobile
+    review verified the manager workflow, shadcn Calendar, History restore,
+    responsive behavior, focus return, localization, and a clean console.
+  - Evidence proves repository behavior and the recorded local runtime only; it
+    does not prove deployment, legal retention policy, live source behavior, or
+    pilot readiness.
+  - Customer-row presentation remains implementation evidence and is not
+    promoted into durable laundry-production memory.
+  - No secret, credential, raw customer payload, private token, or customer PII
+    is included.
+
+status: applied

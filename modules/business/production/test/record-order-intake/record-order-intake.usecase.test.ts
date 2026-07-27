@@ -8,6 +8,7 @@ import { defineWorkEventCommand } from '../../src/production-idempotency.policy.
 import { makeRecordOrderIntake } from '../../src/record-order-intake/record-order-intake.usecase.ts';
 import { result } from '@pressly/kernel';
 import { describe, expect, it, vi } from 'vitest';
+import { allowPolicy } from '../support/production.fake.ts';
 
 const locationId = 'location-1';
 const orderId = '00000000-0000-4000-8000-000000000101';
@@ -64,6 +65,9 @@ const makeHarness = (
           intakeVersion: 0,
           derivedWeightLbs: 42,
           demandPhase: 'expected',
+          admissionOverride: null,
+          executionStatus: 'unassigned',
+          resolutionState: 'open',
         }
       : input.order;
   let bagCount: number | null = null;
@@ -184,8 +188,9 @@ const makeHarness = (
         : result.err(input.policyError),
   );
   const policy = {
+    ...allowPolicy,
     evaluateIntakeAdmission,
-  } as unknown as ProductionPolicyPort;
+  } satisfies ProductionPolicyPort;
   const intake = makeRecordOrderIntake({
     repo,
     policy,
@@ -274,6 +279,9 @@ describe('record order intake', () => {
         intakeVersion: 1,
         derivedWeightLbs: 42,
         demandPhase: 'production_released' as const,
+        admissionOverride: null,
+        executionStatus: 'unassigned',
+        resolutionState: 'open',
       },
     });
 
@@ -331,6 +339,9 @@ describe('record order intake', () => {
         intakeVersion: 0,
         derivedWeightLbs: 42,
         demandPhase: 'production_released' as const,
+        admissionOverride: null,
+        executionStatus: 'unassigned',
+        resolutionState: 'open',
       },
     ],
   ])('fails closed for a %s', async (_name, scope, order) => {
@@ -365,6 +376,9 @@ describe('record order intake', () => {
         intakeVersion: 0,
         derivedWeightLbs: 42,
         demandPhase: 'production_released',
+        admissionOverride: null,
+        executionStatus: 'scheduled',
+        resolutionState: 'open',
       },
     });
     await expect(scheduled.intake(command)).resolves.toMatchObject({
@@ -372,6 +386,31 @@ describe('record order intake', () => {
       error: { code: 'production_order_intake_state_invalid' },
     });
     expect(scheduled.evaluateIntakeAdmission).not.toHaveBeenCalled();
+  });
+
+  it('rejects intake after the order is archived from active work', async () => {
+    const harness = makeHarness({
+      order: {
+        orderId,
+        locationId,
+        productionStatus: 'intake_pending',
+        productionVersion: 1,
+        intakeVersion: 0,
+        derivedWeightLbs: 42,
+        demandPhase: 'production_released',
+        admissionOverride: null,
+        executionStatus: 'unassigned',
+        resolutionState: 'resolved_without_production',
+      },
+    });
+
+    await expect(harness.intake(command)).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_order_resolved', status: 409 },
+    });
+    expect(harness.evaluateIntakeAdmission).not.toHaveBeenCalled();
+    expect(harness.recordIntake).not.toHaveBeenCalled();
+    expect(harness.appendWorkEvent).not.toHaveBeenCalled();
   });
 
   it('honors demand lifecycle policy rejection before any write', async () => {
@@ -384,6 +423,9 @@ describe('record order intake', () => {
         intakeVersion: 0,
         derivedWeightLbs: 42,
         demandPhase: 'post_production',
+        admissionOverride: null,
+        executionStatus: 'unassigned',
+        resolutionState: 'open',
       },
       policyError: {
         code: 'ORDER_SOURCE_ALREADY_POST_PRODUCTION',

@@ -14,6 +14,7 @@ import type {
   ProductionPolicyPort,
   ProductionSignalsPort,
   ProductionSchedulerPort,
+  ScheduleSupersessionDecision,
 } from '../production.port.ts';
 import type {
   CreateSchedule,
@@ -127,15 +128,42 @@ export const makeCreateSchedule =
           );
 
         const output = deps.scheduler.propose(schedulingInput);
-        supersededCurrentPlan = await repo.currentPlanExists(
+        const currentPlan = await repo.loadCurrentPlan(
           command.locationId,
           command.productionShiftId,
         );
+        let supersede: ScheduleSupersessionDecision | null = null;
+        if (currentPlan !== null) {
+          const lifecycle = deps.policy.evaluateScheduleRevisionTransition({
+            state: currentPlan.status,
+            event: 'supersede',
+          });
+          if (
+            lifecycle.tag === 'err' ||
+            (lifecycle.value.from !== 'draft' &&
+              lifecycle.value.from !== 'accepted') ||
+            lifecycle.value.state !== 'superseded'
+          )
+            return result.err(
+              productionError(
+                'SCHEDULE_CURRENT_PLAN_STATE_INVALID',
+                'The current schedule revision cannot be superseded.',
+                409,
+              ),
+            );
+          supersede = {
+            scheduleRunId: currentPlan.scheduleRunId,
+            lifecycle: lifecycle.value,
+          };
+        }
+        supersededCurrentPlan = supersede !== null;
         const schedule = await repo.saveSchedule({
           locationId: command.locationId,
           id: deps.ids.next(),
           schedulingInput,
           output,
+          initialStatus: deps.policy.initialScheduleRevisionState,
+          supersede,
           now,
         });
 

@@ -47,6 +47,7 @@ const aggregate = {
     estimatedWeightSource: null,
     bagCount: null,
   },
+  items: [],
 };
 
 const sourceCommand = {
@@ -85,7 +86,8 @@ const sourceCommand = {
 
 describe('Orders use cases', () => {
   it('decides divergent equal source revisions before writing', async () => {
-    const applySourceOrder = vi.fn();
+    const retainSourceObservation = vi.fn();
+    const applySourceAdoption = vi.fn();
     const operations: ObserveOrderSourceOperations = {
       lockSource: vi.fn(),
       loadSource: vi.fn().mockResolvedValue({
@@ -95,7 +97,8 @@ describe('Orders use cases', () => {
         authorities: new Map(),
       }),
       createSourceOrder: vi.fn(),
-      applySourceOrder,
+      retainSourceObservation,
+      applySourceAdoption,
     };
     const observe = makeObserveOrderSource(transactionRepo(operations));
 
@@ -105,7 +108,55 @@ describe('Orders use cases', () => {
       tag: 'err',
       error: { code: 'order_source_revision_conflict' },
     });
-    expect(applySourceOrder).not.toHaveBeenCalled();
+    expect(retainSourceObservation).not.toHaveBeenCalled();
+    expect(applySourceAdoption).not.toHaveBeenCalled();
+  });
+
+  it('retains a newer post-handoff lifecycle observation without canonical effects', async () => {
+    const retainSourceObservation = vi.fn();
+    const applySourceAdoption = vi.fn();
+    const operations: ObserveOrderSourceOperations = {
+      lockSource: vi.fn(),
+      loadSource: vi.fn().mockResolvedValue({
+        ...aggregate,
+        fulfillment: { ...aggregate.fulfillment, releaseState: 'released' },
+        sourceLinkId: 'source-link-1',
+        revision: {
+          at: new Date(clock.now().getTime() - 1),
+          hash: 'a'.repeat(64),
+        },
+        authorities: new Map(),
+      }),
+      createSourceOrder: vi.fn(),
+      retainSourceObservation,
+      applySourceAdoption,
+    };
+    const observe = makeObserveOrderSource(transactionRepo(operations));
+
+    const outcome = await observe({
+      ...sourceCommand,
+      state: 'canceled',
+      fulfillment: {
+        ...sourceCommand.fulfillment,
+        releaseState: 'withdrawn',
+      },
+      revision: {
+        ...sourceCommand.revision,
+        hash: 'b'.repeat(64),
+        lifecycleCode: 'CANCELED',
+      },
+    });
+
+    expect(outcome).toMatchObject({
+      tag: 'ok',
+      value: {
+        outcome: 'observed_only',
+        version: aggregate.order.version,
+        replayed: false,
+      },
+    });
+    expect(retainSourceObservation).toHaveBeenCalledOnce();
+    expect(applySourceAdoption).not.toHaveBeenCalled();
   });
 
   it('decides a reversed release state before writing', async () => {

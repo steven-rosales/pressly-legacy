@@ -8,7 +8,7 @@ import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
 } from '../production-idempotency.policy.ts';
-import type { ClockPort } from '../production.port.ts';
+import type { ClockPort, ProductionPolicyPort } from '../production.port.ts';
 import type {
   SetProductionOrderPriority,
   SetProductionOrderPriorityRepository,
@@ -19,6 +19,7 @@ export const makeSetProductionOrderPriority =
   (deps: {
     repo: SetProductionOrderPriorityRepository;
     clock: ClockPort;
+    policy: ProductionPolicyPort;
   }): SetProductionOrderPriority =>
   async (command) => {
     try {
@@ -41,6 +42,32 @@ export const makeSetProductionOrderPriority =
         if (replay.tag === 'replay') return result.ok(replay.result);
 
         await repo.lockLocationScheduling(command.locationId);
+        const order = await repo.lockPriorityOrder(
+          command.locationId,
+          command.productionOrderId,
+        );
+        if (order === null)
+          return result.err(
+            productionError(
+              'PRODUCTION_ORDER_NOT_FOUND',
+              'The production order was not found.',
+              404,
+            ),
+          );
+        if (order.version !== command.expectedVersion)
+          return result.err(
+            productionError(
+              'PRODUCTION_ORDER_VERSION_CONFLICT',
+              'The order changed before priority could be updated.',
+            ),
+          );
+        const access = deps.policy.evaluateProductionOrderOperationalAccess({
+          resolutionState: order.resolutionState,
+        });
+        if (access.tag === 'err')
+          return result.err(
+            productionError(access.error.code, access.error.message, 409),
+          );
         const updated = await repo.setOrderPriority({
           locationId: command.locationId,
           productionOrderId: command.productionOrderId,

@@ -86,7 +86,9 @@ export type OrderMutationResult = Readonly<{
 }>;
 
 export type OrderSourceObservationResult = OrderMutationResult &
-  Readonly<{ outcome: 'created' | 'applied' | 'replayed' | 'stale' }>;
+  Readonly<{
+    outcome: 'created' | 'applied' | 'observed_only' | 'replayed' | 'stale';
+  }>;
 
 export type ObserveOrderSource = (
   command: ObserveOrderSourceCommand,

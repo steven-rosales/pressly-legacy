@@ -12,8 +12,9 @@ import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
-  OnlinePlacementInput,
   OnlinePlacementProposal,
+  ProductionOrderPlacementContext,
+  ProductionOrderSchedulingMutation,
   Transactional,
   WorkEventCommandIdentity,
 } from '../production.port.ts';
@@ -35,13 +36,7 @@ export type ConfirmProductionOrderOvertime = (
   command: ConfirmProductionOrderOvertimeCommand & PlacementActor,
 ) => Promise<Result<ConfirmProductionOrderOvertimeResult, AppError>>;
 
-export type PlacementContext = Readonly<{
-  input: OnlinePlacementInput;
-  runStatus: string;
-  orderStatus: string;
-  orderAlreadyAssigned: boolean;
-  batchVersions: Readonly<Record<string, number>>;
-}>;
+export type PlacementContext = ProductionOrderPlacementContext;
 
 export type StoredOvertimeProposal = Readonly<{
   mode: 'automatic' | 'manager_exact';
@@ -100,6 +95,10 @@ export type PlaceProductionOrderOperations = Readonly<{
       context: PlacementContext;
       proposal: OnlinePlacementProposal;
       overtimeConfirmed: boolean;
+      orderLifecycle: ProductionOrderSchedulingMutation;
+      initialBatchState: 'queued';
+      initialStageState: 'planned';
+      initialAttemptState: 'assigned';
     },
   ) => Promise<ProductionOrderPlacementResult>;
 }>;

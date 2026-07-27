@@ -76,6 +76,22 @@ export const productionOrderStatusSchema = z.enum([
   'scheduled',
   'finished',
 ]);
+export const productionOrderResolutionStateSchema = z.enum([
+  'open',
+  'resolved_without_production',
+]);
+export const productionOrderResolutionReasonSchema = z.enum([
+  'completed_outside_pressly',
+  'processor_not_in_use',
+  'duplicate_or_test',
+  'order_will_not_be_produced',
+  'other',
+]);
+export const productionOrderRestorationReasonSchema = z.enum([
+  'manager_correction',
+  'work_should_be_produced',
+  'other',
+]);
 export const productionAdmissionTargetSchema = z.enum(['released', 'source']);
 export const productionAdmissionOverrideSchema = z
   .literal('released')
@@ -86,12 +102,6 @@ export const productionDemandPhaseSchema = z.enum([
   'production_released',
   'post_production',
   'withdrawn',
-]);
-export const productionDemandReconciliationSchema = z.enum([
-  'none',
-  'source_ahead',
-  'source_withdrawn',
-  'source_behind',
 ]);
 export const productionDemandReadinessSchema = z.enum([
   'awaiting_release',
@@ -598,6 +608,131 @@ export const productionPendingOrderSchema = productionOrderSummarySchema
   .extend({ placement: productionPendingPlacementSchema })
   .strict();
 
+export const productionLivePlacementCapacitySchema = z
+  .object({
+    beforeLbs: z.number().nonnegative(),
+    afterLbs: z.number().positive(),
+    limitLbs: z.number().positive(),
+  })
+  .strict()
+  .superRefine((capacity, context) => {
+    if (capacity.afterLbs > capacity.limitLbs)
+      context.addIssue({
+        code: 'custom',
+        path: ['afterLbs'],
+        message: 'An authorized placement cannot exceed pulse capacity.',
+      });
+  });
+
+const productionLivePlacementProjectionFields = {
+  proposalHash: productionHashSchema,
+  expectedQueueVersion: z.number().int().positive(),
+  expectedOrderVersion: z.number().int().positive(),
+  capacity: productionLivePlacementCapacitySchema,
+  projectedCompletionAt: utcIsoStringSchema,
+  overtime: z
+    .object({
+      required: z.boolean(),
+      minutes: z.number().int().nonnegative(),
+      shiftEndsAt: utcIsoStringSchema,
+    })
+    .strict(),
+} as const;
+
+export const productionLiveAutomaticPlacementSchema = z
+  .object({
+    mode: z.literal('automatic'),
+    target: productionPlacementTargetSchema,
+    expectedBatchVersion: z.number().int().positive().nullable(),
+    allowedActions: z
+      .array(z.enum(['place_automatically', 'confirm_overtime']))
+      .length(1),
+    ...productionLivePlacementProjectionFields,
+  })
+  .strict()
+  .superRefine((placement, context) => {
+    const targetsExistingBatch = placement.target.kind === 'existing_batch';
+    if (targetsExistingBatch !== (placement.expectedBatchVersion !== null))
+      context.addIssue({
+        code: 'custom',
+        path: ['expectedBatchVersion'],
+        message: 'Existing-batch placement requires the current batch version.',
+      });
+    if (
+      placement.allowedActions[0] === 'confirm_overtime' &&
+      !placement.overtime.required
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['allowedActions'],
+        message: 'Overtime confirmation requires an overtime projection.',
+      });
+  });
+
+export const productionLiveExactBatchTargetSchema = z
+  .object({
+    mode: z.literal('manager_exact'),
+    target: z
+      .object({
+        kind: z.literal('existing_batch'),
+        productionBatchId: productionIdSchema,
+        sequence: z.number().int().nonnegative(),
+      })
+      .strict(),
+    expectedBatchVersion: z.number().int().positive(),
+    allowedActions: z
+      .array(z.enum(['place_exactly', 'confirm_overtime']))
+      .length(1),
+    ...productionLivePlacementProjectionFields,
+  })
+  .strict()
+  .superRefine((placement, context) => {
+    if (
+      placement.allowedActions[0] === 'confirm_overtime' &&
+      !placement.overtime.required
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['allowedActions'],
+        message: 'Overtime confirmation requires an overtime projection.',
+      });
+  });
+
+export const productionLiveRecommendedPlacementSchema = z.discriminatedUnion(
+  'status',
+  [
+    z
+      .object({
+        status: z.literal('available'),
+        placement: productionLiveAutomaticPlacementSchema,
+      })
+      .strict(),
+    z
+      .object({
+        status: z.literal('unavailable'),
+        reason: productionPlacementFailureReasonSchema,
+        message: z.string().min(1),
+      })
+      .strict(),
+  ],
+);
+
+export const productionLiveRunChangeOrderSchema = productionPendingOrderSchema
+  .extend({
+    recommendedPlacement: productionLiveRecommendedPlacementSchema,
+    exactBatchTargets: z.array(productionLiveExactBatchTargetSchema),
+  })
+  .strict();
+
+export const productionLiveRunChangesSchema = z
+  .object({
+    productionRunId: productionIdSchema,
+    queueVersion: z.number().int().positive(),
+    pulseCapacityLbs: z.number().positive(),
+    orders: z.array(productionLiveRunChangeOrderSchema),
+  })
+  .strict();
+
 export const productionBoardSchema = z
   .object({
     productionShift: productionShiftSchema,
@@ -625,13 +760,11 @@ export const productionDemandOutlookItemSchema = z
     productionOrderId: productionIdSchema.nullable(),
     externalOrderId: z.string().min(1),
     phase: productionDemandPhaseSchema,
-    sourceStatusCode: z.string().min(1),
     dueAt: utcIsoStringSchema,
     estimatedWeightLbs: z.number().positive().nullable(),
     readiness: productionDemandReadinessSchema,
     productionStatus: productionOrderStatusSchema.nullable(),
     bagCount: z.number().int().nonnegative().nullable(),
-    reconciliation: productionDemandReconciliationSchema,
   })
   .strict();
 
@@ -672,7 +805,6 @@ export const productionDemandOutlookSchema = z
     readyEstimatedWeightLbs: z.number().nonnegative(),
     inProductionOrderCount: z.number().int().nonnegative(),
     inProductionEstimatedWeightLbs: z.number().nonnegative(),
-    reconciliationCount: z.number().int().nonnegative(),
     items: z.array(productionDemandOutlookItemSchema),
     forecast: productionDemandForecastSchema.nullable(),
   })
@@ -689,6 +821,7 @@ export const productionWorkspaceSchema = z
     activeRuns: z.array(productionRunSummarySchema),
     orders: z.array(productionOrderListItemSchema),
     pendingEligibleOrders: z.array(productionPendingOrderSchema),
+    liveRunChanges: productionLiveRunChangesSchema.nullable(),
     demandOutlook: productionDemandOutlookSchema.nullable(),
     board: productionBoardSchema.nullable(),
     stations: z.array(productionStationSchema),
@@ -1292,6 +1425,93 @@ export const changeProductionAdmissionResultSchema = z
     orderId: productionIdSchema,
     admissionOverride: productionAdmissionOverrideSchema,
     status: productionOrderStatusSchema,
+    version: z.number().int().positive(),
+    replayed: z.boolean(),
+  })
+  .strict();
+
+const productionOrderResolutionNoteSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(500)
+  .nullable()
+  .default(null);
+
+const resolutionCommandIdentifiers = {
+  locationId: z.string().min(1),
+  orderId: productionIdSchema,
+  expectedVersion: z.number().int().positive(),
+  idempotencyKey: z.string().min(8).max(200),
+} as const;
+
+const requireResolutionOtherNote = (
+  value: Readonly<{ reason: string; note: string | null }>,
+  context: z.RefinementCtx,
+): void => {
+  if (value.reason === 'other' && value.note === null)
+    context.addIssue({
+      code: 'custom',
+      path: ['note'],
+      message: 'An explanatory note is required for the other reason.',
+    });
+};
+
+export const changeProductionOrderResolutionCommandSchema =
+  z.discriminatedUnion('action', [
+    z
+      .object({
+        ...resolutionCommandIdentifiers,
+        action: z.literal('resolve_without_production'),
+        reason: productionOrderResolutionReasonSchema,
+        note: productionOrderResolutionNoteSchema,
+        confirmReviewedFacts: z.boolean().default(false),
+      })
+      .strict()
+      .superRefine(requireResolutionOtherNote),
+    z
+      .object({
+        ...resolutionCommandIdentifiers,
+        action: z.literal('restore'),
+        reason: productionOrderRestorationReasonSchema,
+        note: productionOrderResolutionNoteSchema,
+      })
+      .strict()
+      .superRefine(requireResolutionOtherNote),
+  ]);
+
+export const changeProductionOrderResolutionRequestSchema =
+  z.discriminatedUnion('action', [
+    z
+      .object({
+        action: z.literal('resolve_without_production'),
+        reason: productionOrderResolutionReasonSchema,
+        note: productionOrderResolutionNoteSchema,
+        confirmReviewedFacts: z.boolean().default(false),
+        expectedVersion: z.number().int().positive(),
+        idempotencyKey: z.string().min(8).max(200),
+      })
+      .strict()
+      .superRefine(requireResolutionOtherNote),
+    z
+      .object({
+        action: z.literal('restore'),
+        reason: productionOrderRestorationReasonSchema,
+        note: productionOrderResolutionNoteSchema,
+        expectedVersion: z.number().int().positive(),
+        idempotencyKey: z.string().min(8).max(200),
+      })
+      .strict()
+      .superRefine(requireResolutionOtherNote),
+  ]);
+
+export const changeProductionOrderResolutionResultSchema = z
+  .object({
+    locationId: z.string().min(1),
+    orderId: productionIdSchema,
+    action: z.enum(['resolve_without_production', 'restore']),
+    resolutionState: productionOrderResolutionStateSchema,
+    transitionedAt: utcIsoStringSchema,
     version: z.number().int().positive(),
     replayed: z.boolean(),
   })

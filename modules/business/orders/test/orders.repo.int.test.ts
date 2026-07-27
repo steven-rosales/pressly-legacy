@@ -1,4 +1,4 @@
-import { orders as schema } from '@pressly/db';
+import { eq, orders as schema } from '@pressly/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makePostgresOrdersApplication } from '../src/main.ts';
 import { createOrdersTestDatabase } from './support/database.ts';
@@ -148,6 +148,200 @@ describe('Postgres Orders application', () => {
         outcome.tag === 'ok' ? outcome.value.outcome : 'error',
       ),
     ).toEqual(expect.arrayContaining(['created', 'replayed']));
+  });
+
+  it('retains post-handoff lifecycle observations without changing canonical state or outbox', async () => {
+    const application = makePostgresOrdersApplication({ db: testDb.db, clock });
+    const sourceOrder = {
+      ...baseOrder,
+      context: sourceContext,
+      source: 'cents',
+      externalOrderId: '7472020',
+    } as const;
+    const submittedAt = new Date('2026-07-21T15:00:00.000Z');
+    const created = await application.observeSource({
+      ...sourceOrder,
+      revision: {
+        at: submittedAt,
+        observedAt: submittedAt,
+        hash: 'a'.repeat(64),
+        adapterVersion: 'cents-webhook-v2',
+        lifecycleCode: 'SUBMITTED',
+        normalizedPayload: { order: { id: 7472020, status: 'SUBMITTED' } },
+      },
+    });
+    expect(created).toMatchObject({
+      tag: 'ok',
+      value: { outcome: 'created', version: 1 },
+    });
+
+    const handoffAt = new Date('2026-07-21T15:10:00.000Z');
+    const handoff = await application.observeSource({
+      ...sourceOrder,
+      fulfillment: {
+        ...sourceOrder.fulfillment,
+        releaseState: 'released',
+      },
+      revision: {
+        at: handoffAt,
+        observedAt: handoffAt,
+        hash: 'b'.repeat(64),
+        adapterVersion: 'cents-webhook-v2',
+        lifecycleCode: 'IN_PROGRESS',
+        normalizedPayload: { order: { id: 7472020, status: 'IN_PROGRESS' } },
+      },
+    });
+    expect(handoff).toMatchObject({
+      tag: 'ok',
+      value: { outcome: 'applied', version: 2 },
+    });
+
+    const canceledAt = new Date('2026-07-21T15:20:00.000Z');
+    const canceled = await application.observeSource({
+      ...sourceOrder,
+      state: 'canceled',
+      fulfillment: {
+        ...sourceOrder.fulfillment,
+        releaseState: 'withdrawn',
+      },
+      revision: {
+        at: canceledAt,
+        observedAt: canceledAt,
+        hash: 'c'.repeat(64),
+        adapterVersion: 'cents-webhook-v2',
+        lifecycleCode: 'CANCELED',
+        normalizedPayload: { order: { id: 7472020, status: 'CANCELED' } },
+      },
+    });
+    expect(canceled).toMatchObject({
+      tag: 'ok',
+      value: { outcome: 'observed_only', version: 2 },
+    });
+    await expect(
+      testDb.db
+        .select({
+          state: schema.orders.state,
+          orderVersion: schema.orders.version,
+          releaseState: schema.orderFulfillments.releaseState,
+          fulfillmentVersion: schema.orderFulfillments.version,
+        })
+        .from(schema.orders)
+        .innerJoin(
+          schema.orderFulfillments,
+          eq(schema.orderFulfillments.orderId, schema.orders.id),
+        ),
+    ).resolves.toEqual([
+      {
+        state: 'open',
+        orderVersion: 2,
+        releaseState: 'released',
+        fulfillmentVersion: 2,
+      },
+    ]);
+    await expect(
+      testDb.db
+        .select({
+          lifecycle: schema.orderSourceSnapshots.sourceLifecycleCode,
+          revisionAt: schema.orderSourceSnapshots.sourceRevisionAt,
+        })
+        .from(schema.orderSourceSnapshots),
+    ).resolves.toEqual([{ lifecycle: 'CANCELED', revisionAt: canceledAt }]);
+    await expect(
+      testDb.db.select().from(schema.orderOutboxEvents),
+    ).resolves.toHaveLength(2);
+
+    const revisedDueAt = new Date('2026-07-23T20:00:00.000Z');
+    const completedAt = new Date('2026-07-21T15:30:00.000Z');
+    const nonLifecycleUpdate = await application.observeSource({
+      ...sourceOrder,
+      state: 'completed',
+      dueAt: revisedDueAt,
+      fulfillment: {
+        ...sourceOrder.fulfillment,
+        releaseState: 'released',
+      },
+      revision: {
+        at: completedAt,
+        observedAt: completedAt,
+        hash: 'd'.repeat(64),
+        adapterVersion: 'cents-webhook-v2',
+        lifecycleCode: 'COMPLETED',
+        normalizedPayload: { order: { id: 7472020, status: 'COMPLETED' } },
+      },
+    });
+    expect(nonLifecycleUpdate).toMatchObject({
+      tag: 'ok',
+      value: { outcome: 'applied', version: 3 },
+    });
+    await expect(
+      testDb.db
+        .select({
+          state: schema.orders.state,
+          dueAt: schema.orders.dueAt,
+          version: schema.orders.version,
+        })
+        .from(schema.orders),
+    ).resolves.toEqual([{ state: 'open', dueAt: revisedDueAt, version: 3 }]);
+    await expect(
+      testDb.db.select().from(schema.orderOutboxEvents),
+    ).resolves.toHaveLength(3);
+  });
+
+  it('adopts a source cancellation only while fulfillment is unreleased', async () => {
+    const application = makePostgresOrdersApplication({ db: testDb.db, clock });
+    const sourceOrder = {
+      ...baseOrder,
+      context: sourceContext,
+      source: 'cents',
+      externalOrderId: '7472030',
+    } as const;
+    const submittedAt = new Date('2026-07-21T15:00:00.000Z');
+    await application.observeSource({
+      ...sourceOrder,
+      revision: {
+        at: submittedAt,
+        observedAt: submittedAt,
+        hash: 'a'.repeat(64),
+        adapterVersion: 'cents-webhook-v2',
+        lifecycleCode: 'SUBMITTED',
+        normalizedPayload: { order: { id: 7472030, status: 'SUBMITTED' } },
+      },
+    });
+
+    const canceledAt = new Date('2026-07-21T15:10:00.000Z');
+    const canceled = await application.observeSource({
+      ...sourceOrder,
+      state: 'canceled',
+      fulfillment: {
+        ...sourceOrder.fulfillment,
+        releaseState: 'withdrawn',
+      },
+      revision: {
+        at: canceledAt,
+        observedAt: canceledAt,
+        hash: 'b'.repeat(64),
+        adapterVersion: 'cents-webhook-v2',
+        lifecycleCode: 'CANCELED',
+        normalizedPayload: { order: { id: 7472030, status: 'CANCELED' } },
+      },
+    });
+
+    expect(canceled).toMatchObject({
+      tag: 'ok',
+      value: { outcome: 'applied', version: 2 },
+    });
+    await expect(
+      testDb.db
+        .select({
+          state: schema.orders.state,
+          releaseState: schema.orderFulfillments.releaseState,
+        })
+        .from(schema.orders)
+        .innerJoin(
+          schema.orderFulfillments,
+          eq(schema.orderFulfillments.orderId, schema.orders.id),
+        ),
+    ).resolves.toEqual([{ state: 'canceled', releaseState: 'withdrawn' }]);
   });
 
   it('lease-fences an outbox claim and makes an explicit retry claimable later', async () => {

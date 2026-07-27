@@ -1,6 +1,7 @@
 import type {
   ProductionFloorMilestone,
   ProductionFloorProgressTarget,
+  ProductionPendingOrder,
   ProductionOrderRouteReason,
   ProductionStageCompletionTiming,
   ProductionStageNextAction,
@@ -14,18 +15,131 @@ export type OrderDemandPhase =
   | 'post_production'
   | 'withdrawn';
 
-export type DemandReconciliationStatus =
-  | 'none'
-  | 'source_ahead'
-  | 'source_withdrawn'
-  | 'source_behind';
-
 export type PolicyDecision<T> =
   | Readonly<{ tag: 'ok'; value: T }>
   | Readonly<{
       tag: 'err';
       error: Readonly<{ code: string; message: string }>;
     }>;
+
+export type ProductionShiftLifecycleDecision = Readonly<{
+  from: 'open' | 'closed';
+  state: 'open' | 'closed';
+}>;
+
+export type ScheduleRevisionLifecycleDecision = Readonly<{
+  from: 'draft' | 'accepted' | 'superseded' | 'rejected';
+  state: 'draft' | 'accepted' | 'superseded' | 'rejected';
+}>;
+
+export type ScheduleSupersessionDecision = Readonly<{
+  scheduleRunId: string;
+  lifecycle: ScheduleRevisionLifecycleDecision;
+}>;
+
+export type ProductionRunLifecycleDecision = Readonly<{
+  from: 'started' | 'completed';
+  state: 'started' | 'completed';
+}>;
+
+export type ProductionBatchLifecycleState =
+  | 'queued'
+  | 'sorting'
+  | 'washing'
+  | 'drying'
+  | 'folding_packaging'
+  | 'finished';
+
+export type ProductionBatchLifecycleDecision = Readonly<{
+  from: ProductionBatchLifecycleState;
+  state: ProductionBatchLifecycleState;
+}>;
+
+export type ProductionOrderExecutionState =
+  | 'unassigned'
+  | 'scheduled'
+  | 'finished';
+
+export type ProductionOrderExecutionLifecycleDecision = Readonly<{
+  from: ProductionOrderExecutionState;
+  state: ProductionOrderExecutionState;
+}>;
+
+export type ProductionOrderResolutionState =
+  | 'open'
+  | 'resolved_without_production';
+
+export type ProductionOrderResolutionLifecycleDecision = Readonly<{
+  from: ProductionOrderResolutionState;
+  state: ProductionOrderResolutionState;
+}>;
+
+export type ProductionOrderResolutionReviewReason =
+  | 'intake_recorded'
+  | 'manual_admission'
+  | 'priority'
+  | 'pending_placement';
+
+export type ProductionOrderResolutionBlockReason =
+  | 'execution_committed'
+  | 'selected_for_shift'
+  | 'batch_membership_exists'
+  | 'stage_attempt_exists'
+  | 'route_exists';
+
+export type ProductionOrderResolutionGuardDecision =
+  | Readonly<{
+      status: 'allowed';
+      requiresExplicitReview: boolean;
+      reviewReasons: readonly ProductionOrderResolutionReviewReason[];
+      mayClearPendingPlacement: boolean;
+    }>
+  | Readonly<{
+      status: 'blocked';
+      blockReasons: readonly ProductionOrderResolutionBlockReason[];
+    }>;
+
+export type ProductionOrderSchedulingMutation = Readonly<{
+  productionOrderId: string;
+  persistedState: ProductionOrderExecutionState;
+  expectedVersion: number;
+  lifecycle: Readonly<{
+    from: 'unassigned';
+    state: 'scheduled';
+  }>;
+}>;
+
+export type ProductionOrderTerminalExecutionMutation = Readonly<{
+  productionOrderId: string;
+  persistedState: ProductionOrderExecutionState;
+  expectedVersion: number;
+  lifecycle: Readonly<{
+    from: 'scheduled';
+    state: 'finished';
+  }>;
+}>;
+
+export type ProductionOrderStageAttemptState =
+  | 'assigned'
+  | 'completed'
+  | 'released';
+
+export type ProductionOrderStageAttemptLifecycleDecision = Readonly<{
+  from: ProductionOrderStageAttemptState;
+  state: ProductionOrderStageAttemptState;
+}>;
+
+export type ProductionOrderStageAttemptMutation = Readonly<{
+  attemptId: string;
+  stageRunId: string;
+  lifecycle: ProductionOrderStageAttemptLifecycleDecision;
+}>;
+
+export type ProductionTerminalLifecycleDecisions = Readonly<{
+  run: ProductionRunLifecycleDecision;
+  shift: ProductionShiftLifecycleDecision;
+  orders: readonly ProductionOrderTerminalExecutionMutation[];
+}>;
 
 export type OrderRoutingStage =
   | 'sorting'
@@ -145,6 +259,92 @@ export const nullProductionSignals: ProductionSignalsPort = {
 };
 
 export type ProductionPolicyPort = Readonly<{
+  initialProductionShiftState: 'open';
+  evaluateProductionShiftTransition: (input: {
+    state: string;
+    event: 'close_after_execution';
+  }) => PolicyDecision<ProductionShiftLifecycleDecision>;
+  allowedProductionShiftEvents: (
+    state: string,
+  ) => readonly 'close_after_execution'[];
+  initialScheduleRevisionState: 'draft';
+  evaluateScheduleRevisionTransition: (input: {
+    state: string;
+    event: 'accept' | 'supersede' | 'reject';
+  }) => PolicyDecision<ScheduleRevisionLifecycleDecision>;
+  allowedScheduleRevisionEvents: (
+    state: string,
+  ) => readonly ('accept' | 'supersede' | 'reject')[];
+  initialProductionRunState: 'started';
+  evaluateProductionRunTransition: (input: {
+    state: string;
+    event: 'complete_final_batch';
+  }) => PolicyDecision<ProductionRunLifecycleDecision>;
+  allowedProductionRunEvents: (
+    state: string,
+  ) => readonly 'complete_final_batch'[];
+  initialProductionBatchState: 'queued';
+  evaluateProductionBatchTransition: (input: {
+    state: string;
+    event:
+      | 'start_sorting'
+      | 'start_washing'
+      | 'start_drying'
+      | 'start_folding_packaging'
+      | 'finish'
+      | 'reconcile_to_sorting'
+      | 'reconcile_to_washing'
+      | 'reconcile_to_drying'
+      | 'reconcile_to_folding_packaging'
+      | 'reconcile_to_finished';
+  }) => PolicyDecision<ProductionBatchLifecycleDecision>;
+  initialProductionOrderExecutionState: 'unassigned';
+  resolveProductionOrderExecutionState: (input: {
+    executionState: string | null | undefined;
+    operationalStatus: string;
+  }) => PolicyDecision<ProductionOrderExecutionState>;
+  evaluateProductionOrderExecutionTransition: (input: {
+    state: string;
+    event: 'schedule_or_place' | 'finish_with_batch';
+  }) => PolicyDecision<ProductionOrderExecutionLifecycleDecision>;
+  initialProductionOrderResolutionState: 'open';
+  evaluateProductionOrderResolutionTransition: (input: {
+    state: string;
+    event: 'resolve_without_production' | 'restore';
+  }) => PolicyDecision<ProductionOrderResolutionLifecycleDecision>;
+  evaluateProductionOrderOperationalAccess: (input: {
+    resolutionState: string;
+  }) => PolicyDecision<Readonly<{ resolutionState: 'open' }>>;
+  evaluateProductionOrderResolutionGuard: (input: {
+    executionState: ProductionOrderExecutionState;
+    hasShiftSelection: boolean;
+    hasBatchMembership: boolean;
+    hasStageAttempt: boolean;
+    hasRoute: boolean;
+    hasIntake: boolean;
+    hasManualAdmission: boolean;
+    isPriority: boolean;
+    hasPendingPlacement: boolean;
+  }) => ProductionOrderResolutionGuardDecision;
+  deriveProductionOrderOperationalStatus: (input: {
+    executionState: ProductionOrderExecutionState;
+    admission: 'unreleased' | 'released' | 'withdrawn' | 'post_production';
+    admissionOverride: 'released' | null;
+    hasPositiveDemand: boolean;
+    bagCount: number | null;
+  }) =>
+    | 'release_pending'
+    | 'intake_pending'
+    | 'eligible'
+    | 'ineligible'
+    | 'scheduled'
+    | 'finished';
+  initialProductionOrderStageAttemptState: 'assigned';
+  evaluateProductionOrderStageAttemptTransition: (input: {
+    state: string;
+    event: 'complete_with_stage' | 'release_for_route';
+  }) => PolicyDecision<ProductionOrderStageAttemptLifecycleDecision>;
+  initialProductionStageState: 'planned';
   evaluateProductionAdmission: (input: {
     target: 'released' | 'source';
     sourceAdmissionState: 'unreleased' | 'released' | 'withdrawn';
@@ -200,7 +400,6 @@ export type ProductionPolicyPort = Readonly<{
     estimatedWeightLbs: number | null;
   }) => Readonly<{
     effectiveBagCount: number | null;
-    reconciliation: DemandReconciliationStatus;
     production:
       | Readonly<{ action: 'none' }>
       | Readonly<{ action: 'preserve' }>
@@ -213,18 +412,6 @@ export type ProductionPolicyPort = Readonly<{
             | 'ineligible';
         }>;
   }>;
-  evaluateDemandReconciliation: (input: {
-    phase: OrderDemandPhase;
-    productionStatus:
-      | 'release_pending'
-      | 'intake_pending'
-      | 'eligible'
-      | 'ineligible'
-      | 'scheduled'
-      | 'finished'
-      | null;
-    currentBagCount: number | null;
-  }) => DemandReconciliationStatus;
   evaluateOrderRouting: (
     input: OrderRoutingPolicyInput,
   ) => OrderRoutingPolicyDecision;
@@ -234,7 +421,6 @@ export type ProductionPolicyPort = Readonly<{
     bagCount: number | null;
   }) => PolicyDecision<Readonly<{ status: 'release_pending' | 'eligible' }>>;
   evaluateScheduleAcceptance: (input: {
-    status: string;
     expectedOutputPlanHash: string;
     actualOutputPlanHash: string;
     warningCodes: readonly string[];
@@ -254,7 +440,6 @@ export type ProductionPolicyPort = Readonly<{
   }) => PolicyDecision<Readonly<{ accepted: true }>>;
   evaluateCurrentPlanAcceptance: (input: {
     scheduleRunId: string;
-    status: string;
     currentScheduleRunId: string | null;
     eligibleOrderSnapshotMatches: boolean;
   }) => PolicyDecision<Readonly<{ current: true }>>;
@@ -363,7 +548,9 @@ export type ProductionPolicyPort = Readonly<{
       plannedEndAt: Date;
       actualStartAt: Date | null;
     }>,
-    event: Readonly<{ type: 'start' | 'complete' }>,
+    event: Readonly<{
+      type: 'start' | 'complete' | 'reconcile_start' | 'reconcile_complete';
+    }>,
     context: Readonly<{
       now: Date;
       productionRunStarted: boolean;
@@ -376,6 +563,7 @@ export type ProductionPolicyPort = Readonly<{
   ) => PolicyDecision<
     | Readonly<{
         status: 'allowed';
+        from: 'planned' | 'started' | 'completed';
         state: 'planned' | 'started' | 'completed';
       }>
     | Readonly<{
@@ -561,6 +749,28 @@ export type OnlinePlacementInput = Readonly<{
     | Readonly<{ type: 'manager_exact'; targetBatchId: string }>;
 }>;
 
+export type ProductionRunPlacementContext = Readonly<{
+  input: Pick<OnlinePlacementInput, 'run' | 'machines' | 'batches'>;
+  runStatus: string;
+  batchVersions: Readonly<Record<string, number>>;
+  assignedOrderIds: readonly string[];
+}>;
+
+export type ProductionOrderPlacementContext = Readonly<{
+  input: OnlinePlacementInput;
+  runStatus: string;
+  orderStatus: string;
+  orderExecutionStatus: string;
+  orderVersion: number;
+  orderAlreadyAssigned: boolean;
+  batchVersions: Readonly<Record<string, number>>;
+}>;
+
+export type ProductionLiveRunPlacementOrder = Readonly<{
+  order: ProductionPendingOrder;
+  context: ProductionOrderPlacementContext;
+}>;
+
 export type OnlinePlacementProposal = Readonly<{
   kind: 'proposed';
   algorithmVersion: 'online-stable-insertion-v1';
@@ -608,6 +818,44 @@ export type OnlinePlacementResult =
       reason: Readonly<{ code: string; message: string }>;
     }>;
 
+export type RemainingDayForecastInput = Readonly<{
+  activeRuns: readonly Readonly<{
+    run: OnlinePlacementInput['run'];
+    machines: OnlinePlacementInput['machines'];
+    batches: OnlinePlacementInput['batches'];
+  }>[];
+  readyOrders: readonly Readonly<{
+    id: string;
+    dueAt: string;
+    priority: boolean;
+    derivedWeightLbs: number;
+    bagCount: number;
+    version: number;
+  }>[];
+}>;
+
+export type RemainingDayForecastDecision = Readonly<{
+  productionOrderId: string;
+  disposition: 'ready_to_place' | 'needs_shift';
+  reason:
+    | 'no_active_run'
+    | 'ambiguous_active_run'
+    | 'placement_rejected'
+    | 'current_run_window_exceeded'
+    | null;
+}>;
+
+export type RemainingDayForecastOutput = Readonly<{
+  algorithmVersion: 'online-stable-insertion-v1';
+  decisions: readonly RemainingDayForecastDecision[];
+}>;
+
+export type RemainingDayForecastSchedulerPort = Readonly<{
+  projectRemainingDayForecast: (
+    input: RemainingDayForecastInput,
+  ) => RemainingDayForecastOutput;
+}>;
+
 export type ProductionSchedulerPort = Readonly<{
   forecastDemand: (input: DemandForecastInput) => DemandForecastOutput;
   propose: (input: SchedulingInput) => SchedulingOutput;
@@ -615,6 +863,9 @@ export type ProductionSchedulerPort = Readonly<{
     input: OnlinePlacementInput,
   ) => OnlinePlacementResult;
 }>;
+
+export type ProductionApplicationSchedulerPort = ProductionSchedulerPort &
+  RemainingDayForecastSchedulerPort;
 
 export type ClockPort = Readonly<{ now: () => Date }>;
 export type IdPort = Readonly<{ next: () => string }>;
@@ -659,6 +910,24 @@ export type StoredStage = Readonly<{
 
 export type StageTransitionContext = Readonly<{
   stage: StoredStage;
+  batch: Readonly<{
+    id: string;
+    status: ProductionBatchLifecycleState;
+    version: number;
+  }>;
+  attempts: readonly Readonly<{
+    id: string;
+    status: ProductionOrderStageAttemptState;
+  }>[];
+  activeOrders: readonly Readonly<{
+    id: string;
+    status: string;
+    executionStatus: string;
+    resolutionState: string;
+    version: number;
+  }>[];
+  productionRunStatus: string;
+  productionShiftStatus: string;
   productionRunStarted: boolean;
   batchMembershipFrozen: boolean;
   previousStageCompleted: boolean;

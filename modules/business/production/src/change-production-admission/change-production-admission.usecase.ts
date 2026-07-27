@@ -60,6 +60,14 @@ export const makeChangeProductionAdmission =
             ),
           );
 
+        const access = deps.policy.evaluateProductionOrderOperationalAccess({
+          resolutionState: order.resolutionState,
+        });
+        if (access.tag === 'err')
+          return result.err(
+            productionError(access.error.code, access.error.message, 409),
+          );
+
         const decision = deps.policy.evaluateProductionAdmission({
           target: command.target,
           sourceAdmissionState: order.sourceAdmissionState,
@@ -74,13 +82,49 @@ export const makeChangeProductionAdmission =
             productionError(decision.error.code, decision.error.message, 409),
           );
 
+        const execution = deps.policy.resolveProductionOrderExecutionState({
+          executionState: order.executionStatus,
+          operationalStatus: order.productionStatus,
+        });
+        if (execution.tag === 'err')
+          return result.err(
+            productionError(execution.error.code, execution.error.message, 409),
+          );
+        if (execution.value !== 'unassigned')
+          return result.err(
+            productionError(
+              'PRODUCTION_ADMISSION_ALREADY_COMMITTED',
+              'This order is already committed to production.',
+              409,
+            ),
+          );
+        const nextStatus = deps.policy.deriveProductionOrderOperationalStatus({
+          executionState: execution.value,
+          admission: order.sourceAdmissionState,
+          admissionOverride: decision.value.admissionOverride,
+          hasPositiveDemand: order.derivedWeightLbs > 0,
+          bagCount: order.bagCount,
+        });
+        if (
+          nextStatus !== 'release_pending' &&
+          nextStatus !== 'intake_pending' &&
+          nextStatus !== 'eligible'
+        )
+          return result.err(
+            productionError(
+              'PRODUCTION_ADMISSION_STATE_INVALID',
+              'The production admission facts do not produce a usable readiness state.',
+              409,
+            ),
+          );
+
         const changed = await repo.changeAdmission({
           locationId: command.locationId,
           orderId: command.orderId,
           actorId: command.actorId,
           expectedVersion: command.expectedVersion,
           admissionOverride: decision.value.admissionOverride,
-          nextStatus: decision.value.productionStatus,
+          nextStatus,
           now: deps.clock.now(),
         });
         if (changed === null)

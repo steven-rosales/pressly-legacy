@@ -9,6 +9,9 @@ import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
+  ProductionBatchLifecycleDecision,
+  ProductionOrderStageAttemptMutation,
+  ProductionTerminalLifecycleDecisions,
   Transactional,
   WorkEventInput,
 } from '../production.port.ts';
@@ -39,6 +42,7 @@ export type ReconciliationContext = Readonly<{
     status: string;
     queueVersion: number;
     productionShiftId: string;
+    productionShiftStatus: string;
   }>;
   batch: Readonly<{
     id: string;
@@ -48,6 +52,18 @@ export type ReconciliationContext = Readonly<{
     membershipFrozen: boolean;
   }>;
   stages: readonly ReconciliationStage[];
+  attempts: readonly Readonly<{
+    id: string;
+    stageRunId: string;
+    status: 'assigned' | 'completed' | 'released';
+  }>[];
+  activeOrders: readonly Readonly<{
+    id: string;
+    status: string;
+    executionStatus: string;
+    resolutionState: string;
+    version: number;
+  }>[];
   activeStageKinds: readonly string[];
   machines: readonly Readonly<{
     id: string;
@@ -91,7 +107,17 @@ export type ReconcileProductionBatchProgressRepository = Transactional<
       locationId: string;
       context: ReconciliationContext;
       projection: ReconciliationProjection;
+      stageLifecycles: readonly Readonly<{
+        stageRunId: string;
+        lifecycle: Readonly<{
+          from: 'planned' | 'started';
+          state: 'started' | 'completed';
+        }>;
+      }>[];
+      batchLifecycle: ProductionBatchLifecycleDecision | null;
+      attemptLifecycles: readonly ProductionOrderStageAttemptMutation[];
       machineIds: readonly string[];
+      terminalLifecycle: ProductionTerminalLifecycleDecisions | null;
       actorId: string;
       now: Date;
     }) => Promise<ProductionBatchProgressReconciledResult | null>;

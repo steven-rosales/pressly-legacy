@@ -13,12 +13,6 @@ export type DemandProductionStatus =
   | 'scheduled'
   | 'finished';
 
-export type DemandReconciliationStatus =
-  | 'none'
-  | 'source_ahead'
-  | 'source_withdrawn'
-  | 'source_behind';
-
 export type DemandLifecycleInput = Readonly<{
   phase: OrderDemandPhase;
   productionStatus: DemandProductionStatus | null;
@@ -29,7 +23,6 @@ export type DemandLifecycleInput = Readonly<{
 
 export type DemandLifecycleDecision = Readonly<{
   effectiveBagCount: number | null;
-  reconciliation: DemandReconciliationStatus;
   production:
     | Readonly<{ action: 'none' }>
     | Readonly<{ action: 'preserve' }>
@@ -48,36 +41,10 @@ const isActiveDemand = (phase: OrderDemandPhase): boolean =>
   phase === 'inbound' ||
   phase === 'production_released';
 
-export const evaluateDemandReconciliation = (
-  input: Pick<
-    DemandLifecycleInput,
-    'phase' | 'productionStatus' | 'currentBagCount'
-  >,
-): DemandReconciliationStatus => {
-  if (
-    input.phase === 'post_production' &&
-    input.productionStatus !== 'finished'
-  )
-    return 'source_ahead';
-
-  if (
-    input.phase === 'withdrawn' &&
-    input.currentBagCount !== null &&
-    input.productionStatus !== 'finished'
-  )
-    return 'source_withdrawn';
-
-  if (input.productionStatus === 'finished' && isActiveDemand(input.phase))
-    return 'source_behind';
-
-  return 'none';
-};
-
 export const evaluateDemandLifecycle = (
   input: DemandLifecycleInput,
 ): DemandLifecycleDecision => {
   const effectiveBagCount = input.currentBagCount ?? input.incomingBagCount;
-  const reconciliation = evaluateDemandReconciliation(input);
 
   if (
     input.productionStatus === 'scheduled' ||
@@ -85,7 +52,6 @@ export const evaluateDemandLifecycle = (
   )
     return {
       effectiveBagCount,
-      reconciliation,
       production: { action: 'preserve' },
     };
 
@@ -93,13 +59,11 @@ export const evaluateDemandLifecycle = (
     if (input.productionStatus === null)
       return {
         effectiveBagCount,
-        reconciliation,
         production: { action: 'none' },
       };
 
     return {
       effectiveBagCount,
-      reconciliation,
       production: { action: 'update', status: 'ineligible' },
     };
   }
@@ -112,7 +76,6 @@ export const evaluateDemandLifecycle = (
   if (!hasEstimate)
     return {
       effectiveBagCount,
-      reconciliation,
       production:
         input.productionStatus === null
           ? { action: 'none' }
@@ -132,7 +95,6 @@ export const evaluateDemandLifecycle = (
 
   return {
     effectiveBagCount,
-    reconciliation,
     production: {
       action: input.productionStatus === null ? 'create' : 'update',
       status,

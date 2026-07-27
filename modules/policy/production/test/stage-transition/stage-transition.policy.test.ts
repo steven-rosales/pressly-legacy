@@ -26,7 +26,7 @@ describe('stage transition policy', () => {
       ),
     ).toEqual({
       tag: 'ok',
-      value: { status: 'allowed', state: 'started' },
+      value: { status: 'allowed', from: 'planned', state: 'started' },
     });
     expect(
       evaluateStageTransition(
@@ -41,7 +41,7 @@ describe('stage transition policy', () => {
       ),
     ).toEqual({
       tag: 'ok',
-      value: { status: 'allowed', state: 'completed' },
+      value: { status: 'allowed', from: 'started', state: 'completed' },
     });
   });
 
@@ -138,7 +138,7 @@ describe('stage transition policy', () => {
       ),
     ).toEqual({
       tag: 'ok',
-      value: { status: 'allowed', state: 'completed' },
+      value: { status: 'allowed', from: 'started', state: 'completed' },
     });
   });
 
@@ -247,7 +247,7 @@ describe('stage transition policy', () => {
       ),
     ).toEqual({
       tag: 'ok',
-      value: { status: 'allowed', state: 'completed' },
+      value: { status: 'allowed', from: 'started', state: 'completed' },
     });
   });
 

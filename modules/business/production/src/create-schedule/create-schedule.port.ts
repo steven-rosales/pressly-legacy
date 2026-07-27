@@ -7,6 +7,7 @@ import type { Result } from '@pressly/kernel';
 import type {
   SchedulingInput,
   SchedulingOutput,
+  ScheduleSupersessionDecision,
   FindWorkEvent,
   Transactional,
   WorkEventInput,
@@ -29,15 +30,17 @@ export type CreateScheduleRepository = Transactional<
     ) => Promise<
       SchedulingInput | 'selection_empty' | 'selection_invalid' | null
     >;
-    currentPlanExists: (
+    loadCurrentPlan: (
       locationId: string,
       productionShiftId: string,
-    ) => Promise<boolean>;
+    ) => Promise<Readonly<{ scheduleRunId: string; status: string }> | null>;
     saveSchedule: (input: {
       locationId: string;
       id: string;
       schedulingInput: SchedulingInput;
       output: SchedulingOutput;
+      initialStatus: 'draft';
+      supersede: ScheduleSupersessionDecision | null;
       now: Date;
     }) => Promise<ScheduleProposal>;
     appendWorkEvent: (event: WorkEventInput) => Promise<void>;

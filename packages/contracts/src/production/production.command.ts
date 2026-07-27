@@ -22,6 +22,7 @@ import type {
   productionWorkspaceQuerySchema,
   publishSchedulerConfigCommandSchema,
   changeProductionAdmissionCommandSchema,
+  changeProductionOrderResolutionCommandSchema,
   recordOrderIntakeCommandSchema,
   reconcileProductionBatchProgressCommandSchema,
   replaceProductionShiftSelectionCommandSchema,
@@ -34,6 +35,10 @@ import type {
   unfreezeProductionBatchCommandSchema,
   updateProductionShiftCommandSchema,
 } from './production.contracts.ts';
+import type {
+  productionRemainingDayForecastParamsSchema,
+  productionRemainingDayForecastQuerySchema,
+} from './production-forecast.contracts.ts';
 
 export type PublishSchedulerConfigCommand = z.infer<
   typeof publishSchedulerConfigCommandSchema
@@ -75,6 +80,12 @@ export type ProductionWorkspaceParams = z.infer<
 export type ProductionWorkspaceQuery = z.infer<
   typeof productionWorkspaceQuerySchema
 >;
+export type ProductionRemainingDayForecastParams = z.infer<
+  typeof productionRemainingDayForecastParamsSchema
+>;
+export type ProductionRemainingDayForecastQuery = z.infer<
+  typeof productionRemainingDayForecastQuerySchema
+>;
 export type FreezeProductionBatchCommand = z.infer<
   typeof freezeProductionBatchCommandSchema
 >;
@@ -95,6 +106,9 @@ export type RecordOrderIntakeCommand = z.infer<
 >;
 export type ChangeProductionAdmissionCommand = z.infer<
   typeof changeProductionAdmissionCommandSchema
+>;
+export type ChangeProductionOrderResolutionCommand = z.infer<
+  typeof changeProductionOrderResolutionCommandSchema
 >;
 export type ReplaceProductionShiftSelectionCommand = z.infer<
   typeof replaceProductionShiftSelectionCommandSchema

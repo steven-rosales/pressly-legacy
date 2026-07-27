@@ -9,6 +9,7 @@ import {
 } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { SectionHeading } from "@/components/layout/workspace-primitives"
+import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
 import { DelayedLoadingRows } from "@/components/ui/delayed-loading-rows"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -182,21 +183,10 @@ function DesktopOrderTable({
           {orders.map((order) => (
             <TableRow key={order.id}>
               <TableCell className="px-4 py-3 whitespace-normal">
-                <Button
-                  type="button"
-                  variant="link"
-                  className="h-auto justify-start p-0 text-foreground"
-                  onClick={() => onOpenOrder(order.id)}
-                >
-                  {t("orderControl.orderNumber", {
-                    orderId: order.externalOrderId,
-                  })}
-                </Button>
-                {order.secondaryLabel !== null && (
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {order.secondaryLabel}
-                  </p>
-                )}
+                <OperationalOrderIdentity
+                  identity={order.identity}
+                  onPrimaryClick={() => onOpenOrder(order.id)}
+                />
               </TableCell>
               <TableCell className="py-3">
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -260,11 +250,10 @@ function MobileOrderCards({
           <CardContent className="flex flex-col gap-3 px-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate font-medium">
-                  {t("orderControl.orderNumber", {
-                    orderId: order.externalOrderId,
-                  })}
-                </p>
+                <OperationalOrderIdentity
+                  identity={order.identity}
+                  secondaryClassName="text-sm"
+                />
                 <p className="mt-1 text-sm text-muted-foreground">
                   {order.dueLabel} · {order.weightLabel} · {order.bagLabel}
                 </p>

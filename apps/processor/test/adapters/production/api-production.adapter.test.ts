@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import { makeApiProductionAdapter } from "@/adapters/production/api-production.adapter"
 import {
   testBoard,
+  testRemainingDayForecast,
   testSchedule,
   testWorkspace,
 } from "../../fixtures/production.fixture"
@@ -78,6 +79,26 @@ describe("production API gateway", () => {
       expect.objectContaining({
         path: `/production/locations/${testWorkspace.location.id}/runs/${testBoard.productionRun.id}/board`,
       }),
+      expect.anything()
+    )
+  })
+
+  it("loads the remaining-day forecast with an encoded service day and forwards cancellation", async () => {
+    const request = vi.fn().mockResolvedValue(testRemainingDayForecast)
+    const gateway = makeApiProductionAdapter(request)
+    const controller = new AbortController()
+
+    await gateway.loadRemainingDayForecast({
+      locationId: testWorkspace.location.id,
+      serviceDay: testRemainingDayForecast.serviceDay,
+      signal: controller.signal,
+    })
+
+    expect(request).toHaveBeenCalledWith(
+      {
+        path: `/production/locations/${testWorkspace.location.id}/forecast?serviceDay=2026-08-01`,
+        signal: controller.signal,
+      },
       expect.anything()
     )
   })
@@ -159,6 +180,73 @@ describe("production API gateway", () => {
           idempotencyKey: "admission-command-1",
         },
       },
+      expect.anything()
+    )
+  })
+
+  it("uses versioned manager resources for backlog review, commit, and restore", async () => {
+    const orderId = testBoard.batches[0]!.orders[0]!.id
+    const request = vi.fn().mockResolvedValue({})
+    const gateway = makeApiProductionAdapter(request)
+    const scope = {
+      filter: "all_due_before_cutoff" as const,
+      cutoff: "2026-06-30T03:59:59.999Z",
+      reason: "processor_not_in_use" as const,
+      cursor: null,
+      maxOrders: 250,
+    }
+
+    await gateway.previewOrderBacklog({
+      locationId: testWorkspace.location.id,
+      request: scope,
+    })
+    await gateway.commitOrderBacklog({
+      locationId: testWorkspace.location.id,
+      request: {
+        ...scope,
+        note: null,
+        previewHash: "a".repeat(64),
+        idempotencyKey: "archive-old-orders-1",
+      },
+    })
+    await gateway.changeOrderResolution({
+      locationId: testWorkspace.location.id,
+      productionOrderId: orderId,
+      request: {
+        action: "restore",
+        reason: "manager_correction",
+        note: null,
+        expectedVersion: 7,
+        idempotencyKey: "restore-order-1",
+      },
+    })
+
+    expect(request.mock.calls.map(([input]) => input.path)).toEqual([
+      `/production/locations/${testWorkspace.location.id}/order-backlog/preview`,
+      `/production/locations/${testWorkspace.location.id}/order-backlog`,
+      `/production/locations/${testWorkspace.location.id}/orders/${orderId}/resolution`,
+    ])
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        method: "POST",
+        body: expect.objectContaining({
+          previewHash: "a".repeat(64),
+          idempotencyKey: "archive-old-orders-1",
+        }),
+      }),
+      expect.anything()
+    )
+    expect(request).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        method: "PUT",
+        body: expect.objectContaining({
+          action: "restore",
+          expectedVersion: 7,
+          idempotencyKey: "restore-order-1",
+        }),
+      }),
       expect.anything()
     )
   })

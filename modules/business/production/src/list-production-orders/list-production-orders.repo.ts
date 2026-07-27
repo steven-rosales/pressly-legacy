@@ -5,6 +5,7 @@ import {
   gt,
   laundryProduction,
   lt,
+  ne,
   type Database,
 } from '@pressly/db';
 import {
@@ -46,7 +47,7 @@ export const makeListProductionOrdersRepository = (
         externalOrderId: laundryProduction.orderDemands.displayReference,
         dueAt: laundryProduction.productionOrders.dueAt,
         priority: laundryProduction.productionOrders.priority,
-        status: laundryProduction.productionOrders.status,
+        status: laundryProduction.productionOrders.operationalStatus,
         derivedWeightLbs: laundryProduction.productionOrders.derivedWeightLbs,
         bagCount: laundryProduction.productionOrders.bagCount,
         bagCountSource: laundryProduction.productionOrders.bagCountSource,
@@ -70,9 +71,14 @@ export const makeListProductionOrdersRepository = (
       .where(
         and(
           eq(laundryProduction.productionOrders.locationId, command.locationId),
+          eq(laundryProduction.productionOrders.resolutionState, 'open'),
+          ne(laundryProduction.productionOrders.executionStatus, 'finished'),
           command.status === undefined
             ? undefined
-            : eq(laundryProduction.productionOrders.status, command.status),
+            : eq(
+                laundryProduction.productionOrders.operationalStatus,
+                command.status,
+              ),
           command.dueAfter === undefined
             ? undefined
             : gt(

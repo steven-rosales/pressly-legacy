@@ -14,8 +14,12 @@ import {
 } from '../production-idempotency.policy.ts';
 import type {
   ClockPort,
+  ProductionBatchLifecycleDecision,
+  ProductionOrderStageAttemptMutation,
+  ProductionOrderTerminalExecutionMutation,
   ProductionPolicyPort,
   ProductionSignalsPort,
+  ProductionTerminalLifecycleDecisions,
 } from '../production.port.ts';
 import type {
   AdvanceProductionStage,
@@ -54,6 +58,24 @@ type EarlyStartAudit = Readonly<{
   plannedEndAt: string;
   remainingMilliseconds: number;
 }>;
+
+const batchEventForStage = (input: {
+  stage: 'sorting' | 'washing' | 'drying' | 'folding_packaging';
+  nextState: 'started' | 'completed';
+}):
+  | 'start_sorting'
+  | 'start_washing'
+  | 'start_drying'
+  | 'start_folding_packaging'
+  | 'finish'
+  | null => {
+  if (input.nextState === 'completed')
+    return input.stage === 'folding_packaging' ? 'finish' : null;
+  if (input.stage === 'sorting') return 'start_sorting';
+  if (input.stage === 'washing') return 'start_washing';
+  if (input.stage === 'drying') return 'start_drying';
+  return 'start_folding_packaging';
+};
 
 const earlyStartAudit = (input: {
   actorId: string;
@@ -159,6 +181,15 @@ export const makeAdvanceProductionStage = (deps: {
               'The production stage changed before the command.',
             ),
           );
+        for (const order of context.activeOrders) {
+          const access = deps.policy.evaluateProductionOrderOperationalAccess({
+            resolutionState: order.resolutionState,
+          });
+          if (access.tag === 'err')
+            return result.err(
+              productionError(access.error.code, access.error.message, 409),
+            );
+        }
 
         const assigned = context.machines.filter((machine) =>
           context.stage.machineIds.includes(machine.id),
@@ -193,7 +224,10 @@ export const makeAdvanceProductionStage = (deps: {
             productionError(decision.error.code, decision.error.message, 409),
           );
 
-        let nextState: 'started' | 'completed';
+        let stageLifecycle: Readonly<{
+          from: 'planned' | 'started';
+          state: 'started' | 'completed';
+        }>;
         let startAudit: EarlyStartAudit | null = null;
         let completionAudit: EarlyCompletionAudit | null = null;
         if (decision.value.status === 'confirmation_required') {
@@ -231,7 +265,18 @@ export const makeAdvanceProductionStage = (deps: {
                 ),
               );
 
-            nextState = 'started';
+            if (context.stage.status !== 'planned')
+              return result.err(
+                productionError(
+                  'STAGE_POLICY_INVALID_RESULT',
+                  'The production stage policy returned an invalid transition.',
+                  500,
+                ),
+              );
+            stageLifecycle = {
+              from: context.stage.status,
+              state: 'started',
+            };
             startAudit = earlyStartAudit({
               actorId: command.actorId,
               confirmation: command.confirmation,
@@ -273,7 +318,18 @@ export const makeAdvanceProductionStage = (deps: {
                 ),
               );
 
-            nextState = 'completed';
+            if (context.stage.status !== 'started')
+              return result.err(
+                productionError(
+                  'STAGE_POLICY_INVALID_RESULT',
+                  'The production stage policy returned an invalid transition.',
+                  500,
+                ),
+              );
+            stageLifecycle = {
+              from: context.stage.status,
+              state: 'completed',
+            };
             completionAudit = earlyCompletionAudit({
               actorId: command.actorId,
               confirmation: command.confirmation,
@@ -289,7 +345,10 @@ export const makeAdvanceProductionStage = (deps: {
               ),
             );
         } else {
-          if (decision.value.state === 'planned')
+          if (
+            decision.value.from === 'completed' ||
+            decision.value.state === 'planned'
+          )
             return result.err(
               productionError(
                 'STAGE_POLICY_INVALID_RESULT',
@@ -297,7 +356,10 @@ export const makeAdvanceProductionStage = (deps: {
                 500,
               ),
             );
-          nextState = decision.value.state;
+          stageLifecycle = {
+            from: decision.value.from,
+            state: decision.value.state,
+          };
         }
 
         implicitlyFrozeMembership =
@@ -305,11 +367,186 @@ export const makeAdvanceProductionStage = (deps: {
           context.stage.stage === 'sorting' &&
           !context.batchMembershipFrozen;
 
+        const batchEvent = batchEventForStage({
+          stage: context.stage.stage,
+          nextState: stageLifecycle.state,
+        });
+        let batchLifecycle: ProductionBatchLifecycleDecision | null = null;
+        if (batchEvent !== null) {
+          const batchDecision = deps.policy.evaluateProductionBatchTransition({
+            state: context.batch.status,
+            event: batchEvent,
+          });
+          if (batchDecision.tag === 'err')
+            return result.err(
+              productionError(
+                batchDecision.error.code,
+                batchDecision.error.message,
+                409,
+              ),
+            );
+          batchLifecycle = batchDecision.value;
+        } else if (context.batch.status !== context.stage.stage)
+          return result.err(
+            productionError(
+              'PRODUCTION_BATCH_STATE_INCONSISTENT',
+              'The production batch state does not match its active stage.',
+              409,
+            ),
+          );
+
+        const attemptLifecycles: ProductionOrderStageAttemptMutation[] = [];
+        if (stageLifecycle.state === 'completed') {
+          for (const attempt of context.attempts) {
+            if (attempt.status !== 'assigned') continue;
+            const attemptDecision =
+              deps.policy.evaluateProductionOrderStageAttemptTransition({
+                state: attempt.status,
+                event: 'complete_with_stage',
+              });
+            if (attemptDecision.tag === 'err')
+              return result.err(
+                productionError(
+                  attemptDecision.error.code,
+                  attemptDecision.error.message,
+                  409,
+                ),
+              );
+            attemptLifecycles.push({
+              attemptId: attempt.id,
+              stageRunId: context.stage.id,
+              lifecycle: attemptDecision.value,
+            });
+          }
+          if (attemptLifecycles.length === 0)
+            return result.err(
+              productionError(
+                'PRODUCTION_STAGE_ATTEMPTS_MISSING',
+                'The production stage has no assigned order attempts.',
+                409,
+              ),
+            );
+        }
+
+        let terminalLifecycle: ProductionTerminalLifecycleDecisions | null =
+          null;
+        if (
+          stageLifecycle.state === 'completed' &&
+          context.stage.stage === 'folding_packaging'
+        ) {
+          const orderLifecycles: ProductionOrderTerminalExecutionMutation[] =
+            [];
+          for (const order of context.activeOrders) {
+            const resolved = deps.policy.resolveProductionOrderExecutionState({
+              executionState: order.executionStatus,
+              operationalStatus: order.status,
+            });
+            if (resolved.tag === 'err')
+              return result.err(
+                productionError(
+                  resolved.error.code,
+                  resolved.error.message,
+                  409,
+                ),
+              );
+            const orderDecision =
+              deps.policy.evaluateProductionOrderExecutionTransition({
+                state: resolved.value,
+                event: 'finish_with_batch',
+              });
+            if (orderDecision.tag === 'err')
+              return result.err(
+                productionError(
+                  orderDecision.error.code,
+                  orderDecision.error.message,
+                  409,
+                ),
+              );
+            if (
+              orderDecision.value.from !== 'scheduled' ||
+              orderDecision.value.state !== 'finished'
+            )
+              return result.err(
+                productionError(
+                  'PRODUCTION_ORDER_EXECUTION_TRANSITION_INVALID',
+                  'The production order cannot be finished with this batch.',
+                  409,
+                ),
+              );
+            orderLifecycles.push({
+              productionOrderId: order.id,
+              persistedState:
+                order.executionStatus === 'unassigned' ||
+                order.executionStatus === 'scheduled' ||
+                order.executionStatus === 'finished'
+                  ? order.executionStatus
+                  : resolved.value,
+              expectedVersion: order.version,
+              lifecycle: {
+                from: orderDecision.value.from,
+                state: orderDecision.value.state,
+              },
+            });
+          }
+          if (orderLifecycles.length === 0)
+            return result.err(
+              productionError(
+                'PRODUCTION_BATCH_ORDERS_MISSING',
+                'The production batch has no active orders.',
+                409,
+              ),
+            );
+          const runLifecycle = deps.policy.evaluateProductionRunTransition({
+            state: context.productionRunStatus,
+            event: 'complete_final_batch',
+          });
+          const shiftLifecycle = deps.policy.evaluateProductionShiftTransition({
+            state: context.productionShiftStatus,
+            event: 'close_after_execution',
+          });
+          if (
+            runLifecycle.tag === 'err' ||
+            runLifecycle.value.from !== 'started' ||
+            runLifecycle.value.state !== 'completed'
+          )
+            return result.err(
+              productionError(
+                'PRODUCTION_RUN_TRANSITION_INVALID',
+                'The production run cannot be completed.',
+                409,
+              ),
+            );
+          if (
+            shiftLifecycle.tag === 'err' ||
+            shiftLifecycle.value.from !== 'open' ||
+            shiftLifecycle.value.state !== 'closed'
+          )
+            return result.err(
+              productionError(
+                'PRODUCTION_SHIFT_TRANSITION_INVALID',
+                'The production shift cannot be closed.',
+                409,
+              ),
+            );
+          terminalLifecycle = {
+            run: runLifecycle.value,
+            shift: shiftLifecycle.value,
+            orders: orderLifecycles,
+          };
+        }
+
         const mutation = await repo.transitionStage({
           locationId: command.locationId,
           stageRunId: command.stageRunId,
           expectedVersion: command.expectedVersion,
-          nextState,
+          stageLifecycle,
+          batchId: context.batch.id,
+          batchExpectedVersion: context.batch.version,
+          batchState: context.batch.status,
+          batchLifecycle,
+          freezeMembership: implicitlyFrozeMembership,
+          attemptLifecycles,
+          terminalLifecycle,
           actorId: command.actorId,
           now,
         });

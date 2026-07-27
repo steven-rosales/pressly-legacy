@@ -7,6 +7,7 @@ import type { Result } from '@pressly/kernel';
 import type { ScheduleProposal } from '@pressly/contracts';
 import type {
   FindWorkEvent,
+  ScheduleRevisionLifecycleDecision,
   SchedulingInput,
   Transactional,
   WorkEventCommandIdentity,
@@ -44,6 +45,7 @@ export type AcceptScheduleRepository = Transactional<
       acknowledgedWarningCodes: readonly string[],
       idempotencyKey: string,
       idempotency: WorkEventCommandIdentity,
+      lifecycle: ScheduleRevisionLifecycleDecision,
       now: Date,
     ) => Promise<AcceptScheduleResult>;
   }>

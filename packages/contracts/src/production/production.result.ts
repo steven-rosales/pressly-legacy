@@ -5,6 +5,7 @@ import type {
   automaticProductionOrderPlacementResultSchema,
   confirmProductionOrderOvertimeResultSchema,
   changeProductionAdmissionResultSchema,
+  changeProductionOrderResolutionResultSchema,
   exactProductionOrderPlacementResultSchema,
   listProductionLocationsResultSchema,
   listProductionOrdersResultSchema,
@@ -23,6 +24,12 @@ import type {
   productionBatchOrderSchema,
   productionBoardSchema,
   productionLocationSchema,
+  productionLiveAutomaticPlacementSchema,
+  productionLiveExactBatchTargetSchema,
+  productionLivePlacementCapacitySchema,
+  productionLiveRecommendedPlacementSchema,
+  productionLiveRunChangeOrderSchema,
+  productionLiveRunChangesSchema,
   productionDemandForecastSchema,
   productionDemandOutlookItemSchema,
   productionDemandOutlookSchema,
@@ -57,6 +64,13 @@ import type {
   stageRunSchema,
   updateProductionShiftResultSchema,
 } from './production.contracts.ts';
+import type {
+  productionForecastExpectedLaterItemSchema,
+  productionForecastInProductionItemSchema,
+  productionForecastNeedsShiftItemSchema,
+  productionForecastReadyToPlaceItemSchema,
+  productionRemainingDayForecastSchema,
+} from './production-forecast.contracts.ts';
 
 export type ProductionWarning = z.infer<typeof productionWarningSchema>;
 export type ProductionDemandOutlookItem = z.infer<
@@ -76,6 +90,24 @@ export type ProductionPendingOrder = z.infer<
 >;
 export type ProductionPendingPlacement = z.infer<
   typeof productionPendingPlacementSchema
+>;
+export type ProductionLivePlacementCapacity = z.infer<
+  typeof productionLivePlacementCapacitySchema
+>;
+export type ProductionLiveAutomaticPlacement = z.infer<
+  typeof productionLiveAutomaticPlacementSchema
+>;
+export type ProductionLiveExactBatchTarget = z.infer<
+  typeof productionLiveExactBatchTargetSchema
+>;
+export type ProductionLiveRecommendedPlacement = z.infer<
+  typeof productionLiveRecommendedPlacementSchema
+>;
+export type ProductionLiveRunChangeOrder = z.infer<
+  typeof productionLiveRunChangeOrderSchema
+>;
+export type ProductionLiveRunChanges = z.infer<
+  typeof productionLiveRunChangesSchema
 >;
 export type ProductionPlacementPreview = z.infer<
   typeof productionPlacementPreviewSchema
@@ -174,6 +206,21 @@ export type ProductionLocation = z.infer<typeof productionLocationSchema>;
 export type ProductionStation = z.infer<typeof productionStationSchema>;
 export type ProductionRunSummary = z.infer<typeof productionRunSummarySchema>;
 export type ProductionWorkspace = z.infer<typeof productionWorkspaceSchema>;
+export type ProductionRemainingDayForecast = z.infer<
+  typeof productionRemainingDayForecastSchema
+>;
+export type ProductionForecastInProductionItem = z.infer<
+  typeof productionForecastInProductionItemSchema
+>;
+export type ProductionForecastReadyToPlaceItem = z.infer<
+  typeof productionForecastReadyToPlaceItemSchema
+>;
+export type ProductionForecastExpectedLaterItem = z.infer<
+  typeof productionForecastExpectedLaterItemSchema
+>;
+export type ProductionForecastNeedsShiftItem = z.infer<
+  typeof productionForecastNeedsShiftItemSchema
+>;
 export type ListProductionLocationsResult = z.infer<
   typeof listProductionLocationsResultSchema
 >;
@@ -185,6 +232,9 @@ export type RecordOrderIntakeResult = z.infer<
 >;
 export type ChangeProductionAdmissionResult = z.infer<
   typeof changeProductionAdmissionResultSchema
+>;
+export type ChangeProductionOrderResolutionResult = z.infer<
+  typeof changeProductionOrderResolutionResultSchema
 >;
 export type ProductionBootstrapResourceChange = z.infer<
   typeof productionBootstrapResourceChangeSchema

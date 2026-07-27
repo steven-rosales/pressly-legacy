@@ -109,12 +109,15 @@ export const makeChangeProductionAdmissionRepository = (deps: {
         orderId: row.order.id,
         locationId: row.order.locationId,
         sourceAdmissionState: asSourceAdmissionState(row.sourceAdmissionState),
-        productionStatus: asProductionStatus(row.order.status),
+        productionStatus: asProductionStatus(row.order.operationalStatus),
         productionVersion: row.order.version,
+        executionStatus: row.order.executionStatus,
+        derivedWeightLbs: row.order.derivedWeightLbs,
         admissionOverride: asAdmissionOverride(row.order.admissionOverride),
         bagCount: row.order.bagCount,
         selectedForShift: row.selectedForShift,
         hasActivePlacement: row.hasActivePlacement,
+        resolutionState: row.order.resolutionState,
       };
     },
 
@@ -133,7 +136,7 @@ export const makeChangeProductionAdmissionRepository = (deps: {
           admissionOverride,
           admissionOverrideAt: admissionOverride === null ? null : now,
           admissionOverrideBy: admissionOverride === null ? null : actorId,
-          status: nextStatus,
+          operationalStatus: nextStatus,
           eligibleAt: nextStatus === 'eligible' ? now : null,
           version: expectedVersion + 1,
           updatedAt: now,
@@ -143,6 +146,7 @@ export const makeChangeProductionAdmissionRepository = (deps: {
             eq(laundryProduction.productionOrders.locationId, locationId),
             eq(laundryProduction.productionOrders.id, orderId),
             eq(laundryProduction.productionOrders.version, expectedVersion),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
           ),
         )
         .returning({
@@ -150,7 +154,7 @@ export const makeChangeProductionAdmissionRepository = (deps: {
           orderId: laundryProduction.productionOrders.id,
           admissionOverride:
             laundryProduction.productionOrders.admissionOverride,
-          status: laundryProduction.productionOrders.status,
+          status: laundryProduction.productionOrders.operationalStatus,
           version: laundryProduction.productionOrders.version,
         });
       if (updated === undefined) return null;

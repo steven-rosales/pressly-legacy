@@ -117,7 +117,10 @@ export const makeCreateScheduleRepository = (deps: {
       if (orderRows.length === 0) return 'selection_empty';
       if (
         orderRows.some(
-          ({ order }) => order.status !== 'eligible' || order.bagCount === null,
+          ({ order }) =>
+            order.resolutionState !== 'open' ||
+            order.operationalStatus !== 'eligible' ||
+            order.bagCount === null,
         )
       )
         return 'selection_invalid';
@@ -187,9 +190,12 @@ export const makeCreateScheduleRepository = (deps: {
       } satisfies SchedulingInput;
     },
 
-    currentPlanExists: async (locationId, productionShiftId) => {
+    loadCurrentPlan: async (locationId, productionShiftId) => {
       const [current] = await db
-        .select({ id: laundryProduction.scheduleRuns.id })
+        .select({
+          scheduleRunId: laundryProduction.scheduleRuns.id,
+          status: laundryProduction.scheduleRuns.status,
+        })
         .from(laundryProduction.scheduleRuns)
         .where(
           and(
@@ -204,27 +210,38 @@ export const makeCreateScheduleRepository = (deps: {
             ]),
           ),
         )
-        .limit(1);
-      return current !== undefined;
+        .limit(1)
+        .for('update');
+      return current ?? null;
     },
 
-    saveSchedule: async ({ locationId, id, schedulingInput, output, now }) => {
-      await db
-        .update(laundryProduction.scheduleRuns)
-        .set({ status: 'superseded', supersededAt: now })
-        .where(
-          and(
-            eq(laundryProduction.scheduleRuns.locationId, locationId),
-            eq(
-              laundryProduction.scheduleRuns.productionShiftId,
-              schedulingInput.shift.id,
+    saveSchedule: async ({
+      locationId,
+      id,
+      schedulingInput,
+      output,
+      initialStatus,
+      supersede,
+      now,
+    }) => {
+      if (supersede !== null) {
+        const superseded = await db
+          .update(laundryProduction.scheduleRuns)
+          .set({ status: supersede.lifecycle.state, supersededAt: now })
+          .where(
+            and(
+              eq(laundryProduction.scheduleRuns.locationId, locationId),
+              eq(laundryProduction.scheduleRuns.id, supersede.scheduleRunId),
+              eq(
+                laundryProduction.scheduleRuns.status,
+                supersede.lifecycle.from,
+              ),
             ),
-            inArray(laundryProduction.scheduleRuns.status, [
-              'draft',
-              'accepted',
-            ]),
-          ),
-        );
+          )
+          .returning({ id: laundryProduction.scheduleRuns.id });
+        if (superseded.length !== 1)
+          throw new Error('Current schedule revision changed unexpectedly.');
+      }
 
       const [row] = await db
         .insert(laundryProduction.scheduleRuns)
@@ -233,7 +250,7 @@ export const makeCreateScheduleRepository = (deps: {
           locationId,
           productionShiftId: schedulingInput.shift.id,
           schedulerConfigId: schedulingInput.config.id,
-          status: 'draft',
+          status: initialStatus,
           inputSnapshot: schedulingInput,
           inputSnapshotHash: output.inputSnapshotHash,
           outputPlan: output,

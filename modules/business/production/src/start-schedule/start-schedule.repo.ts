@@ -4,7 +4,6 @@ import {
   eq,
   inArray,
   laundryProduction,
-  sql,
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
@@ -64,12 +63,12 @@ export const makeStartScheduleRepository = (deps: {
       };
     },
 
-    lockAndValidateScheduleInput: async (locationId, record) => {
+    lockAndLoadStartOrders: async (locationId, record) => {
       const snapshots = new Map(
         record.inputSnapshot.orders.map((order) => [order.id, order]),
       );
       if (!scheduleCoversInputExactly(record.schedule, record.inputSnapshot))
-        return false;
+        return null;
 
       const selectedRows = await db
         .select({
@@ -98,13 +97,16 @@ export const makeStartScheduleRepository = (deps: {
         selectedOrderIds.length === 0 ||
         selectedOrderIds.length !== snapshots.size
       )
-        return false;
+        return null;
 
       const rows = await db
         .select({
           id: laundryProduction.productionOrders.id,
           locationId: laundryProduction.productionOrders.locationId,
-          status: laundryProduction.productionOrders.status,
+          operationalStatus:
+            laundryProduction.productionOrders.operationalStatus,
+          executionStatus: laundryProduction.productionOrders.executionStatus,
+          resolutionState: laundryProduction.productionOrders.resolutionState,
           version: laundryProduction.productionOrders.version,
           derivedWeightLbs: laundryProduction.productionOrders.derivedWeightLbs,
           bagCount: laundryProduction.productionOrders.bagCount,
@@ -120,13 +122,14 @@ export const makeStartScheduleRepository = (deps: {
         )
         .orderBy(asc(laundryProduction.productionOrders.id))
         .for('update');
-      if (rows.length !== snapshots.size) return false;
+      if (rows.length !== snapshots.size) return null;
 
-      return rows.every((order) => {
+      const valid = rows.every((order) => {
         const snapshot = snapshots.get(order.id);
         return (
           snapshot !== undefined &&
-          order.status === 'eligible' &&
+          order.resolutionState === 'open' &&
+          order.operationalStatus === 'eligible' &&
           order.bagCount !== null &&
           order.version === snapshot.version &&
           order.derivedWeightLbs === snapshot.derivedWeightLbs &&
@@ -135,6 +138,14 @@ export const makeStartScheduleRepository = (deps: {
           order.dueAt.toISOString() === snapshot.dueAt
         );
       });
+      return valid
+        ? rows.map((order) => ({
+            id: order.id,
+            operationalStatus: order.operationalStatus,
+            executionStatus: order.executionStatus,
+            version: order.version,
+          }))
+        : null;
     },
 
     productionRunExists: async (locationId, productionShiftId) => {
@@ -158,6 +169,11 @@ export const makeStartScheduleRepository = (deps: {
       locationId,
       record,
       actorId,
+      productionRunStatus,
+      orderLifecycles,
+      initialBatchState,
+      initialStageState,
+      initialAttemptState,
       idempotencyKey,
       idempotency,
       now,
@@ -167,24 +183,48 @@ export const makeStartScheduleRepository = (deps: {
         (batch) => batch.orderIds,
       );
       if (selectedOrderIds.length > 0) {
-        const updatedOrders = await db
-          .update(laundryProduction.productionOrders)
-          .set({
-            status: 'scheduled',
-            pendingPlacement: null,
-            version: sql`${laundryProduction.productionOrders.version} + 1`,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(laundryProduction.productionOrders.locationId, locationId),
-              eq(laundryProduction.productionOrders.status, 'eligible'),
-              inArray(laundryProduction.productionOrders.id, selectedOrderIds),
-            ),
-          )
-          .returning({ id: laundryProduction.productionOrders.id });
-        if (updatedOrders.length !== selectedOrderIds.length)
-          throw new Error('Not every selected order was available at Start.');
+        const lifecycleByOrderId = new Map(
+          orderLifecycles.map((order) => [order.productionOrderId, order]),
+        );
+        if (
+          lifecycleByOrderId.size !== selectedOrderIds.length ||
+          selectedOrderIds.some((orderId) => !lifecycleByOrderId.has(orderId))
+        )
+          throw new Error('Order execution decisions are incomplete at Start.');
+        for (const orderId of selectedOrderIds) {
+          const lifecycle = lifecycleByOrderId.get(orderId)!;
+          const [updatedOrder] = await db
+            .update(laundryProduction.productionOrders)
+            .set({
+              operationalStatus: lifecycle.lifecycle.state,
+              executionStatus: lifecycle.lifecycle.state,
+              pendingPlacement: null,
+              version: lifecycle.expectedVersion + 1,
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(laundryProduction.productionOrders.locationId, locationId),
+                eq(laundryProduction.productionOrders.id, orderId),
+                eq(
+                  laundryProduction.productionOrders.operationalStatus,
+                  'eligible',
+                ),
+                eq(
+                  laundryProduction.productionOrders.executionStatus,
+                  lifecycle.persistedState,
+                ),
+                eq(laundryProduction.productionOrders.resolutionState, 'open'),
+                eq(
+                  laundryProduction.productionOrders.version,
+                  lifecycle.expectedVersion,
+                ),
+              ),
+            )
+            .returning({ id: laundryProduction.productionOrders.id });
+          if (updatedOrder === undefined)
+            throw new Error('Not every selected order was available at Start.');
+        }
       }
 
       const stationRows = await db
@@ -203,7 +243,7 @@ export const makeStartScheduleRepository = (deps: {
         locationId,
         productionShiftId: schedule.productionShiftId,
         scheduleRunId: schedule.scheduleRunId,
-        status: 'started',
+        status: productionRunStatus,
         startedAt: now,
         queueVersion: 1,
         plannedCompletionAt: asDate(schedule.plannedCompletionAt),
@@ -234,7 +274,7 @@ export const makeStartScheduleRepository = (deps: {
           locationId,
           productionRunId,
           sequenceIndex: proposed.sequence,
-          status: 'queued',
+          status: initialBatchState,
           pulseCapacityLbs: schedule.pulseCapacityLbs,
           derivedWeightLbs: proposed.derivedWeightLbs,
           pulseMinutes: schedule.pulseMinutes,
@@ -266,7 +306,7 @@ export const makeStartScheduleRepository = (deps: {
             productionBatchId,
             stationId,
             stageKind: proposedStage.stage,
-            status: 'planned',
+            status: initialStageState,
             plannedStartAt: asDate(proposedStage.startsAt),
             plannedEndAt: asDate(proposedStage.endsAt),
             version: 1,
@@ -304,7 +344,7 @@ export const makeStartScheduleRepository = (deps: {
           stageRunId: stage.stageRunId,
           stageKind: stage.stageKind,
           attemptNumber: 1,
-          status: 'assigned',
+          status: initialAttemptState,
           assignmentReason: 'initial_schedule',
           assignedAt: now,
           assignedBy: actorId,

@@ -1,15 +1,17 @@
 import type { TFunction } from "i18next"
 import { RequestFailure } from "@/ports/request.error"
 
-export type HistoryErrorOperation = "list" | "detail"
+export type HistoryErrorOperation = "list" | "detail" | "restore"
 
 const fallbackMessage = (
   operation: HistoryErrorOperation,
   t: TFunction
 ): string =>
-  operation === "detail"
-    ? t("history.errors.detailFailed")
-    : t("history.errors.loadFailed")
+  operation === "restore"
+    ? t("orderResolution.history.restore.errorTitle")
+    : operation === "detail"
+      ? t("history.errors.detailFailed")
+      : t("history.errors.loadFailed")
 
 export const presentHistoryError = (
   cause: unknown,
@@ -27,6 +29,10 @@ export const presentHistoryError = (
     case "production_location_not_found":
     case "production_location_unavailable":
       return t("history.errors.locationUnavailable")
+    case "production_order_version_conflict":
+    case "production_order_resolution_transition_invalid":
+    case "production_order_resolution_state_conflict":
+      return t("orderResolution.history.restore.staleDescription")
   }
 
   if (cause.kind === "unauthorized") return t("history.errors.unauthorized")

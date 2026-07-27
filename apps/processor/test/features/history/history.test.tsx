@@ -23,12 +23,14 @@ const run = {
 
 const activity = {
   id: "event-1",
+  identity: null,
   title: "Order moved to Batch 3",
   detail: "Order 1001 was recorded as left behind during washing.",
   occurredAtLabel: "2:14 PM",
   actorLabel: "Jamie Operator",
   entityLabel: "Order 1001",
   tone: "warning" as const,
+  restoreAction: null,
 }
 
 const plan = {
@@ -66,6 +68,10 @@ const runDetail: HistoryRunDetail = {
   orders: [
     {
       id: "order-1",
+      identity: {
+        displayNumber: "1001",
+        customerDisplayName: "Ada Rivera",
+      },
       externalOrderId: "1001",
       statusLabel: "Finished",
       demandLabel: "54 lb · 3 bags",
@@ -100,6 +106,10 @@ const baseModel: HistoryViewModel = {
   loading: false,
   refreshing: false,
   error: null,
+  canManage: false,
+  restoringOrderId: null,
+  restoreError: null,
+  restoreNotice: null,
 }
 
 const makeCallbacks = (): HistoryCallbacks => ({
@@ -110,6 +120,7 @@ const makeCallbacks = (): HistoryCallbacks => ({
   onNextPage: vi.fn(),
   onOpenRun: vi.fn(),
   onCloseRun: vi.fn(),
+  onRestoreOrder: vi.fn(),
 })
 
 beforeEach(() =>
@@ -184,11 +195,63 @@ describe("production history workspace", () => {
       "min-w-0",
       "text-xs"
     )
+    await user.click(screen.getByRole("tab", { name: "Orders" }))
+    expect(screen.getByText("Order 1001")).toBeVisible()
+    expect(screen.getByText("Ada Rivera")).toBeVisible()
     await user.click(screen.getByRole("tab", { name: "Activity" }))
     expect(screen.getByText("Order moved to Batch 3")).toBeInTheDocument()
     await user.click(screen.getByRole("tab", { name: "Plans" }))
     expect(screen.getByText("Schedule revision 3")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Close history" }))
     expect(callbacks.onCloseRun).toHaveBeenCalled()
+  })
+
+  it("lets a manager restore an archived order from its identifiable activity row", async () => {
+    const user = userEvent.setup()
+    const callbacks = makeCallbacks()
+    render(
+      <HistoryWorkspace
+        model={{
+          ...baseModel,
+          tab: "activity",
+          canManage: true,
+          runs: [],
+          activity: [
+            {
+              ...activity,
+              title: "Archived from active work",
+              identity: {
+                displayNumber: "TEST-1001",
+                customerDisplayName: "Rivera Cleaners",
+              },
+              restoreAction: {
+                productionOrderId: "order-1",
+                expectedVersion: 7,
+              },
+            },
+          ],
+        }}
+        callbacks={callbacks}
+        isMobile={false}
+      />
+    )
+
+    expect(screen.getByText("Order TEST-1001")).toBeVisible()
+    expect(screen.getByText("Rivera Cleaners")).toBeVisible()
+    await user.click(
+      screen.getByRole("button", { name: "Restore to active work" })
+    )
+    await user.click(screen.getByLabelText("Why is this order being restored?"))
+    await user.click(screen.getByText("Correct a manager decision"))
+    await user.click(
+      screen.getByRole("button", { name: "Restore to active work" })
+    )
+
+    expect(callbacks.onRestoreOrder).toHaveBeenCalledWith({
+      productionOrderId: "order-1",
+      expectedVersion: 7,
+      reason: "manager_correction",
+      note: null,
+    })
   })
 })

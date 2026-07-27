@@ -103,6 +103,43 @@ describe("scheduling workspace", () => {
     )
   })
 
+  it("places remaining-day context after schedule controls and before the timeline", () => {
+    render(
+      <SchedulingWorkspace
+        production={makeTestProductionPort()}
+        idempotency={testIdempotency}
+        locationId={testShift.locationId}
+        orders={testOrders}
+        defaults={defaults}
+        currentConfig={testConfig}
+        currentShift={testShift}
+        remainingDayContext={
+          <section aria-label="Remaining-day context">Forecast context</section>
+        }
+        {...lifecycleCallbacks}
+      />
+    )
+
+    const action = screen.getByTestId("schedule-action-surface")
+    const metrics = screen.getByRole("region", { name: "Schedule summary" })
+    const context = screen.getByRole("region", {
+      name: "Remaining-day context",
+    })
+    const timeline = screen.getByText("Production timeline")
+
+    expect(
+      action.compareDocumentPosition(metrics) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      metrics.compareDocumentPosition(context) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      context.compareDocumentPosition(timeline) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
   it("creates a new shift before computing when no planning shift exists", async () => {
     const user = userEvent.setup()
     const newShift = {
@@ -202,6 +239,10 @@ describe("scheduling workspace", () => {
       ...testOrders[0]!,
       id: "00000000-0000-4000-8000-000000000099",
       externalOrderId: "C-1099",
+      identity: {
+        displayNumber: "C-1099",
+        customerDisplayName: "New Customer",
+      },
       derivedWeightLbs: 20,
       bagCount: 1,
     }
@@ -573,6 +614,8 @@ describe("scheduling workspace", () => {
     )
 
     await user.click(screen.getByRole("tab", { name: /^Orders/ }))
+    expect(screen.getByText("Northwind Hotel")).toBeVisible()
+    expect(screen.getByText("Camila Reed")).toBeVisible()
     await user.click(
       screen.getByRole("switch", { name: "Prioritize order C-1002" })
     )
@@ -602,6 +645,10 @@ describe("scheduling workspace", () => {
       ...testOrders[0]!,
       id: "00000000-0000-4000-8000-000000000098",
       externalOrderId: "C-1098",
+      identity: {
+        displayNumber: "C-1098",
+        customerDisplayName: "Priority Customer",
+      },
       priority: true,
       version: 1,
     }

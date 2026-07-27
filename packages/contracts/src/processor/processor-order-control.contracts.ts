@@ -3,6 +3,7 @@ import {
   listProductionOrderControlResultSchema,
   productionOrderControlItemSchema,
 } from '../production/production-order-control.contracts.ts';
+import { processorOperationalOrderIdentitySchema } from './processor-operational-order-identity.contracts.ts';
 
 export const processorCustomerResolutionSchema = z.enum([
   'resolved',
@@ -10,14 +11,6 @@ export const processorCustomerResolutionSchema = z.enum([
   'pending',
   'conflict',
   'legacy_unknown',
-]);
-
-export const processorSourceComparisonSchema = z.enum([
-  'aligned',
-  'source_ahead',
-  'source_withdrawn',
-  'source_behind',
-  'unavailable',
 ]);
 
 export const processorOrderContextSchema = z
@@ -44,12 +37,14 @@ export const processorOrderContextSchema = z
       })
       .strict()
       .nullable(),
-    comparison: processorSourceComparisonSchema,
   })
   .strict();
 
 export const processorOrderControlItemSchema = productionOrderControlItemSchema
-  .extend({ canonical: processorOrderContextSchema.nullable() })
+  .extend({
+    identity: processorOperationalOrderIdentitySchema,
+    canonical: processorOrderContextSchema.nullable(),
+  })
   .strict();
 
 export const listProcessorOrderControlResultSchema =

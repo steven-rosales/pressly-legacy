@@ -19,6 +19,7 @@ import type {
   OrderRoutingPolicyDecision,
   OrderRoutingStage,
   ProductionPolicyPort,
+  ProductionOrderStageAttemptMutation,
   ProductionSignalsPort,
 } from '../production.port.ts';
 import type {
@@ -120,7 +121,22 @@ const evaluateProposal = (input: {
         'Orders can only move within a started production run.',
       ),
     );
-  if (context.order.status !== 'scheduled')
+  const access = input.policy.evaluateProductionOrderOperationalAccess({
+    resolutionState: context.order.resolutionState,
+  });
+  if (access.tag === 'err')
+    return result.err(
+      productionError(access.error.code, access.error.message, 409),
+    );
+  const execution = input.policy.resolveProductionOrderExecutionState({
+    executionState: context.order.executionStatus,
+    operationalStatus: context.order.operationalStatus,
+  });
+  if (execution.tag === 'err')
+    return result.err(
+      productionError(execution.error.code, execution.error.message, 409),
+    );
+  if (execution.value !== 'scheduled')
     return result.err(
       productionError(
         'PRODUCTION_ORDER_NOT_SCHEDULED',
@@ -371,6 +387,43 @@ export const makeRouteProductionOrder = (deps: {
             ),
           );
 
+        const attemptLifecycles: ProductionOrderStageAttemptMutation[] = [];
+        for (const stage of evaluated.value.releasedStages) {
+          const attempt = context.attempts.find(
+            (candidate) =>
+              candidate.productionBatchId ===
+                context.source.productionBatchId &&
+              candidate.stage === stage &&
+              candidate.status === 'assigned',
+          );
+          if (attempt === undefined)
+            return result.err(
+              productionError(
+                'PRODUCTION_ORDER_STAGE_ATTEMPT_NOT_ASSIGNED',
+                'The unfinished source route no longer matches production.',
+                409,
+              ),
+            );
+          const attemptDecision =
+            deps.policy.evaluateProductionOrderStageAttemptTransition({
+              state: attempt.status,
+              event: 'release_for_route',
+            });
+          if (attemptDecision.tag === 'err')
+            return result.err(
+              productionError(
+                attemptDecision.error.code,
+                attemptDecision.error.message,
+                409,
+              ),
+            );
+          attemptLifecycles.push({
+            attemptId: attempt.id,
+            stageRunId: attempt.stageRunId,
+            lifecycle: attemptDecision.value,
+          });
+        }
+
         return result.ok(
           await repo.commit({
             locationId: command.locationId,
@@ -383,6 +436,10 @@ export const makeRouteProductionOrder = (deps: {
             idempotency,
             context,
             proposal: evaluated.value,
+            orderExecutionState: 'scheduled',
+            attemptLifecycles,
+            initialAttemptState:
+              deps.policy.initialProductionOrderStageAttemptState,
             now: deps.clock.now(),
           }),
         );

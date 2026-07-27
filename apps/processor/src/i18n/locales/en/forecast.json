@@ -1,0 +1,130 @@
+{
+  "forecast": {
+    "workspaceTitle": "Remaining day",
+    "workspaceDescription": "Review remaining work, current capacity, and what needs another shift for the selected service day.",
+    "serviceDay": "Service day",
+    "serviceDayValue": "Service day: {{date}}",
+    "loading": "Loading remaining-day forecast",
+    "summary": "Remaining-day summary",
+    "summaryTitle": "Remaining today",
+    "loadingSummary": "Loading remaining-day summary",
+    "summaryUnavailable": "Remaining-day outlook is unavailable",
+    "homeSummary": "{{orders}} orders · {{weight, number}} lb known",
+    "missingEstimateSummary_one": "{{count}} order without an estimate",
+    "missingEstimateSummary_other": "{{count}} orders without estimates",
+    "scheduleSummary": "{{ready}} ready to place · {{needsShift}} need another shift",
+    "staleSummary": "Could not refresh. Showing the outlook updated {{date}}.",
+    "openForecast": "Open Forecast",
+    "loadFailed": "Forecast could not be loaded",
+    "refreshFailed": "Forecast could not be refreshed",
+    "unavailableTitle": "No remaining-day outlook is available",
+    "unavailableDescription": "Retry after the current production state is available.",
+    "window": "{{start}} – {{end}} · {{timezone}}",
+    "updated": "Updated {{date}}",
+    "order": "Order {{orderId}}",
+    "priority": "Priority",
+    "due": "Due {{date}}",
+    "estimatedWeight": "{{weight, number}} lb estimated",
+    "estimateMissing": "Estimate unavailable",
+    "bagsNotRecorded": "Bag intake not recorded",
+    "groupWeight": "{{weight, number}} lb known · {{missing}} without an estimate",
+    "groups": {
+      "inProduction": {
+        "title": "In production",
+        "description": "Work already moving through the active production run.",
+        "empty": "No remaining orders are currently in production."
+      },
+      "readyToPlace": {
+        "title": "Ready to place",
+        "description": "Intake is recorded and the order can be placed into active work.",
+        "empty": "No remaining orders are ready to place."
+      },
+      "expectedLater": {
+        "title": "Expected later",
+        "description": "Known demand that still needs release or physical intake.",
+        "empty": "No additional orders are expected later."
+      },
+      "needsShift": {
+        "title": "Needs another shift",
+        "description": "Ready work that cannot be placed into the current run.",
+        "empty": "No remaining orders currently need another shift."
+      }
+    },
+    "capacity": {
+      "title": "Capacity",
+      "description": "Server-evaluated capacity for the remaining service day.",
+      "unknownPulse": "Pulse capacity is not available",
+      "pulse": "{{weight, number}} lb per production pulse",
+      "level": {
+        "clear": "Clear",
+        "attention": "Needs attention",
+        "unknown": "Capacity uncertain"
+      },
+      "reason": {
+        "all_ready_work_appendable": "All ready work can be added to the active run.",
+        "needs_shift": "Some ready work needs another shift.",
+        "expected_later": "Additional orders are expected later in this service day.",
+        "missing_estimates": "Some orders are excluded from weight totals because estimates are missing.",
+        "no_active_run": "There is no active production run for placement.",
+        "ambiguous_active_run": "More than one active run could receive work.",
+        "no_ready_work": "No remaining work is currently ready to place."
+      }
+    },
+    "shifts": {
+      "title": "Shifts in this service day",
+      "description": "Actual shift windows included in this outlook.",
+      "empty": "No production shift is available for this service day.",
+      "status": {
+        "draft": "Draft",
+        "open": "Open",
+        "closed": "Closed"
+      }
+    },
+    "actions": {
+      "openProduction": "Open Production",
+      "recordIntake": "Open Intake",
+      "releaseToProduction": "Open Intake",
+      "placeInActiveRun": "Open Production",
+      "reviewPlacement": "Open Production",
+      "planShift": "Open Schedule"
+    },
+    "actionReason": {
+      "already_in_production": "This order is already in production.",
+      "awaiting_source_release": "This order is waiting for release from its source.",
+      "missing_estimate": "This order has no usable weight estimate."
+    },
+    "itemState": {
+      "inProduction": "In production",
+      "readyToPlace": "Ready to place",
+      "awaiting_release": "Awaiting release",
+      "awaiting_intake": "Awaiting intake",
+      "not_admitted": "Not released",
+      "no_active_run": "No active run",
+      "ambiguous_active_run": "Run needs review",
+      "placement_rejected": "Placement not available",
+      "current_run_window_exceeded": "Outside current run"
+    },
+    "assumptions": {
+      "title": "How this outlook works",
+      "algorithm": "Ready work uses stable online placement.",
+      "overdue": "Overdue unfinished work is included.",
+      "intake": "Physical bag intake is required before floor work.",
+      "wholeOrders": "Orders are placed as whole orders.",
+      "weights": "Expected weights are advisory.",
+      "missingEstimates": "Orders without estimates are excluded from weight totals.",
+      "revalidation": "Placement is rechecked when you act.",
+      "noPreciseFinish": "No precise finish time is shown."
+    },
+    "errors": {
+      "loadFailed": "The remaining-day outlook could not be loaded.",
+      "locationUnavailable": "This production location is not available.",
+      "serviceDayInvalid": "Choose a valid service day.",
+      "scopeTooLarge": "This service day includes too much work to display safely.",
+      "stateInconsistent": "Current production state is changing. Refresh before using this outlook.",
+      "unauthorized": "Your session is no longer valid. Sign in again.",
+      "forbidden": "You do not have permission to view this outlook.",
+      "unavailable": "The production service is temporarily unavailable.",
+      "invalidResponse": "The production service returned an outlook Processor could not read."
+    }
+  }
+}

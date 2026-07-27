@@ -108,7 +108,7 @@ describe('scheduling shift-window orchestration', () => {
         async (): Promise<'available'> => 'available',
       ),
       loadSchedulingInput: vi.fn(async () => input),
-      currentPlanExists: vi.fn(async () => false),
+      loadCurrentPlan: vi.fn(async () => null),
       saveSchedule,
       appendWorkEvent: vi.fn(async () => undefined),
     };
@@ -195,7 +195,14 @@ describe('scheduling shift-window orchestration', () => {
         acceptedBy: actorId,
         acknowledgedWarningCodes: [],
       })),
-      lockAndValidateScheduleInput: vi.fn(async () => true),
+      lockAndLoadStartOrders: vi.fn(async () =>
+        input.orders.map((order) => ({
+          id: order.id,
+          operationalStatus: 'eligible',
+          executionStatus: 'unassigned',
+          version: order.version,
+        })),
+      ),
       productionRunExists: vi.fn(async () => false),
       startSchedule,
     };

@@ -1,4 +1,4 @@
-import { auth, laundryProduction } from '@pressly/db';
+import { auth, eq, laundryProduction } from '@pressly/db';
 import { productionHistoryRunDetailSchema } from '@pressly/contracts';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makeListProductionHistoryRepository } from '../../src/list-production-history/list-production-history.repo.ts';
@@ -31,6 +31,9 @@ const ids = {
   siblingDemand: '10000000-0000-4000-8000-000000000015',
   siblingOrder: '10000000-0000-4000-8000-000000000016',
   siblingMembership: '10000000-0000-4000-8000-000000000017',
+  resolvedDemand: '10000000-0000-4000-8000-000000000018',
+  resolvedOrder: '10000000-0000-4000-8000-000000000019',
+  resolvedEvent: '10000000-0000-4000-8000-000000000024',
 } as const;
 
 const stages = [
@@ -188,7 +191,8 @@ const seed = async () => {
       locationId: 'location-1',
       dueAt: new Date('2026-07-15T20:00:00.000Z'),
       priority: true,
-      status: 'finished',
+      operationalStatus: 'finished',
+      executionStatus: 'finished',
       derivedWeightLbs: 80,
       derivedWeightSource: 'external_estimate',
       bagCount: 2,
@@ -205,7 +209,8 @@ const seed = async () => {
       locationId: 'location-1',
       dueAt: new Date('2026-07-15T20:00:00.000Z'),
       priority: false,
-      status: 'finished',
+      operationalStatus: 'finished',
+      executionStatus: 'finished',
       derivedWeightLbs: 30,
       derivedWeightSource: 'external_estimate',
       bagCount: 1,
@@ -402,6 +407,104 @@ describe('production history Postgres read model', () => {
     ).resolves.toMatchObject({
       tag: 'found',
       value: { items: [{ id: ids.eventTwo }] },
+    });
+  });
+
+  it('offers restore only while the archived order remains resolved', async () => {
+    await seed();
+    await seedProductionDemands(testDb.db, [
+      {
+        id: ids.resolvedDemand,
+        demandKey: 'history-resolved-demand',
+        displayReference: 'C-ARCHIVED-1',
+        locationId: 'location-1',
+        revisionHash: 'revision-resolved',
+        revisionAt: new Date('2026-07-15T10:00:00.000Z'),
+        phase: 'expected',
+        sourceStatusCode: 'COMPLETED',
+        dueAt: new Date('2026-07-14T20:00:00.000Z'),
+      },
+    ]);
+    await testDb.db.insert(laundryProduction.productionOrders).values({
+      id: ids.resolvedOrder,
+      orderDemandId: ids.resolvedDemand,
+      locationId: 'location-1',
+      dueAt: new Date('2026-07-14T20:00:00.000Z'),
+      priority: false,
+      operationalStatus: 'release_pending',
+      executionStatus: 'unassigned',
+      resolutionState: 'resolved_without_production',
+      resolvedAt: new Date('2026-07-15T19:30:00.000Z'),
+      resolvedBy: ids.actor,
+      resolutionReason: 'completed_outside_pressly',
+      derivedWeightLbs: 12,
+      derivedWeightSource: 'external_estimate',
+      version: 2,
+    });
+    await testDb.db.insert(laundryProduction.workEvents).values({
+      id: ids.resolvedEvent,
+      locationId: 'location-1',
+      eventType: 'production_order_resolved_without_production',
+      entityType: 'production_order',
+      entityId: ids.resolvedOrder,
+      actorId: ids.actor,
+      expectedVersion: 1,
+      idempotencyKey: 'history-event-order-resolved',
+      payload: {
+        action: 'resolve_without_production',
+        resolutionState: 'resolved_without_production',
+        reason: 'completed_outside_pressly',
+        note: 'private note',
+        version: 2,
+      },
+      createdAt: new Date('2026-07-15T19:30:00.000Z'),
+    });
+    const repo = makeListProductionHistoryRepository(testDb.db);
+
+    await expect(
+      repo.listActivity(
+        {
+          locationId: 'location-1',
+          orderResolution: 'archived',
+          limit: 10,
+        },
+        now,
+      ),
+    ).resolves.toMatchObject({
+      tag: 'found',
+      value: {
+        items: [
+          {
+            id: ids.resolvedEvent,
+            resolutionAction: { action: 'restore', expectedVersion: 2 },
+          },
+        ],
+      },
+    });
+
+    await testDb.db
+      .update(laundryProduction.productionOrders)
+      .set({
+        resolutionState: 'open',
+        resolvedAt: null,
+        resolvedBy: null,
+        resolutionReason: null,
+        version: 3,
+      })
+      .where(eq(laundryProduction.productionOrders.id, ids.resolvedOrder));
+
+    await expect(
+      repo.listActivity(
+        {
+          locationId: 'location-1',
+          orderResolution: 'archived',
+          limit: 10,
+        },
+        now,
+      ),
+    ).resolves.toMatchObject({
+      tag: 'found',
+      value: { items: [{ resolutionAction: null }] },
     });
   });
 

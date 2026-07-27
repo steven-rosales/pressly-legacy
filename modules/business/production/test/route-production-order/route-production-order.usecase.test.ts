@@ -27,9 +27,23 @@ const stageIds = {
   folding_packaging: '20000000-0000-4000-8000-000000000004',
 } as const;
 
+const attemptIds = {
+  sorting: '30000000-0000-4000-8000-000000000001',
+  washing: '30000000-0000-4000-8000-000000000002',
+  drying: '30000000-0000-4000-8000-000000000003',
+  folding_packaging: '30000000-0000-4000-8000-000000000004',
+} as const;
+
 const context = (): ProductionOrderRoutingContext => ({
   run: { id: ids.run, status: 'started', queueVersion: 4 },
-  order: { id: ids.order, status: 'scheduled', version: 3, weightLbs: 25 },
+  order: {
+    id: ids.order,
+    operationalStatus: 'scheduled',
+    executionStatus: 'scheduled',
+    resolutionState: 'open',
+    version: 3,
+    weightLbs: 25,
+  },
   source: {
     membershipId: ids.membership,
     productionBatchId: ids.source,
@@ -60,7 +74,16 @@ const context = (): ProductionOrderRoutingContext => ({
       })),
     },
   ],
-  attempts: [],
+  attempts: (
+    ['sorting', 'washing', 'drying', 'folding_packaging'] as const
+  ).map((stage) => ({
+    id: attemptIds[stage],
+    stageRunId: stageIds[stage],
+    productionBatchId: ids.source,
+    stage,
+    attemptNumber: 1,
+    status: 'assigned' as const,
+  })),
 });
 
 const command = {
@@ -197,6 +220,23 @@ describe('route production order', () => {
     expect(queueConflict).toHaveBeenCalledWith({
       operation: 'order_route_preview',
     });
+  });
+
+  it('rejects an archived order before proposing an operational route', async () => {
+    const { route, loadContext, commit } = setup();
+    loadContext.mockResolvedValueOnce({
+      ...context(),
+      order: {
+        ...context().order,
+        resolutionState: 'resolved_without_production',
+      },
+    });
+
+    await expect(route.preview(command)).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_order_resolved', status: 409 },
+    });
+    expect(commit).not.toHaveBeenCalled();
   });
 
   it('reports a bounded failure outcome when an atomic route cannot commit', async () => {

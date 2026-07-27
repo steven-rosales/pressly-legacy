@@ -84,7 +84,9 @@ const loadContext = async (
   const orderQuery = db
     .select({
       id: laundryProduction.productionOrders.id,
-      status: laundryProduction.productionOrders.status,
+      operationalStatus: laundryProduction.productionOrders.operationalStatus,
+      executionStatus: laundryProduction.productionOrders.executionStatus,
+      resolutionState: laundryProduction.productionOrders.resolutionState,
       version: laundryProduction.productionOrders.version,
       weightLbs: laundryProduction.productionOrders.derivedWeightLbs,
     })
@@ -342,7 +344,7 @@ const commit = async (
   if (releasedMembership.length !== 1)
     throw new Error('Source order membership changed concurrently.');
 
-  const releaseAttemptIds = input.context.attempts
+  const expectedReleaseAttemptIds = input.context.attempts
     .filter(
       (attempt) =>
         attempt.productionBatchId === input.context.source.productionBatchId &&
@@ -350,31 +352,50 @@ const commit = async (
         input.proposal.releasedStages.includes(attempt.stage),
     )
     .map((attempt) => attempt.id);
-  if (releaseAttemptIds.length !== input.proposal.releasedStages.length)
+  const releaseAttemptIds = input.attemptLifecycles.map(
+    (attempt) => attempt.attemptId,
+  );
+  if (
+    expectedReleaseAttemptIds.length !== input.proposal.releasedStages.length ||
+    releaseAttemptIds.length !== expectedReleaseAttemptIds.length ||
+    expectedReleaseAttemptIds.some(
+      (attemptId) => !releaseAttemptIds.includes(attemptId),
+    ) ||
+    input.attemptLifecycles.some(
+      (attempt) =>
+        attempt.lifecycle.from !== 'assigned' ||
+        attempt.lifecycle.state !== 'released',
+    )
+  )
     throw new Error(
       'The unfinished source route no longer matches production.',
     );
-  const releasedAttempts = await db
-    .update(laundryProduction.productionOrderStageAttempts)
-    .set({
-      status: 'released',
-      releasedAt: input.now,
-      releasedBy: input.actorId,
-      releaseReason: input.reason,
-      updatedAt: input.now,
-    })
-    .where(
-      and(
-        inArray(
-          laundryProduction.productionOrderStageAttempts.id,
-          releaseAttemptIds,
+  if (releaseAttemptIds.length > 0) {
+    const releasedAttempts = await db
+      .update(laundryProduction.productionOrderStageAttempts)
+      .set({
+        status: input.attemptLifecycles[0]!.lifecycle.state,
+        releasedAt: input.now,
+        releasedBy: input.actorId,
+        releaseReason: input.reason,
+        updatedAt: input.now,
+      })
+      .where(
+        and(
+          inArray(
+            laundryProduction.productionOrderStageAttempts.id,
+            releaseAttemptIds,
+          ),
+          eq(
+            laundryProduction.productionOrderStageAttempts.status,
+            input.attemptLifecycles[0]!.lifecycle.from,
+          ),
         ),
-        eq(laundryProduction.productionOrderStageAttempts.status, 'assigned'),
-      ),
-    )
-    .returning({ id: laundryProduction.productionOrderStageAttempts.id });
-  if (releasedAttempts.length !== releaseAttemptIds.length)
-    throw new Error('Source route attempts changed concurrently.');
+      )
+      .returning({ id: laundryProduction.productionOrderStageAttempts.id });
+    if (releasedAttempts.length !== releaseAttemptIds.length)
+      throw new Error('Source route attempts changed concurrently.');
+  }
 
   await db.insert(laundryProduction.productionBatchOrders).values({
     id: ids.next(),
@@ -416,7 +437,7 @@ const commit = async (
       stageRunId: targetStage.stageRunId,
       stageKind: stage,
       attemptNumber,
-      status: 'assigned',
+      status: input.initialAttemptState,
       assignmentReason: input.reason,
       assignedAt: input.now,
       assignedBy: input.actorId,
@@ -476,6 +497,8 @@ const commit = async (
   const [updatedOrder] = await db
     .update(laundryProduction.productionOrders)
     .set({
+      operationalStatus: input.orderExecutionState,
+      executionStatus: input.orderExecutionState,
       version: input.context.order.version + 1,
       updatedAt: input.now,
     })
@@ -486,7 +509,11 @@ const commit = async (
           laundryProduction.productionOrders.version,
           input.context.order.version,
         ),
-        eq(laundryProduction.productionOrders.status, 'scheduled'),
+        eq(
+          laundryProduction.productionOrders.executionStatus,
+          input.context.order.executionStatus,
+        ),
+        eq(laundryProduction.productionOrders.resolutionState, 'open'),
       ),
     )
     .returning({ version: laundryProduction.productionOrders.version });

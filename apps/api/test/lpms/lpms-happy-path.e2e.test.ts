@@ -177,6 +177,8 @@ describe('LPMS run-centered app-composed happy path', () => {
                 },
                 runStatus: run.status,
                 orderStatus: order.status,
+                orderExecutionStatus: order.executionStatus,
+                orderVersion: order.version,
                 orderAlreadyAssigned: [
                   ...state.activeBatchOrderIds.values(),
                 ].some((orderIds) => orderIds.has(order.id)),
@@ -196,6 +198,10 @@ describe('LPMS run-centered app-composed happy path', () => {
                 mode: input.mode,
                 proposal: input.proposal,
                 overtimeConfirmed: input.overtimeConfirmed,
+                orderLifecycle: input.orderLifecycle,
+                initialBatchState: input.initialBatchState,
+                initialStageState: input.initialStageState,
+                initialAttemptState: input.initialAttemptState,
                 now: input.now,
               });
               placementCommits.push(placement);

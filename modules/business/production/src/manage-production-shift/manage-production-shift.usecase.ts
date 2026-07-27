@@ -14,6 +14,7 @@ import {
 import type {
   ClockPort,
   IdPort,
+  ProductionPolicyPort,
   ProductionSignalsPort,
 } from '../production.port.ts';
 import type {
@@ -31,6 +32,7 @@ export const makeCreateProductionShift =
     repo: ManageProductionShiftRepository;
     clock: ClockPort;
     ids: IdPort;
+    policy: ProductionPolicyPort;
   }): CreateProductionShift =>
   async (command) => {
     if (Date.parse(command.endsAt) <= Date.parse(command.startsAt))
@@ -71,7 +73,7 @@ export const makeCreateProductionShift =
           endsAt: command.endsAt,
           timezone: command.timezone,
           effectiveFolderCount: command.effectiveFolderCount,
-          status: 'open' as const,
+          status: deps.policy.initialProductionShiftState,
           version: 1,
         };
 
@@ -123,6 +125,7 @@ const changedShiftFields = (
 export const makeUpdateProductionShift = (deps: {
   repo: ManageProductionShiftRepository;
   clock: ClockPort;
+  policy: ProductionPolicyPort;
   signals?: ProductionSignalsPort;
 }): UpdateProductionShift =>
   async function updateProductionShift(command) {
@@ -226,11 +229,35 @@ export const makeUpdateProductionShift = (deps: {
           if (updated === null)
             throw new Error('Locked production shift changed unexpectedly.');
           productionShift = updated;
-          supersededScheduleRunId = await repo.supersedeCurrentSchedule({
-            locationId: command.locationId,
-            productionShiftId: command.productionShiftId,
-            now,
-          });
+          const currentSchedule = await repo.lockCurrentSchedule(
+            command.locationId,
+            command.productionShiftId,
+          );
+          if (currentSchedule !== null) {
+            const lifecycle = deps.policy.evaluateScheduleRevisionTransition({
+              state: currentSchedule.status,
+              event: 'supersede',
+            });
+            if (
+              lifecycle.tag === 'err' ||
+              (lifecycle.value.from !== 'draft' &&
+                lifecycle.value.from !== 'accepted') ||
+              lifecycle.value.state !== 'superseded'
+            )
+              return result.err(
+                productionError(
+                  'SCHEDULE_CURRENT_PLAN_STATE_INVALID',
+                  'The current schedule revision cannot be superseded.',
+                  409,
+                ),
+              );
+            supersededScheduleRunId = await repo.supersedeCurrentSchedule({
+              locationId: command.locationId,
+              scheduleRunId: currentSchedule.scheduleRunId,
+              lifecycle: lifecycle.value,
+              now,
+            });
+          }
         }
 
         const updateResult: UpdateProductionShiftResult = {

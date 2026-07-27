@@ -1,0 +1,171 @@
+id: memdelta-2026-07-26-operational-truth-remaining-day-outlook
+domain_id: laundry-production
+
+source:
+  type: interrogation_session
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-26-operational-truth-remaining-day-outlook.md
+
+changes:
+  - op: deprecate
+    kind: object
+    id: demand_outlook
+
+  - op: assert
+    kind: object
+    id: remaining_day_outlook
+    description: A location- and local-service-day-scoped deterministic,
+      read-only projection of unfinished Pressly work still relevant today,
+      partitioned into active production, ready placement, expected later, and
+      another-shift or unassigned work; it is operational planning context, not
+      executable state.
+
+  - op: update
+    kind: workflow
+    id: external_demand_to_production_admission
+    steps:
+      - a strictly newer external order observation is normalized at its source
+        adapter boundary
+      - Users resolves the exact external customer identity and retains the
+        latest source snapshot without overriding explicit Pressly field
+        authority
+      - Orders retains the valid newer order observation separately from any
+        canonical lifecycle adoption
+      - before handoff, prospective source lifecycle may update or withdraw
+        uncommitted demand under Orders policy
+      - the first IN_PROGRESS-or-later non-canceled Cents observation may cross
+        the one-way source-neutral fulfillment handoff
+      - after handoff, later source lifecycle values remain audit metadata and
+        cannot rewind, complete, cancel, withdraw, or otherwise change
+        canonical Pressly lifecycle
+      - an Orders outbox event applies fulfillment-keyed canonical demand
+        changes to Production idempotently without carrying vendor lifecycle
+        authority
+      - physical bag intake may be recorded before release, but intake alone
+        does not admit the production order
+      - effective Production admission becomes released through canonical
+        upstream fulfillment release or a current manual Production override
+      - a manual override leaves source truth unchanged and becomes ready only
+        when positive production demand and bag-count rules also hold
+      - manual admission never selects or places an order, and executable
+        scheduling reads only explicitly selected ready production orders
+      - a pre-handoff source withdrawal may supersede a still-prospective manual
+        override, while physically received or committed Pressly work is
+        preserved
+      - Processor floor views derive attention and actions from canonical
+        Pressly state; downstream source differences remain integration and
+        audit context
+
+  - op: update
+    kind: invariant
+    id: source_lifecycle_does_not_advance_floor_truth_v1
+    statement: An external lifecycle observation may update retained source
+      metadata and source-owned demand fields, but it cannot start, advance,
+      finish, cancel, rewind, delete, or otherwise change an LPMS order, batch,
+      stage, run, or shift; after handoff its lifecycle value is
+      observation-only.
+
+  - op: update
+    kind: invariant
+    id: committed_work_survives_source_withdrawal_v1
+    statement: A downstream or canceled source observation cannot remove or
+      terminalize physically received, selected, scheduled, batched, active, or
+      finished Pressly work; the observation remains integration and audit
+      context without creating a production-floor comparison task.
+
+  - op: deprecate
+    kind: invariant
+    id: advisory_demand_forecast_is_non_executable_v1
+
+  - op: assert
+    kind: invariant
+    id: remaining_day_outlook_is_non_executable_v1
+    statement: The remaining-day outlook is deterministic, read-only, and
+      non-persistent; it includes current Pressly execution and placement state
+      but cannot accept, start, select, place, or mutate work and never
+      fabricates bag counts, shifts, batches, physical progress, or completion
+      times.
+
+  - op: update
+    kind: invariant
+    id: finished_work_excluded_from_forward_demand_v1
+    statement: Finished Pressly orders are excluded from remaining-day order
+      counts, weight totals, capacity risk, and forecast groups, while their
+      latest source observations remain available in audit and integration
+      history.
+
+  - op: deprecate
+    kind: invariant
+    id: source_withdrawal_supersedes_manual_admission_v1
+
+  - op: assert
+    kind: invariant
+    id: pre_handoff_source_withdrawal_supersedes_prospective_admission_v1
+    statement: Before the source handoff, source withdrawal may supersede a
+      still-prospective manual Production admission override; it cannot erase
+      physically received, selected, scheduled, batched, active, or finished
+      Pressly work.
+
+  - op: update
+    kind: policy
+    id: service_day_demand_horizon_v1
+    statement: The remaining-day horizon is the selected local service day and
+      includes overdue unfinished work, unfinished work due before that local
+      day ends, and work already admitted or executing for that day; later
+      demand is outside the outlook.
+
+  - op: assert
+    kind: policy
+    id: remaining_day_outlook_partition_v1
+    statement: The remaining-day outlook partitions unfinished work into the
+      active production run, ready work that the server can currently place,
+      expected work that is not yet executable, and work that needs another
+      shift or remains unassigned today; appendability uses the same
+      server-authoritative hard-capacity and placement rules as execution.
+
+  - op: deprecate
+    kind: decision
+    id: source_floor_mismatch_requires_operator_confirmation_v1
+
+  - op: assert
+    kind: decision
+    id: persistent_production_lifecycles_use_authoritative_graphs_v1
+    statement: Each persistent Production aggregate lifecycle is governed by
+      one authoritative explicit state-and-event graph; cross-aggregate use
+      cases orchestrate graph decisions and effects, local adapters and
+      repositories cannot define parallel transitions, derived readiness and
+      forecast values remain pure projections, and no global workflow engine is
+      introduced.
+
+  - op: assert
+    kind: decision
+    id: processor_forecast_surface_owns_remaining_day_detail_v1
+    statement: The Processor exposes detailed remaining-day planning at
+      /forecast, keeps Home to a compact operational summary and link, and keeps
+      Schedule focused on scheduling-ready orders with only bounded forecast
+      context.
+
+  - op: update
+    kind: decision
+    id: processor_uses_backend_action_availability
+    statement: The Processor renders Production action availability from
+      server-owned lifecycle graphs and policies, including stage and admission
+      actions, and does not recreate lifecycle transitions, source comparison
+      policy, placement policy, or forecast classification in the browser.
+
+verification:
+  - Steven explicitly confirmed Pressly floor authority, observation-only
+    downstream Cents lifecycle, the remaining-day meaning of forecast, and the
+    Home, Forecast, and Schedule information architecture on 2026-07-26.
+  - The paired order-management delta records the one-way handoff and
+    observation-versus-adoption rules at their owning boundary.
+  - Current demand-outlook, order-control comparison, state-machine, and
+    Processor composition code was inspected and conflicting behavior is
+    recorded as implementation work rather than promoted to durable memory.
+  - Existing whole-order, hard-capacity, explicit selection, one-run-per-shift,
+    source-neutral identity, field-authority, manual-admission, and
+    server-authorized action rules remain active and are preserved.
+  - Derived readiness and forecast categories are explicitly kept out of the
+    persistent lifecycle graph model.
+  - No secret, credential, raw customer payload, or private token is included.
+
+status: applied

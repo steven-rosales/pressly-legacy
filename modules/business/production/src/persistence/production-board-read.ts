@@ -56,7 +56,7 @@ export const loadProductionBoardProjection = async (
           externalOrderId: laundryProduction.orderDemands.displayReference,
           dueAt: laundryProduction.productionOrders.dueAt,
           priority: laundryProduction.productionOrders.priority,
-          status: laundryProduction.productionOrders.status,
+          status: laundryProduction.productionOrders.operationalStatus,
           derivedWeightLbs: laundryProduction.productionOrders.derivedWeightLbs,
           bagCount: laundryProduction.productionOrders.bagCount,
           bagCountSource: laundryProduction.productionOrders.bagCountSource,
@@ -78,7 +78,12 @@ export const loadProductionBoardProjection = async (
             ),
           ),
         )
-        .where(eq(laundryProduction.productionOrders.locationId, locationId))
+        .where(
+          and(
+            eq(laundryProduction.productionOrders.locationId, locationId),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
+          ),
+        )
         .orderBy(asc(laundryProduction.productionOrders.id)),
       db
         .select()
@@ -126,6 +131,19 @@ export const loadProductionBoardProjection = async (
             pinnedBy: laundryProduction.productionBatchOrders.pinnedBy,
           })
           .from(laundryProduction.productionBatchOrders)
+          .innerJoin(
+            laundryProduction.productionOrders,
+            and(
+              eq(
+                laundryProduction.productionOrders.id,
+                laundryProduction.productionBatchOrders.productionOrderId,
+              ),
+              eq(
+                laundryProduction.productionOrders.locationId,
+                laundryProduction.productionBatchOrders.locationId,
+              ),
+            ),
+          )
           .where(
             and(
               eq(
@@ -136,6 +154,7 @@ export const loadProductionBoardProjection = async (
                 laundryProduction.productionBatchOrders.productionBatchId,
                 batchIds,
               ),
+              eq(laundryProduction.productionOrders.resolutionState, 'open'),
             ),
           ),
     batchIds.length === 0

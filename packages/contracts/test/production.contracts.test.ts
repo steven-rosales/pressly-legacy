@@ -9,6 +9,9 @@ import {
   advanceProductionStageResultSchema,
   completeStageCommandSchema,
   completeStageRequestSchema,
+  changeProductionOrderResolutionCommandSchema,
+  changeProductionOrderResolutionRequestSchema,
+  changeProductionOrderResolutionResultSchema,
   confirmProductionOrderOvertimeCommandSchema,
   confirmProductionOrderOvertimeResultSchema,
   createProductionShiftCommandSchema,
@@ -31,6 +34,7 @@ import {
   productionBootstrapResultSchema,
   productionDemandOutlookSchema,
   productionLocationSchema,
+  productionLiveAutomaticPlacementSchema,
   productionOrderListItemSchema,
   productionOrderSummarySchema,
   productionRunCommandSchema,
@@ -79,6 +83,116 @@ const ids = {
 
 const locationId = 'location-main';
 const now = '2026-07-12T14:00:00.000Z';
+
+describe('production order resolution contracts', () => {
+  it('accepts explicit resolve and restore commands', () => {
+    expect(
+      changeProductionOrderResolutionCommandSchema.parse({
+        locationId,
+        orderId: ids.order,
+        action: 'resolve_without_production',
+        reason: 'completed_outside_pressly',
+        expectedVersion: 4,
+        idempotencyKey: 'resolve-order-123',
+      }),
+    ).toEqual({
+      locationId,
+      orderId: ids.order,
+      action: 'resolve_without_production',
+      reason: 'completed_outside_pressly',
+      note: null,
+      confirmReviewedFacts: false,
+      expectedVersion: 4,
+      idempotencyKey: 'resolve-order-123',
+    });
+
+    expect(
+      changeProductionOrderResolutionCommandSchema.safeParse({
+        locationId,
+        orderId: ids.order,
+        action: 'restore',
+        reason: 'manager_correction',
+        note: 'This work belongs on the floor.',
+        expectedVersion: 5,
+        idempotencyKey: 'restore-order-123',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('keeps route identifiers out of request bodies and rejects unknown reasons', () => {
+    expect(
+      changeProductionOrderResolutionRequestSchema.safeParse({
+        action: 'resolve_without_production',
+        reason: 'source_says_completed',
+        expectedVersion: 4,
+        idempotencyKey: 'resolve-order-123',
+      }).success,
+    ).toBe(false);
+    expect(
+      changeProductionOrderResolutionRequestSchema.safeParse({
+        locationId,
+        orderId: ids.order,
+        action: 'restore',
+        reason: 'manager_correction',
+        expectedVersion: 5,
+        idempotencyKey: 'restore-order-123',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('requires a meaningful note for other resolve and restore reasons', () => {
+    for (const action of ['resolve_without_production', 'restore'] as const) {
+      expect(
+        changeProductionOrderResolutionCommandSchema.safeParse({
+          locationId,
+          orderId: ids.order,
+          action,
+          reason: 'other',
+          note: null,
+          ...(action === 'resolve_without_production'
+            ? { confirmReviewedFacts: false }
+            : {}),
+          expectedVersion: 4,
+          idempotencyKey: `resolution-other-${action}`,
+        }).success,
+      ).toBe(false);
+      expect(
+        changeProductionOrderResolutionRequestSchema.safeParse({
+          action,
+          reason: 'other',
+          note: 'Manager explained the exceptional resolution.',
+          ...(action === 'resolve_without_production'
+            ? { confirmReviewedFacts: false }
+            : {}),
+          expectedVersion: 4,
+          idempotencyKey: `resolution-other-${action}`,
+        }).success,
+      ).toBe(true);
+    }
+  });
+
+  it('returns only the sanitized transition outcome', () => {
+    expect(
+      changeProductionOrderResolutionResultSchema.parse({
+        locationId,
+        orderId: ids.order,
+        action: 'resolve_without_production',
+        resolutionState: 'resolved_without_production',
+        transitionedAt: now,
+        version: 5,
+        replayed: false,
+      }),
+    ).toEqual({
+      locationId,
+      orderId: ids.order,
+      action: 'resolve_without_production',
+      resolutionState: 'resolved_without_production',
+      transitionedAt: now,
+      version: 5,
+      replayed: false,
+    });
+  });
+});
 
 const schedulerCommand = {
   locationId,
@@ -814,6 +928,7 @@ describe('production discovery and intake contracts', () => {
       activeRuns: [],
       orders: [],
       pendingEligibleOrders: [],
+      liveRunChanges: null,
       demandOutlook: null,
       board: null,
       stations: [],
@@ -821,6 +936,33 @@ describe('production discovery and intake contracts', () => {
       asOf: now,
     };
     expect(productionWorkspaceSchema.parse(workspace)).toEqual(workspace);
+  });
+
+  it('rejects a live placement projection that exceeds hard capacity', () => {
+    const placement = {
+      mode: 'automatic',
+      target: {
+        kind: 'existing_batch',
+        productionBatchId: ids.batch,
+        sequence: 1,
+      },
+      expectedBatchVersion: 3,
+      allowedActions: ['place_automatically'],
+      proposalHash: 'a'.repeat(64),
+      expectedQueueVersion: 4,
+      expectedOrderVersion: 7,
+      capacity: { beforeLbs: 200, afterLbs: 250, limitLbs: 224 },
+      projectedCompletionAt: now,
+      overtime: {
+        required: false,
+        minutes: 0,
+        shiftEndsAt: now,
+      },
+    };
+
+    expect(
+      productionLiveAutomaticPlacementSchema.safeParse(placement).success,
+    ).toBe(false);
   });
 
   it('requires a unique, versioned order selection for a production shift', () => {
@@ -862,20 +1004,17 @@ describe('production discovery and intake contracts', () => {
       readyEstimatedWeightLbs: 0,
       inProductionOrderCount: 0,
       inProductionEstimatedWeightLbs: 0,
-      reconciliationCount: 0,
       items: [
         {
           orderDemandId: ids.order,
           productionOrderId: null,
           externalOrderId: 'CENTS-1001',
           phase: 'expected',
-          sourceStatusCode: 'SUBMITTED',
           dueAt: '2026-07-12T20:00:00.000Z',
           estimatedWeightLbs: 42,
           readiness: 'not_admitted',
           productionStatus: null,
           bagCount: null,
-          reconciliation: 'none',
         },
       ],
       forecast: {

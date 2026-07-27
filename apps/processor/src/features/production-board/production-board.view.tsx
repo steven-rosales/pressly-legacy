@@ -9,6 +9,8 @@ import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import {
   IconAlertTriangle,
+  IconArrowRight,
+  IconCalendarPlus,
   IconCheck,
   IconClock,
   IconHistory,
@@ -18,7 +20,6 @@ import {
   IconRefresh,
   IconScale,
   IconStack2,
-  IconWand,
 } from "@tabler/icons-react"
 import type { ProductionMachine, StageRun } from "@pressly/contracts"
 import {
@@ -60,11 +61,9 @@ import {
 } from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { cn } from "@/components/ui/class-names"
 import { EarlyStageStartDialog } from "./early-stage-start-dialog.view"
 import { FloorProgressReconciliationSheet } from "./floor-progress-reconciliation.view"
-import { presentPlacementFailure } from "./production-board.error.presenter"
 import {
   useProductionBoardModel,
   type ProductionBoardModelInput,
@@ -74,7 +73,6 @@ import {
   formatMoment,
   formatStageWindow,
   localeForLanguage,
-  presentPendingPlacementMessage,
   presentStage,
   productionStages,
   selectDefaultStage,
@@ -330,7 +328,10 @@ function StageCard({
 
 export function ProductionBoardWorkspace({
   ...input
-}: ProductionBoardModelInput) {
+}: ProductionBoardModelInput &
+  Readonly<{
+    onOpenSchedule?: (productionShiftId: string) => void
+  }>) {
   const { t, i18n } = useTranslation()
   const locale = localeForLanguage(i18n.resolvedLanguage)
   const {
@@ -354,12 +355,7 @@ export function ProductionBoardWorkspace({
     selectedMachineIds,
     toggleMachine,
     assignMachines,
-    exactBatchSelections,
     mutateMembership,
-    retryAutomaticPlacement,
-    selectExactBatch,
-    placeOrderExactly,
-    confirmOvertime,
     openFloorProgress,
     closeFloorProgress,
     reconcileFloorProgress,
@@ -662,186 +658,38 @@ export function ProductionBoardWorkspace({
       />
 
       {board.eligibleOrders.length > 0 && (
-        <Card className="border-warning-foreground/20 bg-background">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle>{t("production.pendingArrivals")}</CardTitle>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {t("production.pendingDescription")}
-                </p>
-              </div>
-              <Badge variant="secondary">{board.eligibleOrders.length}</Badge>
+        <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div
+              className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-background text-muted-foreground shadow-xs ring-1 ring-border [&_svg]:size-4"
+              aria-hidden="true"
+            >
+              <IconCalendarPlus />
             </div>
-          </CardHeader>
-          <CardContent className="divide-y rounded-lg border p-0">
-            {board.eligibleOrders.map((order) => {
-              const confirmation =
-                order.placement.status === "confirmation_required" &&
-                order.placement.productionRunId === board.productionRun.id
-                  ? order.placement
-                  : undefined
-              const mutableBatches = board.batches.filter(
-                (batch) =>
-                  batch.status === "queued" &&
-                  batch.membership.state === "mutable"
-              )
-              return (
-                <div key={order.id} className="flex flex-col gap-3 p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="min-w-48 flex-1">
-                      <p className="font-medium">
-                        {t("production.order", {
-                          orderId: order.externalOrderId,
-                        })}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {t("production.orderDetail", {
-                          weight: order.derivedWeightLbs,
-                          bags: t("common.bags", { count: order.bagCount }),
-                          priority: order.priority
-                            ? t("production.prioritySuffix")
-                            : "",
-                        })}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      className="h-11"
-                      disabled={mutationsDisabled || !input.canManage}
-                      onClick={() => void retryAutomaticPlacement(order)}
-                    >
-                      <IconWand data-icon="inline-start" />
-                      {t("production.addToRun")}
-                    </Button>
-                  </div>
-                  {(order.placement.status === "awaiting_run" ||
-                    order.placement.status === "ambiguous_run") && (
-                    <Alert>
-                      <IconAlertTriangle />
-                      <AlertTitle>
-                        {order.placement.status === "ambiguous_run"
-                          ? t("production.runSelectionRequired")
-                          : t("production.placementPending")}
-                      </AlertTitle>
-                      <AlertDescription>
-                        {presentPendingPlacementMessage(order.placement, t)}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {order.placement.status === "not_placed" && (
-                    <Alert>
-                      <IconAlertTriangle />
-                      <AlertTitle>
-                        {t("production.automaticAttention")}
-                      </AlertTitle>
-                      <AlertDescription>
-                        {presentPlacementFailure(order.placement.reason, t)}
-                        {order.placement.preview !== null && (
-                          <span className="mt-1 block text-sm">
-                            {t("production.lastProposal", {
-                              queue: order.placement.preview.queueVersion,
-                              finish: formatMoment(
-                                order.placement.preview.projectedCompletionAt,
-                                board.asOf,
-                                input.timezone,
-                                locale
-                              ),
-                            })}
-                          </span>
-                        )}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {order.placement.status === "confirmation_required" &&
-                    order.placement.productionRunId !==
-                      board.productionRun.id && (
-                      <Alert>
-                        <IconAlertTriangle />
-                        <AlertTitle>{t("production.anotherRun")}</AlertTitle>
-                        <AlertDescription>
-                          {t("production.anotherRunDescription")}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  {input.canManage && mutableBatches.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <NativeSelect
-                        className="min-w-48 flex-1 [&_[data-slot=native-select]]:h-11"
-                        aria-label={t("production.exactBatchAria", {
-                          orderId: order.externalOrderId,
-                        })}
-                        disabled={mutationsDisabled}
-                        value={exactBatchSelections[order.id] ?? ""}
-                        onChange={(event) =>
-                          selectExactBatch(order.id, event.target.value)
-                        }
-                      >
-                        <NativeSelectOption value="" disabled>
-                          {t("production.chooseExactBatch")}
-                        </NativeSelectOption>
-                        {mutableBatches.map((batch) => (
-                          <NativeSelectOption key={batch.id} value={batch.id}>
-                            {t("production.batch", {
-                              number: batch.sequence + 1,
-                            })}{" "}
-                            {"·"} {batch.derivedWeightLbs}/
-                            {batch.pulseCapacityLbs} lb
-                          </NativeSelectOption>
-                        ))}
-                      </NativeSelect>
-                      <Button
-                        variant="secondary"
-                        className="h-11"
-                        disabled={
-                          mutationsDisabled ||
-                          exactBatchSelections[order.id] === undefined
-                        }
-                        onClick={() => void placeOrderExactly(order)}
-                      >
-                        {t("production.placeExactly")}
-                      </Button>
-                    </div>
-                  )}
-                  {confirmation !== undefined && (
-                    <Alert className="border-warning-foreground/20 bg-warning text-warning-foreground">
-                      <IconAlertTriangle />
-                      <AlertTitle>
-                        {t("production.overtimeRequired")}
-                      </AlertTitle>
-                      <AlertDescription className="flex flex-col items-start gap-2">
-                        <span>
-                          {t("production.overtimeDetail", {
-                            minutes: confirmation.overtimeMinutes,
-                            finish: formatMoment(
-                              confirmation.projectedCompletionAt,
-                              board.asOf,
-                              input.timezone,
-                              locale
-                            ),
-                          })}
-                        </span>
-                        {input.canManage ? (
-                          <Button
-                            className="h-11"
-                            disabled={mutationsDisabled}
-                            onClick={() => void confirmOvertime(order)}
-                          >
-                            {t("production.confirmOvertime")}
-                          </Button>
-                        ) : (
-                          <span>{t("production.managerApproval")}</span>
-                        )}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              )
-            })}
-          </CardContent>
-        </Card>
+            <div className="min-w-0">
+              <p className="font-medium">
+                {t("production.readyForSchedule", {
+                  count: board.eligibleOrders.length,
+                })}
+              </p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {t("production.readyForScheduleDescription")}
+              </p>
+            </div>
+          </div>
+          {input.onOpenSchedule !== undefined && (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full shrink-0 sm:w-auto"
+              onClick={() => input.onOpenSchedule?.(board.productionShift.id)}
+            >
+              {t("production.reviewInSchedule")}
+              <IconArrowRight data-icon="inline-end" />
+            </Button>
+          )}
+        </div>
       )}
-
       {board.batches.length > 0 && (
         <Card className="bg-background">
           <CardHeader>

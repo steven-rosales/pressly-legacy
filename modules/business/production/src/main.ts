@@ -17,6 +17,10 @@ import { makeChangeProductionAdmission } from './change-production-admission/cha
 import { makeChangeProductionAdmissionRoute } from './change-production-admission/change-production-admission.route.ts';
 import { makeChangeProductionAdmissionRepository } from './change-production-admission/change-production-admission.repo.ts';
 import type { ChangeProductionAdmissionRepository } from './change-production-admission/change-production-admission.port.ts';
+import { makeChangeProductionOrderResolution } from './change-production-order-resolution/change-production-order-resolution.usecase.ts';
+import { makeChangeProductionOrderResolutionRoute } from './change-production-order-resolution/change-production-order-resolution.route.ts';
+import { makeChangeProductionOrderResolutionRepository } from './change-production-order-resolution/change-production-order-resolution.repo.ts';
+import type { ChangeProductionOrderResolutionRepository } from './change-production-order-resolution/change-production-order-resolution.port.ts';
 import { makeCreateSchedule } from './create-schedule/create-schedule.usecase.ts';
 import { makeCreateScheduleRoute } from './create-schedule/create-schedule.route.ts';
 import { makeCreateScheduleRepository } from './create-schedule/create-schedule.repo.ts';
@@ -49,6 +53,10 @@ import { makeLoadProductionWorkspace } from './load-production-workspace/load-pr
 import { makeLoadProductionWorkspaceRoute } from './load-production-workspace/load-production-workspace.route.ts';
 import { makeLoadProductionWorkspaceRepository } from './load-production-workspace/load-production-workspace.repo.ts';
 import type { LoadProductionWorkspaceRepository } from './load-production-workspace/load-production-workspace.port.ts';
+import { makeLoadRemainingDayForecast } from './load-remaining-day-forecast/load-remaining-day-forecast.usecase.ts';
+import { makeLoadRemainingDayForecastRoute } from './load-remaining-day-forecast/load-remaining-day-forecast.route.ts';
+import { makeLoadRemainingDayForecastRepository } from './load-remaining-day-forecast/load-remaining-day-forecast.repo.ts';
+import type { LoadRemainingDayForecast } from './load-remaining-day-forecast/load-remaining-day-forecast.port.ts';
 import { makeManageBatchMembership } from './manage-batch-membership/manage-batch-membership.usecase.ts';
 import { makeManageBatchMembershipRoute } from './manage-batch-membership/manage-batch-membership.route.ts';
 import { makeManageBatchMembershipRepository } from './manage-batch-membership/manage-batch-membership.repo.ts';
@@ -73,6 +81,7 @@ import type { PlaceProductionOrderRepository } from './place-production-order/pl
 import type {
   ClockPort,
   IdPort,
+  ProductionApplicationSchedulerPort,
   ProductionPolicyPort,
   ProductionSignalsPort,
   ProductionSchedulerPort,
@@ -86,6 +95,13 @@ import { makeRecordOrderIntake } from './record-order-intake/record-order-intake
 import { makeRecordOrderIntakeRoute } from './record-order-intake/record-order-intake.route.ts';
 import { makeRecordOrderIntakeRepository } from './record-order-intake/record-order-intake.repo.ts';
 import type { RecordOrderIntakeRepository } from './record-order-intake/record-order-intake.port.ts';
+import { makeReviewProductionOrderBacklogRepository } from './review-production-order-backlog/review-production-order-backlog.repo.ts';
+import { makeReviewProductionOrderBacklogRoutes } from './review-production-order-backlog/review-production-order-backlog.route.ts';
+import {
+  makeCommitProductionOrderBacklog,
+  makePreviewProductionOrderBacklog,
+} from './review-production-order-backlog/review-production-order-backlog.usecase.ts';
+import type { ReviewProductionOrderBacklogRepository } from './review-production-order-backlog/review-production-order-backlog.port.ts';
 import { makeReplaceShiftOrderSelection } from './replace-shift-order-selection/replace-shift-order-selection.usecase.ts';
 import { makeReplaceShiftOrderSelectionRoute } from './replace-shift-order-selection/replace-shift-order-selection.route.ts';
 import { makeReplaceShiftOrderSelectionRepository } from './replace-shift-order-selection/replace-shift-order-selection.repo.ts';
@@ -116,6 +132,7 @@ export type ProductionRepositories = Readonly<{
   advanceProductionStage: AdvanceProductionStageRepository;
   assignStageMachines: AssignStageMachinesRepository;
   changeProductionAdmission: ChangeProductionAdmissionRepository;
+  changeProductionOrderResolution: ChangeProductionOrderResolutionRepository;
   createSchedule: CreateScheduleRepository;
   listProductionLocations: ListProductionLocationsRepository;
   listProductionOrders: ListProductionOrdersRepository;
@@ -130,6 +147,7 @@ export type ProductionRepositories = Readonly<{
   placeProductionOrder: PlaceProductionOrderRepository;
   publishSchedulerConfig: PublishSchedulerConfigRepository;
   recordOrderIntake: RecordOrderIntakeRepository;
+  reviewProductionOrderBacklog: ReviewProductionOrderBacklogRepository;
   replaceShiftOrderSelection: ReplaceShiftOrderSelectionRepository;
   routeProductionOrder: RouteProductionOrderRepository;
   reconcileProductionBatchProgress: ReconcileProductionBatchProgressRepository;
@@ -241,18 +259,26 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
       repo: deps.repositories.manageProductionShift,
       clock: deps.clock,
       ids: deps.ids,
+      policy: deps.policy,
     }),
     updateProductionShift: makeUpdateProductionShift({
       repo: deps.repositories.manageProductionShift,
       clock: deps.clock,
+      policy: deps.policy,
       signals,
     }),
     setProductionOrderPriority: makeSetProductionOrderPriority({
       repo: deps.repositories.setProductionOrderPriority,
       clock: deps.clock,
+      policy: deps.policy,
     }),
     changeProductionAdmission: makeChangeProductionAdmission({
       repo: deps.repositories.changeProductionAdmission,
+      policy: deps.policy,
+      clock: deps.clock,
+    }),
+    changeProductionOrderResolution: makeChangeProductionOrderResolution({
+      repo: deps.repositories.changeProductionOrderResolution,
       policy: deps.policy,
       clock: deps.clock,
     }),
@@ -308,9 +334,21 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
       policy: deps.policy,
       clock: deps.clock,
     }),
+    previewProductionOrderBacklog: makePreviewProductionOrderBacklog({
+      repo: deps.repositories.reviewProductionOrderBacklog,
+      policy: deps.policy,
+      clock: deps.clock,
+    }),
+    commitProductionOrderBacklog: makeCommitProductionOrderBacklog({
+      repo: deps.repositories.reviewProductionOrderBacklog,
+      policy: deps.policy,
+      clock: deps.clock,
+      ids: deps.ids,
+    }),
     replaceShiftOrderSelection: makeReplaceShiftOrderSelection({
       repo: deps.repositories.replaceShiftOrderSelection,
       clock: deps.clock,
+      policy: deps.policy,
       signals,
     }),
     routeProductionOrder: makeRouteProductionOrder({
@@ -339,6 +377,9 @@ export type ProductionApplication = ReturnType<
   typeof makeProductionApplication
 >;
 
+export type ProductionHttpApplication = ProductionApplication &
+  Readonly<{ loadRemainingDayForecast: LoadRemainingDayForecast }>;
+
 export type ProductionRouteSecurity = Readonly<{
   authenticate: RequestHandler;
   read: RequestHandler;
@@ -357,7 +398,7 @@ export type ProductionRouteSecurity = Readonly<{
 }>;
 
 export const makeProductionRoutes = (input: {
-  application: ProductionApplication;
+  application: ProductionHttpApplication;
   security: ProductionRouteSecurity;
 }): Router => {
   const routes = Router();
@@ -398,6 +439,13 @@ export const makeProductionRoutes = (input: {
   routes.use(
     makeLoadProductionWorkspaceRoute({
       loadWorkspace: input.application.loadProductionWorkspace,
+      authenticate: input.security.authenticate,
+      authorize: input.security.read,
+    }),
+  );
+  routes.use(
+    makeLoadRemainingDayForecastRoute({
+      loadForecast: input.application.loadRemainingDayForecast,
       authenticate: input.security.authenticate,
       authorize: input.security.read,
     }),
@@ -444,6 +492,23 @@ export const makeProductionRoutes = (input: {
       changeAdmission: input.application.changeProductionAdmission,
       authenticate: input.security.authenticate,
       authorize: input.security.admission,
+      ...actor,
+    }),
+  );
+  routes.use(
+    makeChangeProductionOrderResolutionRoute({
+      changeResolution: input.application.changeProductionOrderResolution,
+      authenticate: input.security.authenticate,
+      authorize: input.security.override,
+      ...actor,
+    }),
+  );
+  routes.use(
+    makeReviewProductionOrderBacklogRoutes({
+      preview: input.application.previewProductionOrderBacklog,
+      commit: input.application.commitProductionOrderBacklog,
+      authenticate: input.security.authenticate,
+      authorize: input.security.override,
       ...actor,
     }),
   );
@@ -544,10 +609,18 @@ export const makeProductionRoutes = (input: {
   return routes;
 };
 
+type PostgresProductionApplicationDeps = Omit<
+  ProductionApplicationDeps,
+  'repositories' | 'scheduler'
+> & {
+  db: Database;
+  scheduler: ProductionApplicationSchedulerPort;
+};
+
 export const makePostgresProductionApplication = (
-  deps: Omit<ProductionApplicationDeps, 'repositories'> & { db: Database },
-): ProductionApplication =>
-  makeProductionApplication({
+  deps: PostgresProductionApplicationDeps,
+): ProductionHttpApplication => {
+  const application = makeProductionApplication({
     ...deps,
     repositories: {
       acceptSchedule: makeAcceptScheduleRepository(deps),
@@ -555,6 +628,8 @@ export const makePostgresProductionApplication = (
       advanceProductionStage: makeAdvanceProductionStageRepository(deps),
       assignStageMachines: makeAssignStageMachinesRepository(deps),
       changeProductionAdmission: makeChangeProductionAdmissionRepository(deps),
+      changeProductionOrderResolution:
+        makeChangeProductionOrderResolutionRepository(deps),
       createSchedule: makeCreateScheduleRepository(deps),
       listProductionLocations: makeListProductionLocationsRepository(deps.db),
       listProductionOrders: makeListProductionOrdersRepository(deps.db),
@@ -572,6 +647,8 @@ export const makePostgresProductionApplication = (
       placeProductionOrder: makePlaceProductionOrderRepository(deps),
       publishSchedulerConfig: makePublishSchedulerConfigRepository(deps),
       recordOrderIntake: makeRecordOrderIntakeRepository(deps),
+      reviewProductionOrderBacklog:
+        makeReviewProductionOrderBacklogRepository(deps),
       replaceShiftOrderSelection:
         makeReplaceShiftOrderSelectionRepository(deps),
       routeProductionOrder: makeRouteProductionOrderRepository(deps),
@@ -582,13 +659,22 @@ export const makePostgresProductionApplication = (
       startSchedule: makeStartScheduleRepository(deps),
     },
   });
+  return {
+    ...application,
+    loadRemainingDayForecast: makeLoadRemainingDayForecast({
+      repo: makeLoadRemainingDayForecastRepository(deps.db),
+      clock: deps.clock,
+      policy: deps.policy,
+      project: deps.scheduler.projectRemainingDayForecast,
+    }),
+  };
+};
 
 export const makePostgresProductionModule = (
-  deps: Omit<ProductionApplicationDeps, 'repositories'> & {
-    db: Database;
+  deps: PostgresProductionApplicationDeps & {
     security: ProductionRouteSecurity;
   },
-): Readonly<{ application: ProductionApplication; routes: Router }> => {
+): Readonly<{ application: ProductionHttpApplication; routes: Router }> => {
   const application = makePostgresProductionApplication(deps);
   return {
     application,

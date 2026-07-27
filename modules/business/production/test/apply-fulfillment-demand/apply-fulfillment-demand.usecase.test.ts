@@ -282,4 +282,55 @@ describe('canonical fulfillment demand', () => {
       { commercialState: 'completed', admissionState: 'released' },
     ]);
   });
+
+  it('retains newer source truth without reopening resolved Production work', async () => {
+    const { application, memory } = setup();
+    await application.applyFulfillmentDemand(command());
+    const created = [...memory.inspect().orders.values()][0]!;
+
+    await expect(
+      application.changeProductionOrderResolution({
+        locationId: 'location-1',
+        orderId: created.id,
+        action: 'resolve_without_production',
+        reason: 'processor_not_in_use',
+        note: null,
+        confirmReviewedFacts: false,
+        expectedVersion: created.version,
+        idempotencyKey: 'resolve-before-source-update',
+        actorId: '00000000-0000-4000-8000-000000009001',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: { resolutionState: 'resolved_without_production' },
+    });
+    const resolved = memory.inspect().orders.get(created.id)!;
+
+    await expect(
+      application.applyFulfillmentDemand(
+        command({
+          fulfillmentVersion: 3,
+          observedAt: '2026-07-10T14:01:00.000Z',
+          projectionHash: 'b'.repeat(64),
+          admissionState: 'released',
+          commercialState: 'completed',
+          bagCount: 2,
+          idempotencyKey: 'newer-source-after-resolution',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      tag: 'ok',
+      value: { outcome: 'applied' },
+    });
+
+    expect(memory.inspect().orders.get(created.id)).toEqual(resolved);
+    expect([...memory.inspect().demands.values()]).toMatchObject([
+      {
+        fulfillmentVersion: 3,
+        admissionState: 'released',
+        commercialState: 'completed',
+        productionResolutionState: 'resolved_without_production',
+      },
+    ]);
+  });
 });

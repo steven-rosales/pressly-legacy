@@ -110,7 +110,6 @@ pressly/
       access-control/ authorization policy module
       production/     headless production invariants and transitions
     computation/
-      order-control/  source-versus-floor comparison projection
       scheduling/     deterministic fixed-pulse schedule proposals
 
   packages/
@@ -744,11 +743,13 @@ Cents HTTP -> webhook inbox -> Worker vendor adapter
 
 Production owns physical-production rules and has no knowledge of Cents, HTTP
 webhooks, inbox receipts, or worker leases. The Processor read composition joins
-typed Users, Orders, and Production facts, then delegates source-versus-floor
-comparison to `modules/computation/order-control`; it never parses archived
-vendor JSON. Modules remain isolated peers and never import or declare package
-dependencies on one another. API and worker applications are the only places
-that connect their public ports.
+typed Users, Orders, and Production facts. It may expose the latest typed source
+observation as read-only audit context, while canonical attention and allowed
+actions come from Pressly policy. It never turns a source-versus-Pressly
+lifecycle difference into floor work or parses archived vendor JSON. Modules
+remain isolated peers and never import or declare package dependencies on one
+another. API and worker applications are the only places that connect their
+public ports.
 
 The current Orders application deliberately supports exactly one fulfillment
 per Order. The relational schema retains a one-to-many shape for future order

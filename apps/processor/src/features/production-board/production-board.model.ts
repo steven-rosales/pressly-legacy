@@ -7,8 +7,6 @@ import type {
   ProductionBatchProgressReconciliationConfirmationRequiredResult,
   ProductionBoard,
   ProductionMachine,
-  ProductionOrderPlacementResult,
-  ProductionPendingOrder,
   ProductionStageCompletionConfirmationRequiredResult,
   ProductionStageStartConfirmationRequiredResult,
   StageRun,
@@ -16,10 +14,7 @@ import type {
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import type { FloorProgressDraft } from "./floor-progress.presenter"
-import {
-  presentPlacementFailure,
-  presentProductionBoardError,
-} from "./production-board.error.presenter"
+import { presentProductionBoardError } from "./production-board.error.presenter"
 
 export type ProductionBoardModelInput = Readonly<{
   production: ProductionPort
@@ -78,9 +73,6 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
   } | null>(null)
   const [machineSelections, setMachineSelections] = useState<
     Record<string, readonly string[]>
-  >({})
-  const [exactBatchSelections, setExactBatchSelections] = useState<
-    Record<string, string>
   >({})
   const previousInitialBoard = useRef(input.initialBoard)
   const acceptBoard = useCallback((next: ProductionBoard) => {
@@ -405,140 +397,6 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     }
   }
 
-  const finishPlacement = async (
-    order: ProductionPendingOrder,
-    result: ProductionOrderPlacementResult
-  ) => {
-    await refresh()
-    if (result.status === "confirmation_required") {
-      setAnnouncement(
-        t("production.orderNeedsOvertime", {
-          orderId: order.externalOrderId,
-        })
-      )
-      return
-    }
-
-    if (result.status === "not_placed")
-      setError(presentPlacementFailure(result.reason, t))
-    else {
-      setExactBatchSelections((current) => {
-        const next = { ...current }
-        delete next[order.id]
-        return next
-      })
-      setAnnouncement(
-        t("production.orderPlaced", { orderId: order.externalOrderId })
-      )
-    }
-  }
-
-  const retryAutomaticPlacement = async (order: ProductionPendingOrder) => {
-    if (board === null) return
-    setBusyId(order.id)
-    setError(null)
-    try {
-      const result = await input.production.retryAutomaticPlacement({
-        locationId: input.locationId,
-        productionRunId: board.productionRun.id,
-        productionOrderId: order.id,
-        expectedQueueVersion: board.productionRun.queueVersion,
-        idempotencyKey: await input.idempotency.key({
-          operation: "retry-automatic-placement",
-          payload: {
-            productionRunId: board.productionRun.id,
-            productionOrderId: order.id,
-            expectedQueueVersion: board.productionRun.queueVersion,
-          },
-        }),
-      })
-      await finishPlacement(order, result)
-    } catch (cause) {
-      await refresh()
-      setError(presentProductionBoardError(cause, "placement", t))
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  const selectExactBatch = (orderId: string, batchId: string) =>
-    setExactBatchSelections((current) => ({
-      ...current,
-      [orderId]: batchId,
-    }))
-
-  const placeOrderExactly = async (order: ProductionPendingOrder) => {
-    if (board === null) return
-    const productionBatchId = exactBatchSelections[order.id]
-    const batch = board.batches.find(
-      (candidate) => candidate.id === productionBatchId
-    )
-    if (batch === undefined) {
-      setError(t("production.chooseMutableBatch"))
-      return
-    }
-    setBusyId(order.id)
-    setError(null)
-    try {
-      const result = await input.production.placeOrderExactly({
-        locationId: input.locationId,
-        productionRunId: board.productionRun.id,
-        productionOrderId: order.id,
-        productionBatchId: batch.id,
-        expectedQueueVersion: board.productionRun.queueVersion,
-        expectedBatchVersion: batch.version,
-        idempotencyKey: await input.idempotency.key({
-          operation: "place-production-order-exactly",
-          payload: {
-            productionRunId: board.productionRun.id,
-            productionOrderId: order.id,
-            productionBatchId: batch.id,
-            expectedQueueVersion: board.productionRun.queueVersion,
-            expectedBatchVersion: batch.version,
-          },
-        }),
-      })
-      await finishPlacement(order, result)
-    } catch (cause) {
-      await refresh()
-      setError(presentProductionBoardError(cause, "placement", t))
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  const confirmOvertime = async (order: ProductionPendingOrder) => {
-    if (board === null) return
-    const confirmation = order.placement
-    if (confirmation.status !== "confirmation_required") return
-    setBusyId(order.id)
-    setError(null)
-    try {
-      const result = await input.production.confirmPlacementOvertime({
-        locationId: input.locationId,
-        productionRunId: board.productionRun.id,
-        productionOrderId: order.id,
-        expectedQueueVersion: confirmation.queueVersion,
-        proposalHash: confirmation.proposalHash,
-        idempotencyKey: await input.idempotency.key({
-          operation: "confirm-placement-overtime",
-          payload: {
-            productionRunId: board.productionRun.id,
-            productionOrderId: order.id,
-            expectedQueueVersion: confirmation.queueVersion,
-            proposalHash: confirmation.proposalHash,
-          },
-        }),
-      })
-      await finishPlacement(order, result)
-    } catch (cause) {
-      await refresh()
-      setError(presentProductionBoardError(cause, "overtime", t))
-    } finally {
-      setBusyId(null)
-    }
-  }
-
   const finishFloorProgress = async (
     batchSequence: number,
     result: Extract<
@@ -681,7 +539,6 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
         : floorProgressConfirmation.result,
     totalLbs,
     completedStages,
-    exactBatchSelections,
     refresh,
     act,
     confirmEarlyStart,
@@ -692,10 +549,6 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     toggleMachine,
     assignMachines,
     mutateMembership,
-    retryAutomaticPlacement,
-    selectExactBatch,
-    placeOrderExactly,
-    confirmOvertime,
     openFloorProgress: () => {
       setFloorProgressError(null)
       setFloorProgressConfirmation(null)

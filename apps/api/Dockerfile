@@ -25,7 +25,6 @@ COPY modules/business/pricing/package.json modules/business/pricing/package.json
 COPY modules/business/production/package.json modules/business/production/package.json
 COPY modules/business/webhook-ingestion/package.json modules/business/webhook-ingestion/package.json
 COPY modules/policy/production/package.json modules/policy/production/package.json
-COPY modules/computation/order-control/package.json modules/computation/order-control/package.json
 COPY modules/computation/scheduling/package.json modules/computation/scheduling/package.json
 COPY packages/auth/package.json packages/auth/package.json
 COPY packages/config/package.json packages/config/package.json

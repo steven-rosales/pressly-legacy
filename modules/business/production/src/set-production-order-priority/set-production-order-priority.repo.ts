@@ -18,6 +18,23 @@ export const makeSetProductionOrderPriorityRepository = (deps: {
     findWorkEvent: (idempotencyKey) => findWorkEvent(db, idempotencyKey),
     lockLocationScheduling: (locationId) =>
       lockLocationScheduling(db, locationId),
+    lockPriorityOrder: async (locationId, productionOrderId) => {
+      const [order] = await db
+        .select({
+          version: laundryProduction.productionOrders.version,
+          resolutionState: laundryProduction.productionOrders.resolutionState,
+        })
+        .from(laundryProduction.productionOrders)
+        .where(
+          and(
+            eq(laundryProduction.productionOrders.locationId, locationId),
+            eq(laundryProduction.productionOrders.id, productionOrderId),
+          ),
+        )
+        .limit(1)
+        .for('update');
+      return order ?? null;
+    },
     setOrderPriority: async ({
       locationId,
       productionOrderId,
@@ -33,6 +50,7 @@ export const makeSetProductionOrderPriorityRepository = (deps: {
             eq(laundryProduction.productionOrders.locationId, locationId),
             eq(laundryProduction.productionOrders.id, productionOrderId),
             eq(laundryProduction.productionOrders.version, expectedVersion),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
           ),
         )
         .returning({

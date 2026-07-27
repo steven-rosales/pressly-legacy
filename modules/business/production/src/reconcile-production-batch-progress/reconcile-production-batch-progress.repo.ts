@@ -2,6 +2,7 @@ import {
   and,
   asc,
   eq,
+  inArray,
   laundryProduction,
   type Database,
   type DatabaseExecutor,
@@ -32,6 +33,14 @@ const stageStatus = (value: string): ReconciliationStage['status'] => {
   if (value === 'planned' || value === 'started' || value === 'completed')
     return value;
   throw new Error(`Unknown production stage status: ${value}.`);
+};
+
+const attemptStatus = (
+  value: string,
+): ReconciliationContext['attempts'][number]['status'] => {
+  if (value === 'assigned' || value === 'completed' || value === 'released')
+    return value;
+  throw new Error(`Unknown order-stage attempt status: ${value}.`);
 };
 
 export const makeReconcileProductionBatchProgressRepository = (deps: {
@@ -70,6 +79,17 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
         .limit(1)
         .for('update');
       if (batch === undefined) return null;
+      const [shift] = await db
+        .select({ status: laundryProduction.productionShifts.status })
+        .from(laundryProduction.productionShifts)
+        .where(
+          and(
+            eq(laundryProduction.productionShifts.locationId, locationId),
+            eq(laundryProduction.productionShifts.id, run.productionShiftId),
+          ),
+        )
+        .limit(1);
+      if (shift === undefined) return null;
 
       const stageRows = await db
         .select()
@@ -86,6 +106,74 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
         .orderBy(asc(laundryProduction.stageRuns.plannedStartAt))
         .for('update');
       const stageIds = stageRows.map((stage) => stage.id);
+      const attemptRows =
+        stageIds.length === 0
+          ? []
+          : await db
+              .select({
+                id: laundryProduction.productionOrderStageAttempts.id,
+                stageRunId:
+                  laundryProduction.productionOrderStageAttempts.stageRunId,
+                status: laundryProduction.productionOrderStageAttempts.status,
+              })
+              .from(laundryProduction.productionOrderStageAttempts)
+              .where(
+                and(
+                  eq(
+                    laundryProduction.productionOrderStageAttempts.locationId,
+                    locationId,
+                  ),
+                  inArray(
+                    laundryProduction.productionOrderStageAttempts.stageRunId,
+                    stageIds,
+                  ),
+                ),
+              )
+              .for('update');
+      const activeMemberships = await db
+        .select({
+          productionOrderId:
+            laundryProduction.productionBatchOrders.productionOrderId,
+        })
+        .from(laundryProduction.productionBatchOrders)
+        .where(
+          and(
+            eq(laundryProduction.productionBatchOrders.locationId, locationId),
+            eq(
+              laundryProduction.productionBatchOrders.productionBatchId,
+              productionBatchId,
+            ),
+            eq(laundryProduction.productionBatchOrders.active, true),
+          ),
+        )
+        .for('update');
+      const activeOrderIds = activeMemberships.map(
+        (membership) => membership.productionOrderId,
+      );
+      const activeOrderRows =
+        activeOrderIds.length === 0
+          ? []
+          : await db
+              .select({
+                id: laundryProduction.productionOrders.id,
+                status: laundryProduction.productionOrders.operationalStatus,
+                executionStatus:
+                  laundryProduction.productionOrders.executionStatus,
+                resolutionState:
+                  laundryProduction.productionOrders.resolutionState,
+                version: laundryProduction.productionOrders.version,
+              })
+              .from(laundryProduction.productionOrders)
+              .where(
+                and(
+                  eq(laundryProduction.productionOrders.locationId, locationId),
+                  inArray(
+                    laundryProduction.productionOrders.id,
+                    activeOrderIds,
+                  ),
+                ),
+              )
+              .for('update');
 
       const [
         activeStageRows,
@@ -175,6 +263,7 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
           status: run.status,
           queueVersion: run.queueVersion,
           productionShiftId: run.productionShiftId,
+          productionShiftStatus: shift.status,
         },
         batch: {
           id: batch.id,
@@ -197,6 +286,12 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
           actualEndProvenance: stage.actualEndProvenance,
           version: stage.version,
         })),
+        attempts: attemptRows.map((attempt) => ({
+          id: attempt.id,
+          stageRunId: attempt.stageRunId,
+          status: attemptStatus(attempt.status),
+        })),
+        activeOrders: activeOrderRows,
         activeStageKinds: activeStageRows
           .filter((stage) => stage.productionBatchId !== productionBatchId)
           .map((stage) => stage.stageKind),
@@ -227,7 +322,11 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
       locationId,
       context,
       projection,
+      stageLifecycles,
+      batchLifecycle,
+      attemptLifecycles,
       machineIds,
+      terminalLifecycle,
       actorId,
       now,
     }) => {
@@ -235,8 +334,7 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
         context.stages.map((stage) => [stage.stageRunId, stage.version]),
       );
 
-      for (const transition of projection.stages) {
-        if (transition.currentStatus === transition.nextStatus) continue;
+      for (const transition of stageLifecycles) {
         const current = context.stages.find(
           (stage) => stage.stageRunId === transition.stageRunId,
         );
@@ -246,10 +344,10 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
         const [updated] = await db
           .update(laundryProduction.stageRuns)
           .set({
-            status: transition.nextStatus,
+            status: transition.lifecycle.state,
             version: current.version + 1,
             updatedAt: now,
-            ...(transition.nextStatus === 'started'
+            ...(transition.lifecycle.state === 'started'
               ? {
                   actualStartAt: null,
                   actualStartProvenance: 'not_recorded' as const,
@@ -259,7 +357,7 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
                   actualEndAt: null,
                   actualEndProvenance: 'not_recorded' as const,
                   completedBy: actorId,
-                  ...(current.status === 'planned'
+                  ...(transition.lifecycle.from === 'planned'
                     ? {
                         actualStartAt: null,
                         actualStartProvenance: 'not_recorded' as const,
@@ -273,7 +371,7 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
               eq(laundryProduction.stageRuns.locationId, locationId),
               eq(laundryProduction.stageRuns.id, current.stageRunId),
               eq(laundryProduction.stageRuns.version, current.version),
-              eq(laundryProduction.stageRuns.status, current.status),
+              eq(laundryProduction.stageRuns.status, transition.lifecycle.from),
             ),
           )
           .returning({
@@ -284,8 +382,8 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
           throw new Error('Production stage changed during reconciliation.');
         nextVersionByStageId.set(updated.id, updated.version);
 
-        if (transition.nextStatus === 'completed') {
-          if (current.status === 'planned') {
+        if (transition.lifecycle.state === 'completed') {
+          if (transition.lifecycle.from === 'planned') {
             // A planned -> completed jump records only that the floor passed
             // this stage. The immutable schedule and stage window retain the
             // plan, but no machine use was observed, so remove the mutable
@@ -327,6 +425,9 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
           await completeAssignedOrderStageAttempts(db, {
             locationId,
             stageRunId: current.stageRunId,
+            attempts: attemptLifecycles.filter(
+              (attempt) => attempt.stageRunId === current.stageRunId,
+            ),
             actorId,
             now,
           });
@@ -376,14 +477,14 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
       const [updatedBatch] = await db
         .update(laundryProduction.productionBatches)
         .set({
-          status: projection.batchStatus,
+          status: batchLifecycle?.state ?? context.batch.status,
           version: context.batch.version + 1,
           updatedAt: now,
           ...(!context.batch.membershipFrozen
             ? { membershipFrozenAt: now, membershipFrozenBy: actorId }
             : {}),
-          ...(context.batch.status === 'queued' ? { startedAt: now } : {}),
-          ...(projection.batchStatus === 'finished' ? { finishedAt: now } : {}),
+          ...(batchLifecycle?.from === 'queued' ? { startedAt: now } : {}),
+          ...(batchLifecycle?.state === 'finished' ? { finishedAt: now } : {}),
         })
         .where(
           and(
@@ -399,7 +500,7 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
             ),
             eq(
               laundryProduction.productionBatches.status,
-              context.batch.status,
+              batchLifecycle?.from ?? context.batch.status,
             ),
           ),
         )
@@ -438,12 +539,17 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
 
       const terminalization =
         projection.batchStatus === 'finished'
-          ? await completeProductionBatch(db, {
-              locationId,
-              productionBatchId: context.batch.id,
-              productionRunId: context.run.id,
-              now,
-            })
+          ? terminalLifecycle === null
+            ? (() => {
+                throw new Error('Terminal lifecycle decisions are missing.');
+              })()
+            : await completeProductionBatch(db, {
+                locationId,
+                productionBatchId: context.batch.id,
+                productionRunId: context.run.id,
+                lifecycle: terminalLifecycle,
+                now,
+              })
           : {
               finishedOrderCount: 0,
               finishedBagCount: 0,

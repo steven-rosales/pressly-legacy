@@ -1,0 +1,130 @@
+{
+  "forecast": {
+    "workspaceTitle": "Resto del día",
+    "workspaceDescription": "Revisa el trabajo pendiente, la capacidad actual y lo que necesita otro turno para el día de servicio seleccionado.",
+    "serviceDay": "Día de servicio",
+    "serviceDayValue": "Día de servicio: {{date}}",
+    "loading": "Cargando la previsión del resto del día",
+    "summary": "Resumen del resto del día",
+    "summaryTitle": "Pendiente de hoy",
+    "loadingSummary": "Cargando el resumen del resto del día",
+    "summaryUnavailable": "La previsión del resto del día no está disponible",
+    "homeSummary": "{{orders}} pedidos · {{weight, number}} lb conocidas",
+    "missingEstimateSummary_one": "{{count}} pedido sin estimación",
+    "missingEstimateSummary_other": "{{count}} pedidos sin estimación",
+    "scheduleSummary": "{{ready}} listos para colocar · {{needsShift}} necesitan otro turno",
+    "staleSummary": "No se pudo actualizar. Se muestra la previsión actualizada el {{date}}.",
+    "openForecast": "Abrir previsión",
+    "loadFailed": "No se pudo cargar la previsión",
+    "refreshFailed": "No se pudo actualizar la previsión",
+    "unavailableTitle": "No hay una previsión disponible para el resto del día",
+    "unavailableDescription": "Vuelve a intentarlo cuando el estado actual de producción esté disponible.",
+    "window": "{{start}} – {{end}} · {{timezone}}",
+    "updated": "Actualizado {{date}}",
+    "order": "Pedido {{orderId}}",
+    "priority": "Prioridad",
+    "due": "Vence {{date}}",
+    "estimatedWeight": "{{weight, number}} lb estimadas",
+    "estimateMissing": "Estimación no disponible",
+    "bagsNotRecorded": "Recepción de bolsas sin registrar",
+    "groupWeight": "{{weight, number}} lb conocidas · {{missing}} sin estimación",
+    "groups": {
+      "inProduction": {
+        "title": "En producción",
+        "description": "Trabajo que ya avanza en la ejecución activa de producción.",
+        "empty": "No hay pedidos pendientes actualmente en producción."
+      },
+      "readyToPlace": {
+        "title": "Listos para colocar",
+        "description": "La recepción está registrada y el pedido puede añadirse al trabajo activo.",
+        "empty": "No hay pedidos pendientes listos para colocar."
+      },
+      "expectedLater": {
+        "title": "Esperados más tarde",
+        "description": "Demanda conocida que aún necesita liberación o recepción física.",
+        "empty": "No se esperan pedidos adicionales más tarde."
+      },
+      "needsShift": {
+        "title": "Necesitan otro turno",
+        "description": "Trabajo listo que no puede colocarse en la ejecución actual.",
+        "empty": "Ningún pedido pendiente necesita otro turno."
+      }
+    },
+    "capacity": {
+      "title": "Capacidad",
+      "description": "Capacidad evaluada por el servidor para el resto del día de servicio.",
+      "unknownPulse": "La capacidad por pulso no está disponible",
+      "pulse": "{{weight, number}} lb por pulso de producción",
+      "level": {
+        "clear": "Disponible",
+        "attention": "Requiere atención",
+        "unknown": "Capacidad incierta"
+      },
+      "reason": {
+        "all_ready_work_appendable": "Todo el trabajo listo puede añadirse a la ejecución activa.",
+        "needs_shift": "Parte del trabajo listo necesita otro turno.",
+        "expected_later": "Se esperan pedidos adicionales más tarde en este día de servicio.",
+        "missing_estimates": "Algunos pedidos no cuentan en los totales de peso porque no tienen estimación.",
+        "no_active_run": "No hay una ejecución activa de producción donde colocar trabajo.",
+        "ambiguous_active_run": "Más de una ejecución activa podría recibir trabajo.",
+        "no_ready_work": "No hay trabajo pendiente listo para colocar."
+      }
+    },
+    "shifts": {
+      "title": "Turnos de este día de servicio",
+      "description": "Ventanas reales de turno incluidas en esta previsión.",
+      "empty": "No hay un turno de producción disponible para este día de servicio.",
+      "status": {
+        "draft": "Borrador",
+        "open": "Abierto",
+        "closed": "Cerrado"
+      }
+    },
+    "actions": {
+      "openProduction": "Abrir Producción",
+      "recordIntake": "Abrir Recepción",
+      "releaseToProduction": "Abrir Recepción",
+      "placeInActiveRun": "Abrir Producción",
+      "reviewPlacement": "Abrir Producción",
+      "planShift": "Abrir Programación"
+    },
+    "actionReason": {
+      "already_in_production": "Este pedido ya está en producción.",
+      "awaiting_source_release": "Este pedido espera que su fuente lo libere.",
+      "missing_estimate": "Este pedido no tiene una estimación de peso utilizable."
+    },
+    "itemState": {
+      "inProduction": "En producción",
+      "readyToPlace": "Listo para colocar",
+      "awaiting_release": "Esperando liberación",
+      "awaiting_intake": "Esperando recepción",
+      "not_admitted": "Sin liberar",
+      "no_active_run": "Sin ejecución activa",
+      "ambiguous_active_run": "Ejecución por revisar",
+      "placement_rejected": "Colocación no disponible",
+      "current_run_window_exceeded": "Fuera de la ejecución actual"
+    },
+    "assumptions": {
+      "title": "Cómo funciona esta previsión",
+      "algorithm": "El trabajo listo usa colocación estable en línea.",
+      "overdue": "Se incluye el trabajo atrasado sin terminar.",
+      "intake": "La recepción física de bolsas es obligatoria antes del trabajo de piso.",
+      "wholeOrders": "Los pedidos se colocan completos.",
+      "weights": "Los pesos esperados son orientativos.",
+      "missingEstimates": "Los pedidos sin estimación no cuentan en los totales de peso.",
+      "revalidation": "La colocación se vuelve a comprobar cuando actúas.",
+      "noPreciseFinish": "No se muestra una hora exacta de finalización."
+    },
+    "errors": {
+      "loadFailed": "No se pudo cargar la previsión del resto del día.",
+      "locationUnavailable": "Esta ubicación de producción no está disponible.",
+      "serviceDayInvalid": "Elige un día de servicio válido.",
+      "scopeTooLarge": "Este día de servicio incluye demasiado trabajo para mostrarlo de forma segura.",
+      "stateInconsistent": "El estado actual de producción está cambiando. Actualiza antes de usar esta previsión.",
+      "unauthorized": "Tu sesión ya no es válida. Inicia sesión de nuevo.",
+      "forbidden": "No tienes permiso para ver esta previsión.",
+      "unavailable": "El servicio de producción no está disponible temporalmente.",
+      "invalidResponse": "El servicio de producción devolvió una previsión que Processor no pudo leer."
+    }
+  }
+}

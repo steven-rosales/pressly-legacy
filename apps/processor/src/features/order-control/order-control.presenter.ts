@@ -106,15 +106,10 @@ const attentionFor = (
               label: t("orderControl.attentionPlacementConflict"),
               detail: t("orderControl.attentionPlacementConflictDetail"),
             }
-          : item.attention.reason === "source_comparison_required"
-            ? {
-                label: t("orderControl.attentionSourceComparison"),
-                detail: t("orderControl.attentionSourceComparisonDetail"),
-              }
-            : {
-                label: t("orderControl.attentionRouteBlocked"),
-                detail: t("orderControl.attentionRouteBlockedDetail"),
-              }
+          : {
+              label: t("orderControl.attentionRouteBlocked"),
+              detail: t("orderControl.attentionRouteBlockedDetail"),
+            }
   return {
     ...copy,
     tone:
@@ -145,16 +140,10 @@ export const presentOrderControlOrder = (
           : ("in_progress" as const)
   const stage = item.nextRequiredStage
   const canonical = item.canonical
-  const customerName =
-    canonical?.customer.businessName ??
-    [canonical?.customer.firstName, canonical?.customer.lastName]
-      .filter((part): part is string => part !== null && part !== undefined)
-      .join(" ")
-      .trim()
   const customerLabel =
-    customerName === undefined || customerName === ""
+    item.identity.customerDisplayName === null
       ? t("orderControl.customerUnavailable")
-      : customerName
+      : item.identity.customerDisplayName
   const commercialStateLabel =
     canonical === null
       ? t("orderControl.canonicalUnavailable")
@@ -171,19 +160,10 @@ export const presentOrderControlOrder = (
         : canonical.admissionState === "withdrawn"
           ? t("orderControl.withdrawnFromProduction")
           : t("orderControl.forecastOnly")
-  const comparisonLabel =
-    canonical === null || canonical.comparison === "unavailable"
-      ? t("orderControl.comparisonUnavailable")
-      : canonical.comparison === "source_ahead"
-        ? t("orderControl.comparisonSourceAhead")
-        : canonical.comparison === "source_withdrawn"
-          ? t("orderControl.comparisonSourceWithdrawn")
-          : canonical.comparison === "source_behind"
-            ? t("orderControl.comparisonSourceBehind")
-            : t("orderControl.comparisonAligned")
   return {
     id: item.order.id,
-    externalOrderId: canonical?.displayNumber ?? item.order.externalOrderId,
+    identity: item.identity,
+    externalOrderId: item.identity.displayNumber,
     secondaryLabel: customerLabel,
     customerLabel,
     phoneLabel: canonical?.customer.phone ?? t("orderControl.phoneUnavailable"),
@@ -195,7 +175,6 @@ export const presentOrderControlOrder = (
         : canonical.source.status === null
           ? canonical.source.name
           : `${canonical.source.name} · ${canonical.source.status}`,
-    comparisonLabel,
     statusLabel: labelForOrderControlValue(item.order.status, t),
     dueLabel:
       item.order.status === "finished"

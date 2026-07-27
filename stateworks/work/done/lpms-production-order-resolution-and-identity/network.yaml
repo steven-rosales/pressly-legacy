@@ -1,0 +1,436 @@
+work_id: lpms-production-order-resolution-and-identity
+title: LPMS production-order resolution and row identity
+status: complete
+
+goal:
+  - Let managers remove old never-produced orders from active Processor work without deleting records or inventing floor completion.
+  - Govern resolution and restoration through one explicit aggregate-owned Production lifecycle graph.
+  - Deliver a version-bound single-order and bounded bulk backlog-review workflow with immutable audit.
+  - Keep finished and resolved work out of operational projections while retaining sanitized History.
+  - Standardize customer identity on every individual actionable order row and card without moving User or Order data into Production.
+
+invariants:
+  - Production execution remains unassigned to scheduled to finished and is never overloaded with archive or resolution meaning.
+  - Production-order resolution is a separate persistent lifecycle with one authoritative state-and-event graph.
+  - Every resolution or restoration transition is decided by the graph in Production policy; repositories, adapters, controllers, queries, and UI cannot define parallel transitions.
+  - Resolved without production never means finished, deleted, canceled in Cents, or physically completed in Pressly.
+  - External observations may remain audit context but cannot resolve, restore, or resurrect Pressly work after handoff.
+  - Selected, batched, scheduled, active, routed, reconciled, or finished work cannot use the backlog-cleanup workflow.
+  - Single and bulk mutations are location-authorized, versioned, idempotent, actor-audited, and serialized with conflicting scheduling work.
+  - Bulk commit is bound to the exact server-owned candidate and version snapshot the manager reviewed.
+  - Finished and resolved work remains retained and inspectable but is excluded from operational actions, counts, and forward demand.
+  - Processor action availability and candidate classification remain server-owned.
+  - Canonical customer identity is composed at the API-owned Processor read boundary and is never copied into Production persistence.
+  - Paginated identity composition is batched for the bounded page and cannot introduce browser per-row fetches or backend N+1 access.
+  - No global workflow engine, event-sourced rewrite, routine hard deletion, PII retention engine, or Production-owned customer profile is introduced.
+  - This package cannot execute concurrently with the active operational-authority package or queued order-control correctness hardening.
+  - Repository and local-runtime proof cannot be promoted into deployment, retention-policy, or pilot proof.
+  - No secret, credential, customer payload, or private token enters Stateworks, tests, logs, screenshots, or commits.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Rebaseline backlog, lifecycle, and identity evidence
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/active/lpms-operational-authority-remaining-day-forecast
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - repo:docs/plan/lpms-state-transitions.md
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:packages/db/src/schema
+      - repo:packages/contracts/src/processor
+      - repo:packages/contracts/src/production
+      - repo:modules/business/orders
+      - repo:modules/business/production
+      - repo:modules/policy/production
+      - repo:apps/api/src/http/processor
+      - repo:apps/processor/src/features
+    writes:
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    preconditions:
+      - The operational-authority package is complete with verified evidence and applied memory impact.
+      - The order-control correctness-hardening package is complete or this package has been explicitly rebaselined against its unresolved gaps.
+      - Neither overlapping package is executing concurrently.
+    action:
+      - Characterize current finished, ineligible, unassigned, intake-recorded, selected, pending-placement, batched, scheduled, active, and historical order populations without mutating data.
+      - Prove the current execution graph, every writer of execution and operational status, the absence of an ordinary resolution path, and the dependency consequences of hard deletion.
+      - Inventory every operational individual-order row or card, its pagination path, its current identity fields, and whether canonical customer identity is already available.
+      - Record the non-concurrent file boundary and any implementation drift from this brief before schema or code changes.
+    verifier:
+      - Evidence contains source-level proof and bounded aggregate counts for every cleanup classification without customer payloads.
+      - Every current lifecycle writer and every individual-order presentation surface is cataloged.
+      - The execution order relative to both predecessor packages is explicit and safe.
+      - Any changed domain assumption stops implementation for a Stateworks replan.
+    rollback:
+      - No rollback is needed for the read-only audit; revert only unsupported evidence.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T1
+    title: Define the production-order resolution lifecycle graph
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:docs/plan/lpms-state-transitions.md
+      - repo:modules/policy/production/src/lifecycle
+      - repo:modules/policy/production/test/lifecycle
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    writes:
+      - repo:modules/policy/production/src/lifecycle/production-order-resolution-lifecycle.policy.ts
+      - repo:modules/policy/production/src/main.ts
+      - repo:modules/policy/production/src/public.ts
+      - repo:modules/policy/production/test/lifecycle/production-order-resolution-lifecycle.policy.test.ts
+      - repo:docs/plan/lpms-state-transitions.md
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    action:
+      - Define open to resolved_without_production and explicit restore to open with the kernel state-machine definer.
+      - Export typed states, events, allowed actions, transition decisions, rejections, and graph from one policy owner.
+      - Keep execution lifecycle unchanged and model cross-lifecycle eligibility as pure policy guards rather than local imperative transitions.
+      - Document which values are persistent lifecycle, orthogonal facts, derived operational status, and read-only archive presentation.
+    verifier:
+      - Exhaustive matrix tests cover every state and event pair, allowed action, terminal-like behavior, and invalid persisted state.
+      - No repository, adapter, route, query, or Processor component gains a parallel transition table.
+      - The transition catalog identifies one owner for resolution and preserves the existing execution graph.
+    rollback:
+      - Revert the new graph and catalog update without changing persisted data or existing execution semantics.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T2
+    title: Persist resolution and implement single-order commands
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:modules/policy/production/src/lifecycle/production-order-resolution-lifecycle.policy.ts
+      - repo:modules/business/production/src/change-production-admission
+      - repo:modules/business/production/src/persistence
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/contracts/src/production
+      - repo:apps/api/src
+    writes:
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/test
+      - repo:modules/business/production/src/change-production-order-resolution
+      - repo:modules/business/production/src/main.ts
+      - repo:modules/business/production/src/production.port.ts
+      - repo:modules/business/production/test/change-production-order-resolution
+      - repo:apps/api/src
+      - repo:apps/api/test
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    action:
+      - Persist coherent current resolution state, actor, timestamp, reason, optional note, bulk-operation identity when present, and the indexes required by bounded location reads.
+      - Add versioned, idempotent, location-authorized resolve and restore commands under the Production scheduling lock.
+      - Invoke only the authoritative resolution graph for transitions and keep Orders, source lifecycle, execution status, and physical completion unchanged.
+      - Block committed or historical production participation; require stronger item-level confirmation for intake, manual admission, priority, or pending-placement facts.
+      - Atomically clear only an explicitly allowed uncommitted pending placement and append sanitized work-event audit with the resolution.
+    verifier:
+      - Migration tests prove coherent metadata, constraints, indexes, forward behavior, and rollback or forward-fix safety.
+      - Policy, use-case, contract, API, and Postgres tests cover authorization, expected version, idempotent replay, concurrency, every guard, resolve, restore, and sanitized audit.
+      - Later source demand cannot change the persisted resolution lifecycle.
+      - No command can represent resolution as finished execution.
+    rollback:
+      - Revert application reads and writes first, then use the migration's explicit rollback or forward-fix path without deleting historical production data.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T3
+    title: Build version-bound backlog preview and bulk resolution
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+      - repo:modules/business/production/src/change-production-order-resolution
+      - repo:modules/business/production/src/place-production-order
+      - repo:modules/business/production/src/replace-shift-order-selection
+      - repo:modules/business/production/src/persistence
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:modules/business/production/src/review-production-order-backlog
+      - repo:modules/business/production/src/main.ts
+      - repo:modules/business/production/src/production.port.ts
+      - repo:modules/business/production/test/review-production-order-backlog
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/test
+      - repo:apps/api/src
+      - repo:apps/api/test
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    action:
+      - Return a bounded server-owned preview partitioned into ready to archive, individual review, kept for safety, and already historical.
+      - Bind the candidate IDs, expected order and resolution versions, filters, cutoff, reason class, and relevant guard facts into one canonical preview hash.
+      - Re-lock and recompute the exact bounded snapshot before commit; reject drift rather than silently adding, dropping, or partially resolving candidates.
+      - Record an auditable per-order transition tied to one bulk-operation identity and return explicit results without loading an unbounded browser selection.
+      - Choose direct bounded transactions unless T0 measurements prove that a durable chunked job is necessary.
+    verifier:
+      - Tests cover every preview partition, cutoff and source-evidence behavior, maximum bounds, canonical hashing, replay, drift, concurrent scheduling, and all-or-nothing bounded commits.
+      - Source status and order age remain recommendation inputs only and cannot transition resolution by themselves.
+      - Large measured backlogs either stay within a proven bound or use deterministic idempotent chunks with resumable evidence.
+    rollback:
+      - Disable bulk entry points while retaining safe single-order commands and already-audited resolution history.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T4
+    title: Enforce resolution across operational writes and reads
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+    reads:
+      - repo:modules/policy/production/src/lifecycle/production-order-resolution-lifecycle.policy.ts
+      - repo:modules/business/production/src
+      - repo:packages/contracts/src/production
+      - repo:apps/api/src/http/processor
+    writes:
+      - repo:modules/business/production/src
+      - repo:modules/business/production/test
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/test
+      - repo:apps/api/src/http/processor
+      - repo:apps/api/test/processor
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    action:
+      - Make scheduling, selection, placement, routing, intake, admission, priority, workspace, forecast, and order-control paths respect current resolution through centralized policy and persisted facts.
+      - Replace operational Home All semantics with Open and exclude finished and resolved work from operational counts and actions.
+      - Keep finished work in History and add sanitized resolved and restored activity and manager-readable archived filtering.
+      - Preserve valid newer source observations without allowing demand application to reopen resolved work.
+    verifier:
+      - A changed-writer inventory proves every operational command rejects resolved work through server-owned policy.
+      - Home, Intake, Schedule, Forecast, Production, and remaining-day totals exclude resolved work and do not regress finished-work exclusion.
+      - History retains finished, resolved, and restored evidence without exposing raw work-event payloads.
+      - Source replay and concurrent command tests cannot resurrect or act on resolved work.
+    rollback:
+      - Revert read projections and command guards together; do not expose a partial state where resolved work can re-enter execution.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T5
+    title: Build the Processor old-order review experience
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T4
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/history
+      - repo:apps/processor/src/components/ui
+      - repo:apps/processor/src/index.css
+      - repo:packages/contracts/src/production
+    writes:
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/order-resolution
+      - repo:apps/processor/src/features/history
+      - repo:apps/processor/src/adapters/production
+      - repo:apps/processor/src/ports/production.port.ts
+      - repo:apps/processor/src/i18n
+      - repo:apps/processor/test/features/order-control
+      - repo:apps/processor/test/features/order-resolution
+      - repo:apps/processor/test/features/history
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    action:
+      - Add a manager-only Review old orders entry point without creating a new primary navigation destination.
+      - Explain Archive from active work as resolved without production and explicitly state that records are neither deleted nor marked produced.
+      - Render the four server-owned preview groups, exact counts, exclusion reasons, required reason and confirmation, drift recovery, results, and manager restoration.
+      - Use shared shadcn primitives, ElevenLabs structural language, Pressly theme, settled-content loading, and server-owned action availability.
+    verifier:
+      - Focused Processor tests cover permissions, loading, empty, preview groups, confirmation, replay, drift, partial-error presentation, restore, focus return, and localization.
+      - Keyboard order, dialog or sheet semantics, accessible names, 44-pixel floor actions, and mobile reflow are verified.
+      - No trash icon, Delete copy, client-owned candidate rule, or browser-owned lifecycle transition exists.
+    rollback:
+      - Remove the Processor entry point while retaining backend audit and safe commands; never leave a client path that bypasses preview.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T6
+    title: Standardize customer identity on operational order rows
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:order-management/context-pack
+      - repo:packages/contracts/src/processor
+      - repo:apps/api/src/http/processor/order-control
+      - repo:apps/processor/src/features/intake
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/features/forecast
+      - repo:apps/processor/src/features/history
+    writes:
+      - repo:packages/contracts/src/processor
+      - repo:packages/contracts/test
+      - repo:apps/api/src/http/processor
+      - repo:apps/api/test/processor
+      - repo:apps/processor/src/components
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/features/forecast
+      - repo:apps/processor/src/features/history
+      - repo:apps/processor/src/i18n
+      - repo:apps/processor/test
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    action:
+      - Define one Processor-specific operational order identity with canonical display number and canonical customer display name at the API composition boundary.
+      - Batch-resolve User and Order identity for each bounded page without adding customer fields to Production tables or Production-owned domain contracts.
+      - Render order number primary and business name, personal name, or localized Customer unavailable secondary in Home mobile, Schedule selection and live placement, Forecast rows, and History run memberships.
+      - Keep phone limited to Intake and order detail and keep Production batch summaries outside this individual-row task.
+      - Share one small identity presenter or component with stable truncation, full accessible text, responsive stacking, and English and Spanish fallbacks.
+    verifier:
+      - Contract and API tests prove canonical field precedence, exact identity joins, bounded batched lookup, no N+1 access, and customer identity on pages after the first cursor.
+      - Processor tests cover business, personal, unavailable, long, and localized names on every named surface at desktop and mobile widths.
+      - Home and Intake retain their established identity hierarchy and no Production aggregate or lifecycle field acquires customer ownership.
+    rollback:
+      - Revert the composed identity fields and shared presentation together while preserving the resolution workflow and existing Home and Intake identity behavior.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V1
+    title: Run full lifecycle, persistence, contract, and concurrency proof
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T6
+    reads:
+      - repo:modules/policy/production
+      - repo:modules/business/production
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/api
+      - repo:apps/processor
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity
+    writes:
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    action:
+      - Run focused graph, guard, migration, Postgres, concurrency, source replay, bulk preview, identity composition, API, and Processor tests.
+      - Run the full Production, database, Processor, LPMS integration, LPMS end-to-end, architecture, typecheck, lint, formatting, build, and whitespace gates.
+      - Record exact commands, exit codes, test counts, warnings, and environment boundaries without resetting development data.
+    verifier:
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production test:integration
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/db test:integration
+      - pnpm --filter @pressly/processor test
+      - pnpm test:lpms:int
+      - pnpm test:lpms:e2e
+      - pnpm typecheck
+      - pnpm lint
+      - pnpm format:check
+      - pnpm build
+      - git diff --check
+    rollback:
+      - Keep the package active and operational entry points disabled until every correctness gate passes.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V2
+    title: Prove Product Design, accessibility, and responsive behavior
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - repo:apps/processor
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    writes:
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/design-qa.md
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+    action:
+      - Review the complete old-order workflow and every changed identity row using Steven's selected visual-review surface.
+      - Compare desktop and mobile Home, Schedule, Forecast, History, and resolution states against the established Intake identity hierarchy and current Processor design system.
+      - Verify keyboard operation, focus management, accessible names, long-text behavior, zoom and reflow, loading and error states, and a clean browser console.
+    verifier:
+      - Accepted desktop and mobile evidence covers ready, review, blocked, history, confirmation, success, drift, restore, business-name, personal-name, and unavailable-customer states.
+      - Every actionable order row retains both identifiers without horizontal overflow or hiding the primary action.
+      - Product Design findings are tied to current rendered evidence and unresolved accessibility limits are explicit.
+    rollback:
+      - Keep the package active and return to the last verified Processor checkpoint if the review finds blocking operational ambiguity.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T7
+    title: Close evidence and assess durable memory impact
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V2
+    reads:
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/design-qa.md
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity/final-report.md
+      - repo:stateworks/memory/domains/laundry-production/deltas
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:stateworks/memory/domains/order-management/deltas
+      - repo:stateworks/memory/domains/order-management/memory.yaml
+      - repo:stateworks/memory/domains/order-management/context-pack.md
+    action:
+      - Record exact implemented behavior, verification, remaining exclusions, and predecessor-package rebaseline impact.
+      - Apply a source-backed validated memory delta only for confirmed durable domain beliefs and keep customer-row presentation out of domain memory unless it changes a durable collaboration preference.
+      - Distinguish repository, local runtime, deployment, retention-policy, and pilot evidence.
+    verifier:
+      - Stateworks network and lifecycle state validate with every task committed.
+      - Any memory delta, memory file, and generated context pack validate deterministically from source.
+      - The final report makes no hard-delete, retention, deployment, or pilot claim beyond verified evidence.
+    rollback:
+      - Leave unsupported memory changes proposed and keep the package active until evidence supports closeout.
+    secret_handling: none
+    status: pending
+    evidence: []

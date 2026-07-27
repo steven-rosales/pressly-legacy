@@ -25,6 +25,7 @@ const inFlightOrder: ProcessorOrderControlItem = {
     derivedWeightLbs: 40,
     version: 7,
   },
+  identity: testOrderItems[0]!.identity,
   admission: {
     sourceState: "released",
     override: null,
@@ -291,6 +292,10 @@ describe("connected order control workspace", () => {
         dueAt: "2026-07-16T21:00:00.000Z",
         dueBucket: "overdue",
       },
+      identity: {
+        displayNumber: "PAST-DUE",
+        customerDisplayName: null,
+      },
       admission: {
         sourceState: "released",
         override: null,
@@ -307,6 +312,10 @@ describe("connected order control workspace", () => {
     }
     const finishedOrder: ProcessorOrderControlItem = {
       ...pastDueOrder,
+      identity: {
+        displayNumber: "FINISHED",
+        customerDisplayName: null,
+      },
       order: {
         ...pastDueOrder.order,
         id: id(502),
@@ -358,6 +367,10 @@ describe("connected order control workspace", () => {
         bagCountProvenance: null,
         intakeVersion: null,
       },
+      identity: {
+        displayNumber: testOrderItems[0]!.identity.displayNumber,
+        customerDisplayName: null,
+      },
       admission: {
         sourceState: "unreleased",
         override: null,
@@ -408,14 +421,15 @@ describe("connected order control workspace", () => {
     ).toBeInTheDocument()
   })
 
-  it("shows canonical customer and source-versus-floor context without exposing source-specific primary state", async () => {
+  it("shows canonical customer and read-only source context without a comparison task", async () => {
     const user = userEvent.setup()
     const composedOrder: ProcessorOrderControlItem = {
       ...inFlightOrder,
-      attention: {
-        reason: "source_comparison_required",
-        message: "Commercial complete; floor work remains.",
+      identity: {
+        displayNumber: "P-1001",
+        customerDisplayName: "Ada Rivera",
       },
+      attention: null,
       canonical: {
         canonicalOrderId: id(601),
         canonicalFulfillmentId: id(602),
@@ -431,13 +445,12 @@ describe("connected order control workspace", () => {
         commercialState: "completed",
         admissionState: "released",
         source: { name: "cents", status: "COMPLETED" },
-        comparison: "source_ahead",
       },
     }
     const production = makeTestProductionPort({
       listOrderControl: async () => ({
         items: [composedOrder],
-        counts: { attention: 1, active: 1, all: 1 },
+        counts: { attention: 0, active: 1, all: 1 },
         nextCursor: null,
         asOf: "2026-08-01T15:00:00.000Z",
       }),
@@ -461,18 +474,19 @@ describe("connected order control workspace", () => {
     expect(row).not.toBeNull()
     expect(within(row!).getByText("Ada Rivera")).toBeInTheDocument()
     expect(
-      within(row!).getByText("Systems need confirmation")
-    ).toBeInTheDocument()
+      within(row!).queryByText("Systems need confirmation")
+    ).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "Order P-1001" }))
     expect(
       screen.getByRole("heading", { name: "Customer and order" })
     ).toBeInTheDocument()
     expect(screen.getByText("+12015550101")).toBeInTheDocument()
-    expect(
-      screen.getByText("Commercial complete; floor unfinished")
-    ).toBeInTheDocument()
     expect(screen.getByText("cents · COMPLETED")).toBeInTheDocument()
+    expect(screen.queryByText("System comparison")).not.toBeInTheDocument()
+    expect(
+      screen.queryByText("Commercial complete; floor unfinished")
+    ).not.toBeInTheDocument()
   })
 
   it("loads the order's own run before offering cross-workspace move targets", async () => {
@@ -487,6 +501,7 @@ describe("connected order control workspace", () => {
         derivedWeightLbs: 50,
         version: 3,
       },
+      identity: testOrderItems[1]!.identity,
       admission: {
         sourceState: "released",
         override: null,
