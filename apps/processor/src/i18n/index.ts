@@ -3,21 +3,23 @@ import { initReactI18next } from "react-i18next"
 
 import englishAppMessages from "./locales/en/app.json"
 import englishAuthenticationMessages from "./locales/en/authentication.json"
-import englishDemandOutlookMessages from "./locales/en/demand-outlook.json"
+import englishForecastMessages from "./locales/en/forecast.json"
 import englishHistoryMessages from "./locales/en/history.json"
 import englishIntakeMessages from "./locales/en/intake.json"
 import englishLocationSelectionMessages from "./locales/en/location-selection.json"
 import englishOrderControlMessages from "./locales/en/order-control.json"
+import englishOrderResolutionMessages from "./locales/en/order-resolution.json"
 import englishProductionBoardMessages from "./locales/en/production-board.json"
 import englishSchedulingMessages from "./locales/en/scheduling.json"
 import englishSettingsMessages from "./locales/en/settings.json"
 import spanishAppMessages from "./locales/es/app.json"
 import spanishAuthenticationMessages from "./locales/es/authentication.json"
-import spanishDemandOutlookMessages from "./locales/es/demand-outlook.json"
+import spanishForecastMessages from "./locales/es/forecast.json"
 import spanishHistoryMessages from "./locales/es/history.json"
 import spanishIntakeMessages from "./locales/es/intake.json"
 import spanishLocationSelectionMessages from "./locales/es/location-selection.json"
 import spanishOrderControlMessages from "./locales/es/order-control.json"
+import spanishOrderResolutionMessages from "./locales/es/order-resolution.json"
 import spanishProductionBoardMessages from "./locales/es/production-board.json"
 import spanishSchedulingMessages from "./locales/es/scheduling.json"
 import spanishSettingsMessages from "./locales/es/settings.json"
@@ -31,26 +33,28 @@ export { englishAppMessages, spanishAppMessages }
 export const englishProcessorMessages = {
   ...englishAppMessages,
   ...englishAuthenticationMessages,
-  ...englishDemandOutlookMessages,
+  ...englishForecastMessages,
   ...englishLocationSelectionMessages,
   ...englishSettingsMessages,
   ...englishIntakeMessages,
   ...englishSchedulingMessages,
   ...englishHistoryMessages,
   ...englishOrderControlMessages,
+  ...englishOrderResolutionMessages,
   ...englishProductionBoardMessages,
 } as const
 
 export const spanishProcessorMessages = {
   ...spanishAppMessages,
   ...spanishAuthenticationMessages,
-  ...spanishDemandOutlookMessages,
+  ...spanishForecastMessages,
   ...spanishLocationSelectionMessages,
   ...spanishSettingsMessages,
   ...spanishIntakeMessages,
   ...spanishSchedulingMessages,
   ...spanishHistoryMessages,
   ...spanishOrderControlMessages,
+  ...spanishOrderResolutionMessages,
   ...spanishProductionBoardMessages,
 } satisfies ResourceShape<typeof englishProcessorMessages>
 

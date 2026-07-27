@@ -2,6 +2,9 @@ import {
   productionHistoryEntityTypeSchema,
   productionHistoryEventTypeSchema,
   productionIdSchema,
+  productionOrderResolutionReasonSchema,
+  productionOrderResolutionStateSchema,
+  productionOrderRestorationReasonSchema,
   productionOrderRouteReasonSchema,
   productionStageKindSchema,
   type ListProductionHistoryActivityQuery,
@@ -41,6 +44,7 @@ export const productionHistoryFilterKey = (
       runId: activity.runId ?? null,
       entityType: activity.entityType ?? null,
       eventType: activity.eventType ?? null,
+      orderResolution: activity.orderResolution ?? null,
       search: activity.search ?? null,
       occurredAfter: activity.occurredAfter ?? null,
     });
@@ -226,6 +230,8 @@ export type ProductionHistoryActivityRow = Readonly<{
   expectedVersion: number | null;
   payload: unknown;
   createdAt: Date;
+  currentResolutionState?: string | null;
+  currentProductionVersion?: number | null;
 }>;
 
 const systemActorId = '00000000-0000-4000-8000-000000000000';
@@ -309,6 +315,28 @@ const routeReasonValue = (
   return parsed.success ? parsed.data : null;
 };
 
+const resolutionStateValue = (
+  record: Readonly<Record<string, unknown>>,
+  key: string,
+) => {
+  const parsed = productionOrderResolutionStateSchema.safeParse(record[key]);
+  return parsed.success ? parsed.data : null;
+};
+
+const resolutionReasonValue = (
+  record: Readonly<Record<string, unknown>>,
+  key: string,
+) => {
+  const resolution = productionOrderResolutionReasonSchema.safeParse(
+    record[key],
+  );
+  if (resolution.success) return resolution.data;
+  const restoration = productionOrderRestorationReasonSchema.safeParse(
+    record[key],
+  );
+  return restoration.success ? restoration.data : null;
+};
+
 const stageValue = (record: Readonly<Record<string, unknown>>, key: string) => {
   const parsed = productionStageKindSchema.safeParse(record[key]);
   return parsed.success ? parsed.data : null;
@@ -337,6 +365,11 @@ const summaries: Readonly<Record<string, string>> = {
   production_order_placement_overtime_required:
     'Order placement requires overtime confirmation',
   production_order_placement_resolved: 'Order placement resolved',
+  production_order_resolved_without_production:
+    'Order archived from active work',
+  production_order_restored: 'Order restored to active work',
+  production_order_bulk_resolved_without_production:
+    'Order archived from active work',
   production_order_rebatched: 'Order moved to another queued batch',
   production_order_route_exception_recorded:
     'Order left its batch for later production',
@@ -395,6 +428,9 @@ const activityDetails = (
     case 'production_order_placement_pending':
     case 'production_order_placement_overtime_required':
     case 'production_order_placement_resolved':
+    case 'production_order_resolved_without_production':
+    case 'production_order_restored':
+    case 'production_order_bulk_resolved_without_production':
     case 'production_order_rebatched':
     case 'production_order_route_exception_recorded':
       return {
@@ -406,11 +442,14 @@ const activityDetails = (
         targetBatchId:
           idValue(payload, 'targetProductionBatchId') ??
           idValue(payload, 'targetBatchId'),
-        outcome: stringValue(payload, 'outcome'),
+        outcome:
+          stringValue(payload, 'outcome') ?? stringValue(payload, 'action'),
         bagCount: nonnegativeInteger(payload, 'bagCount'),
         priority: booleanValue(payload, 'priority'),
         queueVersion: positiveVersion(payload, 'queueVersion'),
         version: positiveVersion(payload, 'version'),
+        resolutionState: resolutionStateValue(payload, 'resolutionState'),
+        resolutionReason: resolutionReasonValue(payload, 'reason'),
         routeReason: routeReasonValue(payload, 'reason'),
         restartStage: stageValue(payload, 'restartStage'),
         releasedStages: stageArray(payload, 'releasedStages'),
@@ -469,6 +508,19 @@ export const mapProductionHistoryActivity = (
   const productionRunId =
     resolvedProductionRunId ??
     (entityType.data === 'production_run' ? row.entityId : payloadRunId);
+  const resolutionAction =
+    (eventType.data === 'production_order_resolved_without_production' ||
+      eventType.data === 'production_order_bulk_resolved_without_production') &&
+    row.currentResolutionState === 'resolved_without_production' &&
+    row.currentProductionVersion !== undefined &&
+    row.currentProductionVersion !== null &&
+    Number.isInteger(row.currentProductionVersion) &&
+    row.currentProductionVersion > 0
+      ? {
+          action: 'restore' as const,
+          expectedVersion: row.currentProductionVersion,
+        }
+      : null;
 
   return {
     id: row.id,
@@ -488,6 +540,7 @@ export const mapProductionHistoryActivity = (
             },
     expectedVersion: row.expectedVersion,
     productionRunId,
+    resolutionAction,
     summary: summaries[eventType.data] as string,
     details: activityDetails(eventType.data, payload),
     occurredAt: row.createdAt.toISOString(),

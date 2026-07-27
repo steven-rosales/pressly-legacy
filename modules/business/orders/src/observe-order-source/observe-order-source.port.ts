@@ -4,6 +4,7 @@ import type {
   FulfillmentInput,
   ObserveOrderSourceCommand,
   OrderCustomer,
+  OrderInput,
   OrderItemInput,
   OrderMutationResult,
   OrderState,
@@ -19,11 +20,23 @@ export type StoredOrderSourceState = StoredOrderAggregate &
     sourceLinkId: string;
     revision: Readonly<{ at: Date; hash: string }> | null;
     authorities: ReadonlyMap<string, StoredOrderFieldAuthority>;
+    items: readonly OrderItemInput[];
   }>;
 
-export type ApplyOrderSourceInput = Readonly<{
+export type CreateOrderSourceInput = Readonly<{
+  observation: ObserveOrderSourceCommand;
+  canonical: OrderInput;
+}>;
+
+export type RetainOrderSourceObservationInput = Readonly<{
   current: StoredOrderSourceState;
   observation: ObserveOrderSourceCommand;
+  missingAuthorities: readonly string[];
+}>;
+
+export type ApplyOrderSourceAdoptionInput = Readonly<{
+  current: StoredOrderSourceState;
+  observedAt: Date;
   nextOrder: Readonly<{
     customerUserId: string | null;
     customerResolution: OrderCustomer['resolution'];
@@ -38,7 +51,6 @@ export type ApplyOrderSourceInput = Readonly<{
   nextOrderVersion: number;
   nextFulfillmentVersion: number;
   items: readonly OrderItemInput[];
-  missingAuthorities: readonly string[];
 }>;
 
 export type ObserveOrderSourceOperations = Readonly<{
@@ -47,9 +59,12 @@ export type ObserveOrderSourceOperations = Readonly<{
     command: ObserveOrderSourceCommand,
   ) => Promise<StoredOrderSourceState | null>;
   createSourceOrder: (
-    command: ObserveOrderSourceCommand,
+    input: CreateOrderSourceInput,
   ) => Promise<OrderMutationResult>;
-  applySourceOrder: (input: ApplyOrderSourceInput) => Promise<void>;
+  retainSourceObservation: (
+    input: RetainOrderSourceObservationInput,
+  ) => Promise<void>;
+  applySourceAdoption: (input: ApplyOrderSourceAdoptionInput) => Promise<void>;
 }>;
 
 export type ObserveOrderSourceRepository =

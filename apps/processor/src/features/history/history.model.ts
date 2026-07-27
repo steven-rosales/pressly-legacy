@@ -1,3 +1,15 @@
+import type {
+  ChangeProductionOrderResolutionCommand,
+  ProcessorOperationalOrderIdentity,
+} from "@pressly/contracts"
+
+type RestoreProductionOrderCommand = Extract<
+  ChangeProductionOrderResolutionCommand,
+  { action: "restore" }
+>
+
+export type HistoryRestoreReason = RestoreProductionOrderCommand["reason"]
+
 export type HistoryCursorPageViewModel = Readonly<{
   rangeLabel: string
   previousCursor: string | null
@@ -32,12 +44,17 @@ export type HistoryRunSummary = Readonly<{
 
 export type HistoryActivityItem = Readonly<{
   id: string
+  identity: ProcessorOperationalOrderIdentity | null
   title: string
   detail: string
   occurredAtLabel: string
   actorLabel: string
   entityLabel: string
   tone: "default" | "warning" | "critical"
+  restoreAction: Readonly<{
+    productionOrderId: string
+    expectedVersion: number
+  }> | null
 }>
 
 export type HistoryPlanSummary = Readonly<{
@@ -63,6 +80,7 @@ export type HistoryRunBatch = Readonly<{
 
 export type HistoryRunOrder = Readonly<{
   id: string
+  identity: ProcessorOperationalOrderIdentity
   externalOrderId: string
   statusLabel: string
   demandLabel: string
@@ -99,6 +117,10 @@ export type HistoryViewModel = Readonly<{
   loading: boolean
   refreshing: boolean
   error: string | null
+  canManage: boolean
+  restoringOrderId: string | null
+  restoreError: string | null
+  restoreNotice: string | null
 }>
 
 export type HistoryCallbacks = Readonly<{
@@ -109,4 +131,10 @@ export type HistoryCallbacks = Readonly<{
   onNextPage: (cursor: string) => void
   onOpenRun: (runId: string) => void
   onCloseRun: () => void
+  onRestoreOrder: (input: {
+    productionOrderId: string
+    expectedVersion: number
+    reason: HistoryRestoreReason
+    note: string | null
+  }) => void
 }>

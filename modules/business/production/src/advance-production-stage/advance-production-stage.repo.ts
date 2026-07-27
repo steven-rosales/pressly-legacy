@@ -25,17 +25,24 @@ export const makeAdvanceProductionStageRepository = (deps: {
       locationId,
       stageRunId,
       expectedVersion,
-      nextState,
+      stageLifecycle,
+      batchId,
+      batchExpectedVersion,
+      batchState,
+      batchLifecycle,
+      freezeMembership,
+      attemptLifecycles,
+      terminalLifecycle,
       actorId,
       now,
     }) => {
       const [stage] = await db
         .update(laundryProduction.stageRuns)
         .set({
-          status: nextState,
+          status: stageLifecycle.state,
           version: expectedVersion + 1,
           updatedAt: now,
-          ...(nextState === 'started'
+          ...(stageLifecycle.state === 'started'
             ? {
                 actualStartAt: now,
                 actualStartProvenance: 'live_observed',
@@ -52,6 +59,7 @@ export const makeAdvanceProductionStageRepository = (deps: {
             eq(laundryProduction.stageRuns.locationId, locationId),
             eq(laundryProduction.stageRuns.id, stageRunId),
             eq(laundryProduction.stageRuns.version, expectedVersion),
+            eq(laundryProduction.stageRuns.status, stageLifecycle.from),
           ),
         )
         .returning();
@@ -76,7 +84,7 @@ export const makeAdvanceProductionStageRepository = (deps: {
           ),
         );
       const expectedAssignmentStatus =
-        nextState === 'started' ? 'planned' : 'active';
+        stageLifecycle.state === 'started' ? 'planned' : 'active';
       if (
         assignments.some(
           (assignment) => assignment.status !== expectedAssignmentStatus,
@@ -87,8 +95,8 @@ export const makeAdvanceProductionStageRepository = (deps: {
       const updatedAssignments = await db
         .update(laundryProduction.stageMachineAssignments)
         .set({
-          status: nextState === 'started' ? 'active' : 'completed',
-          ...(nextState === 'started'
+          status: stageLifecycle.state === 'started' ? 'active' : 'completed',
+          ...(stageLifecycle.state === 'started'
             ? { actualStartAt: now }
             : { actualEndAt: now }),
           updatedAt: now,
@@ -113,49 +121,36 @@ export const makeAdvanceProductionStageRepository = (deps: {
       if (updatedAssignments.length !== assignments.length)
         throw new Error('Stage machine assignments changed concurrently.');
 
-      const [batch] = await db
-        .select()
-        .from(laundryProduction.productionBatches)
-        .where(
-          and(
-            eq(laundryProduction.productionBatches.locationId, locationId),
-            eq(laundryProduction.productionBatches.id, stage.productionBatchId),
-          ),
-        )
-        .limit(1);
-      if (batch === undefined) throw new Error('Batch not found.');
       const anchorsMutableQueue =
-        nextState === 'started' && batch.status === 'queued';
+        stageLifecycle.state === 'started' && batchLifecycle?.from === 'queued';
+      const nextBatchState = batchLifecycle?.state ?? batchState;
       const [updatedBatch] = await db
         .update(laundryProduction.productionBatches)
         .set({
-          status:
-            nextState === 'started'
-              ? stage.stageKind
-              : stage.stageKind === 'folding_packaging'
-                ? 'finished'
-                : batch.status,
-          version: batch.version + 1,
+          status: nextBatchState,
+          version: batchExpectedVersion + 1,
           updatedAt: now,
-          ...(nextState === 'started' && batch.startedAt === null
-            ? { startedAt: now }
-            : {}),
-          ...(anchorsMutableQueue
+          ...(batchLifecycle?.from === 'queued' ? { startedAt: now } : {}),
+          ...(anchorsMutableQueue && freezeMembership
             ? {
-                membershipFrozenAt: batch.membershipFrozenAt ?? now,
-                membershipFrozenBy: batch.membershipFrozenBy ?? actorId,
+                membershipFrozenAt: now,
+                membershipFrozenBy: actorId,
               }
             : {}),
-          ...(nextState === 'completed' &&
-          stage.stageKind === 'folding_packaging'
-            ? { finishedAt: now }
-            : {}),
+          ...(nextBatchState === 'finished' ? { finishedAt: now } : {}),
         })
         .where(
           and(
             eq(laundryProduction.productionBatches.locationId, locationId),
-            eq(laundryProduction.productionBatches.id, batch.id),
-            eq(laundryProduction.productionBatches.version, batch.version),
+            eq(laundryProduction.productionBatches.id, batchId),
+            eq(
+              laundryProduction.productionBatches.version,
+              batchExpectedVersion,
+            ),
+            eq(
+              laundryProduction.productionBatches.status,
+              batchLifecycle?.from ?? batchState,
+            ),
           ),
         )
         .returning();
@@ -176,7 +171,10 @@ export const makeAdvanceProductionStageRepository = (deps: {
           .where(
             and(
               eq(laundryProduction.productionRuns.locationId, locationId),
-              eq(laundryProduction.productionRuns.id, batch.productionRunId),
+              eq(
+                laundryProduction.productionRuns.id,
+                updatedBatch.productionRunId,
+              ),
               eq(laundryProduction.productionRuns.status, 'started'),
             ),
           )
@@ -185,21 +183,29 @@ export const makeAdvanceProductionStageRepository = (deps: {
           throw new Error('Production run changed during stage transition.');
       }
 
-      if (nextState === 'completed')
+      if (stageLifecycle.state === 'completed')
         await completeAssignedOrderStageAttempts(db, {
           locationId,
           stageRunId: stage.id,
+          attempts: attemptLifecycles,
           actorId,
           now,
         });
 
-      if (nextState === 'completed' && stage.stageKind === 'folding_packaging')
+      if (
+        stageLifecycle.state === 'completed' &&
+        stage.stageKind === 'folding_packaging'
+      ) {
+        if (terminalLifecycle === null)
+          throw new Error('Terminal lifecycle decisions are missing.');
         await completeProductionBatch(db, {
           locationId,
-          productionBatchId: batch.id,
-          productionRunId: batch.productionRunId,
+          productionBatchId: updatedBatch.id,
+          productionRunId: updatedBatch.productionRunId,
+          lifecycle: terminalLifecycle,
           now,
         });
+      }
 
       return { entityId: stage.id, version: stage.version, replayed: false };
     },

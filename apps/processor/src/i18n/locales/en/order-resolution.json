@@ -1,0 +1,150 @@
+{
+  "orderResolution": {
+    "trigger": "Review old orders",
+    "sheetTitle": "Review old orders",
+    "sheetDescription": "Find orders that no longer belong in active production work.",
+    "archiveExplanationTitle": "Archive from active work",
+    "archiveExplanation": "Nothing is deleted or marked produced. Pressly keeps a permanent record, and archived orders can be restored from History.",
+    "scopeTitle": "Choose which orders to review",
+    "filterLabel": "Orders to include",
+    "filterOptions": {
+      "all_due_before_cutoff": "All orders due by the cutoff",
+      "source_terminal_before_cutoff": "Only orders completed or canceled at the source"
+    },
+    "cutoffLabel": "Due on or before",
+    "cutoffPlaceholder": "Choose a cutoff date",
+    "cutoffPopoverTitle": "Choose the last due date",
+    "cutoffPopoverDescription": "Orders due on or before this local date will be reviewed.",
+    "reasonLabel": "Why are these orders being archived?",
+    "reasonPlaceholder": "Choose a reason",
+    "reasonOptions": {
+      "completed_outside_pressly": "Completed outside Pressly",
+      "processor_not_in_use": "Processor was not in use",
+      "duplicate_or_test": "Duplicate or test orders",
+      "order_will_not_be_produced": "Orders will not be produced",
+      "other": "Other"
+    },
+    "noteLabel": "Manager note",
+    "noteDescription": "Optional unless you choose Other. This note is kept in the audit record.",
+    "notePlaceholder": "Add context for the archive record",
+    "otherNoteRequired": "Add a note when the reason is Other.",
+    "reviewOrders": "Review orders",
+    "refreshPreview": "Refresh review",
+    "close": "Close old-order review",
+    "cancel": "Cancel",
+    "loading": "Reviewing eligible orders",
+    "previewErrorTitle": "Old orders could not be reviewed",
+    "retry": "Try again",
+    "driftTitle": "The order list changed",
+    "driftDescription": "Refresh the review before archiving. No orders were changed.",
+    "candidateSummary_one": "{{count}} order found",
+    "candidateSummary_other": "{{count}} orders found",
+    "previewGenerated": "Reviewed {{formattedDate}}",
+    "previewLimitedTitle": "More orders match this review",
+    "previewLimitedDescription": "Only {{maximum}} orders are shown on this page. After you finish this page, choose Review next page to continue.",
+    "groups": {
+      "ready_to_archive": {
+        "title": "Ready to archive",
+        "description": "Pressly has no production activity for these orders, so they can be archived together."
+      },
+      "review_individually": {
+        "title": "Review one by one",
+        "description": "Pressly recorded facts that a manager must confirm before archiving."
+      },
+      "kept_for_safety": {
+        "title": "Kept in active work",
+        "description": "Pressly recorded production activity, so these orders will not be archived."
+      },
+      "already_historical": {
+        "title": "Already archived",
+        "description": "These orders are already outside active work."
+      }
+    },
+    "groupCount_one": "{{count}} order",
+    "groupCount_other": "{{count}} orders",
+    "orderDue": "Due {{formattedDate}}",
+    "sourceState": {
+      "open": "Open at source",
+      "completed": "Completed at source",
+      "canceled": "Canceled at source"
+    },
+    "classificationReasons": {
+      "resolved_without_production": "Already archived",
+      "execution_finished": "Production is finished",
+      "execution_state_invalid": "Production state needs review",
+      "resolution_transition_invalid": "Archive transition is unavailable",
+      "execution_committed": "Production activity exists",
+      "selected_for_shift": "Selected for a shift",
+      "batch_membership_exists": "Assigned to a batch",
+      "stage_attempt_exists": "Floor progress was recorded",
+      "route_exists": "Production route was recorded",
+      "intake_recorded": "Physical intake was recorded",
+      "manual_admission": "Manually released to Production",
+      "priority": "Marked priority",
+      "pending_placement": "Waiting for placement in a run",
+      "no_operator_owned_facts": "No Pressly production activity"
+    },
+    "reviewOrder": "Review {{displayReference}}",
+    "openInHistory": "Open {{displayReference}} in History",
+    "individualConfirmTitle": "Archive {{displayReference}} from active work?",
+    "individualConfirmDescription": "This order needs individual review because Pressly recorded facts that require manager confirmation.",
+    "individualAcknowledgement": "I reviewed the order facts and confirmed that this order will not be produced in Pressly.",
+    "individualErrorTitle": "This order was not archived",
+    "archiveReady_one": "Archive {{count}} ready order",
+    "archiveReady_other": "Archive {{count}} ready orders",
+    "bulkConfirmTitle_one": "Archive {{count}} order from active work?",
+    "bulkConfirmTitle_other": "Archive {{count}} orders from active work?",
+    "bulkConfirmDescription": "Only orders in Ready to archive will change. Nothing is deleted or marked produced.",
+    "bulkConfirmScope_one": "{{count}} order due on or before {{formattedCutoff}}",
+    "bulkConfirmScope_other": "{{count}} orders due on or before {{formattedCutoff}}",
+    "bulkConfirmAction": "Archive from active work",
+    "emptyTitle": "No old orders need action",
+    "emptyDescription": "Nothing in this review is ready to archive.",
+    "successTitle": "This review is complete",
+    "successNextPageTitle": "This page is complete",
+    "successDescription_one": "{{count}} order was archived from active work.",
+    "successDescription_other": "{{count}} orders were archived from active work.",
+    "successNextPageDescription_one": "{{count}} order was archived from this page. More matching orders are ready to review.",
+    "successNextPageDescription_other": "{{count}} orders were archived from this page. More matching orders are ready to review.",
+    "replayed": "Already completed",
+    "replayDescription": "This request had already succeeded, so Pressly did not apply it again.",
+    "openHistory": "Open History",
+    "reviewNextPage": "Review next page",
+    "reviewAnotherCutoff": "Review another cutoff",
+    "history": {
+      "statusFilters": {
+        "all": "All activity",
+        "archived": "Archived orders",
+        "restored": "Restored orders"
+      },
+      "activity": {
+        "archived": "Archived from active work",
+        "restored": "Restored to active work"
+      },
+      "restore": {
+        "trigger": "Restore to active work",
+        "title": "Restore {{displayReference}} to active work?",
+        "description": "Pressly will re-evaluate the order's current facts and return it to active work only if it is still eligible. This does not mark it produced or change Cents.",
+        "reasonLabel": "Why is this order being restored?",
+        "reasonPlaceholder": "Choose a reason",
+        "reasonOptions": {
+          "manager_correction": "Correct a manager decision",
+          "work_should_be_produced": "Work should be produced in Pressly",
+          "other": "Other"
+        },
+        "noteLabel": "Manager note",
+        "noteDescription": "Optional unless you choose Other. This note is kept in the audit record.",
+        "notePlaceholder": "Add context for the restore record",
+        "otherNoteRequired": "Add a note when the reason is Other.",
+        "cancel": "Cancel",
+        "confirm": "Restore to active work",
+        "submitting": "Restoring order",
+        "successTitle": "Order restored",
+        "successDescription": "{{displayReference}} is back in active work.",
+        "errorTitle": "This order was not restored",
+        "staleTitle": "The order changed",
+        "staleDescription": "Refresh History and review the latest order state before restoring it."
+      }
+    }
+  }
+}

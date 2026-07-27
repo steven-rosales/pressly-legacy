@@ -35,18 +35,22 @@ tasks:
       - memory:domain:steven-collaboration/context-pack
       - memory:domain:laundry-production/context-pack
       - repo:stateworks/work/done/lpms-order-control-history
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast
       - repo:stateworks/work/queued/lpms-order-control-correctness-hardening/brief.md
+      - repo:docs/plan/lpms-state-transitions.md
       - repo:modules/business/production/src/route-production-order
       - repo:modules/business/production/src/advance-production-stage
       - repo:modules/business/production/src/list-production-history
+      - repo:modules/policy/production/src/lifecycle
       - repo:modules/policy/production/src/stage-transition
       - repo:packages/db/src/schema/laundry-production.schema.ts
     writes:
       - repo:stateworks/work/active/lpms-order-control-correctness-hardening/evidence.md
     action:
-      - Reproduce or prove each of the four audit findings against the current worktree.
+      - Reproduce or prove each of the four audit findings against the post-operational-authority worktree and contracts.
       - Record exact failing tests or source-level proofs before implementation.
       - Confirm whether any repair changes business policy or only restores existing invariants.
+      - Preserve the explicit lifecycle graph ownership, source-handoff boundary, remaining-day forecast, and current Processor information architecture.
     verifier:
       - Evidence identifies one deterministic pre-repair failure or source proof for every finding.
       - Any required domain decision is explicit before implementation.

@@ -6,7 +6,7 @@ import { makeManageBatchMembershipRepository } from '../../src/manage-batch-memb
 import { makeManageBatchMembership } from '../../src/manage-batch-membership/manage-batch-membership.usecase.ts';
 import type { ProductionPolicyPort } from '../../src/production.port.ts';
 import { createProductionTestDatabase } from '../support/database.ts';
-import { makeIds } from '../support/production.fake.ts';
+import { allowPolicy, makeIds } from '../support/production.fake.ts';
 
 const testDb = createProductionTestDatabase();
 
@@ -26,6 +26,7 @@ const fixed = {
 } as const;
 
 const policy = {
+  ...allowPolicy,
   evaluateBatchMembershipTransition: (
     input: Parameters<
       ProductionPolicyPort['evaluateBatchMembershipTransition']
@@ -46,9 +47,13 @@ const policy = {
   },
   evaluateStageTransition: () => ({
     tag: 'ok' as const,
-    value: { status: 'allowed' as const, state: 'started' as const },
+    value: {
+      status: 'allowed' as const,
+      from: 'planned' as const,
+      state: 'started' as const,
+    },
   }),
-} as unknown as ProductionPolicyPort;
+} satisfies ProductionPolicyPort;
 
 const seedQueuedBatch = async () => {
   const now = new Date('2026-07-14T14:00:00.000Z');

@@ -46,10 +46,13 @@ export type StoredFulfillmentDemand = Readonly<{
   locationId: string;
   admissionState: FulfillmentAdmissionState;
   commercialState: FulfillmentCommercialState;
+  dueAt: string;
   estimatedWeightLbs: number | null;
   estimatedWeightSource: 'external_estimate' | null;
   bagCount: number | null;
   admissionOverride: 'released' | null;
+  productionExecutionStatus: string | null;
+  productionResolutionState: 'open' | 'resolved_without_production' | null;
   productionStatus:
     | 'release_pending'
     | 'intake_pending'
@@ -65,7 +68,13 @@ export type FulfillmentProductionMutation =
   | Readonly<{ action: 'preserve' }>
   | Readonly<{
       action: 'create' | 'update';
-      status: 'release_pending' | 'intake_pending' | 'eligible' | 'ineligible';
+      status:
+        | 'release_pending'
+        | 'intake_pending'
+        | 'eligible'
+        | 'ineligible'
+        | 'scheduled'
+        | 'finished';
     }>;
 
 export type ApplyFulfillmentDemandRepository = Transactional<
@@ -82,6 +91,7 @@ export type ApplyFulfillmentDemandRepository = Transactional<
       orderDemandId: string;
       production: FulfillmentProductionMutation;
       effectiveBagCount: number | null;
+      initialExecutionState: 'unassigned';
       now: Date;
     }) => Promise<StoredFulfillmentDemand>;
     appendWorkEvent: (event: WorkEventInput) => Promise<void>;

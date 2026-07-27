@@ -5,6 +5,7 @@ import type { UsersApplication } from '@pressly/users';
 import type { ClaimedWebhookEvent } from '@pressly/webhook-ingestion';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  deriveCentsOrderLifecycle,
   deriveCentsWeightLbs,
   makeCentsOrderHandler,
 } from '../../../../src/jobs/process-webhook-inbox/cents/cents-order.handler.ts';
@@ -82,7 +83,7 @@ const users = (
   }) as UsersApplication;
 
 const orders = (
-  observeSource = vi.fn(async () => ({
+  observeSource: OrdersApplication['observeSource'] = vi.fn(async () => ({
     tag: 'ok' as const,
     value: {
       orderId: 'canonical-order-1',
@@ -105,6 +106,25 @@ const orders = (
   }) as OrdersApplication;
 
 describe('Cents order consumer adapter', () => {
+  it.each([
+    ['SUBMITTED', 'open', 'unreleased'],
+    ['READY_FOR_PICKUP', 'open', 'unreleased'],
+    ['PICKED_UP', 'open', 'unreleased'],
+    ['IN_PROGRESS', 'open', 'released'],
+    ['READY_FOR_RETURN', 'open', 'released'],
+    ['OUT_FOR_DELIVERY', 'open', 'released'],
+    ['COMPLETED', 'open', 'released'],
+    ['CANCELED', 'canceled', 'withdrawn'],
+  ] as const)(
+    'maps normalized Cents status %s to %s/%s',
+    (status, state, releaseState) => {
+      expect(deriveCentsOrderLifecycle(status)).toEqual({
+        state,
+        releaseState,
+      });
+    },
+  );
+
   it('derives laundry weight without treating future service categories as pounds', () => {
     expect(
       deriveCentsWeightLbs([
@@ -258,4 +278,74 @@ describe('Cents order consumer adapter', () => {
     });
     expect(orderApplication.observeSource).not.toHaveBeenCalled();
   });
+
+  it('treats a Pressly-finished IN_PROGRESS observation as successful delivery', async () => {
+    const observeOrder = vi.fn<OrdersApplication['observeSource']>(
+      async () => ({
+        tag: 'ok' as const,
+        value: {
+          orderId: 'canonical-order-1',
+          fulfillmentId: 'fulfillment-1',
+          version: 7,
+          replayed: false,
+          outcome: 'observed_only' as const,
+        },
+      }),
+    );
+    const consumer = makeCentsOrderHandler({
+      resolveSourceLocation: vi.fn(async () => 'location-1'),
+      users: users(),
+      orders: orders(observeOrder),
+    });
+    await expect(consumer(event())).resolves.toEqual({ tag: 'ok' });
+    expect(observeOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'open',
+        fulfillment: expect.objectContaining({ releaseState: 'released' }),
+        revision: expect.objectContaining({ lifecycleCode: 'IN_PROGRESS' }),
+      }),
+    );
+  });
+
+  it.each([
+    {
+      status: 503,
+      kind: 'DatabaseError',
+      code: 'ORDER_SOURCE_OBSERVATION_FAILED',
+      retryable: true,
+    },
+    {
+      status: 409,
+      kind: 'ConflictError',
+      code: 'ORDER_SOURCE_REVISION_CONFLICT',
+      retryable: false,
+    },
+  ] as const)(
+    'marks an Orders $status failure retryable=$retryable',
+    async ({ status, kind, code, retryable }) => {
+      const failure = makeAppError({
+        kind,
+        code,
+        message: 'Order source observation failed.',
+        safeMessage: 'Order source observation failed.',
+        status,
+      });
+      const consumer = makeCentsOrderHandler({
+        resolveSourceLocation: vi.fn(async () => 'location-1'),
+        users: users(),
+        orders: orders(
+          vi.fn<OrdersApplication['observeSource']>(async () => ({
+            tag: 'err' as const,
+            error: failure,
+          })),
+        ),
+      });
+
+      await expect(consumer(event())).resolves.toMatchObject({
+        tag: 'err',
+        error: { code },
+        retryable,
+      });
+    },
+  );
 });

@@ -1,0 +1,121 @@
+id: memdelta-2026-07-26-manual-production-admission
+domain_id: laundry-production
+
+source:
+  type: implementation_evidence
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-26-manual-production-admission.md
+
+changes:
+  - op: update
+    kind: workflow
+    id: external_demand_to_production_admission
+    steps:
+      - a strictly newer external order observation is normalized at its source
+        adapter boundary
+      - Users resolves the exact external customer identity and retains the
+        latest source snapshot without overriding explicit Pressly field
+        authority
+      - Orders records the canonical commercial order, generic items,
+        fulfillment, source identity, latest source snapshot, and source-neutral
+        release state
+      - active unreleased fulfillment demand due through the shift service-day
+        cutoff contributes only to advisory forecasting
+      - an Orders outbox event applies the fulfillment-keyed production demand
+        idempotently without carrying a vendor lifecycle code
+      - physical bag intake may be recorded before release, but intake alone
+        does not admit the production order
+      - effective Production admission becomes released through canonical
+        upstream fulfillment release or a current manual Production override
+      - a manual override leaves source truth unchanged and becomes ready only
+        when positive weight and bag-count rules also hold
+      - manual admission never selects or places an order, and executable
+        scheduling reads only explicitly selected ready production orders
+      - reversal is revalidated under the location scheduling lock and is
+        available only before selection, scheduling commitment, or batch
+        assignment
+      - lagging pre-release source observations preserve a current manual
+        override, while source withdrawal supersedes it and follows committed
+        work reconciliation policy
+      - downstream, withdrawn, or lagging source observations are composed with
+        LPMS state and require operator-confirmed reconciliation when the
+        systems disagree
+
+  - op: update
+    kind: invariant
+    id: pre_release_intake_does_not_admit_v1
+    statement: Physical bag intake alone never admits pre-release demand to
+      executable Production; effective admission requires canonical upstream
+      release or a current manual Production override, and readiness still
+      requires positive production demand and recorded bag intake.
+
+  - op: update
+    kind: policy
+    id: released_fulfillment_is_eligible_v1
+    statement: A fulfillment becomes an LPMS-ready candidate only when its
+      effective Production admission is released through canonical upstream
+      release or a current manual Production override, its production estimate
+      is positive, and physical bag intake is recorded.
+
+  - op: assert
+    kind: invariant
+    id: manual_admission_preserves_source_truth_v1
+    statement: Manual Production admission changes only effective Production
+      eligibility and never mutates canonical fulfillment release, vendor
+      lifecycle status, or the latest source observation.
+
+  - op: assert
+    kind: invariant
+    id: manual_admission_does_not_select_or_place_v1
+    statement: Manual Production admission never selects an order for a shift,
+      commits it to a schedule, or places it into a production batch or run.
+
+  - op: assert
+    kind: invariant
+    id: source_withdrawal_supersedes_manual_admission_v1
+    statement: Source withdrawal supersedes a manual Production admission
+      override as the effective admission signal, while physically received or
+      committed LPMS work remains preserved under the existing reconciliation
+      policy.
+
+  - op: assert
+    kind: policy
+    id: manual_admission_reversal_is_precommit_only_v1
+    statement: Manual Production admission may be reversed only before shift
+      selection, scheduling commitment, or production-batch assignment, with
+      availability revalidated under the location scheduling lock.
+
+  - op: assert
+    kind: policy
+    id: manual_admission_is_location_authorized_v1
+    statement: Owner, administrator, and operator roles may manually release or
+      reverse Production admission only within a location they are authorized
+      to operate.
+
+  - op: assert
+    kind: decision
+    id: production_owns_manual_admission_override_v1
+    statement: Production owns the source-neutral manual admission override and
+      applies versioned, idempotent, actor-audited, location-authorized commands
+      under the same location scheduling lock used by planning.
+
+  - op: update
+    kind: decision
+    id: processor_uses_backend_action_availability
+    statement: The Processor renders Production action availability, including
+      stage actions and manual admission release or reversal, from server
+      projections and does not recreate Production policy in the browser.
+
+verification:
+  - Steven confirmed the manual admission and reversal model on 2026-07-22 and
+    explicitly authorized this memory-only reconciliation on 2026-07-26.
+  - The completed Intake admission brief, evidence, and final report agree that
+    Production owns the override, source truth remains unchanged, physical
+    intake remains required, and release never selects or places work.
+  - Focused Production, authorization, Contracts, Database, API, and Processor
+    verification is recorded in the completed work evidence.
+  - Existing source-neutral identity, explicit selection, scheduling-lock, and
+    committed-work reconciliation rules remain active and are preserved.
+  - UI layout, product copy, and the one-time prelaunch cleanup are intentionally
+    excluded because they are not durable laundry-production rules.
+
+status: applied

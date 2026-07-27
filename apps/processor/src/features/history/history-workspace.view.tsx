@@ -2,15 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import type {
-  ListProductionHistoryActivityResult,
+  ProcessorListProductionHistoryActivityResult,
   ListProductionHistoryPlansResult,
   ListProductionHistoryRunsResult,
-  ProductionHistoryActivityEntry,
+  ProcessorProductionHistoryActivityEntry,
   ProductionHistoryPlanSummary,
-  ProductionHistoryRunDetail,
+  ProcessorProductionHistoryRunDetail,
   ProductionHistoryRunSummary,
 } from "@pressly/contracts"
 import { useIsMobile } from "@/components/ui/use-mobile"
+import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import { presentHistoryError } from "./history.error.presenter"
 import {
@@ -23,6 +24,7 @@ import {
 import type {
   HistoryActivityItem,
   HistoryPlanSummary as HistoryPlanViewModel,
+  HistoryRestoreReason,
   HistoryRunSummary as HistoryRunViewModel,
   HistoryTab,
 } from "./history.model"
@@ -47,6 +49,21 @@ const labelFor = (value: string, t: TFunction): string => {
   if (value === "washing") return t("common.stage.washing")
   if (value === "drying") return t("common.stage.drying")
   if (value === "folding_packaging") return t("common.stage.foldingPackaging")
+  if (value === "completed_outside_pressly")
+    return t("orderResolution.reasonOptions.completed_outside_pressly")
+  if (value === "processor_not_in_use")
+    return t("orderResolution.reasonOptions.processor_not_in_use")
+  if (value === "duplicate_or_test")
+    return t("orderResolution.reasonOptions.duplicate_or_test")
+  if (value === "order_will_not_be_produced")
+    return t("orderResolution.reasonOptions.order_will_not_be_produced")
+  if (value === "manager_correction")
+    return t("orderResolution.history.restore.reasonOptions.manager_correction")
+  if (value === "work_should_be_produced")
+    return t(
+      "orderResolution.history.restore.reasonOptions.work_should_be_produced"
+    )
+  if (value === "other") return t("orderResolution.reasonOptions.other")
   return value
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -110,7 +127,7 @@ const presentRun = (
 })
 
 const activityDetail = (
-  activity: ProductionHistoryActivityEntry,
+  activity: ProcessorProductionHistoryActivityEntry,
   t: TFunction
 ): string => {
   const details = activity.details
@@ -119,6 +136,12 @@ const activityDetail = (
       return (
         [
           details.outcome,
+          details.resolutionState === null
+            ? null
+            : labelFor(details.resolutionState, t),
+          details.resolutionReason === null
+            ? null
+            : labelFor(details.resolutionReason, t),
           details.routeReason === null
             ? null
             : labelFor(details.routeReason, t),
@@ -174,13 +197,21 @@ const activityDetail = (
 }
 
 const presentActivity = (
-  activity: ProductionHistoryActivityEntry,
+  activity: ProcessorProductionHistoryActivityEntry,
   timezone: string,
   locale: string,
   t: TFunction
 ): HistoryActivityItem => ({
   id: activity.id,
-  title: activity.summary,
+  identity: activity.identity,
+  title:
+    activity.eventType === "production_order_restored"
+      ? t("orderResolution.history.activity.restored")
+      : activity.eventType === "production_order_resolved_without_production" ||
+          activity.eventType ===
+            "production_order_bulk_resolved_without_production"
+        ? t("orderResolution.history.activity.archived")
+        : activity.summary,
   detail: activityDetail(activity, t),
   occurredAtLabel: formatDate(activity.occurredAt, timezone, locale),
   actorLabel: activity.actor.displayName ?? labelFor(activity.actor.kind, t),
@@ -190,6 +221,13 @@ const presentActivity = (
     activity.eventType === "production_order_placement_overtime_required"
       ? "warning"
       : "default",
+  restoreAction:
+    activity.resolutionAction === null
+      ? null
+      : {
+          productionOrderId: activity.entityId,
+          expectedVersion: activity.resolutionAction.expectedVersion,
+        },
 })
 
 const presentPlan = (
@@ -216,7 +254,7 @@ const presentPlan = (
 })
 
 const presentDetail = (
-  value: ProductionHistoryRunDetail,
+  value: ProcessorProductionHistoryRunDetail,
   timezone: string,
   locale: string,
   t: TFunction
@@ -224,7 +262,7 @@ const presentDetail = (
   const detail = value
   const run = presentRun(detail.overview, timezone, locale, t)
   const activity = detail.activity.items.map((item) =>
-    presentActivity(item, timezone, locale, t)
+    presentActivity({ ...item, identity: null }, timezone, locale, t)
   )
   const exceptionCount = activity.filter(
     (item) => item.tone !== "default"
@@ -269,7 +307,8 @@ const presentDetail = (
     })),
     orders: detail.orderMemberships.map((order) => ({
       id: order.productionOrderId,
-      externalOrderId: order.externalOrderId,
+      identity: order.identity,
+      externalOrderId: order.identity.displayNumber,
       statusLabel: labelFor(order.orderStatus, t),
       demandLabel: `${order.derivedWeightLbs.toLocaleString(locale)} lb · ${
         order.bagCount === null
@@ -299,14 +338,20 @@ const historyAfter = (window: string, anchor: Date): string | undefined => {
 
 export function HistoryWorkspaceContainer({
   production,
+  idempotency,
   locationId,
   timezone,
   revision,
+  canManage,
+  onMutated,
 }: Readonly<{
   production: ProductionPort
+  idempotency: IdempotencyPort
   locationId: string
   timezone: string
   revision: string
+  canManage: boolean
+  onMutated: () => Promise<void>
 }>) {
   const { t, i18n } = useTranslation()
   const locale = localeForLanguage(i18n.resolvedLanguage)
@@ -320,12 +365,15 @@ export function HistoryWorkspaceContainer({
   const [runsResult, setRunsResult] =
     useState<ListProductionHistoryRunsResult | null>(null)
   const [activityResult, setActivityResult] =
-    useState<ListProductionHistoryActivityResult | null>(null)
+    useState<ProcessorListProductionHistoryActivityResult | null>(null)
   const [plansResult, setPlansResult] =
     useState<ListProductionHistoryPlansResult | null>(null)
   const [selectedRun, setSelectedRun] = useState<HistoryRunDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [restoringOrderId, setRestoringOrderId] = useState<string | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null)
   const sequence = useRef(0)
 
   useEffect(() => {
@@ -367,6 +415,9 @@ export function HistoryWorkspaceContainer({
             ...(createdAfter === undefined
               ? {}
               : { occurredAfter: createdAfter }),
+            ...(filters.status === "archived" || filters.status === "restored"
+              ? { orderResolution: filters.status }
+              : {}),
           },
         })
         if (requestSequence === sequence.current) setActivityResult(value)
@@ -472,6 +523,52 @@ export function HistoryWorkspaceContainer({
         .catch((cause) => setError(presentHistoryError(cause, "detail", t)))
     },
     onCloseRun: () => setSelectedRun(null),
+    onRestoreOrder: (input) => {
+      if (!canManage || restoringOrderId !== null) return
+      setRestoringOrderId(input.productionOrderId)
+      setRestoreError(null)
+      setRestoreNotice(null)
+      void (async () => {
+        try {
+          const request = {
+            action: "restore" as const,
+            reason: input.reason satisfies HistoryRestoreReason,
+            note: input.note,
+            expectedVersion: input.expectedVersion,
+            idempotencyKey: await idempotency.key({
+              operation: "restore-production-order",
+              payload: {
+                locationId,
+                productionOrderId: input.productionOrderId,
+                expectedVersion: input.expectedVersion,
+                reason: input.reason,
+                note: input.note,
+              },
+            }),
+          }
+          await production.changeOrderResolution({
+            locationId,
+            productionOrderId: input.productionOrderId,
+            request,
+          })
+          setRestoreNotice(
+            t("orderResolution.history.restore.successDescription", {
+              displayReference:
+                activity.find(
+                  (item) =>
+                    item.restoreAction?.productionOrderId ===
+                    input.productionOrderId
+                )?.title ?? t("history.order"),
+            })
+          )
+          await Promise.all([load(), onMutated()])
+        } catch (cause) {
+          setRestoreError(presentHistoryError(cause, "restore", t))
+        } finally {
+          setRestoringOrderId(null)
+        }
+      })()
+    },
   }
 
   const model: HistoryViewModel = {
@@ -497,7 +594,16 @@ export function HistoryWorkspaceContainer({
               { value: "started", label: t("history.started") },
               { value: "completed", label: t("history.completed") },
             ]
-          : []),
+          : [
+              {
+                value: "archived",
+                label: t("orderResolution.history.statusFilters.archived"),
+              },
+              {
+                value: "restored",
+                label: t("orderResolution.history.statusFilters.restored"),
+              },
+            ]),
     ],
     runs,
     activity,
@@ -528,6 +634,10 @@ export function HistoryWorkspaceContainer({
     loading: loading && currentResult === null,
     refreshing: loading && currentResult !== null,
     error,
+    canManage,
+    restoringOrderId,
+    restoreError,
+    restoreNotice,
   }
 
   return (

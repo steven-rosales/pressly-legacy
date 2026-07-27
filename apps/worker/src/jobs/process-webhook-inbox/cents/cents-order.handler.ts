@@ -52,27 +52,28 @@ const invalidEvent = (code: string, message: string): EventConsumerOutcome =>
     }),
   );
 
-const releaseState = (
-  status: CentsCanonicalOrderInput['status'],
-): 'unreleased' | 'released' | 'withdrawn' => {
-  if (status === 'CANCELED') return 'withdrawn';
-  if (
-    status === 'SUBMITTED' ||
-    status === 'READY_FOR_PICKUP' ||
-    status === 'PICKED_UP'
-  )
-    return 'unreleased';
-  return 'released';
-};
+type CentsOrderLifecycleProposal = Readonly<{
+  state: 'open' | 'canceled';
+  releaseState: 'unreleased' | 'released' | 'withdrawn';
+}>;
 
-const commercialState = (
+const centsOrderLifecycleByStatus = {
+  SUBMITTED: { state: 'open', releaseState: 'unreleased' },
+  READY_FOR_PICKUP: { state: 'open', releaseState: 'unreleased' },
+  PICKED_UP: { state: 'open', releaseState: 'unreleased' },
+  IN_PROGRESS: { state: 'open', releaseState: 'released' },
+  READY_FOR_RETURN: { state: 'open', releaseState: 'released' },
+  OUT_FOR_DELIVERY: { state: 'open', releaseState: 'released' },
+  COMPLETED: { state: 'open', releaseState: 'released' },
+  CANCELED: { state: 'canceled', releaseState: 'withdrawn' },
+} as const satisfies Record<
+  CentsCanonicalOrderInput['status'],
+  CentsOrderLifecycleProposal
+>;
+
+export const deriveCentsOrderLifecycle = (
   status: CentsCanonicalOrderInput['status'],
-): 'open' | 'completed' | 'canceled' =>
-  status === 'COMPLETED'
-    ? 'completed'
-    : status === 'CANCELED'
-      ? 'canceled'
-      : 'open';
+): CentsOrderLifecycleProposal => centsOrderLifecycleByStatus[status];
 
 export const makeCentsOrderHandler =
   (deps: {
@@ -135,13 +136,14 @@ export const makeCentsOrderHandler =
       };
     }
     const estimatedWeightLbs = deriveCentsWeightLbs(order.services);
+    const lifecycle = deriveCentsOrderLifecycle(order.status);
     const observed = await deps.orders.observeSource({
       context: centsWebhookCommandContext,
       source: 'cents',
       externalOrderId: order.externalOrderId,
       customer: canonicalCustomer,
       displayNumber: order.orderCode,
-      state: commercialState(order.status),
+      state: lifecycle.state,
       dueAt: new Date(order.dueAt),
       currency: 'USD',
       totalAmountCents: order.totalAmountCents,
@@ -164,7 +166,7 @@ export const makeCentsOrderHandler =
           ? 'wash_fold'
           : 'external_order',
         locationId,
-        releaseState: releaseState(order.status),
+        releaseState: lifecycle.releaseState,
         estimatedWeightLbs,
         estimatedWeightSource:
           estimatedWeightLbs === null ? null : 'source_estimate',

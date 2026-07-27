@@ -26,10 +26,13 @@ export type LockedProductionAdmission = Readonly<{
     | 'scheduled'
     | 'finished';
   productionVersion: number;
+  executionStatus: string;
+  derivedWeightLbs: number;
   admissionOverride: 'released' | null;
   bagCount: number | null;
   selectedForShift: boolean;
   hasActivePlacement: boolean;
+  resolutionState: string;
 }>;
 
 export type ChangeProductionAdmissionRepository = Transactional<

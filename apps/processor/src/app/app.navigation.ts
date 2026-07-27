@@ -1,6 +1,7 @@
 import {
   IconAdjustmentsHorizontal,
   IconCalendarClock,
+  IconChartHistogram,
   IconHistory,
   IconHome,
   IconLayoutBoard,
@@ -11,6 +12,7 @@ export type WorkspaceView =
   | "home"
   | "intake"
   | "schedule"
+  | "forecast"
   | "board"
   | "history"
   | "settings"
@@ -21,39 +23,79 @@ export type WorkspaceRoute = Readonly<{
   runId: string | null
 }>
 
-export const workspaceNavigation = [
-  { id: "home" as const, labelKey: "navigation.home" as const, icon: IconHome },
+export const workspaceHomeNavigation = {
+  id: "home" as const,
+  labelKey: "navigation.home" as const,
+  icon: IconHome,
+}
+
+export const workspaceNavigationSections = [
   {
-    id: "intake" as const,
-    labelKey: "navigation.intake" as const,
-    icon: IconPackageImport,
+    id: "dailyWork",
+    labelKey: "navigation.sections.dailyWork",
+    items: [
+      {
+        id: "intake" as const,
+        labelKey: "navigation.intake",
+        icon: IconPackageImport,
+      },
+      {
+        id: "schedule" as const,
+        labelKey: "navigation.schedule",
+        icon: IconCalendarClock,
+      },
+      {
+        id: "board" as const,
+        labelKey: "navigation.production",
+        icon: IconLayoutBoard,
+      },
+    ],
   },
   {
-    id: "board" as const,
-    labelKey: "navigation.production" as const,
-    icon: IconLayoutBoard,
+    id: "planningReview",
+    labelKey: "navigation.sections.planningReview",
+    items: [
+      {
+        id: "forecast" as const,
+        labelKey: "navigation.forecast",
+        icon: IconChartHistogram,
+      },
+      {
+        id: "history" as const,
+        labelKey: "navigation.history",
+        icon: IconHistory,
+      },
+    ],
   },
   {
-    id: "schedule" as const,
-    labelKey: "navigation.schedule" as const,
-    icon: IconCalendarClock,
-  },
-  {
-    id: "history" as const,
-    labelKey: "navigation.history" as const,
-    icon: IconHistory,
-  },
-  {
-    id: "settings" as const,
-    labelKey: "navigation.configuration" as const,
-    icon: IconAdjustmentsHorizontal,
+    id: "system",
+    labelKey: "navigation.sections.system",
+    items: [
+      {
+        id: "settings" as const,
+        labelKey: "navigation.configuration",
+        icon: IconAdjustmentsHorizontal,
+      },
+    ],
   },
 ] as const
+
+export type WorkspaceNavigationItem =
+  | typeof workspaceHomeNavigation
+  | (typeof workspaceNavigationSections)[number]["items"][number]
+
+export const workspaceNavigation: readonly WorkspaceNavigationItem[] = [
+  workspaceHomeNavigation,
+  ...workspaceNavigationSections.flatMap<WorkspaceNavigationItem>(
+    (section) => section.items
+  ),
+]
 
 export const workspaceCopyKeys = {
   home: ["navigation.home", "navigation.homeDescription"],
   intake: ["navigation.intake", "navigation.intakeDescription"],
   schedule: ["navigation.schedule", "navigation.scheduleDescription"],
+  forecast: ["navigation.forecast", "navigation.forecastDescription"],
   board: ["navigation.production", "navigation.productionDescription"],
   history: ["navigation.history", "navigation.historyDescription"],
   settings: ["navigation.configuration", "navigation.configurationDescription"],
@@ -79,6 +121,8 @@ export const readWorkspaceRoute = (pathname: string): WorkspaceRoute | null => {
     return { view: "history", shiftId: null, runId: null }
   if (segments.length === 1 && segments[0] === "intake")
     return { view: "intake", shiftId: null, runId: null }
+  if (segments.length === 1 && segments[0] === "forecast")
+    return { view: "forecast", shiftId: null, runId: null }
   if (segments.length === 1 && segments[0] === "configuration")
     return { view: "settings", shiftId: null, runId: null }
 
@@ -106,6 +150,7 @@ export const readWorkspaceRoute = (pathname: string): WorkspaceRoute | null => {
 export const workspaceRoutePath = (route: WorkspaceRoute): string => {
   if (route.view === "home") return "/"
   if (route.view === "intake") return "/intake"
+  if (route.view === "forecast") return "/forecast"
   if (route.view === "history") return "/history"
   if (route.view === "settings") return "/configuration"
   if (route.view === "board")
@@ -121,7 +166,12 @@ export const workspaceRouteForView = (
   view: WorkspaceView,
   identifiers: Partial<Pick<WorkspaceRoute, "shiftId" | "runId">> = {}
 ): WorkspaceRoute => {
-  if (view === "home" || view === "intake" || view === "history")
+  if (
+    view === "home" ||
+    view === "intake" ||
+    view === "forecast" ||
+    view === "history"
+  )
     return { view, shiftId: null, runId: null }
   if (view === "settings")
     return { view: "settings", shiftId: null, runId: null }

@@ -925,7 +925,8 @@ describe('processor architecture boundaries', () => {
     );
 
     expect(readModel).toContain('sourceLifecycleCode');
-    expect(readModel).toContain('projectSourceComparison');
+    expect(readModel).not.toContain('projectSourceComparison');
+    expect(readModel).not.toMatch(/\bcomparison\s*:/);
     expect(readModel).not.toContain('normalizedPayload');
     expect(readModel).not.toContain('Reflect.get');
     expect(presenter).not.toMatch(/from ["']react["']/);

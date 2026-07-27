@@ -20,7 +20,66 @@ import {
 import type {
   ObserveOrderSourceOperations,
   ObserveOrderSourceRepository,
+  RetainOrderSourceObservationInput,
 } from './observe-order-source.port.ts';
+
+const retainObservationRows = async (
+  tx: DatabaseExecutor,
+  input: RetainOrderSourceObservationInput,
+): Promise<void> => {
+  const now = input.observation.revision.observedAt;
+  await tx
+    .insert(schema.orderSourceCustomerRefs)
+    .values({
+      orderSourceLinkId: input.current.sourceLinkId,
+      externalUserId: input.observation.customer.externalUserId,
+      resolvedUserId: input.observation.customer.userId,
+      resolution: input.observation.customer.resolution,
+      observedAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.orderSourceCustomerRefs.orderSourceLinkId,
+      set: {
+        externalUserId: input.observation.customer.externalUserId,
+        resolvedUserId: input.observation.customer.userId,
+        resolution: input.observation.customer.resolution,
+        observedAt: now,
+        updatedAt: now,
+      },
+    });
+  await tx
+    .insert(schema.orderSourceSnapshots)
+    .values({
+      sourceLinkId: input.current.sourceLinkId,
+      sourceRevisionAt: input.observation.revision.at,
+      sourceRevisionHash: input.observation.revision.hash,
+      adapterVersion: input.observation.revision.adapterVersion,
+      sourceLifecycleCode: input.observation.revision.lifecycleCode,
+      normalizedPayload: input.observation.revision.normalizedPayload,
+      observedAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.orderSourceSnapshots.sourceLinkId,
+      set: {
+        sourceRevisionAt: input.observation.revision.at,
+        sourceRevisionHash: input.observation.revision.hash,
+        adapterVersion: input.observation.revision.adapterVersion,
+        sourceLifecycleCode: input.observation.revision.lifecycleCode,
+        normalizedPayload: input.observation.revision.normalizedPayload,
+        observedAt: now,
+        updatedAt: now,
+      },
+    });
+  await upsertOrderAuthorities(tx, {
+    orderId: input.current.order.id,
+    fields: input.missingAuthorities,
+    authority: 'source',
+    source: input.observation.source,
+    now,
+  });
+};
 
 const makeOperations = (
   tx: DatabaseExecutor,
@@ -42,10 +101,16 @@ const makeOperations = (
       )
       .limit(1);
     if (link === undefined) return null;
+    await lockOrderKey(tx, `orders:id:${link.orderId}`);
+    const discovered = await loadOrderAggregate(tx, link.orderId);
+    if (discovered === null) throw new Error('Order source link is orphaned.');
+    await lockOrderKey(tx, `fulfillments:id:${discovered.fulfillment.id}`);
     const aggregate = await loadOrderAggregate(tx, link.orderId);
     if (aggregate === null) throw new Error('Order source link is orphaned.');
     if (aggregate.fulfillment.typeCode !== command.fulfillment.typeCode)
       throw new Error('Order source fulfillment type changed.');
+    if (aggregate.fulfillment.id !== discovered.fulfillment.id)
+      throw new Error('Order source fulfillment changed while locking.');
     const [snapshot] = await tx
       .select()
       .from(schema.orderSourceSnapshots)
@@ -55,6 +120,10 @@ const makeOperations = (
       .select()
       .from(schema.orderFieldAuthorities)
       .where(eq(schema.orderFieldAuthorities.orderId, aggregate.order.id));
+    const itemRows = await tx
+      .select()
+      .from(schema.orderItems)
+      .where(eq(schema.orderItems.orderId, aggregate.order.id));
     const authorities = new Map(
       rows.map((row) => {
         if (row.authority !== 'pressly' && row.authority !== 'source')
@@ -76,130 +145,110 @@ const makeOperations = (
               hash: snapshot.sourceRevisionHash,
             },
       authorities,
+      items: itemRows.map((item) => ({
+        lineKey: item.lineKey,
+        itemType: item.itemType,
+        code: item.code,
+        description: item.description,
+        quantity: item.quantity,
+        unit: item.unit,
+        unitPriceCents: item.unitPriceCents,
+        totalAmountCents: item.totalAmountCents,
+        sourceMetadata: item.sourceMetadata,
+      })),
     };
   },
-  createSourceOrder: async (command) => {
+  createSourceOrder: async ({ observation, canonical }) => {
     const value = await createOrderRows(
       tx,
-      command,
-      command.revision.observedAt,
+      canonical,
+      observation.revision.observedAt,
     );
     const [link] = await tx
       .insert(schema.orderSourceLinks)
       .values({
-        source: command.source,
-        externalOrderId: command.externalOrderId,
+        source: observation.source,
+        externalOrderId: observation.externalOrderId,
         orderId: value.orderId,
-        createdAt: command.revision.observedAt,
-        updatedAt: command.revision.observedAt,
+        createdAt: observation.revision.observedAt,
+        updatedAt: observation.revision.observedAt,
       })
       .returning({ id: schema.orderSourceLinks.id });
     if (link === undefined)
       throw new Error('Order source link insert returned no row.');
     await tx.insert(schema.orderSourceCustomerRefs).values({
       orderSourceLinkId: link.id,
-      externalUserId: command.customer.externalUserId,
-      resolvedUserId: command.customer.userId,
-      resolution: command.customer.resolution,
-      observedAt: command.revision.observedAt,
-      updatedAt: command.revision.observedAt,
+      externalUserId: observation.customer.externalUserId,
+      resolvedUserId: observation.customer.userId,
+      resolution: observation.customer.resolution,
+      observedAt: observation.revision.observedAt,
+      updatedAt: observation.revision.observedAt,
     });
     await tx.insert(schema.orderSourceSnapshots).values({
       sourceLinkId: link.id,
-      sourceRevisionAt: command.revision.at,
-      sourceRevisionHash: command.revision.hash,
-      adapterVersion: command.revision.adapterVersion,
-      sourceLifecycleCode: command.revision.lifecycleCode,
-      normalizedPayload: command.revision.normalizedPayload,
-      observedAt: command.revision.observedAt,
-      createdAt: command.revision.observedAt,
-      updatedAt: command.revision.observedAt,
+      sourceRevisionAt: observation.revision.at,
+      sourceRevisionHash: observation.revision.hash,
+      adapterVersion: observation.revision.adapterVersion,
+      sourceLifecycleCode: observation.revision.lifecycleCode,
+      normalizedPayload: observation.revision.normalizedPayload,
+      observedAt: observation.revision.observedAt,
+      createdAt: observation.revision.observedAt,
+      updatedAt: observation.revision.observedAt,
     });
     await upsertOrderAuthorities(tx, {
       orderId: value.orderId,
       fields: [
         ...orderSourceFields,
-        fulfillmentReleaseAuthorityField(command.fulfillment.typeCode),
+        fulfillmentReleaseAuthorityField(observation.fulfillment.typeCode),
       ],
       authority: 'source',
-      source: command.source,
-      now: command.revision.observedAt,
+      source: observation.source,
+      now: observation.revision.observedAt,
     });
     return value;
   },
-  applySourceOrder: async (input) => {
-    const now = input.observation.revision.observedAt;
-    await tx
+  retainSourceObservation: (input) => retainObservationRows(tx, input),
+  applySourceAdoption: async (input) => {
+    const now = input.observedAt;
+    const [updatedOrder] = await tx
       .update(schema.orders)
       .set({
         ...input.nextOrder,
         version: input.nextOrderVersion,
         updatedAt: now,
       })
-      .where(eq(schema.orders.id, input.current.order.id));
+      .where(
+        and(
+          eq(schema.orders.id, input.current.order.id),
+          eq(schema.orders.version, input.current.order.version),
+        ),
+      )
+      .returning({ id: schema.orders.id });
+    if (updatedOrder === undefined)
+      throw new Error('Order changed during source adoption.');
     await tx
       .delete(schema.orderItems)
       .where(eq(schema.orderItems.orderId, input.current.order.id));
     await insertOrderItems(tx, input.current.order.id, input.items, now);
-    await tx
+    const [updatedFulfillment] = await tx
       .update(schema.orderFulfillments)
       .set({
         ...input.nextFulfillment,
         version: input.nextFulfillmentVersion,
         updatedAt: now,
       })
-      .where(eq(schema.orderFulfillments.id, input.current.fulfillment.id));
-    await tx
-      .insert(schema.orderSourceCustomerRefs)
-      .values({
-        orderSourceLinkId: input.current.sourceLinkId,
-        externalUserId: input.observation.customer.externalUserId,
-        resolvedUserId: input.observation.customer.userId,
-        resolution: input.observation.customer.resolution,
-        observedAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: schema.orderSourceCustomerRefs.orderSourceLinkId,
-        set: {
-          externalUserId: input.observation.customer.externalUserId,
-          resolvedUserId: input.observation.customer.userId,
-          resolution: input.observation.customer.resolution,
-          observedAt: now,
-          updatedAt: now,
-        },
-      });
-    await tx
-      .insert(schema.orderSourceSnapshots)
-      .values({
-        sourceLinkId: input.current.sourceLinkId,
-        sourceRevisionAt: input.observation.revision.at,
-        sourceRevisionHash: input.observation.revision.hash,
-        adapterVersion: input.observation.revision.adapterVersion,
-        sourceLifecycleCode: input.observation.revision.lifecycleCode,
-        normalizedPayload: input.observation.revision.normalizedPayload,
-        observedAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: schema.orderSourceSnapshots.sourceLinkId,
-        set: {
-          sourceRevisionAt: input.observation.revision.at,
-          sourceRevisionHash: input.observation.revision.hash,
-          adapterVersion: input.observation.revision.adapterVersion,
-          sourceLifecycleCode: input.observation.revision.lifecycleCode,
-          normalizedPayload: input.observation.revision.normalizedPayload,
-          observedAt: now,
-          updatedAt: now,
-        },
-      });
-    await upsertOrderAuthorities(tx, {
-      orderId: input.current.order.id,
-      fields: input.missingAuthorities,
-      authority: 'source',
-      source: input.observation.source,
-      now,
-    });
+      .where(
+        and(
+          eq(schema.orderFulfillments.id, input.current.fulfillment.id),
+          eq(
+            schema.orderFulfillments.version,
+            input.current.fulfillment.version,
+          ),
+        ),
+      )
+      .returning({ id: schema.orderFulfillments.id });
+    if (updatedFulfillment === undefined)
+      throw new Error('Fulfillment changed during source adoption.');
     await emitFulfillmentDemand(tx, {
       orderId: input.current.order.id,
       fulfillmentId: input.current.fulfillment.id,

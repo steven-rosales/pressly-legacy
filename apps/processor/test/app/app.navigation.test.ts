@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   readWorkspaceRoute,
+  workspaceNavigation,
+  workspaceNavigationSections,
   workspaceRouteForView,
   workspaceRoutePath,
 } from "@/app/app.navigation"
@@ -9,6 +11,7 @@ describe("processor browser routes", () => {
   it.each([
     ["/", { view: "home", shiftId: null, runId: null }],
     ["/intake", { view: "intake", shiftId: null, runId: null }],
+    ["/forecast", { view: "forecast", shiftId: null, runId: null }],
     ["/schedule", { view: "schedule", shiftId: null, runId: null }],
     [
       "/schedule/shift%20one",
@@ -29,6 +32,39 @@ describe("processor browser routes", () => {
     expect(readWorkspaceRoute("/schedule/one/more")).toBeNull()
     expect(readWorkspaceRoute("/?view=board")).toBeNull()
     expect(readWorkspaceRoute("/production/%E0%A4%A")).toBeNull()
+    expect(readWorkspaceRoute("/forecast/details")).toBeNull()
+  })
+
+  it("groups workspaces by daily work, planning and review, and system", () => {
+    expect(
+      workspaceNavigationSections.map((section) => ({
+        id: section.id,
+        items: section.items.map((item) => item.id),
+      }))
+    ).toEqual([
+      {
+        id: "dailyWork",
+        items: ["intake", "schedule", "board"],
+      },
+      {
+        id: "planningReview",
+        items: ["forecast", "history"],
+      },
+      {
+        id: "system",
+        items: ["settings"],
+      },
+    ])
+
+    expect(workspaceNavigation.map((item) => item.id)).toEqual([
+      "home",
+      "intake",
+      "schedule",
+      "board",
+      "forecast",
+      "history",
+      "settings",
+    ])
   })
 
   it("builds resource paths with only the identity relevant to each view", () => {
@@ -53,6 +89,9 @@ describe("processor browser routes", () => {
     )
     expect(workspaceRoutePath(workspaceRouteForView("home"))).toBe("/")
     expect(workspaceRoutePath(workspaceRouteForView("intake"))).toBe("/intake")
+    expect(workspaceRoutePath(workspaceRouteForView("forecast"))).toBe(
+      "/forecast"
+    )
     expect(workspaceRoutePath(workspaceRouteForView("history"))).toBe(
       "/history"
     )

@@ -57,15 +57,25 @@ export const makeRecordOrderIntakeRepository = (deps: {
         row.demandPhase !== 'withdrawn'
       )
         throw new Error(`Unknown order-demand phase: ${row.demandPhase}.`);
+      if (
+        row.order.admissionOverride !== null &&
+        row.order.admissionOverride !== 'released'
+      )
+        throw new Error(
+          `Unknown production admission override: ${row.order.admissionOverride}.`,
+        );
 
       return {
         orderId: row.order.id,
         locationId: row.order.locationId,
-        productionStatus: row.order.status,
+        productionStatus: row.order.operationalStatus,
         productionVersion: row.order.version,
         intakeVersion: row.order.intakeVersion,
         derivedWeightLbs: row.order.derivedWeightLbs,
         demandPhase: row.demandPhase,
+        admissionOverride: row.order.admissionOverride,
+        executionStatus: row.order.executionStatus,
+        resolutionState: row.order.resolutionState,
       };
     },
 
@@ -87,7 +97,7 @@ export const makeRecordOrderIntakeRepository = (deps: {
           bagCountSource: 'operator_intake',
           intakeRecordedAt: now,
           intakeVersion: nextIntakeVersion,
-          status: nextStatus,
+          operationalStatus: nextStatus,
           eligibleAt: nextStatus === 'eligible' ? now : null,
           version: nextVersion,
           updatedAt: now,
@@ -97,6 +107,7 @@ export const makeRecordOrderIntakeRepository = (deps: {
             eq(laundryProduction.productionOrders.locationId, locationId),
             eq(laundryProduction.productionOrders.id, orderId),
             eq(laundryProduction.productionOrders.version, expectedVersion),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
           ),
         )
         .returning({

@@ -1,0 +1,150 @@
+{
+  "orderResolution": {
+    "trigger": "Revisar pedidos antiguos",
+    "sheetTitle": "Revisar pedidos antiguos",
+    "sheetDescription": "Encuentra pedidos que ya no deben estar en el trabajo activo de producción.",
+    "archiveExplanationTitle": "Archivar del trabajo activo",
+    "archiveExplanation": "Nada se elimina ni se marca como producido. Pressly conserva un registro permanente y los pedidos archivados se pueden restaurar desde el Historial.",
+    "scopeTitle": "Elige los pedidos que quieres revisar",
+    "filterLabel": "Pedidos que se incluirán",
+    "filterOptions": {
+      "all_due_before_cutoff": "Todos los pedidos con fecha límite hasta la fecha elegida",
+      "source_terminal_before_cutoff": "Solo pedidos completados o cancelados en el sistema de origen"
+    },
+    "cutoffLabel": "Con fecha límite hasta",
+    "cutoffPlaceholder": "Elige una fecha límite",
+    "cutoffPopoverTitle": "Elige la última fecha límite",
+    "cutoffPopoverDescription": "Se revisarán los pedidos con fecha límite hasta este día local, inclusive.",
+    "reasonLabel": "¿Por qué se archivan estos pedidos?",
+    "reasonPlaceholder": "Elige un motivo",
+    "reasonOptions": {
+      "completed_outside_pressly": "Completados fuera de Pressly",
+      "processor_not_in_use": "El Procesador no estaba en uso",
+      "duplicate_or_test": "Pedidos duplicados o de prueba",
+      "order_will_not_be_produced": "Los pedidos no se producirán",
+      "other": "Otro"
+    },
+    "noteLabel": "Nota del gerente",
+    "noteDescription": "Es opcional, salvo que elijas Otro. Esta nota queda en el registro de auditoría.",
+    "notePlaceholder": "Agrega contexto para el registro de archivo",
+    "otherNoteRequired": "Agrega una nota cuando el motivo sea Otro.",
+    "reviewOrders": "Revisar pedidos",
+    "refreshPreview": "Actualizar revisión",
+    "close": "Cerrar la revisión de pedidos antiguos",
+    "cancel": "Cancelar",
+    "loading": "Revisando pedidos elegibles",
+    "previewErrorTitle": "No se pudieron revisar los pedidos antiguos",
+    "retry": "Intentar de nuevo",
+    "driftTitle": "La lista de pedidos cambió",
+    "driftDescription": "Actualiza la revisión antes de archivar. No se modificó ningún pedido.",
+    "candidateSummary_one": "Se encontró {{count}} pedido",
+    "candidateSummary_other": "Se encontraron {{count}} pedidos",
+    "previewGenerated": "Revisado el {{formattedDate}}",
+    "previewLimitedTitle": "Hay más pedidos que coinciden con esta revisión",
+    "previewLimitedDescription": "Solo se muestran {{maximum}} pedidos en esta página. Cuando termines esta página, elige Revisar la página siguiente para continuar.",
+    "groups": {
+      "ready_to_archive": {
+        "title": "Listos para archivar",
+        "description": "Pressly no tiene actividad de producción para estos pedidos, así que se pueden archivar juntos."
+      },
+      "review_individually": {
+        "title": "Revisar uno por uno",
+        "description": "Pressly registró datos que un gerente debe confirmar antes de archivar."
+      },
+      "kept_for_safety": {
+        "title": "Se mantienen en el trabajo activo",
+        "description": "Pressly registró actividad de producción, así que estos pedidos no se archivarán."
+      },
+      "already_historical": {
+        "title": "Ya archivados",
+        "description": "Estos pedidos ya están fuera del trabajo activo."
+      }
+    },
+    "groupCount_one": "{{count}} pedido",
+    "groupCount_other": "{{count}} pedidos",
+    "orderDue": "Fecha límite: {{formattedDate}}",
+    "sourceState": {
+      "open": "Abierto en el sistema de origen",
+      "completed": "Completado en el sistema de origen",
+      "canceled": "Cancelado en el sistema de origen"
+    },
+    "classificationReasons": {
+      "resolved_without_production": "Ya archivado",
+      "execution_finished": "La producción terminó",
+      "execution_state_invalid": "El estado de producción requiere revisión",
+      "resolution_transition_invalid": "No se puede completar la transición de archivo",
+      "execution_committed": "Existe actividad de producción",
+      "selected_for_shift": "Seleccionado para un turno",
+      "batch_membership_exists": "Asignado a un lote",
+      "stage_attempt_exists": "Se registró avance en el piso",
+      "route_exists": "Se registró la ruta de producción",
+      "intake_recorded": "Se registró la recepción física",
+      "manual_admission": "Enviado manualmente a Producción",
+      "priority": "Marcado como prioridad",
+      "pending_placement": "En espera de ubicación en una corrida",
+      "no_operator_owned_facts": "Sin actividad de producción en Pressly"
+    },
+    "reviewOrder": "Revisar {{displayReference}}",
+    "openInHistory": "Abrir {{displayReference}} en el Historial",
+    "individualConfirmTitle": "¿Archivar {{displayReference}} del trabajo activo?",
+    "individualConfirmDescription": "Este pedido requiere una revisión individual porque Pressly registró datos que un gerente debe confirmar.",
+    "individualAcknowledgement": "Revisé los datos del pedido y confirmé que este pedido no se producirá en Pressly.",
+    "individualErrorTitle": "Este pedido no se archivó",
+    "archiveReady_one": "Archivar {{count}} pedido listo",
+    "archiveReady_other": "Archivar {{count}} pedidos listos",
+    "bulkConfirmTitle_one": "¿Archivar {{count}} pedido del trabajo activo?",
+    "bulkConfirmTitle_other": "¿Archivar {{count}} pedidos del trabajo activo?",
+    "bulkConfirmDescription": "Solo cambiarán los pedidos en Listos para archivar. Nada se elimina ni se marca como producido.",
+    "bulkConfirmScope_one": "{{count}} pedido con fecha límite hasta el {{formattedCutoff}}",
+    "bulkConfirmScope_other": "{{count}} pedidos con fecha límite hasta el {{formattedCutoff}}",
+    "bulkConfirmAction": "Archivar del trabajo activo",
+    "emptyTitle": "No hay pedidos antiguos que requieran acción",
+    "emptyDescription": "Nada en esta revisión está listo para archivar.",
+    "successTitle": "Esta revisión está completa",
+    "successNextPageTitle": "Esta página está completa",
+    "successDescription_one": "Se archivó {{count}} pedido del trabajo activo.",
+    "successDescription_other": "Se archivaron {{count}} pedidos del trabajo activo.",
+    "successNextPageDescription_one": "Se archivó {{count}} pedido de esta página. Hay más pedidos que coinciden listos para revisar.",
+    "successNextPageDescription_other": "Se archivaron {{count}} pedidos de esta página. Hay más pedidos que coinciden listos para revisar.",
+    "replayed": "Ya completado",
+    "replayDescription": "Esta solicitud ya se había completado, así que Pressly no la aplicó de nuevo.",
+    "openHistory": "Abrir Historial",
+    "reviewNextPage": "Revisar la página siguiente",
+    "reviewAnotherCutoff": "Revisar otra fecha límite",
+    "history": {
+      "statusFilters": {
+        "all": "Toda la actividad",
+        "archived": "Pedidos archivados",
+        "restored": "Pedidos restaurados"
+      },
+      "activity": {
+        "archived": "Archivado del trabajo activo",
+        "restored": "Restaurado al trabajo activo"
+      },
+      "restore": {
+        "trigger": "Restaurar al trabajo activo",
+        "title": "¿Restaurar {{displayReference}} al trabajo activo?",
+        "description": "Pressly volverá a evaluar los datos actuales del pedido y lo devolverá al trabajo activo solo si todavía es elegible. Esto no lo marca como producido ni cambia Cents.",
+        "reasonLabel": "¿Por qué se restaura este pedido?",
+        "reasonPlaceholder": "Elige un motivo",
+        "reasonOptions": {
+          "manager_correction": "Corregir una decisión del gerente",
+          "work_should_be_produced": "El trabajo debe producirse en Pressly",
+          "other": "Otro"
+        },
+        "noteLabel": "Nota del gerente",
+        "noteDescription": "Es opcional, salvo que elijas Otro. Esta nota queda en el registro de auditoría.",
+        "notePlaceholder": "Agrega contexto para el registro de restauración",
+        "otherNoteRequired": "Agrega una nota cuando el motivo sea Otro.",
+        "cancel": "Cancelar",
+        "confirm": "Restaurar al trabajo activo",
+        "submitting": "Restaurando pedido",
+        "successTitle": "Pedido restaurado",
+        "successDescription": "{{displayReference}} volvió al trabajo activo.",
+        "errorTitle": "Este pedido no se restauró",
+        "staleTitle": "El pedido cambió",
+        "staleDescription": "Actualiza el Historial y revisa el estado más reciente del pedido antes de restaurarlo."
+      }
+    }
+  }
+}

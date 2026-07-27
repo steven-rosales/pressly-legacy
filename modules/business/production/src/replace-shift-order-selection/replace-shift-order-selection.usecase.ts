@@ -8,7 +8,12 @@ import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
 } from '../production-idempotency.policy.ts';
-import type { ClockPort, ProductionSignalsPort } from '../production.port.ts';
+import type {
+  ClockPort,
+  ProductionPolicyPort,
+  ScheduleSupersessionDecision,
+  ProductionSignalsPort,
+} from '../production.port.ts';
 import type {
   ReplaceShiftOrderSelection,
   ReplaceShiftOrderSelectionRepository,
@@ -30,6 +35,7 @@ export const makeReplaceShiftOrderSelection =
   (deps: {
     repo: ReplaceShiftOrderSelectionRepository;
     clock: ClockPort;
+    policy: ProductionPolicyPort;
     signals?: ProductionSignalsPort;
   }): ReplaceShiftOrderSelection =>
   async (command) => {
@@ -121,11 +127,36 @@ export const makeReplaceShiftOrderSelection =
             replayed: false,
           };
         else {
+          let supersede: ScheduleSupersessionDecision | null = null;
+          if (current.currentSchedule !== null) {
+            const lifecycle = deps.policy.evaluateScheduleRevisionTransition({
+              state: current.currentSchedule.status,
+              event: 'supersede',
+            });
+            if (
+              lifecycle.tag === 'err' ||
+              (lifecycle.value.from !== 'draft' &&
+                lifecycle.value.from !== 'accepted') ||
+              lifecycle.value.state !== 'superseded'
+            )
+              return result.err(
+                productionError(
+                  'SCHEDULE_CURRENT_PLAN_STATE_INVALID',
+                  'The current schedule revision cannot be superseded.',
+                  409,
+                ),
+              );
+            supersede = {
+              scheduleRunId: current.currentSchedule.scheduleRunId,
+              lifecycle: lifecycle.value,
+            };
+          }
           const saved = await repo.replaceSelection({
             locationId: command.locationId,
             productionShiftId: command.productionShiftId,
             selectedOrderIds,
             currentVersion: current.version,
+            supersede,
             actorId: command.actorId,
             now: deps.clock.now(),
           });

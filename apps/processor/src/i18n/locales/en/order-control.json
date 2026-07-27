@@ -5,7 +5,7 @@
     "needsAttention": "Needs attention",
     "attention": "Attention",
     "active": "Active",
-    "all": "All",
+    "all": "Open",
     "tabLabel": "{{label}}, {{count}}",
     "updating": "Updating",
     "ordersNeedAttention": "Order control needs attention",
@@ -42,8 +42,6 @@
     "attentionPlacementConflictDetail": "The production queue changed before placement completed. Refresh, then review the order's current position before placing it again.",
     "attentionRouteBlocked": "Production route blocked",
     "attentionRouteBlockedDetail": "LPMS cannot find a compatible route through the order's remaining stages. Review its physical restart stage and later batch capacity.",
-    "attentionSourceComparison": "Systems need confirmation",
-    "attentionSourceComparisonDetail": "The commercial order and LPMS floor record are at different lifecycle points. Confirm physical truth before changing Production.",
     "eligible": "Eligible",
     "notEligible": "Not eligible",
     "inProduction": "In production",
@@ -173,12 +171,6 @@
     "releasedToProduction": "Released to production",
     "withdrawnFromProduction": "Withdrawn",
     "sourceState": "Source state",
-    "sourceUnavailable": "Source unavailable",
-    "systemComparison": "System comparison",
-    "comparisonAligned": "Systems aligned",
-    "comparisonSourceAhead": "Commercial complete; floor unfinished",
-    "comparisonSourceWithdrawn": "Commercial withdrawn; floor work remains",
-    "comparisonSourceBehind": "Floor finished; commercial order open",
-    "comparisonUnavailable": "Comparison unavailable"
+    "sourceUnavailable": "Source unavailable"
   }
 }

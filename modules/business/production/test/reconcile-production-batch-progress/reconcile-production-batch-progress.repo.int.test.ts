@@ -207,7 +207,8 @@ const seedScheduledOrder = async () => {
     orderDemandId: fixed.demand,
     locationId: 'location-1',
     dueAt: new Date('2026-07-15T20:00:00.000Z'),
-    status: 'scheduled',
+    operationalStatus: 'scheduled',
+    executionStatus: 'scheduled',
     derivedWeightLbs: 75,
     bagCount: 2,
     eligibleAt: now,
@@ -485,7 +486,7 @@ describe('floor progress reconciliation Postgres workflow', () => {
     });
 
     const [storedOrder] = await testDb.db
-      .select({ status: laundryProduction.productionOrders.status })
+      .select({ status: laundryProduction.productionOrders.operationalStatus })
       .from(laundryProduction.productionOrders)
       .where(eq(laundryProduction.productionOrders.id, fixed.order));
     const [storedRun] = await testDb.db

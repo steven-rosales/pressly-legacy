@@ -160,33 +160,7 @@ const asAdmissionOverride = (value: string | null): 'released' | null => {
 const attentionFor = (
   order: ReturnType<typeof mapProductionOrderListItem>,
   pendingPlacement: unknown,
-  demand: Readonly<{ commercialState: string; admissionState: string }>,
 ): ProductionOrderControlItem['attention'] => {
-  if (
-    demand.admissionState === 'withdrawn' ||
-    demand.commercialState === 'canceled'
-  )
-    return order.status === 'finished'
-      ? null
-      : {
-          reason: 'source_comparison_required',
-          message:
-            'The commercial order was withdrawn while LPMS still has unfinished floor work. Confirm physical truth before changing Production.',
-        };
-  if (demand.commercialState === 'completed')
-    return order.status === 'finished'
-      ? null
-      : {
-          reason: 'source_comparison_required',
-          message:
-            'The commercial order is complete while LPMS still has unfinished floor work. Confirm physical completion in LPMS; no floor state changed automatically.',
-        };
-  if (order.status === 'finished')
-    return {
-      reason: 'source_comparison_required',
-      message:
-        'LPMS production is finished while the commercial order remains open. Confirm whether the commercial system should be updated.',
-    };
   if (order.status === 'intake_pending')
     return {
       reason: 'intake_required',
@@ -242,14 +216,16 @@ export const makeListProductionOrderControlRepository = (
         : productionDueFilter(command.dueBucket, now, location.timezone);
 
     const floorVisibleCondition = or(
-      inArray(laundryProduction.productionOrders.status, [
+      inArray(laundryProduction.productionOrders.operationalStatus, [
         'release_pending',
         'eligible',
         'scheduled',
-        'finished',
       ]),
       and(
-        eq(laundryProduction.productionOrders.status, 'intake_pending'),
+        eq(
+          laundryProduction.productionOrders.operationalStatus,
+          'intake_pending',
+        ),
         or(
           eq(laundryProduction.orderDemands.phase, 'production_released'),
           eq(laundryProduction.productionOrders.admissionOverride, 'released'),
@@ -259,37 +235,24 @@ export const makeListProductionOrderControlRepository = (
     const attentionCondition = and(
       floorVisibleCondition,
       or(
-        and(
-          eq(laundryProduction.orderDemands.commercialState, 'completed'),
-          ne(laundryProduction.productionOrders.status, 'finished'),
+        eq(
+          laundryProduction.productionOrders.operationalStatus,
+          'intake_pending',
         ),
         and(
-          or(
-            eq(laundryProduction.orderDemands.admissionState, 'withdrawn'),
-            eq(laundryProduction.orderDemands.commercialState, 'canceled'),
-          ),
-          ne(laundryProduction.productionOrders.status, 'finished'),
-        ),
-        and(
-          eq(laundryProduction.orderDemands.commercialState, 'open'),
-          eq(laundryProduction.productionOrders.status, 'finished'),
-        ),
-        eq(laundryProduction.productionOrders.status, 'intake_pending'),
-        and(
-          eq(laundryProduction.productionOrders.status, 'eligible'),
+          eq(laundryProduction.productionOrders.operationalStatus, 'eligible'),
           sql<boolean>`${laundryProduction.productionOrders.pendingPlacement} is not null`,
         ),
       ),
     );
     const activeCondition = eq(
-      laundryProduction.productionOrders.status,
+      laundryProduction.productionOrders.operationalStatus,
       'scheduled',
     );
-    const intakeCondition = inArray(laundryProduction.productionOrders.status, [
-      'release_pending',
-      'intake_pending',
-      'eligible',
-    ]);
+    const intakeCondition = inArray(
+      laundryProduction.productionOrders.operationalStatus,
+      ['release_pending', 'intake_pending', 'eligible'],
+    );
     const viewCondition =
       command.view === 'attention'
         ? attentionCondition
@@ -366,7 +329,7 @@ export const makeListProductionOrderControlRepository = (
         externalOrderId: laundryProduction.orderDemands.displayReference,
         dueAt: laundryProduction.productionOrders.dueAt,
         priority: laundryProduction.productionOrders.priority,
-        status: laundryProduction.productionOrders.status,
+        status: laundryProduction.productionOrders.operationalStatus,
         derivedWeightLbs: laundryProduction.productionOrders.derivedWeightLbs,
         bagCount: laundryProduction.productionOrders.bagCount,
         bagCountSource: laundryProduction.productionOrders.bagCountSource,
@@ -375,7 +338,6 @@ export const makeListProductionOrderControlRepository = (
         pendingPlacement: laundryProduction.productionOrders.pendingPlacement,
         admissionOverride: laundryProduction.productionOrders.admissionOverride,
         admissionState: laundryProduction.orderDemands.admissionState,
-        commercialState: laundryProduction.orderDemands.commercialState,
         productionBatchId:
           laundryProduction.productionBatchOrders.productionBatchId,
         placementProvenance:
@@ -457,11 +419,15 @@ export const makeListProductionOrderControlRepository = (
       .where(
         and(
           eq(laundryProduction.productionOrders.locationId, command.locationId),
+          eq(laundryProduction.productionOrders.resolutionState, 'open'),
           floorVisibleCondition,
           viewCondition,
           command.status === undefined
             ? undefined
-            : eq(laundryProduction.productionOrders.status, command.status),
+            : eq(
+                laundryProduction.productionOrders.operationalStatus,
+                command.status,
+              ),
           dueFilter?.dueAtOrAfter === null ||
             dueFilter?.dueAtOrAfter === undefined
             ? undefined
@@ -474,7 +440,10 @@ export const makeListProductionOrderControlRepository = (
             : lt(laundryProduction.productionOrders.dueAt, dueFilter.dueBefore),
           command.dueBucket === undefined
             ? undefined
-            : ne(laundryProduction.productionOrders.status, 'finished'),
+            : ne(
+                laundryProduction.productionOrders.operationalStatus,
+                'finished',
+              ),
           command.productionRunId === undefined
             ? undefined
             : eq(laundryProduction.productionRuns.id, command.productionRunId),
@@ -632,6 +601,7 @@ export const makeListProductionOrderControlRepository = (
               laundryProduction.productionOrders.locationId,
               command.locationId,
             ),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
             attentionCondition,
           ),
         ),
@@ -651,6 +621,7 @@ export const makeListProductionOrderControlRepository = (
               laundryProduction.productionOrders.locationId,
               command.locationId,
             ),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
             activeCondition,
           ),
         ),
@@ -670,6 +641,7 @@ export const makeListProductionOrderControlRepository = (
               laundryProduction.productionOrders.locationId,
               command.locationId,
             ),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
             floorVisibleCondition,
           ),
         ),
@@ -737,10 +709,7 @@ export const makeListProductionOrderControlRepository = (
             }),
           ],
         },
-        attention: attentionFor(order, row.pendingPlacement, {
-          admissionState: row.admissionState,
-          commercialState: row.commercialState,
-        }),
+        attention: attentionFor(order, row.pendingPlacement),
         currentPlacement,
         nextRequiredStage: assigned[0]?.stage ?? null,
         routeAttempts: attempts,

@@ -9,7 +9,6 @@ import { calendarDayRangeAt, instantFromDate, toUtcIso } from '@pressly/time';
 import type {
   DemandForecastOutput,
   OrderDemandPhase,
-  ProductionPolicyPort,
   ProductionSchedulerPort,
 } from '../production.port.ts';
 import type { DemandOutlookRow } from './load-production-workspace.port.ts';
@@ -99,7 +98,6 @@ export const projectDemandOutlook = (input: {
   machines: readonly ProductionMachine[];
   activeRunExists: boolean;
   rows: readonly DemandOutlookRow[];
-  policy: Pick<ProductionPolicyPort, 'evaluateDemandReconciliation'>;
   scheduler: Pick<ProductionSchedulerPort, 'forecastDemand'>;
 }): ProductionDemandOutlook => {
   const horizonCutoffAt = nextServiceDayCutoff(input.shift);
@@ -109,25 +107,22 @@ export const projectDemandOutlook = (input: {
     .flatMap((row): ProductionDemandOutlookItem[] => {
       const phase = mapPhase(row.phase);
       const productionStatus = mapProductionStatus(row.productionStatus);
-      const reconciliation = input.policy.evaluateDemandReconciliation({
-        phase,
-        productionStatus,
-        currentBagCount: row.bagCount,
-      });
-      if (!isActivePhase(phase) && reconciliation === 'none') return [];
+      if (
+        productionStatus !== 'scheduled' &&
+        (!isActivePhase(phase) || productionStatus === 'finished')
+      )
+        return [];
       return [
         {
           orderDemandId: row.orderDemandId,
           productionOrderId: row.productionOrderId,
           externalOrderId: row.externalOrderId,
           phase,
-          sourceStatusCode: row.sourceStatusCode,
           dueAt: row.dueAt.toISOString(),
           estimatedWeightLbs: row.estimatedWeightLbs,
           readiness: readiness(productionStatus),
           productionStatus,
           bagCount: row.bagCount,
-          reconciliation,
         },
       ];
     })
@@ -201,8 +196,6 @@ export const projectDemandOutlook = (input: {
     readyEstimatedWeightLbs: sumKnownWeight(readyItems),
     inProductionOrderCount: inProductionItems.length,
     inProductionEstimatedWeightLbs: sumKnownWeight(inProductionItems),
-    reconciliationCount: items.filter((item) => item.reconciliation !== 'none')
-      .length,
     items,
     forecast,
   };

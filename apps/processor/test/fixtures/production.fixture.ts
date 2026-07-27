@@ -1,10 +1,12 @@
 import type {
+  ProcessorProductionOrderListItem,
+  ProcessorProductionOrderSummary,
+  ProcessorProductionWorkspace,
+  ProcessorRemainingDayForecast,
   ProductionBoard,
   ProductionLocation,
-  ProductionOrderListItem,
   ProductionOrderSummary,
   ProductionShift,
-  ProductionWorkspace,
   ScheduleProposal,
   SchedulerConfig,
 } from "@pressly/contracts"
@@ -53,7 +55,7 @@ export const testConfig: SchedulerConfig = {
   publishedAt: "2026-08-01T13:00:00.000Z",
 }
 
-export const testOrders: readonly ProductionOrderSummary[] = [
+export const testOrders: readonly ProcessorProductionOrderSummary[] = [
   {
     id: id(10),
     externalOrderId: "C-1001",
@@ -63,6 +65,10 @@ export const testOrders: readonly ProductionOrderSummary[] = [
     derivedWeightLbs: 120,
     bagCount: 3,
     version: 1,
+    identity: {
+      displayNumber: "C-1001",
+      customerDisplayName: "Northwind Hotel",
+    },
   },
   {
     id: id(11),
@@ -73,8 +79,25 @@ export const testOrders: readonly ProductionOrderSummary[] = [
     derivedWeightLbs: 80,
     bagCount: 2,
     version: 1,
+    identity: {
+      displayNumber: "C-1002",
+      customerDisplayName: "Camila Reed",
+    },
   },
 ]
+
+const toProductionOrderSummary = (
+  order: ProcessorProductionOrderSummary
+): ProductionOrderSummary => ({
+  id: order.id,
+  externalOrderId: order.externalOrderId,
+  dueAt: order.dueAt,
+  dueBucket: order.dueBucket,
+  priority: order.priority,
+  derivedWeightLbs: order.derivedWeightLbs,
+  bagCount: order.bagCount,
+  version: order.version,
+})
 
 export const testShiftSelection = {
   productionShiftId: testShift.id,
@@ -82,7 +105,7 @@ export const testShiftSelection = {
   selectedOrderIds: testOrders.map((order) => order.id),
 }
 
-export const testOrderItems: readonly ProductionOrderListItem[] = [
+export const testOrderItems: readonly ProcessorProductionOrderListItem[] = [
   ...testOrders.map((order) => ({
     ...order,
     locationId: testLocation.id,
@@ -103,6 +126,10 @@ export const testOrderItems: readonly ProductionOrderListItem[] = [
     bagCountProvenance: null,
     intakeVersion: null,
     version: 2,
+    identity: {
+      displayNumber: "C-1003",
+      customerDisplayName: null,
+    },
   },
 ]
 
@@ -203,7 +230,7 @@ export const testBoard: ProductionBoard = {
       pulseMinutes: 50,
       membership: { state: "mutable" },
       orders: testOrders.map((order) => ({
-        ...order,
+        ...toProductionOrderSummary(order),
         placementProvenance: "initial_schedule" as const,
         pinnedAt: null,
         pinnedBy: null,
@@ -216,7 +243,7 @@ export const testBoard: ProductionBoard = {
   asOf: "2026-08-01T14:00:00.000Z",
 }
 
-export const testWorkspace: ProductionWorkspace = {
+export const testWorkspace: ProcessorProductionWorkspace = {
   location: testLocation,
   currentShift: testShift,
   shiftSelection: testShiftSelection,
@@ -235,6 +262,12 @@ export const testWorkspace: ProductionWorkspace = {
   activeRuns: [testBoard.productionRun],
   orders: [...testOrderItems],
   pendingEligibleOrders: [],
+  liveRunChanges: {
+    productionRunId: testBoard.productionRun.id,
+    queueVersion: testBoard.productionRun.queueVersion,
+    pulseCapacityLbs: testBoard.batches[0]!.pulseCapacityLbs,
+    orders: [],
+  },
   demandOutlook: null,
   board: testBoard,
   stations: [],
@@ -257,6 +290,157 @@ export const testWorkspace: ProductionWorkspace = {
   asOf: "2026-08-01T14:00:00.000Z",
 }
 
+export const testRemainingDayForecast: ProcessorRemainingDayForecast = {
+  locationId: testLocation.id,
+  serviceDay: "2026-08-01",
+  timezone: testLocation.timezone,
+  window: {
+    startsAt: "2026-08-01T05:00:00.000Z",
+    endsAt: "2026-08-02T05:00:00.000Z",
+  },
+  asOf: "2026-08-01T14:05:00.000Z",
+  assumptions: {
+    algorithmVersion: "online-stable-insertion-v1",
+    overdueUnfinishedIncluded: true,
+    physicalIntakeRequired: true,
+    wholeOrderPlacement: true,
+    expectedWeightsAdvisory: true,
+    missingEstimatesExcludedFromWeightTotals: true,
+    placementRevalidatedOnCommit: true,
+    preciseFinishForecasted: false,
+  },
+  shifts: [
+    {
+      productionShiftId: testShift.id,
+      startsAt: testShift.startsAt,
+      endsAt: testShift.endsAt,
+      status: "open",
+      activeRunId: testBoard.productionRun.id,
+    },
+  ],
+  totals: {
+    all: {
+      orderCount: 4,
+      knownWeightLbs: 260,
+      missingEstimateOrderCount: 1,
+    },
+    inProduction: {
+      orderCount: 1,
+      knownWeightLbs: 120,
+      missingEstimateOrderCount: 0,
+    },
+    readyToPlace: {
+      orderCount: 1,
+      knownWeightLbs: 80,
+      missingEstimateOrderCount: 0,
+    },
+    expectedLater: {
+      orderCount: 1,
+      knownWeightLbs: 60,
+      missingEstimateOrderCount: 0,
+    },
+    needsShift: {
+      orderCount: 1,
+      knownWeightLbs: 0,
+      missingEstimateOrderCount: 1,
+    },
+  },
+  capacityRisk: {
+    level: "attention",
+    reasons: ["needs_shift", "expected_later", "missing_estimates"],
+    pulseCapacityLbs: 200,
+  },
+  groups: {
+    inProduction: [
+      {
+        orderDemandId: id(201),
+        productionOrderId: id(101),
+        externalOrderId: "C-2001",
+        identity: {
+          displayNumber: "C-2001",
+          customerDisplayName: "Northwind Hotel",
+        },
+        dueAt: "2026-08-01T18:00:00.000Z",
+        priority: true,
+        estimatedWeightLbs: 120,
+        bagCount: 3,
+        activeRunId: testBoard.productionRun.id,
+        activeBatchId: testBoard.batches[0]!.id,
+        actionability: {
+          action: "open_production",
+          state: "available",
+          reason: "already_in_production",
+        },
+      },
+    ],
+    readyToPlace: [
+      {
+        orderDemandId: id(202),
+        productionOrderId: id(102),
+        externalOrderId: "C-2002",
+        identity: {
+          displayNumber: "C-2002",
+          customerDisplayName: "Camila Reed",
+        },
+        dueAt: "2026-08-01T20:00:00.000Z",
+        priority: false,
+        estimatedWeightLbs: 80,
+        bagCount: 2,
+        activeRunId: testBoard.productionRun.id,
+        actionability: {
+          action: "place_in_active_run",
+          state: "available",
+          reason: "ready_for_placement",
+        },
+      },
+    ],
+    expectedLater: [
+      {
+        orderDemandId: id(203),
+        productionOrderId: id(103),
+        externalOrderId: "C-2003",
+        identity: {
+          displayNumber: "C-2003",
+          customerDisplayName: null,
+        },
+        dueAt: "2026-08-01T22:00:00.000Z",
+        priority: false,
+        estimatedWeightLbs: 60,
+        bagCount: null,
+        readiness: "awaiting_intake",
+        actionability: {
+          action: "record_intake",
+          state: "available",
+          reason: "physical_intake_required",
+        },
+      },
+    ],
+    needsShift: [
+      {
+        orderDemandId: id(204),
+        productionOrderId: id(104),
+        externalOrderId: "C-2004",
+        identity: {
+          displayNumber: "C-2004",
+          customerDisplayName:
+            "A very long commercial customer name that must remain fully available to assistive technology",
+        },
+        dueAt: "2026-08-01T23:00:00.000Z",
+        priority: false,
+        estimatedWeightLbs: null,
+        bagCount: 1,
+        activeRunId: null,
+        reason: "no_active_run",
+        actionability: {
+          action: "plan_shift",
+          state: "available",
+          reason: "no_active_run",
+        },
+      },
+    ],
+  },
+}
+
 export const makeTestProductionPort = (
   overrides: Partial<ProductionPort> = {}
 ): ProductionPort => ({
@@ -265,6 +449,8 @@ export const makeTestProductionPort = (
     asOf: testWorkspace.asOf,
   }),
   loadWorkspace: async () => structuredClone(testWorkspace),
+  loadRemainingDayForecast: async () =>
+    structuredClone(testRemainingDayForecast),
   listOrders: async () => ({
     items: [...structuredClone(testOrderItems)],
     nextCursor: null,
@@ -276,6 +462,15 @@ export const makeTestProductionPort = (
     nextCursor: null,
     asOf: testWorkspace.asOf,
   }),
+  previewOrderBacklog: async () => {
+    throw new Error("No order-backlog preview is configured for this test.")
+  },
+  commitOrderBacklog: async () => {
+    throw new Error("No order-backlog commit is configured for this test.")
+  },
+  changeOrderResolution: async () => {
+    throw new Error("No order-resolution command is configured for this test.")
+  },
   previewOrderRoute: async () => {
     throw new Error("No order-route preview is configured for this test.")
   },

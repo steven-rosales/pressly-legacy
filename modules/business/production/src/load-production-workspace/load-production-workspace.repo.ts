@@ -5,13 +5,20 @@ import {
   desc,
   eq,
   inArray,
+  isNull,
   laundryProduction,
+  ne,
+  or,
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
 import { mapConfig, mapSchedule } from '../persistence/production-mappers.ts';
 import { mapProductionOrderListItem } from '../persistence/production-board-projection.ts';
 import { loadProductionBoardProjection } from '../persistence/production-board-read.ts';
+import {
+  loadProductionRunPlacementContext,
+  makeProductionOrderPlacementContext,
+} from '../persistence/production-order-placement-context.ts';
 import {
   isActionableWorkspaceSchedule,
   mapWorkspaceLocation,
@@ -278,7 +285,8 @@ const loadWorkspace = async (
       externalOrderId: laundryProduction.orderDemands.displayReference,
       dueAt: laundryProduction.productionOrders.dueAt,
       priority: laundryProduction.productionOrders.priority,
-      status: laundryProduction.productionOrders.status,
+      status: laundryProduction.productionOrders.operationalStatus,
+      executionStatus: laundryProduction.productionOrders.executionStatus,
       derivedWeightLbs: laundryProduction.productionOrders.derivedWeightLbs,
       bagCount: laundryProduction.productionOrders.bagCount,
       bagCountSource: laundryProduction.productionOrders.bagCountSource,
@@ -300,7 +308,13 @@ const loadWorkspace = async (
         ),
       ),
     )
-    .where(eq(laundryProduction.productionOrders.locationId, locationId));
+    .where(
+      and(
+        eq(laundryProduction.productionOrders.locationId, locationId),
+        eq(laundryProduction.productionOrders.resolutionState, 'open'),
+        ne(laundryProduction.productionOrders.executionStatus, 'finished'),
+      ),
+    );
   const demandOutlookRows = (
     await db
       .select({
@@ -308,11 +322,10 @@ const loadWorkspace = async (
         productionOrderId: laundryProduction.productionOrders.id,
         externalOrderId: laundryProduction.orderDemands.displayReference,
         phase: laundryProduction.orderDemands.phase,
-        sourceStatusCode: laundryProduction.orderDemands.sourceStatusCode,
         dueAt: laundryProduction.orderDemands.dueAt,
         estimatedWeightLbs: laundryProduction.orderDemands.estimatedWeightLbs,
         priority: laundryProduction.productionOrders.priority,
-        productionStatus: laundryProduction.productionOrders.status,
+        productionStatus: laundryProduction.productionOrders.operationalStatus,
         bagCount: laundryProduction.productionOrders.bagCount,
       })
       .from(laundryProduction.orderDemands)
@@ -329,7 +342,15 @@ const loadWorkspace = async (
           ),
         ),
       )
-      .where(eq(laundryProduction.orderDemands.locationId, locationId))
+      .where(
+        and(
+          eq(laundryProduction.orderDemands.locationId, locationId),
+          or(
+            isNull(laundryProduction.productionOrders.id),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
+          ),
+        ),
+      )
   ).map((row) => ({ ...row, priority: row.priority ?? false }));
   const activeProductionRunIds = activeRunRows.map((run) => run.id);
   const pendingEligibleOrders = orderRows
@@ -342,6 +363,36 @@ const loadWorkspace = async (
         activeProductionRunIds,
       ),
     );
+  const pendingEligibleOrderIds = pendingEligibleOrders.map(
+    (order) => order.id,
+  );
+  const orderRowById = new Map(orderRows.map((order) => [order.id, order]));
+  const assignedPendingOrderIds =
+    pendingEligibleOrderIds.length === 0
+      ? new Set<string>()
+      : new Set(
+          (
+            await db
+              .select({
+                productionOrderId:
+                  laundryProduction.productionBatchOrders.productionOrderId,
+              })
+              .from(laundryProduction.productionBatchOrders)
+              .where(
+                and(
+                  eq(
+                    laundryProduction.productionBatchOrders.locationId,
+                    locationId,
+                  ),
+                  inArray(
+                    laundryProduction.productionBatchOrders.productionOrderId,
+                    pendingEligibleOrderIds,
+                  ),
+                  eq(laundryProduction.productionBatchOrders.active, true),
+                ),
+              )
+          ).map((membership) => membership.productionOrderId),
+        );
 
   const boardProjection =
     currentShift === undefined || selectedRun === undefined
@@ -352,6 +403,39 @@ const loadWorkspace = async (
           selectedRun.id,
           now,
         );
+  const livePlacementRunContext =
+    selectedRun?.status === 'started'
+      ? await loadProductionRunPlacementContext(
+          db,
+          locationId,
+          selectedRun,
+          false,
+        )
+      : null;
+  const livePlacement =
+    livePlacementRunContext === null
+      ? null
+      : {
+          runContext: livePlacementRunContext,
+          orders: pendingEligibleOrders.flatMap((order) => {
+            const row = orderRowById.get(order.id);
+            if (row === undefined) return [];
+            const context = makeProductionOrderPlacementContext(
+              livePlacementRunContext,
+              {
+                id: row.id,
+                priority: row.priority,
+                derivedWeightLbs: row.derivedWeightLbs,
+                bagCount: row.bagCount,
+                operationalStatus: row.status,
+                executionStatus: row.executionStatus,
+                version: row.version,
+              },
+              assignedPendingOrderIds.has(row.id),
+            );
+            return context === null ? [] : [{ order, context }];
+          }),
+        };
 
   return {
     workspace: {
@@ -369,6 +453,7 @@ const loadWorkspace = async (
         mapProductionOrderListItem(order, now, location.timezone),
       ),
       pendingEligibleOrders,
+      liveRunChanges: null,
       demandOutlook: null,
       board: null,
       stations: stationRows.map(mapWorkspaceStation),
@@ -387,6 +472,7 @@ const loadWorkspace = async (
     },
     boardProjection,
     demandOutlookRows,
+    livePlacement,
   };
 };
 

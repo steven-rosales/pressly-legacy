@@ -5,6 +5,22 @@
 Queued follow-up. Complete this before treating whole-order routing and History
 pagination as pilot-ready.
 
+## Rebaseline After Operational Authority
+
+The completed `lpms-operational-authority-remaining-day-forecast` package
+changed the baseline this work must inspect:
+
+- source observations and canonical Pressly lifecycle are now separate;
+- persistent Production execution uses explicit aggregate-owned graphs;
+- production-order execution is separated from derived operational readiness;
+- Home and History use current server-owned contracts and pagination;
+- Schedule owns explicit post-start placement into the existing run; and
+- `/forecast` owns the detailed remaining-day read model.
+
+T0 must reproduce all four findings against this current implementation before
+repair. Do not restore deleted comparison code, mixed readiness state, or
+client-owned transition logic while fixing the gaps.
+
 The prior `lpms-order-control-history` package remains a useful historical
 checkpoint: its recorded commands passed. A later read-only audit found four
 correctness gaps that those tests did not cover. This work records the new

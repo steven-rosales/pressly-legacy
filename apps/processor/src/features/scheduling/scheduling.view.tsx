@@ -6,8 +6,10 @@ import {
   IconRefresh,
   IconSparkles,
 } from "@tabler/icons-react"
+import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { MetricStrip } from "@/components/layout/workspace-primitives"
+import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -70,7 +72,12 @@ const windowMinutes = (
   }
 }
 
-export function SchedulingWorkspace(input: SchedulingModelInput) {
+export function SchedulingWorkspace(
+  input: SchedulingModelInput &
+    Readonly<{
+      remainingDayContext?: ReactNode
+    }>
+) {
   const { t, i18n } = useTranslation()
   const locale = localeForLanguage(i18n.resolvedLanguage)
   const model = useSchedulingModel(input)
@@ -369,6 +376,8 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
 
       <MetricStrip label={t("scheduling.summary")} metrics={metrics} />
 
+      {input.remainingDayContext}
+
       <Card className="min-w-0 bg-background">
         <Tabs defaultValue="proposal">
           <CardHeader className="border-b pb-0">
@@ -574,16 +583,12 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                           void model.toggleSelection(order.id, checked === true)
                         }
                         aria-label={t("scheduling.selectOrder", {
-                          orderId: order.externalOrderId,
+                          orderId: order.identity.displayNumber,
                         })}
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium">
-                          {t("scheduling.order", {
-                            orderId: order.externalOrderId,
-                          })}
-                        </p>
-                        <p className="mt-0.5 text-sm text-muted-foreground">
+                        <OperationalOrderIdentity identity={order.identity} />
+                        <p className="mt-1 text-sm text-muted-foreground">
                           {t("scheduling.orderDetail", {
                             weight: order.derivedWeightLbs,
                             bags: t("common.bags", { count: order.bagCount }),
@@ -613,7 +618,7 @@ export function SchedulingWorkspace(input: SchedulingModelInput) {
                           )
                         }
                         aria-label={t("scheduling.prioritizeOrder", {
-                          orderId: order.externalOrderId,
+                          orderId: order.identity.displayNumber,
                         })}
                       />
                     </div>

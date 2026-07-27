@@ -12,15 +12,41 @@ import type {
 } from '../../src/production.port.ts';
 import type { AdvanceProductionStageRepository } from '../../src/advance-production-stage/advance-production-stage.port.ts';
 import { makeAdvanceProductionStage } from '../../src/advance-production-stage/advance-production-stage.usecase.ts';
+import { allowPolicy } from '../support/production.fake.ts';
 
 const ids = {
   stage: '11111111-1111-4111-8111-111111111111',
   batch: '22222222-2222-4222-8222-222222222222',
   actor: '33333333-3333-4333-8333-333333333333',
   otherActor: '44444444-4444-4444-8444-444444444444',
+  attempt: '55555555-5555-4555-8555-555555555555',
+  order: '66666666-6666-4666-8666-666666666666',
 } as const;
 
+const runLifecycleDecision = Object.freeze({
+  from: 'started' as const,
+  state: 'completed' as const,
+});
+const shiftLifecycleDecision = Object.freeze({
+  from: 'open' as const,
+  state: 'closed' as const,
+});
+
+type AdvanceOperations = Parameters<
+  Parameters<AdvanceProductionStageRepository['transaction']>[0]
+>[0];
+type TransitionStageInput = Parameters<AdvanceOperations['transitionStage']>[0];
+
 const policy = {
+  ...allowPolicy,
+  evaluateProductionRunTransition: () => ({
+    tag: 'ok' as const,
+    value: runLifecycleDecision,
+  }),
+  evaluateProductionShiftTransition: () => ({
+    tag: 'ok' as const,
+    value: shiftLifecycleDecision,
+  }),
   evaluateStageTransition: (
     entity: Parameters<ProductionPolicyPort['evaluateStageTransition']>[0],
     event: Parameters<ProductionPolicyPort['evaluateStageTransition']>[1],
@@ -29,7 +55,11 @@ const policy = {
     if (event.type === 'start')
       return {
         tag: 'ok' as const,
-        value: { status: 'allowed' as const, state: 'started' as const },
+        value: {
+          status: 'allowed' as const,
+          from: 'planned' as const,
+          state: 'started' as const,
+        },
       };
     if (entity.actualStartAt === null)
       return {
@@ -71,18 +101,24 @@ const policy = {
 
     return {
       tag: 'ok' as const,
-      value: { status: 'allowed' as const, state: 'completed' as const },
+      value: {
+        status: 'allowed' as const,
+        from: 'started' as const,
+        state: 'completed' as const,
+      },
     };
   },
-} as unknown as ProductionPolicyPort;
+} satisfies ProductionPolicyPort;
 
 const makeRepository = (
   overrides: Readonly<{
     version?: number;
     status?: 'planned' | 'started';
+    stageKind?: 'sorting' | 'folding_packaging';
     plannedStartAt?: string;
     plannedEndAt?: string;
     actualStartAt?: string | null;
+    resolutionState?: 'open' | 'resolved_without_production';
     storedWorkEvent?: StoredWorkEvent | null;
     replayAfterLock?: boolean;
   }> = {},
@@ -90,12 +126,14 @@ const makeRepository = (
   let storedWorkEvent: StoredWorkEvent | null =
     overrides.storedWorkEvent ?? null;
   let workEventReads = 0;
+  const stageKind = overrides.stageKind ?? 'sorting';
+  const stageStatus = overrides.status ?? 'started';
   const context: StageTransitionContext = {
     stage: {
       id: ids.stage,
       productionBatchId: ids.batch,
-      stage: 'sorting',
-      status: overrides.status ?? 'started',
+      stage: stageKind,
+      status: stageStatus,
       plannedStartAt: overrides.plannedStartAt ?? '2026-07-14T14:00:00.000Z',
       plannedEndAt: overrides.plannedEndAt ?? '2026-07-14T14:56:00.000Z',
       actualStartAt:
@@ -105,6 +143,28 @@ const makeRepository = (
       machineIds: [],
       version: overrides.version ?? 3,
     },
+    batch: {
+      id: ids.batch,
+      status:
+        stageStatus === 'planned'
+          ? stageKind === 'sorting'
+            ? 'queued'
+            : 'drying'
+          : stageKind,
+      version: 2,
+    },
+    attempts: [{ id: ids.attempt, status: 'assigned' }],
+    activeOrders: [
+      {
+        id: ids.order,
+        status: 'scheduled',
+        executionStatus: 'scheduled',
+        resolutionState: overrides.resolutionState ?? 'open',
+        version: 2,
+      },
+    ],
+    productionRunStatus: 'started',
+    productionShiftStatus: 'open',
     productionRunStarted: true,
     batchMembershipFrozen: true,
     previousStageCompleted: true,
@@ -117,7 +177,9 @@ const makeRepository = (
     version: context.stage.version + 1,
     replayed: false,
   };
-  const transitionStage = vi.fn(async () => mutation);
+  const transitionStage = vi.fn(
+    async (_input: TransitionStageInput) => mutation,
+  );
   const appendWorkEvent = vi.fn(async (event: WorkEventInput) => {
     storedWorkEvent = {
       command: event.idempotency.command,
@@ -188,6 +250,23 @@ const startConfirmationValue = (
 };
 
 describe('advance production stage', () => {
+  it('rejects floor progress for an archived production order', async () => {
+    const repository = makeRepository({
+      resolutionState: 'resolved_without_production',
+    });
+    const advance = makeAdvanceProductionStage({
+      repo: repository.repo,
+      policy,
+      clock: { now: () => new Date('2026-07-14T14:20:00.000Z') },
+    });
+
+    await expect(advance(completionCommand)).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_order_resolved', status: 409 },
+    });
+    expect(repository.transitionStage).not.toHaveBeenCalled();
+  });
+
   it('replays a concurrent pre-deploy ordinary start after acquiring the aggregate lock', async () => {
     const legacyResult: ProductionMutationResult = {
       entityId: ids.stage,
@@ -245,6 +324,7 @@ describe('advance production stage', () => {
     });
     let now = new Date('2026-07-14T14:40:00.000Z');
     const earlyStartPolicy = {
+      ...allowPolicy,
       evaluateStageTransition: () => ({
         tag: 'ok' as const,
         value: {
@@ -261,7 +341,7 @@ describe('advance production stage', () => {
           },
         },
       }),
-    } as unknown as ProductionPolicyPort;
+    } satisfies ProductionPolicyPort;
     const advance = makeAdvanceProductionStage({
       repo: repository.repo,
       policy: earlyStartPolicy,
@@ -448,6 +528,7 @@ describe('advance production stage', () => {
 
     const guarded = makeRepository();
     const guardPolicy = {
+      ...allowPolicy,
       evaluateStageTransition: () => ({
         tag: 'err' as const,
         error: {
@@ -455,7 +536,7 @@ describe('advance production stage', () => {
           message: 'A machine is still occupied.',
         },
       }),
-    } as unknown as ProductionPolicyPort;
+    } satisfies ProductionPolicyPort;
     const advanceGuarded = makeAdvanceProductionStage({
       repo: guarded.repo,
       policy: guardPolicy,
@@ -482,6 +563,28 @@ describe('advance production stage', () => {
     });
     expect(repository.appendWorkEvent).toHaveBeenCalledWith(
       expect.objectContaining({ payload: { version: 4 } }),
+    );
+    expect(repository.transitionStage).toHaveBeenCalledWith(
+      expect.objectContaining({ terminalLifecycle: null }),
+    );
+  });
+
+  it('forwards the exact aggregate decisions only at terminal batch completion', async () => {
+    const repository = makeRepository({ stageKind: 'folding_packaging' });
+    const advance = makeAdvanceProductionStage({
+      repo: repository.repo,
+      policy,
+      clock: { now: () => new Date('2026-07-14T14:56:00.000Z') },
+    });
+
+    await expect(advance(completionCommand)).resolves.toMatchObject({
+      tag: 'ok',
+      value: { entityId: ids.stage, version: 4, replayed: false },
+    });
+    const mutationInput = repository.transitionStage.mock.calls[0]?.[0];
+    expect(mutationInput?.terminalLifecycle?.run).toBe(runLifecycleDecision);
+    expect(mutationInput?.terminalLifecycle?.shift).toBe(
+      shiftLifecycleDecision,
     );
   });
 });

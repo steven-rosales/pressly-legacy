@@ -5,7 +5,7 @@
     "needsAttention": "Requiere atención",
     "attention": "Atención",
     "active": "Activos",
-    "all": "Todos",
+    "all": "Abiertos",
     "tabLabel": "{{label}}, {{count}}",
     "updating": "Actualizando",
     "ordersNeedAttention": "Control de pedidos requiere atención",
@@ -42,8 +42,6 @@
     "attentionPlacementConflictDetail": "La cola de producción cambió antes de completar la asignación. Actualiza y revisa la posición actual del pedido antes de volver a asignarlo.",
     "attentionRouteBlocked": "Ruta de producción bloqueada",
     "attentionRouteBlockedDetail": "LPMS no puede encontrar una ruta compatible por las etapas restantes del pedido. Revisa la etapa física de reinicio y la capacidad de los lotes posteriores.",
-    "attentionSourceComparison": "Los sistemas requieren confirmación",
-    "attentionSourceComparisonDetail": "El pedido comercial y el registro del piso de LPMS están en puntos distintos. Confirma la realidad física antes de cambiar Producción.",
     "eligible": "Elegible",
     "notEligible": "No elegible",
     "inProduction": "En producción",
@@ -173,12 +171,6 @@
     "releasedToProduction": "Liberado a producción",
     "withdrawnFromProduction": "Retirado",
     "sourceState": "Estado de origen",
-    "sourceUnavailable": "Origen no disponible",
-    "systemComparison": "Comparación de sistemas",
-    "comparisonAligned": "Sistemas alineados",
-    "comparisonSourceAhead": "Comercial completado; piso pendiente",
-    "comparisonSourceWithdrawn": "Comercial retirado; queda trabajo en el piso",
-    "comparisonSourceBehind": "Piso terminado; pedido comercial abierto",
-    "comparisonUnavailable": "Comparación no disponible"
+    "sourceUnavailable": "Origen no disponible"
   }
 }

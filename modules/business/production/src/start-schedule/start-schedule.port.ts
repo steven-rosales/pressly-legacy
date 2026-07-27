@@ -7,6 +7,7 @@ import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
+  ProductionOrderSchedulingMutation,
   SchedulingInput,
   Transactional,
   WorkEventCommandIdentity,
@@ -23,6 +24,15 @@ export type StartSchedule = (
   command: StartScheduleCommand & Readonly<{ actorId: string }>,
 ) => Promise<Result<StartScheduleResult, AppError>>;
 
+export type ScheduleStartOrder = Readonly<{
+  id: string;
+  operationalStatus: string;
+  executionStatus: string;
+  version: number;
+}>;
+
+export type ScheduleStartOrderLifecycle = ProductionOrderSchedulingMutation;
+
 export type StartScheduleRepository = Transactional<
   Readonly<{
     findWorkEvent: FindWorkEvent;
@@ -35,10 +45,10 @@ export type StartScheduleRepository = Transactional<
       locationId: string,
       scheduleRunId: string,
     ) => Promise<ScheduleStartRecord | null>;
-    lockAndValidateScheduleInput: (
+    lockAndLoadStartOrders: (
       locationId: string,
       record: ScheduleStartRecord,
-    ) => Promise<boolean>;
+    ) => Promise<readonly ScheduleStartOrder[] | null>;
     productionRunExists: (
       locationId: string,
       productionShiftId: string,
@@ -47,6 +57,11 @@ export type StartScheduleRepository = Transactional<
       locationId: string;
       record: ScheduleStartRecord;
       actorId: string;
+      productionRunStatus: 'started';
+      orderLifecycles: readonly ScheduleStartOrderLifecycle[];
+      initialBatchState: 'queued';
+      initialStageState: 'planned';
+      initialAttemptState: 'assigned';
       idempotencyKey: string;
       idempotency: WorkEventCommandIdentity;
       now: Date;

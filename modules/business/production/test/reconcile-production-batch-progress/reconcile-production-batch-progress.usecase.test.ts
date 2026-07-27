@@ -25,6 +25,13 @@ const ids = {
     '55555555-5555-4555-8555-555555555553',
     '55555555-5555-4555-8555-555555555554',
   ],
+  attempts: [
+    '77777777-7777-4777-8777-777777777771',
+    '77777777-7777-4777-8777-777777777772',
+    '77777777-7777-4777-8777-777777777773',
+    '77777777-7777-4777-8777-777777777774',
+  ],
+  order: '88888888-8888-4888-8888-888888888888',
 } as const;
 
 const context = (batchVersion = 3): ReconciliationContext => ({
@@ -33,6 +40,7 @@ const context = (batchVersion = 3): ReconciliationContext => ({
     status: 'started',
     queueVersion: 5,
     productionShiftId: '66666666-6666-4666-8666-666666666666',
+    productionShiftStatus: 'open',
   },
   batch: {
     id: ids.batch,
@@ -55,6 +63,20 @@ const context = (batchVersion = 3): ReconciliationContext => ({
       version: 1,
     }),
   ),
+  attempts: ids.attempts.map((id, index) => ({
+    id,
+    stageRunId: ids.stages[index]!,
+    status: 'assigned' as const,
+  })),
+  activeOrders: [
+    {
+      id: ids.order,
+      status: 'scheduled',
+      executionStatus: 'scheduled',
+      resolutionState: 'open',
+      version: 2,
+    },
+  ],
   activeStageKinds: [],
   machines: [
     {
@@ -159,6 +181,28 @@ const confirmationValue = (
 };
 
 describe('reconcile production batch progress', () => {
+  it('rejects reconciliation for an archived production order', async () => {
+    const initial = context();
+    const repository = makeRepository({
+      ...initial,
+      activeOrders: initial.activeOrders.map((order) => ({
+        ...order,
+        resolutionState: 'resolved_without_production',
+      })),
+    });
+    const reconcile = makeReconcileProductionBatchProgress({
+      repo: repository.repo,
+      policy: allowPolicy,
+      clock: { now: () => new Date('2026-07-15T14:00:00.000Z') },
+    });
+
+    await expect(reconcile(command)).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_order_resolved', status: 409 },
+    });
+    expect(repository.reconcile).not.toHaveBeenCalled();
+  });
+
   it('previews exact effects, then commits one atomic auditable reconciliation', async () => {
     const repository = makeRepository();
     const reconcile = makeReconcileProductionBatchProgress({

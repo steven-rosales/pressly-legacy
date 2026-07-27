@@ -13,6 +13,7 @@ import { makeSetProductionOrderPriority } from '../../src/set-production-order-p
 import { makeStartScheduleRepository } from '../../src/start-schedule/start-schedule.repo.ts';
 import { defineWorkEventCommand } from '../../src/production-idempotency.policy.ts';
 import {
+  allowPolicy,
   makeClock,
   makeIds,
   simpleScheduler,
@@ -237,7 +238,8 @@ const seedLocationClosure = async (): Promise<void> => {
       orderDemandId: id.demandEligible,
       locationId: location.first,
       dueAt: due,
-      status: 'eligible',
+      operationalStatus: 'eligible',
+      executionStatus: 'unassigned',
       derivedWeightLbs: 74,
       bagCount: 2,
       bagCountSource: 'operator_intake',
@@ -250,7 +252,8 @@ const seedLocationClosure = async (): Promise<void> => {
       orderDemandId: id.demandPending,
       locationId: location.first,
       dueAt: due,
-      status: 'intake_pending',
+      operationalStatus: 'intake_pending',
+      executionStatus: 'unassigned',
       derivedWeightLbs: 40,
       bagCount: null,
       eligibleAt: now,
@@ -260,7 +263,8 @@ const seedLocationClosure = async (): Promise<void> => {
       orderDemandId: id.demandOther,
       locationId: location.second,
       dueAt: due,
-      status: 'eligible',
+      operationalStatus: 'eligible',
+      executionStatus: 'unassigned',
       derivedWeightLbs: 60,
       bagCount: 3,
       bagCountSource: 'operator_intake',
@@ -391,6 +395,8 @@ describe('production location closure', () => {
         id: ids.next(),
         schedulingInput,
         output,
+        initialStatus: 'draft',
+        supersede: null,
         now,
       }),
     );
@@ -424,6 +430,7 @@ describe('production location closure', () => {
             acknowledgedWarningCodes: [],
           },
         }),
+        { from: 'draft', state: 'accepted' },
         now,
       ),
     );
@@ -451,6 +458,18 @@ describe('production location closure', () => {
         locationId: location.first,
         record,
         actorId: id.actor,
+        productionRunStatus: 'started',
+        orderLifecycles: [
+          {
+            productionOrderId: id.orderEligible,
+            persistedState: 'unassigned',
+            expectedVersion: 1,
+            lifecycle: { from: 'unassigned', state: 'scheduled' },
+          },
+        ],
+        initialBatchState: 'queued',
+        initialStageState: 'planned',
+        initialAttemptState: 'assigned',
         idempotencyKey: 'location-start-1',
         idempotency: defineWorkEventCommand({
           operation: 'production_run_started',
@@ -484,6 +503,7 @@ describe('production location closure', () => {
     const priority = makeSetProductionOrderPriority({
       repo: makeSetProductionOrderPriorityRepository({ db: testDb.db, ids }),
       clock: makeClock('2026-07-10T14:30:00.000Z').clock,
+      policy: allowPolicy,
     });
     await expect(
       priority({
@@ -496,7 +516,7 @@ describe('production location closure', () => {
       }),
     ).resolves.toMatchObject({
       tag: 'err',
-      error: { code: 'production_order_version_conflict' },
+      error: { code: 'production_order_not_found' },
     });
     await expect(
       priority({

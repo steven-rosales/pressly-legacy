@@ -455,10 +455,6 @@ function OrderOverview({
                 label={t("orderControl.sourceState")}
                 value={order.sourceStateLabel}
               />
-              <Fact
-                label={t("orderControl.systemComparison")}
-                value={order.comparisonLabel}
-              />
             </dl>
           </section>
 

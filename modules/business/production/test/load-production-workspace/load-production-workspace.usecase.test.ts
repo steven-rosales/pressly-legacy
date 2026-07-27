@@ -30,6 +30,7 @@ const ids = {
   folding: '00000000-0000-4000-8000-000000000009',
   washer: '00000000-0000-4000-8000-000000000010',
   dryer: '00000000-0000-4000-8000-000000000011',
+  wrongRun: '00000000-0000-4000-8000-000000000012',
 } as const;
 
 const location = {
@@ -72,6 +73,7 @@ const emptyWorkspace: ProductionWorkspace = {
   activeRuns: [],
   orders: [],
   pendingEligibleOrders: [],
+  liveRunChanges: null,
   demandOutlook: null,
   board: null,
   stations: [],
@@ -180,6 +182,7 @@ const resumedWorkspace = (): ProductionWorkspaceReadModel => {
     },
     boardProjection: projection,
     demandOutlookRows: [],
+    livePlacement: null,
   };
 };
 
@@ -195,6 +198,7 @@ const emptyReadModel: ProductionWorkspaceReadModel = {
   workspace: { ...emptyWorkspace, board: null },
   boardProjection: null,
   demandOutlookRows: [],
+  livePlacement: null,
 };
 
 describe('load production workspace', () => {
@@ -225,6 +229,50 @@ describe('load production workspace', () => {
     expect(productionWorkspaceSchema.safeParse(emptyWorkspace).success).toBe(
       true,
     );
+  });
+
+  it('returns no live placement projection when the selected workspace has no started run', async () => {
+    const load = setup({ loadWorkspace: async () => emptyReadModel });
+
+    await expect(load({ locationId: location.id })).resolves.toMatchObject({
+      tag: 'ok',
+      value: { activeRuns: [], liveRunChanges: null },
+    });
+  });
+
+  it('rejects a live placement projection for a different run identity', async () => {
+    const readModel: ProductionWorkspaceReadModel = {
+      ...resumedWorkspace(),
+      livePlacement: {
+        runContext: {
+          input: {
+            run: {
+              id: ids.wrongRun,
+              queueVersion: 1,
+              startsAt: shift.startsAt.toISOString(),
+              shiftEndsAt: shift.endsAt.toISOString(),
+              pulseMinutes: 56,
+              pulseCapacityLbs: 224,
+            },
+            machines: [],
+            batches: [],
+          },
+          runStatus: 'started',
+          batchVersions: {},
+          assignedOrderIds: [],
+        },
+        orders: [],
+      },
+    };
+    const load = setup({ loadWorkspace: async () => readModel });
+
+    await expect(load({ locationId: location.id })).resolves.toMatchObject({
+      tag: 'err',
+      error: {
+        code: 'production_live_placement_run_mismatch',
+        status: 409,
+      },
+    });
   });
 
   it('returns not-found when an explicit shift is outside the location', async () => {

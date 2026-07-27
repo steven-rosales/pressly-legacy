@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 import type {
-  ProductionHistoryActivityEntry,
+  ProcessorProductionHistoryActivityEntry,
   ProductionHistoryRunSummary,
 } from "@pressly/contracts"
 import { HistoryWorkspaceContainer } from "@/features/history/history-workspace.view"
@@ -37,14 +37,19 @@ const run: ProductionHistoryRunSummary = {
   createdAt: "2026-08-01T13:55:00.000Z",
 }
 
-const activity: ProductionHistoryActivityEntry = {
+const activity: ProcessorProductionHistoryActivityEntry = {
   id: id(502),
   eventType: "production_order_rebatched",
   entityType: "production_order",
   entityId: id(503),
+  identity: {
+    displayNumber: "TEST-503",
+    customerDisplayName: "Rivera Cleaners",
+  },
   actor: { id: id(504), kind: "user", displayName: "Jamie Operator" },
   expectedVersion: 2,
   productionRunId: run.productionRunId,
+  resolutionAction: null,
   summary: "Order moved to a later batch",
   details: {
     kind: "order",
@@ -56,6 +61,8 @@ const activity: ProductionHistoryActivityEntry = {
     priority: false,
     queueVersion: 8,
     version: 3,
+    resolutionState: null,
+    resolutionReason: null,
     routeReason: "manual_rebatch",
     restartStage: "sorting",
     releasedStages: ["sorting"],
@@ -85,9 +92,14 @@ describe("connected production history workspace", () => {
     render(
       <HistoryWorkspaceContainer
         production={production}
+        idempotency={{
+          key: vi.fn(async () => "history-idempotency-key"),
+        }}
         locationId={testLocation.id}
         timezone={testLocation.timezone}
         revision="2026-08-01T20:00:00.000Z"
+        canManage={false}
+        onMutated={vi.fn(async () => undefined)}
       />
     )
 
@@ -127,7 +139,7 @@ describe("connected production history workspace", () => {
         query: { limit: 50, search: "north" },
       })
     )
-    expect(screen.queryByLabelText("History status")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("History status")).toHaveValue("all")
     expect(screen.getByText("Order moved to a later batch")).toBeInTheDocument()
   })
 })

@@ -1,8 +1,8 @@
 import type {
   ClockPort,
   IdPort,
+  ProductionApplicationSchedulerPort,
   ProductionPolicyPort,
-  ProductionSchedulerPort,
   SchedulingInput,
   SchedulingOutput,
 } from '../../src/production.port.ts';
@@ -28,6 +28,256 @@ export const makeClock = (initial: string) => {
 };
 
 export const allowPolicy: ProductionPolicyPort = {
+  initialProductionShiftState: 'open',
+  evaluateProductionShiftTransition: ({ state }) =>
+    state === 'open'
+      ? { tag: 'ok', value: { from: 'open', state: 'closed' } }
+      : {
+          tag: 'err',
+          error: {
+            code: 'PRODUCTION_SHIFT_EVENT_NOT_ALLOWED',
+            message: 'The production shift event is not allowed.',
+          },
+        },
+  allowedProductionShiftEvents: (state) =>
+    state === 'open' ? ['close_after_execution'] : [],
+  initialScheduleRevisionState: 'draft',
+  evaluateScheduleRevisionTransition: ({ state, event }) => {
+    if (state === 'draft' && event === 'accept')
+      return { tag: 'ok', value: { from: 'draft', state: 'accepted' } };
+    if ((state === 'draft' || state === 'accepted') && event === 'supersede')
+      return {
+        tag: 'ok',
+        value: { from: state, state: 'superseded' },
+      };
+    if (state === 'draft' && event === 'reject')
+      return { tag: 'ok', value: { from: 'draft', state: 'rejected' } };
+    return {
+      tag: 'err',
+      error: {
+        code: 'SCHEDULE_EVENT_NOT_ALLOWED',
+        message: 'The schedule revision event is not allowed.',
+      },
+    };
+  },
+  allowedScheduleRevisionEvents: (state) =>
+    state === 'draft'
+      ? ['accept', 'supersede', 'reject']
+      : state === 'accepted'
+        ? ['supersede']
+        : [],
+  initialProductionRunState: 'started',
+  evaluateProductionRunTransition: ({ state }) =>
+    state === 'started'
+      ? { tag: 'ok', value: { from: 'started', state: 'completed' } }
+      : {
+          tag: 'err',
+          error: {
+            code: 'PRODUCTION_RUN_EVENT_NOT_ALLOWED',
+            message: 'The production run event is not allowed.',
+          },
+        },
+  allowedProductionRunEvents: (state) =>
+    state === 'started' ? ['complete_final_batch'] : [],
+  initialProductionBatchState: 'queued',
+  evaluateProductionBatchTransition: ({ state, event }) => {
+    const current =
+      state === 'queued' ||
+      state === 'sorting' ||
+      state === 'washing' ||
+      state === 'drying' ||
+      state === 'folding_packaging' ||
+      state === 'finished'
+        ? state
+        : null;
+    if (current === null)
+      return {
+        tag: 'err',
+        error: {
+          code: 'PRODUCTION_BATCH_STATE_INVALID',
+          message: 'The production batch state is invalid.',
+        },
+      };
+    const ordinary = {
+      'queued:start_sorting': 'sorting',
+      'sorting:start_washing': 'washing',
+      'washing:start_drying': 'drying',
+      'drying:start_folding_packaging': 'folding_packaging',
+      'folding_packaging:finish': 'finished',
+    } as const;
+    const reconciliationTarget = event.startsWith('reconcile_to_')
+      ? event.slice('reconcile_to_'.length)
+      : null;
+    const next =
+      ordinary[`${current}:${event}` as keyof typeof ordinary] ??
+      (reconciliationTarget === 'sorting' ||
+      reconciliationTarget === 'washing' ||
+      reconciliationTarget === 'drying' ||
+      reconciliationTarget === 'folding_packaging' ||
+      reconciliationTarget === 'finished'
+        ? reconciliationTarget
+        : null);
+    return next === null
+      ? {
+          tag: 'err',
+          error: {
+            code: 'PRODUCTION_BATCH_EVENT_NOT_ALLOWED',
+            message: 'The production batch event is not allowed.',
+          },
+        }
+      : { tag: 'ok', value: { from: current, state: next } };
+  },
+  initialProductionOrderExecutionState: 'unassigned',
+  resolveProductionOrderExecutionState: ({
+    executionState,
+    operationalStatus,
+  }) => {
+    if (
+      executionState !== null &&
+      executionState !== undefined &&
+      executionState !== 'unassigned' &&
+      executionState !== 'scheduled' &&
+      executionState !== 'finished'
+    )
+      return {
+        tag: 'err',
+        error: {
+          code: 'PRODUCTION_ORDER_EXECUTION_STATE_INVALID',
+          message: 'The production order execution state is invalid.',
+        },
+      };
+    const persisted = executionState ?? 'unassigned';
+    const legacy =
+      operationalStatus === 'finished'
+        ? 'finished'
+        : operationalStatus === 'scheduled'
+          ? 'scheduled'
+          : 'unassigned';
+    const rank = { unassigned: 0, scheduled: 1, finished: 2 } as const;
+    return {
+      tag: 'ok',
+      value: rank[persisted] >= rank[legacy] ? persisted : legacy,
+    };
+  },
+  evaluateProductionOrderExecutionTransition: ({ state, event }) => {
+    if (state === 'unassigned' && event === 'schedule_or_place')
+      return {
+        tag: 'ok',
+        value: { from: 'unassigned', state: 'scheduled' },
+      };
+    if (state === 'scheduled' && event === 'finish_with_batch')
+      return {
+        tag: 'ok',
+        value: { from: 'scheduled', state: 'finished' },
+      };
+    return {
+      tag: 'err',
+      error: {
+        code: 'PRODUCTION_ORDER_EXECUTION_EVENT_NOT_ALLOWED',
+        message: 'The production order execution event is not allowed.',
+      },
+    };
+  },
+  initialProductionOrderResolutionState: 'open',
+  evaluateProductionOrderResolutionTransition: ({ state, event }) => {
+    if (state === 'open' && event === 'resolve_without_production')
+      return {
+        tag: 'ok',
+        value: { from: 'open', state: 'resolved_without_production' },
+      };
+    if (state === 'resolved_without_production' && event === 'restore')
+      return {
+        tag: 'ok',
+        value: { from: 'resolved_without_production', state: 'open' },
+      };
+    return {
+      tag: 'err',
+      error: {
+        code: 'PRODUCTION_ORDER_RESOLUTION_EVENT_NOT_ALLOWED',
+        message: 'The production order resolution event is not allowed.',
+      },
+    };
+  },
+  evaluateProductionOrderOperationalAccess: ({ resolutionState }) =>
+    resolutionState === 'open'
+      ? { tag: 'ok', value: { resolutionState: 'open' } }
+      : {
+          tag: 'err',
+          error: {
+            code:
+              resolutionState === 'resolved_without_production'
+                ? 'PRODUCTION_ORDER_RESOLVED'
+                : 'PRODUCTION_ORDER_RESOLUTION_STATE_INVALID',
+            message:
+              resolutionState === 'resolved_without_production'
+                ? 'This order is archived from active production work.'
+                : 'The production order resolution state is invalid.',
+          },
+        },
+  evaluateProductionOrderResolutionGuard: (input) => {
+    const blockReasons = [
+      ...(input.executionState === 'unassigned'
+        ? []
+        : (['execution_committed'] as const)),
+      ...(input.hasShiftSelection ? (['selected_for_shift'] as const) : []),
+      ...(input.hasBatchMembership
+        ? (['batch_membership_exists'] as const)
+        : []),
+      ...(input.hasStageAttempt ? (['stage_attempt_exists'] as const) : []),
+      ...(input.hasRoute ? (['route_exists'] as const) : []),
+    ];
+    if (blockReasons.length > 0) return { status: 'blocked', blockReasons };
+
+    const reviewReasons = [
+      ...(input.hasIntake ? (['intake_recorded'] as const) : []),
+      ...(input.hasManualAdmission ? (['manual_admission'] as const) : []),
+      ...(input.isPriority ? (['priority'] as const) : []),
+      ...(input.hasPendingPlacement ? (['pending_placement'] as const) : []),
+    ];
+    return {
+      status: 'allowed',
+      requiresExplicitReview: reviewReasons.length > 0,
+      reviewReasons,
+      mayClearPendingPlacement: input.hasPendingPlacement,
+    };
+  },
+  deriveProductionOrderOperationalStatus: (input) => {
+    if (input.executionState === 'finished') return 'finished';
+    if (input.executionState === 'scheduled') return 'scheduled';
+    if (
+      !input.hasPositiveDemand ||
+      input.admission === 'withdrawn' ||
+      input.admission === 'post_production'
+    )
+      return 'ineligible';
+    if (
+      input.admission !== 'released' &&
+      input.admissionOverride !== 'released'
+    )
+      return 'release_pending';
+    return input.bagCount === null ? 'intake_pending' : 'eligible';
+  },
+  initialProductionOrderStageAttemptState: 'assigned',
+  evaluateProductionOrderStageAttemptTransition: ({ state, event }) => {
+    if (state === 'assigned' && event === 'complete_with_stage')
+      return {
+        tag: 'ok',
+        value: { from: 'assigned', state: 'completed' },
+      };
+    if (state === 'assigned' && event === 'release_for_route')
+      return {
+        tag: 'ok',
+        value: { from: 'assigned', state: 'released' },
+      };
+    return {
+      tag: 'err',
+      error: {
+        code: 'PRODUCTION_ORDER_STAGE_ATTEMPT_EVENT_NOT_ALLOWED',
+        message: 'The production order stage-attempt event is not allowed.',
+      },
+    };
+  },
+  initialProductionStageState: 'planned',
   evaluateProductionAdmission: (input) => {
     if (input.sourceAdmissionState === 'withdrawn')
       return {
@@ -97,50 +347,24 @@ export const allowPolicy: ProductionPolicyPort = {
       actions.push('return_to_source');
     return actions;
   },
-  evaluateDemandReconciliation: ({
-    phase,
-    productionStatus,
-    currentBagCount,
-  }) => {
-    if (phase === 'post_production' && productionStatus !== 'finished')
-      return 'source_ahead';
-    if (
-      phase === 'withdrawn' &&
-      currentBagCount !== null &&
-      productionStatus !== 'finished'
-    )
-      return 'source_withdrawn';
-    if (
-      productionStatus === 'finished' &&
-      (phase === 'expected' ||
-        phase === 'inbound' ||
-        phase === 'production_released')
-    )
-      return 'source_behind';
-    return 'none';
-  },
   evaluateDemandLifecycle: (input) => {
     const effectiveBagCount = input.currentBagCount ?? input.incomingBagCount;
-    const reconciliation = allowPolicy.evaluateDemandReconciliation(input);
     if (
       input.productionStatus === 'scheduled' ||
       input.productionStatus === 'finished'
     )
       return {
         effectiveBagCount,
-        reconciliation,
         production: { action: 'preserve' },
       };
     if (input.phase === 'post_production' || input.phase === 'withdrawn') {
       if (input.productionStatus === null)
         return {
           effectiveBagCount,
-          reconciliation,
           production: { action: 'none' },
         };
       return {
         effectiveBagCount,
-        reconciliation,
         production: { action: 'update', status: 'ineligible' },
       };
     }
@@ -151,7 +375,6 @@ export const allowPolicy: ProductionPolicyPort = {
     )
       return {
         effectiveBagCount,
-        reconciliation,
         production:
           input.productionStatus === null
             ? { action: 'none' }
@@ -159,7 +382,6 @@ export const allowPolicy: ProductionPolicyPort = {
       };
     return {
       effectiveBagCount,
-      reconciliation,
       production: {
         action: input.productionStatus === null ? 'create' : 'update',
         status:
@@ -443,6 +665,7 @@ export const allowPolicy: ProductionPolicyPort = {
     return { tag: 'ok', value: { state: 'available', action } };
   },
   evaluateStageTransition: (entity, event, context) => {
+    const starts = event.type === 'start' || event.type === 'reconcile_start';
     if (event.type === 'start' && !context.productionRunStarted)
       return {
         tag: 'err',
@@ -502,7 +725,13 @@ export const allowPolicy: ProductionPolicyPort = {
       tag: 'ok',
       value: {
         status: 'allowed',
-        state: event.type === 'start' ? 'started' : 'completed',
+        from:
+          entity.state === 'planned' ||
+          entity.state === 'started' ||
+          entity.state === 'completed'
+            ? entity.state
+            : 'planned',
+        state: starts ? 'started' : 'completed',
       },
     };
   },
@@ -515,7 +744,7 @@ export const allowPolicy: ProductionPolicyPort = {
 const addMinutes = (instant: string, minutes: number) =>
   new Date(Date.parse(instant) + minutes * 60_000).toISOString();
 
-export const simpleScheduler: ProductionSchedulerPort = {
+export const simpleScheduler: ProductionApplicationSchedulerPort = {
   forecastDemand: (input) => ({
     algorithmVersion: 'fixed-pulse-demand-outlook-v1',
     startsAt: input.shift.startsAt,
@@ -581,5 +810,18 @@ export const simpleScheduler: ProductionSchedulerPort = {
       code: 'UNSUPPORTED_TEST_PLACEMENT',
       message: 'This scheduler fake does not exercise online placement.',
     },
+  }),
+  projectRemainingDayForecast: (input) => ({
+    algorithmVersion: 'online-stable-insertion-v1',
+    decisions: input.readyOrders.map((order) => ({
+      productionOrderId: order.id,
+      disposition: 'needs_shift',
+      reason:
+        input.activeRuns.length === 0
+          ? 'no_active_run'
+          : input.activeRuns.length > 1
+            ? 'ambiguous_active_run'
+            : 'placement_rejected',
+    })),
   }),
 };

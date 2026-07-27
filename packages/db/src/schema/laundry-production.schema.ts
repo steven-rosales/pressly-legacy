@@ -155,7 +155,14 @@ export const productionOrders = pgTable(
       .references(() => productionLocations.id),
     dueAt: timestamp('due_at', { withTimezone: true }).notNull(),
     priority: boolean('priority').notNull().default(false),
-    status: text('status').notNull().default('eligible'),
+    operationalStatus: text('status').notNull().default('eligible'),
+    executionStatus: text('execution_status').notNull().default('unassigned'),
+    resolutionState: text('resolution_state').notNull().default('open'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedBy: uuid('resolved_by'),
+    resolutionReason: text('resolution_reason'),
+    resolutionNote: text('resolution_note'),
+    resolutionBulkOperationId: uuid('resolution_bulk_operation_id'),
     derivedWeightLbs: weight('derived_weight_lbs').notNull(),
     derivedWeightSource: text('derived_weight_source')
       .notNull()
@@ -212,14 +219,67 @@ export const productionOrders = pgTable(
     ),
     check(
       'production_orders_status_valid',
-      sql`${table.status} in ('release_pending', 'intake_pending', 'eligible', 'ineligible', 'scheduled', 'finished')`,
+      sql`${table.operationalStatus} in ('release_pending', 'intake_pending', 'eligible', 'ineligible', 'scheduled', 'finished')`,
+    ),
+    check(
+      'production_orders_execution_status_valid',
+      sql`${table.executionStatus} in ('unassigned', 'scheduled', 'finished')`,
+    ),
+    check(
+      'production_orders_resolution_state_valid',
+      sql`${table.resolutionState} in ('open', 'resolved_without_production')`,
+    ),
+    check(
+      'production_orders_resolution_reason_valid',
+      sql`${table.resolutionReason} is null or ${table.resolutionReason} in ('completed_outside_pressly', 'processor_not_in_use', 'duplicate_or_test', 'order_will_not_be_produced', 'other')`,
+    ),
+    check(
+      'production_orders_resolution_metadata_consistent',
+      sql`(
+        ${table.resolutionState} = 'open'
+        and ${table.resolvedAt} is null
+        and ${table.resolvedBy} is null
+        and ${table.resolutionReason} is null
+        and ${table.resolutionNote} is null
+        and ${table.resolutionBulkOperationId} is null
+      ) or (
+        ${table.resolutionState} = 'resolved_without_production'
+        and ${table.resolvedAt} is not null
+        and ${table.resolvedBy} is not null
+        and ${table.resolutionReason} is not null
+        and btrim(${table.resolutionReason}) <> ''
+        and (
+          (
+            ${table.resolutionReason} <> 'other'
+            and (
+              ${table.resolutionNote} is null
+              or btrim(${table.resolutionNote}) <> ''
+            )
+          )
+          or (
+            ${table.resolutionReason} = 'other'
+            and ${table.resolutionNote} is not null
+            and btrim(${table.resolutionNote}) <> ''
+          )
+        )
+      )`,
     ),
     index('production_orders_location_status_idx').on(
       table.locationId,
-      table.status,
+      table.operationalStatus,
+    ),
+    index('production_orders_location_execution_status_idx').on(
+      table.locationId,
+      table.executionStatus,
     ),
     index('production_orders_location_due_id_idx').on(
       table.locationId,
+      table.dueAt,
+      table.id,
+    ),
+    index('production_orders_location_resolution_due_id_idx').on(
+      table.locationId,
+      table.resolutionState,
       table.dueAt,
       table.id,
     ),

@@ -3,7 +3,9 @@ import { result, stateMachine, type Result } from '@pressly/kernel';
 export type StageState = 'planned' | 'started' | 'completed';
 export type StageEvent =
   | Readonly<{ type: 'start' }>
-  | Readonly<{ type: 'complete' }>;
+  | Readonly<{ type: 'complete' }>
+  | Readonly<{ type: 'reconcile_start' }>
+  | Readonly<{ type: 'reconcile_complete' }>;
 export type StageEntity = Readonly<{
   state: string;
   plannedStartAt: Date;
@@ -47,6 +49,7 @@ export type StageCompletionTiming = Readonly<{
 export type StageTransitionDecision =
   | Readonly<{
       status: 'allowed';
+      from: StageState;
       state: StageState;
     }>
   | Readonly<{
@@ -253,6 +256,20 @@ const stageMachine = stateMachine.define<
       to: 'completed',
       guards: [],
     },
+    {
+      from: 'planned',
+      on: 'reconcile_start',
+      to: 'started',
+      guards: [],
+      description: 'Record operator-confirmed progress into the stage.',
+    },
+    {
+      from: ['planned', 'started'],
+      on: 'reconcile_complete',
+      to: 'completed',
+      guards: [],
+      description: 'Record operator-confirmed progress beyond the stage.',
+    },
   ],
   invariants: [
     {
@@ -270,6 +287,8 @@ const stageMachine = stateMachine.define<
     },
   ],
 });
+
+export const initialProductionStageState = 'planned' as const;
 
 export const evaluateStageTransition = (
   entity: StageEntity,
@@ -322,7 +341,11 @@ export const evaluateStageTransition = (
       timing: startTiming(entity, context.now),
     });
 
-  return result.ok({ status: 'allowed', state: transition.value.to });
+  return result.ok({
+    status: 'allowed',
+    from: transition.value.from,
+    state: transition.value.to,
+  });
 };
 
 const isStageActionBlockCode = (value: string): value is StageActionBlockCode =>
@@ -385,3 +408,10 @@ export const evaluateStageNextAction = (
 };
 
 export const productionStageGraph = stageMachine.graph;
+
+export const allowedProductionStageEvents = (
+  state: string,
+): readonly StageEvent['type'][] =>
+  state === 'planned' || state === 'started' || state === 'completed'
+    ? stageMachine.allowedEvents(state)
+    : [];

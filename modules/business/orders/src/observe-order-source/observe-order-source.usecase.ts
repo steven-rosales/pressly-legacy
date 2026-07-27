@@ -3,7 +3,10 @@ import { orderError } from '../order.error.ts';
 import { isOrderInputValid } from '../order-input.policy.ts';
 import type { ObserveOrderSource } from '../orders.port.ts';
 import type { ObserveOrderSourceRepository } from './observe-order-source.port.ts';
-import { decideOrderSourceUpdate } from './observe-order-source.policy.ts';
+import {
+  canonicalOrderForNewSource,
+  decideOrderSourceUpdate,
+} from './observe-order-source.policy.ts';
 
 export const makeObserveOrderSource =
   (repo: ObserveOrderSourceRepository): ObserveOrderSource =>
@@ -30,7 +33,10 @@ export const makeObserveOrderSource =
         await operations.lockSource(command);
         const current = await operations.loadSource(command);
         if (current === null) {
-          const created = await operations.createSourceOrder(command);
+          const created = await operations.createSourceOrder({
+            observation: command,
+            canonical: canonicalOrderForNewSource(command),
+          });
           return {
             kind: 'ok' as const,
             value: { ...created, outcome: 'created' as const },
@@ -57,15 +63,31 @@ export const makeObserveOrderSource =
             },
           };
 
-        await operations.applySourceOrder({
+        await operations.retainSourceObservation({
           current,
           observation: command,
+          missingAuthorities: decision.value.missingAuthorities,
+        });
+        if (decision.value.kind === 'observed_only')
+          return {
+            kind: 'ok' as const,
+            value: {
+              orderId: current.order.id,
+              fulfillmentId: current.fulfillment.id,
+              version: current.order.version,
+              replayed: false,
+              outcome: 'observed_only' as const,
+            },
+          };
+
+        await operations.applySourceAdoption({
+          current,
+          observedAt: command.revision.observedAt,
           nextOrder: decision.value.nextOrder,
           nextFulfillment: decision.value.nextFulfillment,
           nextOrderVersion: decision.value.nextOrderVersion,
           nextFulfillmentVersion: decision.value.nextFulfillmentVersion,
-          items: command.items,
-          missingAuthorities: decision.value.missingAuthorities,
+          items: decision.value.items,
         });
         return {
           kind: 'ok' as const,
@@ -84,13 +106,6 @@ export const makeObserveOrderSource =
           orderError(
             'ORDER_SOURCE_REVISION_CONFLICT',
             'The source sent different order data for the same revision.',
-          ),
-        );
-      if (outcome.kind === 'invalid_transition')
-        return result.err(
-          orderError(
-            'ORDER_SOURCE_TRANSITION_INVALID',
-            'The source attempted to reverse a terminal order or fulfillment state.',
           ),
         );
       return result.err(

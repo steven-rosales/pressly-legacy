@@ -2,6 +2,7 @@ import {
   and,
   asc,
   eq,
+  inArray,
   laundryProduction,
   type DatabaseExecutor,
 } from '@pressly/db';
@@ -10,6 +11,29 @@ import type {
   StoredStage,
 } from '../production.port.ts';
 import { iso } from './production-mappers.ts';
+
+const batchStatus = (
+  value: string,
+): StageTransitionContext['batch']['status'] => {
+  if (
+    value === 'queued' ||
+    value === 'sorting' ||
+    value === 'washing' ||
+    value === 'drying' ||
+    value === 'folding_packaging' ||
+    value === 'finished'
+  )
+    return value;
+  throw new Error(`Unknown production batch status: ${value}.`);
+};
+
+const attemptStatus = (
+  value: string,
+): StageTransitionContext['attempts'][number]['status'] => {
+  if (value === 'assigned' || value === 'completed' || value === 'released')
+    return value;
+  throw new Error(`Unknown order-stage attempt status: ${value}.`);
+};
 
 export const loadStageTransitionContext = async (
   db: DatabaseExecutor,
@@ -49,7 +73,10 @@ export const loadStageTransitionContext = async (
   // The preliminary identity read acquires no locks; durable locks always begin
   // at the execution aggregate and proceed toward its children.
   const [run] = await db
-    .select({ status: laundryProduction.productionRuns.status })
+    .select({
+      status: laundryProduction.productionRuns.status,
+      productionShiftId: laundryProduction.productionRuns.productionShiftId,
+    })
     .from(laundryProduction.productionRuns)
     .where(
       and(
@@ -60,6 +87,17 @@ export const loadStageTransitionContext = async (
     .limit(1)
     .for('update');
   if (run === undefined) return null;
+  const [shift] = await db
+    .select({ status: laundryProduction.productionShifts.status })
+    .from(laundryProduction.productionShifts)
+    .where(
+      and(
+        eq(laundryProduction.productionShifts.locationId, locationId),
+        eq(laundryProduction.productionShifts.id, run.productionShiftId),
+      ),
+    )
+    .limit(1);
+  if (shift === undefined) return null;
 
   const [batch] = await db
     .select()
@@ -105,6 +143,58 @@ export const loadStageTransitionContext = async (
     (candidate) => candidate.id === stage.id,
   );
   const previous = stageIndex <= 0 ? undefined : siblingStages[stageIndex - 1];
+  const attemptRows = await db
+    .select({
+      id: laundryProduction.productionOrderStageAttempts.id,
+      status: laundryProduction.productionOrderStageAttempts.status,
+    })
+    .from(laundryProduction.productionOrderStageAttempts)
+    .where(
+      and(
+        eq(
+          laundryProduction.productionOrderStageAttempts.locationId,
+          locationId,
+        ),
+        eq(laundryProduction.productionOrderStageAttempts.stageRunId, stage.id),
+      ),
+    )
+    .for('update');
+  const activeMemberships = await db
+    .select({
+      productionOrderId:
+        laundryProduction.productionBatchOrders.productionOrderId,
+    })
+    .from(laundryProduction.productionBatchOrders)
+    .where(
+      and(
+        eq(laundryProduction.productionBatchOrders.locationId, locationId),
+        eq(laundryProduction.productionBatchOrders.productionBatchId, batch.id),
+        eq(laundryProduction.productionBatchOrders.active, true),
+      ),
+    )
+    .for('update');
+  const activeOrderIds = activeMemberships.map(
+    (membership) => membership.productionOrderId,
+  );
+  const activeOrderRows =
+    activeOrderIds.length === 0
+      ? []
+      : await db
+          .select({
+            id: laundryProduction.productionOrders.id,
+            status: laundryProduction.productionOrders.operationalStatus,
+            executionStatus: laundryProduction.productionOrders.executionStatus,
+            resolutionState: laundryProduction.productionOrders.resolutionState,
+            version: laundryProduction.productionOrders.version,
+          })
+          .from(laundryProduction.productionOrders)
+          .where(
+            and(
+              eq(laundryProduction.productionOrders.locationId, locationId),
+              inArray(laundryProduction.productionOrders.id, activeOrderIds),
+            ),
+          )
+          .for('update');
   const allStages = await db
     .select()
     .from(laundryProduction.stageRuns)
@@ -154,6 +244,18 @@ export const loadStageTransitionContext = async (
 
   return {
     stage: storedStage,
+    batch: {
+      id: batch.id,
+      status: batchStatus(batch.status),
+      version: batch.version,
+    },
+    attempts: attemptRows.map((attempt) => ({
+      id: attempt.id,
+      status: attemptStatus(attempt.status),
+    })),
+    activeOrders: activeOrderRows,
+    productionRunStatus: run.status,
+    productionShiftStatus: shift.status,
     productionRunStarted: run.status === 'started',
     batchMembershipFrozen: batch.membershipFrozenAt !== null,
     previousStageCompleted:

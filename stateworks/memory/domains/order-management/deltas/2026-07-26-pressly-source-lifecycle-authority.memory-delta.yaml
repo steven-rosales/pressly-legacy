@@ -1,0 +1,118 @@
+id: memdelta-2026-07-26-pressly-source-lifecycle-authority
+domain_id: order-management
+
+source:
+  type: interrogation_session
+  path: stateworks/memory/domains/order-management/sessions/2026-07-26-pressly-source-lifecycle-authority.md
+
+changes:
+  - op: update
+    kind: workflow
+    id: cents_order_observation
+    steps:
+      - API authenticates and validates one Cents webhook envelope and records
+        one idempotent inbox event
+      - Worker resolves the exact source location and converts the Cents payload
+        into typed source observations, retaining the raw lifecycle code as
+        source metadata
+      - Users resolves the exact Cents customer identity, applies
+        non-overridden fields, retains the latest customer snapshot, and
+        records any possible duplicate
+      - Orders locks the exact source identity and classifies the source
+        revision as stale, replay, conflict, or valid newer observation
+      - Orders retains every valid newer normalized snapshot independently from
+        whether its values are adopted into canonical Pressly fields
+      - source-owned non-lifecycle fields may be adopted under their existing
+        field-authority and source-revision rules
+      - before handoff, prospective Cents lifecycle may leave fulfillment
+        unreleased or withdraw uncommitted demand
+      - the first IN_PROGRESS-or-later non-canceled observation may advance an
+        unreleased fulfillment through the one-way Pressly handoff
+      - after handoff, later Cents lifecycle values are observation-only and
+        cannot rewind, complete, cancel, or withdraw canonical Pressly
+        lifecycle
+      - Orders writes a fulfillment-demand outbox event in the same transaction
+        only when canonical demand or adopted fields change
+      - Worker claims the outbox event and applies source-neutral fulfillment
+        demand to Production idempotently
+      - Processor floor views use canonical Pressly lifecycle and server-owned
+        action availability; source lifecycle anomalies remain integration and
+        audit context
+
+  - op: update
+    kind: workflow
+    id: direct_pressly_mutation
+    steps:
+      - authorized Pressly channel submits a typed command with actor, origin,
+        idempotency key, and expected aggregate version
+      - User or Order use case loads current canonical state and source
+        authority
+      - the authoritative lifecycle graph and pure field policies validate the
+        command and derive the next state and effects
+      - repository commits the versioned canonical change and any outbox event
+        atomically
+      - source snapshots remain unchanged and any difference remains
+        inspectable as integration or audit context without becoming
+        production-floor work
+
+  - op: assert
+    kind: invariant
+    id: source_observation_and_lifecycle_adoption_are_separate_v1
+    statement: Every valid newer external lifecycle observation is retained
+      under source revision rules even when its lifecycle value is
+      observation-only and is not adopted into canonical Pressly state.
+
+  - op: assert
+    kind: invariant
+    id: pressly_order_lifecycle_is_canonical_after_handoff_v1
+    statement: Once a fulfillment crosses the Pressly handoff, an external
+      source observation cannot rewind, complete, cancel, withdraw, or
+      otherwise terminalize canonical Pressly Order or fulfillment lifecycle;
+      only an explicit Pressly command or separately modeled compensation
+      workflow may change it.
+
+  - op: update
+    kind: policy
+    id: cents_fulfillment_release_mapping_v1
+    statement: Cents states before IN_PROGRESS describe prospective demand;
+      cancellation may withdraw that demand before handoff, while the first
+      IN_PROGRESS-or-later non-canceled observation may release an unreleased
+      fulfillment exactly once. After handoff, every later Cents lifecycle
+      value is retained as source metadata but is observation-only for
+      canonical Pressly lifecycle.
+
+  - op: deprecate
+    kind: policy
+    id: source_completion_requires_floor_comparison_v1
+
+  - op: assert
+    kind: decision
+    id: persistent_order_lifecycles_use_authoritative_graphs_v1
+    statement: Each persistent Orders aggregate lifecycle is governed by one
+      authoritative explicit state-and-event graph; use cases orchestrate graph
+      decisions with effects, adapters and repositories cannot define parallel
+      transition tables, and derived read states remain pure projections rather
+      than additional lifecycle machines.
+
+  - op: assert
+    kind: decision
+    id: source_lifecycle_anomalies_are_integration_context_v1
+    statement: Source lifecycle differences after the Pressly handoff are
+      retained for integration health and audit review and are not exposed as
+      production-floor comparison tasks.
+
+verification:
+  - Steven explicitly confirmed Pressly lifecycle authority, the one-way Cents
+    handoff, and observation-only downstream source states on 2026-07-26.
+  - The official Cents webhook documentation confirms the supported order
+    events and lifecycle codes but does not claim delivery ordering or a formal
+    transition graph.
+  - Current Worker and Orders code was inspected and its conflicting
+    completion, cancellation, and invalid-transition behavior is recorded as an
+    implementation gap rather than promoted to memory.
+  - Existing exact source identity, monotonic revision, source snapshot,
+    field-authority, outbox atomicity, and peer-module boundaries remain active
+    and are preserved.
+  - No secret, credential, raw customer payload, or private token is included.
+
+status: applied

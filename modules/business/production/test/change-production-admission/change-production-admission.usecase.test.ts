@@ -19,11 +19,14 @@ const lockedOrder = (
   locationId: 'location-1',
   sourceAdmissionState: 'unreleased',
   productionStatus: 'release_pending',
+  executionStatus: 'unassigned',
+  derivedWeightLbs: 24,
   productionVersion: 4,
   admissionOverride: null,
   bagCount: null,
   selectedForShift: false,
   hasActivePlacement: false,
+  resolutionState: 'open',
   ...overrides,
 });
 
@@ -168,6 +171,24 @@ describe('change production admission', () => {
         code: 'production_admission_already_committed',
         status: 409,
       },
+    });
+    expect(repository.changeAdmission).not.toHaveBeenCalled();
+    expect(repository.appendWorkEvent).not.toHaveBeenCalled();
+  });
+
+  it('rejects admission changes after the order is archived from active work', async () => {
+    const repository = makeRepository(
+      lockedOrder({ resolutionState: 'resolved_without_production' }),
+    );
+    const change = makeChangeProductionAdmission({
+      repo: repository.repo,
+      policy: allowPolicy,
+      clock: { now: () => new Date('2026-07-22T15:00:00.000Z') },
+    });
+
+    await expect(change(command)).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_order_resolved', status: 409 },
     });
     expect(repository.changeAdmission).not.toHaveBeenCalled();
     expect(repository.appendWorkEvent).not.toHaveBeenCalled();

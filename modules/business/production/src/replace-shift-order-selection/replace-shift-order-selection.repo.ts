@@ -34,7 +34,12 @@ export const makeReplaceShiftOrderSelectionRepository = (deps: {
         .limit(1)
         .for('update');
       if (shift === undefined)
-        return { state: 'not_found', version: 0, selectedOrderIds: [] };
+        return {
+          state: 'not_found',
+          version: 0,
+          selectedOrderIds: [],
+          currentSchedule: null,
+        };
 
       const [run] = await db
         .select({ id: laundryProduction.productionRuns.id })
@@ -50,7 +55,12 @@ export const makeReplaceShiftOrderSelectionRepository = (deps: {
         )
         .limit(1);
       if (run !== undefined)
-        return { state: 'run_exists', version: 0, selectedOrderIds: [] };
+        return {
+          state: 'run_exists',
+          version: 0,
+          selectedOrderIds: [],
+          currentSchedule: null,
+        };
 
       const [selection] = await db
         .select({
@@ -93,10 +103,32 @@ export const makeReplaceShiftOrderSelectionRepository = (deps: {
             laundryProduction.productionShiftSelectedOrders.productionOrderId,
           ),
         );
+      const [currentSchedule] = await db
+        .select({
+          scheduleRunId: laundryProduction.scheduleRuns.id,
+          status: laundryProduction.scheduleRuns.status,
+        })
+        .from(laundryProduction.scheduleRuns)
+        .where(
+          and(
+            eq(laundryProduction.scheduleRuns.locationId, locationId),
+            eq(
+              laundryProduction.scheduleRuns.productionShiftId,
+              productionShiftId,
+            ),
+            inArray(laundryProduction.scheduleRuns.status, [
+              'draft',
+              'accepted',
+            ]),
+          ),
+        )
+        .limit(1)
+        .for('update');
       return {
         state: 'available',
         version: selection?.version ?? 0,
         selectedOrderIds: selectedOrderIds.map((row) => row.id),
+        currentSchedule: currentSchedule ?? null,
       };
     },
 
@@ -105,7 +137,7 @@ export const makeReplaceShiftOrderSelectionRepository = (deps: {
       const rows = await db
         .select({
           id: laundryProduction.productionOrders.id,
-          status: laundryProduction.productionOrders.status,
+          status: laundryProduction.productionOrders.operationalStatus,
           bagCount: laundryProduction.productionOrders.bagCount,
         })
         .from(laundryProduction.productionOrders)
@@ -115,6 +147,7 @@ export const makeReplaceShiftOrderSelectionRepository = (deps: {
             inArray(laundryProduction.productionOrders.id, [
               ...productionOrderIds,
             ]),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
           ),
         )
         .for('update');
@@ -129,6 +162,7 @@ export const makeReplaceShiftOrderSelectionRepository = (deps: {
       productionShiftId,
       selectedOrderIds,
       currentVersion,
+      supersede,
       actorId,
       now,
     }) => {
@@ -205,23 +239,30 @@ export const makeReplaceShiftOrderSelectionRepository = (deps: {
           })),
         );
 
-      const [superseded] = await db
-        .update(laundryProduction.scheduleRuns)
-        .set({ status: 'superseded', supersededAt: now })
-        .where(
-          and(
-            eq(laundryProduction.scheduleRuns.locationId, locationId),
-            eq(
-              laundryProduction.scheduleRuns.productionShiftId,
-              productionShiftId,
-            ),
-            inArray(laundryProduction.scheduleRuns.status, [
-              'draft',
-              'accepted',
-            ]),
-          ),
-        )
-        .returning({ id: laundryProduction.scheduleRuns.id });
+      const superseded =
+        supersede === null
+          ? undefined
+          : (
+              await db
+                .update(laundryProduction.scheduleRuns)
+                .set({ status: supersede.lifecycle.state, supersededAt: now })
+                .where(
+                  and(
+                    eq(laundryProduction.scheduleRuns.locationId, locationId),
+                    eq(
+                      laundryProduction.scheduleRuns.id,
+                      supersede.scheduleRunId,
+                    ),
+                    eq(
+                      laundryProduction.scheduleRuns.status,
+                      supersede.lifecycle.from,
+                    ),
+                  ),
+                )
+                .returning({ id: laundryProduction.scheduleRuns.id })
+            )[0];
+      if (supersede !== null && superseded === undefined)
+        throw new Error('Current schedule revision changed unexpectedly.');
 
       return {
         selection: {

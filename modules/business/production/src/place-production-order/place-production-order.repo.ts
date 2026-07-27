@@ -13,15 +13,17 @@ import type {
   ProductionPendingPlacement,
   ProductionPlacementPreview,
 } from '@pressly/contracts';
-import type {
-  OnlinePlacementInput,
-  OnlinePlacementProposal,
-  SchedulingInput,
-  SchedulingOutput,
-} from '../production.port.ts';
+import type { OnlinePlacementProposal } from '../production.port.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
+import {
+  loadProductionPlacementOrder,
+  loadProductionPlacementRun,
+  loadProductionRunPlacementContext,
+  makeProductionOrderPlacementContext,
+} from '../persistence/production-order-placement-context.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
+import type { ProductionOrderSchedulingMutation } from '../production.port.ts';
 import type {
   PlaceProductionOrderRepository,
   PlacementContext,
@@ -48,36 +50,6 @@ const asStoredOvertimeProposal = (
   )
     return null;
   return { mode, targetBatchId, proposalHash, queueVersion };
-};
-
-const asBatchStatus = (
-  status: string,
-): OnlinePlacementInput['batches'][number]['status'] => {
-  switch (status) {
-    case 'queued':
-    case 'sorting':
-    case 'washing':
-    case 'drying':
-    case 'folding_packaging':
-    case 'finished':
-      return status;
-    default:
-      throw new Error(`Unknown production batch status: ${status}.`);
-  }
-};
-
-const asStageKind = (
-  stage: string,
-): OnlinePlacementInput['batches'][number]['stages'][number]['stage'] => {
-  switch (stage) {
-    case 'sorting':
-    case 'washing':
-    case 'drying':
-    case 'folding_packaging':
-      return stage;
-    default:
-      throw new Error(`Unknown production stage kind: ${stage}.`);
-  }
 };
 
 const placementPreview = (
@@ -131,217 +103,6 @@ const pendingPlacementForOutcome = (
   };
 };
 
-const loadContext = async (
-  db: DatabaseExecutor,
-  locationId: string,
-  productionRunId: string,
-  productionOrderId: string,
-): Promise<PlacementContext | null> => {
-  const [run] = await db
-    .select()
-    .from(laundryProduction.productionRuns)
-    .where(
-      and(
-        eq(laundryProduction.productionRuns.locationId, locationId),
-        eq(laundryProduction.productionRuns.id, productionRunId),
-      ),
-    )
-    .limit(1)
-    .for('update');
-  if (run === undefined) return null;
-
-  const [order] = await db
-    .select()
-    .from(laundryProduction.productionOrders)
-    .where(
-      and(
-        eq(laundryProduction.productionOrders.locationId, locationId),
-        eq(laundryProduction.productionOrders.id, productionOrderId),
-      ),
-    )
-    .limit(1)
-    .for('update');
-  if (order === undefined || order.bagCount === null) return null;
-
-  const [schedule] = await db
-    .select({
-      inputSnapshot: laundryProduction.scheduleRuns.inputSnapshot,
-      outputPlan: laundryProduction.scheduleRuns.outputPlan,
-    })
-    .from(laundryProduction.scheduleRuns)
-    .where(
-      and(
-        eq(laundryProduction.scheduleRuns.locationId, locationId),
-        eq(laundryProduction.scheduleRuns.id, run.scheduleRunId),
-      ),
-    )
-    .limit(1);
-  if (schedule === undefined) return null;
-  const snapshot = schedule.inputSnapshot as SchedulingInput;
-  const originalPlan = schedule.outputPlan as SchedulingOutput;
-
-  const batchRows = await db
-    .select()
-    .from(laundryProduction.productionBatches)
-    .where(
-      and(
-        eq(laundryProduction.productionBatches.locationId, locationId),
-        eq(
-          laundryProduction.productionBatches.productionRunId,
-          productionRunId,
-        ),
-      ),
-    )
-    .orderBy(asc(laundryProduction.productionBatches.sequenceIndex))
-    .for('update');
-  if (batchRows.length === 0) return null;
-  const batchIds = batchRows.map((batch) => batch.id);
-
-  const [membershipRows, stageRows] = await Promise.all([
-    db
-      .select({
-        productionBatchId:
-          laundryProduction.productionBatchOrders.productionBatchId,
-        productionOrderId:
-          laundryProduction.productionBatchOrders.productionOrderId,
-        active: laundryProduction.productionBatchOrders.active,
-        priority: laundryProduction.productionOrders.priority,
-        bagCount: laundryProduction.productionOrders.bagCount,
-      })
-      .from(laundryProduction.productionBatchOrders)
-      .innerJoin(
-        laundryProduction.productionOrders,
-        and(
-          eq(
-            laundryProduction.productionOrders.id,
-            laundryProduction.productionBatchOrders.productionOrderId,
-          ),
-          eq(
-            laundryProduction.productionOrders.locationId,
-            laundryProduction.productionBatchOrders.locationId,
-          ),
-        ),
-      )
-      .where(
-        and(
-          eq(laundryProduction.productionBatchOrders.locationId, locationId),
-          inArray(
-            laundryProduction.productionBatchOrders.productionBatchId,
-            batchIds,
-          ),
-          eq(laundryProduction.productionBatchOrders.active, true),
-        ),
-      ),
-    db
-      .select()
-      .from(laundryProduction.stageRuns)
-      .where(
-        and(
-          eq(laundryProduction.stageRuns.locationId, locationId),
-          inArray(laundryProduction.stageRuns.productionBatchId, batchIds),
-        ),
-      )
-      .orderBy(asc(laundryProduction.stageRuns.plannedStartAt)),
-  ]);
-  const stageIds = stageRows.map((stage) => stage.id);
-  const assignmentRows =
-    stageIds.length === 0
-      ? []
-      : await db
-          .select()
-          .from(laundryProduction.stageMachineAssignments)
-          .where(
-            and(
-              eq(
-                laundryProduction.stageMachineAssignments.locationId,
-                locationId,
-              ),
-              inArray(
-                laundryProduction.stageMachineAssignments.stageRunId,
-                stageIds,
-              ),
-            ),
-          );
-
-  const [existingMembership] = await db
-    .select({
-      productionOrderId:
-        laundryProduction.productionBatchOrders.productionOrderId,
-    })
-    .from(laundryProduction.productionBatchOrders)
-    .where(
-      and(
-        eq(laundryProduction.productionBatchOrders.locationId, locationId),
-        eq(
-          laundryProduction.productionBatchOrders.productionOrderId,
-          productionOrderId,
-        ),
-        eq(laundryProduction.productionBatchOrders.active, true),
-      ),
-    )
-    .limit(1);
-
-  return {
-    input: {
-      order: {
-        id: order.id,
-        priority: order.priority,
-        derivedWeightLbs: order.derivedWeightLbs,
-        bagCount: order.bagCount,
-        version: order.version,
-      },
-      run: {
-        id: run.id,
-        queueVersion: run.queueVersion,
-        startsAt: snapshot.shift.startsAt,
-        shiftEndsAt: snapshot.shift.endsAt,
-        pulseMinutes: originalPlan.pulseMinutes,
-        pulseCapacityLbs: originalPlan.pulseCapacityLbs,
-      },
-      machines: snapshot.machines.map((machine) => ({ ...machine })),
-      batches: batchRows.map((batch) => {
-        const memberships = membershipRows.filter(
-          (membership) => membership.productionBatchId === batch.id,
-        );
-        return {
-          id: batch.id,
-          sequence: batch.sequenceIndex,
-          status: asBatchStatus(batch.status),
-          membershipFrozen: batch.membershipFrozenAt !== null,
-          orderIds: memberships.map(
-            (membership) => membership.productionOrderId,
-          ),
-          priorityOrderIds: memberships
-            .filter((membership) => membership.priority)
-            .map((membership) => membership.productionOrderId),
-          derivedWeightLbs: batch.derivedWeightLbs,
-          bagCount: memberships.reduce(
-            (total, membership) => total + (membership.bagCount ?? 0),
-            0,
-          ),
-          stages: stageRows
-            .filter((stage) => stage.productionBatchId === batch.id)
-            .map((stage) => ({
-              stage: asStageKind(stage.stageKind),
-              startsAt: stage.plannedStartAt.toISOString(),
-              endsAt: stage.plannedEndAt.toISOString(),
-              machineIds: assignmentRows
-                .filter((assignment) => assignment.stageRunId === stage.id)
-                .map((assignment) => assignment.machineId),
-            })),
-        };
-      }),
-      mode: { type: 'automatic' },
-    },
-    runStatus: run.status,
-    orderStatus: order.status,
-    orderAlreadyAssigned: existingMembership !== undefined,
-    batchVersions: Object.fromEntries(
-      batchRows.map((batch) => [batch.id, batch.version]),
-    ),
-  };
-};
-
 const recordOutcome = async (
   db: DatabaseExecutor,
   ids: Readonly<{ next: () => string }>,
@@ -356,7 +117,8 @@ const recordOutcome = async (
         and(
           eq(laundryProduction.productionOrders.locationId, input.locationId),
           eq(laundryProduction.productionOrders.id, input.productionOrderId),
-          eq(laundryProduction.productionOrders.status, 'eligible'),
+          eq(laundryProduction.productionOrders.operationalStatus, 'eligible'),
+          eq(laundryProduction.productionOrders.resolutionState, 'open'),
         ),
       );
 
@@ -393,8 +155,18 @@ const commitPlacement = async (
     context: PlacementContext;
     proposal: OnlinePlacementProposal;
     overtimeConfirmed: boolean;
+    orderLifecycle: ProductionOrderSchedulingMutation;
+    initialBatchState: 'queued';
+    initialStageState: 'planned';
+    initialAttemptState: 'assigned';
   },
 ) => {
+  if (
+    input.orderLifecycle.productionOrderId !== input.productionOrderId ||
+    input.orderLifecycle.lifecycle.from !== 'unassigned' ||
+    input.orderLifecycle.lifecycle.state !== 'scheduled'
+  )
+    throw new Error('Production-order execution decision is invalid.');
   const changed = input.proposal.affectedBatches.filter(
     (batch) => batch.changed,
   );
@@ -474,7 +246,7 @@ const commitPlacement = async (
         locationId: input.locationId,
         productionRunId: input.productionRunId,
         sequenceIndex: projection.sequence,
-        status: 'queued',
+        status: input.initialBatchState,
         pulseCapacityLbs: input.context.input.run.pulseCapacityLbs,
         derivedWeightLbs: projection.derivedWeightLbs,
         pulseMinutes: input.context.input.run.pulseMinutes,
@@ -519,7 +291,7 @@ const commitPlacement = async (
           productionBatchId: batchId,
           stationId,
           stageKind: stage.stage,
-          status: 'planned',
+          status: input.initialStageState,
           plannedStartAt: new Date(stage.startsAt),
           plannedEndAt: new Date(stage.endsAt),
           version: 1,
@@ -621,7 +393,7 @@ const commitPlacement = async (
       stageRunId,
       stageKind,
       attemptNumber: 1,
-      status: 'assigned',
+      status: input.initialAttemptState,
       assignmentReason:
         input.mode === 'manager_exact' ? 'manager_exact' : 'automatic',
       assignedAt: input.now,
@@ -633,16 +405,26 @@ const commitPlacement = async (
   const [updatedOrder] = await db
     .update(laundryProduction.productionOrders)
     .set({
-      status: 'scheduled',
+      operationalStatus: input.orderLifecycle.lifecycle.state,
+      executionStatus: input.orderLifecycle.lifecycle.state,
       pendingPlacement: null,
-      version: sql`${laundryProduction.productionOrders.version} + 1`,
+      version: input.orderLifecycle.expectedVersion + 1,
       updatedAt: input.now,
     })
     .where(
       and(
         eq(laundryProduction.productionOrders.locationId, input.locationId),
         eq(laundryProduction.productionOrders.id, input.productionOrderId),
-        eq(laundryProduction.productionOrders.status, 'eligible'),
+        eq(laundryProduction.productionOrders.operationalStatus, 'eligible'),
+        eq(laundryProduction.productionOrders.resolutionState, 'open'),
+        eq(
+          laundryProduction.productionOrders.executionStatus,
+          input.orderLifecycle.persistedState,
+        ),
+        eq(
+          laundryProduction.productionOrders.version,
+          input.orderLifecycle.expectedVersion,
+        ),
       ),
     )
     .returning({ id: laundryProduction.productionOrders.id });
@@ -735,7 +517,11 @@ export const makePlaceProductionOrderRepository = (deps: {
           and(
             eq(laundryProduction.productionOrders.locationId, input.locationId),
             eq(laundryProduction.productionOrders.id, input.productionOrderId),
-            eq(laundryProduction.productionOrders.status, 'eligible'),
+            eq(
+              laundryProduction.productionOrders.operationalStatus,
+              'eligible',
+            ),
+            eq(laundryProduction.productionOrders.resolutionState, 'open'),
           ),
         );
       const command = {
@@ -760,8 +546,52 @@ export const makePlaceProductionOrderRepository = (deps: {
         idempotency: { command, result: input.placement },
       });
     },
-    loadContext: (locationId, productionRunId, productionOrderId) =>
-      loadContext(db, locationId, productionRunId, productionOrderId),
+    loadContext: async (locationId, productionRunId, productionOrderId) => {
+      const run = await loadProductionPlacementRun(
+        db,
+        locationId,
+        productionRunId,
+        true,
+      );
+      if (run === null) return null;
+      const order = await loadProductionPlacementOrder(
+        db,
+        locationId,
+        productionOrderId,
+        true,
+      );
+      if (order === null) return null;
+      const runContext = await loadProductionRunPlacementContext(
+        db,
+        locationId,
+        run,
+        true,
+      );
+      if (runContext === null) return null;
+      const [existingMembership] = await db
+        .select({
+          productionOrderId:
+            laundryProduction.productionBatchOrders.productionOrderId,
+        })
+        .from(laundryProduction.productionBatchOrders)
+        .where(
+          and(
+            eq(laundryProduction.productionBatchOrders.locationId, locationId),
+            eq(
+              laundryProduction.productionBatchOrders.productionOrderId,
+              productionOrderId,
+            ),
+            eq(laundryProduction.productionBatchOrders.active, true),
+          ),
+        )
+        .limit(1);
+
+      return makeProductionOrderPlacementContext(
+        runContext,
+        order,
+        existingMembership !== undefined,
+      );
+    },
     findOvertimeProposal: async (
       locationId,
       productionOrderId,

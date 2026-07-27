@@ -11,6 +11,7 @@ import type {
   ClockPort,
   IdPort,
   OrderDemandPhase,
+  ProductionOrderExecutionState,
   ProductionPolicyPort,
 } from '../production.port.ts';
 import type {
@@ -18,6 +19,7 @@ import type {
   ApplyFulfillmentDemandRepository,
   ApplyFulfillmentDemandResult,
   FulfillmentAdmissionState,
+  FulfillmentProductionMutation,
 } from './apply-fulfillment-demand.port.ts';
 
 const systemActorId = '00000000-0000-4000-8000-000000000000';
@@ -195,11 +197,51 @@ export const makeApplyFulfillmentDemand =
           incomingBagCount: command.bagCount,
           estimatedWeightLbs: command.estimatedWeightLbs,
         });
+        let production: FulfillmentProductionMutation =
+          existing?.productionResolutionState === 'resolved_without_production'
+            ? { action: 'preserve' }
+            : lifecycle.production;
+        if (production.action === 'create' || production.action === 'update') {
+          let executionState: ProductionOrderExecutionState =
+            deps.policy.initialProductionOrderExecutionState;
+          if (
+            existing?.productionStatus !== null &&
+            existing?.productionStatus !== undefined
+          ) {
+            const resolved = deps.policy.resolveProductionOrderExecutionState({
+              executionState: existing.productionExecutionStatus,
+              operationalStatus: existing.productionStatus,
+            });
+            if (resolved.tag === 'err')
+              return result.err(
+                productionError(
+                  resolved.error.code,
+                  resolved.error.message,
+                  409,
+                ),
+              );
+            executionState = resolved.value;
+          }
+          production = {
+            ...production,
+            status: deps.policy.deriveProductionOrderOperationalStatus({
+              executionState,
+              admission: command.admissionState,
+              admissionOverride: existing?.admissionOverride ?? null,
+              hasPositiveDemand:
+                command.estimatedWeightLbs !== null &&
+                command.estimatedWeightLbs > 0,
+              bagCount: lifecycle.effectiveBagCount,
+            }),
+          };
+        }
         const applied = await repo.applyDemand({
           command,
           orderDemandId,
-          production: lifecycle.production,
+          production,
           effectiveBagCount: lifecycle.effectiveBagCount,
+          initialExecutionState:
+            deps.policy.initialProductionOrderExecutionState,
           now: deps.clock.now(),
         });
         const value: ApplyFulfillmentDemandResult = {

@@ -3,7 +3,7 @@ import { eq, laundryProduction } from '@pressly/db';
 import { makeManageProductionShiftRepository } from '../../src/manage-production-shift/manage-production-shift.repo.ts';
 import { makeUpdateProductionShift } from '../../src/manage-production-shift/manage-production-shift.usecase.ts';
 import { createProductionTestDatabase } from '../support/database.ts';
-import { makeIds } from '../support/production.fake.ts';
+import { allowPolicy, makeIds } from '../support/production.fake.ts';
 
 const testDb = createProductionTestDatabase();
 
@@ -83,6 +83,7 @@ const makeUpdate = () =>
       ids: makeIds(),
     }),
     clock: { now: () => new Date(now) },
+    policy: allowPolicy,
   });
 
 describe('production shift update Postgres workflow', () => {

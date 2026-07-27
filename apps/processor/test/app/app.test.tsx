@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import type { ProcessorAuthenticatedSession } from "@pressly/contracts"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import App from "@/app/app"
 import {
@@ -28,16 +29,17 @@ import {
   testIdempotency,
   testLocation,
   testOrderItems,
+  testRemainingDayForecast,
   testWorkspace,
 } from "../fixtures/production.fixture"
 
-const session = {
+const session: ProcessorAuthenticatedSession = {
   status: "authenticated" as const,
   principal: {
     identityId: "00000000-0000-4000-8000-000000000099",
     displayName: "Olivia Press",
     email: "olivia@example.com",
-    roles: ["operator" as const],
+    roles: ["operator"],
   },
   expiresAt: "2099-08-01T20:00:00.000Z",
   csrfToken: "c".repeat(43),
@@ -61,16 +63,21 @@ const deferred = <T,>() => {
   return { promise, resolve }
 }
 
-const makeFetch = (restoreStatus = 200) =>
+const makeFetch = (
+  restoreStatus = 200,
+  restoredSession: typeof session = session
+) =>
   vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
     const url = String(request)
     if (url.endsWith("/processor/auth/session"))
-      return response(session, restoreStatus)
+      return response(restoredSession, restoreStatus)
     if (url.endsWith("/processor/auth/login")) return response(session)
     if (url.endsWith("/production/locations"))
       return response({ items: [testLocation], asOf: testWorkspace.asOf })
     if (url.includes(`/production/locations/${testLocation.id}/workspace`))
       return response(testWorkspace)
+    if (url.includes(`/production/locations/${testLocation.id}/forecast?`))
+      return response(testRemainingDayForecast)
     if (
       url.endsWith(
         `/production/locations/${testLocation.id}/runs/${testWorkspace.activeRuns[0]!.id}/board`
@@ -126,7 +133,94 @@ describe("processor application composition", () => {
     expect(
       await screen.findByRole("heading", { name: "No orders need attention" })
     ).toBeVisible()
+    expect(await screen.findByText("Remaining today")).toBeVisible()
     expect(window.location.pathname).toBe("/")
+  })
+
+  it("shows the old-order review entry only to a manager", async () => {
+    const managerSession: typeof session = {
+      ...session,
+      principal: {
+        ...session.principal,
+        roles: ["admin"],
+      },
+    }
+    window.history.replaceState(null, "", "/")
+
+    const { unmount } = renderApp(makeFetch(200, managerSession))
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Archive from active work",
+      })
+    ).toBeVisible()
+    expect(
+      screen.getByRole("button", { name: "Review old orders" })
+    ).toBeVisible()
+
+    unmount()
+    renderApp(makeFetch())
+    await screen.findByRole("heading", { name: "Home", level: 1 })
+    expect(
+      screen.queryByRole("button", { name: "Review old orders" })
+    ).toBeNull()
+  })
+
+  it("opens the detailed remaining-day outlook on its dedicated route", async () => {
+    const fetch = makeFetch()
+    window.history.replaceState(null, "", "/forecast")
+
+    renderApp(fetch)
+
+    expect(
+      await screen.findByRole("heading", { name: "Forecast", level: 1 })
+    ).toBeVisible()
+    expect(
+      await screen.findByRole("heading", { name: "Remaining day", level: 2 })
+    ).toBeVisible()
+    expect(await screen.findByText("Order C-2001")).toBeVisible()
+    expect(window.location.pathname).toBe("/forecast")
+    expect(
+      fetch.mock.calls.some(([request]) =>
+        String(request).includes(
+          `/production/locations/${testLocation.id}/forecast?serviceDay=2026-08-01`
+        )
+      )
+    ).toBe(true)
+  })
+
+  it("opens Forecast from the desktop workspace navigation", async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, "", "/")
+    renderApp(makeFetch())
+    await screen.findByRole("heading", { name: "Home", level: 1 })
+
+    await user.click(screen.getByRole("button", { name: "Forecast" }))
+
+    expect(
+      await screen.findByRole("heading", { name: "Forecast", level: 1 })
+    ).toBeVisible()
+    expect(window.location.pathname).toBe("/forecast")
+  })
+
+  it("keeps Home order control available when the forecast request fails", async () => {
+    const baseFetch = makeFetch()
+    const fetch = vi.fn(
+      async (request: RequestInfo | URL, init?: RequestInit) =>
+        String(request).includes("/forecast?")
+          ? Promise.reject(new Error("forecast unavailable"))
+          : baseFetch(request, init)
+    )
+    window.history.replaceState(null, "", "/")
+
+    renderApp(fetch)
+
+    expect(
+      await screen.findByRole("heading", { name: "No orders need attention" })
+    ).toBeVisible()
+    expect(
+      await screen.findByText("Remaining-day outlook is unavailable")
+    ).toBeVisible()
   })
 
   it("keeps incoming-order work on the dedicated Intake route", async () => {
@@ -135,10 +229,13 @@ describe("processor application composition", () => {
 
     renderApp(fetch)
 
-    expect(await screen.findByRole("heading", { name: "Intake" })).toBeVisible()
     expect(
-      await screen.findByText("Pressly controls production readiness")
+      await screen.findByRole("heading", { name: "Intake", level: 1 })
     ).toBeVisible()
+    expect(
+      await screen.findByRole("heading", { name: "Order intake", level: 2 })
+    ).toBeVisible()
+    expect(await screen.findByText(/Updated/i)).toBeVisible()
     expect(window.location.pathname).toBe("/intake")
     expect(
       fetch.mock.calls.some(([request]) =>
@@ -156,6 +253,13 @@ describe("processor application composition", () => {
     expect(
       await screen.findByRole("heading", { name: "Schedule" })
     ).toBeInTheDocument()
+    expect(
+      await screen.findByRole("heading", {
+        name: "Live run changes",
+        level: 2,
+      })
+    ).toBeVisible()
+    expect(await screen.findByTestId("forecast-summary-schedule")).toBeVisible()
     expect(
       screen.getByText(/East Plant · America\/Chicago/)
     ).toBeInTheDocument()
@@ -189,6 +293,12 @@ describe("processor application composition", () => {
     const drawer = await screen.findByRole("dialog", {
       name: "Processor navigation",
     })
+    expect(within(drawer).getByText("Daily work")).toBeVisible()
+    expect(within(drawer).getByText("Planning & review")).toBeVisible()
+    expect(within(drawer).getByText("System")).toBeVisible()
+    expect(
+      within(drawer).getByRole("button", { name: "Forecast" })
+    ).toBeVisible()
     await user.click(within(drawer).getByRole("button", { name: "Production" }))
 
     await waitFor(() =>
@@ -305,7 +415,7 @@ describe("processor application composition", () => {
     ).toBe(west.id)
   })
 
-  it("keeps a started run visible while dropping completed implicit history", () => {
+  it("routes a started run to live Schedule changes while dropping completed implicit history", () => {
     expect(
       classifyScheduleContext({
         workspace: testWorkspace,
@@ -313,9 +423,11 @@ describe("processor application composition", () => {
         now: new Date("2026-08-01T14:00:00.000Z"),
       })
     ).toMatchObject({
-      kind: "history",
-      reason: "run_owned",
+      kind: "live",
       productionRun: { id: testWorkspace.board!.productionRun.id },
+      changes: {
+        productionRunId: testWorkspace.board!.productionRun.id,
+      },
     })
     expect(
       classifyScheduleContext({
@@ -324,8 +436,7 @@ describe("processor application composition", () => {
         now: new Date("2026-08-01T14:00:00.000Z"),
       })
     ).toMatchObject({
-      kind: "history",
-      reason: "run_owned",
+      kind: "live",
       productionRun: { status: "started" },
     })
 

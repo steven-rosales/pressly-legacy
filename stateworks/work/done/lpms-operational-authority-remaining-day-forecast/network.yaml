@@ -1,0 +1,622 @@
+work_id: lpms-operational-authority-remaining-day-forecast
+title: LPMS operational authority and remaining-day forecast
+status: done
+
+goal:
+  - Make Pressly canonical lifecycle authoritative after a one-way external-source handoff while retaining valid source observations.
+  - Consolidate true persistent Orders and Production lifecycle transitions into aggregate-owned explicit graphs.
+  - Deliver a deterministic remaining-day forecast contract and focused Processor information architecture.
+  - Remove source-versus-Pressly comparison work from production-floor surfaces.
+  - Move post-start ready-order placement into Schedule while keeping Production focused on physical execution.
+
+invariants:
+  - Valid newer source observations are retained independently from canonical lifecycle adoption.
+  - After handoff, external lifecycle values cannot rewind, complete, cancel, withdraw, or otherwise terminalize Pressly lifecycle.
+  - Source-owned non-lifecycle fields retain their independent authority and source-revision rules.
+  - Orders publishes source-neutral fulfillment demand atomically and Production never interprets a vendor lifecycle code.
+  - Each true persistent aggregate lifecycle has one authoritative graph; derived readiness, milestones, attention, and forecast remain projections.
+  - No global workflow engine, event-sourced rewrite, microservice split, or silent live reoptimization is introduced.
+  - Whole-order, hard-capacity, explicit-selection, run-first-lock, queue-version, and operator-confirmed floor invariants remain active.
+  - Processor actions and action availability remain server-owned.
+  - Post-start placement targets the explicit existing run, preserves the accepted immutable schedule, and never relocates existing work automatically.
+  - Schedule date selection uses shared shadcn Calendar and Popover primitives rather than native browser date controls.
+  - Repository and local-runtime proof cannot be promoted into deployment or pilot proof.
+  - No secret, credential, customer payload, or private token enters Stateworks, tests, logs, screenshots, or commits.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Rebaseline authority and transition ownership
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:docs/architecture.md
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:packages/db/src/schema
+      - repo:modules/business/orders
+      - repo:modules/business/production
+      - repo:modules/policy/production
+      - repo:modules/computation/scheduling
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:apps/processor
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - external:https://chathelp.trycents.com/en/articles/12083443-cents-webhooks
+    writes:
+      - repo:docs/plan/lpms-state-transitions.md
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+    action:
+      - Record the exact pre-change source-observation, lifecycle, forecast, API, and Processor behavior with characterization tests or source-level proof.
+      - Inventory every persisted Orders and Production lifecycle, its current transition writers, terminal semantics, locks, versions, and allowed actions.
+      - Classify each value as an authoritative lifecycle graph, an orthogonal flag, a derived projection, or durable job state.
+      - Publish one transition catalog that identifies the sole owner and allowed state-event graph for every true aggregate lifecycle without creating a global workflow engine.
+      - Record the execution order and non-concurrent file boundary with the queued correctness-hardening package.
+    verifier:
+      - Evidence includes a deterministic pre-change proof for every mismatch named in the brief.
+      - The catalog covers all persisted Orders and Production lifecycle fields and names every current transition writer.
+      - Derived readiness, between-stage milestones, attention, and forecast values are explicitly excluded from persistent lifecycle graphs.
+      - Cents documentation claims are limited to documented events and status codes; ordering remains an external unknown.
+      - The correctness-hardening and production-readiness rebaseline requirements are explicit.
+    rollback:
+      - No rollback is needed for the read-only audit; revert only the catalog if it overstates unproven behavior.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T1
+    title: Separate Orders source observation from canonical adoption
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:docs/plan/lpms-state-transitions.md
+      - repo:modules/business/orders/src/observe-order-source
+      - repo:modules/business/orders/src/order-lifecycle.policy.ts
+      - repo:modules/business/orders/src/order-field-authority.policy.ts
+      - repo:modules/business/orders/src/order-source-ordering.policy.ts
+      - repo:modules/business/orders/src/persistence
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/contracts/src/orders
+    writes:
+      - repo:modules/business/orders/src/observe-order-source
+      - repo:modules/business/orders/src/order-lifecycle.policy.ts
+      - repo:modules/business/orders/src/orders.port.ts
+      - repo:modules/business/orders/src/persistence
+      - repo:modules/business/orders/test
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/test
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+    action:
+      - Model source observation retention and canonical field adoption as separate typed decisions under one source-identity lock.
+      - Represent created, applied, observed-only, stale, replayed, and conflict outcomes without using exceptions for expected source lifecycle differences.
+      - Implement the one-way source-neutral fulfillment handoff through the authoritative Orders lifecycle graph.
+      - Preserve field-level source authority so non-lifecycle source fields can update independently.
+      - Emit fulfillment-demand outbox effects only when canonical demand or adopted values change.
+      - Add durable observation or adoption metadata only if characterization proves it is required for idempotency, audit, or the handoff fence.
+    verifier:
+      - Transition-matrix tests cover all commercial Order and fulfillment states and events.
+      - A valid newer downstream lifecycle observation is retained even when canonical adoption is observed-only.
+      - Pressly terminal or post-handoff state does not regress and no expected observation returns ORDER_SOURCE_TRANSITION_INVALID.
+      - Stale, replay, equal-revision conflict, field-authority, transaction, and outbox atomicity tests pass.
+      - Any migration has forward, rollback, and mixed-version safety proof and never guesses historical handoff state.
+    rollback:
+      - Revert the focused Orders and migration changes before release; preserve the prior durable snapshots and do not weaken source ordering or field authority.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T2
+    title: Align the Cents adapter and webhook delivery outcomes
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:apps/worker/src/jobs/process-webhook-inbox
+      - repo:modules/business/webhook-ingestion
+      - repo:modules/business/orders
+      - repo:packages/contracts/src/cents
+      - external:https://chathelp.trycents.com/en/articles/12083443-cents-webhooks
+    writes:
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:apps/worker/test
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:apps/api/test
+      - repo:packages/contracts/src/cents
+      - repo:packages/contracts/test
+    action:
+      - Keep vendor status interpretation inside the Cents adapter and emit the source-neutral prospective, handoff, or observation-only signal expected by Orders.
+      - Normalize documented CANCELLED input without leaking vendor spelling into Orders or Production policy.
+      - Treat observed-only downstream lifecycle as a successful durable observation, not a retryable or terminal inbox failure.
+      - Preserve authentication, payload validation, quarantine, source-location mapping, lease fencing, retry, replay, and dead-letter behavior for real failures.
+    verifier:
+      - Tests cover every documented Cents order status and order event.
+      - Pressly finished plus a newer Cents IN_PROGRESS observation retains the observation, leaves canonical state unchanged, and completes the inbox event without dead letter.
+      - Cents COMPLETED after handoff is observational for canonical lifecycle.
+      - Cents CANCELLED before handoff withdraws prospective demand; after handoff it leaves canonical Pressly state unchanged.
+      - Duplicate, stale, out-of-order, replay, invalid-payload, and unmapped-location behavior remains deterministic.
+    rollback:
+      - Revert the adapter mapping while keeping ingress fail-closed and the durable inbox intact; never bypass validation or source ordering.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T3
+    title: Consolidate planning and run lifecycle graphs
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:docs/plan/lpms-state-transitions.md
+      - repo:modules/business/production/src/manage-production-shift
+      - repo:modules/business/production/src/create-schedule
+      - repo:modules/business/production/src/accept-schedule
+      - repo:modules/business/production/src/start-schedule
+      - repo:modules/business/production/src/load-schedule
+      - repo:modules/policy/production
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:modules/policy/production/src/lifecycle
+      - repo:modules/policy/production/src/index.ts
+      - repo:modules/policy/production/test
+      - repo:modules/business/production/src/manage-production-shift
+      - repo:modules/business/production/src/create-schedule
+      - repo:modules/business/production/src/accept-schedule
+      - repo:modules/business/production/src/start-schedule
+      - repo:modules/business/production/test
+    action:
+      - Define one explicit graph for each true persisted shift, schedule revision, and production-run lifecycle identified by T0.
+      - Replace local transition tables with graph decisions while retaining use-case orchestration, locks, idempotency, versions, and atomic effects.
+      - Expose allowed events from the same graph for server read models where operator actions depend on lifecycle.
+      - Keep plan actionability, time windows, selection freshness, and immutable snapshot rules as guards or invariants rather than extra states.
+    verifier:
+      - Transition matrices cover every state and event, including terminal and invalid edges.
+      - Existing one-current-plan, acceptance, start, one-run-per-shift, schedule immutability, and operating-window tests remain green.
+      - Use cases and repositories contain no independent planning or run transition table.
+      - Allowed server events agree with executable commands under the same current state and context.
+    rollback:
+      - Revert the focused graph consolidation and retain the prior guarded use cases rather than weakening lifecycle invariants.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T4
+    title: Consolidate execution lifecycle graphs
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+    reads:
+      - repo:docs/plan/lpms-state-transitions.md
+      - repo:modules/policy/production/src/stage-transition
+      - repo:modules/policy/production/src/lifecycle
+      - repo:modules/business/production/src/advance-production-stage
+      - repo:modules/business/production/src/reconcile-production-batch-progress
+      - repo:modules/business/production/src/place-production-order
+      - repo:modules/business/production/src/route-production-order
+      - repo:modules/business/production/src/manage-batch-membership
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:modules/policy/production/src/lifecycle
+      - repo:modules/policy/production/src/stage-transition
+      - repo:modules/policy/production/test
+      - repo:modules/business/production/src/advance-production-stage
+      - repo:modules/business/production/src/reconcile-production-batch-progress
+      - repo:modules/business/production/src/place-production-order
+      - repo:modules/business/production/src/route-production-order
+      - repo:modules/business/production/src/manage-batch-membership
+      - repo:modules/business/production/test
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+    action:
+      - Define or consolidate one graph for every true persisted batch, stage, production-order, membership, assignment, or attempt lifecycle identified by T0.
+      - Preserve stage_run as canonical batch-stage authority and compose all affected aggregate decisions in the existing transaction.
+      - Keep freeze, queue position, attempt history, provenance, capacity, and between-stage milestone as orthogonal facts or pure projections when they are not lifecycle states.
+      - Separate derived production-order readiness from persisted execution lifecycle before assigning either one state-machine authority.
+      - Remove local transition tables without turning a cross-aggregate command into a mega-graph.
+    verifier:
+      - Transition matrices cover every migrated lifecycle and terminal edge.
+      - Stage advance, reconciliation, placement, routing, membership, hard-capacity, and terminalization tests remain green.
+      - A between-stage milestone is derived from canonical stage and attempt state and is not persisted as another lifecycle authority.
+      - Production-order readiness is derived from authoritative facts and no longer shares a persisted lifecycle field with execution state.
+      - Use cases and repositories contain no independent execution transition table for migrated lifecycles.
+      - Any migration has forward, rollback, and mixed-version safety proof and never invents historical transitions.
+    rollback:
+      - Revert the focused consolidation and preserve the previous explicit rejections rather than weakening physical or concurrency invariants.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T5
+    title: Remove source comparison from floor work
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+      - T4
+    reads:
+      - repo:modules/computation/order-control
+      - repo:modules/business/production/src/list-production-order-control
+      - repo:apps/api/src/http/processor/order-control
+      - repo:packages/contracts/src/production
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/intake
+    writes:
+      - repo:modules/computation/order-control
+      - repo:modules/business/production/src/list-production-order-control
+      - repo:apps/api/src/http/processor/order-control
+      - repo:packages/contracts/src/production/production-order-control.contracts.ts
+      - repo:packages/contracts/src/processor/processor-order-control.contracts.ts
+      - repo:packages/contracts/test/production-order-control.contracts.test.ts
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/intake/intake.presenter.ts
+      - repo:apps/processor/test
+    action:
+      - Remove source-versus-Pressly lifecycle comparison as an operator attention state and next action.
+      - Derive floor attention from canonical Pressly state, physical facts, and server-owned allowed events only.
+      - Keep source snapshots durable and inspectable through audit or integration boundaries without adding an admin product in this package.
+      - Replace vendor-specific floor labels with Pressly-native operational language.
+    verifier:
+      - No Home, Intake, Schedule, Production, or Order Control state asks an operator to compare Cents with Pressly.
+      - Post-handoff source lifecycle differences do not change floor filters, attention counts, action availability, or next-action copy.
+      - Record intake, place in run, capacity conflict, and other floor actions remain server-authoritative and tested.
+      - Source observations remain queryable in their owning audit or integration data path.
+    rollback:
+      - Revert the floor projection and contract change while preserving the Orders authority fence; do not restore source mutation authority.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T6
+    title: Build the remaining-day forecast read model and endpoint
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+      - T4
+    reads:
+      - repo:modules/business/production/src/load-production-workspace
+      - repo:modules/business/production/src/load-production-board
+      - repo:modules/business/production/src/place-production-order
+      - repo:modules/computation/scheduling
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/time
+    writes:
+      - repo:modules/business/production/src/load-remaining-day-forecast
+      - repo:modules/business/production/src/main.ts
+      - repo:modules/business/production/src/production.port.ts
+      - repo:modules/business/production/test/load-remaining-day-forecast
+      - repo:modules/business/production/test/support/production.fake.ts
+      - repo:modules/computation/scheduling/src/remaining-day-forecast
+      - repo:modules/computation/scheduling/src/main.ts
+      - repo:modules/computation/scheduling/src/public.ts
+      - repo:modules/computation/scheduling/test
+      - repo:packages/contracts/src/production/production-forecast.contracts.ts
+      - repo:packages/contracts/src/production/production.command.ts
+      - repo:packages/contracts/src/production/production.result.ts
+      - repo:packages/contracts/src/index.ts
+      - repo:packages/contracts/test/production-forecast.contracts.test.ts
+      - repo:packages/db/test
+    action:
+      - Define a location-and-service-day forecast contract with asOf, assumptions, totals, capacity risk, server actionability, and the four confirmed work groups.
+      - Query unfinished active-run, ready, expected, shift, resource, and capacity facts without coupling Production to Users, Orders, or vendor codes.
+      - Compute active-run remainder and appendability with the same hard-capacity and placement policies used by execution.
+      - Classify non-fitting or unassigned work as needs_shift without fabricating a shift, batch, or finish time.
+      - Keep the read deterministic, bounded, side-effect-free, and independent from the executable scheduling snapshot.
+    verifier:
+      - Same persisted inputs, service day, and asOf produce the same response.
+      - Finished work is excluded and active-run unfinished work is included.
+      - Ready work fits or does not fit the active run according to the exact server placement rules.
+      - Expected work remains non-executable and missing estimates remain explicit.
+      - No later shift returns needs_shift or unassigned rather than a fabricated batch or finish time.
+      - Timezone and local service-day boundary tests cover overdue, today, and later work.
+      - Contract, repository, policy, and Postgres integration tests pass.
+    rollback:
+      - Remove the new read endpoint and retain the existing executable scheduling behavior unchanged; the forecast performs no writes requiring data compensation.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V1
+    title: Prove backend authority, lifecycle, and forecast correctness
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+      - T6
+    reads:
+      - repo:modules/business/orders
+      - repo:modules/business/production
+      - repo:modules/policy/production
+      - repo:modules/computation/scheduling
+      - repo:apps/api
+      - repo:apps/worker
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast
+    writes:
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+    action:
+      - Run focused transition-matrix, source-ordering, observation/adoption, outbox, concurrency, forecast, contract, database, API, and Worker verification.
+      - Run repository-wide LPMS integration gates without resetting or destructively rewriting the development database.
+      - Record exact counts, environment boundaries, migrations, and nonblocking warnings.
+    verifier:
+      - pnpm --filter @pressly/orders test
+      - pnpm --filter @pressly/orders test:integration
+      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production-scheduling test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production test:integration
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/db test:integration
+      - pnpm --filter @pressly/api test
+      - pnpm --filter @pressly/worker test
+      - pnpm test:lpms:int
+      - pnpm test:lpms:e2e
+    rollback:
+      - Keep the work active and the readiness gate stopped until every failed correctness verifier is repaired or the affected subgraph is replanned.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T7
+    title: Implement the Processor forecast information architecture
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+      - T6
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:apps/processor/src/app
+      - repo:apps/processor/src/adapters
+      - repo:apps/processor/src/features/demand-outlook
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/intake
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/components
+      - repo:packages/contracts/src/production/production-forecast.contracts.ts
+      - repo:design-qa.md
+    writes:
+      - repo:apps/processor/src/app
+      - repo:apps/processor/src/adapters
+      - repo:apps/processor/src/features/forecast
+      - repo:apps/processor/src/features/demand-outlook
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/features/intake
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/i18n
+      - repo:apps/processor/test
+    action:
+      - Add /forecast to path parsing, navigation, application composition, loading, error, empty, and refresh states.
+      - Build the detailed four-group remaining-day workspace from the server contract without reproducing classification or action policy in the browser.
+      - Replace the detailed Home card with a compact Today summary and Open forecast action.
+      - Remove the detailed forecast workspace from Schedule and retain only bounded capacity context and a forecast link.
+      - Make Intake's action column an ordinary left-aligned column with normal width and padding while preserving the shared five-column grid and responsive cards.
+      - Remove source-comparison copy and use Pressly-native operational labels and server-authorized actions.
+      - Apply the current ElevenLabs structural language, shared shadcn primitives, Pressly theme, and physical-floor ergonomics.
+    verifier:
+      - Navigation and route tests cover /forecast, direct entry, browser history, and invalid paths.
+      - Home, Forecast, Schedule, Intake, loading, empty, stale-refresh, error, and responsive states have focused tests.
+      - No feature imports a peer feature or reconstructs server lifecycle, placement, or forecast policy.
+      - Keyboard order, focus visibility, labels, target sizes, tab overflow, and screen-reader structure pass review.
+      - Existing settled content remains visible during background refresh.
+    rollback:
+      - Revert the Processor surface changes while retaining the verified backend authority and forecast contract; do not reintroduce source lifecycle as floor policy.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T7A
+    title: Build the server-owned live-placement read projection
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T4
+      - T6
+      - T7
+    reads:
+      - memory:domain:laundry-production/context-pack
+      - repo:packages/contracts/src/production
+      - repo:modules/computation/scheduling/src/online-placement
+      - repo:modules/business/production/src/load-production-workspace
+      - repo:modules/business/production/src/place-production-order
+      - repo:modules/business/production/src/persistence
+      - repo:modules/business/production/src/main.ts
+      - repo:modules/business/production/test/place-production-order
+    writes:
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/test/production.contracts.test.ts
+      - repo:modules/business/production/src/live-run-changes.policy.ts
+      - repo:modules/business/production/src/load-production-workspace
+      - repo:modules/business/production/src/persistence/production-order-placement-context.ts
+      - repo:modules/business/production/src/main.ts
+      - repo:modules/business/production/test/live-run-changes
+      - repo:modules/business/production/test/load-production-workspace
+      - repo:modules/business/production/test/place-production-order
+      - repo:modules/business/production/test/happy-path/production-postgres.repo.int.test.ts
+      - repo:modules/business/production/test/support/memory-production-repositories.ts
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+    action:
+      - Add a deterministic read-only live-placement projection scoped to an explicit location and started production run.
+      - Return the current run and queue version, ready unplaced orders, their durable placement outcomes, the server-recommended placement, and only server-authorized exact mutable-batch targets.
+      - Include exact batch versions, capacity before and after placement, projected completion, overtime consequence, and allowed actions required for version-bound mutation.
+      - Reuse the existing online-stable-insertion computation and placement invariants rather than duplicating capacity, freeze, recourse, or overtime policy.
+      - Keep the projection non-persistent and non-executable; it must not place work, create a run, recompute the accepted schedule, fabricate another shift, or relocate existing orders.
+    verifier:
+      - Contract and Production tests cover explicit run identity, no-run and wrong-run rejection, queue and batch versions, deterministic ordering, and durable placement outcomes.
+      - Exact target tests exclude frozen, non-queued, missing, and hard-capacity-invalid batches and preserve zero automatic recourse.
+      - Automatic recommendation and exact-target consequences use the same scheduler computation as placement commits, including overtime projection.
+      - Reads do not mutate queue composition, pending placement, schedule revisions, batches, or work events.
+      - No vendor lifecycle, Processor presentation, or forecast classification enters the Production read boundary.
+    rollback:
+      - Revert the new read projection and keep placement on the existing server command boundary; do not move capacity or placement authority into the browser.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T7B
+    title: Move live-arrival placement from Production to Schedule
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T7A
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:packages/contracts/src/production
+      - repo:apps/processor/src/app
+      - repo:apps/processor/src/ports
+      - repo:apps/processor/src/adapters
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/features/production-board
+      - repo:apps/processor/src/components/ui
+      - repo:apps/processor/test
+      - repo:design-qa.md
+    writes:
+      - repo:apps/processor/src/app
+      - repo:apps/processor/src/ports
+      - repo:apps/processor/src/adapters
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/features/production-board
+      - repo:apps/processor/src/i18n
+      - repo:apps/processor/test
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+    action:
+      - Add an explicit live Schedule context for a started shift and run instead of classifying that context as scheduling history.
+      - Render a compact Ready to add to this run workspace using the server projection, with one clear review action, server-recommended placement, optional exact-batch selection, exact capacity and finish consequences, overtime confirmation, and stale-version refresh.
+      - Keep manager confirmation before every post-start placement and preserve the existing expected queue, batch, and proposal versions on mutation.
+      - Remove the large pending-arrivals placement surface and its mutation state from Production; retain only a compact count and link to the explicit Schedule shift while keeping queue membership and stage progress primary.
+      - Keep Forecast read-only and detailed, and do not import one Processor feature from another or reconstruct lifecycle, target eligibility, capacity, or placement policy in the browser.
+      - Use shared shadcn Sheet, Select, Calendar, and Popover primitives, preserving the existing shadcn shift-window calendar and introducing no native date or datetime-local control.
+      - Preserve authoritative SSE invalidation and settled content during refresh.
+    verifier:
+      - Route and application tests cover direct live Schedule entry, browser history, explicit shift and run identity, ambiguous candidates, completed-run history, and the Production handoff link.
+      - Focused tests cover automatic placement, exact placement, overtime confirmation, permission denial, stale queue or batch versions, refresh, empty, and error states.
+      - Production tests prove the large placement controls are absent and the execution board remains primary.
+      - No native date or datetime-local input is introduced; Schedule date selection continues through the shared shadcn Calendar and Popover.
+      - Keyboard order, focus visibility, dialog or sheet semantics, labels, target sizes, responsive stacking, and translated copy pass review.
+    rollback:
+      - Revert the Processor relocation while retaining the verified server projection; do not restore browser-owned target inference or weaken placement authority.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V2
+    title: Prove Processor behavior and visual quality
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - V1
+      - T7
+      - T7B
+    reads:
+      - repo:apps/processor
+      - repo:packages/contracts
+      - repo:design-qa.md
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast
+    writes:
+      - repo:design-qa.md
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+    action:
+      - Run focused and full Processor tests, contracts, typecheck, lint, formatting, and production build.
+      - Inspect rendered Home, Forecast, Schedule planning, Schedule live placement, Production, and Intake at desktop and mobile widths using the approved visual-review surface.
+      - Exercise navigation, filtering, service-day selection, shadcn calendar behavior, live-placement review and confirmation, Production handoff links, loading, refresh, empty, error, keyboard, and accessibility behavior.
+      - Confirm a clean browser console and record concise comparison screenshots and findings in design-qa.md.
+    verifier:
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/contracts test
+      - pnpm typecheck
+      - pnpm lint
+      - pnpm format:check
+      - pnpm build
+      - git diff --check
+      - Evidence includes desktop and mobile screenshots, tested interactions, accessibility findings, and browser-console state.
+    rollback:
+      - Keep the work active and revert only the failing presentation subgraph; do not weaken backend authority or forecast correctness to satisfy UI tests.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T8
+    title: Close evidence, rebaseline dependent work, and assess memory impact
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V2
+    reads:
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast/evidence.md
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - repo:stateworks/work/active/lpms-production-readiness
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast/final-report.md
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/memory/domains/order-management/deltas
+      - repo:stateworks/memory/domains/laundry-production/deltas
+    action:
+      - Record exact implementation, test, local-runtime, and visual evidence with remaining limitations.
+      - Rebaseline correctness hardening against the new transition and Processor contracts before it can execute.
+      - Invalidate only the affected production-readiness proof and keep deployment and pilot gates stopped.
+      - Apply a new source-backed memory delta only if verified implementation reveals a durable belief not already represented by the 2026-07-26 applied deltas.
+    verifier:
+      - Stateworks network and lifecycle state validate.
+      - Correctness-hardening and production-readiness dependencies reflect the changed implementation baseline without rewriting historical evidence.
+      - Any new memory delta validates, has provenance, resolves contradictions, and produces a deterministic bounded context pack.
+      - The final report separates repository, local runtime, deployment, and pilot evidence.
+    rollback:
+      - Leave unsupported memory changes proposed, keep dependent work stopped, and retain this package as active until evidence is complete.
+    secret_handling: none
+    status: pending
+    evidence: []

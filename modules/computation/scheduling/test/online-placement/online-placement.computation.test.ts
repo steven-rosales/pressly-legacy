@@ -197,7 +197,7 @@ describe('online-stable-insertion-v1', () => {
     });
   });
 
-  it('honors exact mutable placement and rejects physical invalidity', () => {
+  it('honors exact mutable placement', () => {
     const batches = [batch(0, 10), batch(1, 60)];
     const placed = expectProposed(
       proposeOnlinePlacement({
@@ -210,7 +210,9 @@ describe('online-stable-insertion-v1', () => {
       batchId: 'batch-0',
       sequence: 0,
     });
+  });
 
+  it('rejects an exact frozen-batch target', () => {
     expect(
       proposeOnlinePlacement({
         ...input([batch(0, 10, { frozen: true })]),
@@ -220,6 +222,21 @@ describe('online-stable-insertion-v1', () => {
       kind: 'rejected',
       reason: { code: 'TARGET_BATCH_NOT_MUTABLE' },
     });
+  });
+
+  it('rejects an exact non-queued target', () => {
+    expect(
+      proposeOnlinePlacement({
+        ...input([batch(0, 10, { status: 'sorting' })]),
+        mode: { type: 'manager_exact', targetBatchId: 'batch-0' },
+      }),
+    ).toMatchObject({
+      kind: 'rejected',
+      reason: { code: 'TARGET_BATCH_NOT_MUTABLE' },
+    });
+  });
+
+  it('rejects an exact target that would exceed hard capacity', () => {
     expect(
       proposeOnlinePlacement({
         ...input([batch(0, 80)]),
@@ -229,6 +246,10 @@ describe('online-stable-insertion-v1', () => {
       kind: 'rejected',
       reason: { code: 'TARGET_BATCH_CAPACITY_EXCEEDED' },
     });
+  });
+
+  it('rejects an exact target that is missing from the run', () => {
+    const batches = [batch(0, 10), batch(1, 60)];
     expect(
       proposeOnlinePlacement({
         ...input(batches),

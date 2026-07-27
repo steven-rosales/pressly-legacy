@@ -98,8 +98,24 @@ export const makeAcceptSchedule =
             ),
           );
 
+        const lifecycle = deps.policy.evaluateScheduleRevisionTransition({
+          state: schedule.status,
+          event: 'accept',
+        });
+        if (
+          lifecycle.tag === 'err' ||
+          lifecycle.value.from !== 'draft' ||
+          lifecycle.value.state !== 'accepted'
+        )
+          return result.err(
+            productionError(
+              'SCHEDULE_NOT_DRAFT',
+              'Only a draft schedule may be accepted.',
+              409,
+            ),
+          );
+
         const decision = deps.policy.evaluateScheduleAcceptance({
-          status: schedule.status,
           expectedOutputPlanHash: command.expectedOutputPlanHash,
           actualOutputPlanHash: schedule.outputPlanHash,
           warningCodes: schedule.warnings.map((warning) => warning.code),
@@ -132,9 +148,7 @@ export const makeAcceptSchedule =
           );
         const currentPlanDecision = deps.policy.evaluateCurrentPlanAcceptance({
           scheduleRunId: schedule.scheduleRunId,
-          status: schedule.status,
-          currentScheduleRunId:
-            schedule.status === 'draft' ? schedule.scheduleRunId : null,
+          currentScheduleRunId: schedule.scheduleRunId,
           eligibleOrderSnapshotMatches,
         });
         if (currentPlanDecision.tag === 'err')
@@ -154,6 +168,7 @@ export const makeAcceptSchedule =
             command.acknowledgedWarningCodes,
             command.idempotencyKey,
             idempotency,
+            lifecycle.value,
             now,
           ),
         );

@@ -3,7 +3,6 @@ import { result, type Result } from '@pressly/kernel';
 type Rejection = Readonly<{ code: string; message: string }>;
 
 export type ScheduleAcceptanceInput = Readonly<{
-  status: string;
   expectedOutputPlanHash: string;
   actualOutputPlanHash: string;
   warningCodes: readonly string[];
@@ -25,12 +24,6 @@ export type ScheduleAcceptanceInput = Readonly<{
 export const evaluateScheduleAcceptance = (
   input: ScheduleAcceptanceInput,
 ): Result<Readonly<{ accepted: true }>, Rejection> => {
-  if (input.status !== 'draft')
-    return result.err({
-      code: 'SCHEDULE_NOT_DRAFT',
-      message: 'Only a draft schedule may be accepted.',
-    });
-
   if (input.expectedOutputPlanHash !== input.actualOutputPlanHash)
     return result.err({
       code: 'SCHEDULE_HASH_MISMATCH',

@@ -516,6 +516,9 @@ const listActivity = async (
       actorDisplayName: auth.authIdentities.displayName,
       expectedVersion: laundryProduction.workEvents.expectedVersion,
       payload: laundryProduction.workEvents.payload,
+      currentResolutionState:
+        laundryProduction.productionOrders.resolutionState,
+      currentProductionVersion: laundryProduction.productionOrders.version,
       resolvedProductionRunId,
       createdAt: laundryProduction.workEvents.createdAt,
     })
@@ -523,6 +526,20 @@ const listActivity = async (
     .leftJoin(
       auth.authIdentities,
       eq(auth.authIdentities.id, laundryProduction.workEvents.actorId),
+    )
+    .leftJoin(
+      laundryProduction.productionOrders,
+      and(
+        eq(
+          laundryProduction.productionOrders.id,
+          laundryProduction.workEvents.entityId,
+        ),
+        eq(
+          laundryProduction.productionOrders.locationId,
+          laundryProduction.workEvents.locationId,
+        ),
+        eq(laundryProduction.workEvents.entityType, 'production_order'),
+      ),
     )
     .where(
       and(
@@ -536,6 +553,17 @@ const listActivity = async (
         command.eventType === undefined
           ? undefined
           : eq(laundryProduction.workEvents.eventType, command.eventType),
+        command.orderResolution === undefined
+          ? undefined
+          : command.orderResolution === 'archived'
+            ? inArray(laundryProduction.workEvents.eventType, [
+                'production_order_resolved_without_production',
+                'production_order_bulk_resolved_without_production',
+              ])
+            : eq(
+                laundryProduction.workEvents.eventType,
+                'production_order_restored',
+              ),
         command.runId === undefined
           ? undefined
           : runScopePredicate(command.runId),
@@ -839,7 +867,7 @@ const loadRun = async (
         productionOrderId:
           laundryProduction.productionBatchOrders.productionOrderId,
         externalOrderId: laundryProduction.orderDemands.displayReference,
-        orderStatus: laundryProduction.productionOrders.status,
+        orderStatus: laundryProduction.productionOrders.operationalStatus,
         derivedWeightLbs: laundryProduction.productionOrders.derivedWeightLbs,
         bagCount: laundryProduction.productionOrders.bagCount,
         productionBatchId:
@@ -1025,12 +1053,29 @@ const loadRun = async (
         actorDisplayName: auth.authIdentities.displayName,
         expectedVersion: laundryProduction.workEvents.expectedVersion,
         payload: laundryProduction.workEvents.payload,
+        currentResolutionState:
+          laundryProduction.productionOrders.resolutionState,
+        currentProductionVersion: laundryProduction.productionOrders.version,
         createdAt: laundryProduction.workEvents.createdAt,
       })
       .from(laundryProduction.workEvents)
       .leftJoin(
         auth.authIdentities,
         eq(auth.authIdentities.id, laundryProduction.workEvents.actorId),
+      )
+      .leftJoin(
+        laundryProduction.productionOrders,
+        and(
+          eq(
+            laundryProduction.productionOrders.id,
+            laundryProduction.workEvents.entityId,
+          ),
+          eq(
+            laundryProduction.productionOrders.locationId,
+            laundryProduction.workEvents.locationId,
+          ),
+          eq(laundryProduction.workEvents.entityType, 'production_order'),
+        ),
       )
       .where(
         and(

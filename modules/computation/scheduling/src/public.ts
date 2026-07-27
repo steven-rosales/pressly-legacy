@@ -37,3 +37,16 @@ export type {
   SchedulingStageKind,
   SchedulingWarning,
 } from './propose-schedule/propose-schedule.port.ts';
+export { makeRemainingDayForecastProjection } from './remaining-day-forecast/remaining-day-forecast.computation.ts';
+export type {
+  ProjectRemainingDayForecast,
+  ProposeRemainingDayPlacement,
+  RemainingDayActiveRun,
+  RemainingDayForecastDecision,
+  RemainingDayForecastInput,
+  RemainingDayForecastOutput,
+  RemainingDayForecastReason,
+  RemainingDayPlacementBatch,
+  RemainingDayPlacementStage,
+  RemainingDayReadyOrder,
+} from './remaining-day-forecast/remaining-day-forecast.port.ts';

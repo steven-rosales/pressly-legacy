@@ -1,10 +1,11 @@
 work_id: lpms-production-readiness
 status: active
-updated: 2026-07-17T14:00:00-04:00
+updated: 2026-07-26T23:32:31-04:00
 
 current_focus:
   - H1
   - Unsigned documented-vendor compatibility was authorized for launch; live retry, store, bag-count, reconciliation, and any future signing facts remain to be confirmed.
+  - Repository proof must be rerun after operational-authority changes and queued correctness and resolution work; deployment and pilot gates remain stopped.
 
 tasks:
   T0:
@@ -34,9 +35,10 @@ tasks:
     evidence:
       - stateworks/work/active/lpms-production-readiness/evidence.md
   V2:
-    status: committed
+    status: invalidated
     evidence:
       - stateworks/work/active/lpms-production-readiness/evidence.md
+      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/final-report.md
   R1:
     status: committed
     evidence:

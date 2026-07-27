@@ -57,6 +57,7 @@ export type OrderControlActionAvailability = Readonly<{
 
 export type OrderControlOrder = Readonly<{
   id: string
+  identity: ProcessorOperationalOrderIdentity
   externalOrderId: string
   secondaryLabel: string | null
   customerLabel: string
@@ -64,7 +65,6 @@ export type OrderControlOrder = Readonly<{
   commercialStateLabel: string
   admissionStateLabel: string
   sourceStateLabel: string
-  comparisonLabel: string
   statusLabel: string
   dueLabel: string
   dueDetail: string
@@ -175,3 +175,4 @@ export type OrderControlCallbacks = Readonly<{
   onChangeActionDetails: () => void
   onCancelAction: () => void
 }>
+import type { ProcessorOperationalOrderIdentity } from "@pressly/contracts"

@@ -1,12 +1,20 @@
 import type { ProductionWorkspace } from '@pressly/contracts';
 import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
+import type {
+  ProductionLiveRunPlacementOrder,
+  ProductionRunPlacementContext,
+} from '../production.port.ts';
 import type { ProductionBoardProjection } from '../production-board-read.policy.ts';
 
 export type ProductionWorkspaceReadModel = Readonly<{
   workspace: ProductionWorkspace & Readonly<{ board: null }>;
   boardProjection: ProductionBoardProjection | null;
   demandOutlookRows: readonly DemandOutlookRow[];
+  livePlacement: Readonly<{
+    runContext: ProductionRunPlacementContext;
+    orders: readonly ProductionLiveRunPlacementOrder[];
+  }> | null;
 }>;
 
 export type DemandOutlookRow = Readonly<{
@@ -14,7 +22,6 @@ export type DemandOutlookRow = Readonly<{
   productionOrderId: string | null;
   externalOrderId: string;
   phase: string;
-  sourceStatusCode: string;
   dueAt: Date;
   estimatedWeightLbs: number | null;
   priority: boolean;

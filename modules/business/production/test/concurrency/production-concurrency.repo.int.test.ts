@@ -185,7 +185,8 @@ const seedNearlyCompleteRun = async (): Promise<void> => {
     orderDemandId: fixed.demand,
     locationId,
     dueAt: new Date(endsAt),
-    status: 'scheduled',
+    operationalStatus: 'scheduled',
+    executionStatus: 'scheduled',
     derivedWeightLbs: 40,
     bagCount: 1,
     eligibleAt: start,
@@ -385,7 +386,8 @@ describe('production aggregate races', () => {
     expect(run).toMatchObject({ status: 'completed', version: 2 });
     expect(shift).toMatchObject({ status: 'closed', version: 2 });
     expect(arrivingOrder).toMatchObject({
-      status: 'eligible',
+      operationalStatus: 'eligible',
+      executionStatus: 'unassigned',
       bagCount: 1,
     });
     expect(arrivingOrder?.pendingPlacement).toBeNull();

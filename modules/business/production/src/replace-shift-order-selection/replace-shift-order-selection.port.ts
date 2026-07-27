@@ -8,6 +8,7 @@ import type {
   FindWorkEvent,
   Transactional,
   WorkEventInput,
+  ScheduleSupersessionDecision,
 } from '../production.port.ts';
 
 export type ReplaceShiftOrderSelection = (
@@ -19,6 +20,10 @@ export type LockedShiftOrderSelection = Readonly<{
   state: 'available' | 'not_found' | 'run_exists';
   version: number;
   selectedOrderIds: readonly string[];
+  currentSchedule: Readonly<{
+    scheduleRunId: string;
+    status: string;
+  }> | null;
 }>;
 
 export type ReplaceShiftOrderSelectionRepository = Transactional<
@@ -38,6 +43,7 @@ export type ReplaceShiftOrderSelectionRepository = Transactional<
       productionShiftId: string;
       selectedOrderIds: readonly string[];
       currentVersion: number;
+      supersede: ScheduleSupersessionDecision | null;
       actorId: string;
       now: Date;
     }) => Promise<ReplaceProductionShiftSelectionResult | null>;

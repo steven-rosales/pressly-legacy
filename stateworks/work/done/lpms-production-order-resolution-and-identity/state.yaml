@@ -1,0 +1,85 @@
+work_id: lpms-production-order-resolution-and-identity
+status: complete
+updated: 2026-07-27T10:50:18-04:00
+
+current_focus:
+  - complete
+  - Lifecycle-safe resolution, operational identity, verification, rendered review, and durable memory closeout are complete.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - modules/policy/production/src/lifecycle/production-order-resolution-lifecycle.policy.ts
+      - modules/policy/production/test/lifecycle/production-order-resolution-lifecycle.policy.test.ts
+      - docs/plan/lpms-state-transitions.md
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - packages/db/src/migrations/0033_production-order-resolution.sql
+      - modules/business/production/src/change-production-order-resolution
+      - modules/business/production/test/change-production-order-resolution
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - packages/contracts/src/production/production-order-backlog.contracts.ts
+      - modules/business/production/src/review-production-order-backlog
+      - modules/business/production/test/review-production-order-backlog
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+  T4:
+    status: committed
+    evidence:
+      - modules/policy/production/src/lifecycle/production-order-resolution-lifecycle.policy.ts
+      - modules/business/production/src
+      - modules/business/production/test
+      - packages/contracts/src/production/production-history.contracts.ts
+      - apps/api/test/processor
+      - apps/processor/src/features/history
+      - apps/processor/test/features/history
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+  T5:
+    status: committed
+    evidence:
+      - apps/processor/src/features/order-resolution
+      - apps/processor/src/features/history
+      - apps/processor/test/features/order-resolution
+      - apps/processor/test/features/history
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+  T6:
+    status: committed
+    evidence:
+      - packages/contracts/src/processor/processor-operational-order-identity.contracts.ts
+      - apps/api/src/http/processor/operational-order-identity
+      - apps/api/test/processor/processor-operational-order-identity.test.ts
+      - apps/processor/src/components/orders
+      - apps/processor/test/components/orders
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - modules/policy/production/test
+      - modules/business/production/test
+      - packages/contracts/test
+      - packages/db/test
+      - apps/api/test
+      - apps/processor/test
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+  V2:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/design-qa.md
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+  T7:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/evidence.md
+      - stateworks/work/done/lpms-production-order-resolution-and-identity/final-report.md
+      - stateworks/memory/domains/laundry-production/deltas/2026-07-27-production-order-resolution.memory-delta.yaml
+      - stateworks/memory/domains/laundry-production/memory.yaml
+      - stateworks/memory/domains/laundry-production/context-pack.md

@@ -2,6 +2,9 @@ import { z } from 'zod';
 import {
   productionHashSchema,
   productionIdSchema,
+  productionOrderResolutionReasonSchema,
+  productionOrderResolutionStateSchema,
+  productionOrderRestorationReasonSchema,
   productionOrderStatusSchema,
   productionPlacementProvenanceSchema,
   productionStageBoundaryProvenanceSchema,
@@ -54,6 +57,9 @@ export const productionHistoryEventTypeSchema = z.enum([
   'production_order_placement_pending',
   'production_order_placement_overtime_required',
   'production_order_placement_resolved',
+  'production_order_resolved_without_production',
+  'production_order_restored',
+  'production_order_bulk_resolved_without_production',
   'production_order_rebatched',
   'production_order_route_exception_recorded',
   'batch_membership_frozen',
@@ -70,6 +76,7 @@ export const listProductionHistoryActivityQuerySchema = z
     runId: productionIdSchema.optional(),
     entityType: productionHistoryEntityTypeSchema.optional(),
     eventType: productionHistoryEventTypeSchema.optional(),
+    orderResolution: z.enum(['archived', 'restored']).optional(),
     search: productionHistorySearchSchema.optional(),
     occurredAfter: utcIsoStringSchema.optional(),
   })
@@ -220,6 +227,13 @@ export const productionHistoryActivityDetailsSchema = z.discriminatedUnion(
         priority: z.boolean().nullable(),
         queueVersion: nullableVersionSchema,
         version: nullableVersionSchema,
+        resolutionState: productionOrderResolutionStateSchema.nullable(),
+        resolutionReason: z
+          .union([
+            productionOrderResolutionReasonSchema,
+            productionOrderRestorationReasonSchema,
+          ])
+          .nullable(),
         routeReason: productionOrderRouteReasonSchema.nullable(),
         restartStage: productionStageKindSchema.nullable(),
         releasedStages: z.array(productionStageKindSchema),
@@ -258,6 +272,13 @@ export const productionHistoryActivityEntrySchema = z
     actor: productionHistoryActorSchema,
     expectedVersion: z.number().int().positive().nullable(),
     productionRunId: productionIdSchema.nullable(),
+    resolutionAction: z
+      .object({
+        action: z.literal('restore'),
+        expectedVersion: z.number().int().positive(),
+      })
+      .strict()
+      .nullable(),
     summary: z.string().min(1),
     details: productionHistoryActivityDetailsSchema,
     occurredAt: utcIsoStringSchema,

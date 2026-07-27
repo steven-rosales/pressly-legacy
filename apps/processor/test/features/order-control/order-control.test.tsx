@@ -10,6 +10,10 @@ import { OrderControlWorkspace } from "@/features/order-control/order-control.vi
 
 const order: OrderControlOrder = {
   id: "order-1",
+  identity: {
+    displayNumber: "1001",
+    customerDisplayName: "Ada Rivera",
+  },
   externalOrderId: "1001",
   secondaryLabel: "Route North",
   customerLabel: "Ada Rivera",
@@ -17,7 +21,6 @@ const order: OrderControlOrder = {
   commercialStateLabel: "Open",
   admissionStateLabel: "Released to production",
   sourceStateLabel: "Cents · IN_PROGRESS",
-  comparisonLabel: "Systems aligned",
   statusLabel: "Scheduled",
   dueLabel: "Today",
   dueDetail: "Due by 5:00 PM",
@@ -271,5 +274,6 @@ describe("order control workspace", () => {
     expect(attentionTab.querySelector(".sm\\:hidden")).toHaveTextContent(
       "Attention"
     )
+    expect(screen.getAllByText("Ada Rivera")).not.toHaveLength(0)
   })
 })

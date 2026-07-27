@@ -12,7 +12,6 @@ const stages = (
 }));
 
 const valid = {
-  status: 'draft',
   expectedOutputPlanHash: 'hash',
   actualOutputPlanHash: 'hash',
   warningCodes: [],

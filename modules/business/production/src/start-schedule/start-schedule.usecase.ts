@@ -10,6 +10,7 @@ import {
 } from '../production-idempotency.policy.ts';
 import type { ClockPort, ProductionPolicyPort } from '../production.port.ts';
 import type {
+  ScheduleStartOrderLifecycle,
   StartSchedule,
   StartScheduleRepository,
 } from './start-schedule.port.ts';
@@ -102,8 +103,10 @@ export const makeStartSchedule =
           command.locationId,
           record.schedule.productionShiftId,
         );
-        const eligibleOrderSnapshotMatches =
-          await repo.lockAndValidateScheduleInput(command.locationId, record);
+        const lockedOrders = await repo.lockAndLoadStartOrders(
+          command.locationId,
+          record,
+        );
         const startDecision = deps.policy.evaluateScheduleStart({
           scheduleRunId: record.schedule.scheduleRunId,
           status: record.schedule.status,
@@ -111,7 +114,7 @@ export const makeStartSchedule =
             record.schedule.status === 'accepted'
               ? record.schedule.scheduleRunId
               : null,
-          eligibleOrderSnapshotMatches,
+          eligibleOrderSnapshotMatches: lockedOrders !== null,
           productionRunExists,
           batchCount: record.schedule.batches.length,
         });
@@ -124,11 +127,82 @@ export const makeStartSchedule =
             ),
           );
 
+        if (lockedOrders === null)
+          return result.err(
+            productionError(
+              'SCHEDULE_INPUT_STALE',
+              'The accepted schedule no longer matches its selected orders.',
+              409,
+            ),
+          );
+        const orderLifecycles: ScheduleStartOrderLifecycle[] = [];
+        for (const order of lockedOrders) {
+          const resolved = deps.policy.resolveProductionOrderExecutionState({
+            executionState: order.executionStatus,
+            operationalStatus: order.operationalStatus,
+          });
+          if (resolved.tag === 'err')
+            return result.err(
+              productionError(resolved.error.code, resolved.error.message, 409),
+            );
+          const lifecycle =
+            deps.policy.evaluateProductionOrderExecutionTransition({
+              state: resolved.value,
+              event: 'schedule_or_place',
+            });
+          if (lifecycle.tag === 'err')
+            return result.err(
+              productionError(
+                lifecycle.error.code,
+                lifecycle.error.message,
+                409,
+              ),
+            );
+          if (
+            lifecycle.value.from !== 'unassigned' ||
+            lifecycle.value.state !== 'scheduled'
+          )
+            return result.err(
+              productionError(
+                'PRODUCTION_ORDER_EXECUTION_TRANSITION_INVALID',
+                'The production order cannot be committed by Start.',
+                409,
+              ),
+            );
+          if (
+            order.executionStatus !== 'unassigned' &&
+            order.executionStatus !== 'scheduled' &&
+            order.executionStatus !== 'finished'
+          )
+            return result.err(
+              productionError(
+                'PRODUCTION_ORDER_EXECUTION_STATE_INVALID',
+                'The production order execution state is invalid.',
+                409,
+              ),
+            );
+          orderLifecycles.push({
+            productionOrderId: order.id,
+            persistedState: order.executionStatus,
+            expectedVersion: order.version,
+            lifecycle: {
+              from: lifecycle.value.from,
+              state: lifecycle.value.state,
+            },
+          });
+        }
+
         return result.ok(
           await repo.startSchedule({
             locationId: command.locationId,
             record,
             actorId: command.actorId,
+            productionRunStatus: deps.policy.initialProductionRunState,
+            orderLifecycles,
+            initialBatchState: deps.policy.initialProductionBatchState,
+            initialStageState: deps.policy.initialProductionStageState,
+            initialAttemptState:
+              deps.policy.initialProductionOrderStageAttemptState,
             idempotencyKey: command.idempotencyKey,
             idempotency,
             now,

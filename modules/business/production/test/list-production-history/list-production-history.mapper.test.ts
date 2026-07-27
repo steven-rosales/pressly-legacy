@@ -138,11 +138,53 @@ describe('production history read mapping', () => {
       priority: null,
       queueVersion: null,
       version: null,
+      resolutionState: null,
+      resolutionReason: null,
       routeReason: 'needs_more_drying',
       restartStage: 'drying',
       releasedStages: ['drying', 'folding_packaging'],
       assignedStages: ['drying', 'folding_packaging'],
     });
     expect(JSON.stringify(mapped)).not.toContain('not-public');
+  });
+
+  it('projects sanitized resolution activity without private notes', () => {
+    const mapped = mapProductionHistoryActivity(
+      {
+        id: ids.event,
+        eventType: 'production_order_resolved_without_production',
+        entityType: 'production_order',
+        entityId: ids.stage,
+        actorId: ids.actor,
+        actorDisplayName: 'Alex',
+        expectedVersion: 2,
+        payload: {
+          action: 'resolve_without_production',
+          resolutionState: 'resolved_without_production',
+          reason: 'completed_outside_pressly',
+          note: 'private manager note',
+          reviewReasons: ['physical_intake'],
+          version: 3,
+        },
+        currentResolutionState: 'resolved_without_production',
+        currentProductionVersion: 3,
+        createdAt: new Date('2026-07-15T12:00:00.000Z'),
+      },
+      null,
+    );
+
+    expect(mapped).toMatchObject({
+      summary: 'Order archived from active work',
+      resolutionAction: { action: 'restore', expectedVersion: 3 },
+      details: {
+        kind: 'order',
+        outcome: 'resolve_without_production',
+        resolutionState: 'resolved_without_production',
+        resolutionReason: 'completed_outside_pressly',
+        version: 3,
+      },
+    });
+    expect(JSON.stringify(mapped)).not.toContain('private manager note');
+    expect(JSON.stringify(mapped)).not.toContain('physical_intake');
   });
 });

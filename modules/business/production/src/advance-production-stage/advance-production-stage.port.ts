@@ -9,6 +9,10 @@ import type { Result } from '@pressly/kernel';
 import type {
   StageTransitionContext,
   FindWorkEvent,
+  ProductionBatchLifecycleDecision,
+  ProductionBatchLifecycleState,
+  ProductionOrderStageAttemptMutation,
+  ProductionTerminalLifecycleDecisions,
   Transactional,
   WorkEventInput,
 } from '../production.port.ts';
@@ -48,7 +52,17 @@ export type AdvanceProductionStageRepository = Transactional<
       locationId: string;
       stageRunId: string;
       expectedVersion: number;
-      nextState: 'started' | 'completed';
+      stageLifecycle: Readonly<{
+        from: 'planned' | 'started';
+        state: 'started' | 'completed';
+      }>;
+      batchId: string;
+      batchExpectedVersion: number;
+      batchState: ProductionBatchLifecycleState;
+      batchLifecycle: ProductionBatchLifecycleDecision | null;
+      freezeMembership: boolean;
+      attemptLifecycles: readonly ProductionOrderStageAttemptMutation[];
+      terminalLifecycle: ProductionTerminalLifecycleDecisions | null;
       actorId: string;
       now: Date;
     }) => Promise<ProductionMutationResult | null>;

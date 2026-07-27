@@ -1,18 +1,41 @@
-import { and, eq, laundryProduction, type DatabaseExecutor } from '@pressly/db';
+import {
+  and,
+  eq,
+  inArray,
+  laundryProduction,
+  type DatabaseExecutor,
+} from '@pressly/db';
+import type { ProductionOrderStageAttemptMutation } from '../production.port.ts';
 
 export const completeAssignedOrderStageAttempts = async (
   db: DatabaseExecutor,
   input: Readonly<{
     locationId: string;
     stageRunId: string;
+    attempts: readonly ProductionOrderStageAttemptMutation[];
     actorId: string;
     now: Date;
   }>,
 ): Promise<number> => {
+  if (
+    input.attempts.length === 0 ||
+    input.attempts.some(
+      (attempt) =>
+        attempt.stageRunId !== input.stageRunId ||
+        attempt.lifecycle.from !== 'assigned' ||
+        attempt.lifecycle.state !== 'completed',
+    )
+  )
+    throw new Error('Stage-attempt lifecycle decisions are invalid.');
+
+  const attemptIds = input.attempts.map((attempt) => attempt.attemptId);
+  if (new Set(attemptIds).size !== attemptIds.length)
+    throw new Error('Stage-attempt lifecycle decisions are duplicated.');
+
   const completed = await db
     .update(laundryProduction.productionOrderStageAttempts)
     .set({
-      status: 'completed',
+      status: input.attempts[0]!.lifecycle.state,
       completedAt: input.now,
       completedBy: input.actorId,
       updatedAt: input.now,
@@ -27,13 +50,17 @@ export const completeAssignedOrderStageAttempts = async (
           laundryProduction.productionOrderStageAttempts.stageRunId,
           input.stageRunId,
         ),
-        eq(laundryProduction.productionOrderStageAttempts.status, 'assigned'),
+        inArray(laundryProduction.productionOrderStageAttempts.id, attemptIds),
+        eq(
+          laundryProduction.productionOrderStageAttempts.status,
+          input.attempts[0]!.lifecycle.from,
+        ),
       ),
     )
     .returning({ id: laundryProduction.productionOrderStageAttempts.id });
 
-  if (completed.length === 0)
-    throw new Error('Completed stage has no assigned order-stage attempts.');
+  if (completed.length !== input.attempts.length)
+    throw new Error('Assigned order-stage attempts changed concurrently.');
 
   return completed.length;
 };

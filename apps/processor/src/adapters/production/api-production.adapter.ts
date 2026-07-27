@@ -4,9 +4,10 @@ import {
   automaticProductionOrderPlacementResultSchema,
   confirmProductionOrderOvertimeResultSchema,
   changeProductionAdmissionResultSchema,
+  changeProductionOrderResolutionResultSchema,
   exactProductionOrderPlacementResultSchema,
   commitProductionOrderRouteResultSchema,
-  listProductionHistoryActivityResultSchema,
+  processorListProductionHistoryActivityResultSchema,
   listProductionHistoryPlansResultSchema,
   listProductionHistoryRunsResultSchema,
   listProcessorOrderControlResultSchema,
@@ -14,11 +15,14 @@ import {
   productionBatchProgressReconciliationResultSchema,
   listProductionLocationsResultSchema,
   listProductionOrdersResultSchema,
+  processorProductionHistoryRunDetailSchema,
+  processorProductionOrderBacklogPreviewSchema,
+  processorProductionWorkspaceSchema,
+  processorRemainingDayForecastSchema,
   productionBoardSchema,
+  productionOrderBacklogCommitResultSchema,
   productionMutationResultSchema,
-  productionHistoryRunDetailSchema,
   productionOrderRouteProposalSchema,
-  productionWorkspaceSchema,
   recordOrderIntakeResultSchema,
   replaceProductionShiftSelectionResultSchema,
   productionShiftSchema,
@@ -47,9 +51,17 @@ export const makeApiProductionAdapter = (
         path: `/production/locations/${encodeURIComponent(locationId)}/workspace${suffix}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      productionWorkspaceSchema
+      processorProductionWorkspaceSchema
     )
   },
+  loadRemainingDayForecast: ({ locationId, serviceDay, signal }) =>
+    request(
+      {
+        path: `/production/locations/${encodeURIComponent(locationId)}/forecast?${new URLSearchParams({ serviceDay }).toString()}`,
+        ...(signal === undefined ? {} : { signal }),
+      },
+      processorRemainingDayForecastSchema
+    ),
   listOrders: ({ locationId, cursor, limit = 100, signal }) => {
     const query = new URLSearchParams({ limit: String(limit) })
     if (cursor !== undefined) query.set("cursor", cursor)
@@ -74,6 +86,33 @@ export const makeApiProductionAdapter = (
       listProcessorOrderControlResultSchema
     )
   },
+  previewOrderBacklog: ({ locationId, request: body }) =>
+    request(
+      {
+        method: "POST",
+        path: `/production/locations/${encodeURIComponent(locationId)}/order-backlog/preview`,
+        body,
+      },
+      processorProductionOrderBacklogPreviewSchema
+    ),
+  commitOrderBacklog: ({ locationId, request: body }) =>
+    request(
+      {
+        method: "POST",
+        path: `/production/locations/${encodeURIComponent(locationId)}/order-backlog`,
+        body,
+      },
+      productionOrderBacklogCommitResultSchema
+    ),
+  changeOrderResolution: ({ locationId, productionOrderId, request: body }) =>
+    request(
+      {
+        method: "PUT",
+        path: `/production/locations/${encodeURIComponent(locationId)}/orders/${encodeURIComponent(productionOrderId)}/resolution`,
+        body,
+      },
+      changeProductionOrderResolutionResultSchema
+    ),
   previewOrderRoute: ({
     locationId,
     productionRunId,
@@ -125,7 +164,7 @@ export const makeApiProductionAdapter = (
         path: `/production/locations/${encodeURIComponent(locationId)}/history/activity?${query.toString()}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      listProductionHistoryActivityResultSchema
+      processorListProductionHistoryActivityResultSchema
     )
   },
   listHistoryPlans: ({ locationId, query: input, signal }) => {
@@ -147,7 +186,7 @@ export const makeApiProductionAdapter = (
         path: `/production/locations/${encodeURIComponent(locationId)}/history/runs/${encodeURIComponent(productionRunId)}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      productionHistoryRunDetailSchema
+      processorProductionHistoryRunDetailSchema
     ),
   recordIntake: ({ locationId, productionOrderId, ...body }) =>
     request(

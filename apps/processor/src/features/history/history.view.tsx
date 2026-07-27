@@ -1,5 +1,7 @@
+import { useState } from "react"
 import {
   IconAlertTriangle,
+  IconArrowBackUp,
   IconCalendarClock,
   IconChevronLeft,
   IconChevronRight,
@@ -10,7 +12,19 @@ import {
   IconTimeline,
 } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
+import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
 import { SectionHeading } from "@/components/layout/workspace-primitives"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { DelayedLoadingRows } from "@/components/ui/delayed-loading-rows"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -28,8 +42,23 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Table,
   TableBody,
@@ -49,6 +78,7 @@ import type {
   HistoryFilters,
   HistoryPlanSummary,
   HistoryRunSummary,
+  HistoryRestoreReason,
   HistoryTab,
   HistoryViewModel,
 } from "./history.model"
@@ -247,34 +277,218 @@ function RunsView({
   )
 }
 
-function ActivityView({ items }: { items: readonly HistoryActivityItem[] }) {
+function ActivityView({
+  items,
+  canManage,
+  restoringOrderId,
+  onRestoreOrder,
+}: Readonly<{
+  items: readonly HistoryActivityItem[]
+  canManage: boolean
+  restoringOrderId: string | null
+  onRestoreOrder: HistoryCallbacks["onRestoreOrder"]
+}>) {
+  const { t } = useTranslation()
+  const [candidate, setCandidate] = useState<HistoryActivityItem | null>(null)
+  const [reason, setReason] = useState<HistoryRestoreReason | "">("")
+  const [note, setNote] = useState("")
+  const otherNoteMissing = reason === "other" && note.trim().length === 0
+  const closeDialog = () => {
+    setCandidate(null)
+    setReason("")
+    setNote("")
+  }
+
   return (
-    <div className="divide-y overflow-hidden rounded-xl border bg-background">
-      {items.map((item) => (
-        <article key={item.id} className="flex gap-3 p-4">
-          <span
-            className={cn(
-              "mt-1.5 size-2.5 shrink-0 rounded-full bg-muted-foreground",
-              item.tone === "warning" && "bg-warning-foreground",
-              item.tone === "critical" && "bg-destructive"
-            )}
-            aria-hidden="true"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-              <h3 className="text-sm font-medium">{item.title}</h3>
-              <time className="shrink-0 text-xs text-muted-foreground">
-                {item.occurredAtLabel}
-              </time>
+    <>
+      <div className="divide-y overflow-hidden rounded-xl border bg-background">
+        {items.map((item) => (
+          <article
+            key={item.id}
+            className="flex flex-col gap-3 p-4 sm:flex-row"
+          >
+            <span
+              className={cn(
+                "mt-1.5 size-2.5 shrink-0 rounded-full bg-muted-foreground",
+                item.tone === "warning" && "bg-warning-foreground",
+                item.tone === "critical" && "bg-destructive"
+              )}
+              aria-hidden="true"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                <h3 className="text-sm font-medium">{item.title}</h3>
+                <time className="shrink-0 text-xs text-muted-foreground">
+                  {item.occurredAtLabel}
+                </time>
+              </div>
+              {item.identity !== null && (
+                <OperationalOrderIdentity
+                  identity={item.identity}
+                  className="mt-2 max-w-sm"
+                />
+              )}
+              <p className="mt-2 text-sm text-muted-foreground">
+                {item.detail}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {item.actorLabel} · {item.entityLabel}
+              </p>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {item.actorLabel} · {item.entityLabel}
-            </p>
+            {canManage && item.restoreAction !== null && (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full shrink-0 sm:w-auto"
+                disabled={restoringOrderId !== null}
+                aria-busy={
+                  restoringOrderId === item.restoreAction.productionOrderId
+                }
+                onClick={() => {
+                  setCandidate(item)
+                  setReason("")
+                  setNote("")
+                }}
+              >
+                {restoringOrderId === item.restoreAction.productionOrderId ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <IconArrowBackUp data-icon="inline-start" />
+                )}
+                {t("orderResolution.history.restore.trigger")}
+              </Button>
+            )}
+          </article>
+        ))}
+      </div>
+
+      <AlertDialog
+        open={candidate !== null}
+        onOpenChange={(open) => {
+          if (!open) closeDialog()
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia>
+              <IconArrowBackUp />
+            </AlertDialogMedia>
+            <AlertDialogTitle>
+              {t("orderResolution.history.restore.title", {
+                displayReference:
+                  candidate?.identity?.displayNumber ?? t("history.order"),
+              })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("orderResolution.history.restore.description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="flex flex-col gap-4">
+            {candidate?.identity !== null &&
+              candidate?.identity !== undefined && (
+                <OperationalOrderIdentity identity={candidate.identity} />
+              )}
+            <Field>
+              <FieldLabel htmlFor="history-restore-reason">
+                {t("orderResolution.history.restore.reasonLabel")}
+              </FieldLabel>
+              <Select
+                value={reason}
+                onValueChange={(value) =>
+                  setReason(value as HistoryRestoreReason)
+                }
+              >
+                <SelectTrigger
+                  id="history-restore-reason"
+                  className="h-11 w-full"
+                >
+                  <SelectValue
+                    placeholder={t(
+                      "orderResolution.history.restore.reasonPlaceholder"
+                    )}
+                  />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  <SelectGroup>
+                    {(
+                      [
+                        "manager_correction",
+                        "work_should_be_produced",
+                        "other",
+                      ] as const
+                    ).map((value) => (
+                      <SelectItem key={value} value={value} className="h-11">
+                        {t(
+                          `orderResolution.history.restore.reasonOptions.${value}`
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field data-invalid={otherNoteMissing || undefined}>
+              <FieldLabel htmlFor="history-restore-note">
+                {t("orderResolution.history.restore.noteLabel")}
+              </FieldLabel>
+              <Textarea
+                id="history-restore-note"
+                value={note}
+                rows={3}
+                maxLength={500}
+                required={reason === "other"}
+                aria-invalid={otherNoteMissing || undefined}
+                placeholder={t(
+                  "orderResolution.history.restore.notePlaceholder"
+                )}
+                onChange={(event) => setNote(event.target.value)}
+              />
+              <FieldDescription>
+                {t("orderResolution.history.restore.noteDescription")}
+              </FieldDescription>
+              {otherNoteMissing && (
+                <FieldError>
+                  {t("orderResolution.history.restore.otherNoteRequired")}
+                </FieldError>
+              )}
+            </Field>
           </div>
-        </article>
-      ))}
-    </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-11">
+              {t("orderResolution.history.restore.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="h-11"
+              disabled={
+                candidate?.restoreAction === null ||
+                candidate?.restoreAction === undefined ||
+                reason === "" ||
+                otherNoteMissing
+              }
+              onClick={() => {
+                if (
+                  candidate?.restoreAction === null ||
+                  candidate?.restoreAction === undefined ||
+                  reason === "" ||
+                  otherNoteMissing
+                )
+                  return
+                onRestoreOrder({
+                  ...candidate.restoreAction,
+                  reason,
+                  note: note.trim().length === 0 ? null : note.trim(),
+                })
+                closeDialog()
+              }}
+            >
+              {t("orderResolution.history.restore.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 
@@ -450,6 +664,24 @@ export function HistoryWorkspace({
           <AlertDescription>{model.error}</AlertDescription>
         </Alert>
       )}
+      {model.restoreError !== null && (
+        <Alert variant="destructive" role="alert">
+          <IconAlertTriangle />
+          <AlertTitle>
+            {t("orderResolution.history.restore.errorTitle")}
+          </AlertTitle>
+          <AlertDescription>{model.restoreError}</AlertDescription>
+        </Alert>
+      )}
+      {model.restoreNotice !== null && (
+        <Alert role="status">
+          <IconArrowBackUp />
+          <AlertTitle>
+            {t("orderResolution.history.restore.successTitle")}
+          </AlertTitle>
+          <AlertDescription>{model.restoreNotice}</AlertDescription>
+        </Alert>
+      )}
 
       <Tabs
         value={model.tab}
@@ -544,7 +776,14 @@ export function HistoryWorkspace({
           {model.tab === "runs" && (
             <RunsView runs={model.runs} onOpenRun={callbacks.onOpenRun} />
           )}
-          {model.tab === "activity" && <ActivityView items={model.activity} />}
+          {model.tab === "activity" && (
+            <ActivityView
+              items={model.activity}
+              canManage={model.canManage}
+              restoringOrderId={model.restoringOrderId}
+              onRestoreOrder={callbacks.onRestoreOrder}
+            />
+          )}
           {model.tab === "plans" && (
             <PlansView plans={model.plans} onOpenRun={callbacks.onOpenRun} />
           )}

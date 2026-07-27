@@ -356,13 +356,104 @@ describe('production Postgres repositories', () => {
       error: { code: 'production_shift_already_started', status: 409 },
     });
 
-    await expect(
-      application.loadProductionWorkspace({ locationId }),
-    ).resolves.toMatchObject({
+    const readOwnedState = async () => {
+      const [runs, schedules, batches, memberships, orders, events] =
+        await Promise.all([
+          testDb.db
+            .select({
+              id: laundryProduction.productionRuns.id,
+              queueVersion: laundryProduction.productionRuns.queueVersion,
+              plannedCompletionAt:
+                laundryProduction.productionRuns.plannedCompletionAt,
+              overtimeProposalHash:
+                laundryProduction.productionRuns.overtimeProposalHash,
+              version: laundryProduction.productionRuns.version,
+            })
+            .from(laundryProduction.productionRuns),
+          testDb.db
+            .select({
+              id: laundryProduction.scheduleRuns.id,
+              status: laundryProduction.scheduleRuns.status,
+              inputSnapshotHash:
+                laundryProduction.scheduleRuns.inputSnapshotHash,
+              outputPlanHash: laundryProduction.scheduleRuns.outputPlanHash,
+              acceptedAt: laundryProduction.scheduleRuns.acceptedAt,
+              supersededAt: laundryProduction.scheduleRuns.supersededAt,
+            })
+            .from(laundryProduction.scheduleRuns),
+          testDb.db
+            .select({
+              id: laundryProduction.productionBatches.id,
+              sequenceIndex: laundryProduction.productionBatches.sequenceIndex,
+              status: laundryProduction.productionBatches.status,
+              membershipFrozenAt:
+                laundryProduction.productionBatches.membershipFrozenAt,
+              derivedWeightLbs:
+                laundryProduction.productionBatches.derivedWeightLbs,
+              version: laundryProduction.productionBatches.version,
+            })
+            .from(laundryProduction.productionBatches),
+          testDb.db
+            .select({
+              productionBatchId:
+                laundryProduction.productionBatchOrders.productionBatchId,
+              productionOrderId:
+                laundryProduction.productionBatchOrders.productionOrderId,
+              active: laundryProduction.productionBatchOrders.active,
+              placementProvenance:
+                laundryProduction.productionBatchOrders.placementProvenance,
+            })
+            .from(laundryProduction.productionBatchOrders),
+          testDb.db
+            .select({
+              id: laundryProduction.productionOrders.id,
+              operationalStatus:
+                laundryProduction.productionOrders.operationalStatus,
+              executionStatus:
+                laundryProduction.productionOrders.executionStatus,
+              pendingPlacement:
+                laundryProduction.productionOrders.pendingPlacement,
+              version: laundryProduction.productionOrders.version,
+            })
+            .from(laundryProduction.productionOrders),
+          testDb.db
+            .select({
+              id: laundryProduction.workEvents.id,
+              eventType: laundryProduction.workEvents.eventType,
+              entityId: laundryProduction.workEvents.entityId,
+              payload: laundryProduction.workEvents.payload,
+            })
+            .from(laundryProduction.workEvents),
+        ]);
+      return {
+        runs: runs.sort((left, right) => left.id.localeCompare(right.id)),
+        schedules: schedules.sort((left, right) =>
+          left.id.localeCompare(right.id),
+        ),
+        batches: batches.sort((left, right) => left.id.localeCompare(right.id)),
+        memberships: memberships.sort(
+          (left, right) =>
+            left.productionBatchId.localeCompare(right.productionBatchId) ||
+            left.productionOrderId.localeCompare(right.productionOrderId),
+        ),
+        orders: orders.sort((left, right) => left.id.localeCompare(right.id)),
+        events: events.sort((left, right) => left.id.localeCompare(right.id)),
+      };
+    };
+    const stateBeforeWorkspaceRead = await readOwnedState();
+    const workspaceAfterStart = await application.loadProductionWorkspace({
+      locationId,
+    });
+    expect(workspaceAfterStart).toMatchObject({
       tag: 'ok',
       value: {
         currentShift: { id: shift.value.id },
         currentScheduleProposal: null,
+        liveRunChanges: {
+          productionRunId: startedSchedule.value.productionRunId,
+          queueVersion: 1,
+          orders: [],
+        },
         board: {
           productionRun: {
             id: startedSchedule.value.productionRunId,
@@ -371,6 +462,7 @@ describe('production Postgres repositories', () => {
         },
       },
     });
+    expect(await readOwnedState()).toEqual(stateBeforeWorkspaceRead);
 
     const board = await application.loadProductionBoard({
       locationId,
@@ -396,7 +488,8 @@ describe('production Postgres repositories', () => {
       );
     if (scheduledOrder === undefined)
       throw new Error('Scheduled production order not found.');
-    expect(scheduledOrder.status).toBe('scheduled');
+    expect(scheduledOrder.operationalStatus).toBe('scheduled');
+    expect(scheduledOrder.executionStatus).toBe('scheduled');
 
     const stages = board.value.batches[0]!.stages;
     const initialAttempts = await testDb.db
@@ -543,7 +636,8 @@ describe('production Postgres repositories', () => {
           actualEndAt: null,
         });
         expect(rolledBackOrder).toMatchObject({
-          status: 'scheduled',
+          operationalStatus: 'scheduled',
+          executionStatus: 'scheduled',
           finishedAt: null,
           version: scheduledOrder.version,
         });
@@ -652,7 +746,8 @@ describe('production Postgres repositories', () => {
       );
 
     expect(finishedOrder).toMatchObject({
-      status: 'finished',
+      operationalStatus: 'finished',
+      executionStatus: 'finished',
       finishedAt: expect.any(Date),
       version: scheduledOrder.version + 1,
     });

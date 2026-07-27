@@ -1,7 +1,6 @@
 import type { ProductionDemandForecast } from '@pressly/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { projectDemandOutlook } from '../../src/load-production-workspace/demand-outlook.policy.ts';
-import { allowPolicy } from '../support/production.fake.ts';
 
 const id = (suffix: number): string =>
   `00000000-0000-4000-8000-${suffix.toString().padStart(12, '0')}`;
@@ -19,7 +18,7 @@ const emptyForecast: ProductionDemandForecast = {
 };
 
 describe('production demand outlook projection', () => {
-  it('uses the shift service day and separates expected, ready, and reconciliation demand', () => {
+  it('uses the shift service day and separates expected, ready, and committed demand', () => {
     const forecastDemand = vi.fn(() => emptyForecast);
     const outlook = projectDemandOutlook({
       shift: {
@@ -55,7 +54,6 @@ describe('production demand outlook projection', () => {
           productionOrderId: id(20),
           externalOrderId: 'expected',
           phase: 'expected',
-          sourceStatusCode: 'SUBMITTED',
           dueAt: new Date('2026-07-18T12:00:00.000Z'),
           estimatedWeightLbs: 50,
           priority: false,
@@ -67,7 +65,6 @@ describe('production demand outlook projection', () => {
           productionOrderId: id(21),
           externalOrderId: 'ready',
           phase: 'inbound',
-          sourceStatusCode: 'PICKED_UP',
           dueAt: new Date('2026-07-18T13:00:00.000Z'),
           estimatedWeightLbs: 75,
           priority: true,
@@ -77,9 +74,8 @@ describe('production demand outlook projection', () => {
         {
           orderDemandId: id(12),
           productionOrderId: id(22),
-          externalOrderId: 'source-ahead',
+          externalOrderId: 'committed',
           phase: 'post_production',
-          sourceStatusCode: 'READY_FOR_RETURN',
           dueAt: new Date('2026-07-18T14:00:00.000Z'),
           estimatedWeightLbs: 40,
           priority: false,
@@ -91,7 +87,6 @@ describe('production demand outlook projection', () => {
           productionOrderId: null,
           externalOrderId: 'cancelled-before-intake',
           phase: 'withdrawn',
-          sourceStatusCode: 'CANCELED',
           dueAt: new Date('2026-07-18T15:00:00.000Z'),
           estimatedWeightLbs: 30,
           priority: false,
@@ -101,9 +96,8 @@ describe('production demand outlook projection', () => {
         {
           orderDemandId: id(15),
           productionOrderId: id(25),
-          externalOrderId: 'finished-source-behind',
+          externalOrderId: 'finished-history',
           phase: 'production_released',
-          sourceStatusCode: 'LEGACY_IN_PROGRESS',
           dueAt: new Date('2026-07-17T18:00:00.000Z'),
           estimatedWeightLbs: 2_410,
           priority: false,
@@ -115,7 +109,6 @@ describe('production demand outlook projection', () => {
           productionOrderId: id(24),
           externalOrderId: 'outside-horizon',
           phase: 'expected',
-          sourceStatusCode: 'SUBMITTED',
           dueAt: new Date('2026-07-19T04:00:00.000Z'),
           estimatedWeightLbs: 60,
           priority: false,
@@ -123,7 +116,6 @@ describe('production demand outlook projection', () => {
           bagCount: null,
         },
       ],
-      policy: allowPolicy,
       scheduler: { forecastDemand },
     });
 
@@ -138,16 +130,11 @@ describe('production demand outlook projection', () => {
       readyEstimatedWeightLbs: 75,
       inProductionOrderCount: 1,
       inProductionEstimatedWeightLbs: 40,
-      reconciliationCount: 2,
       forecast: emptyForecast,
     });
-    expect(outlook.items).toEqual(
+    expect(outlook.items).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          externalOrderId: 'finished-source-behind',
-          readiness: 'finished',
-          reconciliation: 'source_behind',
-        }),
+        expect.objectContaining({ externalOrderId: 'finished-history' }),
       ]),
     );
     expect(forecastDemand).toHaveBeenCalledWith(
@@ -180,7 +167,6 @@ describe('production demand outlook projection', () => {
       machines: [],
       activeRunExists: true,
       rows: [],
-      policy: allowPolicy,
       scheduler: { forecastDemand },
     });
 

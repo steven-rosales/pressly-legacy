@@ -164,7 +164,10 @@ describe("production floor board", () => {
       />
     )
 
-    expect(await screen.findByText("Order C-1003")).toBeInTheDocument()
+    expect(
+      await screen.findByText("1 ready order needs placement review")
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Order C-1003")).toBeNull()
     expect(screen.getByText(/Queue v2/)).toBeInTheDocument()
   })
 
@@ -508,7 +511,7 @@ describe("production floor board", () => {
     ).toBeInTheDocument()
   })
 
-  it("renders pending arrivals and confirms the exact version-bound overtime proposal", async () => {
+  it("keeps live-run additions compact and hands the decision to Schedule", async () => {
     const user = userEvent.setup()
     const pendingBoard = structuredClone(testBoard)
     pendingBoard.eligibleOrders = [
@@ -528,78 +531,28 @@ describe("production floor board", () => {
         },
       },
     ]
-    const confirmation = {
-      status: "confirmation_required" as const,
-      mode: "automatic" as const,
-      productionRunId: pendingBoard.productionRun.id,
-      productionOrderId: pendingBoard.eligibleOrders[0]!.id,
-      target: {
-        kind: "new_batch" as const,
-        sequence: 1,
-      },
-      affectedBatchIds: [],
-      queueVersion: pendingBoard.productionRun.queueVersion,
-      proposalHash: "d".repeat(64),
-      projectedCompletionAt: "2026-08-01T20:30:00.000Z",
-      overtimeMinutes: 30,
-      replayed: false as const,
-    }
-    const confirmationBoard = structuredClone(pendingBoard)
-    confirmationBoard.eligibleOrders[0]!.placement = {
-      status: confirmation.status,
-      mode: confirmation.mode,
-      productionRunId: confirmation.productionRunId,
-      target: confirmation.target,
-      affectedBatchIds: confirmation.affectedBatchIds,
-      queueVersion: confirmation.queueVersion,
-      proposalHash: confirmation.proposalHash,
-      projectedCompletionAt: confirmation.projectedCompletionAt,
-      overtimeMinutes: confirmation.overtimeMinutes,
-    }
-    let attempted = false
-    const retryAutomaticPlacement = vi.fn(async () => {
-      attempted = true
-      return confirmation
-    })
-    const confirmPlacementOvertime = vi.fn(async () => ({
-      status: "placed" as const,
-      mode: "automatic" as const,
-      productionRunId: pendingBoard.productionRun.id,
-      productionOrderId: pendingBoard.eligibleOrders[0]!.id,
-      productionBatchId: "00000000-0000-4000-8000-000000000033",
-      createdBatch: true,
-      affectedBatchIds: ["00000000-0000-4000-8000-000000000033"],
-      queueVersion: 2,
-      proposalHash: confirmation.proposalHash,
-      plannedCompletionAt: confirmation.projectedCompletionAt,
-      overtimeMinutes: 30,
-      replayed: false,
-    }))
+    const onOpenSchedule = vi.fn()
     render(
       <ProductionBoardWorkspace
         {...boardProps}
         canManage
         initialBoard={pendingBoard}
-        production={makeTestProductionPort({
-          loadBoard: async () => (attempted ? confirmationBoard : pendingBoard),
-          retryAutomaticPlacement,
-          confirmPlacementOvertime,
-        })}
+        production={makeTestProductionPort()}
+        onOpenSchedule={onOpenSchedule}
       />
     )
 
-    expect(screen.getByText("Order C-1003")).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "Add to run" }))
-    expect(await screen.findByText(/adds 30 minutes/)).toBeInTheDocument()
-    await user.click(
-      screen.getByRole("button", { name: "Confirm overtime and place" })
-    )
-    expect(confirmPlacementOvertime).toHaveBeenCalledWith(
-      expect.objectContaining({
-        expectedQueueVersion: confirmation.queueVersion,
-        proposalHash: confirmation.proposalHash,
-      })
-    )
+    expect(
+      screen.getByText("1 ready order needs placement review")
+    ).toBeVisible()
+    expect(
+      screen.getByText(
+        "Review additions in Schedule. Floor execution stays unchanged here."
+      )
+    ).toBeVisible()
+    expect(screen.queryByText("Order C-1003")).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Review in Schedule" }))
+    expect(onOpenSchedule).toHaveBeenCalledWith(pendingBoard.productionShift.id)
   })
 
   it("reviews and confirms one atomic floor-progress reconciliation", async () => {

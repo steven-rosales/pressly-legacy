@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  evaluateDemandLifecycle,
-  evaluateDemandReconciliation,
-} from '../../src/demand-lifecycle/demand-lifecycle.policy.ts';
+import { evaluateDemandLifecycle } from '../../src/demand-lifecycle/demand-lifecycle.policy.ts';
 
 describe('demand lifecycle policy', () => {
   it.each([
@@ -91,11 +88,10 @@ describe('demand lifecycle policy', () => {
       }),
     ).toMatchObject({
       production: { action: 'update', status: 'ineligible' },
-      reconciliation: 'none',
     });
   });
 
-  it('withdraws uncommitted received work and raises reconciliation', () => {
+  it('withdraws uncommitted received work without creating operator review', () => {
     expect(
       evaluateDemandLifecycle({
         phase: 'withdrawn',
@@ -106,7 +102,6 @@ describe('demand lifecycle policy', () => {
       }),
     ).toMatchObject({
       production: { action: 'update', status: 'ineligible' },
-      reconciliation: 'source_withdrawn',
     });
   });
 
@@ -121,22 +116,6 @@ describe('demand lifecycle policy', () => {
       }),
     ).toMatchObject({
       production: { action: 'preserve' },
-      reconciliation: 'source_ahead',
     });
-  });
-
-  it.each([
-    ['post_production', 'scheduled', 'source_ahead'],
-    ['withdrawn', 'eligible', 'source_withdrawn'],
-    ['expected', 'finished', 'source_behind'],
-    ['post_production', 'finished', 'none'],
-  ] as const)('derives %s / %s reconciliation', (phase, status, expected) => {
-    expect(
-      evaluateDemandReconciliation({
-        phase,
-        productionStatus: status,
-        currentBagCount: 2,
-      }),
-    ).toBe(expected);
   });
 });

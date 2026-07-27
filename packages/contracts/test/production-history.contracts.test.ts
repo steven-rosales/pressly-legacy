@@ -49,6 +49,11 @@ describe('production history contracts', () => {
         eventType: 'private_internal_event',
       }),
     ).toThrow();
+    expect(
+      listProductionHistoryActivityQuerySchema.parse({
+        orderResolution: 'archived',
+      }),
+    ).toMatchObject({ orderResolution: 'archived', limit: 50 });
   });
 
   it('models server-side history search, date, and lifecycle filters', () => {
@@ -84,6 +89,7 @@ describe('production history contracts', () => {
       actor: { id: ids.actor, kind: 'user', displayName: 'Alex' },
       expectedVersion: 2,
       productionRunId: ids.run,
+      resolutionAction: null,
       summary: 'Production stage completed',
       details: {
         kind: 'stage',
@@ -208,6 +214,7 @@ describe('production history contracts', () => {
       actor: { id: ids.actor, kind: 'user', displayName: 'Alex' },
       expectedVersion: null,
       productionRunId: ids.run,
+      resolutionAction: null,
       summary: 'Production run started',
       details: {
         kind: 'run',

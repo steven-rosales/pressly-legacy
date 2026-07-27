@@ -4,12 +4,16 @@ import type {
   AutomaticProductionOrderPlacementResult,
   CompleteStageCommand,
   ChangeProductionAdmissionResult,
+  ChangeProductionOrderResolutionCommand,
+  ChangeProductionOrderResolutionResult,
+  CommitProductionOrderBacklogCommand,
+  ProductionOrderBacklogCommitResult,
   ConfirmProductionOrderOvertimeResult,
   ExactProductionOrderPlacementResult,
   CommitProductionOrderRouteRequest,
   CommitProductionOrderRouteResult,
   ListProductionHistoryActivityQuery,
-  ListProductionHistoryActivityResult,
+  ProcessorListProductionHistoryActivityResult,
   ListProductionHistoryPlansQuery,
   ListProductionHistoryPlansResult,
   ListProductionHistoryRunsQuery,
@@ -18,14 +22,17 @@ import type {
   ListProcessorOrderControlResult,
   ListProductionLocationsResult,
   ListProductionOrdersResult,
+  ProcessorProductionHistoryRunDetail,
+  ProcessorProductionOrderBacklogPreview,
+  ProcessorProductionWorkspace,
+  ProcessorRemainingDayForecast,
+  PreviewProductionOrderBacklogCommand,
   ProductionBoard,
   ProductionBatchMembershipMutationResult,
   ProductionBatchProgressReconciliationResult,
   ProductionMutationResult,
-  ProductionHistoryRunDetail,
   PreviewProductionOrderRouteRequest,
   ProductionOrderRouteProposal,
-  ProductionWorkspace,
   RecordOrderIntakeResult,
   ReplaceProductionShiftSelectionResult,
   ReconcileProductionBatchProgressCommand,
@@ -43,7 +50,12 @@ export type ProductionPort = Readonly<{
     locationId: string,
     shiftId?: string,
     signal?: AbortSignal
-  ) => Promise<ProductionWorkspace>
+  ) => Promise<ProcessorProductionWorkspace>
+  loadRemainingDayForecast: (input: {
+    locationId: string
+    serviceDay: string
+    signal?: AbortSignal
+  }) => Promise<ProcessorRemainingDayForecast>
   listOrders: (input: {
     locationId: string
     cursor?: string
@@ -55,6 +67,22 @@ export type ProductionPort = Readonly<{
     query: ListProductionOrderControlQuery
     signal?: AbortSignal
   }) => Promise<ListProcessorOrderControlResult>
+  previewOrderBacklog: (input: {
+    locationId: string
+    request: Omit<PreviewProductionOrderBacklogCommand, "locationId">
+  }) => Promise<ProcessorProductionOrderBacklogPreview>
+  commitOrderBacklog: (input: {
+    locationId: string
+    request: Omit<CommitProductionOrderBacklogCommand, "locationId">
+  }) => Promise<ProductionOrderBacklogCommitResult>
+  changeOrderResolution: (input: {
+    locationId: string
+    productionOrderId: string
+    request: Omit<
+      ChangeProductionOrderResolutionCommand,
+      "locationId" | "orderId"
+    >
+  }) => Promise<ChangeProductionOrderResolutionResult>
   previewOrderRoute: (input: {
     locationId: string
     productionRunId: string
@@ -76,7 +104,7 @@ export type ProductionPort = Readonly<{
     locationId: string
     query: ListProductionHistoryActivityQuery
     signal?: AbortSignal
-  }) => Promise<ListProductionHistoryActivityResult>
+  }) => Promise<ProcessorListProductionHistoryActivityResult>
   listHistoryPlans: (input: {
     locationId: string
     query: ListProductionHistoryPlansQuery
@@ -86,7 +114,7 @@ export type ProductionPort = Readonly<{
     locationId: string,
     productionRunId: string,
     signal?: AbortSignal
-  ) => Promise<ProductionHistoryRunDetail>
+  ) => Promise<ProcessorProductionHistoryRunDetail>
   recordIntake: (input: {
     locationId: string
     productionOrderId: string

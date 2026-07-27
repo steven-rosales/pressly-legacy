@@ -31,7 +31,6 @@ export const productionOrderAttentionReasonSchema = z.enum([
   'placement_pending',
   'placement_conflict',
   'route_blocked',
-  'source_comparison_required',
 ]);
 
 export const productionOrderRouteReasonSchema = z.enum([

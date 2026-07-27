@@ -95,14 +95,13 @@ export const makeManageProductionShiftRepository = (deps: {
         .returning();
       return row === undefined ? null : mapShift(row);
     },
-    supersedeCurrentSchedule: async ({
-      locationId,
-      productionShiftId,
-      now,
-    }) => {
-      const rows = await db
-        .update(laundryProduction.scheduleRuns)
-        .set({ status: 'superseded', supersededAt: now })
+    lockCurrentSchedule: async (locationId, productionShiftId) => {
+      const [row] = await db
+        .select({
+          scheduleRunId: laundryProduction.scheduleRuns.id,
+          status: laundryProduction.scheduleRuns.status,
+        })
+        .from(laundryProduction.scheduleRuns)
         .where(
           and(
             eq(laundryProduction.scheduleRuns.locationId, locationId),
@@ -116,9 +115,29 @@ export const makeManageProductionShiftRepository = (deps: {
             ]),
           ),
         )
+        .limit(1)
+        .for('update');
+      return row ?? null;
+    },
+    supersedeCurrentSchedule: async ({
+      locationId,
+      scheduleRunId,
+      lifecycle,
+      now,
+    }) => {
+      const rows = await db
+        .update(laundryProduction.scheduleRuns)
+        .set({ status: lifecycle.state, supersededAt: now })
+        .where(
+          and(
+            eq(laundryProduction.scheduleRuns.locationId, locationId),
+            eq(laundryProduction.scheduleRuns.id, scheduleRunId),
+            eq(laundryProduction.scheduleRuns.status, lifecycle.from),
+          ),
+        )
         .returning({ id: laundryProduction.scheduleRuns.id });
-      if (rows.length > 1)
-        throw new Error('More than one current schedule revision was found.');
+      if (rows.length !== 1)
+        throw new Error('Current schedule revision changed unexpectedly.');
       return rows[0]?.id ?? null;
     },
     appendWorkEvent: (event) => appendWorkEvent(db, deps.ids, event),

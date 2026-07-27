@@ -1,7 +1,3 @@
-/**
- * `app.ts` is to create composition of the routes, handlers, and runtimes.
- */
-
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -34,6 +30,9 @@ import { makeProductionChangeRoutes } from '../http/production/live/production-c
 import { makeOrderManagementRoutes } from '../http/order-management/order-management.route.ts';
 import { makeProcessorOrderControlRoutes } from '../http/processor/order-control/order-control.route.ts';
 import { makeProcessorOrderControlReadModel } from '../http/processor/order-control/order-control.query.ts';
+import { makeProcessorOperationalOrderIdentityResolver } from '../http/processor/operational-order-identity/operational-order-identity.query.ts';
+import { makeProcessorOperationalOrderReadModel } from '../http/processor/operational-order-identity/operational-order-identity.read-model.ts';
+import { makeProcessorOperationalOrderRoutes } from '../http/processor/operational-order-identity/operational-order-identity.route.ts';
 import { makeApiCapabilities } from './api-capabilities.composition.ts';
 
 export type ApiCompositionOverrides = Readonly<{
@@ -65,6 +64,11 @@ export const makeApiApp = (
     clock,
     ids,
   });
+  const operationalOrderIdentities =
+    makeProcessorOperationalOrderIdentityResolver(runtime.database.db);
+  const operationalOrderReadModel = makeProcessorOperationalOrderReadModel(
+    operationalOrderIdentities,
+  );
   const centsWebhookPayloadCipher =
     runtime.env.centsWebhook.quarantine.encryptionKey === undefined
       ? undefined
@@ -239,9 +243,22 @@ export const makeApiApp = (
   app.use(
     makeProcessorOrderControlRoutes({
       production: productionModule.application,
-      readModel: makeProcessorOrderControlReadModel(runtime.database.db),
+      readModel: makeProcessorOrderControlReadModel({
+        db: runtime.database.db,
+        identities: operationalOrderIdentities,
+      }),
       authenticate: processorBoundary.authenticate,
       authorize: accessControlModule.production.read,
+    }),
+  );
+
+  app.use(
+    makeProcessorOperationalOrderRoutes({
+      production: productionModule.application,
+      readModel: operationalOrderReadModel,
+      authenticate: processorBoundary.authenticate,
+      authorizeRead: accessControlModule.production.read,
+      authorizeOverride: accessControlModule.production.override,
     }),
   );
 

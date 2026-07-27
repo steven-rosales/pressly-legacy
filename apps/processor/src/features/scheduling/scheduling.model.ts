@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type {
-  ProductionOrderSummary,
+  ProcessorProductionOrderSummary,
   ProductionShift,
   ProductionShiftSelection,
   ScheduleProposal,
@@ -29,7 +29,7 @@ export type SchedulingModelInput = Readonly<{
   production: ProductionPort
   idempotency: IdempotencyPort
   locationId: string
-  orders: readonly ProductionOrderSummary[]
+  orders: readonly ProcessorProductionOrderSummary[]
   defaults: SchedulingDefaults
   currentConfig?: SchedulerConfig | null
   currentShift?: ProductionShift | null
@@ -44,8 +44,9 @@ export type SchedulingModelInput = Readonly<{
   ) => Promise<void>
 }>
 
-const initialPriorityIds = (orders: readonly ProductionOrderSummary[]) =>
-  new Set(orders.filter((order) => order.priority).map(({ id }) => id))
+const initialPriorityIds = (
+  orders: readonly ProcessorProductionOrderSummary[]
+) => new Set(orders.filter((order) => order.priority).map(({ id }) => id))
 
 const schedulingInputKey = ({
   folders,
@@ -58,7 +59,7 @@ const schedulingInputKey = ({
   folders: number
   shiftStartsAt: string
   shiftEndsAt: string
-  orders: readonly ProductionOrderSummary[]
+  orders: readonly ProcessorProductionOrderSummary[]
   priorityIds: ReadonlySet<string>
   selectedOrderIds: ReadonlySet<string>
 }>): string =>
@@ -78,7 +79,7 @@ const schedulingInputKey = ({
 
 const proposalMatchesVisibleDemand = (
   proposal: ScheduleProposal,
-  orders: readonly ProductionOrderSummary[],
+  orders: readonly ProcessorProductionOrderSummary[],
   selectedOrderIds: ReadonlySet<string>
 ): boolean => {
   const placedOrderIds = proposal.batches.flatMap((batch) => batch.orderIds)

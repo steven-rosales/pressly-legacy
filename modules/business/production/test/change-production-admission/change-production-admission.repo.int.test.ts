@@ -47,7 +47,8 @@ describe('production admission Postgres workflow', () => {
       orderDemandId: ids.demand,
       locationId: 'location-1',
       dueAt: new Date('2026-07-23T20:00:00.000Z'),
-      status: 'release_pending',
+      operationalStatus: 'release_pending',
+      executionStatus: 'unassigned',
       derivedWeightLbs: 24,
       bagCount: 2,
       bagCountSource: 'operator_intake',
@@ -84,7 +85,7 @@ describe('production admission Postgres workflow', () => {
     const [released] = await testDb.db
       .select({
         admissionOverride: laundryProduction.productionOrders.admissionOverride,
-        status: laundryProduction.productionOrders.status,
+        status: laundryProduction.productionOrders.operationalStatus,
         version: laundryProduction.productionOrders.version,
       })
       .from(laundryProduction.productionOrders)
