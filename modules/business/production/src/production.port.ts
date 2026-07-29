@@ -184,11 +184,27 @@ export type OrderRoutingPolicyInput = Readonly<{
   }>[];
 }>;
 
+export type OrderRoutingRejectionCode =
+  | 'ORDER_WEIGHT_INVALID'
+  | 'SOURCE_BATCH_INVALID'
+  | 'QUEUED_REBATCH_SOURCE_NOT_QUEUED'
+  | 'QUEUED_REBATCH_SOURCE_FROZEN'
+  | 'EXCEPTION_SOURCE_NOT_IN_FLIGHT'
+  | 'SOURCE_CURRENT_STAGE_MISMATCH'
+  | 'RESTART_STAGE_SKIPS_REQUIRED_WORK'
+  | 'TARGET_STAGE_GRAPH_INVALID'
+  | 'NO_LATER_TARGET'
+  | 'NO_FEASIBLE_TARGET'
+  | 'HARD_CAPACITY_EXCEEDED';
+
 export type OrderRoutingPolicyDecision =
   | Readonly<{
       decision: 'rejected';
       command: OrderRoutingPolicyInput['command'];
-      reason: Readonly<{ code: string; message: string }>;
+      reason: Readonly<{
+        code: OrderRoutingRejectionCode;
+        message: string;
+      }>;
     }>
   | Readonly<{
       decision: 'accepted';
@@ -216,6 +232,19 @@ export type OrderRoutingPolicyDecision =
           capacityLbs: number;
         }>[];
       }>;
+    }>;
+
+export type QueuedMoveTargetPolicyDecision =
+  | Readonly<{ decision: 'allowed' }>
+  | Readonly<{
+      decision: 'blocked';
+      code:
+        | 'TARGET_IS_SOURCE_BATCH'
+        | 'TARGET_NOT_QUEUED'
+        | 'TARGET_MEMBERSHIP_FROZEN'
+        | 'TARGET_STAGE_GRAPH_INVALID'
+        | 'TARGET_STAGE_NOT_PLANNED'
+        | 'HARD_CAPACITY_EXCEEDED';
     }>;
 
 export type ProductionSignalsPort = Readonly<{
@@ -396,10 +425,9 @@ export type ProductionPolicyPort = Readonly<{
       | 'finished'
       | null;
     currentBagCount: number | null;
-    incomingBagCount: number | null;
     estimatedWeightLbs: number | null;
   }) => Readonly<{
-    effectiveBagCount: number | null;
+    canonicalBagCount: number | null;
     production:
       | Readonly<{ action: 'none' }>
       | Readonly<{ action: 'preserve' }>
@@ -415,6 +443,11 @@ export type ProductionPolicyPort = Readonly<{
   evaluateOrderRouting: (
     input: OrderRoutingPolicyInput,
   ) => OrderRoutingPolicyDecision;
+  evaluateQueuedMoveTarget: (input: {
+    sourceProductionBatchId: string;
+    orderWeightLbs: number;
+    target: OrderRoutingPolicyInput['targetCandidates'][number];
+  }) => QueuedMoveTargetPolicyDecision;
   evaluateIntakeAdmission: (input: {
     phase: OrderDemandPhase;
     derivedWeightLbs: number;

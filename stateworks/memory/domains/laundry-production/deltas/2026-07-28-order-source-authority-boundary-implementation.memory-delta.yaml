@@ -1,0 +1,66 @@
+id: memdelta-2026-07-28-order-source-authority-boundary-implementation
+domain_id: laundry-production
+
+source:
+  type: implementation_evidence
+  path: stateworks/work/done/pressly-order-authority-source-autonomy/final-report.md
+
+changes:
+  - op: update
+    kind: invariant
+    id: source_lifecycle_does_not_advance_floor_truth_v1
+    statement: Production consumes only committed source-neutral canonical
+      fulfillment demand and release decisions from Orders. External lifecycle,
+      source capability, posture, decision, estimate, or bag data cannot start,
+      advance, finish, cancel, rewind, delete, resolve, restore, reopen, admit,
+      or otherwise change an LPMS order, batch, stage, run, shift, physical
+      intake, or Production resolution lifecycle.
+
+  - op: update
+    kind: invariant
+    id: canonical_fulfillment_release_reaches_production_v2
+    statement: Production consumes canonical fulfillment demand and release
+      decisions from the Orders transactional outbox idempotently, ignores the
+      legacy projection bag-count field as physical input, preserves existing
+      operator intake, and cannot infer, synthesize, reverse, or terminalize
+      canonical decisions from any external observation.
+
+  - op: update
+    kind: decision
+    id: processor_uses_backend_action_availability
+    statement: Processor renders one server-composed operational Order view and
+      Production-owned action availability from authoritative lifecycle graphs
+      and policies, including stage, admission, archive, restore, queued move,
+      route exception, and bounded bulk review; source evidence, provenance,
+      posture, versions, and denial reasons are secondary context, and the
+      browser cannot recreate lifecycle, capability, cleanup, placement,
+      routing, or forecast decisions.
+
+  - op: update
+    kind: decision
+    id: isolated_lpms_module_composition
+    statement: Users, Orders, Production business, Production policy, and
+      fixed-pulse scheduling remain isolated peer modules behind narrow ports;
+      Worker and API are application composition boundaries, Orders does not
+      import Production, Production does not import Orders, Cents, or
+      source-authority policy, and adapters cannot define peer-domain
+      transitions.
+
+verification:
+  - Production policy and business tests prove that external lifecycle and bag
+    data cannot create physical intake or change Production lifecycle.
+  - Production Postgres integration passed 15 files and 34 tests, including
+    concurrency, command capability, routing, and canonical demand projection.
+  - API and contract integration prove bounded composition of canonical,
+    source, customer, audit, version, and Production capability evidence.
+  - Processor passed 37 files and 231 tests and Chrome verified desktop and
+    mobile blocked-source, archive, restore, and stale-version states.
+  - Repository typecheck, lint, tests, build, migration, integration,
+    end-to-end, architecture, formatting, and whitespace gates passed.
+  - Evidence proves repository and local runtime behavior only; the separate
+    production-readiness work retains live source, deployment, alerting, and
+    operational gates.
+  - No secret, credential, raw customer payload, private token, or customer PII
+    is included.
+
+status: applied

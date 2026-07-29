@@ -1,6 +1,7 @@
 import { eq, users as schema } from '@pressly/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makePostgresUsersApplication } from '../src/main.ts';
+import { makePostgresCanonicalSourceUserAcceptanceAdapter } from '../src/canonical-source-user/canonical-source-user.repo.ts';
 import { createUsersTestDatabase } from './support/database.ts';
 
 const testDb = createUsersTestDatabase();
@@ -8,10 +9,6 @@ const clock = { now: () => new Date('2026-07-21T16:00:00.000Z') };
 const directContext = {
   origin: 'pressly_dashboard',
   principal: { kind: 'human', id: 'identity-1' },
-} as const;
-const sourceContext = {
-  origin: 'cents',
-  principal: { kind: 'system', id: 'cents-webhook' },
 } as const;
 const emptyProfile = {
   firstName: null,
@@ -26,10 +23,68 @@ beforeEach(testDb.reset);
 afterAll(testDb.close);
 
 describe('Postgres Users application', () => {
-  it('serializes concurrent exact-source observations to one canonical User', async () => {
-    const application = makePostgresUsersApplication({ db: testDb.db, clock });
-    const command = {
-      context: sourceContext,
+  it('creates canonical source-linked User evidence once inside the caller transaction', async () => {
+    const adapter = makePostgresCanonicalSourceUserAcceptanceAdapter();
+    const input = {
+      source: 'external-orders',
+      externalUserId: 'customer-proposal-1',
+      profile: {
+        ...emptyProfile,
+        firstName: 'Ada',
+        phone: '+12015550101',
+      },
+      revision: {
+        at: new Date('2026-07-21T15:59:00.000Z'),
+        hash: 'a'.repeat(64),
+        adapterVersion: 'external-orders-v1',
+        observedAt: clock.now(),
+        normalizedPayload: { customer: { id: 'customer-proposal-1' } },
+      },
+      idempotencyKey: 'incoming-order-proposal:proposal-1:customer',
+      context: directContext,
+      now: clock.now(),
+    } as const;
+
+    const first = await testDb.db.transaction((tx) =>
+      adapter.resolveOrCreate(tx, input),
+    );
+    const replay = await testDb.db.transaction((tx) =>
+      adapter.resolveOrCreate(tx, input),
+    );
+
+    expect(first).toMatchObject({ created: true });
+    expect(replay).toEqual({ userId: first.userId, created: false });
+    await expect(testDb.db.select().from(schema.users)).resolves.toHaveLength(
+      1,
+    );
+    await expect(
+      testDb.db.select().from(schema.userSourceLinks),
+    ).resolves.toHaveLength(1);
+    await expect(
+      testDb.db.select().from(schema.userSourceSnapshots),
+    ).resolves.toHaveLength(1);
+    await expect(
+      testDb.db.select().from(schema.userCommandReceipts),
+    ).resolves.toHaveLength(1);
+    await expect(
+      testDb.db
+        .select({
+          authority: schema.userFieldAuthorities.authority,
+          source: schema.userFieldAuthorities.source,
+        })
+        .from(schema.userFieldAuthorities),
+    ).resolves.toEqual(
+      Array.from({ length: 5 }, () => ({
+        authority: 'pressly',
+        source: null,
+      })),
+    );
+  });
+
+  it('serializes concurrent exact-source acceptance to one canonical User', async () => {
+    const adapter = makePostgresCanonicalSourceUserAcceptanceAdapter();
+    const input = {
+      context: directContext,
       source: 'cents',
       externalUserId: 'customer-1',
       profile: { ...emptyProfile, firstName: 'Ada', phone: '+12015550101' },
@@ -40,25 +95,90 @@ describe('Postgres Users application', () => {
         adapterVersion: 'cents-webhook-v2',
         normalizedPayload: { customer: { id: 'customer-1' } },
       },
+      idempotencyKey: 'incoming-order-proposal:proposal-concurrent:customer',
+      now: clock.now(),
     } as const;
 
     const outcomes = await Promise.all([
-      application.observeSource(command),
-      application.observeSource(command),
+      testDb.db.transaction((tx) => adapter.resolveOrCreate(tx, input)),
+      testDb.db.transaction((tx) => adapter.resolveOrCreate(tx, input)),
     ]);
 
-    expect(outcomes.every((outcome) => outcome.tag === 'ok')).toBe(true);
+    expect(outcomes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ created: true }),
+        expect.objectContaining({ created: false }),
+      ]),
+    );
+    expect(outcomes[0]?.userId).toBe(outcomes[1]?.userId);
     await expect(testDb.db.select().from(schema.users)).resolves.toHaveLength(
       1,
     );
     await expect(
       testDb.db.select().from(schema.userSourceLinks),
     ).resolves.toHaveLength(1);
-    expect(
-      outcomes.map((outcome) =>
-        outcome.tag === 'ok' ? outcome.value.outcome : 'error',
-      ),
-    ).toEqual(expect.arrayContaining(['created', 'replayed']));
+    await expect(
+      testDb.db.select().from(schema.userSourceSnapshots),
+    ).resolves.toHaveLength(1);
+    await expect(
+      testDb.db.select().from(schema.userCommandReceipts),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('signals a possible contact duplicate instead of merging a new source identity', async () => {
+    const application = makePostgresUsersApplication({ db: testDb.db, clock });
+    const existing = await application.createUser({
+      context: directContext,
+      idempotencyKey: 'create-user-before-source-acceptance',
+      profile: {
+        ...emptyProfile,
+        firstName: 'Existing',
+        phone: '+12015550101',
+      },
+    });
+    expect(existing.tag).toBe('ok');
+    if (existing.tag === 'err') return;
+
+    const adapter = makePostgresCanonicalSourceUserAcceptanceAdapter();
+    const accepted = await testDb.db.transaction((tx) =>
+      adapter.resolveOrCreate(tx, {
+        context: directContext,
+        source: 'cents',
+        externalUserId: 'customer-with-matching-phone',
+        profile: {
+          ...emptyProfile,
+          firstName: 'Incoming',
+          phone: '+12015550101',
+        },
+        revision: {
+          at: clock.now(),
+          observedAt: clock.now(),
+          hash: 'b'.repeat(64),
+          adapterVersion: 'cents-webhook-v2',
+          normalizedPayload: {
+            customer: { id: 'customer-with-matching-phone' },
+          },
+        },
+        idempotencyKey: 'incoming-order-proposal:proposal-duplicate:customer',
+        now: clock.now(),
+      }),
+    );
+
+    expect(accepted).toMatchObject({ created: true });
+    expect(accepted.userId).not.toBe(existing.value.userId);
+    await expect(testDb.db.select().from(schema.users)).resolves.toHaveLength(
+      2,
+    );
+    await expect(
+      testDb.db.select().from(schema.userDuplicateCandidates),
+    ).resolves.toMatchObject([
+      {
+        userId: accepted.userId,
+        candidateUserId: existing.value.userId,
+        reason: 'same_phone',
+        status: 'open',
+      },
+    ]);
   });
 
   it('signals duplicate contact data without silently merging Users', async () => {

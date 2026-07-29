@@ -2,6 +2,7 @@ import {
   commitProductionOrderRouteRequestSchema,
   listProductionOrderControlQuerySchema,
   previewProductionOrderRouteRequestSchema,
+  productionOrderCommandCapabilitiesSchema,
   productionOrderRouteProposalSchema,
 } from '../src/index.ts';
 import { describe, expect, it } from 'vitest';
@@ -87,5 +88,89 @@ describe('production order-control contracts', () => {
         idempotencyKey: 'manual-order-route-1',
       }),
     ).toMatchObject({ proposalHash: proposal.proposalHash });
+  });
+
+  it('requires structured server-owned route capabilities and exact target denials', () => {
+    const target = {
+      productionBatchId: id(4),
+      batchSequence: 2,
+      batchStatus: 'queued',
+      membershipFrozen: false,
+      expectedBatchVersion: 8,
+      currentWeightLbs: 60,
+      projectedWeightLbs: 90,
+      capacityLbs: 100,
+      feasibility: { status: 'allowed' },
+    } as const;
+
+    expect(
+      productionOrderCommandCapabilitiesSchema.parse({
+        queuedMove: {
+          status: 'allowed',
+          expectedQueueVersion: 5,
+          expectedOrderVersion: 6,
+          expectedSourceBatchVersion: 7,
+          targets: [
+            target,
+            {
+              ...target,
+              productionBatchId: id(5),
+              membershipFrozen: true,
+              feasibility: {
+                status: 'blocked',
+                code: 'TARGET_MEMBERSHIP_FROZEN',
+              },
+            },
+          ],
+        },
+        routeException: {
+          status: 'blocked',
+          code: 'EXCEPTION_SOURCE_NOT_IN_FLIGHT',
+        },
+      }),
+    ).toMatchObject({
+      queuedMove: {
+        status: 'allowed',
+        targets: [
+          { feasibility: { status: 'allowed' } },
+          {
+            feasibility: {
+              status: 'blocked',
+              code: 'TARGET_MEMBERSHIP_FROZEN',
+            },
+          },
+        ],
+      },
+    });
+
+    expect(
+      productionOrderCommandCapabilitiesSchema.safeParse({
+        canMoveQueued: true,
+        canRouteException: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      productionOrderCommandCapabilitiesSchema.safeParse({
+        queuedMove: {
+          status: 'allowed',
+          expectedQueueVersion: 5,
+          expectedOrderVersion: 6,
+          expectedSourceBatchVersion: 7,
+          targets: [
+            {
+              ...target,
+              feasibility: {
+                status: 'blocked',
+                code: 'HARD_CAPACITY_EXCEEDED',
+              },
+            },
+          ],
+        },
+        routeException: {
+          status: 'blocked',
+          code: 'EXCEPTION_SOURCE_NOT_IN_FLIGHT',
+        },
+      }).success,
+    ).toBe(false);
   });
 });

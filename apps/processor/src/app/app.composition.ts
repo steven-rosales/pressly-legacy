@@ -2,6 +2,7 @@ import { makeFetchRequestAdapter } from "@/adapters/api/fetch-request.adapter"
 import { makeApiAuthenticationAdapter } from "@/adapters/authentication/api-authentication.adapter"
 import { makeBrowserLocationPreferenceAdapter } from "@/adapters/location/browser-location-preference.adapter"
 import { makeWebCryptoIdempotencyAdapter } from "@/adapters/idempotency/web-crypto-idempotency.adapter"
+import { makeApiOrderManagementAdapter } from "@/adapters/order-management/api-order-management.adapter"
 import { makeApiProductionAdapter } from "@/adapters/production/api-production.adapter"
 import {
   makeBrowserProductionChangeAdapter,
@@ -10,6 +11,7 @@ import {
 import type { AuthenticationPort } from "@/ports/authentication.port"
 import type { LocationPreferencePort } from "@/ports/location-preference.port"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
+import type { OrderManagementPort } from "@/ports/order-management.port"
 import type { ProductionPort } from "@/ports/production.port"
 import type { ProductionChangePort } from "@/ports/production-change.port"
 import { initializeProcessorLocalization } from "@/i18n"
@@ -17,6 +19,7 @@ import { observeProcessorRequestFailure } from "./processor-observability"
 
 export type ProcessorRuntime = Readonly<{
   authentication: AuthenticationPort
+  orderManagement: OrderManagementPort
   production: ProductionPort
   productionChanges: ProductionChangePort
   locationPreference: LocationPreferencePort
@@ -57,6 +60,7 @@ export const makeProcessorRuntime = (input: {
       },
       clearCsrfToken,
     }),
+    orderManagement: makeApiOrderManagementAdapter(request),
     production: makeApiProductionAdapter(request),
     productionChanges: makeBrowserProductionChangeAdapter({
       apiBaseUrl: input.apiBaseUrl,

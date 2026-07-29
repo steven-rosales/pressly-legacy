@@ -1,0 +1,87 @@
+id: memdelta-2026-07-27-external-source-autonomy-boundary
+domain_id: laundry-production
+
+source:
+  type: decision_session
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-27-external-source-autonomy-boundary.md
+
+changes:
+  - op: update
+    kind: external_system
+    id: cents
+    description: Cents is the v1 CRM/vendor observation provider for
+      webhook-driven order demand. It is neither Pressly's canonical order or
+      fulfillment authority nor Production's admission or floor authority.
+
+  - op: update
+    kind: workflow
+    id: external_demand_to_production_admission
+    steps:
+      - an external order observation is authenticated, normalized, and
+        retained upstream under the Orders source-capability policy
+      - external lifecycle values remain observation or proposal evidence and
+        never release or withdraw canonical fulfillment
+      - an authorized Pressly command or named versioned Pressly automation
+        transitions the canonical Orders fulfillment-release graph
+      - an Orders outbox event applies fulfillment-keyed canonical demand and
+        release changes to Production idempotently without vendor lifecycle
+        authority
+      - physical bag intake may be recorded before release, but intake alone
+        does not admit the Production order
+      - effective Production admission becomes released only through canonical
+        upstream fulfillment release or a current authorized manual Production
+        override
+      - readiness still requires positive Production demand and recorded
+        physical intake under server-owned policy
+      - manual admission never selects, schedules, places, or starts an order
+      - Processor floor views derive attention and actions from canonical
+        Pressly state while external differences remain integration and audit
+        context
+
+  - op: update
+    kind: invariant
+    id: source_lifecycle_does_not_advance_floor_truth_v1
+    statement: At every canonical phase, an external lifecycle observation may
+      update retained source metadata and approved source-following demand
+      fields, but it cannot admit, release, withdraw, start, advance, finish,
+      cancel, rewind, delete, resolve, restore, reopen, or otherwise change an
+      LPMS order, batch, stage, run, shift, or Production resolution lifecycle.
+
+  - op: deprecate
+    kind: invariant
+    id: pre_handoff_source_withdrawal_supersedes_prospective_admission_v1
+
+  - op: assert
+    kind: invariant
+    id: external_source_lifecycle_never_controls_production_admission_v2
+    statement: Production admission may change only through a source-neutral
+      canonical Orders release event or an authorized Production
+      manual-admission command; Production never interprets a vendor lifecycle,
+      trust score, assurance score, capability profile, or source-control
+      posture.
+
+  - op: deprecate
+    kind: policy
+    id: source_lifecycle_mapping_lives_upstream_v1
+
+  - op: assert
+    kind: policy
+    id: canonical_fulfillment_release_reaches_production_v2
+    statement: Production consumes canonical fulfillment demand and release
+      decisions from Orders idempotently and cannot infer, synthesize, reverse,
+      or terminalize those decisions from an external observation.
+
+verification:
+  - Steven explicitly confirmed on 2026-07-27 that Processor and Pressly must
+    retain operational authority independently from Cents lifecycle behavior.
+  - The paired Order Management decision makes external lifecycle
+    observation-only and reserves canonical transitions for Pressly commands.
+  - Current Laundry Production memory was inspected and the prior automatic
+    Cents handoff and pre-handoff withdrawal are explicitly superseded.
+  - Manual admission, physical truth, explicit selection, hard capacity,
+    source-neutral identity, aggregate-owned lifecycle graphs, and server-owned
+    actions remain active.
+  - Current implementation was not claimed compliant, and no secret,
+    credential, customer payload, or private token is included.
+
+status: applied

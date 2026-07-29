@@ -20,7 +20,9 @@ const logger = makeJsonLogger({
     ? {}
     : { release: workerEnv.observability.sentry.release }),
 }).child({ runtime: 'worker' });
+
 const errors = makeWorkerSentryReporter(workerEnv.observability.sentry.enabled);
+
 const signals = makeWorkerSignalSinks({
   logger,
   measurementLogIntervalMs: workerEnv.jobs.metricLogIntervalMs,

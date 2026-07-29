@@ -13,7 +13,6 @@ import type {
   UserFieldName,
   UserProfile,
   UserRecord,
-  UserSourceIdentity,
 } from '../users.port.ts';
 
 export const lockUserKey = async (
@@ -237,74 +236,4 @@ export const updateStoredUser = async (
         ],
         set: { authority: 'pressly', source: null, updatedAt: input.now },
       });
-};
-
-export const userSourceLinkExists = async (
-  db: DatabaseExecutor,
-  input: { userId: string; source: string },
-): Promise<boolean> => {
-  const [row] = await db
-    .select({ id: schema.userSourceLinks.id })
-    .from(schema.userSourceLinks)
-    .where(
-      and(
-        eq(schema.userSourceLinks.userId, input.userId),
-        eq(schema.userSourceLinks.source, input.source),
-      ),
-    )
-    .limit(1);
-  return row !== undefined;
-};
-
-export const resolveStoredUserSource = async (
-  db: DatabaseExecutor,
-  identity: UserSourceIdentity,
-): Promise<Readonly<{ userId: string }> | null> => {
-  const [row] = await db
-    .select({ userId: schema.userSourceLinks.userId })
-    .from(schema.userSourceLinks)
-    .where(
-      and(
-        eq(schema.userSourceLinks.source, identity.source),
-        eq(schema.userSourceLinks.externalUserId, identity.externalUserId),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
-};
-
-export const followStoredUserSourceField = async (
-  db: DatabaseExecutor,
-  input: {
-    userId: string;
-    field: UserFieldName;
-    source: string;
-    nextVersion: number;
-    now: Date;
-  },
-): Promise<void> => {
-  await db
-    .insert(schema.userFieldAuthorities)
-    .values({
-      userId: input.userId,
-      fieldName: input.field,
-      authority: 'source',
-      source: input.source,
-      updatedAt: input.now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        schema.userFieldAuthorities.userId,
-        schema.userFieldAuthorities.fieldName,
-      ],
-      set: {
-        authority: 'source',
-        source: input.source,
-        updatedAt: input.now,
-      },
-    });
-  await db
-    .update(schema.users)
-    .set({ version: input.nextVersion, updatedAt: input.now })
-    .where(eq(schema.users.id, input.userId));
 };

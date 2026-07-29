@@ -386,9 +386,9 @@ describe('production aggregate races', () => {
     expect(run).toMatchObject({ status: 'completed', version: 2 });
     expect(shift).toMatchObject({ status: 'closed', version: 2 });
     expect(arrivingOrder).toMatchObject({
-      operationalStatus: 'eligible',
+      operationalStatus: 'intake_pending',
       executionStatus: 'unassigned',
-      bagCount: 1,
+      bagCount: null,
     });
     expect(arrivingOrder?.pendingPlacement).toBeNull();
     expect(arrivingMemberships).toEqual([]);
@@ -397,8 +397,6 @@ describe('production aggregate races', () => {
       completedAt: new Date('2026-07-14T15:00:00.000Z'),
       completedBy: fixed.actor,
     });
-    expect(arrivingBags).toEqual([
-      expect.objectContaining({ bagIndex: 0, status: 'eligible' }),
-    ]);
+    expect(arrivingBags).toEqual([]);
   });
 });

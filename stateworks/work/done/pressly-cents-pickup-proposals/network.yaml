@@ -1,0 +1,314 @@
+work_id: pressly-cents-pickup-proposals
+title: Pressly Cents pickup proposals
+status: active
+
+goal:
+  - Make Cents a pickup-only proposal adapter that cannot create or update canonical Pressly work without an operator decision.
+  - Give operators exactly Accept and Reject commands over immutable incoming proposals.
+  - Remove obsolete source-driven canonical mutation and lifecycle-reconciliation code while preserving durable ingress and audit guarantees.
+
+invariants:
+  - Only an exact Cents PICKED_UP observation may create one incoming-order proposal.
+  - Every other Cents lifecycle observation is acknowledged and ignored by Users, Orders, fulfillment, proposals, and Production.
+  - Incoming proposals use the explicit pending to accepted or rejected graph, with no local transition table.
+  - A decided proposal is terminal; later source observations cannot update or reopen it.
+  - Exact source and external Order identity is the only automatic duplicate-suppression key.
+  - Contact values and fuzzy similarity never suppress, merge, or select canonical Users or Orders.
+  - An existing canonical Order linked to the exact source identity suppresses proposal creation.
+  - Accept rechecks exact identity and expected proposal version transactionally before creating one canonical Order and released fulfillment and creating or reusing one exact source-linked User when customer identity is present.
+  - Reject creates no canonical User, Order, fulfillment, or Production work.
+  - Future Pressly-owned products invoke canonical commands directly rather than privileged adapters.
+  - Existing canonical Cents-origin records and historical evidence are preserved without proposal backfill.
+  - Signed durable ingress, idempotency, canonical command receipts, aggregate graphs, transactional outbox, and peer-domain boundaries remain intact.
+  - No production deployment, production-data cleanup, secret, credential, customer payload, or private token enters this work.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconcile the pickup-proposal baseline
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - repo:modules/business/orders
+      - repo:modules/business/users
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:apps/api/src/http/order-management
+      - repo:apps/processor/src/features/order-control
+      - repo:packages/contracts
+      - repo:packages/db/src/schema
+    writes:
+      - repo:stateworks/work/done/pressly-cents-pickup-proposals/evidence.md
+    action:
+      - Record every current Cents path that creates or updates canonical Users, Orders, fulfillment, proposals, or Production.
+      - Record the exact source identity, revision, inbox, command, graph, outbox, and UI boundaries that must remain.
+      - Identify file overlap with active and queued Stateworks work before implementation.
+      - Record deterministic pre-change tests or source proofs for non-pickup creation, post-pickup effects, and missing proposal decisions.
+    verifier:
+      - Evidence distinguishes retained infrastructure, replaced policy, deleted code, and unrelated dirty worktree changes.
+      - No product or runtime state is changed by this characterization task.
+    rollback:
+      - No rollback is needed for read-only characterization.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T1
+    title: Define the minimal incoming-proposal domain
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:modules/business/orders/src
+      - repo:packages/contracts/src/orders
+    writes:
+      - repo:modules/business/orders/src
+      - repo:modules/business/orders/test
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/test
+    action:
+      - Define the typed immutable incoming-order snapshot and pending, accepted, and rejected states.
+      - Define Accept and Reject events in one authoritative kernel graph.
+      - Define a source-neutral pickup proposal command and exact-identity suppression policies; the Cents adapter owns the exact PICKED_UP wire gate.
+      - Define versioned, authorized, idempotent Accept and Reject command contracts and expected failures.
+      - Delete proposal outcomes and source-driven canonical effects made unreachable by the new boundary.
+    verifier:
+      - Graph tests enumerate every allowed and denied edge.
+      - Domain tests prove only the source-neutral pickup proposal kind is accepted; adapter tests separately prove exact PICKED_UP is the only emitted command.
+      - Tests prove decided proposals cannot be updated or reopened.
+      - Type and architecture tests keep business rules out of Worker, API, repositories, and Processor.
+    rollback:
+      - Revert the new proposal contracts and graph without changing persisted data.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T2
+    title: Persist source records and immutable proposals
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/schema/users.schema.ts
+      - repo:packages/db/src/schema/webhook-ingestion.schema.ts
+      - repo:modules/business/orders/src/persistence
+    writes:
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+      - repo:modules/business/orders/src/persistence
+      - repo:modules/business/orders/test
+    action:
+      - Add an exact source Order record that can exist without a canonical Order.
+      - Add immutable proposal snapshot, lifecycle, optimistic version, decision actor, reason, and timestamps.
+      - Enforce one proposal per source and external Order identity and terminal decision integrity.
+      - Make acceptance serialize exact-identity lookup, proposal version, canonical creation, fulfillment release, command evidence, and outbox effects in one transaction.
+      - Preserve existing canonical source links and create no historical proposal backfill.
+    verifier:
+      - Migration is additive and deterministic for existing canonical records.
+      - Postgres tests cover concurrent pickup retries, concurrent accept, accept versus first-party creation, reject, replay, and terminal immutability.
+      - Constraints prevent duplicate proposals and duplicate canonical source links.
+    rollback:
+      - Disable new reads while retaining additive proposal evidence; do not delete canonical or historical rows.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T3
+    title: Cut Cents over to pickup-only proposal ingestion
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:apps/worker/src/bootstrap/worker-jobs.composition.ts
+      - repo:modules/business/orders/src
+      - repo:modules/business/users/src
+    writes:
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:apps/worker/test/jobs/process-webhook-inbox/cents
+      - repo:apps/worker/src/bootstrap/worker-jobs.composition.ts
+      - repo:modules/business/orders/src
+      - repo:modules/business/users/src
+    action:
+      - Retain Cents authentication, inbox claim, normalization, and event completion behavior.
+      - Submit a proposal command only for exact PICKED_UP order observations.
+      - Ignore all other lifecycle values without resolving or creating canonical customers or orders.
+      - Stop processing later source events into proposal or canonical updates.
+      - Remove unreachable source-customer and source-authority orchestration specific to Cents canonical creation.
+    verifier:
+      - Worker tests enumerate every known Cents status and prove only PICKED_UP invokes the proposal port.
+      - Retry and duplicate PICKED_UP events create one proposal.
+      - Existing exact canonical identity and decided proposal cases are acknowledged no-ops.
+      - No Worker import grants it ownership of proposal or canonical transition rules.
+    rollback:
+      - Disable proposal emission while retaining inbox events; do not restore source-driven canonical lifecycle.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T4
+    title: Add incoming-order commands and API composition
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - repo:modules/business/orders/src
+      - repo:apps/api/src/http/order-management
+      - repo:packages/contracts/src/orders
+    writes:
+      - repo:modules/business/orders/src
+      - repo:modules/business/orders/test
+      - repo:apps/api/src/http/order-management
+      - repo:apps/api/test
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/test
+    action:
+      - Add location-scoped paginated pending-proposal listing.
+      - Add authorized Accept and Reject endpoints that pass actor, expected version, reason, and idempotency keys to Orders use cases.
+      - Compose acceptance through canonical User, Order, and fulfillment-release application ports without exposing database or Cents types.
+      - Return server-owned action availability and typed conflict or denial reasons.
+    verifier:
+      - API tests cover authorization, location isolation, parsing, idempotent replay, stale version, exact-order race, accept, and reject.
+      - Accepted work appears through canonical Intake and Production projections; rejected work does not.
+      - Route handlers contain no lifecycle or duplicate policy.
+    rollback:
+      - Remove endpoint composition while retaining persisted proposal evidence.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T5
+    title: Add Incoming to the Processor Orders workspace
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+      - T4
+    reads:
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/app
+      - repo:packages/contracts/src/orders
+    writes:
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/i18n
+      - repo:apps/processor/test/features/order-control
+      - repo:apps/processor/test/app
+    action:
+      - Add Incoming and Current views to the existing Manage Orders workspace without adding another primary navigation destination; retain archive review inside Current until the backend exposes an honest archived-only collection.
+      - Show recognizable order and customer identity, pickup time, due time, estimated demand, source provenance, and bounded warnings.
+      - Make Accept into Pressly the primary action and Reject a reasoned secondary action.
+      - Handle empty, loading, error, stale-version, already-decided, exact-existing-order, and permission-denied states from server capabilities.
+      - Remove source-divergence controls and copy that no longer correspond to an operator action.
+    verifier:
+      - Focused tests cover tabs, rows, actions, confirmation, mutation refresh, conflict, empty, loading, error, and keyboard semantics.
+      - Existing current-order control and archive review remain green.
+      - Desktop and mobile rendered inspection proves no clipping, inaccessible action, or scroll regression.
+    rollback:
+      - Hide Incoming while retaining API and proposal evidence; do not restore Cents canonical authority.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V1
+    title: Verify the pickup-proposal vertical slice
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+    reads:
+      - repo:modules/business/orders
+      - repo:modules/business/users
+      - repo:apps/worker
+      - repo:apps/api
+      - repo:apps/processor
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:tooling/test/architecture-boundaries.test.mjs
+    writes:
+      - repo:stateworks/work/done/pressly-cents-pickup-proposals/evidence.md
+      - repo:stateworks/work/done/pressly-cents-pickup-proposals/design-qa.md
+    action:
+      - Run focused graph, use-case, database, Worker, API, Processor, architecture, integration, type, lint, formatting, and production-build gates.
+      - Run the local migration and exercise pickup, non-pickup, existing-order, accept, reject, replay, and post-decision flows without production data.
+      - Inspect rendered desktop and mobile Manage Orders states, interaction accessibility, scrolling, and browser console.
+      - Record exact commands, counts, failures, repairs, and environment boundaries.
+    verifier:
+      - Every task-level verifier is evidenced.
+      - pnpm typecheck
+      - pnpm lint
+      - pnpm build
+      - git diff --check
+      - Stateworks network and lifecycle state validate.
+    rollback:
+      - Keep work active and disable proposal emission if a correctness gate cannot be repaired safely.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T6
+    title: Apply durable memory and close the work
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:stateworks/work/done/pressly-cents-pickup-proposals/evidence.md
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:stateworks/work/done/pressly-cents-pickup-proposals/final-report.md
+      - repo:stateworks/memory/domains/order-management/deltas
+      - repo:stateworks/memory/domains/order-management/memory.yaml
+      - repo:stateworks/memory/domains/order-management/context-pack.md
+      - repo:stateworks/memory/domains/laundry-production/deltas
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+    action:
+      - Apply source-backed memory deltas that supersede Cents prospective canonical creation and descriptive auto-adoption.
+      - Record the exact implemented pickup-proposal boundary and deletion scope.
+      - Rebaseline production-readiness evidence without claiming deployment or live cutover.
+      - Move the verified work package to done only after all evidence is committed.
+    verifier:
+      - Domain memories, deltas, context packs, network, and lifecycle state validate.
+      - Final report separates repository, local runtime, deployment, and operational evidence.
+      - No unsupported live Cents or production claim is recorded.
+    rollback:
+      - Leave unsupported deltas proposed and keep work active.
+    secret_handling: none
+    status: pending
+    evidence: []

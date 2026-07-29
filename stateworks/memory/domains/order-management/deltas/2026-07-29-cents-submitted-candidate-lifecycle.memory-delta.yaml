@@ -1,0 +1,201 @@
+id: memdelta-2026-07-29-cents-submitted-candidate-lifecycle
+domain_id: order-management
+
+source:
+  type: implementation_report
+  path: stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/final-report.md
+
+changes:
+  - op: update
+    kind: external_system
+    id: cents
+    description: Cents is an external candidate-evidence provider. Exact raw
+      SUBMITTED may propose one immutable incoming candidate, exact COMPLETED
+      or CANCELED may record source closure, and every other status is
+      acknowledged without an Orders command. Cents cannot create or transition
+      canonical Pressly work.
+
+  - op: update
+    kind: object
+    id: incoming_order_proposal
+    description: An immutable pre-canonical snapshot keyed by exact source and
+      external Order identity with versioned current lifecycle state,
+      append-only transition evidence, terminal decision evidence, and optional
+      source-closure evidence. It has no canonical effect until an authorized
+      Pressly decision.
+
+  - op: assert
+    kind: object
+    id: incoming_order_source_tombstone
+    description: Immutable exact source and external Order identity evidence
+      that COMPLETED or CANCELED arrived before a candidate. It suppresses a
+      later SUBMITTED proposal but creates no User, Order, fulfillment, release,
+      or Production work.
+
+  - op: deprecate
+    kind: workflow
+    id: cents_pickup_proposal
+
+  - op: assert
+    kind: workflow
+    id: cents_submitted_candidate_lifecycle
+    steps:
+      - API authenticates one Cents envelope and records one idempotent durable
+        inbox event with exact source identity and bounded evidence
+      - exact SUBMITTED is classified as candidate evidence, exact COMPLETED or
+        CANCELED as terminal evidence, and every other known or unknown state
+        as ignored evidence
+      - Worker translates classified evidence into source-neutral Orders
+        commands and contains no candidate lifecycle or duplicate policy
+      - Orders serializes exact source and external Order identity; SUBMITTED
+        creates at most one immutable pending candidate unless an exact
+        canonical link or terminal tombstone already exists
+      - pending may accept, reject, or source_close; source_closed may restore
+        to manager-owned restored_pending; restored_pending may accept or
+        reject; accepted and rejected are terminal
+      - Accept rechecks exact identity and expected version and atomically
+        creates one open canonical Order with an unreleased fulfillment, exact
+        source link, decision receipt, and transactional outbox evidence
+      - Reject creates no canonical User, Order, fulfillment, or downstream
+        effect
+      - terminal evidence closes only pending candidates or creates one
+        tombstone; it cannot close restored_pending, accepted, rejected, or
+        exact-linked canonical work
+
+  - op: deprecate
+    kind: invariant
+    id: cents_exact_pickup_is_proposal_only_v1
+
+  - op: assert
+    kind: invariant
+    id: cents_exact_submitted_is_candidate_only_v1
+    statement: Only an exact raw Cents SUBMITTED Order observation may create
+      one incoming candidate. Exact COMPLETED or CANCELED may record source
+      closure, while every other status is acknowledged without candidate,
+      canonical, fulfillment, or Production effect.
+
+  - op: update
+    kind: invariant
+    id: incoming_proposal_decision_is_terminal_v1
+    statement: The authoritative incoming-candidate graph is pending to
+      accepted, rejected, or source_closed; source_closed to restored_pending;
+      and restored_pending to accepted or rejected. Accepted and rejected are
+      terminal, while restored_pending is a Pressly manager decision that later
+      source observations cannot close or rewrite.
+
+  - op: update
+    kind: invariant
+    id: incoming_proposal_decision_effects_v1
+    statement: Accept atomically rechecks exact identity and expected version
+      before creating one open canonical Order and unreleased fulfillment with
+      command, source-link, transition, and outbox evidence. Reject creates no
+      canonical User, Order, fulfillment, or downstream effect.
+
+  - op: assert
+    kind: invariant
+    id: incoming_candidate_source_closure_is_guarded_v1
+    statement: Exact COMPLETED or CANCELED evidence may close only a pending
+      candidate or create one exact-identity tombstone. It cannot mutate a
+      restored_pending, accepted, or rejected candidate and cannot complete,
+      cancel, release, withdraw, archive, restore, or delete canonical work.
+
+  - op: update
+    kind: invariant
+    id: source_observations_enter_through_commands
+    statement: External webhooks enter through authenticated durable ingress
+      and may produce only bounded source-neutral candidate-submit or
+      candidate-source-close commands. They never emit a canonical User,
+      Order, fulfillment, release, intake, Production, or floor command and
+      never write canonical tables directly.
+
+  - op: update
+    kind: policy
+    id: cents_customer_resolution_v1
+    statement: A Cents submitted candidate may carry an exact external customer
+      identity and immutable customer snapshot. Only Accept may resolve or
+      create the corresponding exact source-linked User, and contact values
+      never select or merge a canonical User.
+
+  - op: update
+    kind: policy
+    id: source_snapshot_retention_v1
+    statement: Pressly retains the immutable normalized candidate snapshot,
+      append-only lifecycle transitions, terminal decision, exact source
+      closure or tombstone evidence, and accepted source link. Raw webhook
+      bodies remain only in encrypted, access-restricted, bounded quarantine.
+
+  - op: deprecate
+    kind: policy
+    id: cents_pickup_proposal_boundary_v1
+
+  - op: assert
+    kind: policy
+    id: cents_submitted_candidate_boundary_v1
+    statement: Cents may propose one immutable incoming candidate only at exact
+      SUBMITTED and may report exact COMPLETED or CANCELED source closure. It
+      has no field-following, canonical lifecycle, reconciliation, fulfillment
+      release, cleanup-decision, or Production authority.
+
+  - op: update
+    kind: decision
+    id: processor_uses_composed_order_views
+    statement: Processor separates actionable pending or restored Incoming
+      candidates, source-closed review, and canonical Current orders. It renders
+      stable Order and customer identity, provenance, versions, source closure,
+      and server-owned available actions without recreating lifecycle,
+      duplicate, restore, or Production policy in the browser.
+
+  - op: update
+    kind: decision
+    id: order_management_is_not_event_sourced_v1
+    statement: Canonical tables remain current state; incoming candidates keep
+      immutable snapshots and versioned current state plus append-only
+      transitions, terminal decisions, and exact source tombstones; accepted
+      source links preserve provenance; and a transactional outbox distributes
+      canonical changes. Aggregates are not reconstructed from a full event log.
+
+  - op: update
+    kind: decision
+    id: source_lifecycle_anomalies_are_integration_context_v1
+    statement: Exact SUBMITTED, COMPLETED, and CANCELED are translated into
+      bounded candidate commands; every other Cents lifecycle value is
+      minimized to an ignored durable receipt. No source value directly creates
+      a canonical transition or Production-floor comparison.
+
+  - op: deprecate
+    kind: decision
+    id: pickup_proposal_policy_lives_in_orders_v1
+
+  - op: assert
+    kind: decision
+    id: submitted_candidate_policy_lives_in_orders_v1
+    statement: Orders owns exact-identity suppression, tombstones, the complete
+      source-neutral candidate graph, Accept, Reject, Restore, canonical
+      creation, receipts, and outbox effects. The Cents adapter owns only
+      authentication, bounded classification, minimization, and transport.
+
+  - op: assert
+    kind: decision
+    id: source_terminal_cleanup_is_composed_and_guarded_v1
+    statement: When terminal evidence identifies exact accepted canonical work,
+      an application composition boundary may invoke a named source-neutral
+      Pressly resolution command. Production alone evaluates operational safety;
+      Orders and the Cents adapter cannot infer or perform cleanup.
+
+verification:
+  - Repository code and focused Orders tests encode the six allowed candidate
+    graph edges, terminal states, tombstone suppression, restored-pending source
+    immunity, idempotent decisions, and open plus unreleased acceptance.
+  - Contracts and schema tests encode candidate views, source closure, Restore,
+    append-only transitions, exact-identity tombstones, and additive migration
+    backfill without deleting historical evidence.
+  - API and Worker unit suites pass for SUBMITTED, COMPLETED, CANCELED, ignored,
+    malformed, duplicate, and replay classifications.
+  - The disposable database vertical slice passed migration through 0037,
+    Orders and Production repository integration, Worker and webhook-ingestion
+    integration, Users integration, and the Cents asset checks.
+  - Root typecheck, lint, formatting, build, architecture, and diff gates pass.
+    This accepted repository and local-runtime evidence makes no deployment,
+    replay, production-data, live-cutover, or pilot claim.
+
+status: applied

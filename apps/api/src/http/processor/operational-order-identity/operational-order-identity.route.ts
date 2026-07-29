@@ -3,6 +3,7 @@ import {
   previewProductionOrderBacklogRequestSchema,
   processorListProductionHistoryActivityResultSchema,
   processorProductionOrderBacklogPreviewSchema,
+  processorProductionBoardSchema,
   processorProductionHistoryRunDetailSchema,
   processorProductionWorkspaceSchema,
   processorRemainingDayForecastSchema,
@@ -11,6 +12,7 @@ import {
   productionLocationParamsSchema,
   productionRemainingDayForecastParamsSchema,
   productionRemainingDayForecastQuerySchema,
+  productionRunBoardParamsSchema,
   productionWorkspaceParamsSchema,
   productionWorkspaceQuerySchema,
   type ListProductionHistoryActivityQuery,
@@ -25,6 +27,7 @@ import type { ProcessorOperationalOrderReadModel } from './operational-order-ide
 
 type ProcessorProductionReadApplication = Readonly<{
   loadProductionWorkspace: ProductionApplication['loadProductionWorkspace'];
+  loadProductionBoard: ProductionApplication['loadProductionBoard'];
   previewProductionOrderBacklog: ProductionApplication['previewProductionOrderBacklog'];
   loadRemainingDayForecast: (query: {
     locationId: string;
@@ -47,6 +50,30 @@ export const makeProcessorOperationalOrderRoutes = (input: {
   authorizeOverride: RequestHandler;
 }): Router => {
   const routes = Router();
+
+  routes.get(
+    '/production/locations/:locationId/runs/:productionRunId/board',
+    input.authenticate,
+    validateRequest({ params: productionRunBoardParamsSchema }),
+    input.authorizeRead,
+    catchAsync(async (request, response) => {
+      const result = await input.production.loadProductionBoard({
+        locationId: request.params['locationId'] as string,
+        productionRunId: request.params['productionRunId'] as string,
+      });
+      if (result.tag === 'err') {
+        response.status(result.error.status).json(apiFailure(result.error));
+        return;
+      }
+      response.json(
+        apiSuccess(
+          processorProductionBoardSchema.parse(
+            await input.readModel.composeBoard(result.value),
+          ),
+        ),
+      );
+    }),
+  );
 
   routes.post(
     '/production/locations/:locationId/order-backlog/preview',

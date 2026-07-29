@@ -40,7 +40,6 @@ const snapshotOrder = (
   resolutionState: 'open',
   executionStatus: 'unassigned',
   operationalStatus: 'release_pending',
-  sourceCommercialState: 'open',
   hasIntake: false,
   hasManualAdmission: false,
   isPriority: false,
@@ -226,7 +225,6 @@ describe('review production order backlog', () => {
         snapshotOrder(ids.kept, {
           executionStatus: 'scheduled',
           operationalStatus: 'scheduled',
-          sourceCommercialState: 'completed',
         }),
         snapshotOrder(ids.resolved, {
           resolutionState: 'resolved_without_production',
@@ -264,12 +262,11 @@ describe('review production order backlog', () => {
     ).toEqual([ids.resolved, ids.finished]);
   });
 
-  it('keeps source-terminal old work when Production participation blocks it', async () => {
+  it('keeps old work when canonical Production participation blocks it', async () => {
     const repository = makeRepository({
       hasMore: false,
       orders: [
         snapshotOrder(ids.kept, {
-          sourceCommercialState: 'completed',
           hasBatchMembership: true,
         }),
       ],
@@ -280,7 +277,6 @@ describe('review production order backlog', () => {
     expect(reviewed.groups.readyToArchive).toHaveLength(0);
     expect(reviewed.groups.keptForSafety[0]).toMatchObject({
       orderId: ids.kept,
-      sourceCommercialState: 'completed',
       reasons: ['batch_membership_exists'],
     });
   });
@@ -526,7 +522,7 @@ describe('review production order backlog', () => {
     await expect(
       runPreview({
         ...previewCommand,
-        filter: 'source_terminal_before_cutoff',
+        reason: 'duplicate_or_test',
         maxOrders: 2,
         cursor: first.value.nextCursor,
       }),

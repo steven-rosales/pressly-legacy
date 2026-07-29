@@ -52,6 +52,7 @@
     "dialogTitle": "Navegación del Procesador",
     "dialogDescription": "Elige un espacio de trabajo del Procesador para esta ubicación.",
     "home": "Inicio",
+    "orders": "Pedidos",
     "intake": "Recepción",
     "production": "Producción",
     "schedule": "Planificación",
@@ -60,10 +61,11 @@
     "configuration": "Configuración",
     "sections": {
       "dailyWork": "Trabajo diario",
-      "planningReview": "Planificación y revisión",
+      "manageReview": "Administrar y revisar",
       "system": "Sistema"
     },
-    "homeDescription": "Busca pedidos, resuelve excepciones del piso y mantén en movimiento la producción de pedidos completos.",
+    "homeDescription": "Revisa el trabajo de hoy y abre el espacio correcto para la siguiente acción.",
+    "ordersDescription": "Busca pedidos, resuelve excepciones y administra el trabajo de producción activo.",
     "intakeDescription": "Revisa pedidos entrantes, registra la recepción física y libera trabajo verificado a Producción.",
     "productionDescription": "Avanza el trabajo iniciado desde la clasificación hasta el doblado.",
     "scheduleDescription": "Planifica pedidos listos y revisa adiciones a una corrida de producción activa.",

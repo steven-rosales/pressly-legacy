@@ -239,6 +239,27 @@
       "when": 1785167093009,
       "tag": "0034_prelaunch-processor-data-reset",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1785250283597,
+      "tag": "0035_order-source-authority-evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1785290057022,
+      "tag": "0036_incoming-order-proposals",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1785342289615,
+      "tag": "0037_submitted_candidate_lifecycle",
+      "breakpoints": true
     }
   ]
 }

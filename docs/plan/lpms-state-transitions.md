@@ -1,12 +1,13 @@
 # LPMS State Transition Catalog
 
-Status: implementation baseline for
-`lpms-operational-authority-remaining-day-forecast`.
+Status: current authority catalog after
+`lpms-operational-authority-remaining-day-forecast` and the 2026-07-28
+source-autonomy implementation.
 
-This catalog names the one owner for each durable lifecycle before the
-implementation changes it. It is deliberately not a global workflow model.
-Each graph belongs to one aggregate; application use cases compose graph
-decisions with locks, versions, persistence, outbox effects, and work events.
+This catalog names the one owner for each durable lifecycle. It is deliberately
+not a global workflow model. Each graph belongs to one aggregate; application
+use cases compose graph decisions with locks, versions, persistence, outbox
+effects, and work events.
 
 ## Authority Boundary
 
@@ -16,34 +17,55 @@ The supported flow is:
 Cents webhook
   -> durable inbox
   -> Worker-owned vendor adapter
-  -> Orders source observation
-  -> Orders canonical adoption decision
-  -> atomic source-neutral fulfillment-demand outbox event
+  -> exact SUBMITTED candidate
+  -> exact COMPLETED or CANCELED source closure
+  -> every other source state is evidence-only
+
+operator Accept
+  -> candidate graph and exact identity/version recheck
+  -> atomic canonical User, Order, unreleased fulfillment, and outbox event
+
+operator Reject
+  -> terminal candidate decision with no canonical or Production effect
+
+operator Restore
+  -> source_closed to manager-owned restored_pending
+  -> later source closure cannot override the manager
+
+explicit Pressly command
+  -> Orders canonical lifecycle/release graph
+  -> atomic canonical mutation plus source-neutral fulfillment-demand outbox event
+
+Orders fulfillment-demand outbox event
   -> Worker projector
   -> Production demand projection
 ```
 
-- Cents supplies observations. It does not own Pressly's canonical lifecycle or
-  physical floor state.
-- Orders retains a valid newer source observation before deciding which fields
-  may change canonical state.
-- The first non-canceled `IN_PROGRESS`-or-later observation may cross the
-  one-way fulfillment handoff.
-- Before handoff, a source cancellation may withdraw prospective demand.
-- After handoff, source lifecycle codes are observation-only. They cannot
-  complete, cancel, withdraw, rewind, delete, or otherwise terminalize Pressly
-  Order, fulfillment, or Production state.
-- Source-owned non-lifecycle fields continue to use their independent
-  field-authority and source-revision rules.
+- Cents can propose one incoming Order only from an exact `SUBMITTED`
+  observation. Exact `COMPLETED` or `CANCELED` observations can close only an
+  unresolved candidate or create an exact-identity tombstone. Cents does not
+  own canonical creation, lifecycle, descriptive fields, or physical floor
+  state.
+- `READY_FOR_PICKUP`, `PICKED_UP`, `IN_PROGRESS`, and every other known or
+  unknown Cents lifecycle value is acknowledged as evidence only. Later events
+  cannot change accepted or rejected candidates, manager-restored candidates,
+  or canonical work.
+- The candidate snapshot is immutable. Exact source identity is the only
+  automatic suppression and acceptance key; fuzzy or contact matching is never
+  authoritative.
+- Only explicit Pressly commands may request a commercial-lifecycle or
+  fulfillment-release edge, and the owning directed graph is the sole decision
+  authority.
 - Production receives source-neutral canonical facts and never interprets a
   vendor lifecycle code.
+- Physical bag count and bag rows are owned by versioned operator intake.
+  External or projection-envelope `bagCount` values are compatibility evidence
+  only and cannot change them.
 
-The official Cents webhook article documents the order lifecycle values
-`SUBMITTED`, `READY_FOR_PICKUP`, `PICKED_UP`, `IN_PROGRESS`,
-`READY_FOR_RETURN`, `OUT_FOR_DELIVERY`, `COMPLETED`, and `CANCELLED`.
-Pressly's Cents adapter normalizes `CANCELLED` to its boundary spelling
-`CANCELED`. The article is not evidence that delivery is ordered, so webhook
-arrival order remains unknown and cannot be used as a revision fence.
+The Cents wire status is treated as forward-compatible text. The adapter
+classifies only exact `SUBMITTED`, `COMPLETED`, and `CANCELED`; it does not
+maintain or normalize a vendor lifecycle graph. Webhook arrival order remains
+unknown and cannot be used as a canonical revision fence.
 
 ## Classification Rules
 
@@ -63,51 +85,75 @@ parallel lifecycle machines.
 
 ## Orders
 
-### Commercial Order
+### Incoming Order Candidate
 
-| Property        | Value                                                                 |
-| --------------- | --------------------------------------------------------------------- |
-| Persisted field | `orders.state`                                                        |
-| States          | `open`, `completed`, `canceled`                                       |
-| Owner           | `modules/business/orders/src/order-lifecycle.policy.ts`               |
-| Current writers | source observation repository; `update-order`; initial order creation |
-| Lock/version    | Order aggregate lock and `orders.version`                             |
-| Terminal states | `completed`, `canceled`                                               |
+| Property        | Value                                                                      |
+| --------------- | -------------------------------------------------------------------------- |
+| Persisted field | immutable candidate, current state, append-only transitions, and tombstone |
+| States          | `pending`, `source_closed`, `restored_pending`, `accepted`, `rejected`     |
+| Owner           | `modules/business/orders/src/incoming-order-proposal.policy.ts`            |
+| Current writers | source-neutral submit/close; explicit operator Accept, Reject, or Restore  |
+| Lock/version    | exact source identity, candidate lock, optimistic version                  |
+| Terminal states | `accepted`, `rejected`                                                     |
 
 Authoritative graph:
 
 ```text
-open --complete_pressly--> completed
-open --cancel_pressly----> canceled
+pending --accept--> accepted
+pending --reject--> rejected
+pending --source_close--> source_closed
+source_closed --restore--> restored_pending
+restored_pending --accept--> accepted
+restored_pending --reject--> rejected
 ```
 
-A pre-handoff source cancellation may request the `open -> canceled` edge as
-part of the same Orders adoption decision that withdraws prospective
-fulfillment. Source completion does not complete Pressly work. Once handoff has
-occurred, no source observation may request either terminal edge.
+No edge leaves either terminal state. No source-close edge leaves
+`restored_pending`. Acceptance creates canonical work transactionally with an
+unreleased fulfillment; rejection creates none.
+
+### Commercial Order
+
+| Property        | Value                                                   |
+| --------------- | ------------------------------------------------------- |
+| Persisted field | `orders.state`                                          |
+| States          | `open`, `completed`, `canceled`                         |
+| Owner           | `modules/business/orders/src/order-lifecycle.policy.ts` |
+| Current writers | explicit lifecycle command; initial order creation      |
+| Lock/version    | Order aggregate lock and `orders.version`               |
+| Terminal states | `completed`, `canceled`                                 |
+
+Authoritative graph:
+
+```text
+open --complete--> completed
+open --cancel----> canceled
+```
+
+Source completion or cancellation never requests either edge. External
+lifecycle metadata remains retained observation evidence for reconciliation and
+operator context.
 
 ### Fulfillment Release
 
-| Property        | Value                                                                               |
-| --------------- | ----------------------------------------------------------------------------------- |
-| Persisted field | `order_fulfillments.release_state`                                                  |
-| States          | `unreleased`, `released`, `withdrawn`                                               |
-| Owner           | `modules/business/orders/src/order-lifecycle.policy.ts`                             |
-| Current writers | source observation repository; `change-fulfillment-release`; initial order creation |
-| Lock/version    | Fulfillment aggregate lock and `order_fulfillments.version`                         |
-| Terminal state  | `withdrawn`                                                                         |
+| Property        | Value                                                       |
+| --------------- | ----------------------------------------------------------- |
+| Persisted field | `order_fulfillments.release_state`                          |
+| States          | `unreleased`, `released`, `withdrawn`                       |
+| Owner           | `modules/business/orders/src/order-lifecycle.policy.ts`     |
+| Current writers | `change-fulfillment-release`; initial order creation        |
+| Lock/version    | Fulfillment aggregate lock and `order_fulfillments.version` |
+| Terminal state  | `withdrawn`                                                 |
 
 Authoritative graph:
 
 ```text
-unreleased --source_handoff_or_pressly_release--> released
-unreleased --pre_handoff_withdraw-------------> withdrawn
-released   --explicit_pressly_compensation----> withdrawn
+unreleased --release--> released
+unreleased --withdraw-> withdrawn
+released   --withdraw-> withdrawn
 ```
 
-The `released -> withdrawn` edge remains available only to an explicit Pressly
-command or separately modeled compensation workflow. Source adoption cannot
-use it.
+Every edge requires an explicit Pressly command. External source adoption cannot
+use any edge.
 
 ### Orders Values That Are Not Aggregate Lifecycles
 
@@ -305,7 +351,7 @@ numbered attempt.
 | `order_demands` commercial/admission facts     | source-neutral Orders projection     | Production consumes but does not reinterpret upstream lifecycle            |
 | `order_demands.phase`                          | cached derived demand projection     | expected/inbound/released/post-production/withdrawn is not floor authority |
 | `production_orders.admission_override`         | orthogonal audited fact              | changes effective admission only                                           |
-| bag count/intake version                       | physical intake fact                 | readiness input                                                            |
+| bag count/intake version                       | operator-recorded physical intake    | readiness input; never projected from an external observation              |
 | priority                                       | orthogonal planning fact             | ordering input                                                             |
 | shift selected-order rows/version              | versioned set                        | explicit selection, not lifecycle                                          |
 | batch membership freeze                        | orthogonal fact                      | mutability is separate from batch status                                   |
@@ -321,9 +367,12 @@ Between-stage milestones, Order Control attention, allowed next actions, due
 buckets, forecast groups, appendability, and capacity risk are pure read
 projections from these authoritative facts.
 
-## Pre-Change Mismatches
+## Historical Pre-Change Mismatches (Superseded)
 
-The starting checkout proves the following:
+The starting checkout for
+`lpms-operational-authority-remaining-day-forecast` proved the following
+point-in-time mismatches. They are preserved as historical evidence and are not
+descriptions of the current authority model:
 
 1. `apps/worker/.../cents-order.handler.ts` maps Cents `COMPLETED` to canonical
    commercial completion, `CANCELED` to canonical cancellation/withdrawal, and
@@ -349,19 +398,26 @@ The starting checkout proves the following:
 8. Home and Schedule both render detailed demand outlook information; there is
    no `/forecast` route.
 
-The pre-change unit baseline is green: Orders 9 tests, Worker 31, Production
-policy 83, scheduling 16, Production 116, and Processor 170.
+The historical pre-change unit baseline was green: Orders 9 tests, Worker 31,
+Production policy 83, scheduling 16, Production 116, and Processor 170. Those
+counts are not current verification evidence.
 
-## Execution Boundary
+## Historical Execution Boundary (Superseded)
 
-This package executes before
+At planning time, this package was ordered before
 `stateworks/work/queued/lpms-order-control-correctness-hardening` and must not
 run concurrently with it because both change Production policy/business,
-contracts, database tests, Processor surfaces, and Order Control semantics.
+contracts, database tests, Processor surfaces, and Order Control semantics. That
+sequencing statement is retained as historical delivery evidence; it is not a
+current work-status claim.
+
+## Remaining Live-Readiness Gate
 
 `stateworks/work/active/lpms-production-readiness` remains stopped at its
 existing external gate. Its repository proof predates this authority and
-forecast model and must be revalidated before any deployment or pilot claim.
+forecast model and must be revalidated against the current Orders-command,
+outbox-projection, and operator-intake boundaries before any deployment or pilot
+claim.
 
 Historical completed Stateworks packages remain immutable evidence; this
 catalog supersedes their now-deprecated source-comparison policy without

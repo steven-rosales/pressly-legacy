@@ -8,8 +8,9 @@ queued -> sorting -> washing -> drying -> folding + packaging -> finished
 
 The system is primarily a production flow-leveling system. For v1, it should behave more like a deterministic heijunka scheduler than a deep combinatorial optimizer. `laundry-production` is the business domain; LPMS is the application that operates it.
 
-External order systems provide demand. The LPMS production model is the
-source-neutral internal authority for scheduling and physical execution.
+External order systems provide observations. Orders owns the canonical
+commercial lifecycle and fulfillment-release graphs; Production consumes their
+source-neutral outbox projection and owns scheduling and physical execution.
 
 ## Modeling Principles
 
@@ -27,11 +28,18 @@ source-neutral internal authority for scheduling and physical execution.
 - Process ingested events at least once and make downstream commands
   idempotent.
 - Normalize only the source fields the target capability actually needs.
-- Treat source-system data as external demand, not production truth.
-- Translate source-specific statuses into a canonical demand state before
-  calling Production. A `ready_for_production` demand becomes schedulable only
-  after its location is known, positive production weight is supplied, and
-  required intake facts such as bag count have been recorded.
+- Treat source-system data as external observations, not lifecycle commands or
+  production truth. Source lifecycle codes remain retained evidence.
+- Let only explicit Orders commands request canonical commercial-lifecycle or
+  fulfillment-release edges, and let the aggregate-owned directed graphs decide
+  them. A source observation may update only non-lifecycle fields allowed by
+  the claim-scoped authority policy.
+- Project canonical Orders changes into Production through the durable
+  `fulfillment_demand_changed` outbox. Production never interprets vendor
+  lifecycle codes.
+- Treat bag count as operator-observed Pressly truth. A compatibility
+  `bagCount` field in an external or version-one projection envelope is evidence
+  only and never creates or changes intake.
 - Keep all modules isolated. Application composition roots inject public
   capabilities; modules never import or declare dependencies on one another.
 - Treat scheduler output as a proposal.
@@ -106,17 +114,19 @@ This gives auditability, idempotency, replay potential, and current-state reads 
 
 Consistency and availability are chosen per operation.
 
-| Operation                      | Model                                | Failure behavior                                                     |
-| ------------------------------ | ------------------------------------ | -------------------------------------------------------------------- |
-| Ingest a verified webhook      | Durable, availability-oriented inbox | Return a non-success response unless the event is durably stored     |
-| Apply canonical order demand   | Idempotent Production transaction    | Retry safely; reject conflicting revisions                           |
-| Generate a schedule proposal   | Pure and deterministic               | Retry without changing execution state                               |
-| Accept a schedule proposal     | Strongly consistent preference write | Persist the current plan choice; create no execution                 |
-| Start an accepted proposal     | Strongly consistent transaction      | Create the shift's one execution graph atomically or fail            |
-| Insert a post-start arrival    | Versioned run transaction            | Place without moving existing work, or leave it visibly eligible     |
-| Advance or override production | Strongly consistent transaction      | Validate versions and invariants, then commit once or fail           |
-| Reconcile missed floor updates | Versioned batch transaction          | Preview and confirm one forward projection, or leave state unchanged |
-| Read the production board      | Current-state projection             | Slight read staleness is acceptable; invented state is not           |
+| Operation                       | Model                                  | Failure behavior                                                      |
+| ------------------------------- | -------------------------------------- | --------------------------------------------------------------------- |
+| Ingest a verified webhook       | Durable, availability-oriented inbox   | Return a non-success response unless the event is durably stored      |
+| Retain an external observation  | Idempotent Orders transaction          | Retry safely; never turn lifecycle evidence into a canonical edge     |
+| Apply a canonical Order command | Versioned Orders aggregate transaction | Let the owning directed graph commit one valid lifecycle edge or fail |
+| Project fulfillment demand      | Idempotent Production transaction      | Retry the Orders outbox event; reject diverging aggregate versions    |
+| Generate a schedule proposal    | Pure and deterministic                 | Retry without changing execution state                                |
+| Accept a schedule proposal      | Strongly consistent preference write   | Persist the current plan choice; create no execution                  |
+| Start an accepted proposal      | Strongly consistent transaction        | Create the shift's one execution graph atomically or fail             |
+| Insert a post-start arrival     | Versioned run transaction              | Place without moving existing work, or leave it visibly eligible      |
+| Advance or override production  | Strongly consistent transaction        | Validate versions and invariants, then commit once or fail            |
+| Reconcile missed floor updates  | Versioned batch transaction            | Preview and confirm one forward projection, or leave state unchanged  |
+| Read the production board       | Current-state projection               | Slight read staleness is acceptable; invented state is not            |
 
 Commands that start, advance, assign, override, or reconcile physical
 production must not be queued in the browser for later success. If the
@@ -133,10 +143,14 @@ leases, retries, dead letters, replay, and external-location bindings. It does
 not know how any downstream module interprets an event.
 
 Cents-specific authentication and wire translation live under
-`apps/api/src/vendors/cents`. Cents-specific event interpretation lives in a
-Worker adapter. Production receives only a canonical order-demand command and
-therefore does not know whether demand arrived from Cents, a commercial-order
-system, an operator import, or a future adapter.
+`apps/api/src/http/webhooks/cents`. The Worker adapter may submit one immutable
+incoming-Order candidate only for exact `SUBMITTED`. Exact `COMPLETED` or
+`CANCELED` may close an unresolved candidate or create an exact-identity
+tombstone. Every other Cents lifecycle value is acknowledged as evidence only.
+A candidate is not an Order and does not emit executable demand. Only an
+operator's versioned Accept command can create canonical work; Reject is
+terminal and creates none. First-party ordering products call canonical Orders
+commands directly instead of receiving privileged adapter behavior.
 
 ### Delivery And Dispatch Flow
 
@@ -156,18 +170,43 @@ Cents webhook
 apps/worker
 -> webhook-ingestion claims a pending event with a recoverable lease
 -> the source/subject dispatcher selects the Cents order consumer
--> the consumer resolves the source-location binding
--> the consumer derives estimated weight and canonical demand state
--> production.applyOrderDemand(..., idempotencyKey = webhook:<event-id>)
+-> exact SUBMITTED resolves the source-location binding and proposes a candidate
+-> exact COMPLETED or CANCELED records source closure by exact identity
+-> every other state is acknowledged as evidence only
 -> webhook-ingestion marks the event processed with lease compare-and-set
+
+operator Accept
+-> candidate graph and exact source-identity/version recheck
+-> canonical User, Order, and unreleased fulfillment in one transaction
+-> canonical Orders mutation plus fulfillment_demand_changed outbox event
+-> bounded Worker outbox projector
+-> production.applyFulfillmentDemand(..., idempotencyKey = order-outbox:<event-id>)
+
+operator Reject
+-> terminal candidate resolution
+-> no canonical User, Order, fulfillment, outbox, or Production work
+
+operator Restore
+-> source_closed to manager-owned restored_pending
+-> later source closure cannot override the manager
+
+accepted source terminal
+-> named source-neutral Pressly automation request
+-> Production resolution graph and operational guard
+-> resolve only untouched, unreleased, unassigned work; otherwise no mutation
+
+explicit first-party Pressly command
+-> Orders lifecycle or fulfillment-release graph
+-> canonical Orders mutation plus fulfillment_demand_changed outbox event
 ```
 
-The Production transaction and inbox-completion transaction are intentionally
+The candidate transaction and inbox-completion transaction are intentionally
 separate because isolated modules do not share repositories or transactions.
-The cross-module guarantee comes from stable idempotency: if the Worker dies
-after Production commits but before inbox completion, the lease expires, the
-same event is reclaimed, and the same Production command becomes a no-op before
-the inbox event is completed.
+Exact source identity, immutable candidate evidence, and terminal tombstones
+make a reclaimed event a safe replay. Acceptance, canonical creation, candidate resolution, and
+the Orders outbox event are atomic; projection into Production is separately at
+least once and uses a stable outbox-event idempotency key. Neither crash window
+grants the external source canonical authority.
 
 Authenticated customer and marketing events are recorded as ignored without
 putting customer payloads in `webhook_events`. Processable events retain only
@@ -186,11 +225,10 @@ The worker provides at-least-once processing:
 - Dispatch through injected consumers; neither `webhook-ingestion` nor
   Production imports the other module.
 
-An independent reconciliation job should periodically read Cents orders updated
-since a stored watermark and submit recovered snapshots through the same
-generic ingestion command. If Cents does not expose the required read API, the
-system cannot promise automatic recovery from an event it never received;
-manual replay and operational review become the fallback.
+If a reliable Cents read API is later verified, a recovery job may submit
+missed receipts through the same submitted-candidate classifier. It cannot
+create or update canonical work directly. Without such an API, manual receipt
+replay and operational review remain the bounded recovery path.
 
 Pressly supports two explicit Cents ingress modes. `hmac` remains the default
 and uses this contract:
@@ -346,32 +384,39 @@ production payload and never replaces an authoritative workspace or board read.
 
 ### `order_demands`
 
-The canonical demand accepted by Production. This is not a webhook or CRM
-mirror; it is the smallest source-neutral input required to create and maintain
-a production order.
+The versioned Orders fulfillment projection accepted by Production. This is not
+a webhook or CRM mirror; it is the smallest source-neutral input required to
+create and maintain a production order.
 
 ```text
 order_demands
 - id
+- fulfillment_id
+- fulfillment_version
+- projection_hash
+- admission_state
+- commercial_state
 - demand_key
 - display_reference
 - location_id
 - revision_hash
 - revision_at
-- status
+- phase
 - due_at
 - created_at
 - updated_at
 ```
 
-`demand_key` is a globally unique adapter-owned identity such as
-`cents:order:<external-id>`. `display_reference` is the operator-facing label.
-Valid v1 demand states are `ready_for_production` and `not_ready`.
+`demand_key` is a globally unique canonical identity such as
+`fulfillment:<orders-fulfillment-id>`. `display_reference` is the
+operator-facing label. `admission_state` and `commercial_state` are projections
+of the Orders graphs; `phase` is derived and is not another lifecycle.
 
-Production applies revisions by source occurrence time, never arrival time. An
-older revision is ignored, an equal revision with the same hash is a no-op, and
-an equal timestamp with a different hash is rejected for reconciliation. A
-location change or mutation after production work is committed is rejected.
+Production applies projections by monotonic Orders fulfillment version. An
+older version is ignored, an equal version with the same projection hash is a
+no-op, and an equal version with a different hash is rejected for
+reconciliation. A location change or mutation after production work is
+committed is rejected.
 
 ### `production_shift`
 
@@ -438,13 +483,14 @@ unique(order_demand_id)
 For v1:
 
 ```text
-order_demands.status must be ready_for_production before the production_order
-can be scheduled. An active demand with no positive estimated weight is still
-stored, but it does not create an executable production_order until a newer
-source snapshot supplies a positive estimate.
+order_demands.admission_state must be released before the production_order can
+be scheduled. A canonical demand with no positive estimated weight is still
+stored, but it does not create executable production work until a newer Orders
+projection supplies a positive estimate.
 order_demands.location_id must equal production_order.location_id.
-bag_count must be recorded by an authoritative external field or a versioned
-operator intake command; absence is not zero.
+bag_count must be recorded by a versioned operator intake command; absence is
+not zero. External and projection-envelope bagCount values are compatibility
+evidence only.
 must_stay_together = true
 derived_weight_source = external_estimate when the Cents adapter can derive a
 positive estimate from service pricing
@@ -1027,7 +1073,8 @@ the bounded whole-order workflow below.
 
 ### Order-Level Control and Routing
 
-The Processor root route is an order-first **Home** workspace backed by:
+The dedicated Processor `/orders` route is a cross-workflow **Orders**
+workspace backed by:
 
 ```text
 GET /production/locations/:locationId/order-control
@@ -1039,6 +1086,13 @@ window, run, batch, current stage, priority, and movability. It returns current
 placement and version facts, next required stage, route-attempt history, and
 server-derived action availability. The browser does not load an unbounded
 location order set and paginate it locally.
+
+Orders also owns order detail and available actions plus the manager's bounded
+backlog archive review. Processor Home is a compact operational overview and
+launcher: it may show bounded remaining-day and attention summaries with links
+to `/orders`, but it does not duplicate the complete order-control workspace.
+Detailed remaining-day planning remains under `/forecast`, and read-only
+production audit remains under `/history`.
 
 There are two explicit routing workflows:
 
@@ -1157,10 +1211,23 @@ models rather than broader behavior in this recovery command.
 ```text
 webhook_events
   -> Worker source adapter
-    -> ApplyOrderDemand command
-      -> order_demands
-        -> production_order
-          -> bag[]
+    -> exact SUBMITTED candidate
+      -> immutable incoming Order snapshot
+        -> operator Accept
+          -> canonical Order + unreleased fulfillment
+        -> operator Reject
+          -> no canonical work
+    -> exact COMPLETED or CANCELED source closure
+      -> close pending candidate or tombstone exact identity
+
+Orders canonical command + graph
+  -> order_outbox_event
+    -> Worker fulfillment-demand projector
+      -> ApplyFulfillmentDemand command
+        -> order_demands
+          -> production_order
+            -> operator intake
+              -> bag[]
 
 source_location_bindings
   -> Worker source adapter
@@ -1202,13 +1269,17 @@ Cents
 -> API Cents authentication and normalization
 -> webhook-ingestion durable inbox
 -> Worker Cents order consumer
--> Production ApplyOrderDemand use case
+-> exact SUBMITTED candidate or exact terminal source closure
+-> immutable pending Orders candidate or exact-identity tombstone
+-> operator Accept, Reject, or Restore
+-> unreleased canonical work or terminal candidate decision
 -> Postgres
 
-apps/worker reconciliation timer
--> Cents read API, when available
--> webhook-ingestion ingest use case
--> the same Worker Cents order consumer
+explicit Pressly API command
+-> Orders lifecycle/release command and directed graph
+-> Orders fulfillment_demand_changed outbox
+-> Worker fulfillment-demand projector
+-> Production ApplyFulfillmentDemand use case
 -> Postgres
 
 Committed work_event
@@ -1223,16 +1294,22 @@ Boundary responsibilities:
 
 - `webhook-ingestion` owns generic inbox lifecycle and source-location
   bindings; it owns no downstream interpretation.
-- `production workflow` owns canonical demand and transactional production
-  commands without vendor or webhook vocabulary.
+- `orders` retains typed source observations, applies claim-scoped authority to
+  non-lifecycle fields, owns canonical commercial and fulfillment-release
+  graphs, and emits source-neutral demand through its transactional outbox.
+- `production workflow` owns the Orders demand projection, operator intake, and
+  transactional physical-production commands without vendor or webhook
+  vocabulary.
 - `production policies` are pure decisions over explicit inputs.
 - `optimization` is pure computation that returns a proposal and performs no
   database writes.
 - `apps/api/vendors` owns vendor authentication and wire normalization.
 - `apps/worker` owns source consumers, module composition, reconciliation
   adapters, and runtime polling.
-- Postgres is the durable authority for ingested events, canonical order
-  demand, schedule proposals, and accepted production execution.
+- Postgres durably stores ingested observations, canonical Orders aggregates
+  and outbox events, schedule proposals, operator-recorded intake, and accepted
+  production execution. Ownership still follows the module and aggregate
+  boundaries above; the database is not a substitute for transition policy.
 
 The Processor does not poll workspace state. Each committed `work_event`
 increments the location's monotonic `live_revision` and emits a transactional
@@ -1491,9 +1568,10 @@ unique actionable open shift. Multiple matches are returned as candidates
 rather than resolved by a latest-row guess. A schedule is actionable only
 while its shift is open and unexpired and no production run references it.
 
-The Processor's real browser routes are `/` for order-first Home, `/schedule`,
-`/schedule/:shiftId`, `/production`, `/production/:runId`, `/history`, and
-`/configuration`. Query parameters do not own Processor navigation.
+The Processor's real browser routes are `/` for the compact operational Home,
+`/orders`, `/intake`, `/schedule`, `/schedule/:shiftId`, `/production`,
+`/production/:runId`, `/forecast`, `/history`, and `/configuration`. Query
+parameters do not own Processor navigation.
 
 ## State Machine
 
@@ -1583,56 +1661,85 @@ The current repository implements the happy-path slice described above:
 - `modules/business/webhook-ingestion` owns source-neutral durable ingestion,
   encrypted-receipt quarantine persistence, retention purge, deduplication,
   leases, retries, dead letters, replay, and source-location bindings.
-- `modules/business/production` owns canonical order demand, planning,
-  acceptance, Start, online insertion, execution, idempotency, transactions,
-  server-paginated order/history projections, whole-order routing,
-  controllers, and routes.
+- `modules/business/orders` owns immutable incoming candidates, their
+  submitted-candidate graph, exact-identity tombstones and acceptance,
+  explicit commercial and fulfillment-release commands backed by directed
+  graphs, and versioned fulfillment demand through a transactional outbox.
+- `modules/business/production` owns the source-neutral Orders demand
+  projection, operator-recorded physical intake, planning, acceptance, Start,
+  online insertion, execution, idempotency, transactions, server-paginated
+  order/history projections, whole-order routing, controllers, and routes.
   Its source contains no vendor, webhook, receipt, lease, or CRM concepts.
 - `apps/api` owns the explicit Cents authentication policy, exact raw-byte
   encryption, and wire normalization, composes the isolated modules, and
   applies authentication, authorization, validation, and HTTP error mapping.
   HMAC remains available; the initial vendor-compatible mode is explicitly
   unsigned.
-- `apps/worker` composes webhook ingestion with Production through a declarative
-  source/subject consumer registry. The Cents consumer derives the canonical
-  demand command; stable event-based idempotency closes the crash window between
-  the two module transactions. Until a Cents read API is verified, supported
-  recovery is bounded manual replay through the normal ingestion path.
+- `apps/worker` composes webhook ingestion with Orders through a declarative
+  source/subject consumer registry, and separately projects the Orders outbox
+  into Production. The Cents consumer proposes only exact `SUBMITTED`
+  candidates, records exact `COMPLETED` or `CANCELED` source closure, and
+  acknowledges every other status without a canonical effect. Exact source
+  identity, immutable candidate evidence, terminal tombstones, and
+  outbox-event idempotency close the crash windows. Until a Cents read API is
+  verified, supported recovery is bounded manual replay through the normal
+  ingestion path.
 - `apps/processor` is an authenticated, live-only operator surface for location
-  discovery, an order-first paginated Home, read-only History, intake,
-  configuration, resumable workspace reads, the Compute/Accept/Start lifecycle,
-  run-ID boards, pending arrivals, membership controls, queued order moves,
-  in-flight leave-behind/rework, exact placement, overtime confirmation,
-  machine assignment, and server-authorized floor actions. It refreshes after
-  commands and receives revision-only invalidations through authenticated SSE;
-  it does not poll the workspace or board on a timer.
+  discovery, a compact operational Home, a dedicated server-paginated Orders
+  workspace, read-only History, Intake, Forecast, Configuration, resumable
+  workspace reads, the Compute/Accept/Start lifecycle, run-ID boards, pending
+  arrivals, membership controls, queued order moves, in-flight
+  leave-behind/rework, exact placement, overtime confirmation, machine
+  assignment, and server-authorized floor actions. It refreshes after commands
+  and receives revision-only invalidations through authenticated SSE; it does
+  not poll the workspace or board on a timer.
 
 Production readiness requires an explicit ingress mode. The current API
 adapter supports timestamped HMAC and Cents-compatible unsigned HTTPS JSON;
 production must configure the selected mode and a dedicated quarantine
-encryption key. Automatic read/reconciliation remains disabled until Cents
-proves an authoritative updated-since API. Queued rebatching and bounded
-in-flight leave-behind/rewash are implemented as whole-order routes. Manual
-holds, hard-confirmed cancellation, damaged-item, missing-bag, backward
-correction, and sole-order empty-batch workflows remain intentionally deferred.
+encryption key. Automatic read recovery remains disabled until Cents proves a
+reliable updated-since API. Such an API could recover missing candidate evidence;
+it would not gain canonical creation, update, or transition authority.
+Queued rebatching and bounded in-flight leave-behind/rewash are implemented as
+whole-order routes. Manual holds, hard-confirmed cancellation, damaged-item,
+missing-bag, backward correction, and sole-order empty-batch workflows remain
+intentionally deferred.
 
 The implementation is correct enough for v1 only when these failure cases are tested:
 
 ```text
 Deliver the same webhook repeatedly -> one durable event and one effective
-Production demand application.
-Deliver order snapshots out of order -> newest source revision wins.
+incoming candidate decision.
+Deliver exact SUBMITTED repeatedly -> one immutable pending candidate.
+Deliver exact COMPLETED or CANCELED before SUBMITTED -> one tombstone and no
+late candidate resurrection.
+Deliver any other status -> acknowledge evidence without creating or updating
+a candidate, User, Order, fulfillment, or Production work.
+Deliver later Cents events after a candidate decision -> acknowledge them
+without reopening the decision or changing canonical work.
 Stop a worker after it claims an event -> the expired lease makes the event claimable again.
-Stop a worker after Production commits but before inbox completion -> redelivery
-uses the same idempotency key, becomes a Production no-op, and completes the
-inbox event.
+Stop a worker after the candidate commits but before inbox completion ->
+redelivery resolves to the same exact source identity and completes the inbox
+event without another candidate.
+Race two Accept commands -> the candidate lock, expected version, and command
+receipt create one canonical result.
+Race Accept with canonical first-party creation of the same exact source
+identity -> exact identity serialization permits only one canonical Order.
+Stop an outbox projector after Production commits but before outbox completion
+-> redelivery uses the same outbox idempotency key and completes without
+duplicating demand.
 Deliver a permanently invalid payload -> the event becomes dead and raises an alert.
-Deliver a valid order before weighing -> retain advisory demand without an
-executable production_order; a later positive estimate promotes it normally.
+Accept a submitted candidate without weighing -> create one canonical open
+Order with unreleased fulfillment and unknown estimated demand; physical bag
+count and bag rows remain absent until operator intake, and Production
+readiness still requires an explicit Pressly release.
+Deliver any external bagCount -> keep it outside physical truth; Production bag
+count and bag rows remain unchanged until operator intake.
 Reject a valid-JSON vendor body during normalization -> retain only its
 encrypted short-lived quarantine receipt and safe rejection telemetry.
-Omit a webhook -> reconciliation restores the missing vendor state only when a
-verified Cents updated-since API exists; otherwise alert and use bounded manual replay.
+Omit a webhook -> a verified Cents read API may recover only the missing
+candidate or source-closure evidence; otherwise alert and use bounded manual
+replay.
 Race two production commands -> optimistic concurrency and constraints allow only one valid write.
 Make Postgres unavailable -> production commands fail without partial state.
 Schedule the same snapshot with the same config twice -> byte-equivalent plans.
@@ -1654,7 +1761,7 @@ transaction.
 Try to move the only active order in a batch -> reject with
 SOURCE_BATCH_WOULD_BE_EMPTY until empty-batch compensation is explicitly
 modeled.
-Page Home or History across a large location -> use server keyset cursors and
+Page Orders or History across a large location -> use server keyset cursors and
 filters; do not load the complete order or audit set into browser memory.
 Pack 800 lb into four ideal whole-order batches -> makespan is 392 minutes.
 Use order weights that cannot fit into four 224 lb bins -> actual batch count exceeds the weight lower bound.
@@ -1768,7 +1875,8 @@ work_event is the authoritative mutation ledger and audit trail.
 Operational tables are the current-state projections for reads.
 Each committed work_event advances one location live_revision; SSE carries
 only invalidations, and HTTP projections remain the source of read truth.
-Home and History use bounded server keyset pagination and server-side filters.
+Orders and History use bounded server keyset pagination and server-side
+filters; Home uses bounded summaries rather than duplicating either workspace.
 Public History exposes typed sanitized activity summaries, never raw
 work_event payloads or private idempotency data.
 ```

@@ -1,0 +1,41 @@
+work_id: pressly-cents-submitted-candidate-lifecycle
+status: complete
+updated: 2026-07-29T13:32:39-04:00
+
+current_focus:
+  - complete
+  - Submitted candidate ingress, terminal evidence, canonical acceptance,
+    rendered management, full verification, and durable memory closeout are
+    complete.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/evidence.md#t0--reconcile-the-superseded-pickup-baseline
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/evidence.md#t1--define-and-persist-the-submitted-candidate-graph
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/evidence.md#t2--cut-cents-ingress-over-to-submitted-and-terminal-observations
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/evidence.md#t3--correct-canonical-acceptance-and-guarded-cleanup
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/evidence.md#t4--update-manager-apis-and-processor-projections
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/evidence.md#v1--submitted-candidate-vertical-slice-verification
+      - stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/design-qa.md
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/evidence.md#t5--durable-memory-closure-preparation
+      - stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/final-report.md

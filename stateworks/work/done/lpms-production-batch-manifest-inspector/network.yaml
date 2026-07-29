@@ -1,0 +1,178 @@
+work_id: lpms-production-batch-manifest-inspector
+title: LPMS production batch manifest inspector
+status: done
+
+goal:
+  - Let employees inspect every order in a live production batch without increasing the Production board height or losing their stage-action position.
+  - Present the manifest in a 90%-viewport-height bottom drawer on desktop and mobile.
+  - Compose canonical order and customer identity at the API-owned Processor read boundary without moving identity ownership into Production.
+
+invariants:
+  - The inspector is read-only and introduces no Production command, persistence, lifecycle state, transition, or scheduling behavior.
+  - Stage Start and Complete remain owned by the existing Production board.
+  - Production persists no customer identity; the API composes canonical identity into Processor-only contracts.
+  - Nested batch identities are resolved in one bounded workspace composition with no browser per-row fetch or backend N+1 query.
+  - Opening and closing the drawer does not change the board scroll position or selected production state.
+  - The originating batch trigger receives focus when the drawer closes.
+  - The drawer uses the existing shadcn primitive and Pressly design tokens, occupies 90% of the viewport height at every breakpoint, and scrolls internally.
+  - Existing live refresh, stage actions, machine assignment, floor reconciliation, queue membership, and responsive stage navigation remain unchanged.
+  - Existing user work and unrelated dirty files are preserved.
+  - No secret, credential, customer payload, private token, or production data enters Stateworks, tests, screenshots, or commits.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Rebaseline the Production board and identity read path
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:apps/processor/src/features/production-board
+      - repo:apps/processor/src/components/ui/drawer.tsx
+      - repo:apps/api/src/http/processor/operational-order-identity
+      - repo:packages/contracts/src/processor
+      - repo:packages/contracts/src/production
+    writes:
+      - repo:stateworks/work/done/lpms-production-batch-manifest-inspector/evidence.md
+    action:
+      - Inventory the current batch-card presentation, nested board-order data, identity-composition boundary, drawer primitive, tests, and dirty-file overlap.
+      - Record the smallest coherent implementation and prove it cannot change Production lifecycle or floor truth.
+    verifier:
+      - Evidence names the exact contract, API, Processor, localization, and test files required by the implementation.
+      - Evidence distinguishes existing dirty work from this package's write set.
+      - Any domain or lifecycle change stops implementation for a Stateworks replan.
+    rollback:
+      - No rollback is needed for the read-only audit; revert only unsupported evidence.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T1
+    title: Compose canonical identity into nested batch orders
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/contracts/src/processor/processor-operational-order-identity.contracts.ts
+      - repo:packages/contracts/src/production/production.contracts.ts
+      - repo:apps/api/src/http/processor/operational-order-identity/operational-order-identity.read-model.ts
+      - repo:apps/api/src/http/processor/operational-order-identity/operational-order-identity.query.ts
+      - repo:apps/api/src/http/processor/operational-order-identity/operational-order-identity.route.ts
+      - repo:apps/processor/src/adapters/production/api-production.adapter.ts
+      - repo:apps/processor/src/ports/production.port.ts
+    writes:
+      - repo:packages/contracts/src/processor/processor-operational-order-identity.contracts.ts
+      - repo:packages/contracts/test/processor-operational-order-identity.contracts.test.ts
+      - repo:apps/api/src/http/processor/operational-order-identity/operational-order-identity.read-model.ts
+      - repo:apps/api/src/http/processor/operational-order-identity/operational-order-identity.route.ts
+      - repo:apps/api/test/processor
+      - repo:apps/processor/src/adapters/production/api-production.adapter.ts
+      - repo:apps/processor/src/ports/production.port.ts
+      - repo:apps/processor/src/features/production-board/production-board.model.ts
+      - repo:apps/processor/test/adapters/production
+      - repo:stateworks/work/done/lpms-production-batch-manifest-inspector/evidence.md
+    action:
+      - Extend only the Processor workspace projection so every nested production-board batch order carries the existing canonical operational identity.
+      - Include nested batch orders in the existing deduplicated bounded identity-resolution call and preserve all Production-owned facts unchanged.
+      - Decorate the existing Processor board-read route through the same read model so direct refreshes cannot silently lose identity.
+      - Add contract and read-model tests for multiple batches, duplicate references, canonical precedence, and unavailable-customer fallback.
+    verifier:
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/contracts typecheck
+      - pnpm --filter @pressly/api test -- processor
+      - pnpm --filter @pressly/api typecheck
+    rollback:
+      - Revert the Processor-only schema composition and nested identity mapping; the underlying Production board contract remains unchanged.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T2
+    title: Implement the responsive batch manifest drawer
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:apps/processor/src/features/production-board/production-board.view.tsx
+      - repo:apps/processor/src/components/ui/drawer.tsx
+      - repo:apps/processor/src/components/orders/operational-order-identity.tsx
+      - repo:apps/processor/src/i18n/locales
+    writes:
+      - repo:apps/processor/src/features/production-board
+      - repo:apps/processor/src/i18n/locales/en
+      - repo:apps/processor/src/i18n/locales/es
+      - repo:apps/processor/test/features/production-board
+      - repo:stateworks/work/done/lpms-production-batch-manifest-inspector/evidence.md
+    action:
+      - Replace the truncated concatenated order IDs in each stage card with one accessible order-and-bag summary trigger for that batch.
+      - Open one controlled bottom Drawer at 90% viewport height on every breakpoint, with a fixed header, internal scrolling, selected-batch navigation, and a readable semantic order list.
+      - Show canonical customer and order identity, bags, weight, priority, and pinned context without duplicating Start or Complete actions.
+      - Preserve board dimensions, scroll position, live data refresh, focus restoration, and existing responsive stage behavior.
+    verifier:
+      - pnpm --filter @pressly/processor test -- production-board
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+      - pnpm --filter @pressly/processor build
+    rollback:
+      - Revert the drawer, trigger, copy, and focused tests; retain the existing compact batch-card presentation.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V1
+    title: Verify production ergonomics and close the package
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - repo:stateworks/work/done/lpms-production-batch-manifest-inspector/evidence.md
+      - repo:design-qa.md
+      - repo:apps/processor
+      - repo:apps/api
+      - repo:packages/contracts
+    writes:
+      - repo:design-qa.md
+      - repo:stateworks/work/done/lpms-production-batch-manifest-inspector/evidence.md
+      - repo:stateworks/work/done/lpms-production-batch-manifest-inspector/final-report.md
+    action:
+      - Run the focused contract, API, Processor, type, lint, formatting, build, Stateworks, and whitespace gates.
+      - Compare the rendered Production board and open manifest against the supplied Production reference at desktop and narrow viewports.
+      - Exercise open, batch switching, internal scrolling, close, focus return, preserved board position, and existing stage actions; check the browser console.
+      - Record any residual gap without promoting local evidence into deployment or pilot proof.
+    verifier:
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/api test -- processor
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+      - pnpm --filter @pressly/processor build
+      - pnpm format:check
+      - pnpm stateworks:validate stateworks/work/done/lpms-production-batch-manifest-inspector/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-production-batch-manifest-inspector/network.yaml --state stateworks/work/done/lpms-production-batch-manifest-inspector/state.yaml
+      - git diff --check
+      - design-qa.md records final result passed with source and rendered evidence.
+    rollback:
+      - Keep the work active, revert only this package's unverified changes, and preserve concrete failure evidence for repair.
+    secret_handling: none
+    status: pending
+    evidence: []

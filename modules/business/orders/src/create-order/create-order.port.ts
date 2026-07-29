@@ -8,7 +8,6 @@ export type CreateOrderOperations = OrderCommandOperations &
   Readonly<{
     createOrder: (input: {
       order: OrderInput;
-      authorityFields: readonly string[];
       now: Date;
     }) => Promise<OrderMutationResult>;
   }>;

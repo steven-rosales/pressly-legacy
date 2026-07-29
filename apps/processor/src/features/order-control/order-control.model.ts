@@ -55,6 +55,19 @@ export type OrderControlActionAvailability = Readonly<{
   reason: string | null
 }>
 
+export type OrderControlArchiveAvailability = OrderControlActionAvailability &
+  Readonly<{
+    expectedVersion: number | null
+    requiresExplicitReview: boolean
+    reviewReasons: readonly string[]
+  }>
+
+export type OrderControlAuditEntry = Readonly<{
+  key: string
+  label: string
+  detail: string
+}>
+
 export type OrderControlOrder = Readonly<{
   id: string
   identity: ProcessorOperationalOrderIdentity
@@ -64,7 +77,6 @@ export type OrderControlOrder = Readonly<{
   phoneLabel: string
   commercialStateLabel: string
   admissionStateLabel: string
-  sourceStateLabel: string
   statusLabel: string
   dueLabel: string
   dueDetail: string
@@ -72,12 +84,14 @@ export type OrderControlOrder = Readonly<{
   bagLabel: string
   priority: boolean
   attention: OrderControlAttention | null
+  audit: readonly OrderControlAuditEntry[]
   position: OrderControlPosition
   placement: OrderControlPlacement | null
   lastUpdatedLabel: string
   move: OrderControlActionAvailability
   leaveBehind: OrderControlActionAvailability
   rework: OrderControlActionAvailability
+  archive: OrderControlArchiveAvailability
 }>
 
 export type OrderControlCounts = Readonly<{
@@ -136,10 +150,28 @@ export type OrderExceptionAction = Readonly<{
   error: string | null
 }>
 
+export type OrderArchiveDraft = Readonly<{
+  reason: string
+  note: string
+  confirmedFacts: boolean
+}>
+
+export type OrderArchiveAction = Readonly<{
+  kind: "archive"
+  expectedVersion: number
+  requiresExplicitReview: boolean
+  reviewReasons: readonly string[]
+  draft: OrderArchiveDraft
+  reasonOptions: readonly OrderControlFilterOption[]
+  busy: boolean
+  error: string | null
+}>
+
 export type OrderDetailAction =
   | Readonly<{ kind: "none" }>
   | OrderMoveAction
   | OrderExceptionAction
+  | OrderArchiveAction
 
 export type OrderControlViewModel = Readonly<{
   tab: OrderControlTab
@@ -172,6 +204,9 @@ export type OrderControlCallbacks = Readonly<{
   onExceptionDraftChange: (draft: OrderExceptionDraft) => void
   onReviewException: () => void
   onConfirmException: () => void
+  onStartArchive: (orderId: string) => void
+  onArchiveDraftChange: (draft: OrderArchiveDraft) => void
+  onConfirmArchive: () => void
   onChangeActionDetails: () => void
   onCancelAction: () => void
 }>

@@ -19,7 +19,10 @@ export type ProcessorOperationalOrderIdentityReference = Readonly<{
   fallbackDisplayNumber: string;
 }>;
 
-type ProcessorCanonicalOrderContext = Omit<ProcessorOrderContext, 'source'>;
+type ProcessorCanonicalOrderContext = Omit<
+  ProcessorOrderContext,
+  'source' | 'audit'
+>;
 
 export type ProcessorOperationalOrderIdentityResolution = Readonly<{
   identity: ProcessorOperationalOrderIdentity;
@@ -109,7 +112,9 @@ export const makeProcessorOperationalOrderIdentityResolver = (
         businessName: users.users.businessName,
         phone: users.users.phone,
         commercialState: orders.orders.state,
+        orderVersion: orders.orders.version,
         admissionState: orders.orderFulfillments.releaseState,
+        fulfillmentVersion: orders.orderFulfillments.version,
       })
       .from(laundryProduction.orderDemands)
       .leftJoin(
@@ -184,6 +189,10 @@ export const makeProcessorOperationalOrderIdentityResolver = (
             row.commercialState as ProcessorOrderContext['commercialState'],
           admissionState:
             row.admissionState as ProcessorOrderContext['admissionState'],
+          versions: {
+            order: row.orderVersion,
+            fulfillment: row.fulfillmentVersion,
+          },
         };
         return [
           reference.referenceId,

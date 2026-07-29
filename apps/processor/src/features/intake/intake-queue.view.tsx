@@ -1,10 +1,4 @@
-import {
-  IconAlertTriangle,
-  IconArrowBackUp,
-  IconCircleCheck,
-  IconLock,
-  IconPackageImport,
-} from "@tabler/icons-react"
+import { IconCircleCheck, IconPackageImport } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import type { ProcessorOrderControlItem } from "@pressly/contracts"
 import { Badge } from "@/components/ui/badge"
@@ -38,10 +32,7 @@ type IntakeQueueProps = Readonly<{
   onBagCountChange: (orderId: string, value: string) => void
   onPriorityChange: (orderId: string, value: boolean) => void
   onRecord: (item: ProcessorOrderControlItem) => Promise<void>
-  onDecision: (
-    item: ProcessorOrderControlItem,
-    target: "released" | "source"
-  ) => void
+  onDecision: (item: ProcessorOrderControlItem, target: "released") => void
 }>
 
 type IntakeRowState = Readonly<{
@@ -105,31 +96,7 @@ function SourceState({ item }: Readonly<{ item: ProcessorOrderControlItem }>) {
   const { t } = useTranslation()
   const source = presentIntakeSource(item, t)
 
-  return (
-    <div className="min-w-0">
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <Badge variant="outline">{source.status}</Badge>
-        <span className="text-xs text-muted-foreground">{source.name}</span>
-      </div>
-      {source.notice !== null && (
-        <p
-          className={
-            source.notice.tone === "warning"
-              ? "mt-1.5 flex items-start gap-1 text-xs leading-snug text-warning-foreground"
-              : "mt-1.5 text-xs leading-snug text-muted-foreground"
-          }
-        >
-          {source.notice.tone === "warning" && (
-            <IconAlertTriangle
-              className="mt-0.5 size-3 shrink-0"
-              aria-hidden="true"
-            />
-          )}
-          <span>{source.notice.label}</span>
-        </p>
-      )}
-    </div>
-  )
+  return <p className="text-sm text-muted-foreground">{source.label}</p>
 }
 
 function DemandAndDue({ item }: Readonly<{ item: ProcessorOrderControlItem }>) {
@@ -300,12 +267,11 @@ function AdmissionAction({
   busy: boolean
   disabled: boolean
   mobile?: boolean
-  onDecision: (target: "released" | "source") => void
+  onDecision: (target: "released") => void
 }>) {
   const { t } = useTranslation()
   const orderNumber = presentIntakeOrderNumber(item)
   const canRelease = item.admission.allowedActions.includes("release")
-  const canReturn = item.admission.allowedActions.includes("return_to_source")
   const actionClassName = mobile ? "h-11 w-full" : "h-11"
   const statusClassName = mobile
     ? "flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground"
@@ -313,39 +279,25 @@ function AdmissionAction({
 
   if (canRelease)
     return (
-      <Button
-        type="button"
-        className={actionClassName}
-        disabled={disabled}
-        aria-label={t("intake.releaseForOrder", { orderId: orderNumber })}
-        onClick={() => onDecision("released")}
-      >
-        {busy ? (
-          <Spinner data-icon="inline-start" />
-        ) : (
-          <IconPackageImport data-icon="inline-start" />
-        )}
-        {t("intake.release")}
-      </Button>
-    )
-
-  if (canReturn)
-    return (
-      <Button
-        type="button"
-        variant="outline"
-        className={actionClassName}
-        disabled={disabled}
-        aria-label={t("intake.returnForOrder", { orderId: orderNumber })}
-        onClick={() => onDecision("source")}
-      >
-        {busy ? (
-          <Spinner data-icon="inline-start" />
-        ) : (
-          <IconArrowBackUp data-icon="inline-start" />
-        )}
-        {t("intake.returnToForecast")}
-      </Button>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Button
+          type="button"
+          className={actionClassName}
+          disabled={disabled}
+          aria-label={t("intake.releaseForOrder", { orderId: orderNumber })}
+          onClick={() => onDecision("released")}
+        >
+          {busy ? (
+            <Spinner data-icon="inline-start" />
+          ) : (
+            <IconPackageImport data-icon="inline-start" />
+          )}
+          {t("intake.release")}
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          {t("intake.awaitingReleaseStatus")}
+        </p>
+      </div>
     )
 
   if (item.order.status === "intake_pending")
@@ -377,18 +329,7 @@ function DesktopIntakeTable(props: IntakeQueueProps) {
               {t("intake.columns.order")}
             </TableHead>
             <TableHead className="w-[20%]">
-              <span className="flex items-center gap-1.5">
-                {t("intake.columns.source")}
-                <span title={t("intake.sourceStateObserved")}>
-                  <IconLock
-                    className="size-3.5 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <span className="sr-only">
-                    {t("intake.sourceStateObserved")}
-                  </span>
-                </span>
-              </span>
+              {t("intake.columns.source")}
             </TableHead>
             <TableHead className="w-[13%]">
               {t("intake.columns.demand")}
@@ -461,7 +402,7 @@ function MobileIntakeCards(props: IntakeQueueProps) {
       {props.items.map((item) => {
         const state = rowStateFor(item, props)
         const showAdmissionFooter =
-          item.admission.allowedActions.length > 0 ||
+          item.admission.allowedActions.includes("release") ||
           item.order.status === "eligible"
         return (
           <Card key={item.order.id} className="gap-4 bg-background py-4">

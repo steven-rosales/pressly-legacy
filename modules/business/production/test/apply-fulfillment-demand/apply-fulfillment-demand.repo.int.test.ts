@@ -31,7 +31,7 @@ const baseCommand = {
 };
 
 describe('canonical fulfillment demand materialization', () => {
-  it('creates exact bag rows both on order creation and later source adoption', async () => {
+  it('ignores non-null external bag counts on creation and later revisions', async () => {
     const ids = makeIds();
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: baseCommand.locationId,
@@ -46,20 +46,20 @@ describe('canonical fulfillment demand materialization', () => {
       ids,
     });
 
-    const createdFulfillmentId = '00000000-0000-4000-8000-000000001001';
+    const fulfillmentId = '00000000-0000-4000-8000-000000001001';
     await seedCanonicalFulfillment(testDb.db, {
       orderId: '00000000-0000-4000-8000-000000002001',
-      fulfillmentId: createdFulfillmentId,
+      fulfillmentId,
       locationId: baseCommand.locationId,
       displayNumber: 'CENTS-1001',
       dueAt: baseCommand.dueAt,
     });
     const created = await application.applyFulfillmentDemand({
       ...baseCommand,
-      fulfillmentId: createdFulfillmentId,
+      fulfillmentId,
       fulfillmentVersion: 1,
       bagCount: 2,
-      idempotencyKey: 'demand-create-with-bags',
+      idempotencyKey: 'demand-create-with-legacy-bags',
     });
     expect(created).toEqual(
       expect.objectContaining({
@@ -70,6 +70,32 @@ describe('canonical fulfillment demand materialization', () => {
     if (created.tag === 'err' || created.value.productionOrderId === null)
       return;
 
+    const physicalState = () =>
+      testDb.db
+        .select({
+          bagCount: laundryProduction.productionOrders.bagCount,
+          bagCountSource: laundryProduction.productionOrders.bagCountSource,
+          intakeRecordedAt: laundryProduction.productionOrders.intakeRecordedAt,
+          intakeVersion: laundryProduction.productionOrders.intakeVersion,
+          operationalStatus:
+            laundryProduction.productionOrders.operationalStatus,
+        })
+        .from(laundryProduction.productionOrders)
+        .where(
+          eq(
+            laundryProduction.productionOrders.id,
+            created.value.productionOrderId!,
+          ),
+        );
+    await expect(physicalState()).resolves.toEqual([
+      {
+        bagCount: null,
+        bagCountSource: null,
+        intakeRecordedAt: null,
+        intakeVersion: 0,
+        operationalStatus: 'intake_pending',
+      },
+    ]);
     await expect(
       testDb.db
         .select({ bagIndex: laundryProduction.bags.bagIndex })
@@ -79,42 +105,29 @@ describe('canonical fulfillment demand materialization', () => {
             laundryProduction.bags.productionOrderId,
             created.value.productionOrderId,
           ),
-        )
-        .orderBy(asc(laundryProduction.bags.bagIndex)),
-    ).resolves.toEqual([{ bagIndex: 0 }, { bagIndex: 1 }]);
+        ),
+    ).resolves.toEqual([]);
 
-    const adoptedFulfillmentId = '00000000-0000-4000-8000-000000001002';
-    await seedCanonicalFulfillment(testDb.db, {
-      orderId: '00000000-0000-4000-8000-000000002002',
-      fulfillmentId: adoptedFulfillmentId,
-      locationId: baseCommand.locationId,
-      displayNumber: 'CENTS-1002',
-      dueAt: baseCommand.dueAt,
-    });
-    const pending = await application.applyFulfillmentDemand({
+    const revised = await application.applyFulfillmentDemand({
       ...baseCommand,
-      fulfillmentId: adoptedFulfillmentId,
-      fulfillmentVersion: 1,
-      displayReference: 'CENTS-1002',
-      bagCount: null,
-      idempotencyKey: 'demand-create-pending',
-    });
-    expect(pending).toMatchObject({ tag: 'ok', value: { outcome: 'applied' } });
-    if (pending.tag === 'err' || pending.value.productionOrderId === null)
-      return;
-
-    const adopted = await application.applyFulfillmentDemand({
-      ...baseCommand,
-      fulfillmentId: adoptedFulfillmentId,
+      fulfillmentId,
       fulfillmentVersion: 2,
-      displayReference: 'CENTS-1002',
       observedAt: '2026-07-14T14:05:00.000Z',
       projectionHash: 'b'.repeat(64),
-      bagCount: 3,
-      idempotencyKey: 'demand-adopt-bags',
+      bagCount: 9,
+      idempotencyKey: 'demand-revise-with-legacy-bags',
     });
-    expect(adopted).toMatchObject({ tag: 'ok', value: { outcome: 'applied' } });
+    expect(revised).toMatchObject({ tag: 'ok', value: { outcome: 'applied' } });
 
+    await expect(physicalState()).resolves.toEqual([
+      {
+        bagCount: null,
+        bagCountSource: null,
+        intakeRecordedAt: null,
+        intakeVersion: 0,
+        operationalStatus: 'intake_pending',
+      },
+    ]);
     await expect(
       testDb.db
         .select({ bagIndex: laundryProduction.bags.bagIndex })
@@ -122,11 +135,105 @@ describe('canonical fulfillment demand materialization', () => {
         .where(
           eq(
             laundryProduction.bags.productionOrderId,
-            pending.value.productionOrderId,
+            created.value.productionOrderId,
+          ),
+        ),
+    ).resolves.toEqual([]);
+  });
+
+  it('preserves operator intake across a conflicting external bag count', async () => {
+    const ids = makeIds();
+    await testDb.db.insert(laundryProduction.productionLocations).values({
+      id: baseCommand.locationId,
+      name: 'Synthetic Facility',
+      timezone: 'America/New_York',
+    });
+    const application = makePostgresProductionApplication({
+      db: testDb.db,
+      policy: allowPolicy,
+      scheduler: simpleScheduler,
+      clock: makeClock('2026-07-14T14:01:00.000Z').clock,
+      ids,
+    });
+
+    const fulfillmentId = '00000000-0000-4000-8000-000000001002';
+    await seedCanonicalFulfillment(testDb.db, {
+      orderId: '00000000-0000-4000-8000-000000002002',
+      fulfillmentId,
+      locationId: baseCommand.locationId,
+      displayNumber: 'CENTS-1002',
+      dueAt: baseCommand.dueAt,
+    });
+    const projected = await application.applyFulfillmentDemand({
+      ...baseCommand,
+      fulfillmentId,
+      fulfillmentVersion: 1,
+      displayReference: 'CENTS-1002',
+      bagCount: 7,
+      idempotencyKey: 'demand-before-operator-intake',
+    });
+    if (projected.tag === 'err' || projected.value.productionOrderId === null)
+      throw new Error('Expected Production work.');
+
+    const intake = await application.recordOrderIntake({
+      locationId: baseCommand.locationId,
+      orderId: projected.value.productionOrderId,
+      bagCount: 2,
+      expectedVersion: 1,
+      actorId: '00000000-0000-4000-8000-000000009001',
+      idempotencyKey: 'operator-intake-before-demand-revision',
+    });
+    if (intake.tag === 'err') throw intake.error;
+
+    const selectPhysicalState = () =>
+      testDb.db
+        .select({
+          bagCount: laundryProduction.productionOrders.bagCount,
+          bagCountSource: laundryProduction.productionOrders.bagCountSource,
+          intakeRecordedAt: laundryProduction.productionOrders.intakeRecordedAt,
+          intakeVersion: laundryProduction.productionOrders.intakeVersion,
+        })
+        .from(laundryProduction.productionOrders)
+        .where(
+          eq(
+            laundryProduction.productionOrders.id,
+            projected.value.productionOrderId!,
+          ),
+        );
+    const before = await selectPhysicalState();
+    expect(before).toEqual([
+      {
+        bagCount: 2,
+        bagCountSource: 'operator_intake',
+        intakeRecordedAt: new Date('2026-07-14T14:01:00.000Z'),
+        intakeVersion: 1,
+      },
+    ]);
+
+    await application.applyFulfillmentDemand({
+      ...baseCommand,
+      fulfillmentId,
+      fulfillmentVersion: 2,
+      displayReference: 'CENTS-1002',
+      observedAt: '2026-07-14T14:05:00.000Z',
+      projectionHash: 'b'.repeat(64),
+      bagCount: 9,
+      idempotencyKey: 'demand-after-operator-intake',
+    });
+
+    await expect(selectPhysicalState()).resolves.toEqual(before);
+    await expect(
+      testDb.db
+        .select({ bagIndex: laundryProduction.bags.bagIndex })
+        .from(laundryProduction.bags)
+        .where(
+          eq(
+            laundryProduction.bags.productionOrderId,
+            projected.value.productionOrderId,
           ),
         )
         .orderBy(asc(laundryProduction.bags.bagIndex)),
-    ).resolves.toEqual([{ bagIndex: 0 }, { bagIndex: 1 }, { bagIndex: 2 }]);
+    ).resolves.toEqual([{ bagIndex: 0 }, { bagIndex: 1 }]);
   });
 
   it('keeps pre-release forecasts off the floor while showing released or physically admitted work', async () => {
@@ -176,7 +283,7 @@ describe('canonical fulfillment demand materialization', () => {
       bagCount: null,
       idempotencyKey: 'released-without-intake',
     });
-    await application.applyFulfillmentDemand({
+    const admitted = await application.applyFulfillmentDemand({
       ...baseCommand,
       fulfillmentId: admittedId,
       fulfillmentVersion: 1,
@@ -184,6 +291,16 @@ describe('canonical fulfillment demand materialization', () => {
       admissionState: 'unreleased',
       bagCount: 2,
       idempotencyKey: 'expected-with-intake',
+    });
+    if (admitted.tag === 'err' || admitted.value.productionOrderId === null)
+      throw new Error('Expected Production work.');
+    await application.recordOrderIntake({
+      locationId: baseCommand.locationId,
+      orderId: admitted.value.productionOrderId,
+      bagCount: 2,
+      expectedVersion: 1,
+      actorId: '00000000-0000-4000-8000-000000009001',
+      idempotencyKey: 'physical-intake-for-control-list',
     });
 
     const result = await application.listProductionOrderControl({

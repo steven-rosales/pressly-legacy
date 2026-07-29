@@ -5,11 +5,13 @@ import {
   IconHistory,
   IconHome,
   IconLayoutBoard,
+  IconPackage,
   IconPackageImport,
 } from "@tabler/icons-react"
 
 export type WorkspaceView =
   | "home"
+  | "orders"
   | "intake"
   | "schedule"
   | "forecast"
@@ -52,9 +54,14 @@ export const workspaceNavigationSections = [
     ],
   },
   {
-    id: "planningReview",
-    labelKey: "navigation.sections.planningReview",
+    id: "manageReview",
+    labelKey: "navigation.sections.manageReview",
     items: [
+      {
+        id: "orders" as const,
+        labelKey: "navigation.orders",
+        icon: IconPackage,
+      },
       {
         id: "forecast" as const,
         labelKey: "navigation.forecast",
@@ -93,6 +100,7 @@ export const workspaceNavigation: readonly WorkspaceNavigationItem[] = [
 
 export const workspaceCopyKeys = {
   home: ["navigation.home", "navigation.homeDescription"],
+  orders: ["navigation.orders", "navigation.ordersDescription"],
   intake: ["navigation.intake", "navigation.intakeDescription"],
   schedule: ["navigation.schedule", "navigation.scheduleDescription"],
   forecast: ["navigation.forecast", "navigation.forecastDescription"],
@@ -121,6 +129,8 @@ export const readWorkspaceRoute = (pathname: string): WorkspaceRoute | null => {
     return { view: "history", shiftId: null, runId: null }
   if (segments.length === 1 && segments[0] === "intake")
     return { view: "intake", shiftId: null, runId: null }
+  if (segments.length === 1 && segments[0] === "orders")
+    return { view: "orders", shiftId: null, runId: null }
   if (segments.length === 1 && segments[0] === "forecast")
     return { view: "forecast", shiftId: null, runId: null }
   if (segments.length === 1 && segments[0] === "configuration")
@@ -149,6 +159,7 @@ export const readWorkspaceRoute = (pathname: string): WorkspaceRoute | null => {
 
 export const workspaceRoutePath = (route: WorkspaceRoute): string => {
   if (route.view === "home") return "/"
+  if (route.view === "orders") return "/orders"
   if (route.view === "intake") return "/intake"
   if (route.view === "forecast") return "/forecast"
   if (route.view === "history") return "/history"
@@ -168,6 +179,7 @@ export const workspaceRouteForView = (
 ): WorkspaceRoute => {
   if (
     view === "home" ||
+    view === "orders" ||
     view === "intake" ||
     view === "forecast" ||
     view === "history"

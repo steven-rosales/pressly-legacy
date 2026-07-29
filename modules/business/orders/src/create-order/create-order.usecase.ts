@@ -1,21 +1,45 @@
 import { isCommandContextValid, result } from '@pressly/kernel';
 import { hashOrderCommand } from '../order-command-idempotency.policy.ts';
-import { orderError } from '../order.error.ts';
 import {
-  fulfillmentReleaseAuthorityField,
-  orderSourceFields,
-} from '../order-field-authority.policy.ts';
+  createOrderReasonCodes,
+  isOrderCommandReasonValid,
+} from '../order-command-reason.policy.ts';
+import { orderError } from '../order.error.ts';
 import { isOrderInputValid } from '../order-input.policy.ts';
-import type { CreateOrder, OrderClockPort } from '../orders.port.ts';
+import type {
+  CreateOrder,
+  OrderClockPort,
+  OrderInput,
+} from '../orders.port.ts';
 import type { CreateOrderRepository } from './create-order.port.ts';
 
 export const makeCreateOrder =
   (deps: { repo: CreateOrderRepository; clock: OrderClockPort }): CreateOrder =>
   async (command) => {
+    const canonicalOrder: OrderInput = {
+      customer: command.customer,
+      displayNumber: command.displayNumber,
+      state: 'open',
+      dueAt: command.dueAt,
+      currency: command.currency,
+      totalAmountCents: command.totalAmountCents,
+      balanceDueCents: command.balanceDueCents,
+      items: command.items,
+      fulfillment: {
+        ...command.fulfillment,
+        releaseState: 'unreleased',
+        bagCount: null,
+      },
+    };
     if (
       command.idempotencyKey.trim() === '' ||
       !isCommandContextValid(command.context) ||
-      !isOrderInputValid(command)
+      !isOrderCommandReasonValid({
+        reasonCode: command.reasonCode,
+        reasonNote: command.reasonNote,
+        allowedReasonCodes: createOrderReasonCodes,
+      }) ||
+      !isOrderInputValid(canonicalOrder)
     )
       return result.err(
         orderError('ORDER_CREATE_INVALID', 'The order is incomplete.', 400),
@@ -37,17 +61,15 @@ export const makeCreateOrder =
             : { kind: 'idempotency_conflict' as const };
 
         const value = await operations.createOrder({
-          order: command,
-          authorityFields: [
-            ...orderSourceFields,
-            fulfillmentReleaseAuthorityField(command.fulfillment.typeCode),
-          ],
+          order: canonicalOrder,
           now,
         });
         await operations.saveCommandReceipt({
           idempotencyKey: command.idempotencyKey,
           commandHash,
           context: command.context,
+          reasonCode: command.reasonCode,
+          reasonNote: command.reasonNote,
           value,
           now,
         });

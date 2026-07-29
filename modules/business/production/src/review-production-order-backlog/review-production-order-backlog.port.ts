@@ -34,7 +34,6 @@ export type ProductionOrderBacklogSnapshotOrder = Readonly<{
   resolutionState: 'open' | 'resolved_without_production';
   executionStatus: string;
   operationalStatus: string;
-  sourceCommercialState: 'open' | 'completed' | 'canceled';
   hasIntake: boolean;
   hasManualAdmission: boolean;
   isPriority: boolean;

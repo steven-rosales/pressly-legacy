@@ -5,12 +5,7 @@
     "sheetDescription": "Encuentra pedidos que ya no deben estar en el trabajo activo de producción.",
     "archiveExplanationTitle": "Archivar del trabajo activo",
     "archiveExplanation": "Nada se elimina ni se marca como producido. Pressly conserva un registro permanente y los pedidos archivados se pueden restaurar desde el Historial.",
-    "scopeTitle": "Elige los pedidos que quieres revisar",
-    "filterLabel": "Pedidos que se incluirán",
-    "filterOptions": {
-      "all_due_before_cutoff": "Todos los pedidos con fecha límite hasta la fecha elegida",
-      "source_terminal_before_cutoff": "Solo pedidos completados o cancelados en el sistema de origen"
-    },
+    "scopeTitle": "Elige una fecha límite y registra el motivo",
     "cutoffLabel": "Con fecha límite hasta",
     "cutoffPlaceholder": "Elige una fecha límite",
     "cutoffPopoverTitle": "Elige la última fecha límite",
@@ -63,11 +58,6 @@
     "groupCount_one": "{{count}} pedido",
     "groupCount_other": "{{count}} pedidos",
     "orderDue": "Fecha límite: {{formattedDate}}",
-    "sourceState": {
-      "open": "Abierto en el sistema de origen",
-      "completed": "Completado en el sistema de origen",
-      "canceled": "Cancelado en el sistema de origen"
-    },
     "classificationReasons": {
       "resolved_without_production": "Ya archivado",
       "execution_finished": "La producción terminó",
@@ -124,7 +114,7 @@
       "restore": {
         "trigger": "Restaurar al trabajo activo",
         "title": "¿Restaurar {{displayReference}} al trabajo activo?",
-        "description": "Pressly volverá a evaluar los datos actuales del pedido y lo devolverá al trabajo activo solo si todavía es elegible. Esto no lo marca como producido ni cambia Cents.",
+        "description": "Pressly volverá a evaluar los datos actuales del pedido y lo devolverá al trabajo activo solo si todavía es elegible. Esto no lo marca como producido ni cambia el origen externo.",
         "reasonLabel": "¿Por qué se restaura este pedido?",
         "reasonPlaceholder": "Elige un motivo",
         "reasonOptions": {

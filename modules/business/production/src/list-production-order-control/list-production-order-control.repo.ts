@@ -22,6 +22,15 @@ import {
   mapProductionOrderListItem,
   productionDueFilter,
 } from '../persistence/production-order-list-item.ts';
+import { hasAnyProductionOrderSelectionEvidence } from '../persistence/production-order-scheduling-evidence.ts';
+import {
+  assessProductionOrderResolution,
+  toProductionOrderResolutionAvailability,
+} from '../production-order-resolution.policy.ts';
+import {
+  assessProductionOrderCommandCapabilities,
+  type ProductionOrderCommandCapabilityContext,
+} from '../production-order-command-capability.policy.ts';
 import {
   decodeProductionOrderControlCursor,
   encodeProductionOrderControlCursor,
@@ -47,11 +56,15 @@ const asPlacementProvenance = (
   }
 };
 
-const asBatchStatus = (
-  value: string,
-): NonNullable<
-  ProductionOrderControlItem['currentPlacement']
->['batchStatus'] => {
+type RoutableBatchStatus =
+  | 'queued'
+  | 'sorting'
+  | 'washing'
+  | 'drying'
+  | 'folding_packaging'
+  | 'finished';
+
+const asBatchStatus = (value: string): RoutableBatchStatus => {
   switch (value) {
     case 'queued':
     case 'sorting':
@@ -334,7 +347,10 @@ export const makeListProductionOrderControlRepository = (
         bagCount: laundryProduction.productionOrders.bagCount,
         bagCountSource: laundryProduction.productionOrders.bagCountSource,
         intakeVersion: laundryProduction.productionOrders.intakeVersion,
+        intakeRecordedAt: laundryProduction.productionOrders.intakeRecordedAt,
         version: laundryProduction.productionOrders.version,
+        resolutionState: laundryProduction.productionOrders.resolutionState,
+        executionStatus: laundryProduction.productionOrders.executionStatus,
         pendingPlacement: laundryProduction.productionOrders.pendingPlacement,
         admissionOverride: laundryProduction.productionOrders.admissionOverride,
         admissionState: laundryProduction.orderDemands.admissionState,
@@ -350,6 +366,7 @@ export const makeListProductionOrderControlRepository = (
         membershipFrozenAt:
           laundryProduction.productionBatches.membershipFrozenAt,
         productionRunId: laundryProduction.productionRuns.id,
+        productionRunStatus: laundryProduction.productionRuns.status,
         queueVersion: laundryProduction.productionRuns.queueVersion,
         selectedForShift: sql<boolean>`exists (
           select 1
@@ -360,6 +377,33 @@ export const makeListProductionOrderControlRepository = (
           where selected_order.production_order_id = ${laundryProduction.productionOrders.id}
             and selected_order.location_id = ${command.locationId}
             and selected_shift.status = 'open'
+        )`,
+        resolutionHasShiftSelection: hasAnyProductionOrderSelectionEvidence({
+          locationId: command.locationId,
+          productionOrderId: laundryProduction.productionOrders.id,
+        }),
+        hasBatchMembership: sql<boolean>`exists (
+          select 1
+          from ${laundryProduction.productionBatchOrders} membership_history
+          where membership_history.production_order_id = ${laundryProduction.productionOrders.id}
+            and membership_history.location_id = ${command.locationId}
+        )`,
+        hasStageAttempt: sql<boolean>`exists (
+          select 1
+          from ${laundryProduction.productionOrderStageAttempts} attempt_history
+          where attempt_history.production_order_id = ${laundryProduction.productionOrders.id}
+            and attempt_history.location_id = ${command.locationId}
+        )`,
+        hasRoute: sql<boolean>`exists (
+          select 1
+          from ${laundryProduction.workEvents} route_event
+          where route_event.entity_type = 'production_order'
+            and route_event.entity_id = ${laundryProduction.productionOrders.id}
+            and route_event.location_id = ${command.locationId}
+            and route_event.event_type in (
+              'production_order_rebatched',
+              'production_order_route_exception_recorded'
+            )
         )`,
       })
       .from(laundryProduction.productionOrders)
@@ -557,6 +601,190 @@ export const makeListProductionOrderControlRepository = (
               asc(laundryProduction.productionOrderStageAttempts.attemptNumber),
             );
 
+    const productionRunIds = [
+      ...new Set(
+        pageRows.flatMap((row) =>
+          row.productionRunId === null ? [] : [row.productionRunId],
+        ),
+      ),
+    ];
+    const routingBatchRows =
+      productionRunIds.length === 0
+        ? []
+        : await db
+            .select({
+              id: laundryProduction.productionBatches.id,
+              productionRunId:
+                laundryProduction.productionBatches.productionRunId,
+              sequence: laundryProduction.productionBatches.sequenceIndex,
+              status: laundryProduction.productionBatches.status,
+              membershipFrozenAt:
+                laundryProduction.productionBatches.membershipFrozenAt,
+              version: laundryProduction.productionBatches.version,
+              derivedWeightLbs:
+                laundryProduction.productionBatches.derivedWeightLbs,
+              pulseCapacityLbs:
+                laundryProduction.productionBatches.pulseCapacityLbs,
+            })
+            .from(laundryProduction.productionBatches)
+            .where(
+              and(
+                eq(
+                  laundryProduction.productionBatches.locationId,
+                  command.locationId,
+                ),
+                inArray(
+                  laundryProduction.productionBatches.productionRunId,
+                  productionRunIds,
+                ),
+              ),
+            )
+            .orderBy(asc(laundryProduction.productionBatches.sequenceIndex));
+    const routingBatchIds = routingBatchRows.map((batch) => batch.id);
+    const [routingStageRows, activeMembershipRows] =
+      routingBatchIds.length === 0
+        ? [[], []]
+        : await Promise.all([
+            db
+              .select({
+                id: laundryProduction.stageRuns.id,
+                productionBatchId:
+                  laundryProduction.stageRuns.productionBatchId,
+                stageKind: laundryProduction.stageRuns.stageKind,
+                status: laundryProduction.stageRuns.status,
+              })
+              .from(laundryProduction.stageRuns)
+              .where(
+                and(
+                  eq(
+                    laundryProduction.stageRuns.locationId,
+                    command.locationId,
+                  ),
+                  inArray(
+                    laundryProduction.stageRuns.productionBatchId,
+                    routingBatchIds,
+                  ),
+                ),
+              ),
+            db
+              .select({
+                productionBatchId:
+                  laundryProduction.productionBatchOrders.productionBatchId,
+              })
+              .from(laundryProduction.productionBatchOrders)
+              .where(
+                and(
+                  eq(
+                    laundryProduction.productionBatchOrders.locationId,
+                    command.locationId,
+                  ),
+                  inArray(
+                    laundryProduction.productionBatchOrders.productionBatchId,
+                    routingBatchIds,
+                  ),
+                  eq(laundryProduction.productionBatchOrders.active, true),
+                ),
+              ),
+          ]);
+    const routingStageIds = routingStageRows.map((stage) => stage.id);
+    const assignedWeightRows =
+      routingStageIds.length === 0
+        ? []
+        : await db
+            .select({
+              stageRunId:
+                laundryProduction.productionOrderStageAttempts.stageRunId,
+              weightLbs: laundryProduction.productionOrders.derivedWeightLbs,
+            })
+            .from(laundryProduction.productionOrderStageAttempts)
+            .innerJoin(
+              laundryProduction.productionOrders,
+              and(
+                eq(
+                  laundryProduction.productionOrders.id,
+                  laundryProduction.productionOrderStageAttempts
+                    .productionOrderId,
+                ),
+                eq(
+                  laundryProduction.productionOrders.locationId,
+                  laundryProduction.productionOrderStageAttempts.locationId,
+                ),
+              ),
+            )
+            .where(
+              and(
+                eq(
+                  laundryProduction.productionOrderStageAttempts.locationId,
+                  command.locationId,
+                ),
+                eq(
+                  laundryProduction.productionOrderStageAttempts.status,
+                  'assigned',
+                ),
+                inArray(
+                  laundryProduction.productionOrderStageAttempts.stageRunId,
+                  routingStageIds,
+                ),
+              ),
+            );
+
+    const activeOrderCountByBatch = new Map<string, number>();
+    for (const membership of activeMembershipRows)
+      activeOrderCountByBatch.set(
+        membership.productionBatchId,
+        (activeOrderCountByBatch.get(membership.productionBatchId) ?? 0) + 1,
+      );
+    const assignedWeightByStage = new Map<string, number>();
+    for (const assignment of assignedWeightRows)
+      assignedWeightByStage.set(
+        assignment.stageRunId,
+        (assignedWeightByStage.get(assignment.stageRunId) ?? 0) +
+          assignment.weightLbs,
+      );
+    const capacityByBatch = new Map(
+      routingBatchRows.map((batch) => [batch.id, batch.pulseCapacityLbs]),
+    );
+    const routingStagesByBatch = new Map<
+      string,
+      ProductionOrderCommandCapabilityContext['candidates'][number]['stages']
+    >();
+    for (const stage of routingStageRows) {
+      const capacityLbs = capacityByBatch.get(stage.productionBatchId);
+      if (capacityLbs === undefined)
+        throw new Error('Routing stage is missing its production batch.');
+      const stages = routingStagesByBatch.get(stage.productionBatchId) ?? [];
+      routingStagesByBatch.set(stage.productionBatchId, [
+        ...stages,
+        {
+          stage: asStage(stage.stageKind),
+          status: asStageStatus(stage.status),
+          assignedWeightLbs: assignedWeightByStage.get(stage.id) ?? 0,
+          capacityLbs,
+        },
+      ]);
+    }
+    const routingCandidatesByRun = new Map<
+      string,
+      ProductionOrderCommandCapabilityContext['candidates']
+    >();
+    for (const batch of routingBatchRows) {
+      const candidates =
+        routingCandidatesByRun.get(batch.productionRunId) ?? [];
+      routingCandidatesByRun.set(batch.productionRunId, [
+        ...candidates,
+        {
+          productionBatchId: batch.id,
+          sequence: batch.sequence,
+          status: asBatchStatus(batch.status),
+          membershipFrozen: batch.membershipFrozenAt !== null,
+          version: batch.version,
+          derivedWeightLbs: batch.derivedWeightLbs,
+          pulseCapacityLbs: batch.pulseCapacityLbs,
+          stages: routingStagesByBatch.get(batch.id) ?? [],
+        },
+      ]);
+    }
+
     const attemptsByOrder = new Map<string, ProductionOrderRouteAttempt[]>();
     for (const row of attemptRows) {
       const attempt: ProductionOrderRouteAttempt = {
@@ -681,9 +909,48 @@ export const makeListProductionOrderControlRepository = (
             pinnedBy: row.pinnedBy,
           }
         : null;
-      const canMoveQueued =
-        currentPlacement?.batchStatus === 'queued' &&
-        !currentPlacement.membershipFrozen;
+      const routingCandidates =
+        row.productionRunId === null
+          ? []
+          : (routingCandidatesByRun.get(row.productionRunId) ?? []);
+      const routingSource =
+        row.productionBatchId === null
+          ? null
+          : (routingCandidates.find(
+              (candidate) =>
+                candidate.productionBatchId === row.productionBatchId,
+            ) ?? null);
+      const commands = assessProductionOrderCommandCapabilities(deps.policy, {
+        order: {
+          id: row.id,
+          operationalStatus: row.status,
+          executionStatus: row.executionStatus,
+          resolutionState: row.resolutionState,
+          version: row.version,
+          weightLbs: row.derivedWeightLbs,
+        },
+        run:
+          row.productionRunId === null ||
+          row.productionRunStatus === null ||
+          row.queueVersion === null
+            ? null
+            : {
+                id: row.productionRunId,
+                status: row.productionRunStatus,
+                queueVersion: row.queueVersion,
+              },
+        source:
+          routingSource === null
+            ? null
+            : {
+                ...routingSource,
+                activeOrderCount:
+                  activeOrderCountByBatch.get(
+                    routingSource.productionBatchId,
+                  ) ?? 0,
+              },
+        candidates: routingCandidates,
+      });
       const sourceState = asSourceAdmissionState(row.admissionState);
       const admissionOverride = asAdmissionOverride(row.admissionOverride);
       const effectiveState =
@@ -692,6 +959,25 @@ export const makeListProductionOrderControlRepository = (
           : admissionOverride === 'released'
             ? 'released'
             : sourceState;
+      const resolutionAction = toProductionOrderResolutionAvailability(
+        assessProductionOrderResolution(deps.policy, {
+          resolutionState: row.resolutionState,
+          executionStatus: row.executionStatus,
+          operationalStatus: row.status,
+          expectedVersion: row.version,
+          hasShiftSelection: row.resolutionHasShiftSelection,
+          hasBatchMembership: row.hasBatchMembership,
+          hasStageAttempt: row.hasStageAttempt,
+          hasRoute: row.hasRoute,
+          hasIntake:
+            row.intakeVersion > 0 ||
+            row.intakeRecordedAt !== null ||
+            row.bagCount !== null,
+          hasManualAdmission: row.admissionOverride !== null,
+          isPriority: row.priority,
+          hasPendingPlacement: row.pendingPlacement !== null,
+        }),
+      );
       return {
         order,
         admission: {
@@ -713,12 +999,8 @@ export const makeListProductionOrderControlRepository = (
         currentPlacement,
         nextRequiredStage: assigned[0]?.stage ?? null,
         routeAttempts: attempts,
-        canMoveQueued,
-        canRouteException:
-          order.status === 'scheduled' &&
-          currentPlacement !== null &&
-          currentPlacement.batchStatus !== 'queued' &&
-          currentPlacement.batchStatus !== 'finished',
+        commands,
+        resolutionAction,
       };
     });
     const last = pageRows.at(-1);

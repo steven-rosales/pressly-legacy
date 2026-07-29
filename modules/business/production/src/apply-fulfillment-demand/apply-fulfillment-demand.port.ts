@@ -90,7 +90,6 @@ export type ApplyFulfillmentDemandRepository = Transactional<
       command: ApplyFulfillmentDemandCommand;
       orderDemandId: string;
       production: FulfillmentProductionMutation;
-      effectiveBagCount: number | null;
       initialExecutionState: 'unassigned';
       now: Date;
     }) => Promise<StoredFulfillmentDemand>;

@@ -265,6 +265,28 @@ describe('Cents webhook Postman proof assets', () => {
     );
   });
 
+  it('uses exact submitted candidates for positive order cases and ignored receipts for non-order cases', () => {
+    for (const caseId of [
+      'valid_signature',
+      'order_event',
+      'duplicate_delivery',
+    ]) {
+      const payload = JSON.parse(
+        resolveBodyVariables(itemsByCase.get(caseId).request.body.raw),
+      );
+      expect(payload.order.status).toBe('SUBMITTED');
+    }
+
+    for (const caseId of ['customer_event', 'marketing_event']) {
+      const script = itemsByCase
+        .get(caseId)
+        .event.find((event) => event.listen === 'test')
+        .script.exec.join('\n');
+      expect(script).toContain("response.data.status).to.eql('ignored')");
+      expect(script).not.toContain("response.data.status).to.eql('pending')");
+    }
+  });
+
   it('maps every GUI case to an existing automated assertion', () => {
     for (const caseId of expectedCaseIds) {
       const item = itemsByCase.get(caseId);
@@ -289,6 +311,10 @@ describe('Cents webhook Postman proof assets', () => {
     expect(runbook).toContain('more than 300 seconds');
     expect(runbook).toContain('Never commit or export');
     expect(runbook).toContain('Do not point it at production');
+    expect(runbook).toContain('exact `SUBMITTED`');
+    expect(runbook).toContain(
+      'An HTTP `202` therefore proves durable ingress, not canonical Order creation.',
+    );
     expect(runbook).toContain('pnpm exec vitest run tooling/test/');
   });
 });

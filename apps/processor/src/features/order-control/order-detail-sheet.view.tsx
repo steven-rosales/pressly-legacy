@@ -1,5 +1,6 @@
 import {
   IconAlertTriangle,
+  IconArchive,
   IconArrowLeft,
   IconArrowsMove,
   IconCheck,
@@ -9,8 +10,19 @@ import {
   IconStack2,
   IconUser,
 } from "@tabler/icons-react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +32,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
+import { Checkbox } from "@/components/ui/checkbox"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
@@ -36,6 +49,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/components/ui/class-names"
 import type {
   OrderActionPreview,
+  OrderArchiveAction,
   OrderControlCallbacks,
   OrderControlOrder,
   OrderDetailAction,
@@ -47,7 +61,7 @@ function Fact({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="min-w-0 rounded-lg border bg-background p-3">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 truncate text-sm font-medium">{value}</dd>
+      <dd className="mt-1 text-sm font-medium break-words">{value}</dd>
     </div>
   )
 }
@@ -120,8 +134,8 @@ function MoveActionView({
 
   return (
     <>
-      <ScrollArea className="min-h-0 flex-1 px-5">
-        <div className="flex flex-col gap-5 py-4">
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex min-w-0 flex-col gap-5 px-5 py-4 sm:px-6">
           <Button
             type="button"
             variant="ghost"
@@ -176,7 +190,7 @@ function MoveActionView({
           <ActionError error={action.error} />
         </div>
       </ScrollArea>
-      <SheetFooter className="border-t px-5 py-4">
+      <SheetFooter className="border-t px-5 py-4 sm:px-6">
         {action.preview !== null && (
           <Button
             type="button"
@@ -243,8 +257,8 @@ function ExceptionActionView({
 
   return (
     <>
-      <ScrollArea className="min-h-0 flex-1 px-5">
-        <div className="flex flex-col gap-5 py-4">
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex min-w-0 flex-col gap-5 px-5 py-4 sm:px-6">
           <Button
             type="button"
             variant="ghost"
@@ -354,7 +368,7 @@ function ExceptionActionView({
           <ActionError error={action.error} />
         </div>
       </ScrollArea>
-      <SheetFooter className="border-t px-5 py-4">
+      <SheetFooter className="border-t px-5 py-4 sm:px-6">
         {action.preview !== null && (
           <Button
             type="button"
@@ -387,6 +401,201 @@ function ExceptionActionView({
   )
 }
 
+function ArchiveActionView({
+  order,
+  action,
+  callbacks,
+}: Readonly<{
+  order: OrderControlOrder
+  action: OrderArchiveAction
+  callbacks: OrderControlCallbacks
+}>) {
+  const { t } = useTranslation()
+  const [confirmationOpen, setConfirmationOpen] = useState(false)
+  const missingOtherNote =
+    action.draft.reason === "other" && action.draft.note.trim().length === 0
+  const needsFactConfirmation =
+    action.requiresExplicitReview && !action.draft.confirmedFacts
+  const canConfirm =
+    action.draft.reason.length > 0 &&
+    !missingOtherNote &&
+    !needsFactConfirmation &&
+    !action.busy
+
+  return (
+    <>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex min-w-0 flex-col gap-5 px-5 py-4 sm:px-6">
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-11 w-fit px-0 hover:bg-transparent"
+            disabled={action.busy}
+            onClick={callbacks.onCancelAction}
+          >
+            <IconArrowLeft data-icon="inline-start" />
+            {t("orderControl.backToOrder")}
+          </Button>
+
+          <Alert>
+            <IconArchive />
+            <AlertTitle>{t("orderControl.archiveKeepsHistory")}</AlertTitle>
+            <AlertDescription>
+              {t("orderControl.archiveKeepsHistoryDetail")}
+            </AlertDescription>
+          </Alert>
+
+          <Card className="gap-1 bg-muted/35 py-4">
+            <CardContent className="px-4">
+              <p className="text-sm font-medium">
+                {t("orderControl.orderNumber", {
+                  orderId: order.externalOrderId,
+                })}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {order.customerLabel}
+              </p>
+            </CardContent>
+          </Card>
+
+          <FieldGroup className="gap-5">
+            <Field>
+              <FieldLabel htmlFor="order-archive-reason">
+                {t("orderControl.archiveReason")}
+              </FieldLabel>
+              <NativeSelect
+                id="order-archive-reason"
+                className="w-full [&_[data-slot=native-select]]:h-11"
+                value={action.draft.reason}
+                disabled={action.busy}
+                onChange={(event) =>
+                  callbacks.onArchiveDraftChange({
+                    ...action.draft,
+                    reason: event.target.value,
+                  })
+                }
+              >
+                {action.reasonOptions.map((option) => (
+                  <NativeSelectOption key={option.value} value={option.value}>
+                    {option.label}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="order-archive-note">
+                {t("orderControl.archiveNote")}
+                {action.draft.reason === "other"
+                  ? ""
+                  : ` (${t("orderControl.optional")})`}
+              </FieldLabel>
+              <Textarea
+                id="order-archive-note"
+                value={action.draft.note}
+                disabled={action.busy}
+                maxLength={500}
+                placeholder={t("orderControl.archiveNotePlaceholder")}
+                onChange={(event) =>
+                  callbacks.onArchiveDraftChange({
+                    ...action.draft,
+                    note: event.target.value,
+                  })
+                }
+              />
+              {missingOtherNote && (
+                <FieldDescription>
+                  {t("orderControl.otherNoteRequired")}
+                </FieldDescription>
+              )}
+            </Field>
+
+            {action.requiresExplicitReview && (
+              <div className="rounded-lg border p-4">
+                <p className="text-sm font-medium">
+                  {t("orderControl.archiveReviewFacts")}
+                </p>
+                <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                  {action.reviewReasons.map((reason) => (
+                    <li key={reason} className="flex gap-2">
+                      <span aria-hidden="true">·</span>
+                      <span>{reason}</span>
+                    </li>
+                  ))}
+                </ul>
+                <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={action.draft.confirmedFacts}
+                    disabled={action.busy}
+                    onCheckedChange={(checked) =>
+                      callbacks.onArchiveDraftChange({
+                        ...action.draft,
+                        confirmedFacts: checked === true,
+                      })
+                    }
+                  />
+                  <span>{t("orderControl.archiveFactsConfirmed")}</span>
+                </label>
+              </div>
+            )}
+          </FieldGroup>
+          <ActionError error={action.error} />
+        </div>
+      </ScrollArea>
+      <SheetFooter className="border-t px-5 py-4 sm:px-6">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11"
+          disabled={action.busy}
+          onClick={callbacks.onCancelAction}
+        >
+          {t("common.cancel")}
+        </Button>
+        <AlertDialog open={confirmationOpen} onOpenChange={setConfirmationOpen}>
+          <Button
+            type="button"
+            className="h-11"
+            disabled={!canConfirm}
+            onClick={() => setConfirmationOpen(true)}
+          >
+            <IconArchive data-icon="inline-start" />
+            {t("orderControl.reviewArchive")}
+          </Button>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t("orderControl.confirmArchiveTitle", {
+                  order: order.externalOrderId,
+                })}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("orderControl.confirmArchiveDetail", {
+                  customer: order.customerLabel,
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={action.busy}>
+                {t("common.cancel")}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                variant="default"
+                disabled={action.busy}
+                onClick={callbacks.onConfirmArchive}
+              >
+                {action.busy && <Spinner data-icon="inline-start" />}
+                {t("orderControl.archiveFromActive")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </SheetFooter>
+    </>
+  )
+}
+
 function ActionReason({ children }: { children: string | null }) {
   if (children === null) return null
   return <p className="text-xs text-muted-foreground">{children}</p>
@@ -402,8 +611,8 @@ function OrderOverview({
   const { t } = useTranslation()
   return (
     <>
-      <ScrollArea className="min-h-0 flex-1 px-5">
-        <div className="flex flex-col gap-5 py-4">
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex min-w-0 flex-col gap-5 px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{order.statusLabel}</Badge>
             {order.priority && <Badge>{t("orderControl.priority")}</Badge>}
@@ -430,34 +639,6 @@ function OrderOverview({
             </Alert>
           )}
 
-          <section aria-labelledby="order-customer-heading">
-            <div className="flex items-center gap-2">
-              <IconUser className="size-4 text-muted-foreground" />
-              <h3 id="order-customer-heading" className="text-sm font-medium">
-                {t("orderControl.customerAndOrder")}
-              </h3>
-            </div>
-            <dl className="mt-2 grid grid-cols-2 gap-2">
-              <Fact
-                label={t("orderControl.customer")}
-                value={order.customerLabel}
-              />
-              <Fact label={t("orderControl.phone")} value={order.phoneLabel} />
-              <Fact
-                label={t("orderControl.commercialState")}
-                value={order.commercialStateLabel}
-              />
-              <Fact
-                label={t("orderControl.productionAdmission")}
-                value={order.admissionStateLabel}
-              />
-              <Fact
-                label={t("orderControl.sourceState")}
-                value={order.sourceStateLabel}
-              />
-            </dl>
-          </section>
-
           <section aria-labelledby="order-position-heading">
             <div className="flex items-center gap-2">
               <IconStack2 className="size-4 text-muted-foreground" />
@@ -473,17 +654,27 @@ function OrderOverview({
                 </p>
               </CardContent>
             </Card>
+            <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Fact
+                label={t("orderControl.commercialState")}
+                value={order.commercialStateLabel}
+              />
+              <Fact
+                label={t("orderControl.productionAdmission")}
+                value={order.admissionStateLabel}
+              />
+              <Fact label={t("orderControl.due")} value={order.dueLabel} />
+              <Fact
+                label={t("orderControl.demand")}
+                value={order.weightLabel}
+              />
+              <Fact label={t("orderControl.bags")} value={order.bagLabel} />
+              <Fact
+                label={t("orderControl.updatedLabel")}
+                value={order.lastUpdatedLabel}
+              />
+            </dl>
           </section>
-
-          <dl className="grid grid-cols-2 gap-2">
-            <Fact label={t("orderControl.due")} value={order.dueLabel} />
-            <Fact label={t("orderControl.demand")} value={order.weightLabel} />
-            <Fact label={t("orderControl.bags")} value={order.bagLabel} />
-            <Fact
-              label={t("orderControl.updatedLabel")}
-              value={order.lastUpdatedLabel}
-            />
-          </dl>
 
           {order.placement !== null && (
             <section aria-labelledby="order-placement-heading">
@@ -551,11 +742,59 @@ function OrderOverview({
                 </Button>
                 <ActionReason>{order.rework.reason}</ActionReason>
               </div>
+              <Separator className="my-1" />
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full justify-start"
+                  disabled={!order.archive.available}
+                  onClick={() => callbacks.onStartArchive(order.id)}
+                >
+                  <IconArchive data-icon="inline-start" />
+                  {t("orderControl.archiveFromActive")}
+                </Button>
+                <ActionReason>{order.archive.reason}</ActionReason>
+              </div>
             </div>
           </section>
+
+          <section aria-labelledby="order-customer-heading">
+            <div className="flex items-center gap-2">
+              <IconUser className="size-4 text-muted-foreground" />
+              <h3 id="order-customer-heading" className="text-sm font-medium">
+                {t("orderControl.customerAndOrder")}
+              </h3>
+            </div>
+            <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Fact
+                label={t("orderControl.customer")}
+                value={order.customerLabel}
+              />
+              <Fact label={t("orderControl.phone")} value={order.phoneLabel} />
+            </dl>
+          </section>
+
+          {order.audit.length > 0 && (
+            <details className="rounded-lg border">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+                {t("orderControl.recentOrderActivity")}
+              </summary>
+              <ul className="divide-y border-t">
+                {order.audit.map((entry) => (
+                  <li key={entry.key} className="px-4 py-2.5">
+                    <p className="text-sm font-medium">{entry.label}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {entry.detail}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       </ScrollArea>
-      <SheetFooter className="border-t px-5 py-4">
+      <SheetFooter className="border-t px-5 py-4 sm:px-6">
         <Button
           type="button"
           variant="outline"
@@ -582,17 +821,19 @@ export function OrderDetailSheet({
 }>) {
   const { t } = useTranslation()
   const title =
-    action.kind === "move"
-      ? t("orderControl.moveTitle")
-      : action.kind === "leave_behind"
-        ? t("orderControl.leaveOrderTitle")
-        : action.kind === "rework"
-          ? t("orderControl.recordReworkTitle")
-          : order === null
-            ? t("orderControl.detailsTitle")
-            : t("orderControl.orderNumber", {
-                orderId: order.externalOrderId,
-              })
+    action.kind === "archive"
+      ? t("orderControl.archiveTitle")
+      : action.kind === "move"
+        ? t("orderControl.moveTitle")
+        : action.kind === "leave_behind"
+          ? t("orderControl.leaveOrderTitle")
+          : action.kind === "rework"
+            ? t("orderControl.recordReworkTitle")
+            : order === null
+              ? t("orderControl.detailsTitle")
+              : t("orderControl.orderNumber", {
+                  orderId: order.externalOrderId,
+                })
 
   return (
     <Sheet
@@ -606,7 +847,7 @@ export function OrderDetailSheet({
         size="workspace"
         closeLabel={t("common.close")}
       >
-        <SheetHeader className="border-b px-5 py-4 pe-16">
+        <SheetHeader className="border-b px-5 py-4 pe-16 sm:px-6 sm:pe-16">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>
             {order === null
@@ -624,6 +865,13 @@ export function OrderDetailSheet({
           (action.kind === "leave_behind" || action.kind === "rework") && (
             <ExceptionActionView action={action} callbacks={callbacks} />
           )}
+        {order !== null && action.kind === "archive" && (
+          <ArchiveActionView
+            order={order}
+            action={action}
+            callbacks={callbacks}
+          />
+        )}
       </SheetContent>
     </Sheet>
   )

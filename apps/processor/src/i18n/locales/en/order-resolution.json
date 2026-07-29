@@ -5,12 +5,7 @@
     "sheetDescription": "Find orders that no longer belong in active production work.",
     "archiveExplanationTitle": "Archive from active work",
     "archiveExplanation": "Nothing is deleted or marked produced. Pressly keeps a permanent record, and archived orders can be restored from History.",
-    "scopeTitle": "Choose which orders to review",
-    "filterLabel": "Orders to include",
-    "filterOptions": {
-      "all_due_before_cutoff": "All orders due by the cutoff",
-      "source_terminal_before_cutoff": "Only orders completed or canceled at the source"
-    },
+    "scopeTitle": "Choose a cutoff and record why",
     "cutoffLabel": "Due on or before",
     "cutoffPlaceholder": "Choose a cutoff date",
     "cutoffPopoverTitle": "Choose the last due date",
@@ -63,11 +58,6 @@
     "groupCount_one": "{{count}} order",
     "groupCount_other": "{{count}} orders",
     "orderDue": "Due {{formattedDate}}",
-    "sourceState": {
-      "open": "Open at source",
-      "completed": "Completed at source",
-      "canceled": "Canceled at source"
-    },
     "classificationReasons": {
       "resolved_without_production": "Already archived",
       "execution_finished": "Production is finished",
@@ -124,7 +114,7 @@
       "restore": {
         "trigger": "Restore to active work",
         "title": "Restore {{displayReference}} to active work?",
-        "description": "Pressly will re-evaluate the order's current facts and return it to active work only if it is still eligible. This does not mark it produced or change Cents.",
+        "description": "Pressly will re-evaluate the order's current facts and return it to active work only if it is still eligible. This does not mark it produced or change the external source.",
         "reasonLabel": "Why is this order being restored?",
         "reasonPlaceholder": "Choose a reason",
         "reasonOptions": {

@@ -265,6 +265,32 @@ Cron example:
 The script uploads the encrypted dump, checksum, and metadata, then downloads
 the encrypted object stream to verify its SHA-256 checksum.
 
+## Processor Clean-Slate Maintenance
+
+`reset-processor-operational-data.sql` removes operational orders, proposals,
+shifts, schedules, runs, batches, stage progress, and their order/run events.
+It preserves facility configuration, users, source bindings, source-authority
+policy, webhook receipts, and quarantine evidence.
+
+This is a maintenance-window procedure, not a migration. Use the destructive
+checklist in `docs/ops/production-migrations.md`. Stop API, Worker, and
+Processor; create a fresh encrypted backup with `backup-postgres.sh`; verify
+the uploaded checksum; and run the SQL only through the migration environment
+for the exact deployed release. The SQL requires:
+
+```text
+PGOPTIONS=-cpressly.environment=production_processor_reset
+reset_id=processor-production-clean-slate-v1
+release_sha=<current-release.json sourceSha>
+backup_sha256=<verified backup SHA-256>
+```
+
+It refuses to run under the runtime role, while any runtime database session
+remains, against an inactive or unexpected facility, before the current
+order-authority schema exists, or while an inbox event is still claimable.
+Restart the stopped services only after the SQL reports zero remaining
+operational records and confirms the preserved configuration counts.
+
 ## Recovery
 
 ```text

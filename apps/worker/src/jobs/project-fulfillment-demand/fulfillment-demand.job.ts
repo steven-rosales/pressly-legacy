@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { FulfillmentDemandChangedEvent } from '@pressly/contracts';
 import type { Logger } from '@pressly/logging';
 import type { CounterSink, ErrorReporter } from '@pressly/metrics';
-import type { OrdersApplication } from '@pressly/orders';
+import type { OrdersWorkerApplication } from '@pressly/orders';
 import type { ProductionApplication } from '@pressly/production';
 import { retryDelayMs } from '../../runtime/retry.ts';
 
@@ -27,7 +27,7 @@ const projectionHash = (value: FulfillmentDemandChangedEvent): string =>
     .digest('hex');
 
 type OrderOutboxPort = Pick<
-  OrdersApplication,
+  OrdersWorkerApplication,
   'claimOutbox' | 'completeOutbox' | 'retryOutbox' | 'deadLetterOutbox'
 >;
 

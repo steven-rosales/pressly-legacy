@@ -30,7 +30,6 @@
     "@pressly/production": "workspace:*",
     "@pressly/production-policy": "workspace:*",
     "@pressly/production-scheduling": "workspace:*",
-    "@pressly/users": "workspace:*",
     "@pressly/webhook-ingestion": "workspace:*",
     "@sentry/node": "^10.50.0",
     "dotenv": "^17.4.2",

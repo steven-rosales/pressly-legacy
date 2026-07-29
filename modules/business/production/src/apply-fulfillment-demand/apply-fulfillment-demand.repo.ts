@@ -175,7 +175,6 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
       command,
       orderDemandId,
       production,
-      effectiveBagCount,
       initialExecutionState,
       now,
     }) => {
@@ -289,12 +288,10 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           command.estimatedWeightSource === null
         )
           throw new Error('Production work requires a positive estimate.');
-        if (
-          (production.status === 'intake_pending' &&
-            effectiveBagCount !== null) ||
-          (production.status === 'eligible' && effectiveBagCount === null)
-        )
-          throw new Error('Demand lifecycle and intake state disagree.');
+        if (production.status === 'eligible')
+          throw new Error(
+            'Demand projection cannot create physically admitted work.',
+          );
 
         const productionOrderId = deps.ids.next();
         await db.insert(laundryProduction.productionOrders).values({
@@ -307,28 +304,19 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           executionStatus: initialExecutionState,
           derivedWeightLbs: command.estimatedWeightLbs,
           derivedWeightSource: command.estimatedWeightSource,
-          bagCount: effectiveBagCount,
-          bagCountSource: effectiveBagCount === null ? null : 'external_source',
-          intakeRecordedAt: effectiveBagCount === null ? null : now,
-          intakeVersion: effectiveBagCount === null ? 0 : 1,
+          bagCount: null,
+          bagCountSource: null,
+          intakeRecordedAt: null,
+          intakeVersion: 0,
           mustStayTogether: true,
           version: 1,
-          eligibleAt: production.status === 'eligible' ? now : null,
+          eligibleAt: null,
           createdAt: now,
           updatedAt: now,
         });
-        if (effectiveBagCount !== null && effectiveBagCount > 0)
-          await db.insert(laundryProduction.bags).values(
-            Array.from({ length: effectiveBagCount }, (_, bagIndex) => ({
-              id: deps.ids.next(),
-              productionOrderId,
-              bagIndex,
-              status: 'eligible',
-            })),
-          );
         return stored(
           productionOrderId,
-          effectiveBagCount,
+          null,
           null,
           production.status,
           initialExecutionState,
@@ -339,9 +327,6 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
       if (existing === undefined)
         throw new Error('An updated demand is missing production work.');
 
-      const adoptsSourceBagCount =
-        existing.bagCount === null && command.bagCount !== null;
-      const bagCount = existing.bagCount ?? command.bagCount;
       const derivedWeightLbs =
         command.estimatedWeightLbs ?? Number(existing.derivedWeightLbs);
       const derivedWeightSource =
@@ -351,8 +336,6 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         throw new Error(
           'Existing production work is missing weight provenance.',
         );
-      if (bagCount !== effectiveBagCount)
-        throw new Error('Demand lifecycle and persisted intake disagree.');
       const [updated] = await db
         .update(laundryProduction.productionOrders)
         .set({
@@ -371,14 +354,6 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
                 admissionOverrideAt: null,
                 admissionOverrideBy: null,
               }),
-          ...(adoptsSourceBagCount
-            ? {
-                bagCount,
-                bagCountSource: 'external_source',
-                intakeRecordedAt: now,
-                intakeVersion: existing.intakeVersion + 1,
-              }
-            : {}),
           version: existing.version + 1,
           updatedAt: now,
         })
@@ -400,20 +375,6 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         });
       if (updated === undefined)
         throw new Error('Production order changed during demand application.');
-      if (adoptsSourceBagCount && bagCount !== null) {
-        await db
-          .delete(laundryProduction.bags)
-          .where(eq(laundryProduction.bags.productionOrderId, existing.id));
-        if (bagCount > 0)
-          await db.insert(laundryProduction.bags).values(
-            Array.from({ length: bagCount }, (_, bagIndex) => ({
-              id: deps.ids.next(),
-              productionOrderId: existing.id,
-              bagIndex,
-              status: 'eligible',
-            })),
-          );
-      }
       return stored(
         updated.id,
         updated.bagCount,

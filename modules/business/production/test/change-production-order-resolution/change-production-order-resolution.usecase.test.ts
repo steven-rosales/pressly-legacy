@@ -68,6 +68,7 @@ const makeRepository = (order: LockedProductionOrderResolution) => {
   >(async () => null);
   const operations = {
     findWorkEvent,
+    findOrderByFulfillment: vi.fn(async () => null),
     lockLocationScheduling,
     lockOrder: vi.fn(async () => order),
     changeResolution,
@@ -139,6 +140,35 @@ describe('change production order resolution', () => {
         entityId: ids.order,
       }),
     );
+  });
+
+  it('rechecks a canonical source-state precondition under the scheduling lock', async () => {
+    const repository = makeRepository(
+      lockedOrder({ sourceAdmissionState: 'released' }),
+    );
+    const change = makeChangeProductionOrderResolution({
+      repo: repository.repo,
+      policy: allowPolicy,
+      clock: { now: () => now },
+    });
+
+    await expect(
+      change({
+        ...resolveCommand,
+        sourceStatePrecondition: {
+          commercialState: 'open',
+          admissionState: 'unreleased',
+        },
+      }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: {
+        code: 'production_order_source_state_conflict',
+        status: 409,
+      },
+    });
+    expect(repository.lockLocationScheduling).toHaveBeenCalledOnce();
+    expect(repository.changeResolution).not.toHaveBeenCalled();
   });
 
   it('replays an identical command that commits while this call waits for the location lock', async () => {

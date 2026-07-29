@@ -1,4 +1,8 @@
-import { productionBoardSchema } from '@pressly/contracts';
+import {
+  productionBoardSchema,
+  productionPlacementProvenanceSchema,
+  type ProductionBatch,
+} from '@pressly/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { makeLoadProductionBoard } from '../../src/load-production-board/load-production-board.usecase.ts';
 import { projectProductionBoard } from '../../src/persistence/production-board-projection.ts';
@@ -16,12 +20,19 @@ const ids = {
   folding: '00000000-0000-4000-8000-000000000009',
   washer: '00000000-0000-4000-8000-000000000010',
   dryer: '00000000-0000-4000-8000-000000000011',
+  actor: '00000000-0000-4000-8000-000000000012',
 } as const;
 
 const now = new Date('2026-07-12T14:00:00.000Z');
 const pulseMs = 56 * 60_000;
 
-const projection = (stageStarted = false) => {
+const projection = (
+  stageStarted = false,
+  placementProvenance: ProductionBatch['orders'][number]['placementProvenance'] = 'initial_schedule',
+) => {
+  const pinnedPlacement =
+    placementProvenance === 'manager_exact' ||
+    placementProvenance === 'manual_rebatch';
   const evaluationTime = stageStarted
     ? new Date('2026-07-12T14:18:00.000Z')
     : now;
@@ -106,9 +117,9 @@ const projection = (stageStarted = false) => {
         productionBatchId: ids.batch,
         productionOrderId: ids.order,
         active: true,
-        placementProvenance: 'initial_schedule',
-        pinnedAt: null,
-        pinnedBy: null,
+        placementProvenance,
+        pinnedAt: pinnedPlacement ? now : null,
+        pinnedBy: pinnedPlacement ? ids.actor : null,
       },
     ],
     stages,
@@ -135,6 +146,33 @@ const projection = (stageStarted = false) => {
 };
 
 describe('load production board', () => {
+  it.each(productionPlacementProvenanceSchema.options)(
+    'projects canonical %s placement provenance',
+    async (placementProvenance) => {
+      const loadBoard = makeLoadProductionBoard({
+        repo: {
+          loadBoardProjection: vi.fn(async () =>
+            projection(false, placementProvenance),
+          ),
+        },
+        policy: allowPolicy,
+        clock: { now: () => now },
+      });
+
+      const result = await loadBoard({
+        locationId: 'location-a',
+        productionRunId: ids.run,
+      });
+
+      expect(result.tag).toBe('ok');
+      if (result.tag !== 'ok') return;
+      expect(result.value.batches[0]?.orders[0]?.placementProvenance).toBe(
+        placementProvenance,
+      );
+      expect(productionBoardSchema.safeParse(result.value).success).toBe(true);
+    },
+  );
+
   it('evaluates every stage from one read projection', async () => {
     const loadBoardProjection = vi.fn(async () => projection());
     const loadBoard = makeLoadProductionBoard({

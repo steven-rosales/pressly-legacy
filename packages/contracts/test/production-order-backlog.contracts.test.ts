@@ -39,7 +39,7 @@ describe('production order backlog contracts', () => {
     expect(
       commitProductionOrderBacklogCommandSchema.parse({
         locationId,
-        filter: 'source_terminal_before_cutoff',
+        filter: 'all_due_before_cutoff',
         cutoff,
         reason: 'completed_outside_pressly',
         previewHash,
@@ -47,7 +47,7 @@ describe('production order backlog contracts', () => {
       }),
     ).toEqual({
       locationId,
-      filter: 'source_terminal_before_cutoff',
+      filter: 'all_due_before_cutoff',
       cutoff,
       reason: 'completed_outside_pressly',
       cursor: null,
@@ -102,7 +102,6 @@ describe('production order backlog contracts', () => {
               orderId,
               displayReference: 'Order 1001',
               dueAt: cutoff,
-              sourceCommercialState: 'completed',
               category: 'kept_for_safety',
               reasons: ['execution_committed'],
               expectedVersion: 2,
@@ -113,6 +112,17 @@ describe('production order backlog contracts', () => {
           keptForSafety: [],
           alreadyHistorical: [],
         },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects the retired source-terminal recommendation scope', () => {
+    expect(
+      previewProductionOrderBacklogCommandSchema.safeParse({
+        locationId,
+        filter: 'source_terminal_before_cutoff',
+        cutoff,
+        reason: 'completed_outside_pressly',
       }).success,
     ).toBe(false);
   });

@@ -1,0 +1,110 @@
+id: memdelta-2026-07-28-order-source-authority-implementation
+domain_id: order-management
+
+source:
+  type: implementation_evidence
+  path: stateworks/work/done/pressly-order-authority-source-autonomy/final-report.md
+
+changes:
+  - op: update
+    kind: workflow
+    id: external_order_observation
+    steps:
+      - API authenticates and validates one external envelope and records one
+        idempotent durable inbox event
+      - the source adapter converts vendor data into a source-neutral typed
+        observation and cannot carry canonical lifecycle, fulfillment release,
+        or physical bag truth
+      - Users and Orders resolve exact source identities and Orders serializes
+        each source link while classifying stale, replay, equal-revision
+        conflict, or valid newer evidence
+      - Orders retains every valid newer normalized snapshot, including raw
+        source lifecycle, before evaluating canonical effects
+      - Orders loads the exact immutable capability profile and latest
+        source-and-location posture and evaluates each claim by canonical phase,
+        field authority, and evidence
+      - missing configuration, blocked posture, identity ambiguity, and
+        revision conflict fail closed while keeping the observation inspectable
+      - external lifecycle and physical bag claims never select or execute a
+        canonical transition
+      - approved descriptive claims may create prospective records in
+        Pressly-selected initial states or update fields that still follow
+        source
+      - Orders commits the append-only observation decision, any allowed
+        canonical effect, and source-neutral outbox event atomically
+      - downstream capabilities consume only committed source-neutral events
+        idempotently
+
+  - op: update
+    kind: workflow
+    id: direct_pressly_mutation
+    steps:
+      - an authenticated first-party Pressly channel submits a task-shaped
+        create, correct, complete, cancel, follow-source, release, or withdraw
+        command
+      - every command carries actor, authorization scope, origin, stable reason,
+        idempotency key, and expected aggregate versions
+      - the owning Order or fulfillment use case locks and loads current
+        canonical state and field authority
+      - the authoritative lifecycle graph and field policies decide the event
+        and effects; callers cannot submit a target state
+      - the repository commits versioned canonical state, command receipt,
+        audit evidence, and any source-neutral outbox event atomically
+      - external observations remain unchanged and any difference remains
+        source or integration context
+
+  - op: assert
+    kind: invariant
+    id: source_authority_configuration_fails_closed_v1
+    statement: A missing, blocked, ambiguous, or mismatched external-source
+      capability profile, control posture, identity, revision, or decision
+      cannot mutate canonical Pressly lifecycle or physical truth; the
+      observation remains retained and direct authorized Pressly commands
+      remain available.
+
+  - op: assert
+    kind: invariant
+    id: reordered_source_customer_resolution_is_exact_v1
+    statement: If an external order observation arrives before its customer
+      source identity is available, Orders may retain a pending customer
+      association and resolve it later only through the exact source link;
+      concurrent or replayed resolution is idempotent and never falls back to
+      phone, email, or other fuzzy matching.
+
+  - op: update
+    kind: decision
+    id: processor_uses_composed_order_views
+    statement: Processor queries use one server-composed operational Order view
+      containing stable order and customer identity, canonical commercial and
+      Production state, latest source evidence, field authority, source posture
+      and decision, canonical versions, bounded audit history, and
+      Production-owned action capabilities with denial reasons; composition
+      transfers no write authority between domains.
+
+  - op: update
+    kind: decision
+    id: source_capability_policy_lives_in_orders_v1
+    statement: Orders owns typed exhaustive capability evaluation, persistent
+      source-control posture, exact observation decisions, and commercial
+      commands; adapters only authenticate, normalize, and transport
+      observations, API and Worker compose narrow ports, Production receives
+      source-neutral canonical events, and no generic cross-domain rules engine
+      is introduced.
+
+verification:
+  - Orders passed 66 unit tests and 17 Postgres integration tests after the
+    exact pending source-customer resolver and replay repairs.
+  - Worker passed 43 tests and its contracts reject canonical lifecycle,
+    fulfillment-release, and physical-intake fields at the Cents boundary.
+  - Reconciliation dry run is deterministic and apply mode stops on identity,
+    Production, digest, or configuration ambiguity without canonical writes.
+  - Repository typecheck, lint, tests, build, migration, integration,
+    end-to-end, architecture, formatting, and whitespace gates passed.
+  - Chrome verified server-composed source posture, archive, restore, and stale
+    command recovery with no console warnings or errors.
+  - Evidence proves repository and local runtime behavior only; no production
+    deployment or live Cents cutover is claimed.
+  - No secret, credential, raw customer payload, private token, or customer PII
+    is included.
+
+status: applied

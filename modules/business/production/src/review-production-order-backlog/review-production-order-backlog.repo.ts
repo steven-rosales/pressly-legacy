@@ -1,13 +1,9 @@
-import type {
-  CommitProductionOrderBacklogCommand,
-  ProductionOrderBacklogFilter,
-} from '@pressly/contracts';
+import type { CommitProductionOrderBacklogCommand } from '@pressly/contracts';
 import {
   and,
   asc,
   eq,
   gt,
-  inArray,
   laundryProduction,
   lte,
   or,
@@ -33,22 +29,6 @@ const asResolutionState = (
   throw new Error(`Unknown production-order resolution state: ${value}.`);
 };
 
-const asCommercialState = (
-  value: string,
-): ProductionOrderBacklogSnapshotOrder['sourceCommercialState'] => {
-  if (value === 'open' || value === 'completed' || value === 'canceled')
-    return value;
-  throw new Error(`Unknown order-demand commercial state: ${value}.`);
-};
-
-const sourceFilter = (filter: ProductionOrderBacklogFilter) =>
-  filter === 'source_terminal_before_cutoff'
-    ? inArray(laundryProduction.orderDemands.commercialState, [
-        'completed',
-        'canceled',
-      ])
-    : undefined;
-
 const afterCursor = (input: BacklogSnapshotScope) =>
   input.after === null
     ? undefined
@@ -69,7 +49,6 @@ const loadSnapshot = async (
     .select({
       order: laundryProduction.productionOrders,
       displayReference: laundryProduction.orderDemands.displayReference,
-      sourceCommercialState: laundryProduction.orderDemands.commercialState,
       hasShiftSelection: hasAnyProductionOrderSelectionEvidence({
         locationId: input.locationId,
         productionOrderId: laundryProduction.productionOrders.id,
@@ -117,7 +96,6 @@ const loadSnapshot = async (
         eq(laundryProduction.productionOrders.locationId, input.locationId),
         lte(laundryProduction.productionOrders.dueAt, input.cutoff),
         afterCursor(input),
-        sourceFilter(input.filter),
       ),
     )
     .orderBy(
@@ -138,7 +116,6 @@ const loadSnapshot = async (
       resolutionState: asResolutionState(row.order.resolutionState),
       executionStatus: row.order.executionStatus,
       operationalStatus: row.order.operationalStatus,
-      sourceCommercialState: asCommercialState(row.sourceCommercialState),
       hasIntake:
         row.order.intakeVersion > 0 ||
         row.order.intakeRecordedAt !== null ||

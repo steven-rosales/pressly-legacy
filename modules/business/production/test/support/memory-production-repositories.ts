@@ -263,14 +263,12 @@ export const makeMemoryProductionRepositories = (deps: {
       command,
       orderDemandId,
       production,
-      effectiveBagCount,
       initialExecutionState,
       now,
     }: {
       command: ApplyFulfillmentDemandCommand;
       orderDemandId: string;
       production: FulfillmentProductionMutation;
-      effectiveBagCount: number | null;
       initialExecutionState: 'unassigned';
       now: Date;
     }) => {
@@ -305,7 +303,7 @@ export const makeMemoryProductionRepositories = (deps: {
           dueBucket: bucket(command.dueAt, now),
           priority: previous?.priority ?? false,
           derivedWeightLbs,
-          bagCount: effectiveBagCount,
+          bagCount: previous?.bagCount ?? null,
           admissionOverride:
             command.admissionState === 'unreleased'
               ? (previous?.admissionOverride ?? null)
@@ -316,19 +314,6 @@ export const makeMemoryProductionRepositories = (deps: {
           resolutionState: previous?.resolutionState ?? 'open',
           status: production.status,
         });
-        if (
-          effectiveBagCount !== null &&
-          !state.intakeVersions.has(productionOrderId)
-        )
-          state.intakeVersions.set(productionOrderId, 1);
-        if (
-          effectiveBagCount !== null &&
-          (previous === undefined || previous.bagCount === null)
-        )
-          state.bagStatuses.set(
-            productionOrderId,
-            Array.from({ length: effectiveBagCount }, () => 'eligible'),
-          );
       }
 
       const demand: StoredFulfillmentDemand = {
@@ -383,6 +368,28 @@ export const makeMemoryProductionRepositories = (deps: {
         result: clone(result),
         valid: true,
       });
+    },
+
+    findOrderByFulfillment: async (locationId, fulfillmentId) => {
+      const demand = state.demands.get(fulfillmentId);
+      const order =
+        demand === undefined
+          ? undefined
+          : [...state.orders.values()].find(
+              (candidate) => candidate.orderDemandId === demand.orderDemandId,
+            );
+      return demand === undefined ||
+        order === undefined ||
+        order.locationId !== locationId
+        ? null
+        : {
+            orderId: order.id,
+            locationId: order.locationId,
+            productionVersion: order.version,
+            resolutionState: order.resolutionState,
+            sourceAdmissionState: demand.admissionState,
+            sourceCommercialState: demand.commercialState,
+          };
     },
 
     lockOrder: async (locationId, orderId) => {

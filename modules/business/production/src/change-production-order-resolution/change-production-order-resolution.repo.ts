@@ -17,6 +17,7 @@ import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import type {
   ChangeProductionOrderResolutionRepository,
   LockedProductionOrderResolution,
+  ProductionOrderResolutionCandidate,
 } from './change-production-order-resolution.port.ts';
 
 const asOperationalStatus = (
@@ -88,12 +89,62 @@ const asResolutionState = (
   throw new Error(`Unknown production-order resolution state: ${value}.`);
 };
 
+const toResolutionCandidate = (row: {
+  orderId: string;
+  locationId: string;
+  productionVersion: number;
+  resolutionState: string;
+  sourceAdmissionState: string;
+  sourceCommercialState: string;
+}): ProductionOrderResolutionCandidate => ({
+  orderId: row.orderId,
+  locationId: row.locationId,
+  productionVersion: row.productionVersion,
+  resolutionState: row.resolutionState,
+  sourceAdmissionState: asAdmissionState(row.sourceAdmissionState),
+  sourceCommercialState: asCommercialState(row.sourceCommercialState),
+});
+
 export const makeChangeProductionOrderResolutionRepository = (deps: {
   db: Database;
   ids: Readonly<{ next: () => string }>;
 }): ChangeProductionOrderResolutionRepository =>
   makePostgresUnitOfWork(deps.db, (db: DatabaseExecutor) => ({
     findWorkEvent: (idempotencyKey) => findWorkEvent(db, idempotencyKey),
+    findOrderByFulfillment: async (locationId, fulfillmentId) => {
+      const [row] = await db
+        .select({
+          orderId: laundryProduction.productionOrders.id,
+          locationId: laundryProduction.productionOrders.locationId,
+          productionVersion: laundryProduction.productionOrders.version,
+          resolutionState: laundryProduction.productionOrders.resolutionState,
+          sourceAdmissionState: laundryProduction.orderDemands.admissionState,
+          sourceCommercialState: laundryProduction.orderDemands.commercialState,
+        })
+        .from(laundryProduction.orderDemands)
+        .innerJoin(
+          laundryProduction.productionOrders,
+          and(
+            eq(
+              laundryProduction.productionOrders.orderDemandId,
+              laundryProduction.orderDemands.id,
+            ),
+            eq(
+              laundryProduction.productionOrders.locationId,
+              laundryProduction.orderDemands.locationId,
+            ),
+          ),
+        )
+        .where(
+          and(
+            eq(laundryProduction.orderDemands.locationId, locationId),
+            eq(laundryProduction.orderDemands.fulfillmentId, fulfillmentId),
+          ),
+        )
+        .limit(1);
+
+      return row === undefined ? null : toResolutionCandidate(row);
+    },
     lockLocationScheduling: (locationId) =>
       lockLocationScheduling(db, locationId),
 

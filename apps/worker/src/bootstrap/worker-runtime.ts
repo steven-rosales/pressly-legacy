@@ -35,10 +35,6 @@ export const runWorker = async (input: {
     pollIntervalMs: input.config.jobs.pollIntervalMs,
     batchSize: input.config.jobs.batchSize,
   });
-  input.logger.warn('cents automatic reconciliation unsupported', {
-    mode: 'manual_replay_only',
-    reason: 'verified_cents_read_api_unavailable',
-  });
 
   const jobs = composeWorkerJobs({
     databaseUrl: input.config.databaseUrl,

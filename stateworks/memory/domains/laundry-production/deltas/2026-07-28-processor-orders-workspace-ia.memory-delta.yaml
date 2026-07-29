@@ -1,0 +1,59 @@
+id: memdelta-2026-07-28-processor-orders-workspace-ia
+domain_id: laundry-production
+
+source:
+  type: decision_session
+  path: stateworks/memory/domains/laundry-production/sessions/2026-07-28-processor-orders-workspace-ia.md
+
+changes:
+  - op: update
+    kind: workflow
+    id: order_level_routing
+    steps:
+      - employee opens one order from the dedicated server-paginated Orders
+        workspace at /orders
+      - queued rebatch requires an unfrozen queued source and an exact selected
+        mutable queued target
+      - in-flight defer or rework selects a reason and restart stage that does
+        not skip required work
+      - pure policy chooses the earliest feasible later batch for an in-flight
+        route and validates whole-order hard capacity across the required stage
+        suffix
+      - LPMS returns an exact version-bound proposal hash without mutation
+      - confirmation reloads and locks the current routing context, recomputes
+        the proposal, and rejects drift
+      - one transaction releases the source membership and unfinished attempts,
+        inserts the target membership and new attempts, updates aggregate
+        weights and versions, and appends one order-routing work_event
+      - the Processor refreshes authoritative order and board projections
+
+  - op: deprecate
+    kind: decision
+    id: server_paginated_order_home_and_history_v1
+
+  - op: assert
+    kind: decision
+    id: processor_operational_home_and_orders_workspace_v2
+    statement: The Processor root is a compact operational overview and
+      launcher, while /orders owns cross-workflow order search, server-side
+      filtering, bounded keyset pagination, order detail and available actions,
+      and manager backlog archive review. Home may expose bounded summaries and
+      links but does not duplicate the full order-control workspace; /forecast
+      remains detailed remaining-day planning and /history remains read-only
+      production audit.
+
+verification:
+  - Steven explicitly approved implementation of the dedicated Orders
+    workspace and compact operational Home on 2026-07-28.
+  - The current Home, Forecast, History, Intake, Schedule, Production, and
+    order-detail responsibilities were inspected together before assigning
+    route ownership.
+  - The existing server-composed Order read model, lifecycle graphs,
+    authorization, versioning, idempotency, capacity, and transaction
+    boundaries remain unchanged.
+  - This delta claims a durable information-architecture decision only; product
+    implementation and deployment require separate verification.
+  - No secret, credential, customer payload, private token, or production data
+    is included.
+
+status: applied

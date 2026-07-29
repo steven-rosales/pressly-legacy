@@ -1,0 +1,173 @@
+id: memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+domain_id: laundry-production
+
+source:
+  type: implementation_report
+  path: stateworks/work/done/pressly-cents-pickup-proposals/final-report.md
+
+changes:
+  - op: update
+    kind: external_system
+    id: cents
+    description: Cents is an upstream pickup-proposal provider only. Pending or
+      rejected proposals and every non-PICKED_UP Cents event have no Production
+      identity, admission, scheduling, execution, or floor effect.
+
+  - op: deprecate
+    kind: object
+    id: crm_order
+
+  - op: update
+    kind: object
+    id: production_order
+    description: The internal LPMS execution projection of one accepted,
+      source-neutral canonical Order fulfillment that may become eligible for
+      production scheduling; no external proposal is a production_order.
+
+  - op: update
+    kind: workflow
+    id: scheduling_to_execution
+    steps:
+      - Production idempotently receives only canonical released fulfillment
+        demand from the Orders transactional outbox
+      - eligible production_orders form the complete immutable scheduling
+        snapshot for one shift
+      - Compute creates a new immutable schedule_run revision and supersedes the
+        prior current revision
+      - manager reviews warnings and accepts the current output hash without
+        creating execution
+      - Start revalidates the current accepted revision, exact eligible-order
+        snapshot, and active shift window
+      - LPMS creates the shift's sole started production_run and its initial
+        batches, stages, assignments, order transitions, and work_event
+        atomically
+      - operators advance server-authorized stage_run actions; an
+        otherwise-valid early start or completion requires an exact current
+        confirmation and never rewrites planned stage windows
+      - after reconnect, an operator may reconcile one batch to a strictly later
+        physical milestone through a previewed and exact-version confirmation
+        without synthetic stage events
+      - post-start canonical arrivals are placed into the existing
+        production_run without moving existing orders automatically
+      - employees may explicitly rebatch a whole queued order or defer and
+        rework a whole in-flight order into a later batch without changing
+        canonical batch-stage progression
+      - final folding and packaging completion, whether live or reconciled,
+        terminalizes the remaining floor facts, completes the run, and closes
+        the shift atomically
+
+  - op: update
+    kind: workflow
+    id: external_demand_to_production_admission
+    steps:
+      - an external pickup observation may create an immutable pending proposal
+        upstream in Orders and has no Production effect
+      - Reject terminalizes the proposal without creating canonical or
+        Production work
+      - Accept atomically creates a canonical Order and released fulfillment
+        upstream through an authorized Pressly command
+      - an Orders outbox event applies fulfillment-keyed canonical demand and
+        release to Production idempotently without vendor lifecycle authority
+      - physical bag intake may be recorded only against canonical Production
+        work and intake alone does not admit an unreleased order
+      - effective Production admission becomes released only through canonical
+        upstream fulfillment release or a current authorized manual Production
+        override
+      - readiness still requires positive Production demand and recorded
+        physical intake under server-owned policy
+      - manual admission never selects, schedules, places, or starts an order
+      - Processor floor views derive attention and actions from canonical
+        Pressly state; pending proposals stay in the Orders workspace
+
+  - op: update
+    kind: invariant
+    id: source_lifecycle_does_not_advance_floor_truth_v1
+    statement: Production consumes only committed source-neutral canonical
+      fulfillment demand and release decisions from Orders. External events,
+      pending or rejected proposals, source estimates, and adapter evidence
+      cannot create, admit, start, advance, finish, cancel, rewind, delete,
+      resolve, restore, reopen, or otherwise change Production work or physical
+      truth.
+
+  - op: update
+    kind: invariant
+    id: external_source_lifecycle_never_controls_production_admission_v2
+    statement: Production admission may change only through a source-neutral
+      canonical Orders release event or an authorized Production
+      manual-admission command; an external event or pending or rejected
+      proposal never has a Production identity and cannot affect admission.
+
+  - op: update
+    kind: invariant
+    id: canonical_fulfillment_release_reaches_production_v2
+    statement: Production consumes accepted canonical fulfillment demand and
+      release decisions from the Orders transactional outbox idempotently,
+      preserves operator-owned intake, and cannot infer, synthesize, reverse, or
+      terminalize canonical decisions from any external event or proposal.
+
+  - op: assert
+    kind: invariant
+    id: incoming_proposals_are_outside_production_v1
+    statement: An incoming proposal has no Production order, admission,
+      selection, schedule, batch, run, intake, or remaining-day membership;
+      only an accepted canonical released fulfillment may enter Production.
+
+  - op: update
+    kind: policy
+    id: remaining_day_outlook_partition_v1
+    statement: The remaining-day outlook partitions unfinished canonical
+      Pressly work into active production, ready work the server can currently
+      place, expected canonical work not yet executable, and work needing
+      another shift or remaining unassigned today. Pending and rejected
+      incoming proposals are excluded, and appendability uses the same
+      server-authoritative hard-capacity and placement rules as execution.
+
+  - op: update
+    kind: policy
+    id: canonical_fulfillment_release_reaches_production_v2
+    statement: Production consumes only canonical fulfillment demand and
+      release decisions from Orders idempotently; pending and rejected
+      proposals and every external observation are outside its input contract.
+
+  - op: update
+    kind: decision
+    id: durable_inbox_worker_v1
+    statement: Cents ingress uses a Postgres inbox with SKIP LOCKED claims,
+      expiring leases, bounded retry backoff, inspectable dead letters, exact
+      PICKED_UP proposal transport, and durable acknowledgement of ignored
+      events; no source reconciliation port controls canonical or Production
+      work.
+
+  - op: update
+    kind: decision
+    id: processor_uses_backend_action_availability
+    statement: Processor renders pending Incoming proposal actions owned by
+      Orders separately from canonical Current-order and Production actions.
+      Production capabilities come from authoritative graphs and policies, and
+      the browser cannot recreate proposal, lifecycle, duplicate, admission,
+      cleanup, placement, routing, or forecast decisions.
+
+  - op: update
+    kind: decision
+    id: isolated_lpms_module_composition
+    statement: Users, Orders, Production business, Production policy, and
+      fixed-pulse scheduling remain isolated peer modules behind narrow ports;
+      Worker and API are application composition boundaries, Orders owns
+      proposal decisions and canonical creation, Production consumes only
+      source-neutral outbox events, and Production imports neither Orders,
+      Cents, nor proposal policy.
+
+verification:
+  - The paired Order Management implementation makes exact Cents PICKED_UP a
+    pre-canonical proposal and reserves canonical creation for Accept.
+  - Architecture tests prove Production contains no Cents-specific or proposal
+    authority and consumes only source-neutral canonical fulfillment events.
+  - Full Production unit and Postgres integration suites passed with the new
+    Orders boundary.
+  - Local synthetic Accept produced canonical released work, while Reject,
+    non-pickup delivery, replay, and later Cents states produced no new
+    Production effect.
+  - No production deployment, production database mutation, live Cents
+    cutover, secret, credential, or customer payload is claimed.
+
+status: applied

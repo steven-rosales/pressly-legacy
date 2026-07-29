@@ -1,7 +1,8 @@
 # Local LPMS Production-Run Simulation
 
-Use this runbook to move a synthetic Cents-shaped workload through the local
-Processor without resetting the shared development database.
+Use this runbook to move synthetic Cents submitted candidates through explicit
+Pressly acceptance and the local Processor without resetting the shared
+development database.
 
 The acceptance fixture is:
 
@@ -100,7 +101,9 @@ For each copy:
 
 1. Set `order.id` to the unique run tag plus the two-digit order number.
 2. Keep `order.storeId` as `{{cents_test_store_id}}`.
-3. Keep `order.status` as `IN_PROGRESS`.
+3. Keep `order.status` as the exact value `SUBMITTED`. `COMPLETED` and
+   `CANCELED` close unresolved candidates; every other Cents status is
+   acknowledged as evidence only.
 4. Set one shared `dueDate` on the shift's local due-day bucket.
 5. Give each order a distinct, current `updatedAt` value.
 6. Set the service `quantity` to the table weight for readable test data.
@@ -114,7 +117,7 @@ Example for the 80 lb order:
   "order": {
     "id": "lpms-sim-YYYYMMDD-HHMM-01",
     "storeId": "{{cents_test_store_id}}",
-    "status": "IN_PROGRESS",
+    "status": "SUBMITTED",
     "dueDate": "<shared-due-date-iso>",
     "updatedAt": "<current-unique-iso>"
   },
@@ -143,26 +146,50 @@ data.status = pending
 data.duplicate = false
 ```
 
-The Worker projects accepted deliveries asynchronously. Let the SSE-driven
-Processor refresh from the authoritative API. If the orders do not appear,
+The Worker turns each new exact submission into one immutable incoming
+candidate.
+It does not create canonical Orders or Production work. Let the SSE-driven
+Processor refresh from the authoritative API. If candidates do not appear,
 inspect service health once with `pnpm docker:logs`; do not create a manual
 refresh loop.
 
-## 4. Record Intake and Priority
+## 4. Add the Incoming Candidates to Pressly
 
-In Processor's Schedule workspace, process each matching intake row:
+Open **Manage Orders → Incoming** and verify the 15 candidate rows by the unique
+run tag. For each candidate:
+
+1. Confirm the synthetic order identity, reported time, due time, and estimated
+   demand.
+2. Select **Add to Pressly**.
+3. Confirm the acceptance reason.
+4. Verify the row leaves Incoming and one canonical Order becomes available
+   for Intake.
+
+Acceptance is the authoritative boundary. It creates the canonical Order and
+an **unreleased** wash-and-fold fulfillment; the signed Cents delivery alone
+does not. Use **Reject** only for a candidate that should create no canonical
+work.
+
+Stop if a candidate is missing, duplicated, already decided, or belongs to
+another run tag. Do not resend a different status to repair it: later Cents
+events cannot update accepted Order fields or reopen decided candidate states.
+
+## 5. Record Intake and Priority
+
+In Processor's Intake workspace, process each matching accepted Order:
 
 1. Mark orders 01, 07, and 13 as priority.
 2. Enter the bag count from the table.
 3. Confirm the intake command.
-4. Verify the row becomes eligible before moving on.
+4. Explicitly release each verified fulfillment to Production.
+5. Verify the row becomes eligible before moving on.
 
 Before computing, verify the workspace totals are exactly 15 orders, 800 lb,
 34 bags, and 3 priority orders. Stop if another synthetic or real-looking order
 has entered the eligible set; Compute intentionally snapshots every eligible
 order at the location.
 
-## 5. Prepare a Viable Shift
+## 6. Prepare a Viable Shift
 
 Review the displayed scheduler configuration and pulse capacity before
 creating the shift. The capacity must be positive and no individual order may
@@ -181,7 +208,7 @@ Create a new shift for this proof:
 
 Do not reuse a completed shift or a shift that already owns a production run.
 
-## 6. Compute, Accept, and Start
+## 7. Compute, Accept, and Start
 
 Use the single scheduling workflow:
 
@@ -212,7 +239,7 @@ production run, its batches, stages, assignments, and initial queue version.
 After Start, the URL should identify the run under `/production/<run-id>` and a
 reload should restore the same board.
 
-## 7. Operate the Run
+## 8. Operate the Run
 
 Use only actions the server exposes on the board:
 
@@ -236,7 +263,7 @@ pnpm test:lpms:e2e
 
 Do not alter database timestamps to force the manual board forward.
 
-## 8. Verify and Repeat
+## 9. Verify and Repeat
 
 The manual proof is complete when:
 
@@ -248,5 +275,5 @@ The manual proof is complete when:
 - the run reaches completed only after all batches complete.
 
 To repeat the simulation, create a new run tag, 15 new order IDs, and a new
-shift. Preserve the existing development database; historical runs are part of
-the behavior this proof is meant to exercise.
+shift. Preserve the existing development database; proposal decisions and
+historical runs are part of the behavior this proof is meant to exercise.

@@ -16,6 +16,7 @@ import {
   IconHistory,
   IconLock,
   IconLockOpen,
+  IconListDetails,
   IconPlayerPlay,
   IconRefresh,
   IconScale,
@@ -63,6 +64,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/components/ui/class-names"
 import { EarlyStageStartDialog } from "./early-stage-start-dialog.view"
+import { BatchOrderInspector } from "./batch-order-inspector.view"
 import { FloorProgressReconciliationSheet } from "./floor-progress-reconciliation.view"
 import {
   useProductionBoardModel,
@@ -169,7 +171,8 @@ function StageCard({
   stage,
   batchNumber,
   weight,
-  orders,
+  orderCount,
+  bagCount,
   pinned,
   presentation,
   now,
@@ -184,7 +187,8 @@ function StageCard({
   stage: StageRun
   batchNumber: number
   weight: number
-  orders: string
+  orderCount: number
+  bagCount: number
   pinned: boolean
   presentation: StagePresentation
   now: number
@@ -256,10 +260,14 @@ function StageCard({
             {t("common.pounds", { value: weight })}
           </span>
         </div>
-        <div className="flex min-w-0 items-center gap-1.5">
-          <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-            {orders}
-          </p>
+        <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+          <IconListDetails className="size-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate">
+            {t("production.batchOrderTriggerSummary", {
+              orders: t("common.orders", { count: orderCount }),
+              bags: t("common.bags", { count: bagCount }),
+            })}
+          </span>
           {pinned && <Badge variant="outline">{t("production.pinned")}</Badge>}
         </div>
         {supportsMachines && (
@@ -363,6 +371,9 @@ export function ProductionBoardWorkspace({
     invalidateFloorProgressConfirmation,
   } = useProductionBoardModel(input)
   const [editingStageId, setEditingStageId] = useState<string | null>(null)
+  const [batchInspectorOpen, setBatchInspectorOpen] = useState(false)
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null)
+  const batchInspectorReturnFocusRef = useRef<HTMLButtonElement | null>(null)
   const isWide = useMediaQuery("(min-width: 1280px)", true)
   const isMobile = useMediaQuery("(max-width: 767px)", false)
   const boardAsOf = board?.asOf ?? "1970-01-01T00:00:00.000Z"
@@ -370,6 +381,11 @@ export function ProductionBoardWorkspace({
   const updatesUnavailable =
     input.online === false ||
     (input.updatesState !== undefined && input.updatesState !== "open")
+  const openBatchInspector = (batchId: string, trigger: HTMLButtonElement) => {
+    batchInspectorReturnFocusRef.current = trigger
+    setSelectedBatchId(batchId)
+    setBatchInspectorOpen(true)
+  }
   const mutationsDisabled =
     busyId !== null || updatesUnavailable || board === null
 
@@ -505,9 +521,11 @@ export function ProductionBoardWorkspace({
               stage={stage}
               batchNumber={batch.sequence + 1}
               weight={batch.derivedWeightLbs}
-              orders={batch.orders
-                .map((order) => order.externalOrderId)
-                .join(" + ")}
+              orderCount={batch.orders.length}
+              bagCount={batch.orders.reduce(
+                (sum, order) => sum + order.bagCount,
+                0
+              )}
               pinned={batch.orders.some((order) => order.pinnedAt !== null)}
               presentation={presentStage({ stage, now })}
               now={now}
@@ -693,54 +711,91 @@ export function ProductionBoardWorkspace({
       {board.batches.length > 0 && (
         <Card className="bg-background">
           <CardHeader>
-            <CardTitle>{t("production.queueMembership")}</CardTitle>
+            <CardTitle>{t("production.batchMembership")}</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {board.batches.map((batch) => (
-              <div
-                key={batch.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3"
-              >
-                <div>
-                  <p className="font-medium">
-                    {t("production.batch", { number: batch.sequence + 1 })}
-                  </p>
-                  <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                    <StatusBadge status={batch.status} />
-                    <span>
-                      {batch.membership.state === "frozen"
-                        ? t("production.membershipFrozen")
-                        : t("production.membershipMutable")}
-                    </span>
+          <CardContent className="grid gap-2 lg:grid-cols-2">
+            {board.batches.map((batch) => {
+              const orderCount = batch.orders.length
+              const bagCount = batch.orders.reduce(
+                (sum, order) => sum + order.bagCount,
+                0
+              )
+              const summary = t("production.batchManifestSummary", {
+                orders: t("common.orders", { count: orderCount }),
+                bags: t("common.bags", { count: bagCount }),
+                weight: t("common.pounds", {
+                  value: batch.derivedWeightLbs,
+                }),
+              })
+
+              return (
+                <div
+                  key={batch.id}
+                  className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {t("production.batch", { number: batch.sequence + 1 })}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      <StatusBadge status={batch.status} />
+                      <span>
+                        {batch.membership.state === "frozen"
+                          ? t("production.membershipFrozen")
+                          : t("production.membershipMutable")}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {summary}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11"
+                      aria-label={t("production.viewBatchOrders", {
+                        number: batch.sequence + 1,
+                        summary,
+                      })}
+                      onClick={(event) =>
+                        openBatchInspector(batch.id, event.currentTarget)
+                      }
+                    >
+                      <IconListDetails data-icon="inline-start" />
+                      {t("production.viewOrders")}
+                    </Button>
+                    {batch.status === "queued" &&
+                      batch.membership.state === "mutable" && (
+                        <Button
+                          variant="outline"
+                          className="h-11"
+                          disabled={mutationsDisabled}
+                          onClick={() => void mutateMembership(batch, "freeze")}
+                        >
+                          <IconLock data-icon="inline-start" />{" "}
+                          {t("production.freeze")}
+                        </Button>
+                      )}
+                    {input.canManage &&
+                      batch.status === "queued" &&
+                      batch.membership.state === "frozen" && (
+                        <Button
+                          variant="outline"
+                          className="h-11"
+                          disabled={mutationsDisabled}
+                          onClick={() =>
+                            void mutateMembership(batch, "unfreeze")
+                          }
+                        >
+                          <IconLockOpen data-icon="inline-start" />{" "}
+                          {t("production.unfreeze")}
+                        </Button>
+                      )}
                   </div>
                 </div>
-                {batch.status === "queued" &&
-                  batch.membership.state === "mutable" && (
-                    <Button
-                      variant="outline"
-                      className="h-11"
-                      disabled={mutationsDisabled}
-                      onClick={() => void mutateMembership(batch, "freeze")}
-                    >
-                      <IconLock data-icon="inline-start" />{" "}
-                      {t("production.freeze")}
-                    </Button>
-                  )}
-                {input.canManage &&
-                  batch.status === "queued" &&
-                  batch.membership.state === "frozen" && (
-                    <Button
-                      variant="outline"
-                      className="h-11"
-                      disabled={mutationsDisabled}
-                      onClick={() => void mutateMembership(batch, "unfreeze")}
-                    >
-                      <IconLockOpen data-icon="inline-start" />{" "}
-                      {t("production.unfreeze")}
-                    </Button>
-                  )}
-              </div>
-            ))}
+              )
+            })}
           </CardContent>
         </Card>
       )}
@@ -796,6 +851,16 @@ export function ProductionBoardWorkspace({
           )}
         </>
       )}
+
+      <BatchOrderInspector
+        open={batchInspectorOpen}
+        batches={board.batches}
+        selectedBatchId={selectedBatchId}
+        isMobile={isMobile}
+        returnFocusRef={batchInspectorReturnFocusRef}
+        onOpenChange={setBatchInspectorOpen}
+        onSelectedBatchChange={setSelectedBatchId}
+      />
 
       <Sheet
         open={editingStage !== undefined}

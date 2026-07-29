@@ -84,13 +84,21 @@ describe('Processor operational order identity composition', () => {
       },
       board: {
         eligibleOrders: [{ id: id(1), externalOrderId: 'ORDER-1' }],
+        batches: [
+          {
+            orders: [
+              { id: id(1), externalOrderId: 'ORDER-1' },
+              { id: id(3), externalOrderId: 'NO-CUSTOMER' },
+            ],
+          },
+        ],
       },
     } as unknown as ProductionWorkspace;
 
     const composed = await readModel.composeWorkspace(base);
 
     expect(identities.resolve).toHaveBeenCalledOnce();
-    expect(identities.resolve.mock.calls[0]?.[0]).toHaveLength(2);
+    expect(identities.resolve.mock.calls[0]?.[0]).toHaveLength(3);
     expect(composed.orders[0]?.identity).toEqual({
       displayNumber: 'canonical:ORDER-1',
       customerDisplayName: 'Customer ORDER-1',
@@ -98,6 +106,14 @@ describe('Processor operational order identity composition', () => {
     expect(composed.liveRunChanges?.orders[0]?.identity.displayNumber).toBe(
       'canonical:ORDER-2',
     );
+    expect(composed.board?.batches[0]?.orders[0]?.identity).toEqual({
+      displayNumber: 'canonical:ORDER-1',
+      customerDisplayName: 'Customer ORDER-1',
+    });
+    expect(composed.board?.batches[0]?.orders[1]?.identity).toEqual({
+      displayNumber: 'canonical:NO-CUSTOMER',
+      customerDisplayName: null,
+    });
   });
 
   it('resolves every forecast group in one batch, including demand before Production admission', async () => {

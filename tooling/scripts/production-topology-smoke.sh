@@ -733,41 +733,10 @@ wait_for_projection() {
   fail "signed Cents event $external_order_id did not reach $expected_status within 60 seconds."
 }
 
-send_signed_webhook() {
-  local external_order_id="$1"
-  local order_code="$2"
-  local updated_at="$3"
-  local due_at="$4"
-  local body_file="$WORK_DIR/cents-${external_order_id}.json"
-  local response_file="$WORK_DIR/cents-${external_order_id}-response.json"
-  BODY_FILE="$body_file" EXTERNAL_ORDER_ID="$external_order_id" ORDER_CODE="$order_code" UPDATED_AT="$updated_at" DUE_AT="$due_at" \
-    node --input-type=module -e "
-      import { writeFileSync } from 'node:fs';
-      writeFileSync(
-        process.env.BODY_FILE,
-        JSON.stringify({
-          action: 'order_updated',
-          order: {
-            id: process.env.EXTERNAL_ORDER_ID,
-            orderCode: process.env.ORDER_CODE,
-            storeId: 'offline-smoke-store',
-            status: 'IN_PROGRESS',
-            dueDate: process.env.DUE_AT,
-            updatedAt: process.env.UPDATED_AT,
-          },
-          services: [{
-            id: 'offline-smoke-service',
-            name: 'Synthetic Wash and Fold',
-            quantity: 10,
-            totalPrice: '20.00',
-            unitCost: '2.00',
-            serviceCategory: 'Wash and Fold',
-            serviceCategoryType: 'LAUNDRY',
-          }],
-        }),
-        { flag: 'wx' },
-      );
-    "
+post_signed_cents_body() {
+  local body_file="$1"
+  local response_file="$2"
+  local expected_ingress_status="$3"
   local timestamp signature status
   timestamp="$(date +%s)"
   signature="$(
@@ -800,12 +769,222 @@ send_signed_webhook() {
     --data-binary "@$body_file" \
     "https://api.pressly.test:${CADDY_PORT}/webhooks/cents")"
   [[ "$status" == 202 ]] || fail "signed Cents webhook returned $status; expected 202."
-  node --input-type=module - "$response_file" <<'NODE'
+  EXPECTED_INGRESS_STATUS="$expected_ingress_status" \
+    node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
-if (response?.ok !== true || response?.data?.status !== 'pending' || response?.data?.duplicate !== false)
-  throw new Error('Signed Cents webhook did not create one new pending event.');
+if (
+  response?.ok !== true ||
+  response?.data?.status !== process.env.EXPECTED_INGRESS_STATUS ||
+  response?.data?.duplicate !== false
+) throw new Error(`Signed Cents webhook did not create one new ${process.env.EXPECTED_INGRESS_STATUS} receipt.`);
 NODE
+}
+
+send_signed_submitted_webhook() {
+  local external_order_id="$1"
+  local order_code="$2"
+  local updated_at="$3"
+  local due_at="$4"
+  local body_file="$WORK_DIR/cents-${external_order_id}.json"
+  local response_file="$WORK_DIR/cents-${external_order_id}-response.json"
+  BODY_FILE="$body_file" EXTERNAL_ORDER_ID="$external_order_id" ORDER_CODE="$order_code" UPDATED_AT="$updated_at" DUE_AT="$due_at" \
+    node --input-type=module -e "
+      import { writeFileSync } from 'node:fs';
+      writeFileSync(
+        process.env.BODY_FILE,
+        JSON.stringify({
+          action: 'order_updated',
+          order: {
+            id: process.env.EXTERNAL_ORDER_ID,
+            orderCode: process.env.ORDER_CODE,
+            storeId: 'offline-smoke-store',
+            status: 'SUBMITTED',
+            dueDate: process.env.DUE_AT,
+            updatedAt: process.env.UPDATED_AT,
+          },
+          services: [{
+            id: 'offline-smoke-service',
+            name: 'Synthetic Wash and Fold',
+            quantity: 10,
+            totalPrice: '20.00',
+            unitCost: '2.00',
+            serviceCategory: 'Wash and Fold',
+            serviceCategoryType: 'LAUNDRY',
+          }],
+        }),
+        { flag: 'wx' },
+      );
+    "
+  post_signed_cents_body "$body_file" "$response_file" pending
+}
+
+wait_for_incoming_proposal() {
+  local external_order_id="$1"
+  local response_file="$2"
+  local deadline=$((SECONDS + 60))
+  while ((SECONDS < deadline)); do
+    processor_request \
+      GET \
+      "/api/order-management/locations/${LPMS_LOCATION_ID}/incoming-orders?limit=50" \
+      '' \
+      "$response_file" \
+      200
+    local identity
+    identity="$(
+      EXPECTED_EXTERNAL_ORDER_ID="$external_order_id" \
+        node --input-type=module - "$response_file" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const matches = response.data.items.filter(
+  (proposal) =>
+    proposal.source === 'cents' &&
+    proposal.externalOrderId === process.env.EXPECTED_EXTERNAL_ORDER_ID,
+);
+if (matches.length > 1)
+  throw new Error('The exact Cents identity produced duplicate incoming proposals.');
+if (matches.length === 1)
+  process.stdout.write(`${matches[0].id}|${matches[0].version}`);
+NODE
+    )"
+    if [[ -n "$identity" ]]; then
+      printf '%s' "$identity"
+      return
+    fi
+    sleep 1
+  done
+  fail "signed Cents submitted Order $external_order_id did not create one incoming proposal within 60 seconds."
+}
+
+accept_incoming_proposal() {
+  local proposal_id="$1"
+  local proposal_version="$2"
+  local idempotency_key="$3"
+  local request_file="$4"
+  local response_file="$5"
+  write_json_file \
+    "$request_file" \
+    "{\"expectedVersion\":${proposal_version},\"idempotencyKey\":\"${idempotency_key}\",\"reasonCode\":\"incoming_order_accepted\",\"reasonNote\":null}"
+  processor_request \
+    POST \
+    "/api/order-management/locations/${LPMS_LOCATION_ID}/incoming-orders/${proposal_id}/accept" \
+    "$request_file" \
+    "$response_file" \
+    200
+  EXPECTED_PROPOSAL_ID="$proposal_id" node --input-type=module - "$response_file" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (
+  response.data.proposalId !== process.env.EXPECTED_PROPOSAL_ID ||
+  response.data.state !== 'accepted' ||
+  response.data.version !== 2 ||
+  response.data.replayed !== false ||
+  typeof response.data.orderId !== 'string' ||
+  typeof response.data.fulfillmentId !== 'string'
+) throw new Error('Incoming proposal acceptance did not create one new canonical Order and fulfillment.');
+NODE
+}
+
+release_accepted_fulfillment() {
+  local acceptance_response_file="$1"
+  local idempotency_key="$2"
+  local request_file="$3"
+  local response_file="$4"
+  local accepted_identity order_id fulfillment_id
+  accepted_identity="$(
+    node --input-type=module - "$acceptance_response_file" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (
+  typeof response.data.orderId !== 'string' ||
+  typeof response.data.fulfillmentId !== 'string'
+) throw new Error('Accepted incoming Order is missing its canonical identity.');
+process.stdout.write(`${response.data.orderId}|${response.data.fulfillmentId}`);
+NODE
+  )"
+  IFS='|' read -r order_id fulfillment_id <<< "$accepted_identity"
+  write_json_file \
+    "$request_file" \
+    "{\"expectedOrderVersion\":1,\"expectedFulfillmentVersion\":1,\"idempotencyKey\":\"${idempotency_key}\",\"reasonCode\":\"ready_for_production\",\"reasonNote\":null}"
+  processor_request \
+    POST \
+    "/api/order-management/locations/${LPMS_LOCATION_ID}/fulfillments/${fulfillment_id}/release" \
+    "$request_file" \
+    "$response_file" \
+    200
+  EXPECTED_ORDER_ID="$order_id" EXPECTED_FULFILLMENT_ID="$fulfillment_id" \
+    node --input-type=module - "$response_file" <<'NODE'
+import { readFileSync } from 'node:fs';
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (
+  response.data.orderId !== process.env.EXPECTED_ORDER_ID ||
+  response.data.fulfillmentId !== process.env.EXPECTED_FULFILLMENT_ID ||
+  response.data.version !== 2 ||
+  response.data.replayed !== false
+) throw new Error('Canonical fulfillment release did not advance the accepted Order exactly once.');
+NODE
+}
+
+prove_ignored_cents_events() {
+  local before after
+  before="$(database_scalar "
+    select concat(
+      (select count(*) from webhook_events),
+      '|',
+      (select count(*) from order_source_proposals),
+      '|',
+      (select count(*) from order_source_links),
+      '|',
+      (select count(*) from orders),
+      '|',
+      (select count(*) from production_orders)
+    );
+  ")"
+
+  local ignored_order_body="$WORK_DIR/cents-ignored-order.json"
+  local ignored_customer_body="$WORK_DIR/cents-ignored-customer.json"
+  local ignored_marketing_body="$WORK_DIR/cents-ignored-marketing.json"
+  write_json_file "$ignored_order_body" '{"action":"order_updated","order":{"id":"offline-smoke-ignored-order","status":"IN_PROGRESS","updatedAt":"2030-01-15T14:04:00.000Z"},"services":[{"malformed":true}]}'
+  write_json_file "$ignored_customer_body" '{"event":"customer_updated","customer":{"id":"offline-smoke-ignored-customer","updatedAt":"2030-01-15T14:05:00.000Z"}}'
+  write_json_file "$ignored_marketing_body" '{"event":"customer_marketing_optin","customer":{"id":"offline-smoke-ignored-marketing","updatedAt":"2030-01-15T14:06:00.000Z"}}'
+  post_signed_cents_body "$ignored_order_body" "$WORK_DIR/cents-ignored-order-response.json" ignored
+  post_signed_cents_body "$ignored_customer_body" "$WORK_DIR/cents-ignored-customer-response.json" ignored
+  post_signed_cents_body "$ignored_marketing_body" "$WORK_DIR/cents-ignored-marketing-response.json" ignored
+
+  after="$(database_scalar "
+    select concat(
+      (select count(*) from webhook_events),
+      '|',
+      (select count(*) from order_source_proposals),
+      '|',
+      (select count(*) from order_source_links),
+      '|',
+      (select count(*) from orders),
+      '|',
+      (select count(*) from production_orders)
+    );
+  ")"
+  BEFORE_COUNTS="$before" AFTER_COUNTS="$after" node --input-type=module <<'NODE'
+const before = process.env.BEFORE_COUNTS.split('|').map(Number);
+const after = process.env.AFTER_COUNTS.split('|').map(Number);
+if (
+  after[0] !== before[0] + 3 ||
+  after.slice(1).some((value, index) => value !== before[index + 1])
+) throw new Error(`Ignored Cents receipts changed canonical work: ${process.env.BEFORE_COUNTS} -> ${process.env.AFTER_COUNTS}`);
+NODE
+  local ignored_receipts
+  ignored_receipts="$(database_scalar "
+    select count(*)
+    from webhook_events
+    where source = 'cents'
+      and event_type in ('order_updated', 'customer_updated', 'customer_marketing_optin')
+      and subject_type = 'unknown'
+      and subject_id is null
+      and payload_json is null
+      and status = 'processed';
+  ")"
+  [[ "$ignored_receipts" == 3 ]] ||
+    fail "ignored Cents proof did not retain exactly three minimal processed receipts: $ignored_receipts"
 }
 
 load_order_identity() {
@@ -851,15 +1030,33 @@ NODE
   local shift_starts_at="${lpms_times[3]}"
   local shift_ends_at="${lpms_times[4]}"
 
-  echo '[v2] projecting the pre-Start signed Cents order, then setting priority before intake'
-  send_signed_webhook \
+  echo '[v2] proposing, accepting, and releasing the pre-Start signed Cents submitted Order before intake'
+  send_signed_submitted_webhook \
     "$LPMS_FIRST_EXTERNAL_ORDER_ID" \
     "$LPMS_FIRST_ORDER_CODE" \
     "$LPMS_FIRST_UPDATED_AT" \
     "$LPMS_DUE_AT"
-  wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" intake_pending
 
   login_lpms_processor_session
+  local proposal_identity proposal_id proposal_version
+  proposal_identity="$(wait_for_incoming_proposal \
+    "$LPMS_FIRST_EXTERNAL_ORDER_ID" \
+    "$WORK_DIR/lpms-prestart-incoming-orders.json")"
+  IFS='|' read -r proposal_id proposal_version <<< "$proposal_identity"
+  accept_incoming_proposal \
+    "$proposal_id" \
+    "$proposal_version" \
+    offline-smoke-prestart-submitted-accept-v1 \
+    "$WORK_DIR/lpms-prestart-proposal-accept-request.json" \
+    "$WORK_DIR/lpms-prestart-proposal-accept-response.json"
+  wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" release_pending
+  release_accepted_fulfillment \
+    "$WORK_DIR/lpms-prestart-proposal-accept-response.json" \
+    offline-smoke-prestart-fulfillment-release-v1 \
+    "$WORK_DIR/lpms-prestart-fulfillment-release-request.json" \
+    "$WORK_DIR/lpms-prestart-fulfillment-release-response.json"
+  wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" intake_pending
+
   local order_identity order_version
   order_identity="$(load_order_identity \
     "$LPMS_FIRST_ORDER_CODE" \
@@ -1126,12 +1323,29 @@ fast_forward_started_stage() {
 }
 
 finish_lpms_live_flow() {
-  echo '[v2] projecting the post-Start signed arrival, then explicitly requesting compatible placement after intake'
-  send_signed_webhook \
+  echo '[v2] proposing, accepting, and releasing the post-Start signed submitted Order before intake and compatible placement'
+  send_signed_submitted_webhook \
     "$LPMS_LIVE_EXTERNAL_ORDER_ID" \
     "$LPMS_LIVE_ORDER_CODE" \
     "$LPMS_LIVE_UPDATED_AT" \
     "$LPMS_DUE_AT"
+  local proposal_identity proposal_id proposal_version
+  proposal_identity="$(wait_for_incoming_proposal \
+    "$LPMS_LIVE_EXTERNAL_ORDER_ID" \
+    "$WORK_DIR/lpms-live-incoming-orders.json")"
+  IFS='|' read -r proposal_id proposal_version <<< "$proposal_identity"
+  accept_incoming_proposal \
+    "$proposal_id" \
+    "$proposal_version" \
+    offline-smoke-live-submitted-accept-v1 \
+    "$WORK_DIR/lpms-live-proposal-accept-request.json" \
+    "$WORK_DIR/lpms-live-proposal-accept-response.json"
+  wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" release_pending
+  release_accepted_fulfillment \
+    "$WORK_DIR/lpms-live-proposal-accept-response.json" \
+    offline-smoke-live-fulfillment-release-v1 \
+    "$WORK_DIR/lpms-live-fulfillment-release-request.json" \
+    "$WORK_DIR/lpms-live-fulfillment-release-response.json"
   wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" intake_pending
 
   local order_identity order_version
@@ -1335,6 +1549,15 @@ NODE
     select concat(
       (select count(*) from webhook_events where source = 'cents' and subject_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
       '|',
+      (select count(*) from order_source_proposals where source = 'cents' and external_order_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
+      '|',
+      (select count(*)
+       from order_source_proposal_resolutions resolution
+       join order_source_proposals proposal on proposal.id = resolution.proposal_id
+       where proposal.source = 'cents'
+         and proposal.external_order_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')
+         and resolution.decision = 'accepted'),
+      '|',
       (select count(*)
        from order_demands demand
        join order_fulfillments fulfillment on fulfillment.id = demand.fulfillment_id
@@ -1364,7 +1587,7 @@ NODE
       (select count(*) from work_events event join stage_runs stage on stage.id = event.entity_id join production_batches batch on batch.id = stage.production_batch_id where batch.production_run_id = '${LPMS_PRODUCTION_RUN_ID}' and event.event_type = 'stage_completed')
     );
   ")"
-  [[ "$durable_state" == '2|2|2|2|1|1|1|4|2|1|4|4' ]] ||
+  [[ "$durable_state" == '2|2|2|2|2|2|1|1|1|4|2|1|4|4' ]] ||
     fail "completed LPMS persistence graph is inconsistent: $durable_state"
 }
 
@@ -1398,6 +1621,8 @@ assert_release_images release-a
 probe_routes
 echo '[v2] proving production HTTPS cookie, session restoration, and CSRF behavior through Caddy'
 prove_processor_cookie_auth
+echo '[v2] proving unsupported-order, customer, and marketing Cents events retain only ignored durable receipts'
+prove_ignored_cents_events
 
 INITIAL_HEARTBEAT="$(compose exec -T worker sh -c 'cat "${WORKER_HEARTBEAT_FILE:-/tmp/pressly-worker-heartbeat}"')"
 [[ -n "$INITIAL_HEARTBEAT" ]] || fail 'Worker heartbeat file is empty.'
@@ -1472,6 +1697,17 @@ RUNTIME_COUNTS="$(database_scalar "
   select concat(
     (select count(*) from webhook_events where source = 'cents' and subject_type = 'order' and subject_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
     '|',
+    (select count(*) from webhook_events where source = 'cents' and subject_type = 'unknown' and payload_json is null and status = 'processed'),
+    '|',
+    (select count(*) from order_source_proposals where source = 'cents' and external_order_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')),
+    '|',
+    (select count(*)
+     from order_source_proposal_resolutions resolution
+     join order_source_proposals proposal on proposal.id = resolution.proposal_id
+     where proposal.source = 'cents'
+       and proposal.external_order_id in ('${LPMS_FIRST_EXTERNAL_ORDER_ID}', '${LPMS_LIVE_EXTERNAL_ORDER_ID}')
+       and resolution.decision = 'accepted'),
+    '|',
     (select count(*)
      from production_orders production_order
      join order_demands demand on demand.id = production_order.order_demand_id
@@ -1488,7 +1724,7 @@ RUNTIME_COUNTS="$(database_scalar "
     (select count(*) from stage_runs stage join production_batches batch on batch.id = stage.production_batch_id where batch.production_run_id = '${LPMS_PRODUCTION_RUN_ID}' and stage.status = 'completed')
   );
 ")"
-[[ "$RUNTIME_COUNTS" == '2|2|2|1|4' ]] || fail "rollback duplicated or lost durable LPMS state: $RUNTIME_COUNTS"
+[[ "$RUNTIME_COUNTS" == '2|3|2|2|2|2|1|4' ]] || fail "rollback duplicated or lost durable LPMS state: $RUNTIME_COUNTS"
 
 echo '[v2] capturing one steady-state memory snapshot for the complete private stack'
 mapfile -t CONTAINER_IDS < <(compose ps -q)
@@ -1515,12 +1751,15 @@ const report = {
     bind: `https://127.0.0.1:${caddyPort}`,
     onlyCaddyPublished: true,
     localTls: 'Caddy internal CA with curl certificate verification disabled only for this disposable proof.',
-    routes: ['web:/health', 'api:/health/ready', 'processor:/', 'processor:/api/health/ready', 'processor:/api/processor/auth/session', 'processor:/api/production/locations/:locationId/runs/:productionRunId/board'],
+    routes: ['web:/health', 'api:/health/ready', 'processor:/', 'processor:/api/health/ready', 'processor:/api/processor/auth/session', 'processor:/api/order-management/locations/:locationId/incoming-orders', 'processor:/api/order-management/locations/:locationId/fulfillments/:fulfillmentId/release', 'processor:/api/production/locations/:locationId/runs/:productionRunId/board'],
   },
   database: {
     cleanMigration: true,
     explicitSyntheticBootstrap: true,
-    signedReceiptCount: 2,
+    signedSubmittedReceiptCount: 2,
+    ignoredReceiptCount: 3,
+    incomingProposalCount: 2,
+    acceptedProposalCount: 2,
     projectedOrderCount: 2,
     projectionStatus: 'finished',
     productionRunCount: 1,
@@ -1542,8 +1781,10 @@ const report = {
   },
   lpmsWorkflow: {
     transport: 'Authenticated Processor cookie and CSRF commands through loopback-only Caddy.',
-    preStart: ['signed Cents demand', 'priority', 'intake', 'Compute', 'Accept', 'API restart', 'backend refresh', 'Start'],
-    postStart: ['signed Cents arrival', 'priority', 'intake', 'automatic placement', 'explicit freeze'],
+    ingressBoundary: ['signed exact SUBMITTED candidate', 'operator acceptance', 'canonical fulfillment release'],
+    ignoredIngress: ['unsupported lifecycle order', 'customer event', 'marketing event'],
+    preStart: ['signed Cents submitted candidate', 'accept into Pressly', 'release fulfillment', 'priority', 'intake', 'Compute', 'Accept schedule', 'API restart', 'backend refresh', 'Start'],
+    postStart: ['signed Cents submitted candidate', 'accept into Pressly', 'release fulfillment', 'priority', 'intake', 'automatic placement', 'explicit freeze'],
     stageTransitions: ['sorting', 'washing', 'drying', 'folding_packaging'],
     completedRun: true,
     directRunIdBoardResume: true,
@@ -1559,10 +1800,6 @@ const report = {
     historicalBinaryCompatibilityProven: false,
   },
   memory: JSON.parse(readFileSync(memoryPath, 'utf8')),
-  externalReconciliation: {
-    supported: false,
-    reason: 'No verified Cents updated-orders read API is available.',
-  },
   limitations: [
     'This proves local Compose orchestration and rollback mechanics, not compatibility between two historical release binaries.',
     'Synthetic elapsed stage time is advanced directly in the disposable database; every business start and completion transition still passes through the authenticated Processor API.',

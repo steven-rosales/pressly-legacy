@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import {
+  productionBatchOrderSchema,
+  productionBatchSchema,
+  productionBoardSchema,
   productionLiveRunChangeOrderSchema,
   productionLiveRunChangesSchema,
   productionOrderListItemSchema,
@@ -59,11 +62,28 @@ export const processorProductionLiveRunChangesSchema =
     })
     .strict();
 
+export const processorProductionBatchOrderSchema = productionBatchOrderSchema
+  .safeExtend({ identity: processorOperationalOrderIdentitySchema })
+  .strict();
+
+export const processorProductionBatchSchema = productionBatchSchema
+  .safeExtend({
+    orders: z.array(processorProductionBatchOrderSchema).min(1),
+  })
+  .strict();
+
+export const processorProductionBoardSchema = productionBoardSchema
+  .extend({
+    batches: z.array(processorProductionBatchSchema),
+  })
+  .strict();
+
 export const processorProductionWorkspaceSchema = productionWorkspaceSchema
   .extend({
     orders: z.array(processorProductionOrderListItemSchema),
     pendingEligibleOrders: z.array(processorProductionPendingOrderSchema),
     liveRunChanges: processorProductionLiveRunChangesSchema.nullable(),
+    board: processorProductionBoardSchema.nullable(),
   })
   .strict();
 
@@ -182,6 +202,15 @@ export type ProcessorProductionLiveRunChangeOrder = z.infer<
 >;
 export type ProcessorProductionLiveRunChanges = z.infer<
   typeof processorProductionLiveRunChangesSchema
+>;
+export type ProcessorProductionBatchOrder = z.infer<
+  typeof processorProductionBatchOrderSchema
+>;
+export type ProcessorProductionBatch = z.infer<
+  typeof processorProductionBatchSchema
+>;
+export type ProcessorProductionBoard = z.infer<
+  typeof processorProductionBoardSchema
 >;
 export type ProcessorProductionWorkspace = z.infer<
   typeof processorProductionWorkspaceSchema

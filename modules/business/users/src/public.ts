@@ -3,27 +3,19 @@ export {
   type UsersApplication,
   type UsersApplicationDeps,
 } from './main.ts';
-export { decideSourceRevision } from './user-source-ordering.policy.ts';
+export {
+  makePostgresCanonicalSourceUserAcceptanceAdapter,
+  type CanonicalSourceUserAcceptanceAdapter,
+  type CanonicalSourceUserAcceptanceInput,
+  type CanonicalSourceUserAcceptanceResult,
+} from './canonical-source-user/canonical-source-user.repo.ts';
 export type {
   CreateUser,
   CreateUserCommand,
-  FollowUserSourceField,
-  FollowUserSourceFieldCommand,
-  ObserveUserSource,
-  ObserveUserSourceCommand,
-  RecordUserConsent,
-  RecordUserConsentCommand,
-  ResolveUserSource,
-  SourceRevision,
   UpdateUser,
   UpdateUserCommand,
   UserCommandResult,
-  UserConsentResult,
-  UserFieldAuthority,
   UserFieldName,
   UserProfile,
   UserRecord,
-  UserSourceIdentity,
-  UserSourceObservation,
-  UserSourceObservationResult,
 } from './users.port.ts';

@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import type {
   AdvanceProductionStageResult,
+  ProcessorProductionBoard,
   ProductionBatch,
   ProductionBatchProgressReconciliationConfirmationRequiredResult,
-  ProductionBoard,
   ProductionMachine,
   ProductionStageCompletionConfirmationRequiredResult,
   ProductionStageStartConfirmationRequiredResult,
@@ -23,8 +23,8 @@ export type ProductionBoardModelInput = Readonly<{
   productionRunId: string
   timezone: string
   machines: readonly ProductionMachine[]
-  initialBoard?: ProductionBoard
-  refreshBoard?: () => Promise<ProductionBoard | null>
+  initialBoard?: ProcessorProductionBoard
+  refreshBoard?: () => Promise<ProcessorProductionBoard | null>
   online?: boolean
   updatesState?: "inactive" | "connecting" | "open" | "reconnecting"
   canManage?: boolean
@@ -49,7 +49,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     productionRunId,
     refreshBoard: refreshBoardFromWorkspace,
   } = input
-  const [board, setBoard] = useState<ProductionBoard | null>(
+  const [board, setBoard] = useState<ProcessorProductionBoard | null>(
     input.initialBoard ?? null
   )
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -75,7 +75,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     Record<string, readonly string[]>
   >({})
   const previousInitialBoard = useRef(input.initialBoard)
-  const acceptBoard = useCallback((next: ProductionBoard) => {
+  const acceptBoard = useCallback((next: ProcessorProductionBoard) => {
     setBoard(next)
     setEarlyCompletion((current) => {
       if (current === null) return null

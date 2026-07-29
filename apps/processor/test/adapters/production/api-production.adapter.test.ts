@@ -150,7 +150,7 @@ describe("production API gateway", () => {
     )
   })
 
-  it("uses the dedicated Pressly admission resource without sending Cents state", async () => {
+  it("uses the dedicated Pressly admission resource without sending external lifecycle state", async () => {
     const orderId = testBoard.batches[0]!.orders[0]!.id
     const request = vi.fn().mockResolvedValue({
       locationId: testWorkspace.location.id,

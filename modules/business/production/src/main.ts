@@ -21,6 +21,7 @@ import { makeChangeProductionOrderResolution } from './change-production-order-r
 import { makeChangeProductionOrderResolutionRoute } from './change-production-order-resolution/change-production-order-resolution.route.ts';
 import { makeChangeProductionOrderResolutionRepository } from './change-production-order-resolution/change-production-order-resolution.repo.ts';
 import type { ChangeProductionOrderResolutionRepository } from './change-production-order-resolution/change-production-order-resolution.port.ts';
+import { makeResolveSourceClosedFulfillment } from './change-production-order-resolution/resolve-source-closed-fulfillment.usecase.ts';
 import { makeCreateSchedule } from './create-schedule/create-schedule.usecase.ts';
 import { makeCreateScheduleRoute } from './create-schedule/create-schedule.route.ts';
 import { makeCreateScheduleRepository } from './create-schedule/create-schedule.repo.ts';
@@ -243,6 +244,11 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
     clock: deps.clock,
     signals,
   });
+  const changeProductionOrderResolution = makeChangeProductionOrderResolution({
+    repo: deps.repositories.changeProductionOrderResolution,
+    policy: deps.policy,
+    clock: deps.clock,
+  });
   return {
     applyFulfillmentDemand: makeApplyFulfillmentDemand({
       repo: deps.repositories.applyFulfillmentDemand,
@@ -277,10 +283,10 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
       policy: deps.policy,
       clock: deps.clock,
     }),
-    changeProductionOrderResolution: makeChangeProductionOrderResolution({
+    changeProductionOrderResolution,
+    resolveSourceClosedFulfillment: makeResolveSourceClosedFulfillment({
       repo: deps.repositories.changeProductionOrderResolution,
-      policy: deps.policy,
-      clock: deps.clock,
+      changeResolution: changeProductionOrderResolution,
     }),
     createSchedule: makeCreateSchedule({
       repo: deps.repositories.createSchedule,

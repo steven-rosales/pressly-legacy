@@ -160,7 +160,6 @@ function ScopeFields({
 }>) {
   const generatedId = useId()
   const cutoffId = `${generatedId}-cutoff`
-  const filterId = `${generatedId}-filter`
   const reasonId = `${generatedId}-reason`
   const noteId = `${generatedId}-note`
   const validation = validateOrderResolutionReviewScope(scope)
@@ -178,85 +177,56 @@ function ScopeFields({
         {copy.scopeTitle}
       </h3>
       <FieldGroup>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field data-disabled={disabled || undefined}>
-            <FieldLabel htmlFor={filterId}>{copy.filterLabel}</FieldLabel>
-            <Select
-              value={scope.filter}
-              disabled={disabled}
-              onValueChange={(filter) =>
-                onScopeChange({
-                  ...scope,
-                  filter: filter as OrderResolutionReviewScope["filter"],
-                })
-              }
-            >
-              <SelectTrigger id={filterId} className="h-11 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                <SelectGroup>
-                  {Object.entries(copy.filterOptions).map(([value, label]) => (
-                    <SelectItem key={value} value={value} className="h-11">
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field data-disabled={disabled || undefined}>
-            <FieldLabel htmlFor={cutoffId}>{copy.cutoffLabel}</FieldLabel>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id={cutoffId}
-                  type="button"
-                  variant="outline"
-                  className="h-11 w-full justify-start px-3 font-normal"
-                  disabled={disabled}
-                  aria-label={`${copy.cutoffLabel}: ${cutoffLabel}`}
-                >
-                  <IconCalendarEvent data-icon="inline-start" />
-                  <span className="truncate">{cutoffLabel}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                sideOffset={8}
-                collisionPadding={8}
-                className="w-[calc(100vw-1rem)] max-w-[22rem] p-3"
+        <Field data-disabled={disabled || undefined}>
+          <FieldLabel htmlFor={cutoffId}>{copy.cutoffLabel}</FieldLabel>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                id={cutoffId}
+                type="button"
+                variant="outline"
+                className="h-11 w-full justify-start px-3 font-normal"
+                disabled={disabled}
+                aria-label={`${copy.cutoffLabel}: ${cutoffLabel}`}
               >
-                <PopoverHeader>
-                  <PopoverTitle>{copy.cutoffPopoverTitle}</PopoverTitle>
-                  <PopoverDescription>
-                    {copy.cutoffPopoverDescription}
-                  </PopoverDescription>
-                </PopoverHeader>
-                <Calendar
-                  mode="single"
-                  locale={locale.startsWith("es") ? es : enUS}
-                  selected={scope.cutoffDate}
-                  defaultMonth={scope.cutoffDate}
-                  onSelect={(cutoffDate) => {
-                    if (cutoffDate !== undefined)
-                      onScopeChange({
-                        ...scope,
-                        cutoff: "",
-                        cutoffDate,
-                      })
-                  }}
-                  className="mx-auto w-fit max-w-full p-0 [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(11)]"
-                  classNames={{
-                    month: "flex w-full flex-col gap-2",
-                    week: "mt-1 flex w-full",
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-          </Field>
-        </div>
+                <IconCalendarEvent data-icon="inline-start" />
+                <span className="truncate">{cutoffLabel}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              sideOffset={8}
+              collisionPadding={8}
+              className="w-[calc(100vw-1rem)] max-w-[22rem] p-3"
+            >
+              <PopoverHeader>
+                <PopoverTitle>{copy.cutoffPopoverTitle}</PopoverTitle>
+                <PopoverDescription>
+                  {copy.cutoffPopoverDescription}
+                </PopoverDescription>
+              </PopoverHeader>
+              <Calendar
+                mode="single"
+                locale={locale.startsWith("es") ? es : enUS}
+                selected={scope.cutoffDate}
+                defaultMonth={scope.cutoffDate}
+                onSelect={(cutoffDate) => {
+                  if (cutoffDate !== undefined)
+                    onScopeChange({
+                      ...scope,
+                      cutoff: "",
+                      cutoffDate,
+                    })
+                }}
+                className="mx-auto w-fit max-w-full p-0 [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(11)]"
+                classNames={{
+                  month: "flex w-full flex-col gap-2",
+                  week: "mt-1 flex w-full",
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+        </Field>
 
         <Field data-disabled={disabled || undefined}>
           <FieldLabel htmlFor={reasonId}>{copy.reasonLabel}</FieldLabel>
@@ -350,9 +320,6 @@ function CandidateItem({
             identity={item.identity}
             className="max-w-full"
           />
-          <Badge variant="outline">
-            {copy.sourceState[item.sourceCommercialState]}
-          </Badge>
         </ItemTitle>
         <ItemDescription className="line-clamp-none">
           {copy.orderDue(formatDate(item.dueAt, locale, timezone, true))}

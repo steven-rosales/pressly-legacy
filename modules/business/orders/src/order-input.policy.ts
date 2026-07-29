@@ -1,30 +1,29 @@
-import type { OrderInput } from './orders.port.ts';
+import type { OrderInput, OrderItemInput } from './orders.port.ts';
 
-export const isOrderInputValid = (input: OrderInput): boolean => {
-  if (
-    Number.isNaN(input.dueAt.getTime()) ||
-    !/^[A-Z]{3}$/.test(input.currency) ||
-    input.totalAmountCents < 0 ||
-    (input.balanceDueCents !== null && input.balanceDueCents < 0) ||
-    input.fulfillment.typeCode.trim() === '' ||
-    input.fulfillment.locationId.trim() === '' ||
-    (input.fulfillment.bagCount !== null && input.fulfillment.bagCount < 0) ||
-    (input.fulfillment.estimatedWeightLbs === null) !==
-      (input.fulfillment.estimatedWeightSource === null) ||
-    (input.fulfillment.estimatedWeightLbs !== null &&
-      input.fulfillment.estimatedWeightLbs <= 0)
-  )
-    return false;
+export const isEstimatedWeightValid = (input: {
+  lbs: number | null;
+  source: string | null;
+}): boolean =>
+  (input.lbs === null) === (input.source === null) &&
+  (input.lbs === null || (Number.isFinite(input.lbs) && input.lbs > 0)) &&
+  (input.source === null || input.source.trim() !== '');
 
+export const areOrderItemsValid = (
+  items: readonly OrderItemInput[],
+): boolean => {
   const lineKeys = new Set<string>();
-  for (const item of input.items) {
+  for (const item of items) {
     if (
       item.lineKey.trim() === '' ||
+      item.itemType.trim() === '' ||
       item.code.trim() === '' ||
       item.description.trim() === '' ||
       item.unit.trim() === '' ||
+      !Number.isFinite(item.quantity) ||
       item.quantity < 0 ||
+      !Number.isInteger(item.unitPriceCents) ||
       item.unitPriceCents < 0 ||
+      !Number.isInteger(item.totalAmountCents) ||
       item.totalAmountCents < 0 ||
       lineKeys.has(item.lineKey)
     )
@@ -32,4 +31,28 @@ export const isOrderInputValid = (input: OrderInput): boolean => {
     lineKeys.add(item.lineKey);
   }
   return true;
+};
+
+export const isOrderInputValid = (input: OrderInput): boolean => {
+  if (
+    Number.isNaN(input.dueAt.getTime()) ||
+    !/^[A-Z]{3}$/.test(input.currency) ||
+    !Number.isInteger(input.totalAmountCents) ||
+    input.totalAmountCents < 0 ||
+    (input.balanceDueCents !== null &&
+      (!Number.isInteger(input.balanceDueCents) ||
+        input.balanceDueCents < 0)) ||
+    input.fulfillment.typeCode.trim() === '' ||
+    input.fulfillment.locationId.trim() === '' ||
+    (input.fulfillment.bagCount !== null &&
+      (!Number.isInteger(input.fulfillment.bagCount) ||
+        input.fulfillment.bagCount < 0)) ||
+    !isEstimatedWeightValid({
+      lbs: input.fulfillment.estimatedWeightLbs,
+      source: input.fulfillment.estimatedWeightSource,
+    })
+  )
+    return false;
+
+  return areOrderItemsValid(input.items);
 };

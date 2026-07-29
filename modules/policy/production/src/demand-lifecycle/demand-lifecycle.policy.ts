@@ -17,12 +17,11 @@ export type DemandLifecycleInput = Readonly<{
   phase: OrderDemandPhase;
   productionStatus: DemandProductionStatus | null;
   currentBagCount: number | null;
-  incomingBagCount: number | null;
   estimatedWeightLbs: number | null;
 }>;
 
 export type DemandLifecycleDecision = Readonly<{
-  effectiveBagCount: number | null;
+  canonicalBagCount: number | null;
   production:
     | Readonly<{ action: 'none' }>
     | Readonly<{ action: 'preserve' }>
@@ -44,26 +43,26 @@ const isActiveDemand = (phase: OrderDemandPhase): boolean =>
 export const evaluateDemandLifecycle = (
   input: DemandLifecycleInput,
 ): DemandLifecycleDecision => {
-  const effectiveBagCount = input.currentBagCount ?? input.incomingBagCount;
+  const canonicalBagCount = input.currentBagCount;
 
   if (
     input.productionStatus === 'scheduled' ||
     input.productionStatus === 'finished'
   )
     return {
-      effectiveBagCount,
+      canonicalBagCount,
       production: { action: 'preserve' },
     };
 
   if (!isActiveDemand(input.phase)) {
     if (input.productionStatus === null)
       return {
-        effectiveBagCount,
+        canonicalBagCount,
         production: { action: 'none' },
       };
 
     return {
-      effectiveBagCount,
+      canonicalBagCount,
       production: { action: 'update', status: 'ineligible' },
     };
   }
@@ -75,7 +74,7 @@ export const evaluateDemandLifecycle = (
 
   if (!hasEstimate)
     return {
-      effectiveBagCount,
+      canonicalBagCount,
       production:
         input.productionStatus === null
           ? { action: 'none' }
@@ -83,9 +82,9 @@ export const evaluateDemandLifecycle = (
     };
 
   const hasValidIntake =
-    effectiveBagCount !== null &&
-    Number.isInteger(effectiveBagCount) &&
-    effectiveBagCount >= 0;
+    canonicalBagCount !== null &&
+    Number.isInteger(canonicalBagCount) &&
+    canonicalBagCount >= 0;
   const status =
     input.phase === 'production_released'
       ? hasValidIntake
@@ -94,7 +93,7 @@ export const evaluateDemandLifecycle = (
       : ('release_pending' as const);
 
   return {
-    effectiveBagCount,
+    canonicalBagCount,
     production: {
       action: input.productionStatus === null ? 'create' : 'update',
       status,

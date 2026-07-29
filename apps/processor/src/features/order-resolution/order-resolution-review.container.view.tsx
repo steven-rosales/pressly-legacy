@@ -44,15 +44,6 @@ const copyFor = (t: TFunction): OrderResolutionReviewCopy => ({
   archiveExplanationTitle: t("orderResolution.archiveExplanationTitle"),
   archiveExplanation: t("orderResolution.archiveExplanation"),
   scopeTitle: t("orderResolution.scopeTitle"),
-  filterLabel: t("orderResolution.filterLabel"),
-  filterOptions: {
-    all_due_before_cutoff: t(
-      "orderResolution.filterOptions.all_due_before_cutoff"
-    ),
-    source_terminal_before_cutoff: t(
-      "orderResolution.filterOptions.source_terminal_before_cutoff"
-    ),
-  },
   cutoffLabel: t("orderResolution.cutoffLabel"),
   cutoffPlaceholder: t("orderResolution.cutoffPlaceholder"),
   cutoffPopoverTitle: t("orderResolution.cutoffPopoverTitle"),
@@ -111,11 +102,6 @@ const copyFor = (t: TFunction): OrderResolutionReviewCopy => ({
   },
   groupCount: (count) => t("orderResolution.groupCount", { count }),
   orderDue: (formattedDate) => t("orderResolution.orderDue", { formattedDate }),
-  sourceState: {
-    open: t("orderResolution.sourceState.open"),
-    completed: t("orderResolution.sourceState.completed"),
-    canceled: t("orderResolution.sourceState.canceled"),
-  },
   classificationReasons: {
     resolved_without_production: t(
       "orderResolution.classificationReasons.resolved_without_production"

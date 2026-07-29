@@ -9,21 +9,6 @@ export const centsOrderWebhookEventKindSchema = z.enum([
   'order_completed',
 ]);
 
-export const centsCustomerWebhookEventKindSchema = z.enum([
-  'customer_created',
-  'customer_updated',
-]);
-
-export const centsMarketingWebhookEventKindSchema = z.literal(
-  'customer_marketing_optin',
-);
-
-export const centsWebhookEventKindSchema = z.union([
-  centsOrderWebhookEventKindSchema,
-  centsCustomerWebhookEventKindSchema,
-  centsMarketingWebhookEventKindSchema,
-]);
-
 export const centsWireIdentifierSchema = z.union([
   z.string().trim().min(1),
   z.number().int().nonnegative(),
@@ -35,18 +20,6 @@ export const centsWireMoneySchema = z.union([
     .string()
     .trim()
     .regex(/^\d+(?:\.\d+)?$/),
-]);
-
-export const centsWireOrderStatusSchema = z.enum([
-  'SUBMITTED',
-  'READY_FOR_PICKUP',
-  'PICKED_UP',
-  'IN_PROGRESS',
-  'READY_FOR_RETURN',
-  'OUT_FOR_DELIVERY',
-  'COMPLETED',
-  'CANCELLED',
-  'CANCELED',
 ]);
 
 export const centsOrderServiceWireSchema = z
@@ -80,13 +53,18 @@ export const centsOrderServiceWireSchema = z
       });
   });
 
-export const centsOrderWireSchema = z
+export const centsOrderIdentityWireSchema = z
   .object({
     id: centsWireIdentifierSchema,
     storeId: centsWireIdentifierSchema,
-    status: centsWireOrderStatusSchema,
-    dueDate: utcIsoStringSchema,
+    status: z.string().trim().min(1),
     updatedAt: utcIsoStringSchema,
+  })
+  .passthrough();
+
+export const centsOrderWireSchema = centsOrderIdentityWireSchema
+  .extend({
+    dueDate: utcIsoStringSchema,
     orderCode: z.union([z.string().trim().min(1), z.number()]).optional(),
     orderTotal: centsWireMoneySchema.optional(),
     balanceDue: centsWireMoneySchema.optional(),
@@ -102,11 +80,6 @@ export const centsCustomerWireSchema = z
     phoneNumber: z.string().nullable().optional(),
     businessName: z.string().nullable().optional(),
     email: z.string().nullable().optional(),
-    isCommercial: z.boolean().optional(),
-    isInvoicingEnabled: z.boolean().optional(),
-    centsCustomerId: centsWireIdentifierSchema.optional(),
-    referralCode: z.string().nullable().optional(),
-    updatedAt: utcIsoStringSchema.optional(),
   })
   .passthrough();
 
@@ -129,18 +102,7 @@ export const centsWebhookWireEnvelopeSchema = z
       });
   });
 
-export const centsOrderStatusSchema = z.enum([
-  'SUBMITTED',
-  'READY_FOR_PICKUP',
-  'PICKED_UP',
-  'IN_PROGRESS',
-  'READY_FOR_RETURN',
-  'OUT_FOR_DELIVERY',
-  'COMPLETED',
-  'CANCELED',
-]);
-
-export const centsCanonicalOrderServiceSchema = z
+export const centsOrderCandidateServiceSchema = z
   .object({
     externalServiceId: z.string().min(1),
     name: z.string().min(1),
@@ -148,49 +110,42 @@ export const centsCanonicalOrderServiceSchema = z
     quantity: z.number().finite().nonnegative(),
     totalPriceCents: z.number().int().nonnegative(),
     unitPriceCents: z.number().int().positive(),
-    sourceMetadata: z.json(),
   })
   .strict();
 
-export const centsCanonicalCustomerInputSchema = z
+export const centsOrderCandidateCustomerSchema = z
   .object({
     externalUserId: z.string().min(1),
-    centsCustomerId: z.string().min(1).nullable(),
     firstName: z.string().nullable(),
     lastName: z.string().nullable(),
     phone: z.string().nullable(),
     businessName: z.string().nullable(),
     email: z.string().nullable(),
-    isCommercial: z.boolean().nullable(),
-    isInvoicingEnabled: z.boolean().nullable(),
-    referralCode: z.string().nullable(),
-    sourceUpdatedAt: utcIsoStringSchema.nullable(),
-    sourceSnapshot: z.json(),
   })
   .strict();
 
-export const centsCanonicalOrderInputSchema = z
+export const centsSubmittedOrderCandidatePayloadSchema = z
   .object({
     externalOrderId: z.string().min(1),
     orderCode: z.string().min(1).nullable(),
     externalStoreId: z.string().min(1),
-    status: centsOrderStatusSchema,
+    status: z.literal('SUBMITTED'),
     dueAt: utcIsoStringSchema,
     sourceUpdatedAt: utcIsoStringSchema,
     bagCount: z.null(),
     totalAmountCents: z.number().int().nonnegative(),
     balanceDueCents: z.number().int().nonnegative().nullable(),
-    services: z.array(centsCanonicalOrderServiceSchema),
-    customer: centsCanonicalCustomerInputSchema.nullable(),
-    sourceSnapshot: z.json(),
+    services: z.array(centsOrderCandidateServiceSchema),
+    customer: centsOrderCandidateCustomerSchema.nullable(),
   })
   .strict();
 
-export const centsCanonicalMarketingInputSchema = z
+export const centsOrderTerminalClosePayloadSchema = z
   .object({
-    customer: centsCanonicalCustomerInputSchema,
-    granted: z.literal(true),
-    sourceSnapshot: z.json(),
+    externalOrderId: z.string().min(1),
+    externalStoreId: z.string().min(1),
+    status: z.enum(['COMPLETED', 'CANCELED']),
+    sourceUpdatedAt: utcIsoStringSchema,
   })
   .strict();
 
@@ -198,7 +153,7 @@ export const centsIngressReceiptSchema = z
   .object({
     deduplicationKey: sha256HexSchema,
     eventKind: z.string().min(1).max(200),
-    classification: z.enum(['order', 'customer', 'marketing', 'unknown']),
+    classification: z.enum(['order', 'unknown']),
     rawBodySha256: sha256HexSchema,
     sourceUpdatedAt: utcIsoStringSchema.nullable(),
   })
@@ -207,30 +162,22 @@ export const centsIngressReceiptSchema = z
 export const centsIngressDecisionSchema = z.discriminatedUnion('disposition', [
   z
     .object({
-      disposition: z.literal('project_order'),
+      disposition: z.literal('propose_order_candidate'),
       receipt: centsIngressReceiptSchema.extend({
         classification: z.literal('order'),
         sourceUpdatedAt: utcIsoStringSchema,
       }),
-      order: centsCanonicalOrderInputSchema,
+      order: centsSubmittedOrderCandidatePayloadSchema,
     })
     .strict(),
   z
     .object({
-      disposition: z.literal('project_customer'),
+      disposition: z.literal('close_order_candidate'),
       receipt: centsIngressReceiptSchema.extend({
-        classification: z.literal('customer'),
+        classification: z.literal('order'),
+        sourceUpdatedAt: utcIsoStringSchema,
       }),
-      customer: centsCanonicalCustomerInputSchema,
-    })
-    .strict(),
-  z
-    .object({
-      disposition: z.literal('record_marketing'),
-      receipt: centsIngressReceiptSchema.extend({
-        classification: z.literal('marketing'),
-      }),
-      marketing: centsCanonicalMarketingInputSchema,
+      order: centsOrderTerminalClosePayloadSchema,
     })
     .strict(),
   z

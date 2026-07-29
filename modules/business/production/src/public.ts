@@ -30,6 +30,12 @@ export type {
 } from './apply-fulfillment-demand/apply-fulfillment-demand.port.ts';
 export type { ChangeProductionAdmission } from './change-production-admission/change-production-admission.port.ts';
 export type {
+  ResolveSourceClosedFulfillment,
+  ResolveSourceClosedFulfillmentCommand,
+  ResolveSourceClosedFulfillmentResult,
+  SourceClosedFulfillmentReviewReason,
+} from './change-production-order-resolution/resolve-source-closed-fulfillment.port.ts';
+export type {
   CommitProductionOrderBacklog,
   PreviewProductionOrderBacklog,
 } from './review-production-order-backlog/review-production-order-backlog.port.ts';

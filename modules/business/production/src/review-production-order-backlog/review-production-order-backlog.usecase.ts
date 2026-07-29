@@ -17,6 +17,7 @@ import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
 } from '../production-idempotency.policy.ts';
+import { assessProductionOrderResolution } from '../production-order-resolution.policy.ts';
 import type {
   ClockPort,
   IdPort,
@@ -164,7 +165,7 @@ const snapshotHashPayload = (
   },
   classified: ClassifiedSnapshot,
 ) => ({
-  version: 1,
+  version: 2,
   locationId: input.locationId,
   filter: input.filter,
   cutoff: input.cutoff,
@@ -185,7 +186,6 @@ const snapshotHashPayload = (
       executionStatus: snapshot.executionStatus,
       operationalStatus: snapshot.operationalStatus,
       dueAt: snapshot.dueAt.toISOString(),
-      sourceCommercialState: snapshot.sourceCommercialState,
       guardFacts: {
         hasIntake: snapshot.hasIntake,
         hasManualAdmission: snapshot.hasManualAdmission,
@@ -226,7 +226,6 @@ const item = (
   orderId: order.orderId,
   displayReference: order.displayReference,
   dueAt: order.dueAt.toISOString(),
-  sourceCommercialState: order.sourceCommercialState,
   category,
   reasons: [...reasons],
   expectedVersion: order.productionVersion,
@@ -237,43 +236,11 @@ const classifyOrder = (
   policy: ProductionPolicyPort,
   order: ProductionOrderBacklogSnapshotOrder,
 ): ClassifiedOrder => {
-  if (order.resolutionState === 'resolved_without_production')
-    return {
-      snapshot: order,
-      item: item(order, 'already_historical', ['resolved_without_production']),
-      lifecycle: null,
-    };
-
-  const execution = policy.resolveProductionOrderExecutionState({
-    executionState: order.executionStatus,
+  const assessment = assessProductionOrderResolution(policy, {
+    resolutionState: order.resolutionState,
+    executionStatus: order.executionStatus,
     operationalStatus: order.operationalStatus,
-  });
-  if (execution.tag === 'err')
-    return {
-      snapshot: order,
-      item: item(order, 'kept_for_safety', ['execution_state_invalid']),
-      lifecycle: null,
-    };
-  if (execution.value === 'finished')
-    return {
-      snapshot: order,
-      item: item(order, 'already_historical', ['execution_finished']),
-      lifecycle: null,
-    };
-
-  const lifecycle = policy.evaluateProductionOrderResolutionTransition({
-    state: order.resolutionState,
-    event: 'resolve_without_production',
-  });
-  if (lifecycle.tag === 'err')
-    return {
-      snapshot: order,
-      item: item(order, 'kept_for_safety', ['resolution_transition_invalid']),
-      lifecycle: null,
-    };
-
-  const guard = policy.evaluateProductionOrderResolutionGuard({
-    executionState: execution.value,
+    expectedVersion: order.productionVersion,
     hasShiftSelection: order.hasShiftSelection,
     hasBatchMembership: order.hasBatchMembership,
     hasStageAttempt: order.hasStageAttempt,
@@ -283,23 +250,30 @@ const classifyOrder = (
     isPriority: order.isPriority,
     hasPendingPlacement: order.hasPendingPlacement,
   });
-  if (guard.status === 'blocked')
+
+  if (assessment.status === 'already_historical')
     return {
       snapshot: order,
-      item: item(order, 'kept_for_safety', guard.blockReasons),
+      item: item(order, 'already_historical', [assessment.reason]),
       lifecycle: null,
     };
-  if (guard.requiresExplicitReview)
+  if (assessment.status === 'blocked')
     return {
       snapshot: order,
-      item: item(order, 'review_individually', guard.reviewReasons),
+      item: item(order, 'kept_for_safety', assessment.reasons),
+      lifecycle: null,
+    };
+  if (assessment.requiresExplicitReview)
+    return {
+      snapshot: order,
+      item: item(order, 'review_individually', assessment.reviewReasons),
       lifecycle: null,
     };
 
   return {
     snapshot: order,
     item: item(order, 'ready_to_archive', ['no_operator_owned_facts']),
-    lifecycle: lifecycle.value,
+    lifecycle: assessment.lifecycle,
   };
 };
 

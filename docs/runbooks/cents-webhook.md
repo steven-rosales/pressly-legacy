@@ -11,8 +11,8 @@ CENTS_WEBHOOK_AUTH_MODE=unsigned
 ```
 
 Unsigned mode keeps the public route, JSON content-type requirement, 256 KB
-body limit, wire validation, source ordering, minimized persistence, and
-idempotent receipt behavior. It skips only the HMAC verifier. The API emits a
+body limit, submitted-candidate classifier, minimized durable receipts, and
+idempotent delivery behavior. It skips only the HMAC verifier. The API emits a
 startup warning while this mode is active.
 
 The production endpoint remains:
@@ -24,6 +24,35 @@ Content-Type: application/json
 
 HMAC remains the default and can be restored by setting
 `CENTS_WEBHOOK_AUTH_MODE=hmac` and configuring a usable current key.
+
+## Processing Boundary
+
+Cents does not create or update canonical Pressly work. The adapter has three
+bounded classifications:
+
+1. An exact `SUBMITTED` Order event may create one immutable incoming-order
+   candidate.
+2. An exact `COMPLETED` or `CANCELED` event may close only a still-pending
+   candidate or create an exact-identity tombstone. A tombstone prevents a
+   delayed `SUBMITTED` delivery from resurrecting old work.
+3. `READY_FOR_PICKUP`, `PICKED_UP`, `IN_PROGRESS`, every other Order status,
+   customer events, and marketing events are retained as ignored evidence.
+
+An authorized Processor operator may add a pending or manager-restored
+candidate to Pressly, reject it with a reason, or restore a source-closed
+candidate for review. Acceptance creates one open canonical Order with an
+**unreleased** fulfillment. Physical intake and an explicit Pressly release
+remain separate readiness facts.
+
+Later Cents deliveries cannot update canonical fields, close manager-restored
+candidates, or command intake, release, scheduling, floor execution,
+completion, or cancellation. For already accepted work, a source-terminal
+observation can only request a named Pressly automation. Production's own graph
+and guard permit nondestructive resolution only for untouched, unreleased,
+unassigned work; every participating or review-sensitive order remains
+unchanged.
+
+An HTTP `202` therefore proves durable ingress, not canonical Order creation.
 
 ## Local HMAC proof
 
@@ -103,10 +132,12 @@ filled.
 
 4. Confirm the API is reachable at `http://localhost:4000`.
 
-5. For Worker processing beyond durable ingestion, keep
+5. For Worker candidate processing beyond durable ingestion, keep
    `cents_test_store_id=tooling-store-001`. Local Docker bootstraps that
-   synthetic Cents binding to `Pressly One`. The HMAC and ingress cases
-   themselves do not require a live vendor account.
+   synthetic Cents binding to `Pressly One`. Add a resulting candidate from
+   Processor's **Manage Orders → Incoming** view before expecting an Intake or
+   Production row. The HMAC and ignored-ingress cases themselves do not require
+   a live vendor account.
 
 Do not paste the generated key into a command, issue, screenshot, log, or this
 runbook.
@@ -172,11 +203,11 @@ delivery new without resetting the database.
 
 | Case                 | Expected HTTP result | Expected ingress result                        |
 | -------------------- | -------------------- | ---------------------------------------------- |
-| `valid_signature`    | `202`                | New pending order event                        |
+| `valid_signature`    | `202`                | New pending exact-submitted candidate event    |
 | `wrong_key`          | `401`                | Authentication rejected; no event              |
 | `modified_body`      | `401`                | Authentication rejected; no event              |
 | `stale_timestamp`    | `401`                | Authentication rejected; no event              |
-| `order_event`        | `202`                | New pending order event                        |
+| `order_event`        | `202`                | New pending exact-submitted candidate event    |
 | `duplicate_delivery` | `202`                | Same event acknowledged with `duplicate: true` |
 | `customer_event`     | `202`                | Minimal ignored event                          |
 | `marketing_event`    | `202`                | Minimal ignored event                          |
@@ -195,6 +226,12 @@ Never reset the shared development database to make a `duplicate: false`
 assertion pass. Do not edit only request 06; that would turn the duplicate proof
 into a different delivery.
 
+After a new submitted case is processed, verify exactly one matching row appears
+under **Manage Orders → Incoming**. Accept it only when you intend to create
+local canonical work. Rejecting it creates no canonical User, Order,
+fulfillment, or Production row. Replaying the same delivery must not create a
+second candidate.
+
 ## Interpret Failures
 
 - `503 cents_webhook_verification_unavailable`: the API has no usable current
@@ -202,8 +239,10 @@ into a different delivery.
 - `401 invalid_cents_webhook_authentication`: key, timestamp, signature, or raw
   bytes do not match.
 - `400 invalid_cents_webhook_body`: the accepted body was not valid JSON.
-- `400 invalid_cents_*`: the accepted Cents wire payload could not be
-  normalized.
+- `400 invalid_cents_*`: an exact `SUBMITTED`, `COMPLETED`, or `CANCELED`
+  payload could not be normalized. Other Order states, customer events, and
+  marketing events bypass candidate normalization and return a minimal ignored
+  receipt.
 - A Postman pre-request error about `cents_hmac_key`: the selected environment
   has no local key of at least 32 UTF-8 bytes.
 - `Cannot find package 'npm:crypto-js@4.2.0'`: the current Postman runtime,

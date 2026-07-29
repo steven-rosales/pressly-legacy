@@ -97,7 +97,7 @@ export function AppShell({
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="h-dvh min-h-0 overflow-hidden bg-background text-foreground">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-sidebar p-3 lg:flex lg:flex-col">
         <div className="flex h-12 items-center gap-2 px-2 font-semibold tracking-tight">
           <span className="grid size-7 place-items-center rounded-lg bg-foreground text-background">
@@ -120,8 +120,8 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="lg:pl-64">
-        <header className="sticky top-0 z-20 flex min-h-16 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
+      <div className="flex h-full min-w-0 flex-col lg:pl-64">
+        <header className="z-20 flex min-h-16 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
           <Sheet
             open={mobileNavigationOpen}
             onOpenChange={setMobileNavigationOpen}
@@ -193,15 +193,21 @@ export function AppShell({
           </Button>
         </header>
 
-        <main className="mx-auto flex w-full max-w-[1540px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 lg:py-7 lg:pb-8">
-          <div>
-            <h1 className="text-2xl font-medium tracking-tight">{title}</h1>
-            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-              {description}
-            </p>
-          </div>
-          {children}
-        </main>
+        <div
+          key={current}
+          data-slot="workspace-scroll-region"
+          className="min-h-0 flex-1 overflow-y-auto"
+        >
+          <main className="mx-auto flex w-full max-w-[1540px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 lg:py-7 lg:pb-8">
+            <div>
+              <h1 className="text-2xl font-medium tracking-tight">{title}</h1>
+              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                {description}
+              </p>
+            </div>
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   )

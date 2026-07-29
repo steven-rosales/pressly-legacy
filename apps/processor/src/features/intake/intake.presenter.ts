@@ -5,12 +5,7 @@ import type {
 } from "@pressly/contracts"
 
 export type IntakeSourcePresentation = Readonly<{
-  name: string
-  status: string
-  notice: Readonly<{
-    label: string
-    tone: "muted" | "warning"
-  }> | null
+  label: string
 }>
 
 export const localeForIntakeLanguage = (
@@ -35,29 +30,6 @@ const humanizeSourceValue = (value: string): string => {
   const normalized = value.trim().toLocaleLowerCase().replaceAll("_", " ")
   if (normalized.length === 0) return value
   return normalized.charAt(0).toLocaleUpperCase() + normalized.slice(1)
-}
-
-export const presentIntakeSourceStatus = (
-  status: string,
-  t: TFunction
-): string => {
-  switch (status.toLocaleUpperCase()) {
-    case "SUBMITTED":
-      return t("intake.sourceStatuses.submitted")
-    case "IN_PROGRESS":
-      return t("intake.sourceStatuses.inProgress")
-    case "PICKED_UP":
-      return t("intake.sourceStatuses.pickedUp")
-    case "READY_FOR_PICKUP":
-      return t("intake.sourceStatuses.readyForPickup")
-    case "COMPLETED":
-      return t("intake.sourceStatuses.completed")
-    case "CANCELED":
-    case "CANCELLED":
-      return t("intake.sourceStatuses.canceled")
-    default:
-      return humanizeSourceValue(status)
-  }
 }
 
 export const presentIntakeOrderNumber = (
@@ -93,22 +65,9 @@ export const presentIntakeSource = (
   const sourceName = humanizeSourceValue(
     item.canonical?.source?.name ?? t("intake.source")
   )
-  const sourceStatus = item.canonical?.source?.status
-  const notice =
-    item.admission.override === "released"
-      ? {
-          label: t("intake.manualReleaseActive"),
-          tone: "muted" as const,
-        }
-      : null
 
   return {
-    name: sourceName,
-    status:
-      sourceStatus == null
-        ? t("intake.sourceStatusUnknown")
-        : presentIntakeSourceStatus(sourceStatus, t),
-    notice,
+    label: t("intake.reportedBy", { source: sourceName }),
   }
 }
 
