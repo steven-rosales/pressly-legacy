@@ -551,14 +551,16 @@ export function HistoryWorkspaceContainer({
             productionOrderId: input.productionOrderId,
             request,
           })
+          const restoredIdentity = activity.find(
+            (item) =>
+              item.restoreAction?.productionOrderId === input.productionOrderId
+          )?.identity
           setRestoreNotice(
             t("orderResolution.history.restore.successDescription", {
               displayReference:
-                activity.find(
-                  (item) =>
-                    item.restoreAction?.productionOrderId ===
-                    input.productionOrderId
-                )?.title ?? t("history.order"),
+                restoredIdentity === null || restoredIdentity === undefined
+                  ? t("history.order")
+                  : `${t("history.order")} ${restoredIdentity.displayNumber}`,
             })
           )
           await Promise.all([load(), onMutated()])

@@ -534,7 +534,7 @@ describe('API app HTTP boundary', () => {
         externalOrderId: '12345',
         orderCode: '00123',
         externalStoreId: '24',
-        status: 'IN_PROGRESS',
+        status: 'SUBMITTED',
         dueAt: '2026-07-12T21:00:00.000Z',
         sourceUpdatedAt: '2026-07-12T15:59:00.000Z',
         bagCount: null,
@@ -686,6 +686,7 @@ describe('API app HTTP boundary', () => {
     });
     const rawBody = JSON.stringify({
       action: 'order_updated',
+      order: { status: 'SUBMITTED' },
       customer: { email: 'private@example.invalid' },
     });
     const response = await fetch(
@@ -723,18 +724,35 @@ describe('API app HTTP boundary', () => {
     {
       name: 'documented customer event',
       payload: documentedCentsCustomerWebhook,
-      classification: 'customer',
+      classification: 'unknown',
       eventKind: 'customer_updated',
-      processingStatus: 'pending',
-      subjectId: '815',
+      processingStatus: 'ignored',
+      subjectId: null,
     },
     {
       name: 'documented marketing event',
       payload: documentedCentsMarketingWebhook,
-      classification: 'marketing',
+      classification: 'unknown',
       eventKind: 'customer_marketing_optin',
-      processingStatus: 'pending',
-      subjectId: '815',
+      processingStatus: 'ignored',
+      subjectId: null,
+    },
+    {
+      name: 'malformed ignored order',
+      payload: {
+        action: 'order_updated',
+        order: {
+          id: 'malformed-order',
+          status: 'IN_PROGRESS',
+          updatedAt: '2026-07-12T16:00:00.000Z',
+        },
+        customer: { email: 'private@example.invalid' },
+        services: [{ malformed: true }],
+      },
+      classification: 'unknown',
+      eventKind: 'order_updated',
+      processingStatus: 'ignored',
+      subjectId: null,
     },
     {
       name: 'unsupported future event',
@@ -745,7 +763,7 @@ describe('API app HTTP boundary', () => {
       subjectId: null,
     },
   ])(
-    'stores the correct canonical disposition for an authenticated $name',
+    'stores an ignored receipt without processable payload for an authenticated $name',
     async ({
       payload,
       classification,
@@ -785,29 +803,10 @@ describe('API app HTTP boundary', () => {
         sourceLocationId: null,
         status: processingStatus === 'ignored' ? 'processed' : 'pending',
       });
-      if (processingStatus === 'ignored') {
-        expect(database.receipts[0]).toMatchObject({
-          payload: null,
-          payloadHash: null,
-        });
-      } else if (classification === 'customer') {
-        expect(database.receipts[0]?.['payload']).toMatchObject({
-          externalUserId: '815',
-          firstName: 'Private Fixture',
-          phone: '+15550000001',
-        });
-        expect(database.receipts[0]?.['payloadHash']).toMatch(/^[a-f0-9]{64}$/);
-      } else {
-        expect(database.receipts[0]?.['payload']).toMatchObject({
-          granted: true,
-          customer: {
-            externalUserId: '815',
-            firstName: 'Private Fixture',
-            phone: '+15550000001',
-          },
-        });
-        expect(database.receipts[0]?.['payloadHash']).toMatch(/^[a-f0-9]{64}$/);
-      }
+      expect(database.receipts[0]).toMatchObject({
+        payload: null,
+        payloadHash: null,
+      });
       const observable = JSON.stringify({
         response: responseBody,
         logs: harness.logs,

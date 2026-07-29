@@ -24,6 +24,7 @@ import {
 import { englishAppMessages } from "@/i18n"
 import { ThemeProvider } from "@/app/providers"
 import type { ProductionChangePort } from "@/ports/production-change.port"
+import { makeTestOrderManagementPort } from "../fixtures/order-management.fixture"
 import {
   makeTestProductionPort,
   testIdempotency,
@@ -97,6 +98,12 @@ const makeFetch = (
         nextCursor: null,
         asOf: testWorkspace.asOf,
       })
+    if (
+      url.includes(
+        `/order-management/locations/${testLocation.id}/incoming-orders?`
+      )
+    )
+      return response({ items: [], nextCursor: null })
     if (url.endsWith("/processor/auth/logout"))
       return response({ revoked: true })
     throw new Error(`Unexpected request: ${init?.method ?? "GET"} ${url}`)
@@ -123,7 +130,7 @@ describe("processor application composition", () => {
     document.documentElement.className = ""
   })
 
-  it("uses the root as the order-first Processor home", async () => {
+  it("uses the root as a compact daily overview", async () => {
     const fetch = makeFetch()
     window.history.replaceState(null, "", "/")
 
@@ -131,13 +138,28 @@ describe("processor application composition", () => {
 
     expect(await screen.findByRole("heading", { name: "Home" })).toBeVisible()
     expect(
-      await screen.findByRole("heading", { name: "No orders need attention" })
+      await screen.findByRole("region", { name: "Order attention" })
     ).toBeVisible()
+    expect(await screen.findByText("No orders need attention")).toBeVisible()
     expect(await screen.findByText("Remaining today")).toBeVisible()
+    expect(
+      screen.queryByRole("heading", { name: "Order control" })
+    ).not.toBeInTheDocument()
+    expect(
+      fetch.mock.calls.some(([request]) => {
+        const url = new URL(String(request), "http://processor.test")
+        return (
+          url.pathname.endsWith(
+            `/production/locations/${testLocation.id}/order-control`
+          ) && url.searchParams.get("limit") === "3"
+        )
+      })
+    ).toBe(true)
     expect(window.location.pathname).toBe("/")
   })
 
-  it("shows the old-order review entry only to a manager", async () => {
+  it("keeps order control and old-order review on the dedicated Orders route", async () => {
+    const user = userEvent.setup()
     const managerSession: typeof session = {
       ...session,
       principal: {
@@ -145,25 +167,53 @@ describe("processor application composition", () => {
         roles: ["admin"],
       },
     }
-    window.history.replaceState(null, "", "/")
+    window.history.replaceState(null, "", "/orders")
 
     const { unmount } = renderApp(makeFetch(200, managerSession))
 
     expect(
-      await screen.findByRole("heading", {
-        name: "Archive from active work",
-      })
+      await screen.findByRole("heading", { name: "Orders", level: 1 })
+    ).toBeVisible()
+    expect(
+      await screen.findByRole("heading", { name: "Reported orders" })
+    ).toBeVisible()
+    await user.click(screen.getByRole("tab", { name: "Current orders" }))
+    expect(
+      await screen.findByRole("heading", { name: "Archive from active work" })
     ).toBeVisible()
     expect(
       screen.getByRole("button", { name: "Review old orders" })
     ).toBeVisible()
 
     unmount()
+    window.history.replaceState(null, "", "/orders")
     renderApp(makeFetch())
-    await screen.findByRole("heading", { name: "Home", level: 1 })
+    await screen.findByRole("heading", { name: "Orders", level: 1 })
+    await screen.findByRole("heading", { name: "Reported orders", level: 2 })
+    await user.click(screen.getByRole("tab", { name: "Current orders" }))
+    expect(
+      await screen.findByRole("heading", { name: "Order control", level: 2 })
+    ).toBeVisible()
     expect(
       screen.queryByRole("button", { name: "Review old orders" })
     ).toBeNull()
+  })
+
+  it("opens Orders from the Home attention digest", async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, "", "/")
+    renderApp(makeFetch())
+    await screen.findByRole("region", { name: "Order attention" })
+
+    await user.click(screen.getByRole("button", { name: "Open Orders" }))
+
+    expect(
+      await screen.findByRole("heading", { name: "Orders", level: 1 })
+    ).toBeVisible()
+    expect(
+      await screen.findByRole("heading", { name: "Reported orders", level: 2 })
+    ).toBeVisible()
+    expect(window.location.pathname).toBe("/orders")
   })
 
   it("opens the detailed remaining-day outlook on its dedicated route", async () => {
@@ -203,7 +253,7 @@ describe("processor application composition", () => {
     expect(window.location.pathname).toBe("/forecast")
   })
 
-  it("keeps Home order control available when the forecast request fails", async () => {
+  it("keeps Home order attention available when the forecast request fails", async () => {
     const baseFetch = makeFetch()
     const fetch = vi.fn(
       async (request: RequestInfo | URL, init?: RequestInit) =>
@@ -216,7 +266,7 @@ describe("processor application composition", () => {
     renderApp(fetch)
 
     expect(
-      await screen.findByRole("heading", { name: "No orders need attention" })
+      await screen.findByRole("region", { name: "Order attention" })
     ).toBeVisible()
     expect(
       await screen.findByText("Remaining-day outlook is unavailable")
@@ -294,8 +344,9 @@ describe("processor application composition", () => {
       name: "Processor navigation",
     })
     expect(within(drawer).getByText("Daily work")).toBeVisible()
-    expect(within(drawer).getByText("Planning & review")).toBeVisible()
+    expect(within(drawer).getByText("Manage & review")).toBeVisible()
     expect(within(drawer).getByText("System")).toBeVisible()
+    expect(within(drawer).getByRole("button", { name: "Orders" })).toBeVisible()
     expect(
       within(drawer).getByRole("button", { name: "Forecast" })
     ).toBeVisible()
@@ -537,6 +588,7 @@ describe("processor application composition", () => {
         completeMfa: async () => session,
         logout: async () => undefined,
       },
+      orderManagement: makeTestOrderManagementPort(),
       production: makeTestProductionPort({
         listLocations: async () => ({
           items: [testLocation, otherLocation],
@@ -627,6 +679,7 @@ describe("processor application composition", () => {
         completeMfa: async () => session,
         logout: async () => undefined,
       },
+      orderManagement: makeTestOrderManagementPort(),
       production: makeTestProductionPort({
         listLocations: async () => ({
           items: [testLocation],

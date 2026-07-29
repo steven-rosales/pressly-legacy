@@ -1,0 +1,615 @@
+work_id: pressly-order-authority-source-autonomy
+title: Pressly order authority and source autonomy
+status: active
+
+goal:
+  - Make Pressly canonical Orders and Production operable independently from
+    unreliable external lifecycle behavior.
+  - Bound every external claim with a versioned capability profile and
+    Pressly-owned runtime posture.
+  - Give operators clear, safe order-level commands and source-divergence
+    context without granting adapters canonical authority.
+
+invariants:
+  - External adapters submit observations and never canonical lifecycle
+    commands.
+  - Only aggregate-owned explicit state-and-event graphs decide persistent
+    Orders and Production transitions.
+  - Numeric assurance and source health may only demote automation and never
+    create or promote authority.
+  - Canonical lifecycle, physical facts, derived projections, and Production
+    resolution never follow an external source.
+  - First-party ordering products invoke canonical User and Order commands and
+    never gain Production floor authority.
+  - Exact source identity, monotonic revision, hash, idempotency, optimistic
+    concurrency, and transactional outbox guarantees remain intact.
+  - Canonical current-state tables remain authoritative; no full event sourcing
+    or generic cross-domain rules engine is introduced.
+  - Existing source snapshots, command evidence, Production history, and
+    ambiguous records are preserved.
+  - Archive and restore remain audited, reversible Production resolution
+    commands; hard deletion is out of scope.
+  - Customer identity remains visible with order identity on operational rows.
+  - The separate order-control correctness queue retains routing, capacity,
+    idempotency-under-lock, and History cursor ownership.
+  - No implementation, activation, migration, backfill, deployment, or runtime
+    mutation begins without Steven's explicit green light.
+  - No secret, credential, customer payload, or private token enters Stateworks
+    or implementation evidence.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconfirm the authority baseline after activation
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/done/source-neutral-users-orders
+      - repo:stateworks/work/done/lpms-intake-admission
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - repo:modules/business/orders
+      - repo:modules/business/users
+      - repo:modules/business/production
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:apps/api/src
+      - repo:apps/processor/src
+      - repo:packages/contracts
+      - repo:packages/db/src/schema
+    writes:
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+    action:
+      - Require explicit promotion of this queued package before proceeding.
+      - Reproduce the current Cents lifecycle effects from webhook observation
+        through Orders, outbox, Production, API composition, and Processor.
+      - Record the existing lifecycle graphs, field-authority coverage, source
+        revision behavior, command receipts, source binding controls, and
+        archive-review eligibility.
+      - Prove the Santiago-shaped missing individual-archive path and identify
+        its owning policy boundary without mutating data.
+      - Confirm exact non-overlap with the queued routing and History
+        correctness package.
+    verifier:
+      - Evidence names every current source-to-canonical mutation path and its
+        test or source proof.
+      - Evidence distinguishes durable policy from current implementation gaps.
+      - No implementation file or runtime record changes in T0.
+    rollback:
+      - No rollback is needed for read-only characterization.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T1
+    title: Define claim-scoped authority and lifecycle graphs
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:modules/business/orders/src/order-lifecycle.policy.ts
+      - repo:modules/business/orders/src/order-field-authority.policy.ts
+      - repo:modules/business/orders/src/order-source-ordering.policy.ts
+      - repo:modules/policy/production/src/lifecycle
+      - repo:modules/policy/production/src/admission-override
+      - repo:packages/contracts/src/orders
+    writes:
+      - repo:modules/business/orders/src
+      - repo:modules/business/orders/test
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/test
+    action:
+      - Define typed claim categories and an exhaustive pure evaluator that
+        resolves deny, observe, propose, or auto_adopt by source, claim,
+        canonical phase, current state, field authority, evidence, profile
+        version, and source posture.
+      - Model canonical Order, fulfillment release, and persistent source
+        posture with explicit kernel state-and-event graphs rather than local
+        imperative transition branches.
+      - Make lifecycle claims observation or proposal only for every external
+        source and phase.
+      - Define automatic posture demotion and authorized manual promotion
+        without using one scalar as permission.
+      - Define first-party command contracts separately from external
+        observation contracts.
+    verifier:
+      - Compile-time exhaustiveness prevents an unclassified claim or posture.
+      - Graph tests enumerate every valid and invalid lifecycle and posture
+        edge.
+      - Policy tests prove assurance can demote but cannot grant or promote.
+      - Architecture tests prevent Worker, adapter, repository, API, or
+        Processor transition tables from becoming a second authority.
+    rollback:
+      - Revert policy contracts without changing persisted data or weakening
+        the current canonical graphs.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T2
+    title: Add source authority evidence and control persistence
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/schema/users.schema.ts
+      - repo:packages/db/src/schema/webhook-ingestion.schema.ts
+      - repo:modules/business/orders/src/persistence
+      - repo:modules/business/users/src/persistence
+    writes:
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+      - repo:modules/business/orders/src/persistence
+      - repo:modules/business/orders/test
+    action:
+      - Add versioned source capability profiles and Pressly-owned
+        source-and-location posture with actor, reason, version, and time.
+      - Add append-only observation decisions bound to exact source revision,
+        payload hash, profile, policy, posture, disposition, reason codes,
+        proposals or adopted fields, and canonical versions before and after.
+      - Complete field-level authority for every adoptable commercial claim.
+      - Reuse source links, latest snapshots, command receipts, optimistic
+        versions, and transactional outbox rather than duplicating them.
+      - Keep schema expansion additive and preserve historical source and
+        canonical evidence.
+    verifier:
+      - Migration is forward-safe, reversible where practical, and contains no
+        destructive guess or implicit lifecycle rewrite.
+      - Constraints prevent duplicate decisions for one evaluated observation
+        and prevent adapters from mutating profile or posture ownership.
+      - Postgres tests cover concurrent observation decisions, posture changes,
+        and profile-version binding.
+      - Existing Order, User, inbox, and outbox constraints remain green.
+    rollback:
+      - Disable new reads and retain additive evidence tables; do not delete
+        historical rows or roll canonical lifecycle backward.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T3
+    title: Make Orders observation ingestion decision-based
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - repo:modules/business/orders/src/observe-order-source
+      - repo:modules/business/orders/src/order-field-authority.policy.ts
+      - repo:modules/business/orders/src/order-source-ordering.policy.ts
+      - repo:modules/business/users/src/observe-user-source
+      - repo:modules/business/users/src/resolve-user-source
+    writes:
+      - repo:modules/business/orders/src/observe-order-source
+      - repo:modules/business/orders/src/persistence
+      - repo:modules/business/orders/test
+      - repo:modules/business/users/src
+      - repo:modules/business/users/test
+    action:
+      - Accept a source-neutral ExternalOrderObservation without canonical
+        lifecycle values.
+      - Preserve stale, replay, equal-revision conflict, and valid-newer
+        classification under exact source identity.
+      - Evaluate each claim through the authority policy and current posture,
+        retaining source lifecycle only as observation or proposal evidence.
+      - Create prospective canonical records only in Pressly-selected initial
+        graph states.
+      - Apply approved non-lifecycle fields only through canonical use cases and
+        complete field authority.
+      - Commit the observation decision, adopted canonical changes, and any
+        outbox event atomically.
+    verifier:
+      - Duplicated, delayed, missing, reordered, regressive, contradictory, and
+        equal-revision-conflict observations are deterministic.
+      - No external lifecycle sequence can release, withdraw, complete, cancel,
+        archive, restore, or delete a canonical record.
+      - A blocked source retains inspectable evidence without mutating
+        canonical state.
+      - Source loss does not block direct authorized Pressly commands.
+    rollback:
+      - Put the affected source into observe_only and retain every observation;
+        do not restore direct lifecycle adoption.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T4
+    title: Implement explicit Pressly commercial commands
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - repo:modules/business/orders/src/create-order
+      - repo:modules/business/orders/src/update-order
+      - repo:modules/business/orders/src/change-fulfillment-release
+      - repo:modules/business/orders/src/order-lifecycle.policy.ts
+      - repo:apps/api/src/http/order-management
+      - repo:modules/policy/access-control/src/order-management
+    writes:
+      - repo:modules/business/orders/src
+      - repo:modules/business/orders/test
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/test
+      - repo:apps/api/src/http/order-management
+      - repo:apps/api/test
+      - repo:modules/policy/access-control/src/order-management
+      - repo:modules/policy/access-control/test/order-management
+    action:
+      - Provide typed canonical commands for the commercial mutations proven
+        necessary by T0, including create, correct, override-source,
+        follow-source, and fulfillment release or withdrawal.
+      - Require actor, authorization scope, origin, idempotency key, expected
+        aggregate version, and stable reason evidence.
+      - Route every lifecycle request through the owning graph and emit
+        source-neutral outbox effects only after canonical commit.
+      - Model any automation as a named, versioned Pressly command principal
+        with the same guards and audit evidence.
+      - Keep Production archive, restore, admission, and physical commands under
+        Production ownership.
+    verifier:
+      - Every command has allow, deny, stale-version, duplicate, concurrent,
+        and replay tests.
+      - First-party API paths invoke canonical commands directly and cannot
+        impersonate an external adapter or bypass graph guards.
+      - Outbox records are atomic with canonical mutations and do not encode
+        vendor lifecycle values.
+    rollback:
+      - Disable new command entry points while retaining committed canonical
+        state and audit evidence.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T5
+    title: Cut adapters and Production to the new authority boundary
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+      - T4
+    reads:
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:apps/worker/src/vendors/cents
+      - repo:packages/contracts/src/cents
+      - repo:packages/contracts/src/orders
+      - repo:modules/business/production/src/apply-fulfillment-demand
+      - repo:packages/contracts/src/production
+    writes:
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:apps/worker/src/vendors/cents
+      - repo:apps/worker/test
+      - repo:packages/contracts/src/cents
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/src/production
+      - repo:modules/business/production/src/apply-fulfillment-demand
+      - repo:modules/business/production/test/apply-fulfillment-demand
+    action:
+      - Make the Cents adapter emit source-neutral observations and raw source
+        lifecycle metadata rather than canonical lifecycle or release values.
+      - Apply source posture before any canonical adoption and prevent the
+        adapter from altering or promoting that posture.
+      - Send Production only canonical fulfillment demand and release events
+        caused by committed Pressly decisions.
+      - Remove vendor lifecycle interpretation from Production while preserving
+        fulfillment-keyed idempotency and physical-truth ownership.
+      - Keep Worker retry, lease, dead-letter, and reconciliation behavior
+        durable and inspectable.
+    verifier:
+      - Contract tests reject canonical lifecycle values at the adapter
+        observation boundary.
+      - Worker integration proves source lifecycle permutations leave canonical
+        lifecycle unchanged without a Pressly command.
+      - Production tests prove it cannot infer admission, withdrawal, or
+        terminal state from vendor metadata, score, profile, or posture.
+      - Inbox, outbox, retry, dead-letter, and fulfillment idempotency remain
+        green.
+    rollback:
+      - Degrade Cents to observe_only and pause affected canonical adoption;
+        never restore source lifecycle command authority.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T6
+    title: Reconcile existing records without guessing
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T5
+    reads:
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:modules/business/orders
+      - repo:modules/business/production
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+    writes:
+      - repo:scripts
+      - repo:modules/business/orders/test
+      - repo:modules/business/production/test
+      - repo:packages/db/test
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+    action:
+      - Build a read-only dry run that classifies existing records by exact
+        evidence, capability decision, canonical lifecycle, Production
+        commitment, and ambiguity.
+      - Shadow-evaluate new observation decisions before changing ingestion.
+      - Backfill only deterministic profile, posture, provenance, and decision
+        facts from retained evidence.
+      - Preserve ambiguous canonical state and emit explicit review items rather
+        than inferring an external lifecycle transition.
+      - Define a bounded, reversible cutover and rollback runbook without
+        deleting source snapshots, canonical orders, or Production history.
+    verifier:
+      - Repeated dry runs are deterministic and produce no writes.
+      - Fixture and database tests cover pre-handoff, committed, finished,
+        resolved, archived, source-terminal, missing-source, and contradictory
+        records.
+      - Cutover simulation preserves row counts, identities, versions, source
+        evidence, outbox consistency, and Production history.
+      - Any ambiguous classification stops automatic migration.
+    rollback:
+      - Restore the previous reader path, keep new evidence additive, and place
+        external sources in observe_only until discrepancies are resolved.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T7
+    title: Compose authoritative operational order views and actions
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+      - T6
+    reads:
+      - repo:apps/api/src/read-models/processor-orders
+      - repo:apps/api/src/http/processor
+      - repo:modules/business/production/src/list-production-order-control
+      - repo:modules/business/production/src/review-production-order-backlog
+      - repo:modules/business/production/src/change-production-order-resolution
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/src/production
+    writes:
+      - repo:apps/api/src/read-models/processor-orders
+      - repo:apps/api/src/http/processor
+      - repo:apps/api/test/processor
+      - repo:modules/business/production/src/review-production-order-backlog
+      - repo:modules/business/production/test/review-production-order-backlog
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/test
+    action:
+      - Compose one server-owned OperationalOrderView containing customer and
+        order identity, canonical commercial state, canonical Production state,
+        latest source observation, field provenance, divergence context,
+        versions, and allowed commands with denial reasons.
+      - Make source-terminal observations discoverable for archive review
+        independently from unrelated due-date or release filters.
+      - Expose safe individual archive and restore through the existing
+        Production resolution graph with reason, note, authorization,
+        idempotency, expected version, and audit history.
+      - Keep bulk review bounded and make every source suggestion explicit
+        rather than automatic.
+      - Ensure source unavailability does not block canonical reads or allowed
+        commands.
+    verifier:
+      - The Santiago-shaped fixture appears in review and receives an allowed
+        individual archive command when Production policy permits.
+      - Archiving changes only Production resolution and never source or
+        commercial lifecycle; restore is audited and graph-valid.
+      - API composition cannot grant an action absent from server-owned graph
+        and policy results.
+      - Every operational row includes stable order identity and customer name
+        or an explicit unavailable label.
+    rollback:
+      - Hide new command affordances while preserving existing read models and
+        committed resolution history.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T8
+    title: Build the Processor order command center
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T7
+    reads:
+      - repo:apps/processor/src/components/orders
+      - repo:apps/processor/src/adapters/production
+      - repo:apps/processor/src
+      - repo:apps/processor/test
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:apps/processor/src/components/orders
+      - repo:apps/processor/src
+      - repo:apps/processor/test
+    action:
+      - Use Product Design and the current shared Processor and shadcn system to
+        make canonical Pressly state primary and source observation secondary.
+      - Show plain-language divergence, provenance, allowed commands, and
+        disabled-command explanations without exposing implementation jargon.
+      - Add individual archive and restore flows with clear consequences,
+        confirmation, version-conflict recovery, and audit feedback.
+      - Preserve consistent order number plus customer identity on every
+        operational row and pagination.
+      - Implement complete loading, empty, error, blocked-source, stale-version,
+        and successful-command states without client-owned lifecycle logic.
+    verifier:
+      - Focused component and integration tests cover every action and denial
+        state from the server contract.
+      - No browser code derives lifecycle transitions, capability decisions,
+        archive eligibility, or source posture.
+      - Shared shadcn primitives and existing Processor tokens are used
+        consistently.
+    rollback:
+      - Remove new affordances and retain server contracts and evidence; do not
+        mutate canonical or source state from the browser.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V1
+    title: Prove authority, migration, and integration correctness
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T6
+      - T7
+    reads:
+      - repo:modules/business/orders
+      - repo:modules/business/users
+      - repo:modules/business/production
+      - repo:modules/policy
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/worker
+      - repo:apps/api
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy
+    writes:
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+    action:
+      - Generate model-based external lifecycle sequences with duplication,
+        delay, omission, reordering, regression, contradiction, terminal
+        reversal, schema failure, and equal-revision hash conflict.
+      - Prove canonical Orders and Production remain unchanged unless a
+        committed authorized Pressly command permits a graph transition.
+      - Run focused policy, contract, database, migration, backfill, Worker,
+        Orders, Users, Production, API, concurrency, idempotency, outbox,
+        integration, architecture, type, lint, and build gates.
+      - Record exact command counts, environment boundaries, and nonblocking
+        warnings.
+    verifier:
+      - Model-based tests cover all capability dispositions, phases, postures,
+        and graph edges.
+      - Postgres concurrency proves exactly-once decision evidence and
+        idempotent canonical effects.
+      - Dry-run and cutover simulations preserve canonical and historical
+        evidence.
+      - Full repository typecheck, lint, tests, integration tests, and build
+        pass.
+    rollback:
+      - Keep the work active, sources observe_only, and readiness stopped until
+        every correctness verifier passes.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V2
+    title: Prove rendered operational usability
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T8
+      - V1
+    reads:
+      - repo:apps/processor
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+    writes:
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+    action:
+      - Inspect rendered desktop and mobile order lists, drawers, divergence
+        context, archive, restore, loading, empty, error, blocked-source,
+        permission-denied, and version-conflict states.
+      - Verify keyboard navigation, focus management, labels, contrast,
+        responsive layout, long identities, customer-name consistency, console,
+        and network behavior.
+      - Confirm an operator can understand the Santiago-shaped case and archive
+        it without knowing Cents or LPMS internals.
+    verifier:
+      - Product Design audit has no unresolved high-severity workflow issue.
+      - Accessibility and interaction tests pass.
+      - Desktop and mobile visual evidence is attached for critical states.
+      - Browser console and failed-network inspection show no unexplained
+        errors.
+    rollback:
+      - Keep the prior Processor surfaces active and the new command UI hidden
+        until rendered proof passes.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T9
+    title: Close evidence and rebaseline dependent work
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V2
+    reads:
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy/final-report.md
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/memory/domains/order-management/deltas
+      - repo:stateworks/memory/domains/order-management/memory.yaml
+      - repo:stateworks/memory/domains/order-management/context-pack.md
+      - repo:stateworks/memory/domains/laundry-production/deltas
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+    action:
+      - Record exact repository, local runtime, deployment, and live-operation
+        evidence boundaries.
+      - Rebaseline production readiness against the new authority model and
+        preserve its existing human gates.
+      - Confirm the separate correctness queue remains accurate and disjoint;
+        rebaseline it only if proven implementation overlap exists.
+      - Apply another source-backed memory delta only for durable implementation
+        facts proven by V1 and V2.
+    verifier:
+      - Stateworks network and lifecycle state validate.
+      - Any new memory delta is source-backed, validated, applied once, and has
+        a deterministic generated context pack.
+      - Final report lists every remaining human, deployment, data, and
+        operational gate without claiming unproven readiness.
+    rollback:
+      - Leave unsupported memory proposed and keep this work active and
+        readiness stopped.
+    secret_handling: none
+    status: pending
+    evidence: []

@@ -1,5 +1,8 @@
 import { useIsMobile } from "@/components/ui/use-mobile"
-import { OrderControlWorkspace } from "./order-control.view"
+import {
+  OrderAttentionSummary,
+  OrderControlWorkspace,
+} from "./order-control.view"
 import {
   useOrderControlWorkspaceModel,
   type OrderControlWorkspaceModelInput,
@@ -18,4 +21,16 @@ export function OrderControlWorkspaceContainer(
       isMobile={isMobile}
     />
   )
+}
+
+export function OrderAttentionSummaryContainer({
+  onOpenOrders,
+  ...props
+}: OrderControlWorkspaceModelInput &
+  Readonly<{
+    onOpenOrders: () => void
+  }>) {
+  const { model } = useOrderControlWorkspaceModel({ ...props, limit: 3 })
+
+  return <OrderAttentionSummary model={model} onOpenOrders={onOpenOrders} />
 }

@@ -341,6 +341,22 @@ describe('module architecture boundaries', () => {
         ),
       ),
     ).toBe(false);
+    expect(
+      existsSync(
+        path.join(
+          repoRoot,
+          'modules/business/users/src/canonical-source-user/canonical-source-user.repo.ts',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      existsSync(
+        path.join(
+          repoRoot,
+          'modules/business/users/src/canonical-source-user/canonical-source-user.adapter.ts',
+        ),
+      ),
+    ).toBe(false);
     for (const legacyAdapter of [
       'modules/business/users/src/user-mutations/user-mutations.repo.ts',
       'modules/business/users/src/user-mutations/user-mutations.port.ts',
@@ -379,6 +395,7 @@ describe('module architecture boundaries', () => {
     const routes = [
       'apps/api/src/http/order-management/users/user-command.route.ts',
       'apps/api/src/http/order-management/orders/order-command.route.ts',
+      'apps/api/src/http/order-management/orders/order-lifecycle.route.ts',
       'apps/api/src/http/order-management/orders/fulfillment-release.route.ts',
     ]
       .map((filePath) => readFileSync(path.join(repoRoot, filePath), 'utf8'))
@@ -388,8 +405,128 @@ describe('module architecture boundaries', () => {
     expect(routes).toContain(
       "'/order-management/locations/:locationId/orders/:orderId'",
     );
+    expect(routes).toContain(
+      "'/order-management/locations/:locationId/orders/:orderId/complete'",
+    );
+    expect(routes).toContain(
+      "'/order-management/locations/:locationId/orders/:orderId/cancel'",
+    );
     expect(routes).toContain("locationId: request.params['locationId']");
-    expect(routes.match(/apiSuccess\(/g)?.length).toBe(5);
+    expect(routes.match(/apiSuccess\(/g)?.length).toBe(8);
+  });
+
+  it('keeps submitted candidates outside canonical lifecycle and guards source closure through Production', () => {
+    const centsHandler = readFileSync(
+      path.join(
+        repoRoot,
+        'apps/worker/src/jobs/process-webhook-inbox/cents/cents-order.handler.ts',
+      ),
+      'utf8',
+    );
+    const workerComposition = readFileSync(
+      path.join(
+        repoRoot,
+        'apps/worker/src/bootstrap/worker-jobs.composition.ts',
+      ),
+      'utf8',
+    );
+    const demandPolicyPort = readFileSync(
+      path.join(
+        repoRoot,
+        'modules/business/production/src/apply-fulfillment-demand/apply-fulfillment-demand.port.ts',
+      ),
+      'utf8',
+    );
+    const demandRepository = readFileSync(
+      path.join(
+        repoRoot,
+        'modules/business/production/src/apply-fulfillment-demand/apply-fulfillment-demand.repo.ts',
+      ),
+      'utf8',
+    );
+
+    expect(centsHandler).toMatch(
+      /orders:\s*Pick<\s*OrdersWorkerApplication,\s*'proposeIncomingOrder'\s*\|\s*'closeIncomingOrderSource'\s*>/,
+    );
+    expect(centsHandler).toMatch(
+      /production:\s*Pick<\s*ProductionApplication,\s*'resolveSourceClosedFulfillment'\s*>/,
+    );
+    expect(centsHandler).toContain("storedStatus !== 'SUBMITTED'");
+    expect(centsHandler).toContain("storedStatus !== 'COMPLETED'");
+    expect(centsHandler).toContain("storedStatus !== 'CANCELED'");
+    expect(centsHandler).toContain('deps.orders.proposeIncomingOrder');
+    expect(centsHandler).toContain('deps.orders.closeIncomingOrderSource');
+    expect(centsHandler).toContain(
+      'deps.production.resolveSourceClosedFulfillment',
+    );
+    expect(centsHandler).toContain("proposalKind: 'submitted_order'");
+    expect(centsHandler).not.toContain('@pressly/users');
+    expect(centsHandler).not.toMatch(/\busers\s*:/);
+    expect(centsHandler).not.toContain('observeSource');
+    expect(centsHandler).not.toContain('resolvePendingSourceCustomer');
+    expect(centsHandler).not.toContain('recordConsent');
+    expect(centsHandler).toContain("adapterVersion: 'cents-webhook-v3'");
+    expect(centsHandler).not.toMatch(/\borders\s*:\s*OrdersApplication\b/);
+    expect(centsHandler).not.toMatch(/\bstate\s*:/);
+    expect(centsHandler).not.toMatch(/\breleaseState\s*:/);
+    expect(centsHandler).not.toMatch(/\bbagCount\s*:/);
+    expect(demandPolicyPort).not.toContain('incomingBagCount');
+    expect(demandRepository).not.toMatch(
+      /\bbagCount\s*:\s*command\.bagCount\b/,
+    );
+    expect(workerComposition).toContain(
+      'proposeIncomingOrder: orders.proposeIncomingOrder',
+    );
+    expect(workerComposition).toContain(
+      'closeIncomingOrderSource: orders.closeIncomingOrderSource',
+    );
+    expect(workerComposition).toContain('resolveSourceClosedFulfillment:');
+    expect(workerComposition).toContain(
+      'production.resolveSourceClosedFulfillment',
+    );
+    expect(workerComposition).toContain('makePostgresOrdersWorkerApplication');
+    expect(workerComposition).not.toContain('makePostgresOrdersApplication');
+    expect(workerComposition).not.toContain('@pressly/users');
+    expect(workerComposition).not.toContain('orders.observeSource');
+    expect(workerComposition).not.toContain('users.resolveSource');
+    expect(workerComposition).not.toContain('resolvePendingSourceCustomer');
+  });
+
+  it('acknowledges non-order Cents receipts without canonical effects', () => {
+    const ignoredHandler = readFileSync(
+      path.join(
+        repoRoot,
+        'apps/worker/src/jobs/process-webhook-inbox/cents/cents-ignored.handler.ts',
+      ),
+      'utf8',
+    );
+    const workerComposition = readFileSync(
+      path.join(
+        repoRoot,
+        'apps/worker/src/bootstrap/worker-jobs.composition.ts',
+      ),
+      'utf8',
+    );
+
+    expect(ignoredHandler).toContain(
+      "(): WebhookEventConsumer => async () => ({ tag: 'ok' })",
+    );
+    expect(ignoredHandler).not.toContain('@pressly/users');
+    expect(ignoredHandler).not.toContain('@pressly/orders');
+    expect(workerComposition).toContain(
+      'const acknowledgeIgnoredCentsEvent = makeIgnoredCentsEventHandler();',
+    );
+    expect(workerComposition).toContain(
+      "'cents:customer': acknowledgeIgnoredCentsEvent",
+    );
+    expect(workerComposition).toContain(
+      "'cents:marketing': acknowledgeIgnoredCentsEvent",
+    );
+    for (const removedHandler of [
+      'apps/worker/src/jobs/process-webhook-inbox/cents/cents-customer.handler.ts',
+      'apps/worker/src/jobs/process-webhook-inbox/cents/cents-marketing.handler.ts',
+    ])
+      expect(existsSync(path.join(repoRoot, removedHandler))).toBe(false);
   });
 
   it('includes every module manifest in cached API and Worker Docker installs', () => {
@@ -433,6 +570,24 @@ describe('module architecture boundaries', () => {
             ].join(', ')}`,
           ];
     });
+
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps canonical Orders and Users source neutral to vendor adapters', () => {
+    const canonicalRoots = [
+      path.join(repoRoot, 'modules', 'business', 'orders', 'src'),
+      path.join(repoRoot, 'modules', 'business', 'users', 'src'),
+    ];
+    const forbiddenVendorVocabulary = /\bcents\b/gi;
+    const violations = canonicalRoots.flatMap((root) =>
+      readFiles(root).flatMap((filePath) => {
+        const source = readFileSync(filePath, 'utf8');
+        const matches = [...source.matchAll(forbiddenVendorVocabulary)];
+
+        return matches.length === 0 ? [] : [path.relative(repoRoot, filePath)];
+      }),
+    );
 
     expect(violations).toEqual([]);
   });
@@ -924,7 +1079,7 @@ describe('processor architecture boundaries', () => {
       'utf8',
     );
 
-    expect(readModel).toContain('sourceLifecycleCode');
+    expect(readModel).not.toContain('sourceLifecycleCode');
     expect(readModel).not.toContain('projectSourceComparison');
     expect(readModel).not.toMatch(/\bcomparison\s*:/);
     expect(readModel).not.toContain('normalizedPayload');

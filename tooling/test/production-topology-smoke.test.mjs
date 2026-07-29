@@ -86,7 +86,22 @@ describe('offline production topology smoke harness', () => {
       "docker inspect --format '{{.Config.Image}}'",
       'X-Cents-Signature',
       'orderCode: process.env.ORDER_CODE',
+      "status: 'SUBMITTED'",
+      '/order-management/locations/${LPMS_LOCATION_ID}/incoming-orders',
+      'offline-smoke-prestart-submitted-accept-v1',
+      'offline-smoke-live-submitted-accept-v1',
+      'offline-smoke-prestart-fulfillment-release-v1',
+      'offline-smoke-live-fulfillment-release-v1',
+      '/order-management/locations/${LPMS_LOCATION_ID}/fulfillments/${fulfillment_id}/release',
+      'incoming_order_accepted',
+      'ready_for_production',
+      'wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" release_pending',
+      'wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" release_pending',
+      'prove_ignored_cents_events',
+      'response?.data?.status !== process.env.EXPECTED_INGRESS_STATUS',
       'order_source_links',
+      'order_source_proposals',
+      'order_source_proposal_resolutions',
       'order_fulfillments',
       'demand.fulfillment_id = fulfillment.id',
       '/api/processor/auth/login',
@@ -233,6 +248,8 @@ describe('offline production topology smoke harness', () => {
     for (const proofBoundary of [
       'offline-smoke-order-prestart',
       'offline-smoke-order-live',
+      '/incoming-orders/${proposal_id}/accept',
+      '/fulfillments/${fulfillment_id}/release',
       '/orders/${LPMS_FIRST_ORDER_ID}/priority',
       '/orders/${LPMS_FIRST_ORDER_ID}/intake',
       '/schedules/${LPMS_SCHEDULE_RUN_ID}/accept',
@@ -244,12 +261,15 @@ describe('offline production topology smoke harness', () => {
       '/stages/${stage_id}/start',
       '/stages/${stage_id}/complete',
       'set actual_start_at = planned_start_at',
-      "'2|2|2|2|1|1|1|4|2|1|4|4'",
-      "'2|2|2|1|4'",
+      "'2|2|2|2|2|2|1|1|1|4|2|1|4|4'",
+      "'2|3|2|2|2|2|1|4'",
     ])
       expect(script).toContain(proofBoundary);
 
-    expect(script).toContain('signedReceiptCount: 2');
+    expect(script).toContain('signedSubmittedReceiptCount: 2');
+    expect(script).toContain('ignoredReceiptCount: 3');
+    expect(script).toContain('incomingProposalCount: 2');
+    expect(script).toContain('acceptedProposalCount: 2');
     expect(script).toContain('projectedOrderCount: 2');
     expect(script).toContain('completedStageCount: 4');
     expect(script).toContain('stageTransitionCommandCount: 8');
@@ -294,5 +314,21 @@ describe('offline production topology smoke harness', () => {
       expect(envFixture).not.toMatch(
         /^(?:DATABASE_URL|POSTGRES_PASSWORD|AUTH_SECRET|AUTH_MFA_ENCRYPTION_KEY|PROCESSOR_CSRF_SECRET|CENTS_WEBHOOK_HMAC_CURRENT_KEY)=.+$/m,
       );
+  });
+
+  it('keeps the local Processor fixture free of retired source-authority state', () => {
+    const fixture = readFileSync(
+      resolve(root, 'tooling/fixtures/local-processor-variable-orders.sql'),
+      'utf8',
+    );
+    expect(fixture).not.toMatch(
+      /INSERT INTO (?:user|order)_field_authorities/i,
+    );
+    expect(fixture).not.toMatch(
+      /INSERT INTO order_source_(?:capability_profiles|control_revisions|observation_decisions)/i,
+    );
+    expect(fixture).toContain(
+      'Source links and snapshots represent already-accepted historical provenance',
+    );
   });
 });

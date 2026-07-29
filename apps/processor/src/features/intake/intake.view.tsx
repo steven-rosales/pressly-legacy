@@ -1,6 +1,5 @@
 import {
   IconAlertTriangle,
-  IconArrowBackUp,
   IconFilter,
   IconInfoCircle,
   IconPackageImport,
@@ -63,16 +62,16 @@ const tabItems: readonly Readonly<{
   count: (model: ReturnType<typeof useIntakeModel>) => number
 }>[] = [
   {
-    value: "forecast_only",
-    labelKey: "intake.forecastOnly",
-    mobileLabelKey: "intake.forecastShort",
-    count: (model) => model.counts.forecastOnly,
-  },
-  {
     value: "needs_intake",
     labelKey: "intake.needsIntake",
     mobileLabelKey: "intake.needsIntakeShort",
     count: (model) => model.counts.needsIntake,
+  },
+  {
+    value: "forecast_only",
+    labelKey: "intake.forecastOnly",
+    mobileLabelKey: "intake.forecastShort",
+    count: (model) => model.counts.forecastOnly,
   },
   {
     value: "ready",
@@ -329,29 +328,17 @@ export function IntakeWorkspace(input: IntakeModelInput) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogMedia>
-              {model.decision?.target === "released" ? (
-                <IconPackageImport />
-              ) : (
-                <IconArrowBackUp />
-              )}
+              <IconPackageImport />
             </AlertDialogMedia>
             <AlertDialogTitle>
-              {model.decision?.target === "released"
-                ? t("intake.releaseTitle", {
-                    orderId: decisionOrderNumber,
-                  })
-                : t("intake.returnTitle", {
-                    orderId: decisionOrderNumber,
-                  })}
+              {t("intake.releaseTitle", {
+                orderId: decisionOrderNumber,
+              })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {model.decision?.target === "released"
-                ? t("intake.releaseDescription", {
-                    customer: decisionCustomer,
-                  })
-                : t("intake.returnDescription", {
-                    customer: decisionCustomer,
-                  })}
+              {t("intake.releaseDescription", {
+                customer: decisionCustomer,
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -366,9 +353,7 @@ export function IntakeWorkspace(input: IntakeModelInput) {
               {model.busyOrderId !== null && (
                 <Spinner data-icon="inline-start" />
               )}
-              {model.decision?.target === "released"
-                ? t("intake.confirmRelease")
-                : t("intake.confirmReturn")}
+              {t("intake.confirmRelease")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

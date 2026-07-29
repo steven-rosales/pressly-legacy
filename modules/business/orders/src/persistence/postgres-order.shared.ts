@@ -1,4 +1,10 @@
-import { eq, orders as schema, sql, type DatabaseExecutor } from '@pressly/db';
+import {
+  and,
+  eq,
+  orders as schema,
+  sql,
+  type DatabaseExecutor,
+} from '@pressly/db';
 import { fulfillmentDemandChangedEventType } from '@pressly/contracts';
 import type { CommandContext } from '@pressly/kernel';
 import { fulfillmentDemandEvent } from '../order-outbox.policy.ts';
@@ -11,12 +17,12 @@ import type { StoredOrderCommandReceipt } from '../order-transaction.port.ts';
 import type {
   FulfillmentInput,
   FulfillmentReleaseState,
+  CorrectOrderCommand,
   OrderCustomer,
   OrderInput,
   OrderItemInput,
   OrderMutationResult,
   OrderState,
-  UpdateOrderCommand,
 } from '../orders.port.ts';
 
 const orderStates = new Set<OrderState>(['open', 'completed', 'canceled']);
@@ -41,6 +47,16 @@ export const lockOrderKey = async (
     sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`,
   );
 };
+
+export const lockStoredOrder = (
+  db: DatabaseExecutor,
+  orderId: string,
+): Promise<void> => lockOrderKey(db, `orders:id:${orderId}`);
+
+export const lockStoredFulfillment = (
+  db: DatabaseExecutor,
+  fulfillmentId: string,
+): Promise<void> => lockOrderKey(db, `fulfillments:id:${fulfillmentId}`);
 
 export const customerColumns = (customer: OrderCustomer) => ({
   customerUserId: customer.userId,
@@ -100,7 +116,10 @@ export const emitFulfillmentDemand = async (
       dueAt: input.dueAt,
       estimatedWeightLbs: input.fulfillment.estimatedWeightLbs,
       estimatedWeightSource: input.fulfillment.estimatedWeightSource,
-      bagCount: input.fulfillment.bagCount,
+      // Physical intake belongs to Production. Orders demand events never
+      // promote a legacy or source-populated fulfillment value into physical
+      // truth.
+      bagCount: null,
       version: input.aggregateVersion,
       observedAt: input.now,
     }),
@@ -168,19 +187,10 @@ export const createStoredPresslyOrder = async (
   db: DatabaseExecutor,
   input: {
     order: OrderInput;
-    authorityFields: readonly string[];
     now: Date;
   },
 ): Promise<OrderMutationResult> => {
-  const value = await createOrderRows(db, input.order, input.now);
-  await upsertOrderAuthorities(db, {
-    orderId: value.orderId,
-    fields: input.authorityFields,
-    authority: 'pressly',
-    source: null,
-    now: input.now,
-  });
-  return value;
+  return createOrderRows(db, input.order, input.now);
 };
 
 export const parseOrderCommandReceipt = (row: {
@@ -231,6 +241,8 @@ export const saveOrderCommandReceipt = async (
     idempotencyKey: string;
     commandHash: string;
     context: CommandContext;
+    reasonCode: string;
+    reasonNote: string | null;
     value: OrderMutationResult;
     now: Date;
   },
@@ -243,6 +255,8 @@ export const saveOrderCommandReceipt = async (
     actorId: input.context.principal.id,
     orderId: input.value.orderId,
     result: input.value,
+    reasonCode: input.reasonCode,
+    reasonNote: input.reasonNote,
     createdAt: input.now,
   });
 };
@@ -317,71 +331,45 @@ export const loadOrderAggregate = async (
   };
 };
 
-export const loadOrderAggregateByFulfillmentId = async (
+export const findOrderIdByFulfillmentId = async (
   db: DatabaseExecutor,
   fulfillmentId: string,
-): Promise<StoredOrderAggregate | null> => {
+): Promise<string | null> => {
   const [row] = await db
     .select({ orderId: schema.orderFulfillments.orderId })
     .from(schema.orderFulfillments)
     .where(eq(schema.orderFulfillments.id, fulfillmentId))
     .limit(1);
-  return row === undefined ? null : loadOrderAggregate(db, row.orderId);
+  return row?.orderId ?? null;
 };
 
-export const upsertOrderAuthorities = async (
+export const loadOrderAggregateByFulfillmentId = async (
   db: DatabaseExecutor,
-  input: {
-    orderId: string;
-    fields: readonly string[];
-    authority: 'pressly' | 'source';
-    source: string | null;
-    now: Date;
-  },
-): Promise<void> => {
-  for (const fieldName of input.fields)
-    await db
-      .insert(schema.orderFieldAuthorities)
-      .values({
-        orderId: input.orderId,
-        fieldName,
-        authority: input.authority,
-        source: input.source,
-        updatedAt: input.now,
-      })
-      .onConflictDoUpdate({
-        target: [
-          schema.orderFieldAuthorities.orderId,
-          schema.orderFieldAuthorities.fieldName,
-        ],
-        set: {
-          authority: input.authority,
-          source: input.source,
-          updatedAt: input.now,
-        },
-      });
+  fulfillmentId: string,
+): Promise<StoredOrderAggregate | null> => {
+  const orderId = await findOrderIdByFulfillmentId(db, fulfillmentId);
+  return orderId === null ? null : loadOrderAggregate(db, orderId);
 };
 
-export const applyStoredOrderUpdate = async (
+export const applyStoredOrderCorrection = async (
   db: DatabaseExecutor,
   input: {
     current: StoredOrderAggregate;
-    changes: UpdateOrderCommand['changes'];
-    targetState: StoredOrderAggregate['order']['state'];
-    authorityFields: readonly string[];
+    changes: CorrectOrderCommand['changes'];
+    nextFulfillment: StoredFulfillmentRecord;
     nextOrderVersion: number;
+    nextFulfillmentVersion: number;
     now: Date;
   },
 ): Promise<void> => {
   const customer = input.changes.customer;
-  await db
+  const [updatedOrder] = await db
     .update(schema.orders)
     .set({
       ...(customer === undefined ? {} : customerColumns(customer)),
       ...(input.changes.displayNumber === undefined
         ? {}
         : { displayNumber: input.changes.displayNumber }),
-      state: input.targetState,
       ...(input.changes.dueAt === undefined
         ? {}
         : { dueAt: input.changes.dueAt }),
@@ -397,14 +385,50 @@ export const applyStoredOrderUpdate = async (
       version: input.nextOrderVersion,
       updatedAt: input.now,
     })
-    .where(eq(schema.orders.id, input.current.order.id));
-  await upsertOrderAuthorities(db, {
-    orderId: input.current.order.id,
-    fields: input.authorityFields,
-    authority: 'pressly',
-    source: null,
-    now: input.now,
-  });
+    .where(
+      and(
+        eq(schema.orders.id, input.current.order.id),
+        eq(schema.orders.version, input.current.order.version),
+      ),
+    )
+    .returning({ id: schema.orders.id });
+  if (updatedOrder === undefined)
+    throw new Error('Order changed during canonical correction.');
+  if (input.changes.items !== undefined) {
+    await db
+      .delete(schema.orderItems)
+      .where(eq(schema.orderItems.orderId, input.current.order.id));
+    await insertOrderItems(
+      db,
+      input.current.order.id,
+      input.changes.items,
+      input.now,
+    );
+  }
+  if (input.nextFulfillmentVersion !== input.current.fulfillment.version) {
+    const [updatedFulfillment] = await db
+      .update(schema.orderFulfillments)
+      .set({
+        typeCode: input.nextFulfillment.typeCode,
+        locationId: input.nextFulfillment.locationId,
+        estimatedWeightLbs: input.nextFulfillment.estimatedWeightLbs,
+        estimatedWeightSource: input.nextFulfillment.estimatedWeightSource,
+        version: input.nextFulfillmentVersion,
+        updatedAt: input.now,
+      })
+      .where(
+        and(
+          eq(schema.orderFulfillments.id, input.current.fulfillment.id),
+          eq(
+            schema.orderFulfillments.version,
+            input.current.fulfillment.version,
+          ),
+        ),
+      )
+      .returning({ id: schema.orderFulfillments.id });
+    if (updatedFulfillment === undefined)
+      throw new Error('Fulfillment changed during canonical correction.');
+  }
   await emitFulfillmentDemand(db, {
     orderId: input.current.order.id,
     fulfillmentId: input.current.fulfillment.id,
@@ -414,7 +438,44 @@ export const applyStoredOrderUpdate = async (
         ? input.current.order.displayNumber
         : input.changes.displayNumber,
     dueAt: input.changes.dueAt ?? input.current.order.dueAt,
-    commercialState: input.targetState,
+    commercialState: input.current.order.state,
+    fulfillment: input.nextFulfillment,
+    now: input.now,
+  });
+};
+
+export const applyStoredOrderLifecycle = async (
+  db: DatabaseExecutor,
+  input: {
+    current: StoredOrderAggregate;
+    target: Exclude<OrderState, 'open'>;
+    nextOrderVersion: number;
+    now: Date;
+  },
+): Promise<void> => {
+  const [updatedOrder] = await db
+    .update(schema.orders)
+    .set({
+      state: input.target,
+      version: input.nextOrderVersion,
+      updatedAt: input.now,
+    })
+    .where(
+      and(
+        eq(schema.orders.id, input.current.order.id),
+        eq(schema.orders.version, input.current.order.version),
+      ),
+    )
+    .returning({ id: schema.orders.id });
+  if (updatedOrder === undefined)
+    throw new Error('Order changed during lifecycle transition.');
+  await emitFulfillmentDemand(db, {
+    orderId: input.current.order.id,
+    fulfillmentId: input.current.fulfillment.id,
+    aggregateVersion: input.nextOrderVersion,
+    displayNumber: input.current.order.displayNumber,
+    dueAt: input.current.order.dueAt,
+    commercialState: input.target,
     fulfillment: input.current.fulfillment,
     now: input.now,
   });
@@ -425,31 +486,39 @@ export const applyStoredFulfillmentRelease = async (
   input: {
     current: StoredOrderAggregate;
     target: FulfillmentReleaseState;
-    authorityField: string;
     nextOrderVersion: number;
     nextFulfillmentVersion: number;
     now: Date;
   },
 ): Promise<void> => {
-  await db
+  const [updatedFulfillment] = await db
     .update(schema.orderFulfillments)
     .set({
       releaseState: input.target,
       version: input.nextFulfillmentVersion,
       updatedAt: input.now,
     })
-    .where(eq(schema.orderFulfillments.id, input.current.fulfillment.id));
-  await db
+    .where(
+      and(
+        eq(schema.orderFulfillments.id, input.current.fulfillment.id),
+        eq(schema.orderFulfillments.version, input.current.fulfillment.version),
+      ),
+    )
+    .returning({ id: schema.orderFulfillments.id });
+  if (updatedFulfillment === undefined)
+    throw new Error('Fulfillment changed during release transition.');
+  const [updatedOrder] = await db
     .update(schema.orders)
     .set({ version: input.nextOrderVersion, updatedAt: input.now })
-    .where(eq(schema.orders.id, input.current.order.id));
-  await upsertOrderAuthorities(db, {
-    orderId: input.current.order.id,
-    fields: [input.authorityField],
-    authority: 'pressly',
-    source: null,
-    now: input.now,
-  });
+    .where(
+      and(
+        eq(schema.orders.id, input.current.order.id),
+        eq(schema.orders.version, input.current.order.version),
+      ),
+    )
+    .returning({ id: schema.orders.id });
+  if (updatedOrder === undefined)
+    throw new Error('Order changed during fulfillment release transition.');
   await emitFulfillmentDemand(db, {
     orderId: input.current.order.id,
     fulfillmentId: input.current.fulfillment.id,

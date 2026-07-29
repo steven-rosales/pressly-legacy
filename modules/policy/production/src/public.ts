@@ -129,7 +129,11 @@ export type {
   OrderRoutingTargetAssignment,
   OrderRoutingTargetCandidate,
   OrderRoutingTargetStage,
+  QueuedMoveTargetDecision,
+  QueuedMoveTargetInput,
+  QueuedMoveTargetRejectionCode,
 } from './order-routing/order-routing.policy.ts';
+export { evaluateQueuedMoveTarget } from './order-routing/order-routing.policy.ts';
 export type { PlacementCommitInput } from './placement-commit/placement-commit.policy.ts';
 export { deriveProductionOrderOperationalStatus } from './lifecycle/production-order-operational-status.policy.ts';
 export type {

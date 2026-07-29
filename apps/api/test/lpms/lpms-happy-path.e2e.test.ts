@@ -1,4 +1,5 @@
 import type { ProductionOrderPlacementResult } from '@pressly/contracts';
+import type { OrdersApplication } from '@pressly/orders';
 import {
   makeProductionApplication,
   type ProductionRepositories,
@@ -6,7 +7,7 @@ import {
 import { makeMemoryProductionRepositories } from '@pressly/production/testing';
 import { makeProductionPolicy } from '@pressly/production-policy';
 import { makeProductionScheduler } from '@pressly/production-scheduling';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { normalizeCentsWebhook } from '../../src/http/webhooks/cents/cents-webhook.normalizer.ts';
 
 const actorId = '11111111-1111-4111-8111-111111111111';
@@ -411,7 +412,7 @@ describe('LPMS run-centered app-composed happy path', () => {
       order: {
         id: 12001,
         storeId: 24,
-        status: 'IN_PROGRESS',
+        status: 'SUBMITTED',
         dueDate: '2026-07-10T21:00:00.000Z',
         updatedAt: '2026-07-10T14:01:00.000Z',
       },
@@ -434,11 +435,14 @@ describe('LPMS run-centered app-composed happy path', () => {
     expect(normalized).toMatchObject({
       ok: true,
       value: {
-        disposition: 'project_order',
+        disposition: 'propose_order_candidate',
         order: { externalOrderId: '12001', bagCount: null },
       },
     });
-    if (!normalized.ok || normalized.value.disposition !== 'project_order')
+    if (
+      !normalized.ok ||
+      normalized.value.disposition !== 'propose_order_candidate'
+    )
       return;
     const centsOrder = normalized.value.order;
     const centsWeightLbs = centsOrder.services.reduce(
@@ -446,15 +450,127 @@ describe('LPMS run-centered app-composed happy path', () => {
         total + service.totalPriceCents / service.unitPriceCents,
       0,
     );
+    const proposalId = '00000000-0000-4000-8000-000000001201';
+    const canonicalOrderId = '00000000-0000-4000-8000-000000001202';
+    const canonicalFulfillmentId = '00000000-0000-4000-8000-000000001203';
+    const proposeIncomingOrder = vi.fn<
+      OrdersApplication['proposeIncomingOrder']
+    >(async () => ({
+      tag: 'ok',
+      value: {
+        proposalId,
+        version: 1,
+        replayed: false,
+        outcome: 'proposed',
+      },
+    }));
+    const acceptIncomingOrderProposal = vi.fn<
+      OrdersApplication['acceptIncomingOrderProposal']
+    >(async () => ({
+      tag: 'ok',
+      value: {
+        proposalId,
+        state: 'accepted',
+        version: 2,
+        orderId: canonicalOrderId,
+        fulfillmentId: canonicalFulfillmentId,
+        replayed: false,
+      },
+    }));
+    const proposed = await proposeIncomingOrder({
+      context: {
+        origin: 'cents',
+        principal: { kind: 'system', id: 'cents-webhook' },
+      },
+      proposalKind: 'submitted_order',
+      source: 'cents',
+      externalOrderId: centsOrder.externalOrderId,
+      revision: {
+        at: new Date(centsOrder.sourceUpdatedAt),
+        hash: normalized.value.receipt.rawBodySha256,
+        adapterVersion: 'cents-webhook-v3',
+        observedAt: new Date(centsOrder.sourceUpdatedAt),
+        normalizedPayload: centsOrder,
+      },
+      snapshot: {
+        customer:
+          centsOrder.customer === null
+            ? null
+            : {
+                externalUserId: centsOrder.customer.externalUserId,
+                firstName: centsOrder.customer.firstName,
+                lastName: centsOrder.customer.lastName,
+                businessName: centsOrder.customer.businessName,
+                phone: centsOrder.customer.phone,
+                email: centsOrder.customer.email,
+                normalizedPayload: {
+                  externalUserId: centsOrder.customer.externalUserId,
+                },
+              },
+        displayNumber: centsOrder.orderCode,
+        dueAt: new Date(centsOrder.dueAt),
+        currency: 'USD',
+        totalAmountCents: centsOrder.totalAmountCents,
+        balanceDueCents: centsOrder.balanceDueCents,
+        items: centsOrder.services.map((service) => ({
+          lineKey: service.externalServiceId,
+          itemType: 'service',
+          code: service.category,
+          description: service.name,
+          quantity: service.quantity,
+          unit: 'service_unit',
+          unitPriceCents: service.unitPriceCents,
+          totalAmountCents: service.totalPriceCents,
+          sourceMetadata: {},
+        })),
+        fulfillment: {
+          typeCode: 'wash_fold',
+          locationId,
+          estimatedWeightLbs: centsWeightLbs,
+          estimatedWeightSource: 'source_estimate',
+        },
+      },
+    });
+    expect(proposed).toMatchObject({
+      tag: 'ok',
+      value: { proposalId, outcome: 'proposed' },
+    });
+    if (proposed.tag === 'err' || proposed.value.proposalId === null) return;
+    const acceptedOrder = await acceptIncomingOrderProposal({
+      proposalId: proposed.value.proposalId,
+      locationId,
+      expectedVersion: 1,
+      idempotencyKey: 'accept-cents-arrival-12001',
+      context: {
+        origin: 'pressly_processor',
+        principal: { kind: 'human', id: actorId },
+      },
+      reasonCode: 'incoming_order_accepted',
+      reasonNote: null,
+    });
+    expect(acceptedOrder).toMatchObject({
+      tag: 'ok',
+      value: {
+        proposalId,
+        state: 'accepted',
+        orderId: canonicalOrderId,
+        fulfillmentId: canonicalFulfillmentId,
+      },
+    });
+    if (
+      acceptedOrder.tag === 'err' ||
+      acceptedOrder.value.fulfillmentId === null
+    )
+      return;
     const arrival = await application.applyFulfillmentDemand({
-      fulfillmentId: `fulfillment:cents:${centsOrder.externalOrderId}`,
+      fulfillmentId: acceptedOrder.value.fulfillmentId,
       fulfillmentVersion: 1,
       displayReference: centsOrder.orderCode,
       locationId,
       observedAt: centsOrder.sourceUpdatedAt,
       projectionHash: normalized.value.receipt.rawBodySha256,
       admissionState: 'released',
-      commercialState: centsOrder.status === 'COMPLETED' ? 'completed' : 'open',
+      commercialState: 'open',
       dueAt: centsOrder.dueAt,
       estimatedWeightLbs: centsWeightLbs,
       estimatedWeightSource: 'external_estimate',

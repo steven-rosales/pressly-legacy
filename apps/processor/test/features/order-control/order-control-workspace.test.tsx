@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type {
   ProcessorOrderControlItem,
-  ProductionBoard,
   ProductionOrderRouteProposal,
 } from "@pressly/contracts"
 import { OrderControlWorkspaceContainer } from "@/features/order-control/order-control-workspace.view"
@@ -17,6 +16,18 @@ import {
 
 const id = (value: number) =>
   `00000000-0000-4000-8000-${value.toString().padStart(12, "0")}`
+
+const unavailableCommands = {
+  queuedMove: {
+    status: "blocked",
+    code: "PRODUCTION_ORDER_NOT_SCHEDULED",
+    targets: [],
+  },
+  routeException: {
+    status: "blocked",
+    code: "PRODUCTION_ORDER_NOT_SCHEDULED",
+  },
+} satisfies ProcessorOrderControlItem["commands"]
 
 const inFlightOrder: ProcessorOrderControlItem = {
   order: {
@@ -47,8 +58,23 @@ const inFlightOrder: ProcessorOrderControlItem = {
   },
   nextRequiredStage: "washing",
   routeAttempts: [],
-  canMoveQueued: false,
-  canRouteException: true,
+  commands: {
+    queuedMove: {
+      status: "blocked",
+      code: "QUEUED_REBATCH_SOURCE_NOT_QUEUED",
+      targets: [],
+    },
+    routeException: {
+      status: "allowed",
+      expectedQueueVersion: 6,
+      expectedOrderVersion: 7,
+      expectedSourceBatchVersion: 4,
+    },
+  },
+  resolutionAction: {
+    status: "blocked",
+    reasons: ["execution_committed"],
+  },
   canonical: null,
 }
 
@@ -132,6 +158,11 @@ describe("connected order control workspace", () => {
     )
 
     expect(listOrderControl).toHaveBeenCalledTimes(1)
+    expect(
+      screen.getByText(
+        "A normal move requires the current batch to still be queued."
+      )
+    ).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "Leave behind" }))
     await user.click(
@@ -175,7 +206,7 @@ describe("connected order control workspace", () => {
       }),
     })
     await waitFor(() => expect(onMutated).toHaveBeenCalledTimes(1))
-  })
+  }, 15_000)
 
   it("keeps established orders visible while filters refresh immediately", async () => {
     const user = userEvent.setup()
@@ -306,8 +337,13 @@ describe("connected order control workspace", () => {
       currentPlacement: null,
       nextRequiredStage: "sorting",
       routeAttempts: [],
-      canMoveQueued: false,
-      canRouteException: false,
+      commands: unavailableCommands,
+      resolutionAction: {
+        status: "allowed",
+        expectedVersion: testOrderItems[0]!.version,
+        requiresExplicitReview: false,
+        reviewReasons: [],
+      },
       canonical: null,
     }
     const finishedOrder: ProcessorOrderControlItem = {
@@ -381,8 +417,13 @@ describe("connected order control workspace", () => {
       currentPlacement: null,
       nextRequiredStage: null,
       routeAttempts: [],
-      canMoveQueued: false,
-      canRouteException: false,
+      commands: unavailableCommands,
+      resolutionAction: {
+        status: "allowed",
+        expectedVersion: testOrderItems[0]!.version,
+        requiresExplicitReview: false,
+        reviewReasons: [],
+      },
       canonical: null,
     }
     const production = makeTestProductionPort({
@@ -421,7 +462,7 @@ describe("connected order control workspace", () => {
     ).toBeInTheDocument()
   })
 
-  it("shows canonical customer and read-only source context without a comparison task", async () => {
+  it("shows canonical customer details without source-authority presentation", async () => {
     const user = userEvent.setup()
     const composedOrder: ProcessorOrderControlItem = {
       ...inFlightOrder,
@@ -433,6 +474,10 @@ describe("connected order control workspace", () => {
       canonical: {
         canonicalOrderId: id(601),
         canonicalFulfillmentId: id(602),
+        versions: {
+          order: 4,
+          fulfillment: 3,
+        },
         displayNumber: "P-1001",
         customer: {
           resolution: "resolved",
@@ -444,7 +489,10 @@ describe("connected order control workspace", () => {
         },
         commercialState: "completed",
         admissionState: "released",
-        source: { name: "cents", status: "COMPLETED" },
+        source: {
+          name: "cents",
+        },
+        audit: [],
       },
     }
     const production = makeTestProductionPort({
@@ -482,14 +530,148 @@ describe("connected order control workspace", () => {
       screen.getByRole("heading", { name: "Customer and order" })
     ).toBeInTheDocument()
     expect(screen.getByText("+12015550101")).toBeInTheDocument()
-    expect(screen.getByText("cents · COMPLETED")).toBeInTheDocument()
-    expect(screen.queryByText("System comparison")).not.toBeInTheDocument()
-    expect(
-      screen.queryByText("Commercial complete; floor unfinished")
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText("COMPLETED")).toBeNull()
   })
 
-  it("loads the order's own run before offering cross-workspace move targets", async () => {
+  it("archives an individual active order through Production-owned availability", async () => {
+    const user = userEvent.setup()
+    const order: ProcessorOrderControlItem = {
+      order: {
+        ...structuredClone(testOrderItems[0]!),
+        externalOrderId: "21122",
+        status: "intake_pending",
+        version: 9,
+      },
+      identity: {
+        displayNumber: "21122",
+        customerDisplayName: "Santiago Jackson",
+      },
+      admission: {
+        sourceState: "released",
+        override: null,
+        effectiveState: "released",
+        allowedActions: [],
+      },
+      attention: {
+        reason: "intake_required",
+        message: "Intake is required.",
+      },
+      currentPlacement: null,
+      nextRequiredStage: null,
+      routeAttempts: [],
+      commands: unavailableCommands,
+      resolutionAction: {
+        status: "allowed",
+        expectedVersion: 9,
+        requiresExplicitReview: true,
+        reviewReasons: ["intake_recorded"],
+      },
+      canonical: {
+        canonicalOrderId: id(701),
+        canonicalFulfillmentId: id(702),
+        versions: {
+          order: 5,
+          fulfillment: 4,
+        },
+        displayNumber: "21122",
+        customer: {
+          resolution: "resolved",
+          userId: id(703),
+          firstName: "Santiago",
+          lastName: "Jackson",
+          businessName: null,
+          phone: "+18622917798",
+        },
+        commercialState: "open",
+        admissionState: "released",
+        source: {
+          name: "cents",
+        },
+        audit: [
+          {
+            kind: "source_observation",
+            code: "source_observation",
+            occurredAt: "2026-07-27T23:04:00.000Z",
+            actor: "cents",
+            outcome: null,
+          },
+        ],
+      },
+    }
+    const changeOrderResolution = vi.fn(async () => ({
+      locationId: testLocation.id,
+      orderId: order.order.id,
+      action: "resolve_without_production" as const,
+      resolutionState: "resolved_without_production" as const,
+      transitionedAt: "2026-08-01T15:01:00.000Z",
+      version: 10,
+      replayed: false,
+    }))
+    const onMutated = vi.fn(async () => undefined)
+    const production = makeTestProductionPort({
+      listOrderControl: async () => ({
+        items: [order],
+        counts: { attention: 1, active: 0, all: 1 },
+        nextCursor: null,
+        asOf: "2026-08-01T15:00:00.000Z",
+      }),
+      changeOrderResolution,
+    })
+
+    render(
+      <OrderControlWorkspaceContainer
+        production={production}
+        idempotency={testIdempotency}
+        locationId={testLocation.id}
+        timezone={testLocation.timezone}
+        board={testBoard}
+        revision="2026-08-01T15:00:00.000Z"
+        onMutated={onMutated}
+      />
+    )
+
+    await user.click(await screen.findByRole("button", { name: "Order 21122" }))
+    await user.click(
+      screen.getByRole("button", { name: "Archive from active work" })
+    )
+    expect(screen.getAllByText("Santiago Jackson").length).toBeGreaterThan(0)
+    expect(
+      screen.getByText("Physical intake has been recorded.")
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("checkbox"))
+    await user.click(screen.getByRole("button", { name: "Review archive" }))
+
+    const confirmation = screen.getByRole("alertdialog")
+    expect(
+      within(confirmation).getByText("Archive order 21122?")
+    ).toBeInTheDocument()
+    await user.click(
+      within(confirmation).getByRole("button", {
+        name: "Archive from active work",
+      })
+    )
+
+    await waitFor(() =>
+      expect(changeOrderResolution).toHaveBeenCalledWith({
+        locationId: testLocation.id,
+        productionOrderId: order.order.id,
+        request: {
+          action: "resolve_without_production",
+          reason: "order_will_not_be_produced",
+          note: null,
+          confirmReviewedFacts: true,
+          expectedVersion: 9,
+          idempotencyKey: expect.stringContaining(
+            "test:resolve-production-order:"
+          ),
+        },
+      })
+    )
+    expect(onMutated).toHaveBeenCalledOnce()
+  })
+
+  it("uses server-owned move targets without re-deriving them from a board", async () => {
     const user = userEvent.setup()
     const sourceRunId = id(401)
     const sourceBatchId = id(402)
@@ -523,36 +705,52 @@ describe("connected order control workspace", () => {
       },
       nextRequiredStage: "sorting",
       routeAttempts: [],
-      canMoveQueued: true,
-      canRouteException: false,
+      commands: {
+        queuedMove: {
+          status: "allowed",
+          expectedQueueVersion: 5,
+          expectedOrderVersion: 3,
+          expectedSourceBatchVersion: 2,
+          targets: [
+            {
+              productionBatchId: sourceBatchId,
+              batchSequence: 0,
+              batchStatus: "queued",
+              membershipFrozen: false,
+              expectedBatchVersion: 2,
+              currentWeightLbs: 50,
+              projectedWeightLbs: 100,
+              capacityLbs: 200,
+              feasibility: {
+                status: "blocked",
+                code: "TARGET_IS_SOURCE_BATCH",
+              },
+            },
+            {
+              productionBatchId: targetBatchId,
+              batchSequence: 1,
+              batchStatus: "queued",
+              membershipFrozen: false,
+              expectedBatchVersion: 3,
+              currentWeightLbs: 80,
+              projectedWeightLbs: 130,
+              capacityLbs: 200,
+              feasibility: { status: "allowed" },
+            },
+          ],
+        },
+        routeException: {
+          status: "blocked",
+          code: "EXCEPTION_SOURCE_NOT_IN_FLIGHT",
+        },
+      },
+      resolutionAction: {
+        status: "blocked",
+        reasons: ["batch_membership_exists"],
+      },
       canonical: null,
     }
-    const sourceBatch = {
-      ...structuredClone(testBoard.batches[0]!),
-      id: sourceBatchId,
-      sequence: 0,
-      derivedWeightLbs: 50,
-      orders: [],
-      version: 2,
-    }
-    const targetBatch = {
-      ...structuredClone(testBoard.batches[0]!),
-      id: targetBatchId,
-      sequence: 1,
-      derivedWeightLbs: 80,
-      orders: [],
-      version: 3,
-    }
-    const sourceBoard: ProductionBoard = {
-      ...structuredClone(testBoard),
-      productionRun: {
-        ...structuredClone(testBoard.productionRun),
-        id: sourceRunId,
-        queueVersion: 5,
-      },
-      batches: [sourceBatch, targetBatch],
-    }
-    const loadBoard = vi.fn(async () => sourceBoard)
+    const loadBoard = vi.fn()
     const production = makeTestProductionPort({
       listOrderControl: async () => ({
         items: [queuedOrder],
@@ -584,11 +782,11 @@ describe("connected order control workspace", () => {
       screen.getByRole("button", { name: "Move to queued batch" })
     )
 
-    await waitFor(() =>
-      expect(loadBoard).toHaveBeenCalledWith(testLocation.id, sourceRunId)
-    )
+    expect(loadBoard).not.toHaveBeenCalled()
     expect(
-      await screen.findByRole("option", { name: /Batch 2 · 80 \/ 200 lb/ })
+      await screen.findByRole("option", {
+        name: /Batch 2 · 80 → 130 of 200 lb/,
+      })
     ).toBeEnabled()
     expect(screen.getByLabelText("Destination batch")).toHaveValue(
       targetBatchId

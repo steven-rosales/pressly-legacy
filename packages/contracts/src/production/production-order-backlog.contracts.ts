@@ -15,10 +15,9 @@ export const productionOrderBacklogCursorSchema = z
   .max(2_048)
   .brand<'ProductionOrderBacklogCursor'>();
 
-export const productionOrderBacklogFilterSchema = z.enum([
+export const productionOrderBacklogFilterSchema = z.literal(
   'all_due_before_cutoff',
-  'source_terminal_before_cutoff',
-]);
+);
 
 export const productionOrderBacklogCategorySchema = z.enum([
   'ready_to_archive',
@@ -72,7 +71,6 @@ export const productionOrderBacklogPreviewItemSchema = z
     orderId: productionIdSchema,
     displayReference: z.string().min(1),
     dueAt: utcIsoStringSchema,
-    sourceCommercialState: z.enum(['open', 'completed', 'canceled']),
     category: productionOrderBacklogCategorySchema,
     reasons: z.array(productionOrderBacklogClassificationReasonSchema).min(1),
     expectedVersion: z.number().int().positive(),

@@ -10,6 +10,7 @@ import {
 describe("processor browser routes", () => {
   it.each([
     ["/", { view: "home", shiftId: null, runId: null }],
+    ["/orders", { view: "orders", shiftId: null, runId: null }],
     ["/intake", { view: "intake", shiftId: null, runId: null }],
     ["/forecast", { view: "forecast", shiftId: null, runId: null }],
     ["/schedule", { view: "schedule", shiftId: null, runId: null }],
@@ -35,7 +36,7 @@ describe("processor browser routes", () => {
     expect(readWorkspaceRoute("/forecast/details")).toBeNull()
   })
 
-  it("groups workspaces by daily work, planning and review, and system", () => {
+  it("groups workspaces by daily work, management and review, and system", () => {
     expect(
       workspaceNavigationSections.map((section) => ({
         id: section.id,
@@ -47,8 +48,8 @@ describe("processor browser routes", () => {
         items: ["intake", "schedule", "board"],
       },
       {
-        id: "planningReview",
-        items: ["forecast", "history"],
+        id: "manageReview",
+        items: ["orders", "forecast", "history"],
       },
       {
         id: "system",
@@ -61,6 +62,7 @@ describe("processor browser routes", () => {
       "intake",
       "schedule",
       "board",
+      "orders",
       "forecast",
       "history",
       "settings",
@@ -88,6 +90,7 @@ describe("processor browser routes", () => {
       "/configuration"
     )
     expect(workspaceRoutePath(workspaceRouteForView("home"))).toBe("/")
+    expect(workspaceRoutePath(workspaceRouteForView("orders"))).toBe("/orders")
     expect(workspaceRoutePath(workspaceRouteForView("intake"))).toBe("/intake")
     expect(workspaceRoutePath(workspaceRouteForView("forecast"))).toBe(
       "/forecast"

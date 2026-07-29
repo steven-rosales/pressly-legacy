@@ -55,7 +55,15 @@ export const makeChangeProductionOrderResolution =
             reason: command.reason,
             note: command.note,
             ...(command.action === 'resolve_without_production'
-              ? { confirmReviewedFacts: command.confirmReviewedFacts }
+              ? {
+                  confirmReviewedFacts: command.confirmReviewedFacts,
+                  ...(command.sourceStatePrecondition === undefined
+                    ? {}
+                    : {
+                        sourceStatePrecondition:
+                          command.sourceStatePrecondition,
+                      }),
+                }
               : {}),
           },
         });
@@ -93,6 +101,19 @@ export const makeChangeProductionOrderResolution =
             productionError(
               'PRODUCTION_ORDER_VERSION_CONFLICT',
               'The order changed before its archive status was updated. Refresh and review the current state.',
+            ),
+          );
+        if (
+          command.sourceStatePrecondition !== undefined &&
+          (order.sourceCommercialState !==
+            command.sourceStatePrecondition.commercialState ||
+            order.sourceAdmissionState !==
+              command.sourceStatePrecondition.admissionState)
+        )
+          return result.err(
+            productionError(
+              'PRODUCTION_ORDER_SOURCE_STATE_CONFLICT',
+              'The canonical order or fulfillment changed before the archive status was updated.',
             ),
           );
 

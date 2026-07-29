@@ -1,0 +1,220 @@
+id: memdelta-2026-07-27-external-source-autonomy
+domain_id: order-management
+
+source:
+  type: decision_session
+  path: stateworks/memory/domains/order-management/sessions/2026-07-27-external-source-autonomy.md
+
+changes:
+  - op: update
+    kind: external_system
+    id: cents
+    description: Cents is an external provider of customer, order,
+      marketing-consent, and lifecycle observations. Its influence is bounded
+      by a Pressly-owned source capability profile; it is not Pressly's
+      canonical database, lifecycle authority, or production-floor authority.
+
+  - op: assert
+    kind: object
+    id: source_capability_profile
+    description: A versioned Pressly-owned policy that caps one external
+      source's effect for each claim type and canonical lifecycle phase at
+      deny, observe, propose, or auto-adopt; an adapter cannot alter its own
+      profile.
+
+  - op: assert
+    kind: object
+    id: source_observation_decision
+    description: An append-only audit record connecting an external observation
+      revision and hash to the capability-profile and policy versions,
+      disposition, reason codes, adopted fields or proposals, and resulting
+      canonical aggregate versions.
+
+  - op: assert
+    kind: object
+    id: source_control_posture
+    description: A Pressly-owned source-and-location posture of normal,
+      observe_only, or blocked that may reduce the effective capabilities of an
+      external source without changing its retained observations.
+
+  - op: deprecate
+    kind: workflow
+    id: cents_order_observation
+
+  - op: assert
+    kind: workflow
+    id: external_order_observation
+    steps:
+      - API authenticates and validates one external envelope and records one
+        idempotent durable inbox event
+      - the source adapter converts vendor data into a source-neutral typed
+        observation and never emits canonical lifecycle commands
+      - Users and Orders resolve exact source identities and classify the
+        revision as stale, replay, conflict, or valid newer observation
+      - Orders retains every valid newer normalized snapshot, including the raw
+        source lifecycle value
+      - Orders evaluates the current versioned source capability profile by
+        source, claim type, canonical lifecycle phase, field authority,
+        evidence, and runtime source posture
+      - external lifecycle claims may produce retained integration context or a
+        proposal but never select or execute a canonical lifecycle transition
+      - approved non-lifecycle claims may create prospective canonical records
+        or auto-adopt fields only within the capability and field-authority
+        ceilings
+      - Orders records the observation decision and any accepted canonical
+        mutation atomically with resulting outbox events
+      - downstream capabilities consume only source-neutral canonical events
+        idempotently
+
+  - op: update
+    kind: workflow
+    id: direct_pressly_mutation
+    steps:
+      - an authenticated first-party Pressly channel submits a typed canonical
+        command directly with actor, scope, origin, idempotency key, and
+        expected aggregate version
+      - the owning User or Order use case loads current canonical state and
+        authority
+      - the aggregate's authoritative lifecycle graph and field policies
+        validate the command and derive effects
+      - the repository commits the versioned mutation, audit evidence, and any
+        outbox event atomically
+      - external source observations remain unchanged and any difference
+        remains integration or audit context
+
+  - op: update
+    kind: invariant
+    id: source_observation_and_lifecycle_adoption_are_separate_v1
+    statement: Every valid newer external lifecycle observation is retained
+      under source-revision rules, while its lifecycle claim remains
+      observation or proposal evidence and is never adopted into canonical
+      Pressly lifecycle.
+
+  - op: deprecate
+    kind: invariant
+    id: pressly_order_lifecycle_is_canonical_after_handoff_v1
+
+  - op: assert
+    kind: invariant
+    id: pressly_order_lifecycle_is_canonical_from_creation_v2
+    statement: A source observation may cause Pressly policy to create a
+      prospective canonical Order in its initial graph state, but no external
+      lifecycle value may select or execute a canonical release, withdrawal,
+      completion, cancellation, archive, restore, deletion, or other
+      transition; only an authorized Pressly command or named versioned Pressly
+      automation command may do so.
+
+  - op: assert
+    kind: invariant
+    id: pressly_order_control_survives_source_loss_v1
+    statement: An external source may be unavailable, quarantined, blocked, or
+      detached without changing canonical identities or history and without
+      preventing authorized Pressly creation, correction, lifecycle control, or
+      peer-domain operational commands.
+
+  - op: assert
+    kind: invariant
+    id: source_observation_decisions_are_auditable_v1
+    statement: Every valid newer external observation receives a durable
+      decision tied to its revision and hash, effective capability and policy
+      versions, reason codes, and resulting canonical aggregate versions; this
+      audit record does not make Order Management fully event sourced.
+
+  - op: deprecate
+    kind: policy
+    id: canonical_field_authority_v1
+
+  - op: deprecate
+    kind: policy
+    id: cents_fulfillment_release_mapping_v1
+
+  - op: assert
+    kind: policy
+    id: canonical_field_authority_v2
+    statement: A direct Pressly edit locks a canonical field until an explicit
+      follow-source command restores eligibility for source adoption;
+      follow-source never grants authority beyond the current source capability
+      profile, and canonical lifecycle, physical facts, and derived projections
+      never follow an external source.
+
+  - op: assert
+    kind: policy
+    id: external_source_capability_envelope_v1
+    statement: External-source autonomy is determined exhaustively by source,
+      claim type, canonical lifecycle phase, current state, field authority,
+      evidence, and runtime posture and resolves to deny, observe, propose, or
+      auto-adopt; no single trust or assurance scalar grants cross-field
+      authority.
+
+  - op: assert
+    kind: policy
+    id: source_assurance_only_demotes_v1
+    statement: Runtime assurance and source posture may automatically reduce a
+      permitted capability from auto-adopt toward propose, observe, or deny but
+      can never exceed the versioned capability-profile ceiling or promote
+      itself; promotion requires an authorized audited Pressly command.
+
+  - op: assert
+    kind: policy
+    id: cents_source_capability_profile_v1
+    statement: Cents may establish exact source identities, cause policy to
+      create prospective canonical records in their Pressly-selected initial
+      states, and auto-adopt approved descriptive commercial fields while those
+      fields follow source; Cents lifecycle values are observation or proposal
+      evidence only and can never release, withdraw, intake, schedule, batch,
+      progress, complete, archive, restore, or delete Pressly work.
+
+  - op: deprecate
+    kind: decision
+    id: mutation_channels_share_use_cases
+
+  - op: update
+    kind: decision
+    id: source_lifecycle_anomalies_are_integration_context_v1
+    statement: External lifecycle differences at every canonical phase remain
+      retained integration and audit context and may produce order-level
+      proposals, but they do not become Production-floor comparison tasks or
+      canonical transitions.
+
+  - op: assert
+    kind: decision
+    id: observation_and_command_channels_are_distinct_v1
+    statement: External adapters submit source observations through observation
+      use cases, while authorized first-party channels submit canonical commands
+      through aggregate use cases; both use application boundaries but only the
+      latter may request canonical lifecycle transitions.
+
+  - op: assert
+    kind: decision
+    id: first_party_channels_use_canonical_commands_v1
+    statement: Pressly-owned residential and commercial ordering surfaces
+      invoke canonical User and Order commands directly instead of synchronizing
+      through an external-source adapter; their authority remains bounded by
+      actor permissions, fact ownership, concurrency, and aggregate lifecycle
+      graphs and never grants production-floor truth.
+
+  - op: assert
+    kind: decision
+    id: source_capability_policy_lives_in_orders_v1
+    statement: Orders owns typed exhaustive capability evaluation and
+      observation decisions for commercial claims; source adapters only
+      authenticate, normalize, and transport observations, Production receives
+      source-neutral canonical events, and no generic cross-domain rules engine
+      is introduced.
+
+verification:
+  - Steven explicitly confirmed on 2026-07-27 that Processor must have more
+    autonomy and less dependence on unpredictable external adapters.
+  - Steven's illustrative Cents and first-party scores were treated as design
+    motivation, not persisted authorization constants.
+  - The accepted refinement is a claim-specific capability ceiling with
+    assurance and runtime posture permitted only to demote automation.
+  - Current Order Management memory was inspected and the prior automatic
+    Cents lifecycle handoff is explicitly superseded.
+  - Exact identity, monotonic revision, source snapshots, outbox atomicity,
+    peer-module ownership, composed views, and authoritative lifecycle graphs
+    remain active.
+  - Current implementation was not claimed compliant, and no secret,
+    credential, customer payload, or private token is included.
+
+status: applied

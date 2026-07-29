@@ -98,6 +98,198 @@ No actionable P0, P1, or P2 visual findings remain for the supplied scope.
 
 final result: passed
 
+# Production Batch Manifest Responsive Refinement QA
+
+## Comparison target
+
+- Supplied desktop manifest:
+  `C:\Users\junni\AppData\Local\Temp\codex-clipboard-7e255930-19a5-47e7-9d3c-09b762e4ae4c.png`
+- Supplied Production board:
+  `C:\Users\junni\AppData\Local\Temp\codex-clipboard-be5dcfe5-7789-4e96-a517-808e497dfc24.png`
+- Final desktop board:
+  `C:\Users\junni\AppData\Local\Temp\pressly-production-manifest-desktop-closed.png`
+- Final desktop manifest:
+  `C:\Users\junni\AppData\Local\Temp\pressly-production-manifest-desktop-open.png`
+- Final mobile manifest:
+  `C:\Users\junni\AppData\Local\Temp\pressly-production-manifest-mobile-open.png`
+- Mechanical same-input comparisons:
+  - `C:\Users\junni\AppData\Local\Temp\pressly-manifest-closed-comparison.png`
+  - `C:\Users\junni\AppData\Local\Temp\pressly-manifest-open-comparison.png`
+
+## Information architecture and visual evidence
+
+- Batch membership is the single manifest-entry region. The fixture renders
+  two batches and exactly two explicit View orders actions; the four stage
+  lanes retain passive order-and-bag summaries with no manifest links.
+- Each Batch membership card exposes the batch's stage, membership state,
+  order, bag, and weight totals while keeping Freeze or Unfreeze as a separate
+  action.
+- At 1920 x 945, the manifest is a bottom-anchored, non-draggable shadcn Sheet
+  occupying exactly 90 percent of the viewport height. It has no drag handle
+  and renders a semantic five-column order table with sticky headings.
+- The desktop table exposes canonical Order / customer identity, Bags, Weight,
+  Due, and Handling in ordinary rows. The tested batch renders three rows
+  without horizontal document overflow.
+- At 390 x 844, the manifest remains a draggable shadcn Drawer occupying 90
+  percent of the viewport height. It renders three stacked order cards, no
+  desktop table or Sheet, no horizontal document overflow, and a 44 x 44 pixel
+  close target.
+
+## Interaction and accessibility evidence
+
+- Opening Batch 1, switching to Batch 2, and closing the desktop Sheet all
+  preserve the board position. Closing restores focus to the exact Batch 1
+  membership trigger.
+- Closing the mobile Drawer restores focus to the exact Batch 1 membership
+  trigger.
+- Stage Start, Complete, and machine actions remain in place, and Batch
+  membership Freeze or Unfreeze remains independent of View orders.
+- The desktop surface uses Sheet title and description semantics; the mobile
+  surface uses Drawer title and description semantics. Both use the same
+  selected-batch projection and batch selector.
+- Rendered browser console warnings and errors: none.
+
+## Verification boundary
+
+- This evidence uses the local Docker Processor fixture. It does not claim a
+  production deployment or an employee pilot in the laundry.
+- No contract, API, database, lifecycle graph, Production policy, scheduling,
+  queue, or command behavior changed in this refinement.
+
+final result: passed
+
+# Production Batch Manifest Inspector QA
+
+## Comparison target
+
+- Supplied Production reference:
+  `C:\Users\junni\AppData\Local\Temp\codex-clipboard-b206bebd-04a0-4569-9899-bfe6621a1450.png`
+- Closed-board implementation:
+  `C:\Users\junni\AppData\Local\Temp\pressly-production-closed-desktop.png`
+- Same-input side-by-side comparison:
+  `C:\Users\junni\AppData\Local\Temp\pressly-production-reference-comparison.png`
+- Open desktop inspector:
+  `C:\Users\junni\AppData\Local\Temp\pressly-batch-inspector-desktop.png`
+- Open 390 x 844 inspector:
+  `C:\Users\junni\AppData\Local\Temp\pressly-batch-inspector-mobile.png`
+- Implementation:
+  `http://localhost:4173/production/eaac5fa1-6e9d-41ed-a632-b8b5b25fa7aa`
+
+## Full-view and responsive evidence
+
+- The Production board keeps its supplied dimensions, hierarchy, stage
+  columns, and stage-action positions. Each repeated batch card replaces only
+  the truncated order-ID string with a compact `orders · bags` trigger.
+- The inspector is a bottom shadcn Drawer at exactly 90 dynamic viewport-height
+  units on desktop and mobile. In the final 1920 x 945 desktop preview it
+  measured 850.5 px high (exactly `0.9` of the viewport); at 390 x 844 it
+  measured 759.59375 px high (`0.899992...`).
+- The fixed drawer header keeps batch identity, totals, a stable-ID batch
+  selector, and the close action visible. The manifest owns the remaining
+  internal scroll region, so larger batches do not add height to or move the
+  Production board.
+- Desktop order rows expose canonical order and customer identity, weight,
+  bags, due status, priority, and pinned-placement context. At 390 px, identity
+  remains primary and the due/priority metadata stacks without clipping or
+  horizontal document overflow.
+- The live fixture contains only three orders in its largest batch, so visible
+  overflow could not be exercised with production-shaped data. The dedicated
+  `ScrollArea` structure and focused regression coverage verify the bounded
+  internal-scroll behavior.
+
+## Interaction and accessibility evidence
+
+- Opening Batch 1 from a stage card selected the correct manifest. Switching
+  the labelled batch Select to Batch 2 changed the title, totals, and orders
+  without closing the drawer.
+- Closing the drawer restored focus to the exact originating trigger,
+  `View orders in Batch 1: 3 orders · 8 bags`, without scrolling the board.
+- Existing Start, Complete, machine, membership, reconciliation, refresh, and
+  record-progress controls remain mounted and usable after the inspector
+  closes.
+- The browser console contained no warnings or errors after opening, switching,
+  closing, and repeating the interaction at desktop and narrow viewports.
+- No lifecycle transition, queue mutation, or Production-domain authority was
+  added. The inspector is a read-only Processor projection composed from the
+  authoritative board and Processor-owned order identity.
+
+## Remaining findings
+
+- No actionable P0, P1, or P2 visual, responsive, interaction, or
+  accessibility finding remains in the approved scope.
+
+final result: passed
+
+# Processor Home, Orders, Intake, and Order Detail QA
+
+## Comparison evidence
+
+- Supplied Intake reference:
+  `C:\Users\junni\AppData\Local\Temp\codex-clipboard-48c7a7c9-00d6-4d17-a7ab-2f514fccae5c.png`
+- Final desktop Intake:
+  `C:\Users\junni\AppData\Local\Temp\pressly-intake-tabs-qa-desktop.png`
+- Supplied order-detail reference:
+  `C:\Users\junni\AppData\Local\Temp\codex-clipboard-bbc01e6b-a5bb-4e55-8d6a-e6c4ad951d80.png`
+- Final desktop order detail:
+  `C:\Users\junni\AppData\Local\Temp\pressly-order-drawer-qa-desktop.png`
+- Final 390 x 844 order detail:
+  `C:\Users\junni\AppData\Local\Temp\pressly-order-drawer-qa-mobile.png`
+- Final desktop Home:
+  `C:\Users\junni\AppData\Local\Temp\pressly-home-orders-qa-desktop.png`
+- Final 390 x 844 Home:
+  `C:\Users\junni\AppData\Local\Temp\pressly-home-orders-qa-mobile.png`
+- Final desktop Orders:
+  `C:\Users\junni\AppData\Local\Temp\pressly-orders-workspace-qa-desktop.png`
+
+## Information architecture and visual evidence
+
+- Home is now a compact operational launcher. It keeps Remaining today and a
+  server-backed Order attention digest with the total, up to three
+  order/customer identities, the reason and due context, and one Open Orders
+  action. Initial loading and errors do not present a false zero or clear state.
+- Orders is a dedicated Manage & review workspace containing old-order review,
+  full Order control, filters, pagination, and customer identity in every
+  rendered order row/card.
+- Intake opens on Needs intake and orders its workflow tabs as Needs intake,
+  Forecast only, and Ready.
+- Order detail presents Pressly operational truth first: state and anomalies,
+  floor position and facts, actions, customer identity, then a collapsed Source
+  & audit disclosure.
+- Desktop and 390 x 844 order-detail captures retain ordinary horizontal
+  gutters. Narrow fact cards reflow to one column and no card edge or long
+  source value is clipped.
+- Mobile Home and Orders preserve the same information hierarchy without
+  horizontal document overflow. The mobile navigation includes Orders under
+  Manage & review.
+- The application shell owns one viewport-bounded vertical scroll region.
+  Wheel/touch scrolling moved that region on long Intake and Orders states at
+  1920 x 945 and 390 x 844, and changing workspaces reset it to the top.
+
+## Interaction, accessibility, and verification evidence
+
+- Home's Open Orders destination resolves to `/orders`; the Orders workspace
+  exposes one H1 and labelled filters, tabs, rows/cards, pagination, and
+  order-detail triggers.
+- Intake keeps labelled workflow tabs, search, selects, spinbuttons, switches,
+  and record-intake controls.
+- Order detail remains a labelled dialog with semantic alerts, regions,
+  definition lists, a collapsed source disclosure, and a persistent Close
+  action.
+- Processor verification: 38 test files and 239 tests passed. Processor
+  typecheck, lint, production build, targeted formatting, architecture
+  boundaries (70 tests), Stateworks memory validation, deterministic
+  context-pack comparison, and `git diff --check` passed.
+- Final rendered browser console warnings and errors: none.
+
+## Remaining findings
+
+- No actionable P0, P1, or P2 visual, interaction, or information-architecture
+  finding remains in this scope.
+- The production bundle retains the existing large-chunk warning; it does not
+  block this UI behavior or visual handoff.
+
+final result: passed
+
 # Remaining-Day Forecast Information Architecture QA
 
 ## Comparison target

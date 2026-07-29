@@ -33,7 +33,11 @@ import { ForecastWorkspaceContainer } from "@/features/forecast/forecast-workspa
 import { IntakeWorkspace } from "@/features/intake/intake.view"
 import { HistoryWorkspaceContainer } from "@/features/history/history-workspace.view"
 import { ProductionLocationSelect } from "@/features/location-selection/location-selection.view"
-import { OrderControlWorkspaceContainer } from "@/features/order-control/order-control-workspace.view"
+import {
+  OrderAttentionSummaryContainer,
+  OrderControlWorkspaceContainer,
+} from "@/features/order-control/order-control-workspace.view"
+import { OrderManagementWorkspace } from "@/features/order-control/order-management-workspace.view"
 import { OrderResolutionReviewContainer } from "@/features/order-resolution/order-resolution-review.container.view"
 import { ProductionBoardWorkspace } from "@/features/production-board/production-board.view"
 import { LiveRunChangesWorkspace } from "@/features/scheduling/live-run-changes.view"
@@ -484,19 +488,7 @@ function ProcessorWorkspace({
                   onNavigate={navigateFromForecast}
                   onOpenForecast={() => navigateToView("forecast")}
                 />
-                <OrderResolutionReviewContainer
-                  production={runtime.production}
-                  idempotency={runtime.idempotency}
-                  locationId={location.id}
-                  timezone={location.timezone}
-                  canManage={model.session.principal.roles.some(
-                    (role) => role === "owner" || role === "admin"
-                  )}
-                  now={runtime.now}
-                  onMutated={model.refreshWorkspace}
-                  onOpenHistory={() => navigateToView("history")}
-                />
-                <OrderControlWorkspaceContainer
+                <OrderAttentionSummaryContainer
                   production={runtime.production}
                   idempotency={runtime.idempotency}
                   locationId={location.id}
@@ -504,8 +496,44 @@ function ProcessorWorkspace({
                   board={model.workspace.board}
                   revision={model.workspace.asOf}
                   onMutated={model.refreshWorkspace}
+                  onOpenOrders={() => navigateToView("orders")}
                 />
               </>
+            )}
+            {route.view === "orders" && (
+              <OrderManagementWorkspace
+                orderManagement={runtime.orderManagement}
+                idempotency={runtime.idempotency}
+                locationId={location.id}
+                timezone={location.timezone}
+                revision={model.workspace.asOf}
+                onMutated={model.refreshWorkspace}
+                currentOrders={
+                  <div className="flex min-w-0 flex-col gap-6">
+                    <OrderResolutionReviewContainer
+                      production={runtime.production}
+                      idempotency={runtime.idempotency}
+                      locationId={location.id}
+                      timezone={location.timezone}
+                      canManage={model.session.principal.roles.some(
+                        (role) => role === "owner" || role === "admin"
+                      )}
+                      now={runtime.now}
+                      onMutated={model.refreshWorkspace}
+                      onOpenHistory={() => navigateToView("history")}
+                    />
+                    <OrderControlWorkspaceContainer
+                      production={runtime.production}
+                      idempotency={runtime.idempotency}
+                      locationId={location.id}
+                      timezone={location.timezone}
+                      board={model.workspace.board}
+                      revision={model.workspace.asOf}
+                      onMutated={model.refreshWorkspace}
+                    />
+                  </div>
+                }
+              />
             )}
             {route.view === "schedule" && scheduleContext?.kind === "live" && (
               <LiveRunChangesWorkspace

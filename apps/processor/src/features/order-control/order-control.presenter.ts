@@ -1,7 +1,8 @@
 import type {
   ProcessorOrderControlItem,
-  ProductionBoard,
+  ProductionOrderRouteCommandDenialCode,
   ProductionOrderRouteProposal,
+  ProductionQueuedMoveTargetDenialCode,
 } from "@pressly/contracts"
 import type { TFunction } from "i18next"
 import type {
@@ -120,6 +121,99 @@ const attentionFor = (
   }
 }
 
+const resolutionReasonLabel = (reason: string, t: TFunction): string => {
+  if (reason === "intake_recorded") return t("orderControl.archiveReviewIntake")
+  if (reason === "manual_admission")
+    return t("orderControl.archiveReviewAdmission")
+  if (reason === "priority") return t("orderControl.archiveReviewPriority")
+  if (reason === "pending_placement")
+    return t("orderControl.archiveReviewPlacement")
+  if (reason === "execution_committed")
+    return t("orderControl.archiveBlockedExecution")
+  if (reason === "selected_for_shift")
+    return t("orderControl.archiveBlockedSelection")
+  if (reason === "batch_membership_exists")
+    return t("orderControl.archiveBlockedBatch")
+  if (reason === "stage_attempt_exists")
+    return t("orderControl.archiveBlockedStage")
+  if (reason === "route_exists") return t("orderControl.archiveBlockedRoute")
+  return t("orderControl.archiveBlockedState")
+}
+
+const commandDenialLabel = (
+  code: ProductionOrderRouteCommandDenialCode,
+  t: TFunction
+): string => {
+  switch (code) {
+    case "PRODUCTION_ORDER_ROUTE_NOT_FOUND":
+      return t("orderControl.commandDenied.orderNotFound")
+    case "PRODUCTION_RUN_NOT_STARTED":
+      return t("orderControl.commandDenied.runNotStarted")
+    case "PRODUCTION_ORDER_RESOLVED":
+      return t("orderControl.commandDenied.orderResolved")
+    case "PRODUCTION_ORDER_RESOLUTION_STATE_INVALID":
+      return t("orderControl.commandDenied.resolutionStateInvalid")
+    case "PRODUCTION_ORDER_EXECUTION_STATE_INVALID":
+      return t("orderControl.commandDenied.executionStateInvalid")
+    case "PRODUCTION_ORDER_NOT_SCHEDULED":
+      return t("orderControl.commandDenied.orderNotScheduled")
+    case "SOURCE_BATCH_WOULD_BE_EMPTY":
+      return t("orderControl.commandDenied.sourceBatchWouldBeEmpty")
+    case "ORDER_WEIGHT_INVALID":
+      return t("orderControl.commandDenied.orderWeightInvalid")
+    case "SOURCE_BATCH_INVALID":
+      return t("orderControl.commandDenied.sourceBatchInvalid")
+    case "QUEUED_REBATCH_SOURCE_NOT_QUEUED":
+      return t("orderControl.commandDenied.sourceNotQueued")
+    case "QUEUED_REBATCH_SOURCE_FROZEN":
+      return t("orderControl.commandDenied.sourceFrozen")
+    case "EXCEPTION_SOURCE_NOT_IN_FLIGHT":
+      return t("orderControl.commandDenied.sourceNotInFlight")
+    case "SOURCE_CURRENT_STAGE_MISMATCH":
+      return t("orderControl.commandDenied.sourceStageMismatch")
+    case "RESTART_STAGE_SKIPS_REQUIRED_WORK":
+      return t("orderControl.commandDenied.restartSkipsWork")
+    case "TARGET_STAGE_GRAPH_INVALID":
+      return t("orderControl.commandDenied.targetStageGraphInvalid")
+    case "NO_LATER_TARGET":
+      return t("orderControl.commandDenied.noLaterTarget")
+    case "NO_FEASIBLE_TARGET":
+      return t("orderControl.commandDenied.noFeasibleTarget")
+    case "HARD_CAPACITY_EXCEEDED":
+      return t("orderControl.commandDenied.hardCapacityExceeded")
+  }
+}
+
+const moveTargetDenialLabel = (
+  code: ProductionQueuedMoveTargetDenialCode,
+  t: TFunction
+): string => {
+  switch (code) {
+    case "TARGET_IS_SOURCE_BATCH":
+      return t("orderControl.targetDenied.currentBatch")
+    case "TARGET_NOT_QUEUED":
+      return t("orderControl.targetDenied.notQueued")
+    case "TARGET_MEMBERSHIP_FROZEN":
+      return t("orderControl.targetDenied.membershipFrozen")
+    case "TARGET_STAGE_GRAPH_INVALID":
+      return t("orderControl.targetDenied.stageGraphInvalid")
+    case "TARGET_STAGE_NOT_PLANNED":
+      return t("orderControl.targetDenied.stageNotPlanned")
+    case "HARD_CAPACITY_EXCEEDED":
+      return t("orderControl.targetDenied.hardCapacityExceeded")
+  }
+}
+
+const auditOutcomeLabel = (
+  kind: "source_observation" | "order_command" | "production_command",
+  t: TFunction
+): string => {
+  if (kind === "order_command") return t("orderControl.auditOrderCommand")
+  if (kind === "production_command")
+    return t("orderControl.auditProductionCommand")
+  return t("orderControl.auditSourceEvidence")
+}
+
 export const presentOrderControlOrder = (
   item: ProcessorOrderControlItem,
   timezone: string,
@@ -160,6 +254,21 @@ export const presentOrderControlOrder = (
         : canonical.admissionState === "withdrawn"
           ? t("orderControl.withdrawnFromProduction")
           : t("orderControl.forecastOnly")
+  const resolution = item.resolutionAction
+  const audit =
+    canonical?.audit.map((entry, index) => ({
+      key: `${entry.kind}:${entry.occurredAt}:${entry.code}:${index}`,
+      label:
+        entry.kind === "source_observation"
+          ? t("orderControl.auditSourceObservation", {
+              source: entry.actor,
+            })
+          : labelForOrderControlValue(entry.code, t),
+      detail: t("orderControl.auditDetail", {
+        outcome: auditOutcomeLabel(entry.kind, t),
+        date: formatOrderControlDate(entry.occurredAt, timezone, locale),
+      }),
+    })) ?? []
   return {
     id: item.order.id,
     identity: item.identity,
@@ -169,12 +278,6 @@ export const presentOrderControlOrder = (
     phoneLabel: canonical?.customer.phone ?? t("orderControl.phoneUnavailable"),
     commercialStateLabel,
     admissionStateLabel,
-    sourceStateLabel:
-      canonical?.source === null || canonical?.source === undefined
-        ? t("orderControl.sourceUnavailable")
-        : canonical.source.status === null
-          ? canonical.source.name
-          : `${canonical.source.name} · ${canonical.source.status}`,
     statusLabel: labelForOrderControlValue(item.order.status, t),
     dueLabel:
       item.order.status === "finished"
@@ -188,6 +291,7 @@ export const presentOrderControlOrder = (
         : t("common.bags", { count: item.order.bagCount }),
     priority: item.order.priority,
     attention: attentionFor(item, t),
+    audit,
     position: {
       label:
         placement === null
@@ -233,21 +337,46 @@ export const presentOrderControlOrder = (
           },
     lastUpdatedLabel: formatOrderControlDate(asOf, timezone, locale),
     move: {
-      available: item.canMoveQueued,
-      reason: item.canMoveQueued ? null : t("orderControl.moveUnavailable"),
+      available: item.commands.queuedMove.status === "allowed",
+      reason:
+        item.commands.queuedMove.status === "allowed"
+          ? null
+          : commandDenialLabel(item.commands.queuedMove.code, t),
     },
     leaveBehind: {
-      available: item.canRouteException,
-      reason: item.canRouteException
-        ? null
-        : t("orderControl.leaveUnavailable"),
+      available: item.commands.routeException.status === "allowed",
+      reason:
+        item.commands.routeException.status === "allowed"
+          ? null
+          : commandDenialLabel(item.commands.routeException.code, t),
     },
     rework: {
-      available: item.canRouteException,
-      reason: item.canRouteException
-        ? null
-        : t("orderControl.reworkUnavailable"),
+      available: item.commands.routeException.status === "allowed",
+      reason:
+        item.commands.routeException.status === "allowed"
+          ? null
+          : commandDenialLabel(item.commands.routeException.code, t),
     },
+    archive:
+      resolution.status === "blocked"
+        ? {
+            available: false,
+            reason: resolution.reasons
+              .map((reason) => resolutionReasonLabel(reason, t))
+              .join(" "),
+            expectedVersion: null,
+            requiresExplicitReview: false,
+            reviewReasons: [],
+          }
+        : {
+            available: true,
+            reason: null,
+            expectedVersion: resolution.expectedVersion,
+            requiresExplicitReview: resolution.requiresExplicitReview,
+            reviewReasons: resolution.reviewReasons.map((reason) =>
+              resolutionReasonLabel(reason, t)
+            ),
+          },
   }
 }
 
@@ -291,37 +420,26 @@ export const presentOrderRoutePreview = (
 
 export const presentOrderMoveTargets = (
   item: ProcessorOrderControlItem | null,
-  board: ProductionBoard | null,
   locale: string,
   t: TFunction
 ): readonly OrderMoveTarget[] => {
-  if (
-    item?.currentPlacement === null ||
-    item?.currentPlacement === undefined ||
-    board === null ||
-    board.productionRun.id !== item.currentPlacement.productionRunId
-  )
-    return []
-  return board.batches.map((batch) => {
-    const isSource = batch.id === item.currentPlacement!.productionBatchId
-    const mutable =
-      batch.status === "queued" && batch.membership.state === "mutable"
-    const fits =
-      batch.derivedWeightLbs + item.order.derivedWeightLbs <=
-      batch.pulseCapacityLbs
-    const disabled = isSource || !mutable || !fits
+  if (item === null) return []
+  const capability = item.commands.queuedMove
+  return capability.targets.map((target) => {
+    const disabled = target.feasibility.status === "blocked"
     return {
-      batchId: batch.id,
-      label: t("orderControl.batch", { number: batch.sequence + 1 }),
-      detail: `${batch.derivedWeightLbs.toLocaleString(locale)} / ${batch.pulseCapacityLbs.toLocaleString(locale)} lb`,
+      batchId: target.productionBatchId,
+      label: t("orderControl.batch", { number: target.batchSequence + 1 }),
+      detail: t("orderControl.moveTargetCapacity", {
+        current: target.currentWeightLbs.toLocaleString(locale),
+        projected: target.projectedWeightLbs.toLocaleString(locale),
+        capacity: target.capacityLbs.toLocaleString(locale),
+      }),
       disabled,
-      disabledReason: isSource
-        ? t("orderControl.currentBatch")
-        : !mutable
-          ? t("orderControl.batchImmutable")
-          : !fits
-            ? t("orderControl.exceedsCapacity")
-            : null,
+      disabledReason:
+        target.feasibility.status === "blocked"
+          ? moveTargetDenialLabel(target.feasibility.code, t)
+          : null,
     }
   })
 }

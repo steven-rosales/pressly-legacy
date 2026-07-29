@@ -1,6 +1,6 @@
 domain_id: laundry-production
 name: Laundry Production
-version: 16
+version: 21
 status: active
 summary: >
   Durable business memory for Pressly's wash-and-fold production process. LPMS
@@ -27,27 +27,34 @@ actors:
       - memdelta-2026-07-08-laundry-production-core
 external_systems:
   - id: cents
-    description: The v1 CRM/vendor system and external order authority for
-      webhook-driven order demand.
+    description: Cents is an upstream candidate-evidence provider only. Exact
+      SUBMITTED may create a pre-canonical Orders candidate, exact COMPLETED or
+      CANCELED may record source closure, and every other status is ignored.
+      None has a Production identity, admission, scheduling, execution, or floor
+      effect.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
+      - memdelta-2026-07-27-external-source-autonomy-boundary
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
 objects:
   - id: crm_order
     description:
       The normalized projection of a Cents order; it is external demand,
       not production truth.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-08-laundry-production-core
   - id: production_order
-    description:
-      The internal LPMS execution projection of one source-neutral Order
-      fulfillment that may become eligible for production scheduling.
+    description: The internal LPMS execution projection of one accepted,
+      source-neutral canonical Order fulfillment that may become eligible for
+      production scheduling; no external proposal is a production_order.
     status: active
     sources:
       - memdelta-2026-07-08-laundry-production-core
       - memdelta-2026-07-20-source-neutral-order-boundary
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
   - id: schedule_run
     description:
       An immutable scheduler proposal containing input snapshot, output
@@ -174,7 +181,11 @@ workflows:
       - memdelta-2026-07-08-laundry-production-core
   - id: scheduling_to_execution
     steps:
-      - API durably receives and projects canonical external order demand
+      - Production idempotently receives accepted canonical fulfillment demand
+        from the Orders transactional outbox and preserves its canonical release
+        state, including initially unreleased work
+      - a later canonical fulfillment-release event or current authorized manual
+        Production override may change effective admission to released
       - eligible production_orders form the complete immutable scheduling
         snapshot for one shift
       - Compute creates a new immutable schedule_run revision and supersedes the
@@ -192,8 +203,8 @@ workflows:
       - after reconnect, an operator may reconcile one batch to a strictly later
         physical milestone through a previewed and exact-version confirmation
         without synthetic stage events
-      - post-start arrivals are placed into the existing production_run without
-        moving existing orders automatically
+      - post-start canonical arrivals are placed into the existing
+        production_run without moving existing orders automatically
       - employees may explicitly rebatch a whole queued order or defer and
         rework a whole in-flight order into a later batch without changing
         canonical batch-stage progression
@@ -209,6 +220,8 @@ workflows:
       - memdelta-2026-07-15-operator-workspace-live-sync
       - memdelta-2026-07-15-floor-truth-reconciliation
       - memdelta-2026-07-15-order-control-history
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
   - id: production_command_write_path
     steps:
       - receive command
@@ -309,7 +322,8 @@ workflows:
       - memdelta-2026-07-15-floor-truth-reconciliation
   - id: order_level_routing
     steps:
-      - employee opens one order from the server-paginated Home projection
+      - employee opens one order from the dedicated server-paginated Orders
+        workspace at /orders
       - queued rebatch requires an unfrozen queued source and an exact selected
         mutable queued target
       - in-flight defer or rework selects a reason and restart stage that does
@@ -327,6 +341,7 @@ workflows:
     status: active
     sources:
       - memdelta-2026-07-15-order-control-history
+      - memdelta-2026-07-28-processor-orders-workspace-ia
   - id: production_history_review
     steps:
       - authorized user opens the read-only History workspace
@@ -343,43 +358,39 @@ workflows:
       - memdelta-2026-07-15-order-control-history
   - id: external_demand_to_production_admission
     steps:
-      - a strictly newer external order observation is normalized at its source
-        adapter boundary
-      - Users resolves the exact external customer identity and retains the
-        latest source snapshot without overriding explicit Pressly field
-        authority
-      - Orders retains the valid newer order observation separately from any
-        canonical lifecycle adoption
-      - before handoff, prospective source lifecycle may update or withdraw
-        uncommitted demand under Orders policy
-      - the first IN_PROGRESS-or-later non-canceled Cents observation may cross
-        the one-way source-neutral fulfillment handoff
-      - after handoff, later source lifecycle values remain audit metadata and
-        cannot rewind, complete, cancel, withdraw, or otherwise change canonical
-        Pressly lifecycle
-      - an Orders outbox event applies fulfillment-keyed canonical demand
-        changes to Production idempotently without carrying vendor lifecycle
-        authority
-      - physical bag intake may be recorded before release, but intake alone
-        does not admit the production order
-      - effective Production admission becomes released through canonical
-        upstream fulfillment release or a current manual Production override
-      - a manual override leaves source truth unchanged and becomes ready only
-        when positive production demand and bag-count rules also hold
-      - manual admission never selects or places an order, and executable
-        scheduling reads only explicitly selected ready production orders
-      - a pre-handoff source withdrawal may supersede a still-prospective manual
-        override, while physically received or committed Pressly work is
-        preserved
-      - Processor floor views derive attention and actions from canonical
-        Pressly state; downstream source differences remain integration and
-        audit context
+      - exact external SUBMITTED evidence may create one immutable pending
+        candidate upstream in Orders and has no Production effect
+      - exact COMPLETED or CANCELED evidence may close only a pending candidate
+        or create an exact-identity tombstone upstream; every other source state
+        is acknowledged without an Orders or Production command
+      - Reject terminalizes the candidate without creating canonical or
+        Production work
+      - Accept atomically creates one open canonical Order with an unreleased
+        fulfillment upstream through an authorized Pressly command
+      - an Orders outbox event applies fulfillment-keyed canonical demand and
+        the unreleased admission fact to Production idempotently
+      - physical bag intake may be recorded only against canonical Production
+        work and intake alone does not admit an unreleased order
+      - effective Production admission becomes released only through a later
+        canonical fulfillment-release event or a current authorized manual
+        Production override
+      - readiness still requires positive Production demand and recorded
+        physical intake under server-owned policy
+      - terminal source evidence for exact accepted work may request a named
+        source-neutral resolution automation, but Production's authoritative
+        guard alone decides resolve, review, or no-op
+      - pending, source-closed, restored, and rejected candidates remain outside
+        Production, and manual admission never selects, schedules, places, or
+        starts an order
     status: active
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
       - memdelta-2026-07-20-source-neutral-order-boundary
       - memdelta-2026-07-26-manual-production-admission
       - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+      - memdelta-2026-07-27-external-source-autonomy-boundary
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
   - id: production_order_resolution
     steps:
       - a manager requests a bounded backlog preview or reviews one order
@@ -533,7 +544,7 @@ invariants:
       Concurrent Cents projections for one external order are serialized,
       and only a strictly newer vendor source version may replace the current
       projection.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-10-lpms-v1-implementation
   - id: one_production_run_per_shift
@@ -792,18 +803,23 @@ invariants:
     sources:
       - memdelta-2026-07-15-order-control-history
   - id: source_lifecycle_does_not_advance_floor_truth_v1
-    statement:
-      An external lifecycle observation may update retained source metadata
-      and source-owned demand fields, but it cannot start, advance, finish,
-      cancel, rewind, delete, resolve, restore, reopen, or otherwise change an
-      LPMS order, batch, stage, run, shift, or Production resolution lifecycle;
-      after handoff its lifecycle value is observation-only and cannot resurrect
-      resolved Production work.
+    statement: Production consumes only committed source-neutral canonical
+      fulfillment demand and release decisions from Orders. External events,
+      candidates, source estimates, and adapter evidence cannot directly create,
+      admit, start, advance, finish, cancel, rewind, delete, resolve, restore,
+      reopen, or otherwise change Production work or physical truth. Exact
+      terminal evidence for accepted canonical work may only request a named
+      source-neutral resolution; Production's graph and operational guard alone
+      decide a nondestructive resolve, review, or no-op outcome.
     status: active
     sources:
       - memdelta-2026-07-18-demand-lifecycle-outlook
       - memdelta-2026-07-26-operational-truth-remaining-day-outlook
       - memdelta-2026-07-27-production-order-resolution
+      - memdelta-2026-07-27-external-source-autonomy-boundary
+      - memdelta-2026-07-28-order-source-authority-boundary-implementation
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
   - id: physical_intake_can_admit_lagging_source_v1
     statement: Physical intake with a recorded bag count may admit expected or
       inbound demand to Production when weight and eligibility rules hold even
@@ -895,7 +911,7 @@ invariants:
       still-prospective manual Production admission override; it cannot erase
       physically received, selected, scheduled, batched, active, or finished
       Pressly work.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-26-operational-truth-remaining-day-outlook
   - id: resolved_without_production_is_not_execution_v1
@@ -916,6 +932,51 @@ invariants:
     status: active
     sources:
       - memdelta-2026-07-27-production-order-resolution
+  - id: external_source_lifecycle_never_controls_production_admission_v2
+    statement: Production admission may change only through a source-neutral
+      canonical Orders release event or an authorized Production
+      manual-admission command. SUBMITTED candidates, source closure,
+      tombstones, ignored source states, and rejected proposals never have a
+      Production identity and cannot affect admission.
+    status: active
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy-boundary
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
+  - id: canonical_fulfillment_release_reaches_production_v2
+    statement:
+      Production consumes accepted canonical fulfillment demand and later
+      release decisions from the Orders transactional outbox idempotently.
+      Accepted demand may begin unreleased; Production preserves that fact and
+      operator-owned intake and cannot infer, synthesize, reverse, or
+      terminalize canonical decisions from source evidence.
+    status: active
+    sources:
+      - memdelta-2026-07-28-order-source-authority-boundary-implementation
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
+  - id: incoming_proposals_are_outside_production_v1
+    statement: An incoming candidate, source-closed review, restore decision,
+      rejection, or terminal tombstone has no Production order, admission,
+      selection, schedule, batch, run, intake, or remaining-day membership. Only
+      an accepted canonical fulfillment may create Production demand, and
+      executable admission still requires canonical release or an authorized
+      manual override plus the normal readiness facts.
+    status: active
+    sources:
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
+  - id: source_terminal_resolution_is_guarded_v1
+    statement:
+      Exact source-terminal evidence for an accepted canonical fulfillment
+      may invoke only a named source-neutral Pressly automation. Production may
+      resolve untouched, unreleased, unassigned work without production only
+      when its authoritative graph and guard permit; review facts or any intake,
+      selection, scheduling, batch, route, stage, active, or finished
+      participation leave the work unchanged.
+    status: active
+    sources:
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
 policies:
   - id: cents_in_progress_is_eligible
     statement:
@@ -1137,7 +1198,7 @@ policies:
     statement: Vendor lifecycle codes are normalized into commercial lifecycle,
       fulfillment release, and comparison metadata before Production; Production
       never interprets a vendor status string.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-20-source-neutral-order-boundary
   - id: manual_admission_reversal_is_precommit_only_v1
@@ -1155,15 +1216,18 @@ policies:
     sources:
       - memdelta-2026-07-26-manual-production-admission
   - id: remaining_day_outlook_partition_v1
-    statement:
-      The remaining-day outlook partitions unfinished work into the active
-      production run, ready work that the server can currently place, expected
-      work that is not yet executable, and work that needs another shift or
-      remains unassigned today; appendability uses the same server-authoritative
-      hard-capacity and placement rules as execution.
+    statement: The remaining-day outlook partitions unfinished canonical Pressly
+      work into active production, ready work the server can currently place,
+      expected canonical work not yet executable, and work needing another shift
+      or remaining unassigned today. Pending, source-closed, restored, and
+      rejected incoming candidates and tombstones are excluded, and
+      appendability uses the same authoritative capacity and placement rules as
+      execution.
     status: active
     sources:
       - memdelta-2026-07-26-operational-truth-remaining-day-outlook
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
   - id: production_order_resolution_lifecycle_v1
     statement: Production-order resolution is governed by the explicit
       open-to-resolved_without_production and
@@ -1175,6 +1239,16 @@ policies:
     status: active
     sources:
       - memdelta-2026-07-27-production-order-resolution
+  - id: canonical_fulfillment_release_reaches_production_v2
+    statement: Production consumes only canonical fulfillment demand and release
+      decisions from Orders idempotently. Accepted demand may be unreleased;
+      candidate lifecycle, source closure, tombstones, and every external
+      observation remain outside Production's admission input.
+    status: active
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy-boundary
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
 decisions:
   - id: domain_named_laundry_production
     statement: The durable Stateworks memory domain is named laundry-production
@@ -1247,32 +1321,48 @@ decisions:
     sources:
       - memdelta-2026-07-10-lpms-v1-implementation
   - id: durable_inbox_worker_v1
-    statement: V1 processes Cents demand from a Postgres inbox with SKIP LOCKED
-      claims, expiring leases, bounded retry backoff, inspectable dead letters,
-      and an explicit reconciliation port.
+    statement:
+      Cents ingress uses a Postgres inbox with SKIP LOCKED claims, expiring
+      leases, bounded retry backoff, and inspectable dead letters. Worker
+      translates exact SUBMITTED into candidate submission, exact COMPLETED or
+      CANCELED into source closure, and every other status into a durable
+      ignored acknowledgement; no adapter controls canonical or Production work.
     status: active
     sources:
       - memdelta-2026-07-10-lpms-v1-implementation
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
   - id: processor_uses_backend_action_availability
-    statement: The Processor renders Production action availability and backlog
-      classification from server-owned lifecycle graphs and policies, including
-      stage, admission, archive, restore, and bounded bulk-review actions, and
-      does not recreate lifecycle transitions, cleanup eligibility, source
-      comparison, placement, or forecast classification in the browser.
+    statement:
+      Processor renders actionable Incoming candidates and source-closed
+      review separately from canonical Current-order and Production actions.
+      Orders owns candidate actions, Production owns resolution and floor
+      capabilities, and the browser cannot recreate lifecycle, restore, cleanup,
+      admission, placement, routing, or forecast decisions.
     status: active
     sources:
       - memdelta-2026-07-10-lpms-v1-implementation
       - memdelta-2026-07-26-manual-production-admission
       - memdelta-2026-07-26-operational-truth-remaining-day-outlook
       - memdelta-2026-07-27-production-order-resolution
+      - memdelta-2026-07-28-order-source-authority-boundary-implementation
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
   - id: isolated_lpms_module_composition
     statement: Users, Orders, Production business, Production policy, and
-      fixed-pulse scheduling are isolated peer modules composed through narrow
-      ports only in API and Worker applications.
+      fixed-pulse scheduling remain isolated peers behind narrow ports. Worker
+      translates Cents evidence into source-neutral Orders commands; Orders owns
+      candidates and canonical creation; Production consumes only canonical
+      outbox events and owns guarded resolution; cross-domain source-terminal
+      cleanup is composed at the Worker boundary without Production importing
+      Orders, Cents, or candidate policy.
     status: active
     sources:
       - memdelta-2026-07-10-lpms-v1-implementation
       - memdelta-2026-07-20-source-neutral-order-boundary
+      - memdelta-2026-07-28-order-source-authority-boundary-implementation
+      - memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+      - memdelta-2026-07-29-cents-submitted-candidate-production-boundary
   - id: online_scheduling_uses_bounded_recourse
     statement:
       LPMS treats post-start arrivals as an online scheduling problem with
@@ -1403,7 +1493,7 @@ decisions:
       read-only production audit surface; both use bounded server keyset
       pagination and server-side filters rather than loading an unbounded
       location history into browser state.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-15-order-control-history
   - id: sanitized_history_projection_v1
@@ -1475,6 +1565,18 @@ decisions:
     status: active
     sources:
       - memdelta-2026-07-27-production-order-resolution
+  - id: processor_operational_home_and_orders_workspace_v2
+    statement:
+      The Processor root is a compact operational overview and launcher,
+      while /orders owns cross-workflow order search, server-side filtering,
+      bounded keyset pagination, order detail and available actions, and manager
+      backlog archive review. Home may expose bounded summaries and links but
+      does not duplicate the full order-control workspace; /forecast remains
+      detailed remaining-day planning and /history remains read-only production
+      audit.
+    status: active
+    sources:
+      - memdelta-2026-07-28-processor-orders-workspace-ia
 assumptions:
   - id: cents_price_weight_good_enough_v1
     statement: Cents price-derived weight is good enough for first-version scheduling.
@@ -1618,3 +1720,18 @@ sources:
   - id: memdelta-2026-07-27-production-order-resolution
     path: stateworks/work/done/lpms-production-order-resolution-and-identity/final-report.md
     type: implementation_evidence
+  - id: memdelta-2026-07-27-external-source-autonomy-boundary
+    path: stateworks/memory/domains/laundry-production/sessions/2026-07-27-external-source-autonomy-boundary.md
+    type: decision_session
+  - id: memdelta-2026-07-28-order-source-authority-boundary-implementation
+    path: stateworks/work/done/pressly-order-authority-source-autonomy/final-report.md
+    type: implementation_evidence
+  - id: memdelta-2026-07-28-processor-orders-workspace-ia
+    path: stateworks/memory/domains/laundry-production/sessions/2026-07-28-processor-orders-workspace-ia.md
+    type: decision_session
+  - id: memdelta-2026-07-28-cents-pickup-proposal-production-boundary
+    path: stateworks/work/done/pressly-cents-pickup-proposals/final-report.md
+    type: implementation_report
+  - id: memdelta-2026-07-29-cents-submitted-candidate-production-boundary
+    path: stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/final-report.md
+    type: implementation_report

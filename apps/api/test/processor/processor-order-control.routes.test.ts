@@ -60,8 +60,23 @@ describe('Processor Order control route', () => {
           currentPlacement: null,
           nextRequiredStage: null,
           routeAttempts: [],
-          canMoveQueued: false,
-          canRouteException: false,
+          commands: {
+            queuedMove: {
+              status: 'blocked',
+              code: 'PRODUCTION_ORDER_ROUTE_NOT_FOUND',
+              targets: [],
+            },
+            routeException: {
+              status: 'blocked',
+              code: 'PRODUCTION_ORDER_ROUTE_NOT_FOUND',
+            },
+          },
+          resolutionAction: {
+            status: 'allowed',
+            expectedVersion: 1,
+            requiresExplicitReview: false,
+            reviewReasons: [],
+          },
         },
       ],
       counts: { attention: 0, active: 0, all: 1 },
@@ -80,6 +95,10 @@ describe('Processor Order control route', () => {
           canonical: {
             canonicalOrderId: id(2),
             canonicalFulfillmentId: id(3),
+            versions: {
+              order: 2,
+              fulfillment: 3,
+            },
             displayNumber: null,
             customer: {
               resolution: 'legacy_unknown',
@@ -91,7 +110,18 @@ describe('Processor Order control route', () => {
             },
             commercialState: 'open',
             admissionState: 'unreleased',
-            source: { name: 'cents', status: 'SUBMITTED' },
+            source: {
+              name: 'cents',
+            },
+            audit: [
+              {
+                kind: 'source_observation',
+                code: 'source_observation',
+                occurredAt: '2026-07-21T15:01:00.000Z',
+                actor: 'cents',
+                outcome: null,
+              },
+            ],
           },
         },
       ],
@@ -139,6 +169,19 @@ describe('Processor Order control route', () => {
                 phone: null,
               },
               admissionState: 'unreleased',
+              versions: {
+                order: 2,
+                fulfillment: 3,
+              },
+              source: {
+                name: 'cents',
+              },
+              audit: [
+                {
+                  kind: 'source_observation',
+                  code: 'source_observation',
+                },
+              ],
             },
           },
         ],

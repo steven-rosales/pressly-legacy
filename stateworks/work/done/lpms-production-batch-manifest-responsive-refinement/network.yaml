@@ -1,0 +1,146 @@
+work_id: lpms-production-batch-manifest-responsive-refinement
+title: LPMS production batch manifest responsive refinement
+status: complete
+
+goal:
+  - Give each live production batch exactly one manifest entry point in Batch membership.
+  - Use a non-draggable 90%-viewport-height bottom Sheet with a semantic order table on desktop.
+  - Retain the draggable 90%-viewport-height Drawer and stacked order cards on mobile.
+  - Preserve the compact Production stage board and every existing floor action.
+
+invariants:
+  - The refinement is read-only Processor presentation and introduces no contract, API, database, Production policy, lifecycle graph, scheduling, queue, or command change.
+  - Batch membership owns exactly one explicit View orders action per batch.
+  - Stage cards show order-and-bag totals as passive scan context and never open the manifest.
+  - The desktop Sheet and mobile Drawer consume one selected-batch view model and the same canonical projection facts.
+  - The desktop surface is bottom-anchored, non-draggable, has no drag handle, occupies 90 dynamic viewport-height units, and scrolls internally beneath a fixed toolbar and sticky table headings.
+  - The mobile surface retains the draggable Drawer, stacked cards, 90 dynamic viewport-height geometry, and touch targets of at least 44 pixels.
+  - Opening, switching batches, and closing preserve the Production board scroll position and return focus to the originating Batch membership action.
+  - Existing live refresh, stage actions, machine assignment, floor reconciliation, membership mutation, and responsive stage navigation remain unchanged.
+  - Existing user work and unrelated dirty files are preserved.
+  - No secret, credential, customer payload, private token, or production data enters Stateworks, tests, screenshots, or commits.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Rebaseline the manifest presentation
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/done/lpms-production-batch-manifest-inspector
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:apps/processor/src/features/production-board/production-board.view.tsx
+      - repo:apps/processor/src/features/production-board/batch-order-inspector.view.tsx
+      - repo:apps/processor/src/components/ui/drawer.tsx
+      - repo:apps/processor/src/components/ui/sheet.tsx
+      - repo:apps/processor/src/components/ui/table.tsx
+      - repo:apps/processor/test/features/production-board
+    writes:
+      - repo:stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/evidence.md
+    action:
+      - Inventory every current manifest trigger, the Batch membership cards, responsive primitives, selected-batch state, focus restoration, localization, and focused tests.
+      - Record the exact Processor-only write set and any overlap with existing dirty work.
+      - Prove that the existing enriched board projection already contains every fact required by both responsive presentations.
+    verifier:
+      - Evidence names every duplicate manifest entry point and the one Batch membership action that will replace them.
+      - Evidence proves no contract, API, Production domain, lifecycle, persistence, or scheduling change is required.
+      - Any missing canonical fact or required operational behavior change stops implementation for a Stateworks replan.
+    rollback:
+      - No rollback is needed for the read-only audit; revert only unsupported evidence.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/evidence.md
+
+  - id: T1
+    title: Consolidate manifest entry and responsive presentation
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:apps/processor/src/features/production-board/production-board.view.tsx
+      - repo:apps/processor/src/features/production-board/batch-order-inspector.view.tsx
+      - repo:apps/processor/src/components/ui/drawer.tsx
+      - repo:apps/processor/src/components/ui/sheet.tsx
+      - repo:apps/processor/src/components/ui/table.tsx
+      - repo:apps/processor/src/i18n/locales
+      - repo:apps/processor/test/features/production-board
+    writes:
+      - repo:apps/processor/src/features/production-board/production-board.view.tsx
+      - repo:apps/processor/src/features/production-board/batch-order-inspector.view.tsx
+      - repo:apps/processor/src/i18n/locales/en
+      - repo:apps/processor/src/i18n/locales/es
+      - repo:apps/processor/test/features/production-board
+      - repo:stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/evidence.md
+    action:
+      - Rename Queue membership to Batch membership and add order, bag, and weight totals plus one explicit View orders action to each batch card without swallowing existing membership controls.
+      - Replace every stage-card manifest trigger with non-interactive order-and-bag summary text while preserving card height and stage actions.
+      - Render a non-draggable bottom Sheet with a wide semantic table and sticky headings at desktop widths.
+      - Render the existing draggable bottom Drawer with stacked order cards at mobile and narrow tablet widths.
+      - Share selected-batch state, manifest facts, batch switching, close handling, scroll preservation, and focus restoration across both shells without mounting two active modal surfaces.
+    verifier:
+      - pnpm --filter @pressly/processor test -- production-board
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+      - pnpm --filter @pressly/processor build
+      - Focused tests prove one manifest action per batch, passive stage summaries, semantic desktop table structure, no desktop drag affordance, mobile cards and Drawer behavior, and exact focus return.
+    rollback:
+      - Revert only the responsive presentation and trigger consolidation, retaining the existing enriched read-only batch projection.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/evidence.md
+
+  - id: V1
+    title: Verify production ergonomics and close the refinement
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/evidence.md
+      - repo:design-qa.md
+      - repo:apps/processor
+    writes:
+      - repo:design-qa.md
+      - repo:stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/evidence.md
+      - repo:stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/final-report.md
+    action:
+      - Run focused and full Processor tests, typecheck, lint, build, formatting, Stateworks, and whitespace gates.
+      - Inspect rendered desktop and narrow-viewport Production states using the supplied screenshots as the visual baseline.
+      - Exercise the single Batch membership entry point, batch switching, table or card scrolling, close, focus return, preserved board position, and existing stage and membership actions; check the browser console.
+      - Record any residual gap without promoting local evidence into deployment or live-laundry pilot proof.
+    verifier:
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+      - pnpm --filter @pressly/processor build
+      - pnpm format:check
+      - pnpm stateworks:validate stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/network.yaml --state stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/state.yaml
+      - git diff --check
+      - design-qa.md records final result passed with supplied-source and rendered evidence.
+    rollback:
+      - Keep the work active, revert only this package's unverified presentation changes, and preserve concrete failure evidence for repair.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/evidence.md
+      - design-qa.md
+      - stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/final-report.md

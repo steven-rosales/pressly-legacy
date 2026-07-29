@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   evaluateOrderRouting,
+  evaluateQueuedMoveTarget,
   orderRoutingStages,
   type OrderRoutingInput,
   type OrderRoutingStage,
@@ -233,6 +234,65 @@ describe('order routing policy', () => {
     ).toMatchObject({
       decision: 'rejected',
       reason: { code: 'QUEUED_REBATCH_SOURCE_NOT_QUEUED' },
+    });
+  });
+
+  it('classifies each queued-move target with an exact server-owned denial', () => {
+    const sourceProductionBatchId = 'batch-1';
+    const evaluate = (
+      candidate: OrderRoutingTargetCandidate,
+      orderWeightLbs = 20,
+    ) =>
+      evaluateQueuedMoveTarget({
+        sourceProductionBatchId,
+        orderWeightLbs,
+        target: candidate,
+      });
+
+    expect(evaluate(target(sourceProductionBatchId, 1))).toEqual({
+      decision: 'blocked',
+      code: 'TARGET_IS_SOURCE_BATCH',
+    });
+    expect(evaluate(target('batch-2', 2, { status: 'sorting' }))).toEqual({
+      decision: 'blocked',
+      code: 'TARGET_NOT_QUEUED',
+    });
+    expect(evaluate(target('batch-2', 2, { membershipFrozen: true }))).toEqual({
+      decision: 'blocked',
+      code: 'TARGET_MEMBERSHIP_FROZEN',
+    });
+    expect(
+      evaluate(
+        target('batch-2', 2, {
+          stages: stageStatuses().slice(0, 3),
+        }),
+      ),
+    ).toEqual({
+      decision: 'blocked',
+      code: 'TARGET_STAGE_GRAPH_INVALID',
+    });
+    expect(
+      evaluate(
+        target('batch-2', 2, {
+          stages: stageStatuses({ washing: 'started' }),
+        }),
+      ),
+    ).toEqual({
+      decision: 'blocked',
+      code: 'TARGET_STAGE_NOT_PLANNED',
+    });
+    expect(
+      evaluate(
+        target('batch-2', 2, {
+          stages: stageStatuses({}, 85, 100),
+        }),
+      ),
+    ).toEqual({
+      decision: 'blocked',
+      code: 'HARD_CAPACITY_EXCEEDED',
+    });
+    expect(evaluate(target('batch-2', 2))).toEqual({
+      decision: 'allowed',
     });
   });
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  centsCanonicalOrderInputSchema,
   centsIngressDecisionSchema,
+  centsOrderTerminalClosePayloadSchema,
+  centsOrderWireSchema,
   centsOrderWebhookEventKindSchema,
+  centsSubmittedOrderCandidatePayloadSchema,
   centsWebhookWireEnvelopeSchema,
 } from '../src/cents/cents.contracts.ts';
 
@@ -39,14 +41,26 @@ describe('Cents wire contracts', () => {
       expect(centsOrderWebhookEventKindSchema.parse(eventKind)).toBe(eventKind);
     },
   );
+
+  it('accepts future vendor status text at the wire boundary', () => {
+    expect(
+      centsOrderWireSchema.parse({
+        id: 'order-1',
+        storeId: 'store-1',
+        status: 'FUTURE_VENDOR_STATUS',
+        dueDate: '2026-07-10T20:00:00.000Z',
+        updatedAt: '2026-07-10T14:00:00.000Z',
+      }).status,
+    ).toBe('FUTURE_VENDOR_STATUS');
+  });
 });
 
-describe('canonical Cents ingress contracts', () => {
+describe('Cents order-candidate ingress contracts', () => {
   const order = {
     externalOrderId: '12345',
     orderCode: '00123',
     externalStoreId: '24',
-    status: 'IN_PROGRESS',
+    status: 'SUBMITTED',
     dueAt: '2026-07-10T20:00:00.000Z',
     sourceUpdatedAt: '2026-07-10T14:00:00.000Z',
     bagCount: null,
@@ -60,27 +74,110 @@ describe('canonical Cents ingress contracts', () => {
         quantity: 1,
         totalPriceCents: 2999,
         unitPriceCents: 200,
-        sourceMetadata: {},
       },
     ],
     customer: null,
-    sourceSnapshot: {},
   };
 
   it('requires missing bag count to remain explicit', () => {
-    expect(centsCanonicalOrderInputSchema.parse(order).bagCount).toBeNull();
+    expect(
+      centsSubmittedOrderCandidatePayloadSchema.parse(order).bagCount,
+    ).toBeNull();
     expect(() =>
-      centsCanonicalOrderInputSchema.parse({ ...order, bagCount: 0 }),
+      centsSubmittedOrderCandidatePayloadSchema.parse({
+        ...order,
+        bagCount: 0,
+      }),
     ).toThrow();
   });
 
-  it('rejects vendor aliases and undeclared canonical fields', () => {
+  it('rejects vendor aliases and undeclared candidate fields', () => {
     expect(() =>
-      centsCanonicalOrderInputSchema.parse({ ...order, dueDate: order.dueAt }),
+      centsSubmittedOrderCandidatePayloadSchema.parse({
+        ...order,
+        dueDate: order.dueAt,
+      }),
     ).toThrow();
     expect(() =>
-      centsCanonicalOrderInputSchema.parse({ ...order, sourceVersion: 1 }),
+      centsSubmittedOrderCandidatePayloadSchema.parse({
+        ...order,
+        sourceVersion: 1,
+      }),
     ).toThrow();
+  });
+
+  it('allows only exact submitted status in the queued candidate contract', () => {
+    expect(() =>
+      centsSubmittedOrderCandidatePayloadSchema.parse({
+        ...order,
+        status: 'PICKED_UP',
+      }),
+    ).toThrow();
+  });
+
+  it.each(['COMPLETED', 'CANCELED'] as const)(
+    'accepts the exact terminal close status %s',
+    (status) => {
+      expect(
+        centsOrderTerminalClosePayloadSchema.parse({
+          externalOrderId: '12345',
+          externalStoreId: '24',
+          status,
+          sourceUpdatedAt: '2026-07-10T14:00:00.000Z',
+        }),
+      ).toMatchObject({ status });
+    },
+  );
+
+  it('keeps terminal close payloads minimal and exact', () => {
+    expect(() =>
+      centsOrderTerminalClosePayloadSchema.parse({
+        externalOrderId: '12345',
+        externalStoreId: '24',
+        status: 'CANCELLED',
+        sourceUpdatedAt: '2026-07-10T14:00:00.000Z',
+      }),
+    ).toThrow();
+    expect(() =>
+      centsOrderTerminalClosePayloadSchema.parse({
+        externalOrderId: '12345',
+        externalStoreId: '24',
+        status: 'COMPLETED',
+        sourceUpdatedAt: '2026-07-10T14:00:00.000Z',
+        dueAt: '2026-07-10T20:00:00.000Z',
+      }),
+    ).toThrow();
+  });
+
+  it('parses both processable order decisions', () => {
+    const receipt = {
+      deduplicationKey: 'a'.repeat(64),
+      eventKind: 'order_updated',
+      classification: 'order' as const,
+      rawBodySha256: 'b'.repeat(64),
+      sourceUpdatedAt: order.sourceUpdatedAt,
+    };
+    const terminal = {
+      externalOrderId: order.externalOrderId,
+      externalStoreId: order.externalStoreId,
+      status: 'COMPLETED' as const,
+      sourceUpdatedAt: order.sourceUpdatedAt,
+    };
+
+    expect(
+      centsIngressDecisionSchema.parse({
+        disposition: 'propose_order_candidate',
+        receipt,
+        order,
+      }),
+    ).toMatchObject({ disposition: 'propose_order_candidate' });
+    expect(
+      centsIngressDecisionSchema.parse({
+        disposition: 'close_order_candidate',
+        receipt,
+        order: terminal,
+      }),
+    ).toMatchObject({ disposition: 'close_order_candidate' });
   });
 
   it('keeps unknown ignored decisions minimized and strict', () => {
@@ -103,34 +200,5 @@ describe('canonical Cents ingress contracts', () => {
         customer: { id: 'customer-fixture' },
       }),
     ).toThrow();
-  });
-
-  it('requires supported customer observations to remain processable', () => {
-    const projected = {
-      disposition: 'project_customer',
-      receipt: {
-        deduplicationKey: 'a'.repeat(64),
-        eventKind: 'customer_updated',
-        classification: 'customer',
-        rawBodySha256: 'b'.repeat(64),
-        sourceUpdatedAt: null,
-      },
-      customer: {
-        externalUserId: 'customer-1',
-        centsCustomerId: '815',
-        firstName: 'Fixture',
-        lastName: null,
-        phone: null,
-        businessName: null,
-        email: null,
-        isCommercial: false,
-        isInvoicingEnabled: false,
-        referralCode: null,
-        sourceUpdatedAt: null,
-        sourceSnapshot: {},
-      },
-    };
-
-    expect(centsIngressDecisionSchema.parse(projected)).toEqual(projected);
   });
 });

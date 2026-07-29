@@ -1,11 +1,10 @@
 import type {
   ProcessorProductionOrderListItem,
   ProcessorProductionOrderSummary,
+  ProcessorProductionBoard,
   ProcessorProductionWorkspace,
   ProcessorRemainingDayForecast,
-  ProductionBoard,
   ProductionLocation,
-  ProductionOrderSummary,
   ProductionShift,
   ScheduleProposal,
   SchedulerConfig,
@@ -85,19 +84,6 @@ export const testOrders: readonly ProcessorProductionOrderSummary[] = [
     },
   },
 ]
-
-const toProductionOrderSummary = (
-  order: ProcessorProductionOrderSummary
-): ProductionOrderSummary => ({
-  id: order.id,
-  externalOrderId: order.externalOrderId,
-  dueAt: order.dueAt,
-  dueBucket: order.dueBucket,
-  priority: order.priority,
-  derivedWeightLbs: order.derivedWeightLbs,
-  bagCount: order.bagCount,
-  version: order.version,
-})
 
 export const testShiftSelection = {
   productionShiftId: testShift.id,
@@ -209,7 +195,7 @@ const stageRuns = testSchedule.batches[0]!.stages.map((stage, index) => ({
   version: 1,
 }))
 
-export const testBoard: ProductionBoard = {
+export const testBoard: ProcessorProductionBoard = {
   productionShift: testShift,
   productionRun: {
     id: id(21),
@@ -230,7 +216,7 @@ export const testBoard: ProductionBoard = {
       pulseMinutes: 50,
       membership: { state: "mutable" },
       orders: testOrders.map((order) => ({
-        ...toProductionOrderSummary(order),
+        ...order,
         placementProvenance: "initial_schedule" as const,
         pinnedAt: null,
         pinnedBy: null,

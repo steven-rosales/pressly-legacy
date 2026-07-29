@@ -1,0 +1,113 @@
+work_id: local-processor-empty-slate-reset
+title: Local Processor empty-slate reset
+status: done
+
+goal:
+  - Clear the confirmed local Processor Order and execution surface safely.
+  - Seed fresh synthetic submitted candidates through normal durable ingress.
+
+invariants:
+  - Only Docker context default, project pressly, container pressly-postgres-1, database pressly, and location pressly-one are in scope.
+  - AWS, the test database, production deployment, and customer data are out of scope.
+  - Authentication, Users, topology, pricing, source configuration, source-location bindings, processed webhook receipts, and non-order configuration events are preserved.
+  - API, Worker, and Processor are paused before the reset transaction.
+  - A verified backup exists before mutation.
+  - The reset is atomic and fails closed if its exact local guards or complete dependency list do not hold.
+  - New test work enters through unique synthetic SUBMITTED observations and remains pre-canonical until a manager Accept command.
+  - This transient local operation does not modify durable domain memory.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Confirm target and inventory local state
+    type: primitive
+    owner: agent
+    surface: other
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo:docker-compose.yml
+      - local:docker-context
+      - local:pressly-postgres-1
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:stateworks/work/done/local-processor-empty-slate-reset/evidence.md
+    action:
+      - Confirm the Processor, API, Worker, database, and exact local container path.
+      - Record aggregate counts only.
+      - Reconcile the current schema with the old one-time reset migration.
+    verifier:
+      - The active Processor is proven to use pressly-postgres-1 and not AWS or pressly-postgres-test-1.
+      - The complete current candidate, Order, and Production dependency set is recorded.
+    rollback:
+      - No rollback is required for read-only inventory.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T1
+    title: Back up and reset the local operational surface
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:stateworks/work/done/local-processor-empty-slate-reset/reset-local-processor.sql
+      - local:pressly-postgres-1
+    writes:
+      - local:pressly-postgres-1
+      - local:/tmp/pressly-local-processor-reset-backup
+      - repo:stateworks/work/done/local-processor-empty-slate-reset/evidence.md
+    action:
+      - Pause local API, Worker, and Processor services.
+      - Create and verify a PostgreSQL custom-format backup.
+      - Run the exact guarded reset in one transaction.
+      - Verify all Processor-facing operational counts are zero.
+    verifier:
+      - The backup is nonempty and pg_restore can list it.
+      - The reset reports zero remaining rows across every targeted table and event type.
+      - Preserved configuration and binding counts remain present.
+    rollback:
+      - Stop services and restore the verified backup into the same confirmed local database.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V1
+    title: Seed and verify fresh incoming candidates
+    type: verification
+    owner: agent
+    surface: other
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - local:http://localhost:4000/webhooks/cents
+      - local:pressly-postgres-1
+    writes:
+      - local:webhook_events
+      - local:order_source_proposals
+      - repo:stateworks/work/done/local-processor-empty-slate-reset/evidence.md
+    action:
+      - Restart the local API, Worker, and Processor.
+      - Send unique synthetic exact SUBMITTED observations through normal ingress.
+      - Wait for bounded Worker processing and verify candidate outcomes.
+    verifier:
+      - Every seed request is accepted by durable ingress.
+      - Every seeded identity becomes one pending incoming candidate.
+      - Canonical Order, fulfillment, Production Order, schedule, run, and batch counts remain zero.
+      - Local services are healthy.
+    rollback:
+      - Repeat T1 with the already-verified backup retained.
+    secret_handling: none
+    status: pending
+    evidence: []

@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
-  centsCustomerWebhookEventKindSchema,
   centsCustomerWireSchema,
-  centsMarketingWebhookEventKindSchema,
+  centsOrderIdentityWireSchema,
   centsOrderServiceWireSchema,
   centsOrderWebhookEventKindSchema,
   centsOrderWireSchema,
@@ -10,7 +9,6 @@ import {
   type CentsIngressDecision,
   type IngestWebhookEventCommand,
   type centsWireMoneySchema,
-  type centsWireOrderStatusSchema,
 } from '@pressly/contracts';
 import { z } from 'zod';
 
@@ -41,44 +39,24 @@ export type CentsWebhookNormalizationResult =
 export const toCentsWebhookEventCommand = (
   decision: CentsIngressDecision,
 ): IngestWebhookEventCommand => {
-  const projected = decision.disposition !== 'ignore';
-  const subjectId =
-    decision.disposition === 'project_order'
-      ? decision.order.externalOrderId
-      : decision.disposition === 'project_customer'
-        ? decision.customer.externalUserId
-        : decision.disposition === 'record_marketing'
-          ? decision.marketing.customer.externalUserId
-          : null;
-  const payload =
-    decision.disposition === 'project_order'
-      ? decision.order
-      : decision.disposition === 'project_customer'
-        ? decision.customer
-        : decision.disposition === 'record_marketing'
-          ? decision.marketing
-          : null;
+  const processable = decision.disposition !== 'ignore';
+  const order = processable ? decision.order : null;
 
   return {
     source: 'cents',
     eventType: decision.receipt.eventKind,
     deduplicationKey: decision.receipt.deduplicationKey,
     subjectType: decision.receipt.classification,
-    subjectId,
-    sourceLocationId:
-      decision.disposition === 'project_order'
-        ? decision.order.externalStoreId
-        : null,
+    subjectId: order?.externalOrderId ?? null,
+    sourceLocationId: order?.externalStoreId ?? null,
     sourceOccurredAt: decision.receipt.sourceUpdatedAt,
-    payload,
+    payload: order,
     rawBodySha256: decision.receipt.rawBodySha256,
-    disposition: projected ? 'process' : 'ignore',
+    disposition: processable ? 'process' : 'ignore',
   };
 };
 
 type WireMoney = z.infer<typeof centsWireMoneySchema>;
-type WireOrderStatus = z.infer<typeof centsWireOrderStatusSchema>;
-type JsonValue = NonNullable<IngestWebhookEventCommand['payload']>;
 
 const unknownEntitySchema = z
   .object({
@@ -89,18 +67,27 @@ const unknownEntitySchema = z
 
 const servicesWireSchema = z.array(centsOrderServiceWireSchema);
 
+type CentsOrderBoundaryDisposition = 'candidate' | 'terminal_close' | 'ignore';
+
+const classifyOrderObservation = (
+  envelope: z.infer<typeof centsWebhookWireEnvelopeSchema>,
+): CentsOrderBoundaryDisposition => {
+  const order = envelope['order'];
+  if (order === null || typeof order !== 'object' || Array.isArray(order))
+    return 'ignore';
+
+  const status = (order as Record<string, unknown>)['status'];
+  if (status === 'SUBMITTED') return 'candidate';
+  if (status === 'COMPLETED' || status === 'CANCELED') return 'terminal_close';
+  return 'ignore';
+};
+
 const failure = (
   code: CentsWebhookNormalizationErrorCode,
   message: string,
 ): CentsWebhookNormalizationResult => ({ ok: false, error: { code, message } });
 
 const asIdentifier = (value: string | number): string => String(value).trim();
-
-const asJsonValue = (value: unknown): JsonValue => {
-  const parsed = z.json().parse(JSON.parse(JSON.stringify(value)));
-  if (parsed === null) throw new Error('Expected a non-null JSON value.');
-  return parsed;
-};
 
 const dollarsToCents = (value: WireMoney): number | null => {
   const decimal = String(value).trim();
@@ -133,43 +120,21 @@ export const deriveCentsDeduplicationKey = (input: {
     )
     .digest('hex');
 
-const canonicalStatus = (
-  status: WireOrderStatus,
-):
-  | 'SUBMITTED'
-  | 'READY_FOR_PICKUP'
-  | 'PICKED_UP'
-  | 'IN_PROGRESS'
-  | 'READY_FOR_RETURN'
-  | 'OUT_FOR_DELIVERY'
-  | 'COMPLETED'
-  | 'CANCELED' => (status === 'CANCELLED' ? 'CANCELED' : status);
-
 const nullableText = (value: string | null | undefined): string | null => {
   if (value === null || value === undefined) return null;
   const normalized = value.trim();
   return normalized === '' ? null : normalized;
 };
 
-const normalizeCustomer = (input: {
-  customer: z.infer<typeof centsCustomerWireSchema>;
-  sourceSnapshot: JsonValue;
-}) => ({
-  externalUserId: asIdentifier(input.customer.id),
-  centsCustomerId:
-    input.customer.centsCustomerId === undefined
-      ? null
-      : asIdentifier(input.customer.centsCustomerId),
-  firstName: nullableText(input.customer.firstName),
-  lastName: nullableText(input.customer.lastName),
-  phone: nullableText(input.customer.phoneNumber),
-  businessName: nullableText(input.customer.businessName),
-  email: nullableText(input.customer.email),
-  isCommercial: input.customer.isCommercial ?? null,
-  isInvoicingEnabled: input.customer.isInvoicingEnabled ?? null,
-  referralCode: nullableText(input.customer.referralCode),
-  sourceUpdatedAt: input.customer.updatedAt ?? null,
-  sourceSnapshot: input.sourceSnapshot,
+const normalizeCustomer = (
+  customer: z.infer<typeof centsCustomerWireSchema>,
+) => ({
+  externalUserId: asIdentifier(customer.id),
+  firstName: nullableText(customer.firstName),
+  lastName: nullableText(customer.lastName),
+  phone: nullableText(customer.phoneNumber),
+  businessName: nullableText(customer.businessName),
+  email: nullableText(customer.email),
 });
 
 const resolveEventKind = (
@@ -188,9 +153,7 @@ const resolveEventKind = (
   return envelope.action ?? envelope.event ?? '';
 };
 
-const makeReceipt = <
-  Classification extends 'order' | 'customer' | 'marketing' | 'unknown',
->(input: {
+const makeReceipt = <Classification extends 'order' | 'unknown'>(input: {
   eventKind: string;
   classification: Classification;
   vendorEntityId: string | null;
@@ -204,7 +167,7 @@ const makeReceipt = <
   sourceUpdatedAt: input.sourceUpdatedAt,
 });
 
-const normalizeOrder = (input: {
+const normalizeSubmittedOrderCandidate = (input: {
   envelope: z.infer<typeof centsWebhookWireEnvelopeSchema>;
   eventKind: string;
   rawBodySha256: string;
@@ -232,7 +195,6 @@ const normalizeOrder = (input: {
     quantity: number;
     totalPriceCents: number;
     unitPriceCents: number;
-    sourceMetadata: JsonValue;
   }> = [];
 
   for (const service of parsedServices.data) {
@@ -285,7 +247,6 @@ const normalizeOrder = (input: {
       quantity: service.quantity,
       totalPriceCents,
       unitPriceCents: canonicalUnitPrice,
-      sourceMetadata: asJsonValue(service),
     });
   }
 
@@ -326,14 +287,14 @@ const normalizeOrder = (input: {
   return {
     ok: true,
     value: {
-      disposition: 'project_order',
+      disposition: 'propose_order_candidate',
       receipt: { ...receipt, classification: 'order', sourceUpdatedAt },
       order: {
         externalOrderId,
         orderCode:
           order.orderCode === undefined ? null : asIdentifier(order.orderCode),
         externalStoreId: asIdentifier(order.storeId),
-        status: canonicalStatus(order.status),
+        status: 'SUBMITTED',
         dueAt: order.dueDate,
         sourceUpdatedAt,
         bagCount: null,
@@ -343,59 +304,51 @@ const normalizeOrder = (input: {
         customer:
           parsedCustomer === null
             ? null
-            : normalizeCustomer({
-                customer: parsedCustomer.data,
-                sourceSnapshot: asJsonValue(input.envelope),
-              }),
-        sourceSnapshot: asJsonValue(input.envelope),
+            : normalizeCustomer(parsedCustomer.data),
       },
     },
   };
 };
 
-const normalizeCustomerEvent = (input: {
+const normalizeTerminalOrderClose = (input: {
   envelope: z.infer<typeof centsWebhookWireEnvelopeSchema>;
   eventKind: string;
-  classification: 'customer' | 'marketing';
   rawBodySha256: string;
 }): CentsWebhookNormalizationResult => {
-  const parsed = centsCustomerWireSchema.safeParse(input.envelope['customer']);
-  if (!parsed.success)
+  const parsedOrder = centsOrderIdentityWireSchema.safeParse(
+    input.envelope['order'],
+  );
+  if (
+    !parsedOrder.success ||
+    (parsedOrder.data.status !== 'COMPLETED' &&
+      parsedOrder.data.status !== 'CANCELED')
+  )
     return failure(
-      'invalid_cents_customer_payload',
-      'The Cents customer webhook is malformed.',
+      'invalid_cents_order_payload',
+      'The Cents terminal order webhook is malformed.',
     );
 
-  const customer = normalizeCustomer({
-    customer: parsed.data,
-    sourceSnapshot: asJsonValue(input.envelope),
-  });
+  const externalOrderId = asIdentifier(parsedOrder.data.id);
+  const externalStoreId = asIdentifier(parsedOrder.data.storeId);
+  const sourceUpdatedAt = parsedOrder.data.updatedAt;
   const receipt = makeReceipt({
     eventKind: input.eventKind,
-    classification: input.classification,
-    vendorEntityId: customer.externalUserId,
-    sourceUpdatedAt: customer.sourceUpdatedAt,
+    classification: 'order',
+    vendorEntityId: externalOrderId,
+    sourceUpdatedAt,
     rawBodySha256: input.rawBodySha256,
   });
 
-  if (input.classification === 'customer')
-    return {
-      ok: true,
-      value: {
-        disposition: 'project_customer',
-        receipt: { ...receipt, classification: 'customer' },
-        customer,
-      },
-    };
   return {
     ok: true,
     value: {
-      disposition: 'record_marketing',
-      receipt: { ...receipt, classification: 'marketing' },
-      marketing: {
-        customer,
-        granted: true,
-        sourceSnapshot: asJsonValue(input.envelope),
+      disposition: 'close_order_candidate',
+      receipt: { ...receipt, classification: 'order', sourceUpdatedAt },
+      order: {
+        externalOrderId,
+        externalStoreId,
+        status: parsedOrder.data.status,
+        sourceUpdatedAt,
       },
     },
   };
@@ -451,28 +404,21 @@ export const normalizeCentsWebhook = (input: {
 
   const rawBodySha256 = hashCentsWebhookRawBody(input.rawBody);
 
-  if (centsOrderWebhookEventKindSchema.safeParse(eventKind).success)
-    return normalizeOrder({
-      envelope: parsedEnvelope.data,
-      eventKind,
-      rawBodySha256,
-    });
-
-  if (centsCustomerWebhookEventKindSchema.safeParse(eventKind).success)
-    return normalizeCustomerEvent({
-      envelope: parsedEnvelope.data,
-      eventKind,
-      classification: 'customer',
-      rawBodySha256,
-    });
-
-  if (centsMarketingWebhookEventKindSchema.safeParse(eventKind).success)
-    return normalizeCustomerEvent({
-      envelope: parsedEnvelope.data,
-      eventKind,
-      classification: 'marketing',
-      rawBodySha256,
-    });
+  if (centsOrderWebhookEventKindSchema.safeParse(eventKind).success) {
+    const disposition = classifyOrderObservation(parsedEnvelope.data);
+    if (disposition === 'candidate')
+      return normalizeSubmittedOrderCandidate({
+        envelope: parsedEnvelope.data,
+        eventKind,
+        rawBodySha256,
+      });
+    if (disposition === 'terminal_close')
+      return normalizeTerminalOrderClose({
+        envelope: parsedEnvelope.data,
+        eventKind,
+        rawBodySha256,
+      });
+  }
 
   return normalizeIgnored({
     envelope: parsedEnvelope.data,

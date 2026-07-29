@@ -1,0 +1,292 @@
+work_id: pressly-cents-submitted-candidate-lifecycle
+title: Pressly Cents submitted candidate lifecycle
+status: active
+
+goal:
+  - Replace the unobservable Cents PICKED_UP trigger with exact SUBMITTED candidate discovery.
+  - Close unresolved candidates safely from Cents COMPLETED or CANCELED observations without granting Cents canonical authority.
+  - Create accepted canonical Orders as unreleased work and preserve Pressly-owned intake, release, scheduling, execution, and resolution.
+
+invariants:
+  - Cents observations are external evidence and never select or execute a canonical Order, fulfillment, or Production transition.
+  - Exact source and external Order identity is the only automatic correlation and duplicate-suppression key.
+  - SUBMITTED may create one immutable pending candidate and no canonical work.
+  - COMPLETED or CANCELED may close only a pending candidate or create an exact-identity tombstone.
+  - A tombstone prevents late SUBMITTED delivery from resurrecting old work without an explicit Pressly command.
+  - Incoming candidate transitions are owned by one authoritative kernel graph.
+  - Accepted and rejected candidates are terminal, and a restored pending candidate is manager-owned; later source observations cannot rewrite, close, or reopen any of those states.
+  - Accept creates one open canonical Order with unreleased fulfillment and copies the candidate snapshot once.
+  - Physical intake and canonical release remain separate Pressly-owned readiness facts.
+  - Source-terminal cleanup of accepted work can occur only through a named Pressly automation evaluated by the existing Production resolution graph and operational guard.
+  - Work with intake, selection, scheduling, batch, route, stage, execution, or finished participation cannot be removed by a source observation.
+  - Signed durable ingress, idempotency, command receipts, aggregate graphs, transactional outbox, and peer-domain boundaries remain intact.
+  - No deployment, production replay, production-data cleanup, secret, credential, customer payload, or private token enters this work.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconcile the superseded pickup baseline
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/done/pressly-cents-pickup-proposals
+      - repo:stateworks/work/done/pressly-order-authority-source-autonomy
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:modules/business/orders/src/incoming-order-proposal
+      - repo:modules/business/production/src/change-production-order-resolution
+      - repo:packages/contracts/src/cents
+      - repo:packages/db/src/schema/orders.schema.ts
+    writes:
+      - repo:stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/evidence.md
+    action:
+      - Record the live persisted status evidence that invalidates PICKED_UP and IN_PROGRESS as integration triggers without storing customer payloads.
+      - Map the current pickup-only normalizer, Worker, proposal graph, canonical acceptance, outbox, Production resolution, and Processor boundaries.
+      - Distinguish retained authority infrastructure from policy and code that this work supersedes.
+      - Record exact file overlap with the dirty worktree and other Stateworks work.
+    verifier:
+      - Evidence contains source-level or test-level proof for every superseded behavior.
+      - Evidence records only aggregate live facts and contains no customer payload or credential.
+      - No product or runtime state changes in this characterization task.
+    rollback:
+      - No rollback is required for read-only characterization.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T1
+    title: Define and persist the submitted candidate graph
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/kernel/src/state-machine.ts
+      - repo:modules/business/orders/src/incoming-order-proposal
+      - repo:packages/contracts/src/orders
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/migrations/0036_incoming-order-proposals.sql
+    writes:
+      - repo:modules/business/orders/src/incoming-order-proposal.policy.ts
+      - repo:modules/business/orders/src/incoming-order-proposal
+      - repo:modules/business/orders/test
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/test
+      - repo:packages/db/src/schema/orders.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+    action:
+      - Replace pickup terminology with a source-neutral submitted candidate command and immutable snapshot.
+      - Extend the authoritative candidate graph with source_close and explicit restore into a distinct manager-owned restored_pending state while keeping accepted and rejected terminal.
+      - Persist current lifecycle version and append-only transition evidence without making the immutable candidate snapshot mutable.
+      - Persist exact-identity source terminal tombstones and suppress late candidate creation.
+      - Define versioned, idempotent manager restore and system source-close commands.
+    verifier:
+      - Graph tests enumerate every allowed and denied edge.
+      - Database tests prove immutable snapshots, append-only transitions, terminal decisions, tombstone suppression, restored_pending source-close denial, and exact-identity concurrency.
+      - Migration preserves existing accepted and rejected proposal evidence without canonical backfill or deletion.
+    rollback:
+      - Disable new source-close and restore commands while retaining additive evidence; do not delete canonical or historical rows.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T2
+    title: Cut Cents ingress over to submitted and terminal observations
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:packages/contracts/src/cents
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:modules/business/orders/src/incoming-order-proposal
+    writes:
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:apps/api/test/cents
+      - repo:packages/contracts/src/cents
+      - repo:packages/contracts/test
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents
+      - repo:apps/worker/test/jobs/process-webhook-inbox/cents
+      - repo:apps/worker/src/bootstrap
+    action:
+      - Classify exact SUBMITTED as candidate evidence and exact COMPLETED or CANCELED as terminal evidence.
+      - Retain the external Order identity, location, revision, and bounded normalized payload required by the relevant Orders command.
+      - Acknowledge READY_FOR_PICKUP and every other known or unknown state as evidence-only.
+      - Route classified observations through source-neutral Orders ports; keep lifecycle and duplicate policy out of API and Worker.
+    verifier:
+      - Adapter and Worker tests enumerate observed and unknown Cents states.
+      - Only SUBMITTED can propose, and only COMPLETED or CANCELED can invoke source-close handling.
+      - Duplicate, stale, terminal-before-submitted, submitted-after-terminal, existing canonical, accepted, and rejected cases are idempotent.
+      - No Cents type crosses into Orders or Production.
+    rollback:
+      - Switch the classifier to evidence-only while retaining inbox receipts and candidate history.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T3
+    title: Correct canonical acceptance and guarded cleanup
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - repo:modules/business/orders/src/incoming-order-proposal
+      - repo:modules/business/orders/src/order-lifecycle.policy.ts
+      - repo:modules/business/production/src/change-production-order-resolution
+      - repo:modules/business/production/src/production-order-resolution.policy.ts
+      - repo:apps/worker/src/bootstrap
+    writes:
+      - repo:modules/business/orders/src/incoming-order-proposal
+      - repo:modules/business/orders/test
+      - repo:modules/business/production/src
+      - repo:modules/business/production/test
+      - repo:apps/worker/src
+      - repo:apps/worker/test
+    action:
+      - Make Accept create an open canonical Order with unreleased fulfillment and preserve atomic source link, command receipt, and outbox evidence.
+      - Add a source-neutral Pressly automation command that resolves an exact accepted fulfillment only when Production's existing resolution graph and guard prove no operational participation and no explicit review is required.
+      - Return audit-only or review-required outcomes without changing canonical or Production state when the guard does not permit automation.
+      - Never map source COMPLETED or CANCELED into canonical complete, cancel, withdraw, intake, release, admission, schedule, batch, stage, run, or finished events.
+    verifier:
+      - Orders tests prove accepted work is unreleased and later source observations cannot change it.
+      - Production tests prove untouched work may be resolved nondestructively and all review-sensitive or participating work remains unchanged.
+      - Cross-domain orchestration exists only at an application composition boundary.
+      - Transactional outbox and fulfillment projection tests remain source-neutral.
+    rollback:
+      - Disable the cleanup automation while retaining source-terminal evidence; never weaken the Production guard.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T4
+    title: Update manager APIs and Processor projections
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+    reads:
+      - repo:apps/api/src/http/order-management
+      - repo:apps/processor/src/features/order-control
+      - repo:packages/contracts/src/orders
+    writes:
+      - repo:apps/api/src/http/order-management
+      - repo:apps/api/test
+      - repo:apps/processor/src/features/order-control
+      - repo:apps/processor/src/i18n
+      - repo:apps/processor/test/features/order-control
+      - repo:packages/contracts/src/orders
+      - repo:packages/contracts/test
+    action:
+      - Keep the active Incoming collection limited to pending candidates.
+      - Replace pickup-specific labels with incoming or submitted candidate language.
+      - Expose an authorized restore command for source-closed candidates through a bounded management path without adding source lifecycle controls to canonical Current orders.
+      - Preserve recognizable customer and Order identity, loading, empty, error, conflict, keyboard, desktop, mobile, and scrolling behavior.
+    verifier:
+      - API tests cover authorization, location isolation, expected version, idempotency, restore, stale state, and terminal decisions.
+      - Processor tests cover submitted copy, pending actions, source-closed removal, restore result handling, and existing Current-order behavior.
+      - Rendered desktop and mobile inspection finds no clipping, inaccessible action, or scroll regression.
+    rollback:
+      - Hide source-closed review and restore while retaining backend lifecycle evidence; do not restore vendor lifecycle authority.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: V1
+    title: Verify the submitted candidate vertical slice
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T4
+    reads:
+      - repo:modules/business/orders
+      - repo:modules/business/production
+      - repo:apps/api
+      - repo:apps/worker
+      - repo:apps/processor
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:tooling/test/architecture-boundaries.test.mjs
+    writes:
+      - repo:stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/evidence.md
+      - repo:stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/design-qa.md
+    action:
+      - Run focused graph, use-case, database, Worker, API, Processor, architecture, integration, type, lint, formatting, migration, and production-build gates.
+      - Exercise submitted, ignored, terminal, tombstone, restore, accept-unreleased, guarded resolution, review-required, replay, and out-of-order flows without production data.
+      - Inspect rendered desktop and mobile Incoming and Current states, interactions, scrolling, and browser console.
+      - Record exact commands, counts, failures, repairs, and environment boundaries.
+    verifier:
+      - Every task-level verifier is evidenced.
+      - pnpm typecheck
+      - pnpm lint
+      - pnpm build
+      - git diff --check
+      - Stateworks network and lifecycle state validate.
+    rollback:
+      - Keep work active and make new source classifications evidence-only if a correctness gate cannot be repaired safely.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T5
+    title: Apply durable memory and close the work
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/evidence.md
+      - memory:domain:order-management/context-pack
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/final-report.md
+      - repo:stateworks/memory/domains/order-management/deltas
+      - repo:stateworks/memory/domains/order-management/memory.yaml
+      - repo:stateworks/memory/domains/order-management/context-pack.md
+      - repo:stateworks/memory/domains/laundry-production/deltas
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:stateworks/work/active/lpms-production-readiness
+    action:
+      - Apply source-backed memory deltas that supersede the exact PICKED_UP proposal trigger and released-on-acceptance behavior.
+      - Record the exact implemented SUBMITTED, terminal, tombstone, restore, unreleased acceptance, and guarded Production boundaries.
+      - Rebaseline production-readiness repository evidence without claiming deployment, webhook replay, production data, or pilot readiness.
+      - Move the verified work package to done only after every required verifier and memory check passes.
+    verifier:
+      - Domain memory, deltas, context packs, network, and lifecycle state validate.
+      - Context packs regenerate deterministically.
+      - Final report separates repository, local runtime, deployment, and operational evidence.
+      - No unsupported live Cents or production claim is recorded.
+    rollback:
+      - Leave unsupported deltas unapplied and keep work active.
+    secret_handling: none
+    status: pending
+    evidence: []

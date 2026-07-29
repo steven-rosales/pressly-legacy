@@ -53,7 +53,6 @@ const previewItem = (
   orderId: id(value),
   displayReference: `legacy:${value}`,
   dueAt: '2026-06-30T17:00:00.000Z',
-  sourceCommercialState: 'completed' as const,
   category,
   reasons: [reason],
   expectedVersion: 1,
@@ -163,6 +162,9 @@ const makeApp = () => {
     makeProcessorOperationalOrderRoutes({
       production: {
         previewProductionOrderBacklog,
+        loadProductionBoard: async () => {
+          throw new Error('Not used by this route test.');
+        },
         loadProductionWorkspace: async () => {
           throw new Error('Not used by this route test.');
         },

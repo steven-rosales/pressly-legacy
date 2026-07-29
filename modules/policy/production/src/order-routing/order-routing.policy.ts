@@ -25,6 +25,27 @@ export type OrderRoutingTargetCandidate = Readonly<{
   stages: readonly OrderRoutingTargetStage[];
 }>;
 
+export type QueuedMoveTargetRejectionCode =
+  | 'TARGET_IS_SOURCE_BATCH'
+  | 'TARGET_NOT_QUEUED'
+  | 'TARGET_MEMBERSHIP_FROZEN'
+  | 'TARGET_STAGE_GRAPH_INVALID'
+  | 'TARGET_STAGE_NOT_PLANNED'
+  | 'HARD_CAPACITY_EXCEEDED';
+
+export type QueuedMoveTargetDecision =
+  | Readonly<{ decision: 'allowed' }>
+  | Readonly<{
+      decision: 'blocked';
+      code: QueuedMoveTargetRejectionCode;
+    }>;
+
+export type QueuedMoveTargetInput = Readonly<{
+  sourceProductionBatchId: string;
+  orderWeightLbs: number;
+  target: OrderRoutingTargetCandidate;
+}>;
+
 export type OrderRoutingInput = Readonly<{
   command: OrderRoutingCommand;
   order: Readonly<{
@@ -140,6 +161,14 @@ const stageMap = (
 const suffixFrom = (stage: OrderRoutingStage): readonly OrderRoutingStage[] =>
   orderRoutingStages.slice(stageIndex(stage));
 
+const targetCanReceiveSuffixForStages = (
+  candidate: OrderRoutingTargetCandidate,
+  routedStages: readonly OrderRoutingStage[],
+): boolean => {
+  const stages = stageMap(candidate);
+  return routedStages.every((stage) => stages.get(stage)?.status === 'planned');
+};
+
 const targetCanReceiveSuffix = (
   input: OrderRoutingInput,
   candidate: OrderRoutingTargetCandidate,
@@ -153,8 +182,7 @@ const targetCanReceiveSuffix = (
 
   if (candidate.status === 'finished') return false;
 
-  const stages = stageMap(candidate);
-  return routedStages.every((stage) => stages.get(stage)?.status === 'planned');
+  return targetCanReceiveSuffixForStages(candidate, routedStages);
 };
 
 const targetHasCapacity = (
@@ -170,6 +198,26 @@ const targetHasCapacity = (
       target.assignedWeightLbs + orderWeightLbs <= target.capacityLbs
     );
   });
+};
+
+export const evaluateQueuedMoveTarget = (
+  input: QueuedMoveTargetInput,
+): QueuedMoveTargetDecision => {
+  if (input.target.productionBatchId === input.sourceProductionBatchId)
+    return { decision: 'blocked', code: 'TARGET_IS_SOURCE_BATCH' };
+  if (input.target.status !== 'queued')
+    return { decision: 'blocked', code: 'TARGET_NOT_QUEUED' };
+  if (input.target.membershipFrozen)
+    return { decision: 'blocked', code: 'TARGET_MEMBERSHIP_FROZEN' };
+  if (!hasCanonicalStageGraph(input.target))
+    return { decision: 'blocked', code: 'TARGET_STAGE_GRAPH_INVALID' };
+
+  const routedStages = suffixFrom('sorting');
+  if (!targetCanReceiveSuffixForStages(input.target, routedStages))
+    return { decision: 'blocked', code: 'TARGET_STAGE_NOT_PLANNED' };
+  if (!targetHasCapacity(input.target, routedStages, input.orderWeightLbs))
+    return { decision: 'blocked', code: 'HARD_CAPACITY_EXCEEDED' };
+  return { decision: 'allowed' };
 };
 
 const orderedCandidates = (

@@ -1,5 +1,6 @@
 import {
   productionPendingPlacementSchema,
+  productionPlacementProvenanceSchema,
   type ProductionBatch,
   type ProductionOrderListItem,
   type ProductionOrderSummary,
@@ -270,6 +271,15 @@ const mapBatchStatus = (value: string): ProductionBatch['status'] => {
   }
 };
 
+const mapPlacementProvenance = (
+  value: string,
+): ProductionBatch['orders'][number]['placementProvenance'] => {
+  const parsed = productionPlacementProvenanceSchema.safeParse(value);
+  if (!parsed.success)
+    throw new Error(`Unknown placement provenance: ${value}.`);
+  return parsed.data;
+};
+
 const mapStage = (row: ProductionBoardStageRow): UnevaluatedStageRun => {
   if (
     row.stageKind !== 'sorting' &&
@@ -447,17 +457,12 @@ export const projectProductionBoard = (input: {
         const order = orderById.get(membership.productionOrderId);
         if (order === undefined)
           throw new Error('A production batch references a missing order.');
-        if (
-          membership.placementProvenance !== 'initial_schedule' &&
-          membership.placementProvenance !== 'automatic' &&
-          membership.placementProvenance !== 'manager_exact'
-        )
-          throw new Error(
-            `Unknown placement provenance: ${membership.placementProvenance}.`,
-          );
+        const placementProvenance = mapPlacementProvenance(
+          membership.placementProvenance,
+        );
         return {
           ...mapOrderSummary(order, input.now, input.shift.timezone),
-          placementProvenance: membership.placementProvenance,
+          placementProvenance,
           pinnedAt: membership.pinnedAt?.toISOString() ?? null,
           pinnedBy: membership.pinnedBy,
         };

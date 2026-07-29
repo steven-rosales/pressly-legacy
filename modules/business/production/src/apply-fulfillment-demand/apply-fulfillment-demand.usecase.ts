@@ -194,7 +194,6 @@ export const makeApplyFulfillmentDemand =
           phase: demandPhase(effectiveAdmissionState),
           productionStatus: existing?.productionStatus ?? null,
           currentBagCount: existing?.bagCount ?? null,
-          incomingBagCount: command.bagCount,
           estimatedWeightLbs: command.estimatedWeightLbs,
         });
         let production: FulfillmentProductionMutation =
@@ -231,7 +230,7 @@ export const makeApplyFulfillmentDemand =
               hasPositiveDemand:
                 command.estimatedWeightLbs !== null &&
                 command.estimatedWeightLbs > 0,
-              bagCount: lifecycle.effectiveBagCount,
+              bagCount: lifecycle.canonicalBagCount,
             }),
           };
         }
@@ -239,7 +238,6 @@ export const makeApplyFulfillmentDemand =
           command,
           orderDemandId,
           production,
-          effectiveBagCount: lifecycle.effectiveBagCount,
           initialExecutionState:
             deps.policy.initialProductionOrderExecutionState,
           now: deps.clock.now(),

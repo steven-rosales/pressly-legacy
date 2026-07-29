@@ -4,7 +4,7 @@ export const documentedCentsOrderWebhook = {
     id: 12345,
     storeId: 24,
     orderCode: '00123',
-    status: 'IN_PROGRESS',
+    status: 'SUBMITTED',
     orderTotal: 29.99,
     balanceDue: 24.99,
     dueDate: '2026-07-12T21:00:00.000Z',
@@ -27,6 +27,26 @@ export const documentedCentsOrderWebhook = {
     lastName: 'Customer',
     email: 'private@example.invalid',
     phoneNumber: '+15550000001',
+  },
+} as const;
+
+export const documentedCentsCompletedOrderWebhook = {
+  action: 'order_completed',
+  order: {
+    id: 12345,
+    storeId: 24,
+    status: 'COMPLETED',
+    updatedAt: '2026-07-12T16:59:00.000Z',
+  },
+} as const;
+
+export const documentedCentsCanceledOrderWebhook = {
+  action: 'order_updated',
+  order: {
+    id: 12345,
+    storeId: 24,
+    status: 'CANCELED',
+    updatedAt: '2026-07-12T16:59:00.000Z',
   },
 } as const;
 

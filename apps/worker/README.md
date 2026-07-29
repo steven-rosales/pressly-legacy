@@ -2,10 +2,14 @@
 
 The Worker runs LPMS eventual work. It claims source-neutral inbox rows through
 the webhook-ingestion module, dispatches them by `source:subjectType`, and
-invokes injected downstream capabilities. Cents handlers translate vendor
-observations into canonical Users and Orders. Orders emits a versioned outbox
-event in the same transaction; a separate source-neutral job projects eligible
-wash-and-fold fulfillment demand into Production.
+invokes injected downstream capabilities. The Cents adapter may submit one
+immutable incoming-Order candidate from an exact `SUBMITTED` observation.
+Exact `COMPLETED` or `CANCELED` observations close only an unresolved candidate
+or record an exact-identity tombstone; all other Cents states are durably
+acknowledged without reaching canonical Users, Orders, or Production. Only an
+operator acceptance creates canonical work. Orders then emits a versioned
+outbox event in the same transaction, and a separate source-neutral job
+projects the unreleased wash-and-fold fulfillment demand into Production.
 
 ```txt
 src/main.ts
@@ -35,14 +39,26 @@ the worker exposes no HTTP route or host port.
 - Expired processing leases are reclaimable after a crash.
 - Transient failures use bounded exponential backoff with jitter.
 - Permanent failures and exhausted retries remain inspectable as dead rows.
-- Canonical Order observation and its integration outbox event commit in one
+- Candidate creation is idempotent by exact source and external Order identity.
+  A candidate acceptance, canonical Order, unreleased fulfillment, command
+  receipt, source evidence, and integration outbox event commit in one
   Orders-owned transaction. Inbox completion is a separate ingestion-owned
-  transaction, so a crash can safely replay an idempotent source revision.
+  transaction, so a crash can safely replay the candidate submission.
+- A terminal observation is idempotent on that same exact identity. It cannot
+  close a restored, accepted, or rejected candidate. A terminal-before-
+  submitted tombstone prevents delayed delivery from resurrecting old work.
+- A manager may restore a source-closed candidate for review. The distinct
+  manager-owned state is immune to later source-terminal observations.
 - The fulfillment-demand projector uses a stable outbox-event idempotency key;
   a crash after Production commits is an idempotent no-op on redelivery.
-- Automatic Cents reconciliation is not implemented because Cents has not
-  provided an authoritative read-updated-orders API. The runtime reports that
-  limitation plainly instead of carrying an inactive reconciliation subsystem.
+- `READY_FOR_PICKUP`, `PICKED_UP`, `IN_PROGRESS`, unknown Order states, Cents
+  customer events, and Cents marketing events do not create or update
+  canonical work. The Worker carries no source-authority or automatic-
+  reconciliation subsystem.
+- After acceptance, a source-terminal observation can only ask a named
+  Pressly automation to evaluate the canonical fulfillment. Production owns
+  the resolution graph and guard; participating or review-sensitive work
+  remains unchanged.
 - A database outage is retried with bounded loop-level backoff. The heartbeat
   intentionally becomes stale until a complete database pass succeeds again.
 - Counters are emitted to Sentry Metrics for work, retries, dead letters,
@@ -56,17 +72,11 @@ the worker exposes no HTTP route or host port.
   both heartbeats, allowing the container healthcheck and Sentry to detect the
   same loss of progress.
 
-Automatic Cents reconciliation remains disabled until Cents verifies a
-read-updated-orders API. The launch fallback is bounded operator replay of an
-inspectable dead event through webhook ingestion; replay must never mutate
-Production tables directly.
-
 Authorized operators inspect minimized event metadata at
 `GET /webhook-ingestion/dead-letters` and replay one event at
 `POST /webhook-ingestion/dead-letters/:eventId/replay` with the explicit
 `replay-dead-webhook-event` confirmation. Replay only queues the generic event;
-the Worker then dispatches it through the same canonical Users/Orders path and
-durable demand projector.
+the Worker then dispatches it through the same submitted-candidate boundary.
 
 ## Production alerts
 

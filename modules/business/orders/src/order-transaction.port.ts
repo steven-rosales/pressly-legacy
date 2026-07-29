@@ -21,6 +21,8 @@ export type OrderCommandOperations = Readonly<{
     idempotencyKey: string;
     commandHash: string;
     context: CommandContext;
+    reasonCode: string;
+    reasonNote: string | null;
     value: OrderMutationResult;
     now: Date;
   }) => Promise<void>;

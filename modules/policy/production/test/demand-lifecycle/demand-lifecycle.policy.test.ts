@@ -12,7 +12,6 @@ describe('demand lifecycle policy', () => {
         phase,
         productionStatus: null,
         currentBagCount: null,
-        incomingBagCount: null,
         estimatedWeightLbs: 52,
       }),
     ).toMatchObject({
@@ -26,11 +25,10 @@ describe('demand lifecycle policy', () => {
         phase: 'inbound',
         productionStatus: 'release_pending',
         currentBagCount: 3,
-        incomingBagCount: null,
         estimatedWeightLbs: 52,
       }),
     ).toMatchObject({
-      effectiveBagCount: 3,
+      canonicalBagCount: 3,
       production: { action: 'update', status: 'release_pending' },
     });
   });
@@ -41,11 +39,10 @@ describe('demand lifecycle policy', () => {
         phase: 'production_released',
         productionStatus: 'release_pending',
         currentBagCount: 3,
-        incomingBagCount: null,
         estimatedWeightLbs: 52,
       }),
     ).toMatchObject({
-      effectiveBagCount: 3,
+      canonicalBagCount: 3,
       production: { action: 'update', status: 'eligible' },
     });
   });
@@ -56,7 +53,6 @@ describe('demand lifecycle policy', () => {
         phase: 'expected',
         productionStatus: null,
         currentBagCount: null,
-        incomingBagCount: null,
         estimatedWeightLbs: null,
       }),
     ).toMatchObject({ production: { action: 'none' } });
@@ -68,11 +64,10 @@ describe('demand lifecycle policy', () => {
         phase: 'inbound',
         productionStatus: 'eligible',
         currentBagCount: 2,
-        incomingBagCount: null,
         estimatedWeightLbs: null,
       }),
     ).toMatchObject({
-      effectiveBagCount: 2,
+      canonicalBagCount: 2,
       production: { action: 'update', status: 'ineligible' },
     });
   });
@@ -83,7 +78,6 @@ describe('demand lifecycle policy', () => {
         phase: 'withdrawn',
         productionStatus: 'intake_pending',
         currentBagCount: null,
-        incomingBagCount: null,
         estimatedWeightLbs: 52,
       }),
     ).toMatchObject({
@@ -97,7 +91,6 @@ describe('demand lifecycle policy', () => {
         phase: 'withdrawn',
         productionStatus: 'eligible',
         currentBagCount: 3,
-        incomingBagCount: null,
         estimatedWeightLbs: 52,
       }),
     ).toMatchObject({
@@ -111,7 +104,6 @@ describe('demand lifecycle policy', () => {
         phase: 'post_production',
         productionStatus: 'scheduled',
         currentBagCount: 3,
-        incomingBagCount: null,
         estimatedWeightLbs: 52,
       }),
     ).toMatchObject({

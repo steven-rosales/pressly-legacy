@@ -1,0 +1,23 @@
+work_id: lpms-production-batch-manifest-responsive-refinement
+status: complete
+updated: 2026-07-29T17:45:00-04:00
+
+current_focus:
+  - complete
+  - Responsive batch manifest refinement verified.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/evidence.md
+      - design-qa.md
+      - stateworks/work/done/lpms-production-batch-manifest-responsive-refinement/final-report.md

@@ -26,6 +26,59 @@ const ids = {
 } as const;
 
 describe('production order resolution Postgres workflow', () => {
+  it('finds the exact location-scoped Production projection by canonical fulfillment', async () => {
+    const now = new Date('2026-07-26T23:00:00.000Z');
+    await testDb.db.insert(laundryProduction.productionLocations).values({
+      id: 'location-1',
+      name: 'Resolution Lookup Facility',
+      timezone: 'America/New_York',
+    });
+    await seedProductionDemands(testDb.db, {
+      id: ids.demand,
+      demandKey: 'test:resolution:fulfillment-lookup',
+      displayReference: 'RESOLUTION-LOOKUP-101',
+      locationId: 'location-1',
+      revisionHash: 'resolution-lookup',
+      revisionAt: now,
+      phase: 'expected',
+      sourceStatusCode: 'SUBMITTED',
+      estimatedWeightLbs: 24,
+      estimatedWeightSource: 'external_price',
+      dueAt: new Date('2026-07-27T20:00:00.000Z'),
+    });
+    await testDb.db.insert(laundryProduction.productionOrders).values({
+      id: ids.order,
+      orderDemandId: ids.demand,
+      locationId: 'location-1',
+      dueAt: new Date('2026-07-27T20:00:00.000Z'),
+      operationalStatus: 'release_pending',
+      executionStatus: 'unassigned',
+      derivedWeightLbs: 24,
+    });
+    const repo = makeChangeProductionOrderResolutionRepository({
+      db: testDb.db,
+      ids: makeIds(),
+    });
+
+    await expect(
+      repo.transaction((operations) =>
+        operations.findOrderByFulfillment('location-1', ids.demand),
+      ),
+    ).resolves.toEqual({
+      orderId: ids.order,
+      locationId: 'location-1',
+      productionVersion: 1,
+      resolutionState: 'open',
+      sourceAdmissionState: 'unreleased',
+      sourceCommercialState: 'open',
+    });
+    await expect(
+      repo.transaction((operations) =>
+        operations.findOrderByFulfillment('other-location', ids.demand),
+      ),
+    ).resolves.toBeNull();
+  });
+
   it('persists a graph-governed resolve and restore with coherent audit metadata', async () => {
     const now = new Date('2026-07-26T23:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({

@@ -2,11 +2,13 @@ import { stateMachine } from '@pressly/kernel';
 import type { FulfillmentReleaseState, OrderState } from './orders.port.ts';
 
 type OrderEntity = Readonly<{ state: string }>;
-type OrderEvent = Readonly<{ type: 'complete' }> | Readonly<{ type: 'cancel' }>;
+export type OrderLifecycleEvent =
+  | Readonly<{ type: 'complete' }>
+  | Readonly<{ type: 'cancel' }>;
 
 const orderMachine = stateMachine.define<
   readonly ['open', 'completed', 'canceled'],
-  OrderEvent,
+  OrderLifecycleEvent,
   OrderEntity,
   Record<string, never>
 >({
@@ -23,13 +25,13 @@ const orderMachine = stateMachine.define<
 });
 
 type FulfillmentEntity = Readonly<{ state: string }>;
-type FulfillmentEvent =
+export type FulfillmentReleaseEvent =
   | Readonly<{ type: 'release' }>
   | Readonly<{ type: 'withdraw' }>;
 
 const fulfillmentMachine = stateMachine.define<
   readonly ['unreleased', 'released', 'withdrawn'],
-  FulfillmentEvent,
+  FulfillmentReleaseEvent,
   FulfillmentEntity,
   Record<string, never>
 >({
@@ -45,16 +47,88 @@ const fulfillmentMachine = stateMachine.define<
   ],
 });
 
+export type OrderLifecycleDecision =
+  | Readonly<{
+      kind: 'allowed';
+      from: OrderState;
+      to: OrderState;
+      event: OrderLifecycleEvent['type'];
+    }>
+  | Readonly<{
+      kind: 'denied';
+      from: OrderState;
+      event: OrderLifecycleEvent['type'];
+      allowedEvents: readonly OrderLifecycleEvent['type'][];
+    }>;
+
+export type FulfillmentReleaseDecision =
+  | Readonly<{
+      kind: 'allowed';
+      from: FulfillmentReleaseState;
+      to: FulfillmentReleaseState;
+      event: FulfillmentReleaseEvent['type'];
+    }>
+  | Readonly<{
+      kind: 'denied';
+      from: FulfillmentReleaseState;
+      event: FulfillmentReleaseEvent['type'];
+      allowedEvents: readonly FulfillmentReleaseEvent['type'][];
+    }>;
+
+export const decideOrderLifecycle = (
+  current: OrderState,
+  event: OrderLifecycleEvent,
+): OrderLifecycleDecision => {
+  const transition = orderMachine.transition({ state: current }, event, {});
+  return transition.tag === 'ok'
+    ? {
+        kind: 'allowed',
+        from: transition.value.from,
+        to: transition.value.to,
+        event: transition.value.event.type,
+      }
+    : {
+        kind: 'denied',
+        from: current,
+        event: event.type,
+        allowedEvents: orderMachine.allowedEvents(current),
+      };
+};
+
+export const decideFulfillmentRelease = (
+  current: FulfillmentReleaseState,
+  event: FulfillmentReleaseEvent,
+): FulfillmentReleaseDecision => {
+  const transition = fulfillmentMachine.transition(
+    { state: current },
+    event,
+    {},
+  );
+  return transition.tag === 'ok'
+    ? {
+        kind: 'allowed',
+        from: transition.value.from,
+        to: transition.value.to,
+        event: transition.value.event.type,
+      }
+    : {
+        kind: 'denied',
+        from: current,
+        event: event.type,
+        allowedEvents: fulfillmentMachine.allowedEvents(current),
+      };
+};
+
 export const mayTransitionOrder = (
   current: OrderState,
   target: OrderState,
 ): boolean => {
   if (current === target) return true;
   if (target === 'open') return false;
-  return orderMachine.can(
-    { state: current },
-    { type: target === 'completed' ? 'complete' : 'cancel' },
-    {},
+  return (
+    decideOrderLifecycle(current, {
+      type: target === 'completed' ? 'complete' : 'cancel',
+    }).kind === 'allowed'
   );
 };
 
@@ -64,9 +138,9 @@ export const mayTransitionFulfillment = (
 ): boolean => {
   if (current === target) return true;
   if (target === 'unreleased') return false;
-  return fulfillmentMachine.can(
-    { state: current },
-    { type: target === 'released' ? 'release' : 'withdraw' },
-    {},
+  return (
+    decideFulfillmentRelease(current, {
+      type: target === 'released' ? 'release' : 'withdraw',
+    }).kind === 'allowed'
   );
 };

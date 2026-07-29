@@ -17,9 +17,9 @@ import {
   listProductionOrdersResultSchema,
   processorProductionHistoryRunDetailSchema,
   processorProductionOrderBacklogPreviewSchema,
+  processorProductionBoardSchema,
   processorProductionWorkspaceSchema,
   processorRemainingDayForecastSchema,
-  productionBoardSchema,
   productionOrderBacklogCommitResultSchema,
   productionMutationResultSchema,
   productionOrderRouteProposalSchema,
@@ -282,7 +282,7 @@ export const makeApiProductionAdapter = (
         path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/board`,
         ...(signal === undefined ? {} : { signal }),
       },
-      productionBoardSchema
+      processorProductionBoardSchema
     ),
   setPriority: ({ locationId, productionOrderId, ...body }) =>
     request(

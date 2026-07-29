@@ -6,7 +6,10 @@ import { makePricingModule } from '@pressly/pricing';
 import { makePostgresProductionModule } from '@pressly/production';
 import { makeProductionPolicy } from '@pressly/production-policy';
 import { makeProductionScheduler } from '@pressly/production-scheduling';
-import { makePostgresUsersApplication } from '@pressly/users';
+import {
+  makePostgresCanonicalSourceUserAcceptanceAdapter,
+  makePostgresUsersApplication,
+} from '@pressly/users';
 import { makePostgresWebhookIngestionApplication } from '@pressly/webhook-ingestion';
 import { makeProcessorBrowserBoundary } from '../http/processor/session/processor-session.boundary.ts';
 import type { ApiRuntime } from '../runtime/api-runtime.ts';
@@ -96,9 +99,12 @@ export const makeApiCapabilities = (input: {
     db: input.runtime.database.db,
     clock: input.clock,
   });
+  const incomingOrderProposalCustomer =
+    makePostgresCanonicalSourceUserAcceptanceAdapter();
   const orders = makePostgresOrdersApplication({
     db: input.runtime.database.db,
     clock: input.clock,
+    incomingOrderProposalCustomer,
   });
 
   return {

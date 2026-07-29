@@ -52,7 +52,10 @@ import {
   initialScheduleRevisionState,
   scheduleRevisionGraph,
 } from './lifecycle/schedule-revision-lifecycle.policy.ts';
-import { evaluateOrderRouting } from './order-routing/order-routing.policy.ts';
+import {
+  evaluateOrderRouting,
+  evaluateQueuedMoveTarget,
+} from './order-routing/order-routing.policy.ts';
 import { deriveProductionOrderOperationalStatus } from './lifecycle/production-order-operational-status.policy.ts';
 import { evaluatePlacementCommit } from './placement-commit/placement-commit.policy.ts';
 import { evaluateFloorProgressReconciliation } from './progress-reconciliation/progress-reconciliation.policy.ts';
@@ -78,6 +81,7 @@ export const makeProductionPolicy = () => ({
   evaluateShiftPlanningWindow,
   evaluateBatchMembershipTransition,
   evaluateOrderRouting,
+  evaluateQueuedMoveTarget,
   evaluatePlacementCommit,
   evaluateFloorProgressReconciliation,
   evaluateStageNextAction,

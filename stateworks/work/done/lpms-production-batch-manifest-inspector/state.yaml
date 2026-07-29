@@ -1,0 +1,27 @@
+work_id: lpms-production-batch-manifest-inspector
+status: complete
+updated: 2026-07-29T15:55:51-04:00
+
+current_focus:
+  - complete
+  - All implementation and verification tasks are committed.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-batch-manifest-inspector/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-batch-manifest-inspector/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-batch-manifest-inspector/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-production-batch-manifest-inspector/evidence.md
+      - design-qa.md
+      - stateworks/work/done/lpms-production-batch-manifest-inspector/final-report.md

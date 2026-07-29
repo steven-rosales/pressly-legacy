@@ -23,7 +23,7 @@ export type IntakeFilters = Readonly<{
 
 export type IntakeAdmissionDecision = Readonly<{
   item: ProcessorOrderControlItem
-  target: "released" | "source"
+  target: "released"
 }>
 
 export type IntakeModelInput = Readonly<{
@@ -74,7 +74,6 @@ const matchesFilters = (
     customer?.lastName,
     customer?.phone,
     source?.name,
-    source?.status,
   ]
     .filter((value): value is string => typeof value === "string")
     .join(" ")
@@ -84,7 +83,7 @@ const matchesFilters = (
 
 export function useIntakeModel(input: IntakeModelInput) {
   const { t, i18n } = useTranslation()
-  const [tab, setTab] = useState<IntakeTab>("forecast_only")
+  const [tab, setTab] = useState<IntakeTab>("needs_intake")
   const [filters, setFilters] = useState<IntakeFilters>(emptyIntakeFilters)
   const [items, setItems] = useState<readonly ProcessorOrderControlItem[]>([])
   const [bagCounts, setBagCounts] = useState<Record<string, string>>({})
@@ -223,24 +222,21 @@ export function useIntakeModel(input: IntakeModelInput) {
 
   const confirmAdmission = async () => {
     if (decision === null) return
-    const { item, target } = decision
+    const { item } = decision
     setBusyOrderId(item.order.id)
     setError(null)
     try {
       await input.production.changeAdmission({
         locationId: input.locationId,
         productionOrderId: item.order.id,
-        target,
+        target: "released",
         expectedVersion: item.order.version,
         idempotencyKey: await input.idempotency.key({
-          operation:
-            target === "released"
-              ? "release-order-to-production"
-              : "return-order-to-source-admission",
+          operation: "release-order-to-production",
           payload: {
             locationId: input.locationId,
             productionOrderId: item.order.id,
-            target,
+            target: "released",
             expectedVersion: item.order.version,
           },
         }),

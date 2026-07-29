@@ -174,6 +174,7 @@ describe("order resolution review sheet", () => {
     expect(screen.getByText("Already in history")).toBeVisible()
     expect(screen.getByText("Order C-1001")).toBeVisible()
     expect(screen.getByText("Order C-1002")).toBeVisible()
+    expect(screen.getAllByRole("combobox")).toHaveLength(1)
 
     await user.click(screen.getByText("Kept for safety"))
     expect(screen.getByText("Order C-1003")).toBeVisible()

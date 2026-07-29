@@ -56,7 +56,8 @@ describe('Cents webhook normalization quarantine', () => {
     expect(boundary.request.body).toMatchObject({
       source: 'cents',
       eventType: 'order_updated',
-      payload: { status: 'IN_PROGRESS' },
+      disposition: 'process',
+      payload: { status: 'SUBMITTED' },
     });
     expect(boundary.next).toHaveBeenCalledWith();
   });
@@ -64,6 +65,7 @@ describe('Cents webhook normalization quarantine', () => {
   it('captures normalization failures without creating a canonical command', async () => {
     const payload = {
       action: 'order_updated',
+      order: { status: 'SUBMITTED' },
       customer: { email: 'private@example.invalid' },
     };
     const captureReceipt = vi.fn(async () => ({

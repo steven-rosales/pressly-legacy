@@ -1314,7 +1314,31 @@ describe('place production order Postgres commit', () => {
         placementProvenance: 'manual_rebatch',
       },
       nextRequiredStage: 'sorting',
-      canMoveQueued: true,
+      commands: {
+        queuedMove: {
+          status: 'allowed',
+          expectedQueueVersion: 2,
+          expectedOrderVersion: 2,
+          expectedSourceBatchVersion: 2,
+          targets: expect.arrayContaining([
+            expect.objectContaining({
+              productionBatchId: targetBatch,
+              feasibility: {
+                status: 'blocked',
+                code: 'TARGET_IS_SOURCE_BATCH',
+              },
+            }),
+            expect.objectContaining({
+              productionBatchId: ids.mutableBatch,
+              feasibility: { status: 'allowed' },
+            }),
+          ]),
+        },
+        routeException: {
+          status: 'blocked',
+          code: 'EXCEPTION_SOURCE_NOT_IN_FLIGHT',
+        },
+      },
       routeAttempts: expect.arrayContaining([
         expect.objectContaining({ status: 'released', attemptNumber: 1 }),
         expect.objectContaining({ status: 'assigned', attemptNumber: 2 }),

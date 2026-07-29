@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type {
@@ -6,7 +6,10 @@ import type {
   OrderControlOrder,
   OrderControlViewModel,
 } from "@/features/order-control/order-control.model"
-import { OrderControlWorkspace } from "@/features/order-control/order-control.view"
+import {
+  OrderAttentionSummary,
+  OrderControlWorkspace,
+} from "@/features/order-control/order-control.view"
 
 const order: OrderControlOrder = {
   id: "order-1",
@@ -20,7 +23,6 @@ const order: OrderControlOrder = {
   phoneLabel: "(201) 555-0101",
   commercialStateLabel: "Open",
   admissionStateLabel: "Released to production",
-  sourceStateLabel: "Cents · IN_PROGRESS",
   statusLabel: "Scheduled",
   dueLabel: "Today",
   dueDetail: "Due by 5:00 PM",
@@ -32,6 +34,7 @@ const order: OrderControlOrder = {
     detail: "This order needs a later washing batch.",
     tone: "warning",
   },
+  audit: [],
   position: {
     label: "Batch 2",
     detail: "Washing · membership frozen",
@@ -50,6 +53,13 @@ const order: OrderControlOrder = {
   move: { available: false, reason: "Only queued work can move normally." },
   leaveBehind: { available: true, reason: null },
   rework: { available: true, reason: null },
+  archive: {
+    available: false,
+    reason: "Production work has already started.",
+    expectedVersion: null,
+    requiresExplicitReview: false,
+    reviewReasons: [],
+  },
 }
 
 const filterOptions = {
@@ -112,6 +122,9 @@ const makeCallbacks = (): OrderControlCallbacks => ({
   onExceptionDraftChange: vi.fn(),
   onReviewException: vi.fn(),
   onConfirmException: vi.fn(),
+  onStartArchive: vi.fn(),
+  onArchiveDraftChange: vi.fn(),
+  onConfirmArchive: vi.fn(),
   onChangeActionDetails: vi.fn(),
   onCancelAction: vi.fn(),
 })
@@ -130,6 +143,91 @@ beforeEach(() =>
 afterEach(() => vi.unstubAllGlobals())
 
 describe("order control workspace", () => {
+  it("summarizes the server attention count with at most three order identities", async () => {
+    const user = userEvent.setup()
+    const onOpenOrders = vi.fn()
+    const orders = [1, 2, 3, 4].map((index) => ({
+      ...order,
+      id: `order-${index}`,
+      identity: {
+        displayNumber: `100${index}`,
+        customerDisplayName: `Customer ${index}`,
+      },
+      externalOrderId: `100${index}`,
+    }))
+
+    render(
+      <OrderAttentionSummary
+        model={{
+          ...baseModel,
+          counts: { needsAttention: 4, active: 14, all: 34 },
+          orders,
+        }}
+        onOpenOrders={onOpenOrders}
+      />
+    )
+
+    expect(screen.getByText("4 orders need attention")).toBeVisible()
+    expect(document.querySelectorAll("[data-order-identity]")).toHaveLength(3)
+    const attentionLabels = screen.getAllByText("Left behind")
+    expect(attentionLabels).toHaveLength(3)
+    attentionLabels.forEach((label) =>
+      expect(label.parentElement).toHaveTextContent("Left behind · Today")
+    )
+    expect(screen.getAllByRole("button")).toHaveLength(1)
+
+    await user.click(screen.getByRole("button", { name: "Open Orders" }))
+    expect(onOpenOrders).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not report a clear attention state before loading settles or after an error", () => {
+    const { rerender } = render(
+      <OrderAttentionSummary
+        model={{
+          ...baseModel,
+          counts: { needsAttention: 0, active: 0, all: 0 },
+          orders: [],
+          loading: true,
+        }}
+        onOpenOrders={vi.fn()}
+      />
+    )
+
+    const loadingSummary = screen.getByRole("region", {
+      name: "Order attention",
+    })
+    expect(
+      within(loadingSummary).getByText("Checking order attention…")
+    ).toBeVisible()
+    expect(
+      within(loadingSummary).queryByText("No orders need attention")
+    ).not.toBeInTheDocument()
+    expect(within(loadingSummary).queryByText("0")).not.toBeInTheDocument()
+
+    rerender(
+      <OrderAttentionSummary
+        model={{
+          ...baseModel,
+          counts: { needsAttention: 0, active: 0, all: 0 },
+          orders: [],
+          error: "Request failed",
+        }}
+        onOpenOrders={vi.fn()}
+      />
+    )
+
+    const errorSummary = screen.getByRole("region", {
+      name: "Order attention",
+    })
+    expect(
+      within(errorSummary).getByText("Order attention could not be refreshed.")
+    ).toBeVisible()
+    expect(
+      within(errorSummary).queryByText("No orders need attention")
+    ).not.toBeInTheDocument()
+    expect(within(errorSummary).queryByText("0")).not.toBeInTheDocument()
+  })
+
   it("exposes tab, URL-filter, row, and cursor actions through callbacks", async () => {
     const user = userEvent.setup()
     const callbacks = makeCallbacks()
@@ -175,6 +273,50 @@ describe("order control workspace", () => {
     expect(screen.getByRole("button", { name: "Order 1001" })).toBeVisible()
     expect(screen.getByText("Updating")).toBeVisible()
     expect(screen.queryByLabelText("Loading orders")).not.toBeInTheDocument()
+  })
+
+  it("prioritizes operational truth without presenting a source controller", () => {
+    render(
+      <OrderControlWorkspace
+        model={{ ...baseModel, selectedOrder: order }}
+        callbacks={makeCallbacks()}
+        isMobile={false}
+      />
+    )
+
+    const sheet = document.querySelector('[data-slot="sheet-content"]')
+    const scrollArea = sheet?.querySelector('[data-slot="scroll-area"]')
+    const body = scrollArea?.querySelector(".flex.min-w-0.flex-col")
+    expect(scrollArea).not.toHaveClass("px-5")
+    expect(body).toHaveClass("px-5", "sm:px-6")
+    expect(sheet?.querySelector('[data-slot="sheet-header"]')).toHaveClass(
+      "px-5",
+      "sm:px-6"
+    )
+    expect(sheet?.querySelector('[data-slot="sheet-footer"]')).toHaveClass(
+      "px-5",
+      "sm:px-6"
+    )
+
+    const floorPosition = screen.getByRole("heading", {
+      name: "Floor position",
+    })
+    const orderActions = screen.getByRole("heading", {
+      name: "Order actions",
+    })
+    const customer = screen.getByRole("heading", {
+      name: "Customer and order",
+    })
+    expect(
+      floorPosition.compareDocumentPosition(orderActions) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      orderActions.compareDocumentPosition(customer) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(screen.queryByText("Source & audit")).toBeNull()
+    expect(screen.queryByText(/IN_PROGRESS/)).toBeNull()
   })
 
   it("renders a mobile guided leave-behind review and exact confirmation", async () => {

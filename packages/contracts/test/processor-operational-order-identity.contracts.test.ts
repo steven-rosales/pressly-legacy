@@ -2,6 +2,8 @@ import {
   processorForecastExpectedLaterItemSchema,
   processorListProductionHistoryActivityResultSchema,
   processorOperationalOrderIdentitySchema,
+  processorOrderContextSchema,
+  processorProductionBatchOrderSchema,
   processorProductionOrderBacklogPreviewSchema,
 } from '../src/index.ts';
 import { describe, expect, it } from 'vitest';
@@ -59,6 +61,36 @@ describe('Processor operational order identity contracts', () => {
     });
   });
 
+  it('requires canonical identity on every nested production batch order', () => {
+    const order = {
+      id: id(30),
+      externalOrderId: 'legacy-reference',
+      dueAt: '2026-07-29T17:00:00.000Z',
+      dueBucket: 'today',
+      priority: true,
+      derivedWeightLbs: 24,
+      bagCount: 2,
+      version: 1,
+      placementProvenance: 'initial_schedule',
+      pinnedAt: null,
+      pinnedBy: null,
+      identity: {
+        displayNumber: 'ORD-2055',
+        customerDisplayName: 'Santiago Jackson',
+      },
+    } as const;
+
+    expect(processorProductionBatchOrderSchema.parse(order).identity).toEqual(
+      order.identity,
+    );
+    expect(
+      processorProductionBatchOrderSchema.safeParse({
+        ...order,
+        identity: undefined,
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects empty or extra identity fields', () => {
     expect(
       processorOperationalOrderIdentitySchema.safeParse({
@@ -71,6 +103,54 @@ describe('Processor operational order identity contracts', () => {
         displayNumber: 'ORD-2051',
         customerDisplayName: 'Customer',
         phone: '+12015550101',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('requires strict canonical versions, bounded source provenance, and generic audit evidence', () => {
+    const context = {
+      canonicalOrderId: id(20),
+      canonicalFulfillmentId: id(21),
+      versions: { order: 4, fulfillment: 3 },
+      displayNumber: 'ORD-2054',
+      customer: {
+        resolution: 'resolved',
+        userId: id(22),
+        firstName: 'Camila',
+        lastName: 'Reed',
+        businessName: null,
+        phone: '+12015550101',
+      },
+      commercialState: 'open',
+      admissionState: 'released',
+      source: {
+        name: 'cents',
+      },
+      audit: [
+        {
+          kind: 'source_observation',
+          code: 'source_observation',
+          occurredAt: '2026-07-27T12:01:00.000Z',
+          actor: 'cents',
+          outcome: null,
+        },
+      ],
+    } as const;
+
+    expect(processorOrderContextSchema.parse(context)).toEqual(context);
+    expect(
+      processorOrderContextSchema.safeParse({
+        ...context,
+        versions: undefined,
+      }).success,
+    ).toBe(false);
+    expect(
+      processorOrderContextSchema.safeParse({
+        ...context,
+        source: {
+          ...context.source,
+          status: 'IN_PROGRESS',
+        },
       }).success,
     ).toBe(false);
   });
@@ -96,7 +176,6 @@ describe('Processor operational order identity contracts', () => {
               customerDisplayName: 'Northwind Hotel',
             },
             dueAt: '2026-06-30T17:00:00.000Z',
-            sourceCommercialState: 'completed',
             category: 'ready_to_archive',
             reasons: ['no_operator_owned_facts'],
             expectedVersion: 1,

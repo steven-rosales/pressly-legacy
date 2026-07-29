@@ -103,8 +103,6 @@ export type OrderResolutionReviewCopy = Readonly<{
   archiveExplanationTitle: string
   archiveExplanation: string
   scopeTitle: string
-  filterLabel: string
-  filterOptions: Readonly<Record<ProductionOrderBacklogFilter, string>>
   cutoffLabel: string
   cutoffPlaceholder: string
   cutoffPopoverTitle: string
@@ -132,7 +130,6 @@ export type OrderResolutionReviewCopy = Readonly<{
   groups: Readonly<Record<ProductionOrderBacklogCategory, GroupCopy>>
   groupCount: (count: number) => string
   orderDue: (formattedDate: string) => string
-  sourceState: Readonly<Record<"open" | "completed" | "canceled", string>>
   classificationReasons: Readonly<
     Record<ProductionOrderBacklogClassificationReason, string>
   >

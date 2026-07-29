@@ -348,23 +348,23 @@ export const allowPolicy: ProductionPolicyPort = {
     return actions;
   },
   evaluateDemandLifecycle: (input) => {
-    const effectiveBagCount = input.currentBagCount ?? input.incomingBagCount;
+    const canonicalBagCount = input.currentBagCount;
     if (
       input.productionStatus === 'scheduled' ||
       input.productionStatus === 'finished'
     )
       return {
-        effectiveBagCount,
+        canonicalBagCount,
         production: { action: 'preserve' },
       };
     if (input.phase === 'post_production' || input.phase === 'withdrawn') {
       if (input.productionStatus === null)
         return {
-          effectiveBagCount,
+          canonicalBagCount,
           production: { action: 'none' },
         };
       return {
-        effectiveBagCount,
+        canonicalBagCount,
         production: { action: 'update', status: 'ineligible' },
       };
     }
@@ -374,19 +374,19 @@ export const allowPolicy: ProductionPolicyPort = {
       input.estimatedWeightLbs <= 0
     )
       return {
-        effectiveBagCount,
+        canonicalBagCount,
         production:
           input.productionStatus === null
             ? { action: 'none' }
             : { action: 'update', status: 'ineligible' },
       };
     return {
-      effectiveBagCount,
+      canonicalBagCount,
       production: {
         action: input.productionStatus === null ? 'create' : 'update',
         status:
           input.phase === 'production_released'
-            ? effectiveBagCount === null
+            ? canonicalBagCount === null
               ? 'intake_pending'
               : 'eligible'
             : 'release_pending',
@@ -495,6 +495,40 @@ export const allowPolicy: ProductionPolicyPort = {
         }),
       },
     };
+  },
+  evaluateQueuedMoveTarget: (input) => {
+    if (input.target.productionBatchId === input.sourceProductionBatchId)
+      return { decision: 'blocked', code: 'TARGET_IS_SOURCE_BATCH' };
+    if (input.target.status !== 'queued')
+      return { decision: 'blocked', code: 'TARGET_NOT_QUEUED' };
+    if (input.target.membershipFrozen)
+      return { decision: 'blocked', code: 'TARGET_MEMBERSHIP_FROZEN' };
+    const targetStages = new Map(
+      input.target.stages.map((stage) => [stage.stage, stage]),
+    );
+    const stages = [
+      'sorting',
+      'washing',
+      'drying',
+      'folding_packaging',
+    ] as const;
+    if (
+      targetStages.size !== stages.length ||
+      stages.some((stage) => targetStages.get(stage) === undefined)
+    )
+      return { decision: 'blocked', code: 'TARGET_STAGE_GRAPH_INVALID' };
+    if (stages.some((stage) => targetStages.get(stage)?.status !== 'planned'))
+      return { decision: 'blocked', code: 'TARGET_STAGE_NOT_PLANNED' };
+    if (
+      stages.some((stage) => {
+        const target = targetStages.get(stage)!;
+        return (
+          target.assignedWeightLbs + input.orderWeightLbs > target.capacityLbs
+        );
+      })
+    )
+      return { decision: 'blocked', code: 'HARD_CAPACITY_EXCEEDED' };
+    return { decision: 'allowed' };
   },
   evaluateFloorProgressReconciliation: (input) => {
     const targetIndex = [

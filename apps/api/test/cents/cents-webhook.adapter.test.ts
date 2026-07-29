@@ -5,6 +5,7 @@ import {
   CENTS_WEBHOOK_MAX_BODY_BYTES,
   deriveCentsDeduplicationKey,
   normalizeCentsWebhook,
+  toCentsWebhookEventCommand,
 } from '../../src/http/webhooks/cents/cents-webhook.normalizer.ts';
 
 const orderPayload = (overrides: Record<string, unknown> = {}) => ({
@@ -13,7 +14,7 @@ const orderPayload = (overrides: Record<string, unknown> = {}) => ({
     id: 12345,
     storeId: 24,
     orderCode: '00123',
-    status: 'IN_PROGRESS',
+    status: 'SUBMITTED',
     orderTotal: 29.99,
     balanceDue: 24.99,
     dueDate: '2026-07-10T20:00:00.000Z',
@@ -46,13 +47,13 @@ const normalize = (payload: unknown, rawBody?: Uint8Array) =>
   });
 
 describe('Cents order webhook adapter', () => {
-  it('normalizes documented order and customer fields for canonical processing', () => {
+  it('normalizes a submitted order into an incoming candidate payload', () => {
     const result = normalize(orderPayload());
 
     expect(result).toMatchObject({
       ok: true,
       value: {
-        disposition: 'project_order',
+        disposition: 'propose_order_candidate',
         receipt: {
           eventKind: 'order_updated',
           classification: 'order',
@@ -62,7 +63,7 @@ describe('Cents order webhook adapter', () => {
           externalOrderId: '12345',
           orderCode: '00123',
           externalStoreId: '24',
-          status: 'IN_PROGRESS',
+          status: 'SUBMITTED',
           dueAt: '2026-07-10T20:00:00.000Z',
           sourceUpdatedAt: '2026-07-10T14:00:00.000Z',
           bagCount: null,
@@ -92,30 +93,155 @@ describe('Cents order webhook adapter', () => {
     expect(JSON.stringify(result)).not.toContain('sourceVersion');
     expect(JSON.stringify(result)).not.toContain('occurredAt');
     expect(JSON.stringify(result)).not.toContain('eventId');
+    if (!result.ok || result.value.disposition !== 'propose_order_candidate')
+      return;
+    expect(toCentsWebhookEventCommand(result.value)).toMatchObject({
+      subjectType: 'order',
+      subjectId: '12345',
+      sourceLocationId: '24',
+      sourceOccurredAt: '2026-07-10T14:00:00.000Z',
+      disposition: 'process',
+      payload: result.value.order,
+    });
   });
 
-  it.each([
-    ['SUBMITTED', 'SUBMITTED'],
-    ['READY_FOR_PICKUP', 'READY_FOR_PICKUP'],
-    ['PICKED_UP', 'PICKED_UP'],
-    ['IN_PROGRESS', 'IN_PROGRESS'],
-    ['READY_FOR_RETURN', 'READY_FOR_RETURN'],
-    ['OUT_FOR_DELIVERY', 'OUT_FOR_DELIVERY'],
-    ['COMPLETED', 'COMPLETED'],
-    ['CANCELLED', 'CANCELED'],
-    ['CANCELED', 'CANCELED'],
-  ] as const)('normalizes order status %s to %s', (wire, canonical) => {
+  it('keeps vendor-only fields in encrypted quarantine rather than the candidate payload', () => {
     const base = orderPayload();
     const result = normalize({
       ...base,
-      order: { ...(base.order as object), status: wire },
+      order: {
+        ...base.order,
+        vendorPrivateOrderField: 'must-not-survive',
+      },
+      services: [
+        {
+          ...base.services[0],
+          vendorPrivateServiceField: 'must-not-survive',
+        },
+      ],
+      customer: {
+        ...base.customer,
+        vendorPrivateCustomerField: 'must-not-survive',
+      },
     });
 
     expect(result).toMatchObject({
       ok: true,
-      value: { order: { status: canonical } },
+      value: { disposition: 'propose_order_candidate' },
     });
+    expect(JSON.stringify(result)).not.toContain('must-not-survive');
+    expect(JSON.stringify(result)).not.toContain('vendorPrivate');
   });
+
+  it.each(['COMPLETED', 'CANCELED'] as const)(
+    'normalizes minimal %s observations into exact terminal close commands',
+    (status) => {
+      const payload = {
+        action: 'order_updated',
+        order: {
+          id: 12345,
+          storeId: 24,
+          status,
+          updatedAt: '2026-07-10T15:00:00.000Z',
+          vendorPrivateField: 'must-not-survive',
+        },
+      };
+      const normalized = normalize(payload);
+
+      expect(normalized).toMatchObject({
+        ok: true,
+        value: {
+          disposition: 'close_order_candidate',
+          order: {
+            externalOrderId: '12345',
+            externalStoreId: '24',
+            status,
+            sourceUpdatedAt: '2026-07-10T15:00:00.000Z',
+          },
+        },
+      });
+      if (!normalized.ok) return;
+      expect(normalized.value.disposition).toBe('close_order_candidate');
+      if (normalized.value.disposition !== 'close_order_candidate') return;
+
+      expect(toCentsWebhookEventCommand(normalized.value)).toMatchObject({
+        subjectType: 'order',
+        subjectId: '12345',
+        sourceLocationId: '24',
+        sourceOccurredAt: '2026-07-10T15:00:00.000Z',
+        disposition: 'process',
+        payload: normalized.value.order,
+      });
+      expect(JSON.stringify(normalized)).not.toContain('must-not-survive');
+    },
+  );
+
+  it.each([
+    ['SUBMITTED', 'candidate'],
+    ['READY_FOR_PICKUP', 'ignore'],
+    ['PICKED_UP', 'ignore'],
+    ['IN_PROGRESS', 'ignore'],
+    ['READY_FOR_RETURN', 'ignore'],
+    ['OUT_FOR_DELIVERY', 'ignore'],
+    ['COMPLETED', 'terminal'],
+    ['CANCELLED', 'ignore'],
+    ['CANCELED', 'terminal'],
+  ] as const)(
+    'classifies exact order status %s at the boundary',
+    (status, disposition) => {
+      const base = orderPayload();
+      const normalized = normalize({
+        ...base,
+        order: { ...(base.order as object), status },
+      });
+      expect(normalized).toMatchObject({ ok: true });
+      if (!normalized.ok) return;
+
+      const command = toCentsWebhookEventCommand(normalized.value);
+      expect(command.disposition).toBe(
+        disposition === 'ignore' ? 'ignore' : 'process',
+      );
+      if (disposition === 'candidate') {
+        expect(normalized.value.disposition).toBe('propose_order_candidate');
+        if (normalized.value.disposition !== 'propose_order_candidate') return;
+        expect(command.payload).toBe(normalized.value.order);
+      } else if (disposition === 'terminal') {
+        expect(normalized.value.disposition).toBe('close_order_candidate');
+        if (normalized.value.disposition !== 'close_order_candidate') return;
+        expect(command.payload).toBe(normalized.value.order);
+      } else expect(command.payload).toBeNull();
+    },
+  );
+
+  it.each(['IN_PROGRESS', 'FUTURE_VENDOR_STATUS'])(
+    'acknowledges malformed ignored status %s without canonical normalization',
+    (status) => {
+      const normalized = normalize({
+        action: 'order_updated',
+        order: {
+          id: 'order-1',
+          status,
+          updatedAt: '2026-07-10T14:00:00.000Z',
+        },
+        services: [{ malformed: true }],
+        customer: { malformed: true },
+      });
+
+      expect(normalized).toMatchObject({
+        ok: true,
+        value: {
+          disposition: 'ignore',
+          receipt: { eventKind: 'order_updated' },
+          reason: 'unsupported_event',
+        },
+      });
+      if (!normalized.ok) return;
+      expect(toCentsWebhookEventCommand(normalized.value)).toMatchObject({
+        disposition: 'ignore',
+        payload: null,
+      });
+    },
+  );
 
   it.each(['order_created', 'order_updated', 'order_completed'])(
     'accepts the documented order event %s through either alias',
@@ -223,11 +349,25 @@ describe('Cents order webhook adapter', () => {
   });
 
   it.each([
-    [{ action: 'order_updated' }, 'invalid_cents_order_payload'],
+    [
+      { action: 'order_updated', order: { status: 'SUBMITTED' } },
+      'invalid_cents_order_payload',
+    ],
     [
       {
         ...orderPayload(),
         services: undefined,
+      },
+      'invalid_cents_order_payload',
+    ],
+    [
+      {
+        action: 'order_updated',
+        order: {
+          id: 'order-1',
+          status: 'COMPLETED',
+          updatedAt: '2026-07-10T14:00:00.000Z',
+        },
       },
       'invalid_cents_order_payload',
     ],
@@ -242,8 +382,8 @@ describe('Cents customer and marketing classification', () => {
     ['customer_updated', 'customer'],
     ['customer_marketing_optin', 'marketing'],
   ] as const)(
-    'normalizes %s as a processable %s observation',
-    (event, classification) => {
+    'acknowledges %s without projecting a %s observation',
+    (event, _classification) => {
       const payload = {
         event,
         customer: {
@@ -256,43 +396,24 @@ describe('Cents customer and marketing classification', () => {
         customerMetrics: { totalOrderValue: 447.35 },
       };
       const result = normalize(payload);
-      expect(result).toMatchObject(
-        classification === 'customer'
-          ? {
-              ok: true,
-              value: {
-                disposition: 'project_customer',
-                receipt: { eventKind: event, classification },
-                customer: {
-                  externalUserId: 'customer-fixture-815',
-                  firstName: 'Private Fixture',
-                  phone: '+15550000001',
-                  email: 'private@example.invalid',
-                  sourceSnapshot: {
-                    customerMetrics: { totalOrderValue: 447.35 },
-                  },
-                },
-              },
-            }
-          : {
-              ok: true,
-              value: {
-                disposition: 'record_marketing',
-                receipt: { eventKind: event, classification },
-                marketing: {
-                  granted: true,
-                  customer: {
-                    externalUserId: 'customer-fixture-815',
-                    firstName: 'Private Fixture',
-                  },
-                },
-              },
-            },
-      );
+      expect(result).toMatchObject({
+        ok: true,
+        value: {
+          disposition: 'ignore',
+          receipt: { eventKind: event, classification: 'unknown' },
+          reason: 'unsupported_event',
+        },
+      });
       expect(
         centsIngressDecisionSchema.safeParse(result.ok ? result.value : null)
           .success,
       ).toBe(true);
+      if (!result.ok) return;
+      expect(toCentsWebhookEventCommand(result.value)).toMatchObject({
+        subjectType: 'unknown',
+        disposition: 'ignore',
+        payload: null,
+      });
     },
   );
 
@@ -322,12 +443,15 @@ describe('Cents customer and marketing classification', () => {
     expect(JSON.stringify(result)).not.toContain('vendor-private-id');
   });
 
-  it('rejects a documented customer event without a customer identity', () => {
+  it('acknowledges a malformed customer event without retaining its payload', () => {
     expect(
       normalize({ event: 'customer_updated', customer: {} }),
     ).toMatchObject({
-      ok: false,
-      error: { code: 'invalid_cents_customer_payload' },
+      ok: true,
+      value: {
+        disposition: 'ignore',
+        receipt: { eventKind: 'customer_updated' },
+      },
     });
   });
 });

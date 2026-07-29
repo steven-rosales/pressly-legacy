@@ -1,0 +1,23 @@
+work_id: local-processor-empty-slate-reset
+status: complete
+updated: 2026-07-29T13:54:44-04:00
+
+current_focus:
+  - complete
+  - The local Processor was reset and six fresh submitted candidates were
+    verified through durable ingress.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/local-processor-empty-slate-reset/evidence.md#t0--confirmed-local-target-and-pre-reset-inventory
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/local-processor-empty-slate-reset/evidence.md#t1--backup-and-reset
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/local-processor-empty-slate-reset/evidence.md#v1--fresh-candidate-seed
+      - stateworks/work/done/local-processor-empty-slate-reset/final-report.md

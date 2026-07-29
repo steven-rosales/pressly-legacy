@@ -1,9 +1,9 @@
 import {
   canonicalOrderParamsSchema,
+  correctOrderRequestSchema,
   createOrderRequestSchema,
   orderMutationResultSchema,
   productionLocationParamsSchema,
-  updateOrderRequestSchema,
 } from '@pressly/contracts';
 import { makeAppError } from '@pressly/errors';
 import { apiSuccess } from '@pressly/http';
@@ -33,7 +33,7 @@ const directCustomer = (
       };
 
 export const makeOrderCommandRoutes = (input: {
-  orders: Pick<OrdersApplication, 'createOrder' | 'updateOrder'>;
+  orders: Pick<OrdersApplication, 'createOrder' | 'correctOrder'>;
   authenticate: RequestHandler;
   authorize: RequestHandler;
   readPrincipal: ReadOrderManagementPrincipal;
@@ -75,13 +75,16 @@ export const makeOrderCommandRoutes = (input: {
     input.authenticate,
     validateRequest({ params: canonicalOrderParamsSchema }),
     input.authorize,
-    validateRequest({ body: updateOrderRequestSchema }),
+    validateRequest({ body: correctOrderRequestSchema }),
     catchAsync(async (request, response) => {
       const body = request.body;
-      const outcome = await input.orders.updateOrder({
+      const outcome = await input.orders.correctOrder({
         idempotencyKey: body.idempotencyKey,
         context: orderManagementCommandContext(response, input.readPrincipal),
-        expectedVersion: body.expectedVersion,
+        reasonCode: body.reasonCode,
+        reasonNote: body.reasonNote,
+        expectedOrderVersion: body.expectedOrderVersion,
+        expectedFulfillmentVersion: body.expectedFulfillmentVersion,
         locationId: request.params['locationId'] as string,
         orderId: request.params['orderId'] as string,
         changes: {

@@ -1,5 +1,6 @@
 import {
   IconAlertTriangle,
+  IconArrowRight,
   IconChevronLeft,
   IconChevronRight,
   IconCircleCheck,
@@ -29,6 +30,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import {
   Table,
@@ -327,6 +329,100 @@ function OrderPagination({
         </Button>
       </div>
     </nav>
+  )
+}
+
+export function OrderAttentionSummary({
+  model,
+  onOpenOrders,
+}: Readonly<{
+  model: OrderControlViewModel
+  onOpenOrders: () => void
+}>) {
+  const { t } = useTranslation()
+  const attentionOrders = model.orders.slice(0, 3)
+  const count = model.counts.needsAttention
+  const attentionAvailable = !model.loading && model.error === null
+
+  return (
+    <Card
+      size="sm"
+      className="bg-background"
+      role="region"
+      aria-label={t("orderControl.summaryTitle")}
+      aria-busy={model.loading || model.refreshing}
+      data-testid="order-attention-summary"
+    >
+      <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-center">
+        <div className="flex min-w-0 items-start gap-3 lg:w-64 lg:shrink-0">
+          <span
+            className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted"
+            aria-hidden="true"
+          >
+            <IconPackage className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium">{t("orderControl.summaryTitle")}</p>
+              {attentionAvailable && (
+                <Badge variant={count > 0 ? "secondary" : "outline"}>
+                  {count}
+                </Badge>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {model.loading
+                ? t("orderControl.summaryLoading")
+                : model.error !== null
+                  ? t("orderControl.summaryUnavailable")
+                  : count > 0
+                    ? t("orderControl.summaryNeedsAttention", { count })
+                    : t("orderControl.summaryClear")}
+            </p>
+          </div>
+        </div>
+
+        {model.loading ? (
+          <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
+            {[0, 1, 2].map((index) => (
+              <Skeleton key={index} className="h-12" />
+            ))}
+          </div>
+        ) : attentionOrders.length > 0 ? (
+          <ul className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
+            {attentionOrders.map((order) => (
+              <li
+                key={order.id}
+                className="min-w-0 rounded-lg bg-muted/60 px-3 py-2"
+              >
+                <OperationalOrderIdentity identity={order.identity} />
+                {order.attention !== null && (
+                  <p className="mt-1 text-xs break-words text-muted-foreground">
+                    <span className="font-medium text-foreground/80">
+                      {order.attention.label}
+                    </span>
+                    <span aria-hidden="true"> · </span>
+                    {order.dueLabel}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="min-w-0 flex-1" />
+        )}
+
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 shrink-0"
+          onClick={onOpenOrders}
+        >
+          {t("orderControl.openOrders")}
+          <IconArrowRight data-icon="inline-end" />
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 

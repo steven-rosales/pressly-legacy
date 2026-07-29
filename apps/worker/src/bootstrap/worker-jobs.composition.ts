@@ -6,14 +6,12 @@ import type {
   ErrorReporter,
   MeasurementSink,
 } from '@pressly/metrics';
-import { makePostgresOrdersApplication } from '@pressly/orders';
+import { makePostgresOrdersWorkerApplication } from '@pressly/orders';
 import { makePostgresProductionApplication } from '@pressly/production';
 import { makeProductionPolicy } from '@pressly/production-policy';
 import { makeProductionScheduler } from '@pressly/production-scheduling';
-import { makePostgresUsersApplication } from '@pressly/users';
 import { makePostgresWebhookIngestionApplication } from '@pressly/webhook-ingestion';
-import { makeCentsCustomerHandler } from '../jobs/process-webhook-inbox/cents/cents-customer.handler.js';
-import { makeCentsMarketingHandler } from '../jobs/process-webhook-inbox/cents/cents-marketing.handler.js';
+import { makeIgnoredCentsEventHandler } from '../jobs/process-webhook-inbox/cents/cents-ignored.handler.js';
 import { makeCentsOrderHandler } from '../jobs/process-webhook-inbox/cents/cents-order.handler.js';
 import { makeWebhookEventDispatcher } from '../jobs/process-webhook-inbox/webhook-event.dispatcher.js';
 import { makeWebhookInboxJob } from '../jobs/process-webhook-inbox/webhook-inbox.job.js';
@@ -54,19 +52,28 @@ export const composeWorkerJobs = (input: {
     clock,
     ids: { next: () => randomUUID() },
   });
-  const users = makePostgresUsersApplication({ db: database.db, clock });
-  const orders = makePostgresOrdersApplication({ db: database.db, clock });
+  const orders = makePostgresOrdersWorkerApplication({
+    db: database.db,
+    clock,
+  });
+  const acknowledgeIgnoredCentsEvent = makeIgnoredCentsEventHandler();
 
   const webhookInbox = makeWebhookInboxJob({
     ingestion,
     consume: makeWebhookEventDispatcher({
       'cents:order': makeCentsOrderHandler({
         resolveSourceLocation: ingestion.resolveSourceLocation,
-        users,
-        orders,
+        orders: {
+          proposeIncomingOrder: orders.proposeIncomingOrder,
+          closeIncomingOrderSource: orders.closeIncomingOrderSource,
+        },
+        production: {
+          resolveSourceClosedFulfillment:
+            production.resolveSourceClosedFulfillment,
+        },
       }),
-      'cents:customer': makeCentsCustomerHandler({ users }),
-      'cents:marketing': makeCentsMarketingHandler({ users }),
+      'cents:customer': acknowledgeIgnoredCentsEvent,
+      'cents:marketing': acknowledgeIgnoredCentsEvent,
     }),
     clock,
     random: Math.random,
@@ -84,6 +91,7 @@ export const composeWorkerJobs = (input: {
       backlogMeasurementIntervalMs: input.config.metricLogIntervalMs,
     },
   });
+
   const fulfillmentDemandProjection = makeFulfillmentDemandProjectionJob({
     orders,
     production,

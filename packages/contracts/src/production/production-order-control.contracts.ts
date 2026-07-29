@@ -98,6 +98,163 @@ export const productionOrderCurrentPlacementSchema = z
   })
   .strict();
 
+export const productionOrderResolutionReviewReasonSchema = z.enum([
+  'intake_recorded',
+  'manual_admission',
+  'priority',
+  'pending_placement',
+]);
+
+export const productionOrderResolutionDenialReasonSchema = z.enum([
+  'execution_state_invalid',
+  'execution_finished',
+  'resolution_transition_invalid',
+  'execution_committed',
+  'selected_for_shift',
+  'batch_membership_exists',
+  'stage_attempt_exists',
+  'route_exists',
+]);
+
+export const productionOrderResolutionAvailabilitySchema = z.discriminatedUnion(
+  'status',
+  [
+    z
+      .object({
+        status: z.literal('allowed'),
+        expectedVersion: z.number().int().positive(),
+        requiresExplicitReview: z.boolean(),
+        reviewReasons: z.array(productionOrderResolutionReviewReasonSchema),
+      })
+      .strict(),
+    z
+      .object({
+        status: z.literal('blocked'),
+        reasons: z.array(productionOrderResolutionDenialReasonSchema).min(1),
+      })
+      .strict(),
+  ],
+);
+
+export const productionOrderRouteCommandDenialCodeSchema = z.enum([
+  'PRODUCTION_ORDER_ROUTE_NOT_FOUND',
+  'PRODUCTION_RUN_NOT_STARTED',
+  'PRODUCTION_ORDER_RESOLVED',
+  'PRODUCTION_ORDER_RESOLUTION_STATE_INVALID',
+  'PRODUCTION_ORDER_EXECUTION_STATE_INVALID',
+  'PRODUCTION_ORDER_NOT_SCHEDULED',
+  'SOURCE_BATCH_WOULD_BE_EMPTY',
+  'ORDER_WEIGHT_INVALID',
+  'SOURCE_BATCH_INVALID',
+  'QUEUED_REBATCH_SOURCE_NOT_QUEUED',
+  'QUEUED_REBATCH_SOURCE_FROZEN',
+  'EXCEPTION_SOURCE_NOT_IN_FLIGHT',
+  'SOURCE_CURRENT_STAGE_MISMATCH',
+  'RESTART_STAGE_SKIPS_REQUIRED_WORK',
+  'TARGET_STAGE_GRAPH_INVALID',
+  'NO_LATER_TARGET',
+  'NO_FEASIBLE_TARGET',
+  'HARD_CAPACITY_EXCEEDED',
+]);
+
+export const productionQueuedMoveTargetDenialCodeSchema = z.enum([
+  'TARGET_IS_SOURCE_BATCH',
+  'TARGET_NOT_QUEUED',
+  'TARGET_MEMBERSHIP_FROZEN',
+  'TARGET_STAGE_GRAPH_INVALID',
+  'TARGET_STAGE_NOT_PLANNED',
+  'HARD_CAPACITY_EXCEEDED',
+]);
+
+export const productionQueuedMoveTargetFeasibilitySchema = z.discriminatedUnion(
+  'status',
+  [
+    z.object({ status: z.literal('allowed') }).strict(),
+    z
+      .object({
+        status: z.literal('blocked'),
+        code: productionQueuedMoveTargetDenialCodeSchema,
+      })
+      .strict(),
+  ],
+);
+
+export const productionQueuedMoveTargetSchema = z
+  .object({
+    productionBatchId: productionIdSchema,
+    batchSequence: z.number().int().nonnegative(),
+    batchStatus: productionBatchStatusSchema,
+    membershipFrozen: z.boolean(),
+    expectedBatchVersion: z.number().int().positive(),
+    currentWeightLbs: z.number().nonnegative(),
+    projectedWeightLbs: z.number().positive(),
+    capacityLbs: z.number().positive(),
+    feasibility: productionQueuedMoveTargetFeasibilitySchema,
+  })
+  .strict();
+
+const productionOrderRouteCapabilityVersionFields = {
+  expectedQueueVersion: z.number().int().positive(),
+  expectedOrderVersion: z.number().int().positive(),
+  expectedSourceBatchVersion: z.number().int().positive(),
+} as const;
+
+export const productionQueuedMoveCapabilitySchema = z
+  .discriminatedUnion('status', [
+    z
+      .object({
+        status: z.literal('allowed'),
+        ...productionOrderRouteCapabilityVersionFields,
+        targets: z.array(productionQueuedMoveTargetSchema).min(1),
+      })
+      .strict(),
+    z
+      .object({
+        status: z.literal('blocked'),
+        code: productionOrderRouteCommandDenialCodeSchema,
+        targets: z.array(productionQueuedMoveTargetSchema),
+      })
+      .strict(),
+  ])
+  .superRefine((capability, context) => {
+    if (
+      capability.status === 'allowed' &&
+      !capability.targets.some(
+        (target) => target.feasibility.status === 'allowed',
+      )
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['targets'],
+        message: 'An allowed queued move requires an allowed target batch.',
+      });
+  });
+
+export const productionRouteExceptionCapabilitySchema = z.discriminatedUnion(
+  'status',
+  [
+    z
+      .object({
+        status: z.literal('allowed'),
+        ...productionOrderRouteCapabilityVersionFields,
+      })
+      .strict(),
+    z
+      .object({
+        status: z.literal('blocked'),
+        code: productionOrderRouteCommandDenialCodeSchema,
+      })
+      .strict(),
+  ],
+);
+
+export const productionOrderCommandCapabilitiesSchema = z
+  .object({
+    queuedMove: productionQueuedMoveCapabilitySchema,
+    routeException: productionRouteExceptionCapabilitySchema,
+  })
+  .strict();
+
 export const productionOrderControlItemSchema = z
   .object({
     order: productionOrderListItemSchema,
@@ -112,8 +269,8 @@ export const productionOrderControlItemSchema = z
     currentPlacement: productionOrderCurrentPlacementSchema.nullable(),
     nextRequiredStage: productionStageKindSchema.nullable(),
     routeAttempts: z.array(productionOrderRouteAttemptSchema),
-    canMoveQueued: z.boolean(),
-    canRouteException: z.boolean(),
+    commands: productionOrderCommandCapabilitiesSchema,
+    resolutionAction: productionOrderResolutionAvailabilitySchema,
   })
   .strict();
 
@@ -276,6 +433,30 @@ export type ProductionOrderRouteAttempt = z.infer<
 >;
 export type ProductionOrderControlItem = z.infer<
   typeof productionOrderControlItemSchema
+>;
+export type ProductionOrderResolutionAvailability = z.infer<
+  typeof productionOrderResolutionAvailabilitySchema
+>;
+export type ProductionOrderResolutionDenialReason = z.infer<
+  typeof productionOrderResolutionDenialReasonSchema
+>;
+export type ProductionOrderRouteCommandDenialCode = z.infer<
+  typeof productionOrderRouteCommandDenialCodeSchema
+>;
+export type ProductionQueuedMoveTargetDenialCode = z.infer<
+  typeof productionQueuedMoveTargetDenialCodeSchema
+>;
+export type ProductionQueuedMoveTarget = z.infer<
+  typeof productionQueuedMoveTargetSchema
+>;
+export type ProductionQueuedMoveCapability = z.infer<
+  typeof productionQueuedMoveCapabilitySchema
+>;
+export type ProductionRouteExceptionCapability = z.infer<
+  typeof productionRouteExceptionCapabilitySchema
+>;
+export type ProductionOrderCommandCapabilities = z.infer<
+  typeof productionOrderCommandCapabilitiesSchema
 >;
 export type ProductionAdmissionAction = z.infer<
   typeof productionAdmissionActionSchema

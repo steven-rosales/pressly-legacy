@@ -724,32 +724,89 @@ decimal-money conversion, payload minimization, and the same source-neutral
 command submitted to `modules/business/webhook-ingestion`, which owns the
 durable inbox, claims, retries, dead letters, and source-location bindings.
 
-`apps/worker` is the asynchronous composition root. A vendor consumer translates
-one claimed event into source-neutral User and Order observations. The Users
-module resolves exact source identity without silently merging people. The
-Orders module persists commercial state, fulfillment admission, typed source
-lifecycle metadata, and a versioned `fulfillment_demand_changed` outbox event in
-one transaction. A separate bounded projector claims that event and calls
-Production's source-neutral fulfillment-demand capability. Invalid, permanent,
-or retry-exhausted events are lease-fenced into an inspectable terminal state.
+`apps/worker` is the asynchronous composition root. The Cents consumer submits
+one source-neutral incoming-Order candidate only when the claimed Order event
+reports exact `SUBMITTED`. Exact `COMPLETED` or `CANCELED` observations submit a
+source-neutral close command. `READY_FOR_PICKUP`, `PICKED_UP`, `IN_PROGRESS`,
+every other known or unknown Cents lifecycle value, and Cents customer and
+marketing events are durably acknowledged as evidence only. The adapter does
+not resolve a canonical User, create an Order, or request a lifecycle,
+fulfillment-release, or floor transition.
+
+Orders owns the immutable candidate snapshot and the only candidate graph:
+
+```txt
+pending --accept--> accepted
+pending --reject--> rejected
+pending --source_close--> source_closed
+source_closed --restore--> restored_pending
+restored_pending --accept--> accepted
+restored_pending --reject--> rejected
+```
+
+Exact `(source, external_order_id)` identity suppresses a candidate when a
+canonical source link or source-terminal tombstone already exists; contact
+values and fuzzy similarity never select or merge canonical records.
+Acceptance rechecks that identity and the expected candidate version under one
+transaction, creates or reuses the exact source-linked User when customer
+identity is present, creates the canonical Order and **unreleased**
+fulfillment, and emits the normal Orders outbox event. Rejection is terminal
+and creates no canonical or Production work. A manager restore moves
+source-closed evidence into a distinct manager-owned state that later source
+observations cannot close. Later Cents events cannot update the accepted
+canonical aggregates.
+
+Every canonical Orders change that affects fulfillment demand emits a versioned
+`fulfillment_demand_changed` outbox event in the same transaction. A separate
+bounded projector claims that event and calls Production's source-neutral
+fulfillment-demand capability. The version-one event envelope retains
+`bagCount` for compatibility, but Orders emits it as `null` and Production never
+uses it as physical intake. Invalid, permanent, or retry-exhausted events are
+lease-fenced into an inspectable terminal state.
 
 ```txt
 Cents HTTP -> webhook inbox -> Worker vendor adapter
-                              -> Users observation
-                              -> Orders observation + durable outbox
-                              -> bounded outbox projector
-                              -> Production fulfillment demand
+                              -> exact SUBMITTED candidate
+                              -> exact COMPLETED/CANCELED source closure
+                              -> all other states evidence-only
+
+operator Accept -> candidate graph + exact-identity/version recheck
+                -> canonical User + Order + unreleased fulfillment
+                -> durable Orders outbox
+
+operator Reject -> terminal candidate decision
+                -> no canonical or Production work
+
+operator Restore -> source_closed to restored_pending
+                 -> later source closure cannot override the manager
+
+accepted source terminal -> named Pressly automation request
+                         -> Production resolution graph and guard
+                         -> resolve untouched work, otherwise no mutation
+
+Pressly command -> Orders lifecycle/release graph
+                -> canonical Orders change + durable outbox
+
+canonical Orders change + durable outbox
+  -> bounded outbox projector
+  -> Production demand projection
+  -> operator-recorded physical intake
 ```
 
 Production owns physical-production rules and has no knowledge of Cents, HTTP
-webhooks, inbox receipts, or worker leases. The Processor read composition joins
-typed Users, Orders, and Production facts. It may expose the latest typed source
-observation as read-only audit context, while canonical attention and allowed
-actions come from Pressly policy. It never turns a source-versus-Pressly
-lifecycle difference into floor work or parses archived vendor JSON. Modules
-remain isolated peers and never import or declare package dependencies on one
-another. API and worker applications are the only places that connect their
-public ports.
+webhooks, inbox receipts, worker leases, or incoming candidates. The Processor
+presents pending and manager-restored candidates in an Incoming review queue
+with server-authorized Add, Reject, and Restore actions. Once accepted, the
+work appears only through canonical Orders and Production projections; Cents
+remains provenance, never an operational comparison or action surface. A
+source-terminal observation for accepted work can only invoke a source-neutral
+Pressly automation at the Worker composition boundary. Production's existing
+resolution graph and operational guard own the decision and permit mutation
+only for untouched, unreleased, unassigned work. Bag count and bag rows are
+created only by the versioned operator-intake command; a demand projection
+preserves existing intake unchanged. Modules remain isolated peers and never import or
+declare package dependencies on one another. API and worker applications are
+the only places that connect their public ports.
 
 The current Orders application deliberately supports exactly one fulfillment
 per Order. The relational schema retains a one-to-many shape for future order

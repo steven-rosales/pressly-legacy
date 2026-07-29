@@ -14,12 +14,7 @@ export const reviewCopy: OrderResolutionReviewCopy = {
   archiveExplanationTitle: "Archive from active work",
   archiveExplanation:
     "These records are kept. Nothing is deleted or marked as produced.",
-  scopeTitle: "Choose what to review",
-  filterLabel: "Orders to include",
-  filterOptions: {
-    all_due_before_cutoff: "All orders due before the cutoff",
-    source_terminal_before_cutoff: "Orders completed or canceled at the source",
-  },
+  scopeTitle: "Choose a cutoff and record why",
   cutoffLabel: "Due before",
   cutoffPlaceholder: "Choose a cutoff date",
   cutoffPopoverTitle: "Choose a cutoff date",
@@ -72,11 +67,6 @@ export const reviewCopy: OrderResolutionReviewCopy = {
   },
   groupCount: (count) => `${count} ${count === 1 ? "order" : "orders"}`,
   orderDue: (date) => `Due ${date}`,
-  sourceState: {
-    open: "Source open",
-    completed: "Source completed",
-    canceled: "Source canceled",
-  },
   classificationReasons: {
     resolved_without_production: "Previously archived",
     execution_finished: "Production finished",
@@ -151,7 +141,6 @@ export const reviewScope: OrderResolutionReviewScope = {
 
 const baseItem = {
   dueAt: "2026-06-01T21:00:00.000Z",
-  sourceCommercialState: "completed" as const,
   expectedVersion: 3,
   expectedResolutionState: "open" as const,
 }

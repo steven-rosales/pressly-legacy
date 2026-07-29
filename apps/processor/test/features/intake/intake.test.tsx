@@ -24,11 +24,30 @@ const asIntakeItem = (
   currentPlacement: null,
   nextRequiredStage: null,
   routeAttempts: [],
-  canMoveQueued: false,
-  canRouteException: false,
+  commands: {
+    queuedMove: {
+      status: "blocked",
+      code: "PRODUCTION_ORDER_NOT_SCHEDULED",
+      targets: [],
+    },
+    routeException: {
+      status: "blocked",
+      code: "PRODUCTION_ORDER_NOT_SCHEDULED",
+    },
+  },
+  resolutionAction: {
+    status: "allowed",
+    expectedVersion: order.version,
+    requiresExplicitReview: false,
+    reviewReasons: [],
+  },
   canonical: {
     canonicalOrderId: "00000000-0000-4000-8000-000000000701",
     canonicalFulfillmentId: "00000000-0000-4000-8000-000000000702",
+    versions: {
+      order: 2,
+      fulfillment: 2,
+    },
     displayNumber: order.externalOrderId,
     customer: {
       resolution: "resolved",
@@ -40,7 +59,10 @@ const asIntakeItem = (
     },
     commercialState: "open",
     admissionState: admission.sourceState,
-    source: { name: "cents", status: "SUBMITTED" },
+    source: {
+      name: "cents",
+    },
+    audit: [],
   },
 })
 
@@ -183,7 +205,7 @@ describe("order intake", () => {
     )
   })
 
-  it("confirms a Pressly-only release with order identity and Cents guidance", async () => {
+  it("confirms a Pressly release without presenting the external source as a controller", async () => {
     const user = userEvent.setup()
     const forecastOrder = {
       ...testOrderItems[1]!,
@@ -208,7 +230,19 @@ describe("order intake", () => {
     }))
     renderIntake(item, { changeAdmission })
 
+    await user.click(
+      await screen.findByRole("tab", { name: /Awaiting release/ })
+    )
+    const releaseGuidance = screen.getByText(
+      "Release controls floor readiness"
+    ).parentElement
+    expect(releaseGuidance).toHaveTextContent(
+      "Due date shows urgency. Only released orders can enter Production."
+    )
     const queue = await findDesktopQueue()
+    expect(
+      within(queue).getByText("Not yet released to Production")
+    ).toBeVisible()
     await user.click(
       within(queue).getByRole("button", {
         name: new RegExp(`Release order ${forecastOrder.externalOrderId}`, "i"),
@@ -217,7 +251,8 @@ describe("order intake", () => {
     const dialog = screen.getByRole("alertdialog", {
       name: new RegExp(forecastOrder.externalOrderId, "i"),
     })
-    expect(dialog).toHaveAccessibleDescription(/Ada Rivera.*Cents/i)
+    expect(dialog).toHaveAccessibleDescription(/Ada Rivera/i)
+    expect(dialog).not.toHaveAccessibleDescription(/Cents/i)
     await user.click(
       within(dialog).getByRole("button", { name: "Release to Production" })
     )
@@ -257,11 +292,22 @@ describe("order intake", () => {
       name: "Intake workflow states",
     })
     expect(tabList).toHaveAttribute("data-variant", "default")
-    const forecastTab = screen.getByRole("tab", { name: /Forecast only/ })
-    expect(forecastTab).toHaveAttribute("aria-selected", "true")
-    expect(
-      screen.getByRole("tabpanel", { name: /Forecast only/ })
-    ).toBeVisible()
+    await waitFor(() =>
+      expect(
+        within(tabList)
+          .getAllByRole("tab")
+          .map((tab) => tab.getAttribute("aria-label"))
+      ).toEqual([
+        "Needs intake, 0 orders",
+        "Awaiting release, 1 orders",
+        "Ready, 0 orders",
+      ])
+    )
+    const needsIntakeTab = screen.getByRole("tab", {
+      name: /Needs intake/,
+    })
+    expect(needsIntakeTab).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByRole("tabpanel", { name: /Needs intake/ })).toBeVisible()
   })
 
   it("keeps release stable while intake edits are recorded separately", async () => {
@@ -282,6 +328,9 @@ describe("order intake", () => {
       })
     )
 
+    await user.click(
+      await screen.findByRole("tab", { name: /Awaiting release/ })
+    )
     const queue = await findDesktopQueue()
     const releaseName = new RegExp(
       `Release order ${forecastOrder.externalOrderId}`,
@@ -375,6 +424,9 @@ describe("order intake", () => {
       )
     )
 
+    await user.click(
+      await screen.findByRole("tab", { name: /Awaiting release/ })
+    )
     const queue = await findDesktopQueue()
     expect(within(queue).getAllByRole("row")).toHaveLength(3)
     await user.type(
@@ -383,10 +435,49 @@ describe("order intake", () => {
     )
     expect(within(queue).getAllByRole("row")).toHaveLength(2)
     expect(within(queue).getByText(/FORECAST-2/)).toBeVisible()
-    expect(screen.getByRole("tab", { name: /Forecast only, 2/ })).toBeVisible()
+    expect(
+      screen.getByRole("tab", { name: /Awaiting release, 2/ })
+    ).toBeVisible()
   })
 
-  it("uses a semantic table and human-readable source statuses", async () => {
+  it("does not index external lifecycle terms in Intake search", async () => {
+    const user = userEvent.setup()
+    const forecastOrder = {
+      ...testOrderItems[0]!,
+      status: "release_pending" as const,
+      bagCount: null,
+      bagCountProvenance: null,
+      intakeVersion: null,
+    }
+    renderIntake(
+      asIntakeItem(forecastOrder, {
+        sourceState: "unreleased",
+        override: null,
+        effectiveState: "unreleased",
+        allowedActions: [],
+      })
+    )
+
+    await user.click(
+      await screen.findByRole("tab", { name: /Awaiting release/ })
+    )
+    const queue = await findDesktopQueue()
+    expect(within(queue).getAllByRole("row")).toHaveLength(2)
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search intake orders" }),
+      "submitted"
+    )
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "No orders match these filters",
+      })
+    ).toBeVisible()
+    expect(screen.queryByRole("table", { name: "Intake orders" })).toBeNull()
+  })
+
+  it("uses a semantic table and provenance-only source identity", async () => {
     const user = userEvent.setup()
     const readyOrder = testOrderItems[0]!
     const item = asIntakeItem(readyOrder, {
@@ -399,7 +490,9 @@ describe("order intake", () => {
       ...item,
       canonical: {
         ...item.canonical!,
-        source: { name: "cents", status: "READY_FOR_PICKUP" },
+        source: {
+          name: "cents",
+        },
       },
     })
 
@@ -411,10 +504,11 @@ describe("order intake", () => {
     expect(orderHeader).toBeVisible()
     expect(orderHeader).toHaveClass("w-[23%]")
     expect(
-      within(queue).getByRole("columnheader", { name: /Source status/ })
+      within(queue).getByRole("columnheader", { name: /Origin/ })
     ).toBeVisible()
-    expect(within(queue).getByText("Ready for pickup")).toBeVisible()
+    expect(within(queue).getByText("Reported by Cents")).toBeVisible()
     expect(within(queue).getByText("Ready for Production")).toBeVisible()
+    expect(within(queue).queryByText("Ready for pickup")).toBeNull()
     expect(within(queue).queryByText("READY_FOR_PICKUP")).toBeNull()
   })
 
@@ -454,6 +548,9 @@ describe("order intake", () => {
       }),
     ])
 
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("tab", { name: /Awaiting release/ }))
     const queue = await findDesktopQueue()
     const actionHeader = within(queue).getByRole("columnheader", {
       name: "Next action",
@@ -478,16 +575,14 @@ describe("order intake", () => {
       })
     ).toBeVisible()
     expect(
-      within(actionCells[1]!).getByRole("button", {
-        name: /Undo manual release for order ALIGN-2/i,
-      })
+      within(actionCells[1]!).getByText("No action available")
     ).toBeVisible()
     expect(
       within(actionCells[2]!).getByText("No action available").closest("p")
     ).not.toHaveClass("justify-end")
   })
 
-  it("shows the latest source observation without creating a floor task", async () => {
+  it("shows source provenance without turning later reports into floor work", async () => {
     const user = userEvent.setup()
     const readyOrder = testOrderItems[0]!
     const aligned = asIntakeItem(readyOrder, {
@@ -502,17 +597,18 @@ describe("order intake", () => {
       canonical: {
         ...aligned.canonical!,
         commercialState: "completed",
-        source: { name: "cents", status: "COMPLETED" },
+        source: {
+          name: "cents",
+        },
       },
     }
     renderIntake(observed)
 
     await user.click(await screen.findByRole("tab", { name: /Ready/ }))
     const queue = await findDesktopQueue()
-    expect(within(queue).getByText("Completed")).toBeVisible()
+    expect(within(queue).getByText("Reported by Cents")).toBeVisible()
+    expect(within(queue).queryByText("Completed")).toBeNull()
     expect(within(queue).getByText("Ready for Production")).toBeVisible()
-    expect(within(queue).queryByText(/Compare Cents and Pressly/i)).toBeNull()
-    expect(within(queue).queryByText("Review source status")).toBeNull()
   })
 
   it("renders admission actions only when the server allows them", async () => {
@@ -540,6 +636,9 @@ describe("order intake", () => {
       }),
     ])
 
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("tab", { name: /Awaiting release/ }))
     const queue = await findDesktopQueue()
     expect(
       within(queue).getAllByRole("button", {

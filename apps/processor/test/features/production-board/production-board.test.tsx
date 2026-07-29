@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import i18next from "i18next"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -20,9 +26,233 @@ const boardProps = {
   initialBoard: testBoard,
 } as const
 
+const stubViewport = ({
+  mobile,
+  wide,
+}: Readonly<{ mobile: boolean; wide: boolean }>) => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches:
+        query === "(max-width: 767px)"
+          ? mobile
+          : query === "(min-width: 1280px)"
+            ? wide
+            : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+  )
+}
+
+const makeTwoBatchBoard = () => {
+  const board = structuredClone(testBoard)
+  const firstBatch = board.batches[0]!
+  const secondBatch = structuredClone(firstBatch)
+  const secondBatchId = "00000000-0000-4000-8000-000000000031"
+
+  firstBatch.orders = [firstBatch.orders[0]!]
+  firstBatch.derivedWeightLbs = firstBatch.orders[0]!.derivedWeightLbs
+  secondBatch.id = secondBatchId
+  secondBatch.sequence = 1
+  secondBatch.orders = [secondBatch.orders[1]!]
+  secondBatch.derivedWeightLbs = secondBatch.orders[0]!.derivedWeightLbs
+  secondBatch.stages = secondBatch.stages.map((stage, index) => ({
+    ...stage,
+    id: `00000000-0000-4000-8000-${(50 + index).toString().padStart(12, "0")}`,
+    productionBatchId: secondBatchId,
+  }))
+  board.batches = [firstBatch, secondBatch]
+  return board
+}
+
 afterEach(() => vi.unstubAllGlobals())
 
 describe("production floor board", () => {
+  it("opens a non-draggable 90% desktop sheet with a semantic order table", async () => {
+    await i18next.changeLanguage("en")
+    stubViewport({ mobile: false, wide: true })
+    const user = userEvent.setup()
+
+    render(
+      <ProductionBoardWorkspace
+        {...boardProps}
+        production={makeTestProductionPort()}
+      />
+    )
+
+    const trigger = screen.getByRole("button", {
+      name: /View orders in Batch 1/,
+    })
+    await user.click(trigger)
+
+    const heading = screen.getByRole("heading", { name: "Batch 1 orders" })
+    const sheet = heading.closest('[data-slot="sheet-content"]')
+    expect(sheet).toHaveAttribute("data-side", "bottom")
+    expect(sheet).toHaveClass(
+      "h-[90dvh]",
+      "max-h-[90dvh]",
+      "overflow-hidden",
+      "data-[side=bottom]:h-[90dvh]",
+      "data-[side=bottom]:max-h-[90dvh]"
+    )
+    expect(
+      screen.queryByRole("heading", { name: "Orders in this batch" })
+    ).not.toBeInTheDocument()
+    expect(
+      document.querySelector('[data-slot="drawer-content"]')
+    ).not.toBeInTheDocument()
+
+    const table = screen.getByRole("table", { name: "Orders in this batch" })
+    for (const header of [
+      "Order / customer",
+      "Bags",
+      "Weight",
+      "Due",
+      "Handling",
+    ]) {
+      expect(
+        within(table).getByRole("columnheader", { name: header })
+      ).toBeInTheDocument()
+    }
+    const firstOrder = within(table).getByRole("row", {
+      name: /Order C-1001\s*Northwind Hotel/,
+    })
+    expect(firstOrder).toHaveTextContent("3")
+    expect(firstOrder).toHaveTextContent("120 lb")
+    expect(firstOrder).toHaveTextContent("Today")
+    const secondOrder = within(table).getByRole("row", {
+      name: /Order C-1002\s*Camila Reed/,
+    })
+    expect(secondOrder).toHaveTextContent("2")
+    expect(secondOrder).toHaveTextContent("80 lb")
+    expect(secondOrder).toHaveTextContent("Tomorrow")
+    expect(screen.getByText("Start Sorting")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close batch orders" }))
+    await waitFor(() => expect(trigger).toHaveFocus())
+  }, 15_000)
+
+  it("keeps the draggable 90% mobile drawer and stacked order cards", async () => {
+    await i18next.changeLanguage("en")
+    stubViewport({ mobile: true, wide: false })
+    const user = userEvent.setup()
+
+    render(
+      <ProductionBoardWorkspace
+        {...boardProps}
+        production={makeTestProductionPort()}
+      />
+    )
+
+    const trigger = screen.getByRole("button", {
+      name: /View orders in Batch 1/,
+    })
+    await user.click(trigger)
+
+    const drawer = screen
+      .getByRole("heading", { name: "Batch 1 orders" })
+      .closest('[data-slot="drawer-content"]')
+    expect(drawer).toHaveClass(
+      "h-[90dvh]",
+      "max-h-[90dvh]",
+      "data-[vaul-drawer-direction=bottom]:h-[90dvh]",
+      "data-[vaul-drawer-direction=bottom]:max-h-[90dvh]"
+    )
+    expect(document.querySelector('[data-slot="sheet-content"]')).toBeNull()
+    expect(screen.queryByRole("table")).not.toBeInTheDocument()
+    const list = screen.getByRole("list")
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2)
+    expect(within(list).getByText("Order C-1001")).toBeInTheDocument()
+    expect(within(list).getByText("Northwind Hotel")).toBeInTheDocument()
+    expect(within(list).getByText("Order C-1002")).toBeInTheDocument()
+    expect(within(list).getByText("Camila Reed")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close batch orders" }))
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it("switches batches inside the desktop order inspector", async () => {
+    await i18next.changeLanguage("en")
+    stubViewport({ mobile: false, wide: true })
+    const user = userEvent.setup()
+    const board = makeTwoBatchBoard()
+
+    render(
+      <ProductionBoardWorkspace
+        {...boardProps}
+        initialBoard={board}
+        production={makeTestProductionPort()}
+      />
+    )
+
+    await user.click(
+      screen.getByRole("button", {
+        name: /View orders in Batch 1/,
+      })
+    )
+    expect(screen.getByText("Northwind Hotel")).toBeInTheDocument()
+    const batchSelect = screen.getByRole("combobox", { name: "Choose batch" })
+    batchSelect.focus()
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}")
+
+    expect(
+      screen.getByRole("heading", { name: "Batch 2 orders" })
+    ).toBeInTheDocument()
+    expect(screen.getByText("Camila Reed")).toBeInTheDocument()
+    expect(screen.queryByText("Northwind Hotel")).not.toBeInTheDocument()
+  })
+
+  it("exposes one manifest action per batch only from Batch membership", async () => {
+    await i18next.changeLanguage("en")
+    stubViewport({ mobile: false, wide: true })
+    const board = makeTwoBatchBoard()
+
+    render(
+      <ProductionBoardWorkspace
+        {...boardProps}
+        initialBoard={board}
+        production={makeTestProductionPort()}
+      />
+    )
+
+    const membershipCard = screen
+      .getByText("Batch membership")
+      .closest('[data-slot="card"]')
+    if (!(membershipCard instanceof HTMLElement)) {
+      throw new Error("Batch membership card was not rendered")
+    }
+    expect(
+      within(membershipCard).getAllByRole("button", {
+        name: /View orders in Batch [12]/,
+      })
+    ).toHaveLength(2)
+    expect(
+      screen.getAllByRole("button", {
+        name: /View orders in Batch [12]/,
+      })
+    ).toHaveLength(2)
+    expect(
+      within(membershipCard).getAllByRole("button", { name: "Freeze" })
+    ).toHaveLength(2)
+
+    for (const card of screen.getAllByLabelText(/^Batch [12],/)) {
+      expect(
+        within(card).queryByRole("button", { name: /View orders/ })
+      ).not.toBeInTheDocument()
+      expect(card).toHaveTextContent(
+        card.getAttribute("aria-label")?.startsWith("Batch 1")
+          ? "1 order · 3 bags"
+          : "1 order · 2 bags"
+      )
+    }
+  })
+
   it("renders blocked stage meaning correctly in Spanish", async () => {
     await i18next.changeLanguage("es")
     const board = structuredClone(testBoard)

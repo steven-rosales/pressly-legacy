@@ -19,6 +19,9 @@
 -- location assertion intentionally keep this fixture outside deployment and
 -- migration paths. It owns only source identities beginning with
 -- LOCAL-PROCESSOR-V1 and LOCAL-CUSTOMER-V1.
+-- Source links and snapshots represent already-accepted historical provenance;
+-- this fixture intentionally creates no source authority, posture, profile, or
+-- observation-decision state.
 
 \if :{?fixture_id}
 \else
@@ -275,29 +278,6 @@ SELECT
   now(),
   now()
 FROM fixture_users;
-
-INSERT INTO user_field_authorities (
-  user_id,
-  field_name,
-  authority,
-  source,
-  updated_at
-)
-SELECT
-  fixture_user.user_id,
-  field.field_name,
-  'source',
-  'cents',
-  now()
-FROM fixture_users AS fixture_user
-CROSS JOIN (
-  VALUES
-    ('first_name'),
-    ('last_name'),
-    ('business_name'),
-    ('phone'),
-    ('email')
-) AS field(field_name);
 
 CREATE TEMPORARY TABLE fixture_order_specs (
   ordinal integer PRIMARY KEY,
@@ -589,29 +569,6 @@ SELECT
   now(),
   now()
 FROM fixture_orders;
-
-INSERT INTO order_field_authorities (
-  order_id,
-  field_name,
-  authority,
-  source,
-  updated_at
-)
-SELECT
-  fixture_order.order_id,
-  field.field_name,
-  'source',
-  'cents',
-  now()
-FROM fixture_orders AS fixture_order
-CROSS JOIN (
-  VALUES
-    ('display_number'),
-    ('state'),
-    ('due_at'),
-    ('total_amount_cents'),
-    ('balance_due_cents')
-) AS field(field_name);
 
 INSERT INTO order_outbox_events (
   id,

@@ -1,0 +1,48 @@
+work_id: pressly-cents-pickup-proposals
+status: complete
+updated: 2026-07-28T23:59:29-04:00
+
+current_focus:
+  - complete
+  - Pickup-only proposal ingress, operator decisions, canonical isolation,
+    rendered management, full verification, and durable memory closeout are
+    complete.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-pickup-proposals/evidence.md#t0--reconcile-the-pickup-proposal-baseline
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-pickup-proposals/evidence.md#t1--define-the-minimal-incoming-proposal-domain
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-pickup-proposals/evidence.md#t2--persist-source-records-and-immutable-proposals
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-pickup-proposals/evidence.md#t3--cut-cents-over-to-pickup-only-proposal-ingestion
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-pickup-proposals/evidence.md#t4--add-incoming-order-commands-and-api-composition
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-pickup-proposals/evidence.md#t5--add-incoming-to-the-processor-orders-workspace
+      - stateworks/work/done/pressly-cents-pickup-proposals/design-qa.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-pickup-proposals/evidence.md#v1--verify-the-pickup-proposal-vertical-slice
+      - stateworks/work/done/pressly-cents-pickup-proposals/design-qa.md
+  T6:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cents-pickup-proposals/evidence.md#t6--apply-durable-memory-and-close-the-work
+      - stateworks/work/done/pressly-cents-pickup-proposals/final-report.md
+      - stateworks/memory/domains/order-management/deltas/2026-07-28-cents-pickup-proposal-implementation.memory-delta.yaml
+      - stateworks/memory/domains/laundry-production/deltas/2026-07-28-cents-pickup-proposal-production-boundary.memory-delta.yaml

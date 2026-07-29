@@ -1,11 +1,11 @@
 import {
-  centsCanonicalOrderInputSchema,
-  type CentsCanonicalOrderInput,
+  centsOrderTerminalClosePayloadSchema,
+  centsSubmittedOrderCandidatePayloadSchema,
+  type CentsSubmittedOrderCandidatePayload,
 } from '@pressly/contracts';
 import { makeAppError, type AppError } from '@pressly/errors';
-import type { OrdersApplication } from '@pressly/orders';
-import type { OrderCustomer } from '@pressly/orders';
-import type { UsersApplication } from '@pressly/users';
+import type { OrdersWorkerApplication } from '@pressly/orders';
+import type { ProductionApplication } from '@pressly/production';
 import type {
   ClaimedWebhookEvent,
   WebhookIngestionApplication,
@@ -14,13 +14,16 @@ import type {
   EventConsumerOutcome,
   WebhookEventConsumer,
 } from '../webhook-inbox.job.ts';
-import {
-  centsWebhookCommandContext,
-  observeCentsCustomer,
-} from './cents-customer-observation.ts';
+
+const centsProposalContext = {
+  origin: 'cents',
+  principal: { kind: 'system', id: 'cents-webhook' },
+} as const;
+
+const sourceClosureAutomationActorId = '00000000-0000-4000-8000-000000000000';
 
 export const deriveCentsWeightLbs = (
-  services: CentsCanonicalOrderInput['services'],
+  services: CentsSubmittedOrderCandidatePayload['services'],
 ): number | null => {
   const weight =
     Math.round(
@@ -52,61 +55,150 @@ const invalidEvent = (code: string, message: string): EventConsumerOutcome =>
     }),
   );
 
-type CentsOrderLifecycleProposal = Readonly<{
-  state: 'open' | 'canceled';
-  releaseState: 'unreleased' | 'released' | 'withdrawn';
+type ProcessableCentsOrder = Readonly<{
+  externalOrderId: string;
+  externalStoreId: string;
+  sourceUpdatedAt: string;
 }>;
 
-const centsOrderLifecycleByStatus = {
-  SUBMITTED: { state: 'open', releaseState: 'unreleased' },
-  READY_FOR_PICKUP: { state: 'open', releaseState: 'unreleased' },
-  PICKED_UP: { state: 'open', releaseState: 'unreleased' },
-  IN_PROGRESS: { state: 'open', releaseState: 'released' },
-  READY_FOR_RETURN: { state: 'open', releaseState: 'released' },
-  OUT_FOR_DELIVERY: { state: 'open', releaseState: 'released' },
-  COMPLETED: { state: 'open', releaseState: 'released' },
-  CANCELED: { state: 'canceled', releaseState: 'withdrawn' },
-} as const satisfies Record<
-  CentsCanonicalOrderInput['status'],
-  CentsOrderLifecycleProposal
->;
+const validateStoredIdentity = (
+  event: ClaimedWebhookEvent,
+  order: ProcessableCentsOrder,
+): EventConsumerOutcome | null => {
+  if (
+    event.subjectId !== order.externalOrderId ||
+    event.sourceLocationId === null ||
+    event.sourceLocationId !== order.externalStoreId
+  )
+    return invalidEvent(
+      'cents_order_identity_invalid',
+      'The stored Cents order identity or location is inconsistent.',
+    );
+  if (event.sourceOccurredAt !== order.sourceUpdatedAt)
+    return invalidEvent(
+      'cents_order_revision_invalid',
+      'The stored Cents order revision is inconsistent.',
+    );
+  return null;
+};
 
-export const deriveCentsOrderLifecycle = (
-  status: CentsCanonicalOrderInput['status'],
-): CentsOrderLifecycleProposal => centsOrderLifecycleByStatus[status];
+const mutationOutcome = (
+  result: Awaited<
+    ReturnType<
+      OrdersWorkerApplication[
+        | 'proposeIncomingOrder'
+        | 'closeIncomingOrderSource']
+    >
+  >,
+): EventConsumerOutcome =>
+  result.tag === 'ok'
+    ? { tag: 'ok' }
+    : {
+        tag: 'err',
+        error: result.error,
+        retryable: result.error.status >= 500,
+      };
 
 export const makeCentsOrderHandler =
   (deps: {
     resolveSourceLocation: WebhookIngestionApplication['resolveSourceLocation'];
-    users: UsersApplication;
-    orders: OrdersApplication;
+    orders: Pick<
+      OrdersWorkerApplication,
+      'proposeIncomingOrder' | 'closeIncomingOrderSource'
+    >;
+    production: Pick<ProductionApplication, 'resolveSourceClosedFulfillment'>;
   }): WebhookEventConsumer =>
   async (event: ClaimedWebhookEvent): Promise<EventConsumerOutcome> => {
-    const parsed = centsCanonicalOrderInputSchema.safeParse(event.payload);
+    const storedStatus =
+      event.payload !== null &&
+      typeof event.payload === 'object' &&
+      !Array.isArray(event.payload)
+        ? (event.payload as Record<string, unknown>)['status']
+        : null;
+
+    // Drain legacy and unsupported observations without granting them a
+    // lifecycle capability. New ingress queues only these three exact states.
+    if (
+      storedStatus !== 'SUBMITTED' &&
+      storedStatus !== 'COMPLETED' &&
+      storedStatus !== 'CANCELED'
+    )
+      return { tag: 'ok' };
+
+    if (storedStatus === 'COMPLETED' || storedStatus === 'CANCELED') {
+      const parsed = centsOrderTerminalClosePayloadSchema.safeParse(
+        event.payload,
+      );
+      if (!parsed.success)
+        return invalidEvent(
+          'cents_order_payload_invalid',
+          'The stored Cents terminal order payload is invalid.',
+        );
+      const order = parsed.data;
+      const invalidIdentity = validateStoredIdentity(event, order);
+      if (invalidIdentity !== null) return invalidIdentity;
+
+      const closed = await deps.orders.closeIncomingOrderSource({
+        context: centsProposalContext,
+        source: 'cents',
+        externalOrderId: order.externalOrderId,
+        terminalCode: order.status === 'COMPLETED' ? 'completed' : 'canceled',
+        revision: {
+          at: new Date(order.sourceUpdatedAt),
+          hash: event.payloadHash,
+          adapterVersion: 'cents-webhook-v3',
+          observedAt: new Date(event.receivedAt),
+          normalizedPayload: order,
+        },
+      });
+      if (closed.tag === 'err') return mutationOutcome(closed);
+      if (closed.value.canonical === null) return { tag: 'ok' };
+
+      const resolution = await deps.production.resolveSourceClosedFulfillment({
+        locationId: closed.value.canonical.locationId,
+        fulfillmentId: closed.value.canonical.fulfillmentId,
+        actorId: sourceClosureAutomationActorId,
+        idempotencyKey: `source-closed-fulfillment:${event.eventId}`,
+      });
+      if (resolution.tag === 'err')
+        return {
+          tag: 'err',
+          error: resolution.error,
+          retryable: resolution.error.status >= 500,
+        };
+      if (resolution.value.outcome === 'not_found')
+        return {
+          tag: 'err',
+          retryable: true,
+          error: makeAppError({
+            kind: 'ExternalServiceError',
+            code: 'production_projection_pending',
+            message:
+              'The accepted fulfillment has not been projected into Production yet.',
+            safeMessage:
+              'The accepted fulfillment is waiting for its Production projection.',
+            status: 503,
+          }),
+        };
+
+      return { tag: 'ok' };
+    }
+
+    const parsed = centsSubmittedOrderCandidatePayloadSchema.safeParse(
+      event.payload,
+    );
     if (!parsed.success)
       return invalidEvent(
         'cents_order_payload_invalid',
         'The stored Cents order payload is invalid.',
       );
     const order = parsed.data;
-    if (
-      event.subjectId !== order.externalOrderId ||
-      event.sourceLocationId === null ||
-      event.sourceLocationId !== order.externalStoreId
-    )
-      return invalidEvent(
-        'cents_order_identity_invalid',
-        'The stored Cents order identity or location is inconsistent.',
-      );
-    if (event.sourceOccurredAt !== order.sourceUpdatedAt)
-      return invalidEvent(
-        'cents_order_revision_invalid',
-        'The stored Cents order revision is inconsistent.',
-      );
+    const invalidIdentity = validateStoredIdentity(event, order);
+    if (invalidIdentity !== null) return invalidIdentity;
 
     const locationId = await deps.resolveSourceLocation({
       source: 'cents',
-      externalLocationId: event.sourceLocationId,
+      externalLocationId: order.externalStoreId,
     });
     if (locationId === null)
       return invalidEvent(
@@ -114,77 +206,62 @@ export const makeCentsOrderHandler =
         'The external location is not mapped to a production location.',
       );
 
-    let canonicalCustomer: OrderCustomer;
-    if (order.customer === null)
-      canonicalCustomer = {
-        resolution: 'not_provided',
-        userId: null,
-        externalUserId: null,
-      };
-    else {
-      const customer = await observeCentsCustomer({
-        users: deps.users,
-        event,
-        customer: order.customer,
-        fallbackRevisionAt: order.sourceUpdatedAt,
-      });
-      if (customer.tag === 'err') return customer;
-      canonicalCustomer = {
-        resolution: 'resolved',
-        userId: customer.userId,
-        externalUserId: order.customer.externalUserId,
-      };
-    }
     const estimatedWeightLbs = deriveCentsWeightLbs(order.services);
-    const lifecycle = deriveCentsOrderLifecycle(order.status);
-    const observed = await deps.orders.observeSource({
-      context: centsWebhookCommandContext,
+    const proposed = await deps.orders.proposeIncomingOrder({
+      context: centsProposalContext,
       source: 'cents',
       externalOrderId: order.externalOrderId,
-      customer: canonicalCustomer,
-      displayNumber: order.orderCode,
-      state: lifecycle.state,
-      dueAt: new Date(order.dueAt),
-      currency: 'USD',
-      totalAmountCents: order.totalAmountCents,
-      balanceDueCents: order.balanceDueCents,
-      items: order.services.map((service) => ({
-        lineKey: service.externalServiceId,
-        itemType: 'service',
-        code: service.category,
-        description: service.name,
-        quantity: service.quantity,
-        unit: 'service_unit',
-        unitPriceCents: service.unitPriceCents,
-        totalAmountCents: service.totalPriceCents,
-        sourceMetadata: service.sourceMetadata,
-      })),
-      fulfillment: {
-        typeCode: order.services.some(
-          (service) => service.category === 'LAUNDRY',
-        )
-          ? 'wash_fold'
-          : 'external_order',
-        locationId,
-        releaseState: lifecycle.releaseState,
-        estimatedWeightLbs,
-        estimatedWeightSource:
-          estimatedWeightLbs === null ? null : 'source_estimate',
-        bagCount: order.bagCount,
-      },
+      proposalKind: 'submitted_order',
       revision: {
         at: new Date(order.sourceUpdatedAt),
         hash: event.payloadHash,
-        adapterVersion: 'cents-webhook-v2',
-        lifecycleCode: order.status,
+        adapterVersion: 'cents-webhook-v3',
         observedAt: new Date(event.receivedAt),
-        normalizedPayload: order.sourceSnapshot,
+        normalizedPayload: order,
+      },
+      snapshot: {
+        customer:
+          order.customer === null
+            ? null
+            : {
+                externalUserId: order.customer.externalUserId,
+                firstName: order.customer.firstName,
+                lastName: order.customer.lastName,
+                businessName: order.customer.businessName,
+                phone: order.customer.phone,
+                email: order.customer.email,
+                normalizedPayload: {
+                  externalUserId: order.customer.externalUserId,
+                },
+              },
+        displayNumber: order.orderCode,
+        dueAt: new Date(order.dueAt),
+        currency: 'USD',
+        totalAmountCents: order.totalAmountCents,
+        balanceDueCents: order.balanceDueCents,
+        items: order.services.map((service) => ({
+          lineKey: service.externalServiceId,
+          itemType: 'service',
+          code: service.category,
+          description: service.name,
+          quantity: service.quantity,
+          unit: 'service_unit',
+          unitPriceCents: service.unitPriceCents,
+          totalAmountCents: service.totalPriceCents,
+          sourceMetadata: {},
+        })),
+        fulfillment: {
+          typeCode: order.services.some(
+            (service) => service.category === 'LAUNDRY',
+          )
+            ? 'wash_fold'
+            : 'external_order',
+          locationId,
+          estimatedWeightLbs,
+          estimatedWeightSource:
+            estimatedWeightLbs === null ? null : 'source_estimate',
+        },
       },
     });
-    if (observed.tag === 'ok') return { tag: 'ok' };
-    return {
-      tag: 'err',
-      error: observed.error,
-      retryable: observed.error.status >= 500,
-    };
+    return mutationOutcome(proposed);
   };

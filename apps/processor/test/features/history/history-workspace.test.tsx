@@ -142,4 +142,58 @@ describe("connected production history workspace", () => {
     expect(screen.getByLabelText("History status")).toHaveValue("all")
     expect(screen.getByText("Order moved to a later batch")).toBeInTheDocument()
   })
+
+  it("names the restored order in the success notice", async () => {
+    const user = userEvent.setup()
+    const restorableActivity: ProcessorProductionHistoryActivityEntry = {
+      ...activity,
+      resolutionAction: { action: "restore", expectedVersion: 3 },
+    }
+    const changeOrderResolution = vi.fn(async () => ({
+      locationId: testLocation.id,
+      orderId: activity.entityId,
+      action: "restore" as const,
+      resolutionState: "open" as const,
+      transitionedAt: "2026-08-01T20:01:00.000Z",
+      version: 4,
+      replayed: false,
+    }))
+    const production = makeTestProductionPort({
+      listHistoryActivity: async () => ({
+        items: [restorableActivity],
+        nextCursor: null,
+        asOf: "2026-08-01T20:00:00.000Z",
+      }),
+      changeOrderResolution,
+    })
+
+    render(
+      <HistoryWorkspaceContainer
+        production={production}
+        idempotency={{
+          key: vi.fn(async () => "history-restore-idempotency-key"),
+        }}
+        locationId={testLocation.id}
+        timezone={testLocation.timezone}
+        revision="2026-08-01T20:00:00.000Z"
+        canManage
+        onMutated={vi.fn(async () => undefined)}
+      />
+    )
+
+    await user.click(screen.getByRole("tab", { name: "Activity" }))
+    await user.click(
+      await screen.findByRole("button", { name: "Restore to active work" })
+    )
+    await user.click(screen.getByLabelText("Why is this order being restored?"))
+    await user.click(screen.getByText("Correct a manager decision"))
+    await user.click(
+      screen.getByRole("button", { name: "Restore to active work" })
+    )
+
+    expect(
+      await screen.findByText("Order TEST-503 is back in active work.")
+    ).toBeInTheDocument()
+    expect(changeOrderResolution).toHaveBeenCalledTimes(1)
+  })
 })

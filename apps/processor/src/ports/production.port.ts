@@ -24,10 +24,10 @@ import type {
   ListProductionOrdersResult,
   ProcessorProductionHistoryRunDetail,
   ProcessorProductionOrderBacklogPreview,
+  ProcessorProductionBoard,
   ProcessorProductionWorkspace,
   ProcessorRemainingDayForecast,
   PreviewProductionOrderBacklogCommand,
-  ProductionBoard,
   ProductionBatchMembershipMutationResult,
   ProductionBatchProgressReconciliationResult,
   ProductionMutationResult,
@@ -191,7 +191,7 @@ export type ProductionPort = Readonly<{
     locationId: string,
     productionRunId: string,
     signal?: AbortSignal
-  ) => Promise<ProductionBoard>
+  ) => Promise<ProcessorProductionBoard>
   setPriority: (input: {
     locationId: string
     productionOrderId: string

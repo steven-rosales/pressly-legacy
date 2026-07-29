@@ -1,0 +1,99 @@
+work_id: pressly-order-authority-source-autonomy
+status: complete
+updated: 2026-07-28T13:15:17-04:00
+
+current_focus:
+  - complete
+  - Source-neutral observation, canonical command authority, rendered
+    operations, full verification, and durable memory closeout are complete.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md#t0---authority-baseline
+  T1:
+    status: committed
+    evidence:
+      - modules/business/orders/src/source-authority.policy.ts
+      - modules/business/orders/src/source-control-posture.policy.ts
+      - modules/business/orders/test/order-policies.test.ts
+      - modules/business/orders/test/source-authority.policy.test.ts
+  T2:
+    status: committed
+    evidence:
+      - packages/db/src/schema/orders.schema.ts
+      - packages/db/src/migrations/0035_order-source-authority-evidence.sql
+      - packages/db/test/order-source-authority-schema.test.ts
+      - packages/db/test/order-source-authority-migration.int.test.ts
+  T3:
+    status: committed
+    evidence:
+      - modules/business/orders/src/observe-order-source
+      - modules/business/orders/src/assess-order-source-customer
+      - modules/business/orders/test/orders.repo.int.test.ts
+  T4:
+    status: committed
+    evidence:
+      - modules/business/orders/src/create-order
+      - modules/business/orders/src/correct-order
+      - modules/business/orders/src/change-order-lifecycle
+      - modules/business/orders/src/change-fulfillment-release
+      - modules/business/orders/src/follow-order-source
+      - apps/api/src/http/order-management/orders
+  T5:
+    status: committed
+    evidence:
+      - apps/worker/src/jobs/process-webhook-inbox/cents/cents-order.handler.ts
+      - modules/business/production/src/apply-fulfillment-demand
+      - modules/policy/production/src/demand-lifecycle
+      - tooling/test/architecture-boundaries.test.mjs
+  T6:
+    status: committed
+    evidence:
+      - modules/business/orders/src/reconcile-order-source-authority
+      - modules/business/orders/src/configure-order-source-control
+      - apps/cli/src/commands/reconcile-order-source-authority.command.ts
+      - apps/cli/src/commands/change-order-source-posture.command.ts
+  T7:
+    status: committed
+    evidence:
+      - apps/api/src/http/processor/order-control/order-control.query.ts
+      - modules/business/production/src/list-production-order-control
+      - packages/contracts/src/processor/processor-order-control.contracts.ts
+      - packages/contracts/src/production/production-order-control.contracts.ts
+      - stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+  T8:
+    status: committed
+    evidence:
+      - apps/processor/src/features/order-control
+      - apps/processor/src/features/order-resolution
+      - apps/processor/src/features/history
+      - stateworks/work/done/pressly-order-authority-source-autonomy/design-qa.md
+      - stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - modules/business/orders/test
+      - modules/business/production/test
+      - packages/contracts/test
+      - packages/db/test
+      - apps/worker/test
+      - apps/api/test
+      - tooling/test/architecture-boundaries.test.mjs
+      - stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+  V2:
+    status: committed
+    evidence:
+      - apps/processor/test/features/order-control
+      - apps/processor/test/features/order-resolution
+      - apps/processor/test/features/history
+      - stateworks/work/done/pressly-order-authority-source-autonomy/design-qa.md
+      - stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+  T9:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-order-authority-source-autonomy/evidence.md
+      - stateworks/work/done/pressly-order-authority-source-autonomy/final-report.md
+      - stateworks/memory/domains/order-management/deltas/2026-07-28-order-source-authority-implementation.memory-delta.yaml
+      - stateworks/memory/domains/laundry-production/deltas/2026-07-28-order-source-authority-boundary-implementation.memory-delta.yaml

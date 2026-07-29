@@ -1,6 +1,6 @@
 domain_id: order-management
 name: Order Management
-version: 3
+version: 7
 status: active
 summary: >
   Durable business memory for source-neutral Pressly user profiles, commercial
@@ -9,12 +9,17 @@ summary: >
 actors: []
 external_systems:
   - id: cents
-    description: An external source of customer, order, marketing-consent, and
-      lifecycle observations; it is not Pressly's canonical database or
-      production-floor authority.
+    description: Cents is an external candidate-evidence provider. Exact raw
+      SUBMITTED may propose one immutable incoming candidate, exact COMPLETED or
+      CANCELED may record source closure, and every other status is acknowledged
+      without an Orders command. Cents cannot create or transition canonical
+      Pressly work.
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
+      - memdelta-2026-07-27-external-source-autonomy
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
 objects:
   - id: user_profile
     description: A canonical Pressly person or business profile that may exist
@@ -44,17 +49,62 @@ objects:
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
   - id: source_snapshot
-    description: The durable latest normalized representation, revision, schema
-      version, and payload hash observed for one linked external entity.
+    description: Immutable normalized source evidence retained when an incoming
+      proposal is accepted and linked to a canonical entity; later adapter
+      lifecycle deliveries do not update canonical work or this accepted
+      evidence.
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
   - id: order_outbox_event
     description: A durable source-neutral event written atomically with an Order
       mutation and consumed idempotently by downstream capabilities.
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
+  - id: source_capability_profile
+    description:
+      A versioned Pressly-owned policy that caps one external source's
+      effect for each claim type and canonical lifecycle phase at deny, observe,
+      propose, or auto-adopt; an adapter cannot alter its own profile.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+  - id: source_observation_decision
+    description: An append-only audit record connecting an external observation
+      revision and hash to the capability-profile and policy versions,
+      disposition, reason codes, adopted fields or proposals, and resulting
+      canonical aggregate versions.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+  - id: source_control_posture
+    description: A Pressly-owned source-and-location posture of normal,
+      observe_only, or blocked that may reduce the effective capabilities of an
+      external source without changing its retained observations.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+  - id: incoming_order_proposal
+    description: An immutable pre-canonical snapshot keyed by exact source and
+      external Order identity with versioned current lifecycle state,
+      append-only transition evidence, terminal decision evidence, and optional
+      source-closure evidence. It has no canonical effect until an authorized
+      Pressly decision.
+    status: active
+    sources:
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
+  - id: incoming_order_source_tombstone
+    description:
+      Immutable exact source and external Order identity evidence that
+      COMPLETED or CANCELED arrived before a candidate. It suppresses a later
+      SUBMITTED proposal but creates no User, Order, fulfillment, release, or
+      Production work.
+    status: active
+    sources:
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
 states: {}
 workflows:
   - id: cents_order_observation
@@ -86,25 +136,112 @@ workflows:
       - Processor floor views use canonical Pressly lifecycle and server-owned
         action availability; source lifecycle anomalies remain integration and
         audit context
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
       - memdelta-2026-07-26-pressly-source-lifecycle-authority
   - id: direct_pressly_mutation
     steps:
-      - authorized Pressly channel submits a typed command with actor, origin,
-        idempotency key, and expected aggregate version
-      - User or Order use case loads current canonical state and source authority
-      - the authoritative lifecycle graph and pure field policies validate the
-        command and derive the next state and effects
-      - repository commits the versioned canonical change and any outbox event
-        atomically
-      - source snapshots remain unchanged and any difference remains inspectable
-        as integration or audit context without becoming production-floor work
+      - an authenticated first-party Pressly channel submits a task-shaped
+        canonical create, correct, complete, cancel, release, withdraw, archive,
+        restore, or other named command
+      - every command carries actor, authorization scope, origin, stable reason,
+        idempotency key, and expected aggregate versions
+      - the owning use case locks and loads current canonical state
+      - the aggregate's authoritative lifecycle graph and policies decide the
+        event and effects; callers cannot submit a target state
+      - the repository commits versioned canonical state, command receipt, audit
+        evidence, and any source-neutral outbox event atomically
+      - adapter proposals and evidence remain separate and cannot mutate
+        canonical state outside an accepted Pressly command
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
       - memdelta-2026-07-26-pressly-source-lifecycle-authority
+      - memdelta-2026-07-27-external-source-autonomy
+      - memdelta-2026-07-28-order-source-authority-implementation
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+  - id: external_order_observation
+    steps:
+      - API authenticates and validates one external envelope and records one
+        idempotent durable inbox event
+      - the source adapter converts vendor data into a source-neutral typed
+        observation and cannot carry canonical lifecycle, fulfillment release,
+        or physical bag truth
+      - Users and Orders resolve exact source identities and Orders serializes
+        each source link while classifying stale, replay, equal-revision
+        conflict, or valid newer evidence
+      - Orders retains every valid newer normalized snapshot, including raw
+        source lifecycle, before evaluating canonical effects
+      - Orders loads the exact immutable capability profile and latest
+        source-and-location posture and evaluates each claim by canonical phase,
+        field authority, and evidence
+      - missing configuration, blocked posture, identity ambiguity, and revision
+        conflict fail closed while keeping the observation inspectable
+      - external lifecycle and physical bag claims never select or execute a
+        canonical transition
+      - approved descriptive claims may create prospective records in
+        Pressly-selected initial states or update fields that still follow
+        source
+      - Orders commits the append-only observation decision, any allowed
+        canonical effect, and source-neutral outbox event atomically
+      - downstream capabilities consume only committed source-neutral events
+        idempotently
+    status: deprecated
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+      - memdelta-2026-07-28-order-source-authority-implementation
+  - id: cents_pickup_proposal
+    steps:
+      - API authenticates one Cents envelope and records one idempotent durable
+        inbox event
+      - the adapter emits a source-neutral proposal command only when the raw
+        Order status is exactly PICKED_UP and minimizes every other event to an
+        ignored receipt
+      - Orders serializes exact source and external Order identity and creates
+        at most one immutable pending proposal unless an exact canonical source
+        link already exists
+      - Processor lists pending proposals with server-owned Accept and Reject
+        availability
+      - Accept rechecks exact identity and expected proposal version and applies
+        the authoritative proposal graph
+      - one transaction creates or reuses an exact source-linked User, creates
+        one canonical Order and released fulfillment, records accepted source
+        evidence and command receipt, writes the outbox effect, and terminalizes
+        the proposal
+      - Reject records an audited terminal resolution without creating a User,
+        Order, fulfillment, or outbox effect
+      - duplicate pickup and every later Cents event are acknowledged no-ops and
+        cannot update or reopen a decided proposal or canonical work
+    status: deprecated
+    sources:
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+  - id: cents_submitted_candidate_lifecycle
+    steps:
+      - API authenticates one Cents envelope and records one idempotent durable
+        inbox event with exact source identity and bounded evidence
+      - exact SUBMITTED is classified as candidate evidence, exact COMPLETED or
+        CANCELED as terminal evidence, and every other known or unknown state as
+        ignored evidence
+      - Worker translates classified evidence into source-neutral Orders
+        commands and contains no candidate lifecycle or duplicate policy
+      - Orders serializes exact source and external Order identity; SUBMITTED
+        creates at most one immutable pending candidate unless an exact
+        canonical link or terminal tombstone already exists
+      - pending may accept, reject, or source_close; source_closed may restore
+        to manager-owned restored_pending; restored_pending may accept or
+        reject; accepted and rejected are terminal
+      - Accept rechecks exact identity and expected version and atomically
+        creates one open canonical Order with an unreleased fulfillment, exact
+        source link, decision receipt, and transactional outbox evidence
+      - Reject creates no canonical User, Order, fulfillment, or downstream
+        effect
+      - terminal evidence closes only pending candidates or creates one
+        tombstone; it cannot close restored_pending, accepted, rejected, or
+        exact-linked canonical work
+    status: active
+    sources:
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
 invariants:
   - id: user_profile_exists_without_auth_identity
     statement:
@@ -130,18 +267,22 @@ invariants:
       - memdelta-2026-07-20-source-neutral-users-orders
   - id: source_observations_enter_through_commands
     statement:
-      Webhooks and other external channels submit validated observations
-      through application commands and never write canonical User or Order
-      tables directly.
+      External webhooks enter through authenticated durable ingress and may
+      produce only bounded source-neutral candidate-submit or
+      candidate-source-close commands. They never emit a canonical User, Order,
+      fulfillment, release, intake, Production, or floor command and never write
+      canonical tables directly.
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
   - id: source_revision_order_is_monotonic
     statement: For one exact source entity, older revisions are ignored, exact
       revision-and-hash replays are idempotent, and equal revisions with
       different hashes are recorded as conflicts rather than resolved by
       last-write-wins.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
   - id: order_identity_differs_from_display_number
@@ -175,11 +316,12 @@ invariants:
   - id: source_observation_and_lifecycle_adoption_are_separate_v1
     statement:
       Every valid newer external lifecycle observation is retained under
-      source revision rules even when its lifecycle value is observation-only
-      and is not adopted into canonical Pressly state.
-    status: active
+      source-revision rules, while its lifecycle claim remains observation or
+      proposal evidence and is never adopted into canonical Pressly lifecycle.
+    status: deprecated
     sources:
       - memdelta-2026-07-26-pressly-source-lifecycle-authority
+      - memdelta-2026-07-27-external-source-autonomy
   - id: pressly_order_lifecycle_is_canonical_after_handoff_v1
     statement:
       Once a fulfillment crosses the Pressly handoff, an external source
@@ -187,16 +329,115 @@ invariants:
       terminalize canonical Pressly Order or fulfillment lifecycle; only an
       explicit Pressly command or separately modeled compensation workflow may
       change it.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-26-pressly-source-lifecycle-authority
+  - id: pressly_order_lifecycle_is_canonical_from_creation_v2
+    statement: No external observation can create a canonical Order or select or
+      execute a canonical transition. A pending incoming proposal becomes
+      canonical only through an authorized Accept command; every later lifecycle
+      change requires an authorized Pressly command or named versioned Pressly
+      automation command.
+    status: active
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+  - id: pressly_order_control_survives_source_loss_v1
+    statement: An external source may be unavailable, quarantined, blocked, or
+      detached without changing canonical identities or history and without
+      preventing authorized Pressly creation, correction, lifecycle control, or
+      peer-domain operational commands.
+    status: active
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+  - id: source_observation_decisions_are_auditable_v1
+    statement:
+      Every valid newer external observation receives a durable decision
+      tied to its revision and hash, effective capability and policy versions,
+      reason codes, and resulting canonical aggregate versions; this audit
+      record does not make Order Management fully event sourced.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+  - id: source_authority_configuration_fails_closed_v1
+    statement: A missing, blocked, ambiguous, or mismatched external-source
+      capability profile, control posture, identity, revision, or decision
+      cannot mutate canonical Pressly lifecycle or physical truth; the
+      observation remains retained and direct authorized Pressly commands remain
+      available.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-28-order-source-authority-implementation
+  - id: reordered_source_customer_resolution_is_exact_v1
+    statement:
+      If an external order observation arrives before its customer source
+      identity is available, Orders may retain a pending customer association
+      and resolve it later only through the exact source link; concurrent or
+      replayed resolution is idempotent and never falls back to phone, email, or
+      other fuzzy matching.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-28-order-source-authority-implementation
+  - id: cents_exact_pickup_is_proposal_only_v1
+    statement:
+      Only an exact raw Cents PICKED_UP Order observation may create one
+      incoming proposal; every other known, unknown, earlier, or later Cents
+      event is acknowledged and ignored without canonical or Production effect.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+  - id: incoming_proposal_decision_is_terminal_v1
+    statement:
+      The authoritative incoming-candidate graph is pending to accepted,
+      rejected, or source_closed; source_closed to restored_pending; and
+      restored_pending to accepted or rejected. Accepted and rejected are
+      terminal, while restored_pending is a Pressly manager decision that later
+      source observations cannot close or rewrite.
+    status: active
+    sources:
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
+  - id: incoming_proposal_identity_is_exact_v1
+    statement: Exact source and external Order identity is the only automatic
+      duplicate-suppression and canonical-link key; phone, email, name, display
+      number, and fuzzy similarity never select, merge, or suppress records.
+    status: active
+    sources:
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+  - id: incoming_proposal_decision_effects_v1
+    statement:
+      Accept atomically rechecks exact identity and expected version before
+      creating one open canonical Order and unreleased fulfillment with command,
+      source-link, transition, and outbox evidence. Reject creates no canonical
+      User, Order, fulfillment, or downstream effect.
+    status: active
+    sources:
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
+  - id: cents_exact_submitted_is_candidate_only_v1
+    statement:
+      Only an exact raw Cents SUBMITTED Order observation may create one
+      incoming candidate. Exact COMPLETED or CANCELED may record source closure,
+      while every other status is acknowledged without candidate, canonical,
+      fulfillment, or Production effect.
+    status: active
+    sources:
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
+  - id: incoming_candidate_source_closure_is_guarded_v1
+    statement: Exact COMPLETED or CANCELED evidence may close only a pending
+      candidate or create one exact-identity tombstone. It cannot mutate a
+      restored_pending, accepted, or rejected candidate and cannot complete,
+      cancel, release, withdraw, archive, restore, or delete canonical work.
+    status: active
+    sources:
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
 policies:
   - id: canonical_field_authority_v1
     statement:
       A direct Pressly edit becomes the canonical authority for that field
       until an explicit follow-source command restores source authority; later
       source values remain retained and inspectable in the latest snapshot.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
   - id: cents_order_code_is_display_number_v1
@@ -207,13 +448,15 @@ policies:
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
   - id: cents_customer_resolution_v1
-    statement:
-      Cents customer observations and embedded order customers resolve or
-      create a User through the exact Cents customer ID before the Order is
-      recorded; contact values only produce possible-duplicate signals.
+    statement: A Cents submitted candidate may carry an exact external customer
+      identity and immutable customer snapshot. Only Accept may resolve or
+      create the corresponding exact source-linked User, and contact values
+      never select or merge a canonical User.
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
   - id: cents_fulfillment_release_mapping_v1
     statement: Cents states before IN_PROGRESS describe prospective demand;
       cancellation may withdraw that demand before handoff, while the first
@@ -221,7 +464,7 @@ policies:
       fulfillment exactly once. After handoff, every later Cents lifecycle value
       is retained as source metadata but is observation-only for canonical
       Pressly lifecycle.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
       - memdelta-2026-07-26-pressly-source-lifecycle-authority
@@ -233,13 +476,68 @@ policies:
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
   - id: source_snapshot_retention_v1
-    statement:
-      Pressly retains the latest normalized source snapshot permanently for
-      each linked entity and retains raw webhook bodies only in encrypted,
-      access-restricted, bounded quarantine.
+    statement: Pressly retains the immutable normalized candidate snapshot,
+      append-only lifecycle transitions, terminal decision, exact source closure
+      or tombstone evidence, and accepted source link. Raw webhook bodies remain
+      only in encrypted, access-restricted, bounded quarantine.
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
+  - id: canonical_field_authority_v2
+    statement: A direct Pressly edit locks a canonical field until an explicit
+      follow-source command restores eligibility for source adoption;
+      follow-source never grants authority beyond the current source capability
+      profile, and canonical lifecycle, physical facts, and derived projections
+      never follow an external source.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+  - id: external_source_capability_envelope_v1
+    statement:
+      External-source autonomy is determined exhaustively by source, claim
+      type, canonical lifecycle phase, current state, field authority, evidence,
+      and runtime posture and resolves to deny, observe, propose, or auto-adopt;
+      no single trust or assurance scalar grants cross-field authority.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+  - id: source_assurance_only_demotes_v1
+    statement: Runtime assurance and source posture may automatically reduce a
+      permitted capability from auto-adopt toward propose, observe, or deny but
+      can never exceed the versioned capability-profile ceiling or promote
+      itself; promotion requires an authorized audited Pressly command.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+  - id: cents_source_capability_profile_v1
+    statement:
+      Cents may establish exact source identities, cause policy to create
+      prospective canonical records in their Pressly-selected initial states,
+      and auto-adopt approved descriptive commercial fields while those fields
+      follow source; Cents lifecycle values are observation or proposal evidence
+      only and can never release, withdraw, intake, schedule, batch, progress,
+      complete, archive, restore, or delete Pressly work.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+  - id: cents_pickup_proposal_boundary_v1
+    statement: >
+      Cents has one fixed capability: propose an immutable incoming Order at
+      exact PICKED_UP. It has no field-following, lifecycle, reconciliation,
+      canonical-creation, fulfillment-release, or Production authority.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+  - id: cents_submitted_candidate_boundary_v1
+    statement: Cents may propose one immutable incoming candidate only at exact
+      SUBMITTED and may report exact COMPLETED or CANCELED source closure. It
+      has no field-following, canonical lifecycle, reconciliation, fulfillment
+      release, cleanup-decision, or Production authority.
+    status: active
+    sources:
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
 decisions:
   - id: users_orders_auth_and_production_are_peer_modules
     statement: Users, Orders, Auth, and Production remain isolated peer business
@@ -261,24 +559,32 @@ decisions:
       Webhooks, dashboards, customer accounts, and future channels invoke
       the same canonical User and Order use cases with explicit origin, actor,
       idempotency, and concurrency metadata.
-    status: active
+    status: deprecated
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
   - id: processor_uses_composed_order_views
-    statement:
-      Processor queries compose User contact data, Order commercial data,
-      and Production floor data in an application-owned read model without
-      transferring write authority between modules.
+    statement: Processor separates actionable pending or restored Incoming
+      candidates, source-closed review, and canonical Current orders. It renders
+      stable Order and customer identity, provenance, versions, source closure,
+      and server-owned available actions without recreating lifecycle,
+      duplicate, restore, or Production policy in the browser.
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
+      - memdelta-2026-07-28-order-source-authority-implementation
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
   - id: order_management_is_not_event_sourced_v1
-    statement: Canonical tables remain current state, source snapshots preserve
-      external observations, and a transactional outbox distributes changes; v1
-      does not reconstruct aggregates from a full event log.
+    statement: Canonical tables remain current state; incoming candidates keep
+      immutable snapshots and versioned current state plus append-only
+      transitions, terminal decisions, and exact source tombstones; accepted
+      source links preserve provenance; and a transactional outbox distributes
+      canonical changes. Aggregates are not reconstructed from a full event log.
     status: active
     sources:
       - memdelta-2026-07-20-source-neutral-users-orders
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
   - id: persistent_order_lifecycles_use_authoritative_graphs_v1
     statement: Each persistent Orders aggregate lifecycle is governed by one
       authoritative explicit state-and-event graph; use cases orchestrate graph
@@ -290,12 +596,71 @@ decisions:
       - memdelta-2026-07-26-pressly-source-lifecycle-authority
   - id: source_lifecycle_anomalies_are_integration_context_v1
     statement:
-      Source lifecycle differences after the Pressly handoff are retained
-      for integration health and audit review and are not exposed as
-      production-floor comparison tasks.
+      Exact SUBMITTED, COMPLETED, and CANCELED are translated into bounded
+      candidate commands; every other Cents lifecycle value is minimized to an
+      ignored durable receipt. No source value directly creates a canonical
+      transition or Production-floor comparison.
     status: active
     sources:
       - memdelta-2026-07-26-pressly-source-lifecycle-authority
+      - memdelta-2026-07-27-external-source-autonomy
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
+  - id: observation_and_command_channels_are_distinct_v1
+    statement:
+      External adapters may submit bounded pre-canonical proposals, while
+      authorized first-party channels submit canonical aggregate commands
+      directly; only an explicit Pressly command can create or transition
+      canonical work.
+    status: active
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+  - id: first_party_channels_use_canonical_commands_v1
+    statement: Pressly-owned residential and commercial ordering surfaces invoke
+      canonical User and Order commands directly instead of synchronizing
+      through an external-source adapter; their authority remains bounded by
+      actor permissions, fact ownership, concurrency, and aggregate lifecycle
+      graphs and never grants production-floor truth.
+    status: active
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+  - id: source_capability_policy_lives_in_orders_v1
+    statement: Orders owns typed exhaustive capability evaluation, persistent
+      source-control posture, exact observation decisions, and commercial
+      commands; adapters only authenticate, normalize, and transport
+      observations, API and Worker compose narrow ports, Production receives
+      source-neutral canonical events, and no generic cross-domain rules engine
+      is introduced.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-27-external-source-autonomy
+      - memdelta-2026-07-28-order-source-authority-implementation
+  - id: pickup_proposal_policy_lives_in_orders_v1
+    statement: Orders owns the source-neutral proposal graph, exact-identity
+      suppression, Accept and Reject use cases, canonical creation, receipts,
+      and outbox effects; the Cents adapter owns only authentication,
+      minimization, the exact PICKED_UP wire gate, and transport.
+    status: deprecated
+    sources:
+      - memdelta-2026-07-28-cents-pickup-proposal-implementation
+  - id: submitted_candidate_policy_lives_in_orders_v1
+    statement: Orders owns exact-identity suppression, tombstones, the complete
+      source-neutral candidate graph, Accept, Reject, Restore, canonical
+      creation, receipts, and outbox effects. The Cents adapter owns only
+      authentication, bounded classification, minimization, and transport.
+    status: active
+    sources:
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
+  - id: source_terminal_cleanup_is_composed_and_guarded_v1
+    statement:
+      When terminal evidence identifies exact accepted canonical work, an
+      application composition boundary may invoke a named source-neutral Pressly
+      resolution command. Production alone evaluates operational safety; Orders
+      and the Cents adapter cannot infer or perform cleanup.
+    status: active
+    sources:
+      - memdelta-2026-07-29-cents-submitted-candidate-lifecycle
 assumptions: []
 open_questions:
   - id: manual_user_duplicate_resolution
@@ -312,3 +677,15 @@ sources:
   - id: memdelta-2026-07-26-pressly-source-lifecycle-authority
     path: stateworks/memory/domains/order-management/sessions/2026-07-26-pressly-source-lifecycle-authority.md
     type: interrogation_session
+  - id: memdelta-2026-07-27-external-source-autonomy
+    path: stateworks/memory/domains/order-management/sessions/2026-07-27-external-source-autonomy.md
+    type: decision_session
+  - id: memdelta-2026-07-28-order-source-authority-implementation
+    path: stateworks/work/done/pressly-order-authority-source-autonomy/final-report.md
+    type: implementation_evidence
+  - id: memdelta-2026-07-28-cents-pickup-proposal-implementation
+    path: stateworks/work/done/pressly-cents-pickup-proposals/final-report.md
+    type: implementation_report
+  - id: memdelta-2026-07-29-cents-submitted-candidate-lifecycle
+    path: stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/final-report.md
+    type: implementation_report

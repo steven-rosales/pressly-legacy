@@ -81,7 +81,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-valid-signature\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"IN_PROGRESS\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:00:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
+          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-valid-signature\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"SUBMITTED\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:00:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
           "options": {
             "raw": {
               "language": "json"
@@ -264,7 +264,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-duplicate-1001\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"IN_PROGRESS\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:04:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
+          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-duplicate-1001\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"SUBMITTED\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:04:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
           "options": {
             "raw": {
               "language": "json"
@@ -276,7 +276,7 @@
           "host": ["{{base_url}}"],
           "path": ["webhooks", "cents"]
         },
-        "description": "Proof case: order_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: normalizes documented order and customer fields for canonical processing\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: authenticates and normalizes a documented Cents order before durable ingestion"
+        "description": "Proof case: order_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: normalizes a submitted order into an incoming candidate payload\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: authenticates and normalizes a documented Cents order before durable ingestion"
       }
     },
     {
@@ -312,7 +312,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-duplicate-1001\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"IN_PROGRESS\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:04:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
+          "raw": "{\"action\":\"order_updated\",\"order\":{\"id\":\"tooling-order-duplicate-1001\",\"storeId\":\"{{cents_test_store_id}}\",\"status\":\"SUBMITTED\",\"dueDate\":\"2030-01-15T20:00:00.000Z\",\"updatedAt\":\"2030-01-15T14:04:00.000Z\"},\"services\":[{\"id\":\"synthetic-service-wash-fold\",\"name\":\"Wash and Fold\",\"quantity\":10,\"totalPrice\":\"20.00\",\"unitCost\":\"2.00\",\"serviceCategory\":\"Wash and Fold\",\"serviceCategoryType\":\"LAUNDRY\"}]}",
           "options": {
             "raw": {
               "language": "json"
@@ -328,18 +328,18 @@
       }
     },
     {
-      "name": "07 - Accept and process customer event",
+      "name": "07 - Acknowledge ignored customer event",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('queues the customer event for processing', () => {",
+              "pm.test('acknowledges the customer event without processing', () => {",
               "  pm.response.to.have.status(202);",
               "  const response = pm.response.json();",
               "  pm.expect(response.ok).to.eql(true);",
-              "  pm.expect(response.data.status).to.eql('pending');",
+              "  pm.expect(response.data.status).to.eql('ignored');",
               "  pm.expect(response.data.duplicate).to.eql(false);",
               "});"
             ]
@@ -372,22 +372,22 @@
           "host": ["{{base_url}}"],
           "path": ["webhooks", "cents"]
         },
-        "description": "Proof case: customer_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: normalizes %s as a processable %s observation\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: stores the correct canonical disposition for an authenticated $name"
+        "description": "Proof case: customer_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: acknowledges %s without projecting a %s observation\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: stores an ignored receipt without processable payload for an authenticated $name"
       }
     },
     {
-      "name": "08 - Accept and process marketing event",
+      "name": "08 - Acknowledge ignored marketing event",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('queues the marketing event for processing', () => {",
+              "pm.test('acknowledges the marketing event without processing', () => {",
               "  pm.response.to.have.status(202);",
               "  const response = pm.response.json();",
               "  pm.expect(response.ok).to.eql(true);",
-              "  pm.expect(response.data.status).to.eql('pending');",
+              "  pm.expect(response.data.status).to.eql('ignored');",
               "  pm.expect(response.data.duplicate).to.eql(false);",
               "});"
             ]
@@ -420,7 +420,7 @@
           "host": ["{{base_url}}"],
           "path": ["webhooks", "cents"]
         },
-        "description": "Proof case: marketing_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: normalizes %s as a processable %s observation\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: stores the correct canonical disposition for an authenticated $name"
+        "description": "Proof case: marketing_event\nAutomated equivalent: apps/api/test/cents/cents-webhook.adapter.test.ts :: acknowledges %s without projecting a %s observation\nAutomated equivalent: apps/api/test/http/api-app.http.test.ts :: stores an ignored receipt without processable payload for an authenticated $name"
       }
     }
   ]

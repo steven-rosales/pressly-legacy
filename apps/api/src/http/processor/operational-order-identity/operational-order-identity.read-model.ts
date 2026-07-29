@@ -2,12 +2,14 @@ import type {
   ProcessorOperationalOrderIdentity,
   ProcessorListProductionHistoryActivityResult,
   ProcessorProductionOrderBacklogPreview,
+  ProcessorProductionBoard,
   ProcessorProductionHistoryRunDetail,
   ProcessorProductionWorkspace,
   ProcessorRemainingDayForecast,
   ListProductionHistoryActivityResult,
   ProductionHistoryRunDetail,
   ProductionOrderBacklogPreview,
+  ProductionBoard,
   ProductionRemainingDayForecast,
   ProductionWorkspace,
 } from '@pressly/contracts';
@@ -48,15 +50,54 @@ const requireIdentity = (
   return identity;
 };
 
+const boardOrderReferences = (
+  board: ProductionBoard | null,
+): ProcessorOperationalOrderIdentityReference[] =>
+  board?.batches.flatMap((batch) =>
+    batch.orders.map((order) => ({
+      referenceId: productionReferenceId(order.id),
+      productionOrderId: order.id,
+      orderDemandId: null,
+      fallbackDisplayNumber: order.externalOrderId,
+    })),
+  ) ?? [];
+
+const identifyBoard = (
+  board: ProductionBoard,
+  identities: ReadonlyMap<string, ProcessorOperationalOrderIdentity>,
+): ProcessorProductionBoard => ({
+  ...board,
+  batches: board.batches.map((batch) => ({
+    ...batch,
+    orders: batch.orders.map((order) => ({
+      ...order,
+      identity: requireIdentity(identities, productionReferenceId(order.id)),
+    })),
+  })),
+});
+
 export const makeProcessorOperationalOrderReadModel = (
   identities: ProcessorOperationalOrderIdentityResolver,
 ) => ({
+  composeBoard: async (
+    base: ProductionBoard,
+  ): Promise<ProcessorProductionBoard> => {
+    const resolved = await resolveReferences(
+      identities,
+      boardOrderReferences(base),
+    );
+    return identifyBoard(base, resolved);
+  },
+
   composeWorkspace: async (
     base: ProductionWorkspace,
   ): Promise<ProcessorProductionWorkspace> => {
+    const batchOrders =
+      base.board?.batches.flatMap((batch) => batch.orders) ?? [];
     const pendingOrders = [
       ...base.pendingEligibleOrders,
       ...(base.liveRunChanges?.orders ?? []),
+      ...batchOrders,
     ];
     const references = [
       ...base.orders.map((order) => ({
@@ -91,6 +132,7 @@ export const makeProcessorOperationalOrderReadModel = (
               ...base.liveRunChanges,
               orders: base.liveRunChanges.orders.map(identify),
             },
+      board: base.board === null ? null : identifyBoard(base.board, resolved),
     };
   },
 

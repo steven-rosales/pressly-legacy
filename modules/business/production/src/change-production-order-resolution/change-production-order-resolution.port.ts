@@ -13,7 +13,13 @@ import type {
 
 export type ChangeProductionOrderResolution = (
   command: ChangeProductionOrderResolutionCommand &
-    Readonly<{ actorId: string }>,
+    Readonly<{
+      actorId: string;
+      sourceStatePrecondition?: Readonly<{
+        commercialState: 'open';
+        admissionState: 'unreleased';
+      }>;
+    }>,
 ) => Promise<Result<ChangeProductionOrderResolutionResult, AppError>>;
 
 export type RestoredProductionOrderSourceProjection = Readonly<{
@@ -65,9 +71,22 @@ export type LockedProductionOrderResolution = Readonly<{
   hasRoute: boolean;
 }>;
 
+export type ProductionOrderResolutionCandidate = Readonly<{
+  orderId: string;
+  locationId: string;
+  productionVersion: number;
+  resolutionState: string;
+  sourceAdmissionState: 'unreleased' | 'released' | 'withdrawn';
+  sourceCommercialState: 'open' | 'completed' | 'canceled';
+}>;
+
 export type ChangeProductionOrderResolutionRepository = Transactional<
   Readonly<{
     findWorkEvent: FindWorkEvent;
+    findOrderByFulfillment: (
+      locationId: string,
+      fulfillmentId: string,
+    ) => Promise<ProductionOrderResolutionCandidate | null>;
     lockLocationScheduling: (locationId: string) => Promise<void>;
     lockOrder: (
       locationId: string,

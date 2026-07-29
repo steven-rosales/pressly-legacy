@@ -126,6 +126,12 @@ describe('canonical fulfillment demand', () => {
       tag: 'err',
       error: { code: 'production_idempotency_conflict' },
     });
+    await expect(
+      application.applyFulfillmentDemand(command({ bagCount: 9 })),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_idempotency_conflict' },
+    });
   });
 
   it('ignores older revisions and accepts an equal identical revision unchanged', async () => {
@@ -185,36 +191,46 @@ describe('canonical fulfillment demand', () => {
     });
   });
 
-  it('admits released demand with physical intake without automatic run placement', async () => {
+  it('ignores a legacy external bag count and keeps released demand intake pending', async () => {
     const { application, memory } = setup();
-    const eligible = command({
+    const legacyPayload = command({
       admissionState: 'released',
       bagCount: 2,
       idempotencyKey: 'eligible-demand-command',
     });
 
     await expect(
-      application.applyFulfillmentDemand(eligible),
+      application.applyFulfillmentDemand(legacyPayload),
     ).resolves.toMatchObject({
       tag: 'ok',
       value: { outcome: 'applied', replayed: false },
     });
-    expect([...memory.inspect().orders.values()]).toMatchObject([
-      { status: 'eligible', bagCount: 2 },
-    ]);
+    const [order] = [...memory.inspect().orders.values()];
+    expect(order).toMatchObject({ status: 'intake_pending', bagCount: null });
+    expect(memory.inspect().intakeVersions.get(order!.id)).toBeUndefined();
+    expect(memory.inspect().bagStatuses.get(order!.id)).toBeUndefined();
   });
 
   it('preserves a manual Pressly release across lagging source updates and lets source withdrawal win', async () => {
     const { application, memory } = setup();
     await application.applyFulfillmentDemand(command({ bagCount: 2 }));
     const created = [...memory.inspect().orders.values()][0]!;
+    const intake = await application.recordOrderIntake({
+      locationId: 'location-1',
+      orderId: created.id,
+      bagCount: 2,
+      expectedVersion: created.version,
+      idempotencyKey: 'operator-intake-before-manual-release',
+      actorId: '00000000-0000-4000-8000-000000009001',
+    });
+    if (intake.tag === 'err') throw intake.error;
 
     await expect(
       application.changeProductionAdmission({
         locationId: 'location-1',
         orderId: created.id,
         target: 'released',
-        expectedVersion: created.version,
+        expectedVersion: intake.value.version,
         idempotencyKey: 'manual-admission-release',
         actorId: '00000000-0000-4000-8000-000000009001',
       }),
@@ -260,9 +276,22 @@ describe('canonical fulfillment demand', () => {
 
   it('keeps commercial completion separate from unfinished floor work', async () => {
     const { application, memory } = setup();
-    await application.applyFulfillmentDemand(
+    const applied = await application.applyFulfillmentDemand(
       command({ admissionState: 'released', bagCount: 2 }),
     );
+    if (applied.tag === 'err' || applied.value.productionOrderId === null)
+      throw new Error('Expected Production work.');
+    const order = memory.inspect().orders.get(applied.value.productionOrderId);
+    if (order === undefined) throw new Error('Expected Production order.');
+    const intake = await application.recordOrderIntake({
+      locationId: 'location-1',
+      orderId: order.id,
+      bagCount: 2,
+      expectedVersion: order.version,
+      idempotencyKey: 'operator-intake-before-commercial-completion',
+      actorId: '00000000-0000-4000-8000-000000009001',
+    });
+    if (intake.tag === 'err') throw intake.error;
     await application.applyFulfillmentDemand(
       command({
         fulfillmentVersion: 3,

@@ -40,7 +40,7 @@ const ids = {
 } as const;
 
 describe('production order backlog Postgres workflow', () => {
-  it('filters a bounded source recommendation and commits its exact safe snapshot', async () => {
+  it('reviews every old canonical order and commits its exact safe snapshot', async () => {
     const now = new Date('2026-07-27T04:00:00.000Z');
     const dueAt = new Date('2026-06-01T12:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
@@ -115,7 +115,7 @@ describe('production order backlog Postgres workflow', () => {
     });
     const scope = {
       locationId: 'location-1',
-      filter: 'source_terminal_before_cutoff' as const,
+      filter: 'all_due_before_cutoff' as const,
       cutoff: '2026-07-01T00:00:00.000Z',
       reason: 'completed_outside_pressly' as const,
       cursor: null,
@@ -126,9 +126,12 @@ describe('production order backlog Postgres workflow', () => {
     expect(reviewed).toMatchObject({
       tag: 'ok',
       value: {
-        candidateCount: 1,
+        candidateCount: 2,
         groups: {
-          readyToArchive: [{ orderId: ids.readyOrder }],
+          readyToArchive: [
+            { orderId: ids.readyOrder },
+            { orderId: ids.openOrder },
+          ],
         },
       },
     });
@@ -136,7 +139,7 @@ describe('production order backlog Postgres workflow', () => {
 
     const committed = await commit({
       ...scope,
-      note: 'Manager reviewed the source-terminal backlog.',
+      note: 'Manager reviewed old active Pressly orders.',
       previewHash: reviewed.value.previewHash,
       idempotencyKey: 'backlog-postgres-201',
       actorId: ids.actor,
@@ -144,8 +147,11 @@ describe('production order backlog Postgres workflow', () => {
     expect(committed).toMatchObject({
       tag: 'ok',
       value: {
-        resolvedCount: 1,
-        resolved: [{ orderId: ids.readyOrder, version: 2 }],
+        resolvedCount: 2,
+        resolved: [
+          { orderId: ids.readyOrder, version: 2 },
+          { orderId: ids.openOrder, version: 2 },
+        ],
       },
     });
     if (committed.tag === 'err') throw committed.error;
@@ -168,14 +174,23 @@ describe('production order backlog Postgres workflow', () => {
           ),
         ),
       );
-    expect(orders).toEqual([
-      {
-        id: ids.readyOrder,
-        resolutionState: 'resolved_without_production',
-        bulkOperationId: committed.value.bulkOperationId,
-        executionStatus: 'unassigned',
-      },
-    ]);
+    expect(orders).toHaveLength(2);
+    expect(orders).toEqual(
+      expect.arrayContaining([
+        {
+          id: ids.readyOrder,
+          resolutionState: 'resolved_without_production',
+          bulkOperationId: committed.value.bulkOperationId,
+          executionStatus: 'unassigned',
+        },
+        {
+          id: ids.openOrder,
+          resolutionState: 'resolved_without_production',
+          bulkOperationId: committed.value.bulkOperationId,
+          executionStatus: 'unassigned',
+        },
+      ]),
+    );
 
     const events = await testDb.db
       .select({
@@ -189,6 +204,10 @@ describe('production order backlog Postgres workflow', () => {
         {
           type: 'production_order_bulk_resolved_without_production',
           entityId: ids.readyOrder,
+        },
+        {
+          type: 'production_order_bulk_resolved_without_production',
+          entityId: ids.openOrder,
         },
         {
           type: 'production_order_backlog_bulk_resolution_committed',
@@ -247,7 +266,7 @@ describe('production order backlog Postgres workflow', () => {
     });
     const scope = {
       locationId: 'location-1',
-      filter: 'source_terminal_before_cutoff' as const,
+      filter: 'all_due_before_cutoff' as const,
       cutoff: '2026-07-01T00:00:00.000Z',
       reason: 'completed_outside_pressly' as const,
       cursor: null,
@@ -350,7 +369,7 @@ describe('production order backlog Postgres workflow', () => {
     });
     const firstScope = {
       locationId: 'location-1',
-      filter: 'source_terminal_before_cutoff' as const,
+      filter: 'all_due_before_cutoff' as const,
       cutoff: '2026-07-01T00:00:00.000Z',
       reason: 'completed_outside_pressly' as const,
       cursor: null,

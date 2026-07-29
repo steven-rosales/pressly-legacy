@@ -520,9 +520,6 @@ importers:
       '@pressly/production-scheduling':
         specifier: workspace:*
         version: link:../../modules/computation/scheduling
-      '@pressly/users':
-        specifier: workspace:*
-        version: link:../../modules/business/users
       '@pressly/webhook-ingestion':
         specifier: workspace:*
         version: link:../../modules/business/webhook-ingestion

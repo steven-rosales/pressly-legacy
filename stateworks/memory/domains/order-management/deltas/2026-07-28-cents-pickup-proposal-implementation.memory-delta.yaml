@@ -1,0 +1,257 @@
+id: memdelta-2026-07-28-cents-pickup-proposal-implementation
+domain_id: order-management
+
+source:
+  type: implementation_report
+  path: stateworks/work/done/pressly-cents-pickup-proposals/final-report.md
+
+changes:
+  - op: update
+    kind: external_system
+    id: cents
+    description: Cents is an external pickup-proposal provider. Only an exact
+      raw PICKED_UP Order observation can produce an immutable pending proposal;
+      every other Cents event is acknowledged and ignored. Cents cannot create
+      or update canonical Pressly work without an operator Accept command.
+
+  - op: assert
+    kind: object
+    id: incoming_order_proposal
+    description: An immutable pre-canonical snapshot keyed by exact source and
+      external Order identity, governed by the pending, accepted, and rejected
+      lifecycle and carrying terminal actor, reason, version, and canonical
+      result evidence.
+
+  - op: update
+    kind: object
+    id: source_snapshot
+    description: Immutable normalized source evidence retained when an incoming
+      proposal is accepted and linked to a canonical entity; later adapter
+      lifecycle deliveries do not update canonical work or this accepted
+      evidence.
+
+  - op: deprecate
+    kind: object
+    id: source_capability_profile
+
+  - op: deprecate
+    kind: object
+    id: source_observation_decision
+
+  - op: deprecate
+    kind: object
+    id: source_control_posture
+
+  - op: deprecate
+    kind: workflow
+    id: external_order_observation
+
+  - op: assert
+    kind: workflow
+    id: cents_pickup_proposal
+    steps:
+      - API authenticates one Cents envelope and records one idempotent durable
+        inbox event
+      - the adapter emits a source-neutral proposal command only when the raw
+        Order status is exactly PICKED_UP and minimizes every other event to an
+        ignored receipt
+      - Orders serializes exact source and external Order identity and creates
+        at most one immutable pending proposal unless an exact canonical source
+        link already exists
+      - Processor lists pending proposals with server-owned Accept and Reject
+        availability
+      - Accept rechecks exact identity and expected proposal version and applies
+        the authoritative proposal graph
+      - one transaction creates or reuses an exact source-linked User, creates
+        one canonical Order and released fulfillment, records accepted source
+        evidence and command receipt, writes the outbox effect, and terminalizes
+        the proposal
+      - Reject records an audited terminal resolution without creating a User,
+        Order, fulfillment, or outbox effect
+      - duplicate pickup and every later Cents event are acknowledged no-ops
+        and cannot update or reopen a decided proposal or canonical work
+
+  - op: update
+    kind: workflow
+    id: direct_pressly_mutation
+    steps:
+      - an authenticated first-party Pressly channel submits a task-shaped
+        canonical create, correct, complete, cancel, release, withdraw, archive,
+        restore, or other named command
+      - every command carries actor, authorization scope, origin, stable reason,
+        idempotency key, and expected aggregate versions
+      - the owning use case locks and loads current canonical state
+      - the aggregate's authoritative lifecycle graph and policies decide the
+        event and effects; callers cannot submit a target state
+      - the repository commits versioned canonical state, command receipt,
+        audit evidence, and any source-neutral outbox event atomically
+      - adapter proposals and evidence remain separate and cannot mutate
+        canonical state outside an accepted Pressly command
+
+  - op: update
+    kind: invariant
+    id: source_observations_enter_through_commands
+    statement: External webhooks enter through authenticated durable ingress
+      and may produce only a bounded source-neutral proposal command; they never
+      write canonical User, Order, fulfillment, or Production tables directly.
+
+  - op: deprecate
+    kind: invariant
+    id: source_revision_order_is_monotonic
+
+  - op: deprecate
+    kind: invariant
+    id: source_observation_and_lifecycle_adoption_are_separate_v1
+
+  - op: update
+    kind: invariant
+    id: pressly_order_lifecycle_is_canonical_from_creation_v2
+    statement: No external observation can create a canonical Order or select
+      or execute a canonical transition. A pending incoming proposal becomes
+      canonical only through an authorized Accept command; every later
+      lifecycle change requires an authorized Pressly command or named
+      versioned Pressly automation command.
+
+  - op: deprecate
+    kind: invariant
+    id: source_observation_decisions_are_auditable_v1
+
+  - op: deprecate
+    kind: invariant
+    id: source_authority_configuration_fails_closed_v1
+
+  - op: deprecate
+    kind: invariant
+    id: reordered_source_customer_resolution_is_exact_v1
+
+  - op: assert
+    kind: invariant
+    id: cents_exact_pickup_is_proposal_only_v1
+    statement: Only an exact raw Cents PICKED_UP Order observation may create
+      one incoming proposal; every other known, unknown, earlier, or later
+      Cents event is acknowledged and ignored without canonical or Production
+      effect.
+
+  - op: assert
+    kind: invariant
+    id: incoming_proposal_decision_is_terminal_v1
+    statement: An incoming proposal follows the single authoritative
+      pending-to-accepted or pending-to-rejected graph; accepted and rejected
+      are terminal and neither replay nor later source delivery can update or
+      reopen them.
+
+  - op: assert
+    kind: invariant
+    id: incoming_proposal_identity_is_exact_v1
+    statement: Exact source and external Order identity is the only automatic
+      duplicate-suppression and canonical-link key; phone, email, name, display
+      number, and fuzzy similarity never select, merge, or suppress records.
+
+  - op: assert
+    kind: invariant
+    id: incoming_proposal_decision_effects_v1
+    statement: Accept atomically rechecks exact identity and expected version
+      before creating one canonical Order and released fulfillment with command
+      and outbox evidence, while Reject creates no canonical User, Order,
+      fulfillment, or downstream effect.
+
+  - op: update
+    kind: policy
+    id: cents_customer_resolution_v1
+    statement: A Cents pickup proposal may carry an exact external customer
+      identity and immutable customer snapshot; only Accept may resolve or
+      create the corresponding exact source-linked User, and contact values
+      never select or merge a canonical User.
+
+  - op: update
+    kind: policy
+    id: source_snapshot_retention_v1
+    statement: Pressly retains the immutable normalized snapshot and terminal
+      resolution for each incoming proposal and accepted source evidence for
+      the resulting exact canonical link; raw webhook bodies remain only in
+      encrypted, access-restricted, bounded quarantine.
+
+  - op: deprecate
+    kind: policy
+    id: canonical_field_authority_v2
+
+  - op: deprecate
+    kind: policy
+    id: external_source_capability_envelope_v1
+
+  - op: deprecate
+    kind: policy
+    id: source_assurance_only_demotes_v1
+
+  - op: deprecate
+    kind: policy
+    id: cents_source_capability_profile_v1
+
+  - op: assert
+    kind: policy
+    id: cents_pickup_proposal_boundary_v1
+    statement: >
+      Cents has one fixed capability: propose an immutable incoming Order at
+      exact PICKED_UP. It has no field-following, lifecycle, reconciliation,
+      canonical-creation, fulfillment-release, or Production authority.
+
+  - op: update
+    kind: decision
+    id: processor_uses_composed_order_views
+    statement: Processor separates pending Incoming proposals from canonical
+      Current orders. It renders stable order and customer identity,
+      provenance, canonical state, versions, bounded audit evidence, and
+      server-owned available actions with denial reasons, without recreating
+      proposal, lifecycle, duplicate, or Production policy in the browser.
+
+  - op: update
+    kind: decision
+    id: order_management_is_not_event_sourced_v1
+    statement: Canonical tables remain current state, incoming proposals and
+      terminal resolutions preserve immutable pre-canonical decisions, accepted
+      source evidence preserves provenance, and a transactional outbox
+      distributes canonical changes; aggregates are not reconstructed from a
+      full event log.
+
+  - op: update
+    kind: decision
+    id: source_lifecycle_anomalies_are_integration_context_v1
+    statement: Cents lifecycle values other than exact PICKED_UP are minimized
+      to ignored durable receipts; they create no reconciliation task,
+      canonical transition, or Production-floor comparison.
+
+  - op: update
+    kind: decision
+    id: observation_and_command_channels_are_distinct_v1
+    statement: External adapters may submit bounded pre-canonical proposals,
+      while authorized first-party channels submit canonical aggregate commands
+      directly; only an explicit Pressly command can create or transition
+      canonical work.
+
+  - op: deprecate
+    kind: decision
+    id: source_capability_policy_lives_in_orders_v1
+
+  - op: assert
+    kind: decision
+    id: pickup_proposal_policy_lives_in_orders_v1
+    statement: Orders owns the source-neutral proposal graph, exact-identity
+      suppression, Accept and Reject use cases, canonical creation, receipts,
+      and outbox effects; the Cents adapter owns only authentication,
+      minimization, the exact PICKED_UP wire gate, and transport.
+
+verification:
+  - The active work report records the implemented pickup-only adapter,
+    proposal graph, transactional decision effects, and deleted authority paths.
+  - Full monorepo tests, architecture tests, type checking, lint, formatting,
+    build, disposable database migrations, and focused Postgres proposal tests
+    passed.
+  - Local synthetic runtime tests proved pickup, ignore, Accept, Reject, replay,
+    exact identity, and terminal immutability without production data.
+  - Desktop and mobile Processor inspection verified server-owned actions,
+    scrolling, keyboard behavior, focus restoration, and a clean console.
+  - Existing canonical records and historical migrations were preserved; no
+    backfill, production deployment, live Cents cutover, secret, credential, or
+    customer payload is claimed.
+
+status: applied

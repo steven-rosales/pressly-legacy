@@ -52,6 +52,7 @@
     "dialogTitle": "Processor navigation",
     "dialogDescription": "Choose a Processor workspace for this location.",
     "home": "Home",
+    "orders": "Orders",
     "intake": "Intake",
     "production": "Production",
     "schedule": "Schedule",
@@ -60,10 +61,11 @@
     "configuration": "Configuration",
     "sections": {
       "dailyWork": "Daily work",
-      "planningReview": "Planning & review",
+      "manageReview": "Manage & review",
       "system": "System"
     },
-    "homeDescription": "Find orders, resolve floor exceptions, and keep whole-order production moving.",
+    "homeDescription": "See today's work and open the right workspace for the next action.",
+    "ordersDescription": "Find orders, resolve exceptions, and manage active production work.",
     "intakeDescription": "Review incoming orders, record physical intake, and release verified work to Production.",
     "productionDescription": "Advance started work from sorting through folding.",
     "scheduleDescription": "Plan ready orders and review additions to a live production run.",

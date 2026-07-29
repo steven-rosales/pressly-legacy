@@ -1,0 +1,202 @@
+id: memdelta-2026-07-29-cents-submitted-candidate-production-boundary
+domain_id: laundry-production
+
+source:
+  type: implementation_report
+  path: stateworks/work/done/pressly-cents-submitted-candidate-lifecycle/final-report.md
+
+changes:
+  - op: update
+    kind: external_system
+    id: cents
+    description: Cents is an upstream candidate-evidence provider only. Exact
+      SUBMITTED may create a pre-canonical Orders candidate, exact COMPLETED or
+      CANCELED may record source closure, and every other status is ignored.
+      None has a Production identity, admission, scheduling, execution, or floor
+      effect.
+
+  - op: update
+    kind: workflow
+    id: external_demand_to_production_admission
+    steps:
+      - exact external SUBMITTED evidence may create one immutable pending
+        candidate upstream in Orders and has no Production effect
+      - exact COMPLETED or CANCELED evidence may close only a pending candidate
+        or create an exact-identity tombstone upstream; every other source state
+        is acknowledged without an Orders or Production command
+      - Reject terminalizes the candidate without creating canonical or
+        Production work
+      - Accept atomically creates one open canonical Order with an unreleased
+        fulfillment upstream through an authorized Pressly command
+      - an Orders outbox event applies fulfillment-keyed canonical demand and
+        the unreleased admission fact to Production idempotently
+      - physical bag intake may be recorded only against canonical Production
+        work and intake alone does not admit an unreleased order
+      - effective Production admission becomes released only through a later
+        canonical fulfillment-release event or a current authorized manual
+        Production override
+      - readiness still requires positive Production demand and recorded
+        physical intake under server-owned policy
+      - terminal source evidence for exact accepted work may request a named
+        source-neutral resolution automation, but Production's authoritative
+        guard alone decides resolve, review, or no-op
+      - pending, source-closed, restored, and rejected candidates remain outside
+        Production, and manual admission never selects, schedules, places, or
+        starts an order
+
+  - op: update
+    kind: workflow
+    id: scheduling_to_execution
+    steps:
+      - Production idempotently receives accepted canonical fulfillment demand
+        from the Orders transactional outbox and preserves its canonical release
+        state, including initially unreleased work
+      - a later canonical fulfillment-release event or current authorized
+        manual Production override may change effective admission to released
+      - eligible production_orders form the complete immutable scheduling
+        snapshot for one shift
+      - Compute creates a new immutable schedule_run revision and supersedes the
+        prior current revision
+      - manager reviews warnings and accepts the current output hash without
+        creating execution
+      - Start revalidates the current accepted revision, exact eligible-order
+        snapshot, and active shift window
+      - LPMS creates the shift's sole started production_run and its initial
+        batches, stages, assignments, order transitions, and work_event
+        atomically
+      - operators advance server-authorized stage_run actions; an
+        otherwise-valid early start or completion requires an exact current
+        confirmation and never rewrites planned stage windows
+      - after reconnect, an operator may reconcile one batch to a strictly later
+        physical milestone through a previewed and exact-version confirmation
+        without synthetic stage events
+      - post-start canonical arrivals are placed into the existing
+        production_run without moving existing orders automatically
+      - employees may explicitly rebatch a whole queued order or defer and
+        rework a whole in-flight order into a later batch without changing
+        canonical batch-stage progression
+      - final folding and packaging completion, whether live or reconciled,
+        terminalizes the remaining floor facts, completes the run, and closes
+        the shift atomically
+
+  - op: update
+    kind: invariant
+    id: external_source_lifecycle_never_controls_production_admission_v2
+    statement: Production admission may change only through a source-neutral
+      canonical Orders release event or an authorized Production
+      manual-admission command. SUBMITTED candidates, source closure,
+      tombstones, ignored source states, and rejected proposals never have a
+      Production identity and cannot affect admission.
+
+  - op: update
+    kind: invariant
+    id: canonical_fulfillment_release_reaches_production_v2
+    statement: Production consumes accepted canonical fulfillment demand and
+      later release decisions from the Orders transactional outbox
+      idempotently. Accepted demand may begin unreleased; Production preserves
+      that fact and operator-owned intake and cannot infer, synthesize, reverse,
+      or terminalize canonical decisions from source evidence.
+
+  - op: update
+    kind: invariant
+    id: incoming_proposals_are_outside_production_v1
+    statement: An incoming candidate, source-closed review, restore decision,
+      rejection, or terminal tombstone has no Production order, admission,
+      selection, schedule, batch, run, intake, or remaining-day membership.
+      Only an accepted canonical fulfillment may create Production demand, and
+      executable admission still requires canonical release or an authorized
+      manual override plus the normal readiness facts.
+
+  - op: assert
+    kind: invariant
+    id: source_terminal_resolution_is_guarded_v1
+    statement: Exact source-terminal evidence for an accepted canonical
+      fulfillment may invoke only a named source-neutral Pressly automation.
+      Production may resolve untouched, unreleased, unassigned work without
+      production only when its authoritative graph and guard permit; review
+      facts or any intake, selection, scheduling, batch, route, stage, active,
+      or finished participation leave the work unchanged.
+
+  - op: update
+    kind: invariant
+    id: source_lifecycle_does_not_advance_floor_truth_v1
+    statement: Production consumes only committed source-neutral canonical
+      fulfillment demand and release decisions from Orders. External events,
+      candidates, source estimates, and adapter evidence cannot directly
+      create, admit, start, advance, finish, cancel, rewind, delete, resolve,
+      restore, reopen, or otherwise change Production work or physical truth.
+      Exact terminal evidence for accepted canonical work may only request a
+      named source-neutral resolution; Production's graph and operational
+      guard alone decide a nondestructive resolve, review, or no-op outcome.
+
+  - op: deprecate
+    kind: invariant
+    id: cents_projection_source_version_serialized
+
+  - op: update
+    kind: policy
+    id: remaining_day_outlook_partition_v1
+    statement: The remaining-day outlook partitions unfinished canonical
+      Pressly work into active production, ready work the server can currently
+      place, expected canonical work not yet executable, and work needing
+      another shift or remaining unassigned today. Pending, source-closed,
+      restored, and rejected incoming candidates and tombstones are excluded,
+      and appendability uses the same authoritative capacity and placement
+      rules as execution.
+
+  - op: update
+    kind: policy
+    id: canonical_fulfillment_release_reaches_production_v2
+    statement: Production consumes only canonical fulfillment demand and
+      release decisions from Orders idempotently. Accepted demand may be
+      unreleased; candidate lifecycle, source closure, tombstones, and every
+      external observation remain outside Production's admission input.
+
+  - op: update
+    kind: decision
+    id: durable_inbox_worker_v1
+    statement: Cents ingress uses a Postgres inbox with SKIP LOCKED claims,
+      expiring leases, bounded retry backoff, and inspectable dead letters.
+      Worker translates exact SUBMITTED into candidate submission, exact
+      COMPLETED or CANCELED into source closure, and every other status into a
+      durable ignored acknowledgement; no adapter controls canonical or
+      Production work.
+
+  - op: update
+    kind: decision
+    id: processor_uses_backend_action_availability
+    statement: Processor renders actionable Incoming candidates and
+      source-closed review separately from canonical Current-order and
+      Production actions. Orders owns candidate actions, Production owns
+      resolution and floor capabilities, and the browser cannot recreate
+      lifecycle, restore, cleanup, admission, placement, routing, or forecast
+      decisions.
+
+  - op: update
+    kind: decision
+    id: isolated_lpms_module_composition
+    statement: Users, Orders, Production business, Production policy, and
+      fixed-pulse scheduling remain isolated peers behind narrow ports. Worker
+      translates Cents evidence into source-neutral Orders commands; Orders owns
+      candidates and canonical creation; Production consumes only canonical
+      outbox events and owns guarded resolution; cross-domain source-terminal
+      cleanup is composed at the Worker boundary without Production importing
+      Orders, Cents, or candidate policy.
+
+verification:
+  - Production unit tests pass for unreleased projection, guarded source-closed
+    resolution, review-required and no-op outcomes, and unchanged operationally
+    participating work.
+  - Worker unit tests pass for source-neutral candidate and terminal commands
+    and guarded resolution outcomes without mapping source state into floor
+    transitions.
+  - Processor unit tests pass for separate Incoming and Current workspaces,
+    source-closed review, Restore, paging, and server-owned actions.
+  - The disposable database vertical slice passed migration through 0037,
+    Orders and Production repository integration, Worker and webhook-ingestion
+    integration, Users integration, and the Cents asset checks.
+  - Root typecheck, lint, formatting, build, architecture, and diff gates pass.
+    This accepted repository and local-runtime evidence makes no deployment,
+    replay, production-data, live-cutover, or pilot claim.
+
+status: applied

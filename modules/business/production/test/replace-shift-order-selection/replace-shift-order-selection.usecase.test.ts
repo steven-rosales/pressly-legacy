@@ -67,6 +67,17 @@ const createOrder = async (
     throw demand.tag === 'err'
       ? demand.error
       : new Error('Production order was not created.');
+  if (admissionState === 'released') {
+    const intake = await application.recordOrderIntake({
+      locationId,
+      orderId: demand.value.productionOrderId,
+      bagCount: 1,
+      expectedVersion: 1,
+      actorId,
+      idempotencyKey: `selection-intake-${reference}`,
+    });
+    if (intake.tag === 'err') throw intake.error;
+  }
   return demand.value.productionOrderId;
 };
 

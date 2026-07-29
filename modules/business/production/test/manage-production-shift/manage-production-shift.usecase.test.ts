@@ -65,6 +65,15 @@ const createAcceptedSchedule = async (
     throw demand.tag === 'err'
       ? demand.error
       : new Error('Production order was not created.');
+  const intake = await application.recordOrderIntake({
+    locationId,
+    orderId: demand.value.productionOrderId,
+    bagCount: 1,
+    expectedVersion: 1,
+    actorId,
+    idempotencyKey: 'intake-for-shift-update',
+  });
+  if (intake.tag === 'err') throw intake.error;
   const selection = await application.replaceShiftOrderSelection({
     locationId,
     productionShiftId,

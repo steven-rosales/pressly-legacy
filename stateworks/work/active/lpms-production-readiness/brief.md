@@ -18,9 +18,11 @@ An authorized Pressly operator can:
    MFA flow.
 2. Select an actual location and resume its current production workspace.
 3. Receive a Cents order event through the configured ingress mode, ingest it
-   durably, translate it through a Worker-owned source adapter into canonical
-   Production demand, record missing intake facts such as bag count, and see
-   the order become schedulable only when all required facts exist.
+   durably, retain it through a Worker-owned adapter as an Orders observation,
+   use an explicit Pressly command and the Orders fulfillment-release graph to
+   admit canonical demand, project that demand through the Orders outbox, record
+   physical bag count through versioned operator intake, and see the order
+   become schedulable only when all required facts exist.
 4. Create and accept a deterministic schedule, then operate the four fixed
    stages through the processor.
 5. Detect and recover from webhook duplicates, stale delivery, worker retries,
@@ -32,29 +34,32 @@ The production release contains four immutable application images: `api`,
 is a separate private long-lived container because its lifecycle, retry, and
 failure behavior differ from the API.
 
-## Verified Starting Point
+## Historical Verified Starting Point (Superseded)
 
-- `stateworks/work/done/lpms-v1-happy-path/` proves the local deterministic
+The following bullets were the verified input baseline when this work package
+was created. They are retained as dated delivery evidence and must not be read
+as current repository claims:
+
+- `stateworks/work/done/lpms-v1-happy-path/` proved the local deterministic
   happy path.
-- The API already composes production business, policy, scheduling, access
-  control, and persistence boundaries.
-- The webhook route is `/webhooks/cents`, but live verification currently
-  fails closed and the internal Cents contract is synthetic rather than the
-  documented wire payload.
-- The processor defaults to a `?live=1` opt-in and otherwise uses hardcoded
+- The API composed production business, policy, scheduling, access control, and
+  persistence boundaries.
+- The webhook route was `/webhooks/cents`, but live verification failed closed
+  and the internal Cents contract was synthetic rather than the documented wire
+  payload.
+- The processor defaulted to a `?live=1` opt-in and otherwise used hardcoded
   demo orders, dates, location, proposal, and board state from `src/`.
-- The worker has durable leases, retries, and dead-letter behavior, but its
-  runtime still uses null logging and metric sinks and does not schedule
+- The worker had durable leases, retries, and dead-letter behavior, but its
+  runtime used null logging and metric sinks and did not schedule
   reconciliation.
-- Local Compose contains the worker and processor. Production Compose,
-  release manifests, deploy, rollback, and public routing still contain only
-  API and Web.
+- Local Compose contained the worker and processor. Production Compose, release
+  manifests, deploy, rollback, and public routing contained only API and Web.
 - Production location, Cents-store mapping, station, machine, and initial
-  scheduler configuration are not yet bootstrapped through an operator-owned
+  scheduler configuration were not bootstrapped through an operator-owned
   idempotent procedure.
 
-These are inputs to the plan, not claims that the implementation will remain
-unchanged. T0 must re-check them before edits.
+T0 re-checks and later validation evidence, not this superseded baseline, decide
+the current repository state.
 
 ## Current Module Boundary
 
@@ -65,17 +70,80 @@ the first external gate:
   dead letters, replay, and source-location bindings.
 - `apps/api/src/vendors/cents` owns Cents authentication and wire
   normalization.
-- `apps/worker` owns the `source:subjectType` consumer registry and composes
-  webhook ingestion with injected downstream module capabilities.
-- `modules/business/production` accepts a canonical `ApplyOrderDemand` command
-  and contains no Cents, webhook, receipt, lease, or CRM language.
-- Stable `webhook:<event-id>` Production idempotency closes the crash window
-  between Production commit and inbox completion without coupling module
-  transactions.
+- `apps/worker` owns the `source:subjectType` consumer registry, composes webhook
+  ingestion with Orders observation capabilities, and separately projects the
+  Orders outbox into Production.
+- `modules/business/orders` retains typed external observations, applies
+  claim-scoped source authority only to non-lifecycle fields, owns explicit
+  commercial and fulfillment-release commands backed by directed graphs, and
+  emits versioned `fulfillment_demand_changed` outbox events.
+- `modules/business/production` accepts a canonical
+  `ApplyFulfillmentDemand` projection and contains no Cents, webhook, receipt,
+  lease, or CRM language. It owns physical bag count through versioned operator
+  intake.
+- Stable source-revision handling closes the crash window between Orders
+  observation and inbox completion. Stable `order-outbox:<event-id>`
+  idempotency separately closes the crash window between Production projection
+  and outbox completion without coupling module transactions.
 
 Historical V2 evidence remains useful but does not prove this new boundary.
 RV1 must rerun repository, database, integration, and isolated Docker-topology
 proof before work returns to H1.
+
+## Order Authority Rebaseline - 2026-07-28
+
+`pressly-order-authority-source-autonomy` has completed repository and local
+runtime verification. The production-readiness path now assumes the following
+implemented boundary:
+
+- external adapters submit observations and cannot emit canonical lifecycle,
+  fulfillment-release, physical-intake, Production-resolution, or other
+  operational commands;
+- Orders evaluates every valid newer observation against a versioned
+  Pressly-owned capability profile, exact claim and lifecycle phase, field
+  authority, and a persistent source-and-location posture;
+- missing or contradictory authority evidence fails closed while retaining the
+  observation and its append-only decision record;
+- canonical commercial and fulfillment transitions use explicit Pressly
+  commands and the owning directed graphs;
+- Worker projects only committed source-neutral canonical fulfillment demand
+  to Production;
+- Production ignores external bag data and remains the only owner of physical
+  intake and floor lifecycles; and
+- Processor action availability, source context, versions, and denial reasons
+  are composed on the server.
+
+The completed local proof does not satisfy `RV1` or `H1`. Production readiness
+must still verify the real Cents contract, live identifiers and store binding,
+production database migration and reconciliation dry run, fail-closed initial
+posture, deployment topology, alerting, rollback, and same-SHA public health.
+Any ambiguous reconciliation record stops cutover without a lifecycle guess or
+destructive rewrite.
+
+## Submitted Candidate Rebaseline - 2026-07-29
+
+`pressly-cents-submitted-candidate-lifecycle` supersedes the earlier exact
+`PICKED_UP` proposal trigger and released-on-acceptance behavior at the
+repository and local-runtime boundary:
+
+- exact Cents `SUBMITTED` may create one immutable incoming candidate and no
+  canonical or Production work;
+- exact `COMPLETED` or `CANCELED` may close only a pending candidate or create
+  one exact-identity tombstone; every other status is acknowledged without an
+  Orders command;
+- Accept creates one open canonical Order with an unreleased fulfillment;
+- fulfillment release and physical intake remain separate explicit
+  Pressly-owned facts before work can become schedulable;
+- Reject, source closure, Restore, and tombstones remain outside Production;
+  and
+- source-terminal evidence for accepted canonical work may only request a
+  named source-neutral resolution. Production's authoritative graph and
+  operational guard decide a nondestructive resolve, review, or no-op outcome,
+  and any operational participation leaves the work unchanged.
+
+This local rebaseline does not satisfy `RV1` or `H1` and makes no deployment,
+production migration, replay, production-data cleanup, live cutover, or pilot
+claim. `H1` remains the current external readiness gate.
 
 ## Cents Ingress Authentication Modes
 
@@ -149,13 +217,16 @@ undocumented Cents shape does not disappear without evidence.
 
 ## Missing Operational Truth
 
-The documented Cents payload does not establish a trustworthy bag count.
-The implementation must not fabricate it.
+The documented Cents payload does not establish physical bag count. External
+systems do not own that fact, even if a future payload contains a field with
+that name. The implementation must not fabricate or adopt it.
 
 An order can be projected before intake, but it is not schedulable until the
 operator records a non-negative bag count through a versioned, idempotent
-production command. If Cents later proves it supplies an authoritative bag
-count, the adapter may populate the same fact with provenance.
+Production command. The version-one observation and projection envelopes may
+retain `bagCount` for compatibility, but Orders emits it as `null` and
+Production ignores it as physical input. Projection must preserve any existing
+operator intake and bag rows unchanged.
 
 Cents documents zero service price before weighing. That is missing estimate
 truth, not a malformed order: retain the demand with a null estimate, keep it
@@ -229,8 +300,11 @@ H1 still invalidates the affected webhook subgraph and requires a replan.
 
 Stateworks will stop and request the human when these become ready:
 
-- `H1`: obtain the exact Cents retry, payload, store, bag-count, reconciliation,
-  and any future signing facts from the Cents CSM.
+- `H1`: obtain the exact Cents retry, payload, store, bag-count,
+  reconciliation, and any future signing facts from the Cents CSM. These facts
+  validate delivery, compatibility evidence, and observability; they do not
+  grant Cents canonical lifecycle, fulfillment-release, or physical-intake
+  authority.
 - `H2A`: provision/resize the Lightsail host, static IP, firewall, time sync,
   disk headroom, and backup access.
 - `H2B`: add and verify the Processor DNS record.
@@ -271,11 +345,14 @@ an unmodeled state change.
 - Real runtime code contains no demo mode, hardcoded location, frozen date, or
   production fixture.
 - A valid event under the configured ingress mode reaches durable ingestion and
-  one idempotent canonical Production demand application; invalid and replayed
+  one idempotent Orders observation. Only an explicit Orders command and its
+  directed graph can change lifecycle or fulfillment release; its transactional
+  outbox is projected idempotently into Production. Invalid and replayed
   requests behave as specified, and HMAC-only signature cases remain proven in
   HMAC mode.
 - Location isolation and missing-intake rules are proven in database and HTTP
-  tests.
+  tests, including proof that external `bagCount` evidence cannot create or
+  overwrite operator-recorded physical intake.
 - The processor signs in, resumes real state, and drives the existing happy
   path without exposing a session token to JavaScript storage.
 - Worker health, retries, dead letters, replay, lag, and fatal failure are
