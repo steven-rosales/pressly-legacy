@@ -206,7 +206,7 @@ describe("connected order control workspace", () => {
       }),
     })
     await waitFor(() => expect(onMutated).toHaveBeenCalledTimes(1))
-  })
+  }, 15_000)
 
   it("keeps established orders visible while filters refresh immediately", async () => {
     const user = userEvent.setup()

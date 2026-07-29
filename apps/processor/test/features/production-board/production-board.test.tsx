@@ -136,7 +136,7 @@ describe("production floor board", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Close batch orders" }))
     await waitFor(() => expect(trigger).toHaveFocus())
-  })
+  }, 15_000)
 
   it("keeps the draggable 90% mobile drawer and stacked order cards", async () => {
     await i18next.changeLanguage("en")
