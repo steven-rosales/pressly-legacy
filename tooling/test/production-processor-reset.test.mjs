@@ -14,7 +14,6 @@ const operationalTables = [
   'order_source_terminal_tombstones',
   'order_source_proposal_resolutions',
   'order_source_proposals',
-  'order_source_observation_decisions',
   'stage_machine_assignments',
   'production_order_stage_attempts',
   'production_batch_orders',
@@ -30,7 +29,6 @@ const operationalTables = [
   'production_shifts',
   'order_outbox_events',
   'order_command_receipts',
-  'order_field_authorities',
   'order_source_snapshots',
   'order_source_customer_refs',
   'order_source_links',
@@ -87,8 +85,6 @@ describe('production Processor operational reset', () => {
       'production_machines',
       'scheduler_configs',
       'source_location_bindings',
-      'order_source_capability_profiles',
-      'order_source_control_revisions',
       'webhook_events',
     ])
       expect(resetRelations).not.toContain(preservedTable);

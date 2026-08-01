@@ -7,7 +7,6 @@ import {
 const userTables = [
   'order_outbox_events',
   'order_command_receipts',
-  'order_field_authorities',
   'order_source_snapshots',
   'order_source_customer_refs',
   'order_source_links',

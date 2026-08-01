@@ -1,4 +1,4 @@
-import { eq, users as schema } from '@pressly/db';
+import { business as businessSchema, eq, users as schema } from '@pressly/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makePostgresUsersApplication } from '../src/main.ts';
 import { makePostgresCanonicalSourceUserAcceptanceAdapter } from '../src/canonical-source-user/canonical-source-user.repo.ts';
@@ -6,6 +6,8 @@ import { createUsersTestDatabase } from './support/database.ts';
 
 const testDb = createUsersTestDatabase();
 const clock = { now: () => new Date('2026-07-21T16:00:00.000Z') };
+const businessId = '00000000-0000-4000-8000-000000000100';
+const otherBusinessId = '00000000-0000-4000-8000-000000000201';
 const directContext = {
   origin: 'pressly_dashboard',
   principal: { kind: 'human', id: 'identity-1' },
@@ -18,14 +20,30 @@ const emptyProfile = {
   email: null,
 };
 
-beforeAll(testDb.check);
+beforeAll(async () => {
+  await testDb.check();
+  await testDb.db
+    .insert(businessSchema.businessAccounts)
+    .values({
+      id: otherBusinessId,
+      slug: 'users-isolation-fixture',
+      displayName: 'Users isolation fixture',
+    })
+    .onConflictDoNothing();
+});
 beforeEach(testDb.reset);
-afterAll(testDb.close);
+afterAll(async () => {
+  await testDb.db
+    .delete(businessSchema.businessAccounts)
+    .where(eq(businessSchema.businessAccounts.id, otherBusinessId));
+  await testDb.close();
+});
 
 describe('Postgres Users application', () => {
   it('creates canonical source-linked User evidence once inside the caller transaction', async () => {
     const adapter = makePostgresCanonicalSourceUserAcceptanceAdapter();
     const input = {
+      businessId,
       source: 'external-orders',
       externalUserId: 'customer-proposal-1',
       profile: {
@@ -84,6 +102,7 @@ describe('Postgres Users application', () => {
   it('serializes concurrent exact-source acceptance to one canonical User', async () => {
     const adapter = makePostgresCanonicalSourceUserAcceptanceAdapter();
     const input = {
+      businessId,
       context: directContext,
       source: 'cents',
       externalUserId: 'customer-1',
@@ -128,6 +147,7 @@ describe('Postgres Users application', () => {
   it('signals a possible contact duplicate instead of merging a new source identity', async () => {
     const application = makePostgresUsersApplication({ db: testDb.db, clock });
     const existing = await application.createUser({
+      businessId,
       context: directContext,
       idempotencyKey: 'create-user-before-source-acceptance',
       profile: {
@@ -142,6 +162,7 @@ describe('Postgres Users application', () => {
     const adapter = makePostgresCanonicalSourceUserAcceptanceAdapter();
     const accepted = await testDb.db.transaction((tx) =>
       adapter.resolveOrCreate(tx, {
+        businessId,
         context: directContext,
         source: 'cents',
         externalUserId: 'customer-with-matching-phone',
@@ -184,11 +205,13 @@ describe('Postgres Users application', () => {
   it('signals duplicate contact data without silently merging Users', async () => {
     const application = makePostgresUsersApplication({ db: testDb.db, clock });
     const first = await application.createUser({
+      businessId,
       context: directContext,
       idempotencyKey: 'create-user-001',
       profile: { ...emptyProfile, firstName: 'Ada', phone: '+12015550101' },
     });
     const second = await application.createUser({
+      businessId,
       context: directContext,
       idempotencyKey: 'create-user-002',
       profile: { ...emptyProfile, firstName: 'Grace', phone: '+12015550101' },
@@ -221,9 +244,61 @@ describe('Postgres Users application', () => {
     ]);
   });
 
+  it('isolates customer reads and duplicate signals by business', async () => {
+    const application = makePostgresUsersApplication({ db: testDb.db, clock });
+    const first = await application.createUser({
+      businessId,
+      context: directContext,
+      idempotencyKey: 'create-user-primary-business',
+      profile: {
+        ...emptyProfile,
+        firstName: 'Ada',
+        phone: '+12015550109',
+      },
+    });
+    const other = await application.createUser({
+      businessId: otherBusinessId,
+      context: directContext,
+      idempotencyKey: 'create-user-other-business',
+      profile: {
+        ...emptyProfile,
+        firstName: 'Grace',
+        phone: '+12015550109',
+      },
+    });
+    expect(first.tag).toBe('ok');
+    expect(other.tag).toBe('ok');
+    if (first.tag === 'err' || other.tag === 'err') return;
+
+    const primaryPage = await application.listUsers({
+      businessId,
+      query: null,
+      active: null,
+      limit: 50,
+      cursor: null,
+    });
+    expect(primaryPage).toMatchObject({
+      tag: 'ok',
+      value: { items: [{ id: first.value.userId }] },
+    });
+    await expect(
+      application.getUser({
+        businessId,
+        userId: other.value.userId,
+      }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'user_not_found' },
+    });
+    await expect(
+      testDb.db.select().from(schema.userDuplicateCandidates),
+    ).resolves.toEqual([]);
+  });
+
   it('rejects stale direct mutations and preserves the current version', async () => {
     const application = makePostgresUsersApplication({ db: testDb.db, clock });
     const created = await application.createUser({
+      businessId,
       context: directContext,
       idempotencyKey: 'create-user-003',
       profile: emptyProfile,
@@ -232,6 +307,7 @@ describe('Postgres Users application', () => {
     if (created.tag === 'err') return;
 
     await application.updateUser({
+      businessId,
       context: directContext,
       idempotencyKey: 'update-user-001',
       userId: created.value.userId,
@@ -239,6 +315,7 @@ describe('Postgres Users application', () => {
       changes: { phone: '+12015550102' },
     });
     const stale = await application.updateUser({
+      businessId,
       context: directContext,
       idempotencyKey: 'update-user-002',
       userId: created.value.userId,

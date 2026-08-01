@@ -1,0 +1,142 @@
+{
+  "orders": {
+    "workspace": {
+      "title": "Pedidos de clientes",
+      "description": "Crea pedidos y corrige los datos del cliente sin cambiar el estado de producción."
+    },
+    "orderTitle": "Pedido {{number}}",
+    "customerNotResolved": "Cliente sin resolver",
+    "assignedLocation": "Ubicación asignada",
+    "search": {
+      "label": "Buscar pedidos",
+      "placeholder": "Número de pedido o cliente"
+    },
+    "filters": {
+      "stateLabel": "Estado",
+      "open": "Pedidos abiertos",
+      "completed": "Pedidos completados",
+      "canceled": "Pedidos cancelados",
+      "allStates": "Todos los estados",
+      "allLocations": "Todas las ubicaciones accesibles"
+    },
+    "states": {
+      "open": "Abierto",
+      "completed": "Completado",
+      "canceled": "Cancelado"
+    },
+    "actions": {
+      "new": "Nuevo pedido",
+      "search": "Buscar",
+      "refresh": "Actualizar",
+      "review": "Revisar",
+      "reviewOrder": "Revisar {{order}} de {{customer}}",
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "find": "Buscar",
+      "searching": "Buscando…",
+      "cancel": "Cancelar",
+      "saving": "Guardando…",
+      "create": "Crear pedido",
+      "saveCorrection": "Guardar corrección"
+    },
+    "errors": {
+      "conflict": "Este pedido cambió mientras trabajabas. Actualiza y revisa el registro más reciente antes de intentarlo de nuevo.",
+      "loadList": "Control no pudo cargar los pedidos.",
+      "loadDetail": "Control no pudo cargar este pedido.",
+      "save": "Control no pudo guardar este pedido.",
+      "customerSearch": "No se pudo completar la búsqueda de clientes.",
+      "listTitle": "Los pedidos necesitan atención",
+      "openTitle": "No se pudo abrir el pedido",
+      "openDescription": "Actualiza la lista de pedidos e intenta abrir este registro de nuevo."
+    },
+    "customerRequired": {
+      "title": "Crea un cliente antes de ingresar un pedido",
+      "description": "Cada pedido debe estar vinculado al cliente correcto."
+    },
+    "list": {
+      "title": "Pedidos",
+      "description": "Pedidos de clientes para las ubicaciones a las que tienes acceso.",
+      "showingMatches": "Mostrando resultados para “{{query}}”."
+    },
+    "loading": {
+      "listTitle": "Cargando pedidos",
+      "listDescription": "Cargando los pedidos más recientes.",
+      "detailTitle": "Cargando pedido"
+    },
+    "empty": {
+      "title": "Ningún pedido coincide con esta vista",
+      "description": "Ajusta la búsqueda o los filtros de estado y ubicación, o crea el primer pedido para este cliente."
+    },
+    "table": {
+      "orderCustomer": "Pedido / cliente",
+      "due": "Entrega",
+      "fulfillment": "Preparación",
+      "amount": "Importe",
+      "review": "Revisar"
+    },
+    "weight": {
+      "notEstimated": "Peso no estimado",
+      "estimated": "{{value}} lb estimadas",
+      "notEstimatedShort": "Sin estimar",
+      "value": "{{value}} lb"
+    },
+    "balance": {
+      "notRecorded": "Saldo no registrado",
+      "due": "{{amount}} pendientes"
+    },
+    "pagination": {
+      "page": "Página {{page}}"
+    },
+    "create": {
+      "title": "Crear pedido",
+      "description": "Crea el pedido del cliente. La liberación a producción todavía se realiza en Processor."
+    },
+    "detail": {
+      "fallbackTitle": "Registro del pedido",
+      "editDescription": "Revisa el pedido y guarda las correcciones de hechos comerciales.",
+      "readDescription": "Revisa los detalles del pedido."
+    },
+    "lifecycleNotice": {
+      "title": "Este pedido está {{state}}",
+      "description": "Las correcciones solo cambian datos descriptivos. No reabren ni modifican el ciclo de vida del pedido."
+    },
+    "common": {
+      "optional": "Opcional",
+      "notRecorded": "No registrado"
+    },
+    "validation": {
+      "customerRequired": "Selecciona el cliente exacto de este pedido.",
+      "locationRequired": "Selecciona una ubicación para este pedido.",
+      "amountsAndWeight": "Ingresa importes válidos no negativos y un peso positivo.",
+      "correctionReason": "Explica la corrección de hechos para el registro de auditoría."
+    },
+    "form": {
+      "saveErrorTitle": "No se guardó el pedido",
+      "customer": "Cliente",
+      "currentCustomer": "Cliente actual",
+      "findCustomer": "Buscar cliente",
+      "customerSearchPlaceholder": "Nombre, teléfono o correo electrónico",
+      "selectExactCustomer": "Selecciona el cliente exacto",
+      "customerDescription": "Selecciona al cliente correcto. La búsqueda muestra hasta 100 coincidencias activas y el cliente actual del pedido permanece disponible.",
+      "orderNumber": "Número de pedido",
+      "location": "Ubicación",
+      "selectLocation": "Selecciona una ubicación",
+      "locationLockedDescription": "Mover un pedido existente es una decisión operativa separada.",
+      "orderTotal": "Total del pedido",
+      "balanceDue": "Saldo pendiente",
+      "estimatedWeight": "Peso estimado",
+      "optionalPounds": "Libras opcionales",
+      "weightDescription": "Este dato ayuda a planificar. La recepción física sigue siendo la verdad de producción.",
+      "correctionNote": "Nota de corrección",
+      "correctionPlaceholder": "¿Qué dato de hecho cambió?",
+      "correctionDescription": "Se guarda en el registro de auditoría permanente."
+    },
+    "dueDate": {
+      "label": "Fecha y hora de entrega",
+      "hour": "Hora de entrega",
+      "minute": "Minuto de entrega",
+      "description": "Las horas usan {{timezone}}. El pedido guardado conserva un instante exacto.",
+      "nonexistentTime": "Esa hora local no existe debido al cambio de reloj. Elige otra hora."
+    }
+  }
+}

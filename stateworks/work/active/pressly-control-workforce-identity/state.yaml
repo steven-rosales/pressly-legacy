@@ -1,0 +1,53 @@
+work_id: pressly-control-workforce-identity
+status: active
+updated: 2026-07-31T12:38:08-04:00
+
+current_focus:
+  - T3
+  - T7
+  - Complete the authentication and Processor capability gates; T7A and T7B are next before V1.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/active/pressly-control-workforce-identity/evidence.md#t0--reconcile-identity-security-order-and-ui-baselines
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/active/pressly-control-workforce-identity/evidence.md#t1--establish-identity-access-memory-and-authoritative-graphs
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/active/pressly-control-workforce-identity/evidence.md#t2--persist-business-workforce-invitation-and-manager-authority
+  T3:
+    status: running
+    evidence:
+      - stateworks/work/active/pressly-control-workforce-identity/evidence.md#t3--expose-secure-control-authentication-and-workforce-administration
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/active/pressly-control-workforce-identity/evidence.md#t4--create-the-shared-shadcn-design-foundation-and-control-shell
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/active/pressly-control-workforce-identity/evidence.md#t5--deliver-team-and-account-security-workflows-in-control
+  T6:
+    status: committed
+    evidence:
+      - stateworks/work/active/pressly-control-workforce-identity/evidence.md#t6--deliver-canonical-customer-and-order-management-in-control
+  T7:
+    status: running
+    evidence: []
+  T7A:
+    status: pending
+    evidence: []
+  T7B:
+    status: pending
+    evidence: []
+  V1:
+    status: pending
+    evidence: []
+  T8:
+    status: pending
+    evidence: []

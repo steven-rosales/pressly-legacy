@@ -50,6 +50,7 @@ const seedNearlyCompleteRun = async (): Promise<void> => {
   const stageEnd = new Date(stageEndsAt);
   await testDb.db.insert(laundryProduction.productionLocations).values({
     id: locationId,
+    businessId: '00000000-0000-4000-8000-000000000100',
     name: 'Concurrency Test Facility',
     timezone: 'America/New_York',
   });
@@ -177,7 +178,6 @@ const seedNearlyCompleteRun = async (): Promise<void> => {
     revisionHash: 'c'.repeat(64),
     revisionAt: start,
     phase: 'production_released',
-    sourceStatusCode: 'IN_PROGRESS',
     dueAt: new Date(endsAt),
   });
   await testDb.db.insert(laundryProduction.productionOrders).values({

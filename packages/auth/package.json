@@ -18,6 +18,11 @@
       "types": "./dist/credentials/index.d.ts",
       "import": "./dist/credentials/index.js",
       "default": "./dist/credentials/index.js"
+    },
+    "./password-policy": {
+      "types": "./dist/credentials/password.d.ts",
+      "import": "./dist/credentials/password.js",
+      "default": "./dist/credentials/password.js"
     }
   },
   "scripts": {

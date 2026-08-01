@@ -50,6 +50,9 @@ jobs:
           pnpm stateworks:verify stateworks/work/done/lpms-v1-happy-path/network.yaml --state stateworks/work/done/lpms-v1-happy-path/state.yaml
           pnpm stateworks:validate stateworks/work/active/lpms-production-readiness/network.yaml
           pnpm stateworks:verify stateworks/work/active/lpms-production-readiness/network.yaml --state stateworks/work/active/lpms-production-readiness/state.yaml
+          pnpm stateworks:memory:validate stateworks/memory/domains/identity-access/memory.yaml
+          pnpm stateworks:validate stateworks/work/active/pressly-control-workforce-identity/network.yaml
+          pnpm stateworks:verify stateworks/work/active/pressly-control-workforce-identity/network.yaml --state stateworks/work/active/pressly-control-workforce-identity/state.yaml
 
       - name: Build
         run: pnpm build
@@ -111,6 +114,12 @@ jobs:
       - name: Auth integration tests
         run: pnpm -F @pressly/auth-module test:integration
 
+      - name: Users integration tests
+        run: pnpm -F @pressly/users test:integration
+
+      - name: Orders integration tests
+        run: pnpm -F @pressly/orders test:integration
+
       - name: Pricing integration tests
         run: pnpm -F @pressly/pricing test:integration
 
@@ -120,8 +129,41 @@ jobs:
       - name: LPMS production repository integration tests
         run: pnpm -F @pressly/production test:integration
 
+      - name: API integration tests
+        run: pnpm -F @pressly/api test:integration
+
       - name: LPMS composed happy-path proof
         run: pnpm test:lpms:e2e
+
+  browser-e2e:
+    name: ci browser e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs:
+      - quality
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Install Chromium with system dependencies
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run disposable browser smoke
+        run: pnpm test:browser:smoke
+
+      - name: Upload synthetic browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browser-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/playwright/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
 
   web-docker-build:
     name: ci web docker build
@@ -129,6 +171,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - integration-tests
+      - browser-e2e
 
     steps:
       - name: Checkout
@@ -156,6 +199,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - integration-tests
+      - browser-e2e
 
     steps:
       - name: Checkout
@@ -180,12 +224,14 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - integration-tests
+      - browser-e2e
     strategy:
       fail-fast: false
       matrix:
         app:
           - worker
           - processor
+          - control
 
     steps:
       - name: Checkout
@@ -210,6 +256,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - integration-tests
+      - browser-e2e
     permissions:
       contents: read
       packages: write
@@ -231,6 +278,7 @@ jobs:
           echo "web_tag=ghcr.io/$repository/web:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           echo "worker_tag=ghcr.io/$repository/worker:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           echo "processor_tag=ghcr.io/$repository/processor:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "control_tag=ghcr.io/$repository/control:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Build API image once
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
@@ -297,6 +345,20 @@ jobs:
           cache-from: type=gha,scope=pressly-processor
           cache-to: type=gha,mode=max,scope=pressly-processor
 
+      - name: Build Control image once
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: apps/control/Dockerfile
+          target: runner
+          load: true
+          tags: ${{ steps.images.outputs.control_tag }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            VITE_API_URL=/api
+          cache-from: type=gha,scope=pressly-control
+          cache-to: type=gha,mode=max,scope=pressly-control
+
       - name: Verify all images carry the release source SHA
         shell: bash
         env:
@@ -304,9 +366,10 @@ jobs:
           WEB_TAG: ${{ steps.images.outputs.web_tag }}
           WORKER_TAG: ${{ steps.images.outputs.worker_tag }}
           PROCESSOR_TAG: ${{ steps.images.outputs.processor_tag }}
+          CONTROL_TAG: ${{ steps.images.outputs.control_tag }}
         run: |
           set -euo pipefail
-          for image in "$API_TAG" "$WEB_TAG" "$WORKER_TAG" "$PROCESSOR_TAG"; do
+          for image in "$API_TAG" "$WEB_TAG" "$WORKER_TAG" "$PROCESSOR_TAG" "$CONTROL_TAG"; do
             revision="$(
               docker image inspect \
                 --format='{{index .Config.Labels "org.opencontainers.image.revision"}}' \
@@ -353,6 +416,14 @@ jobs:
           output-file: artifacts/processor.spdx.json
           upload-artifact: false
 
+      - name: Generate Control SBOM
+        uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
+        with:
+          image: ${{ steps.images.outputs.control_tag }}
+          format: spdx-json
+          output-file: artifacts/control.spdx.json
+          upload-artifact: false
+
       - name: Block critical API vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -389,6 +460,15 @@ jobs:
           severity: CRITICAL
           vuln-type: os,library
 
+      - name: Block critical Control vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.images.outputs.control_tag }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL
+          vuln-type: os,library
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
@@ -403,12 +483,14 @@ jobs:
           WEB_TAG: ${{ steps.images.outputs.web_tag }}
           WORKER_TAG: ${{ steps.images.outputs.worker_tag }}
           PROCESSOR_TAG: ${{ steps.images.outputs.processor_tag }}
+          CONTROL_TAG: ${{ steps.images.outputs.control_tag }}
         run: |
           set -euo pipefail
           docker push "$API_TAG"
           docker push "$WEB_TAG"
           docker push "$WORKER_TAG"
           docker push "$PROCESSOR_TAG"
+          docker push "$CONTROL_TAG"
 
       - name: Record immutable release manifest
         shell: bash
@@ -417,6 +499,7 @@ jobs:
           WEB_TAG: ${{ steps.images.outputs.web_tag }}
           WORKER_TAG: ${{ steps.images.outputs.worker_tag }}
           PROCESSOR_TAG: ${{ steps.images.outputs.processor_tag }}
+          CONTROL_TAG: ${{ steps.images.outputs.control_tag }}
         run: |
           set -euo pipefail
           resolve_digest() {
@@ -440,6 +523,7 @@ jobs:
           export WEB_IMAGE="$(resolve_digest "$WEB_TAG")"
           export WORKER_IMAGE="$(resolve_digest "$WORKER_TAG")"
           export PROCESSOR_IMAGE="$(resolve_digest "$PROCESSOR_TAG")"
+          export CONTROL_IMAGE="$(resolve_digest "$CONTROL_TAG")"
 
           verify_registry_revision() {
             local image="$1"
@@ -455,7 +539,7 @@ jobs:
               exit 1
             fi
           }
-          for image in "$API_IMAGE" "$WEB_IMAGE" "$WORKER_IMAGE" "$PROCESSOR_IMAGE"; do
+          for image in "$API_IMAGE" "$WEB_IMAGE" "$WORKER_IMAGE" "$PROCESSOR_IMAGE" "$CONTROL_IMAGE"; do
             verify_registry_revision "$image"
           done
 

@@ -1,0 +1,142 @@
+{
+  "orders": {
+    "workspace": {
+      "title": "Customer orders",
+      "description": "Create orders and correct customer details without changing production status."
+    },
+    "orderTitle": "Order {{number}}",
+    "customerNotResolved": "Customer not resolved",
+    "assignedLocation": "Assigned location",
+    "search": {
+      "label": "Search orders",
+      "placeholder": "Order number or customer"
+    },
+    "filters": {
+      "stateLabel": "State",
+      "open": "Open orders",
+      "completed": "Completed orders",
+      "canceled": "Canceled orders",
+      "allStates": "All states",
+      "allLocations": "All accessible locations"
+    },
+    "states": {
+      "open": "Open",
+      "completed": "Completed",
+      "canceled": "Canceled"
+    },
+    "actions": {
+      "new": "New order",
+      "search": "Search",
+      "refresh": "Refresh",
+      "review": "Review",
+      "reviewOrder": "Review {{order}} for {{customer}}",
+      "previous": "Previous",
+      "next": "Next",
+      "find": "Find",
+      "searching": "Searching…",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "create": "Create order",
+      "saveCorrection": "Save correction"
+    },
+    "errors": {
+      "conflict": "This order changed while you were working. Refresh and review the latest record before trying again.",
+      "loadList": "Control could not load orders.",
+      "loadDetail": "Control could not load this order.",
+      "save": "Control could not save this order.",
+      "customerSearch": "Customer search could not be completed.",
+      "listTitle": "Orders need attention",
+      "openTitle": "Order could not be opened",
+      "openDescription": "Refresh the order list and try this record again."
+    },
+    "customerRequired": {
+      "title": "Create a customer before entering an order",
+      "description": "Every order must be linked to the correct customer."
+    },
+    "list": {
+      "title": "Orders",
+      "description": "Customer orders for the locations you can access.",
+      "showingMatches": "Showing matches for “{{query}}”."
+    },
+    "loading": {
+      "listTitle": "Loading orders",
+      "listDescription": "Loading the latest orders.",
+      "detailTitle": "Loading order"
+    },
+    "empty": {
+      "title": "No orders match this view",
+      "description": "Adjust the search, state, or location filter, or create the first order for this customer."
+    },
+    "table": {
+      "orderCustomer": "Order / customer",
+      "due": "Due",
+      "fulfillment": "Fulfillment",
+      "amount": "Amount",
+      "review": "Review"
+    },
+    "weight": {
+      "notEstimated": "Weight not estimated",
+      "estimated": "{{value}} lb estimated",
+      "notEstimatedShort": "Not estimated",
+      "value": "{{value}} lb"
+    },
+    "balance": {
+      "notRecorded": "Balance not recorded",
+      "due": "{{amount}} due"
+    },
+    "pagination": {
+      "page": "Page {{page}}"
+    },
+    "create": {
+      "title": "Create order",
+      "description": "Create the customer's order. Releasing it to production still happens in Processor."
+    },
+    "detail": {
+      "fallbackTitle": "Order record",
+      "editDescription": "Review the order and save factual commercial corrections.",
+      "readDescription": "Review the order details."
+    },
+    "lifecycleNotice": {
+      "title": "This order is {{state}}",
+      "description": "Corrections change descriptive facts only. They do not reopen or otherwise move the order lifecycle."
+    },
+    "common": {
+      "optional": "Optional",
+      "notRecorded": "Not recorded"
+    },
+    "validation": {
+      "customerRequired": "Select the exact customer for this order.",
+      "locationRequired": "Select a location for this order.",
+      "amountsAndWeight": "Enter valid non-negative amounts and a positive weight.",
+      "correctionReason": "Explain the factual correction for the audit record."
+    },
+    "form": {
+      "saveErrorTitle": "Order was not saved",
+      "customer": "Customer",
+      "currentCustomer": "Current customer",
+      "findCustomer": "Find customer",
+      "customerSearchPlaceholder": "Name, phone, or email",
+      "selectExactCustomer": "Select the exact customer",
+      "customerDescription": "Select the correct customer. Search shows up to 100 active matches, and the order's current customer stays available.",
+      "orderNumber": "Order number",
+      "location": "Location",
+      "selectLocation": "Select location",
+      "locationLockedDescription": "Moving an existing order is a separate operational decision.",
+      "orderTotal": "Order total",
+      "balanceDue": "Balance due",
+      "estimatedWeight": "Estimated weight",
+      "optionalPounds": "Optional pounds",
+      "weightDescription": "This supports planning. Physical intake remains the production truth.",
+      "correctionNote": "Correction note",
+      "correctionPlaceholder": "What factual detail changed?",
+      "correctionDescription": "Saved in the permanent audit record."
+    },
+    "dueDate": {
+      "label": "Due date and time",
+      "hour": "Due hour",
+      "minute": "Due minute",
+      "description": "Times use {{timezone}}. The saved order keeps an exact instant.",
+      "nonexistentTime": "That local time does not exist because the clock changes then. Choose another time."
+    }
+  }
+}

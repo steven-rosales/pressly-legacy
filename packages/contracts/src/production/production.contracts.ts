@@ -366,10 +366,6 @@ export const productionStageTimingConfirmationSchema = z
   })
   .strict();
 
-/** @deprecated Use productionStageTimingConfirmationSchema. */
-export const productionStageCompletionConfirmationSchema =
-  productionStageTimingConfirmationSchema;
-
 export const productionStageNextActionSchema = z.union([
   z
     .object({
@@ -1067,9 +1063,6 @@ export const productionRunBoardParamsSchema = z
   })
   .strict();
 
-/** @deprecated Use productionRunBoardParamsSchema. */
-export const productionBoardParamsSchema = productionRunBoardParamsSchema;
-
 export const productionRunCommandSchema = z
   .object({
     locationId: z.string().min(1),
@@ -1520,6 +1513,7 @@ export const changeProductionOrderResolutionResultSchema = z
 export const productionLocationResourceInputSchema = z
   .object({
     id: z.string().trim().min(1).max(100),
+    businessId: z.uuid(),
     name: z.string().trim().min(1).max(200),
     timezone: z.string().trim().min(1).max(100),
     isActive: z.boolean(),

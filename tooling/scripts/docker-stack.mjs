@@ -120,7 +120,7 @@ const buildWeb = () => {
 const buildStack = () => {
   assertExpectedDockerEngine();
   startApi();
-  runCompose(['build', 'web', 'worker', 'processor']);
+  runCompose(['build', 'web', 'worker', 'processor', 'control']);
 };
 
 const up = () => {

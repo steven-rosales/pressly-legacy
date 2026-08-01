@@ -26,6 +26,7 @@ describe('production admission Postgres workflow', () => {
     const now = new Date('2026-07-22T15:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Admission Test Facility',
       timezone: 'America/New_York',
     });
@@ -37,7 +38,6 @@ describe('production admission Postgres workflow', () => {
       revisionHash: 'admission-override',
       revisionAt: now,
       phase: 'expected',
-      sourceStatusCode: 'SUBMITTED',
       estimatedWeightLbs: 24,
       estimatedWeightSource: 'external_price',
       dueAt: new Date('2026-07-23T20:00:00.000Z'),

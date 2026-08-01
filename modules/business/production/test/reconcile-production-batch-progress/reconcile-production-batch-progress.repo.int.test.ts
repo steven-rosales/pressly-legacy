@@ -58,6 +58,7 @@ const seed = async () => {
   const stages = ['sorting', 'washing', 'drying', 'folding_packaging'] as const;
   await testDb.db.insert(laundryProduction.productionLocations).values({
     id: 'location-1',
+    businessId: '00000000-0000-4000-8000-000000000100',
     name: 'Floor Truth Test Facility',
     timezone: 'America/New_York',
   });
@@ -199,7 +200,6 @@ const seedScheduledOrder = async () => {
     revisionHash: 'c'.repeat(64),
     revisionAt: now,
     phase: 'production_released',
-    sourceStatusCode: 'IN_PROGRESS',
     dueAt: new Date('2026-07-15T20:00:00.000Z'),
   });
   await testDb.db.insert(laundryProduction.productionOrders).values({

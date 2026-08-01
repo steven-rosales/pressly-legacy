@@ -8,6 +8,7 @@ const imageApplications = Object.freeze({
   webImage: 'web',
   workerImage: 'worker',
   processorImage: 'processor',
+  controlImage: 'control',
 });
 const manifestFields = Object.freeze([
   'sourceSha',
@@ -62,7 +63,7 @@ export const validateReleaseManifest = (value, expectedSourceSha) => {
     digests.add(digest);
   }
 
-  if (repositories.size !== 4 || digests.size !== 4)
+  if (repositories.size !== 5 || digests.size !== 5)
     throw new Error('Release manifest is malformed.');
 
   if (
@@ -85,6 +86,7 @@ export const createReleaseManifest = (input) =>
     webImage: input.webImage,
     workerImage: input.workerImage,
     processorImage: input.processorImage,
+    controlImage: input.controlImage,
     builtAt: input.builtAt,
   });
 
@@ -106,6 +108,7 @@ const main = async () => {
           webImage: process.env['WEB_IMAGE'],
           workerImage: process.env['WORKER_IMAGE'],
           processorImage: process.env['PROCESSOR_IMAGE'],
+          controlImage: process.env['CONTROL_IMAGE'],
           builtAt: process.env['BUILT_AT'],
         }),
         null,

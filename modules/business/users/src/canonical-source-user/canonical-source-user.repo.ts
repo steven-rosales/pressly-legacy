@@ -12,6 +12,7 @@ import { userProfileFields } from '../user-profile.policy.ts';
 import type { UserProfile } from '../users.port.ts';
 
 export type CanonicalSourceUserAcceptanceInput = Readonly<{
+  businessId: string;
   source: string;
   externalUserId: string;
   profile: UserProfile;
@@ -45,8 +46,12 @@ const resolveOrCreateCanonicalSourceUser = async (
 ): Promise<CanonicalSourceUserAcceptanceResult> => {
   await lockUserKey(db, `users:source:${input.source}:${input.externalUserId}`);
   const [existing] = await db
-    .select({ userId: schema.userSourceLinks.userId })
+    .select({
+      userId: schema.userSourceLinks.userId,
+      businessId: schema.users.businessId,
+    })
     .from(schema.userSourceLinks)
+    .innerJoin(schema.users, eq(schema.users.id, schema.userSourceLinks.userId))
     .where(
       and(
         eq(schema.userSourceLinks.source, input.source),
@@ -54,11 +59,16 @@ const resolveOrCreateCanonicalSourceUser = async (
       ),
     )
     .limit(1);
+  if (existing !== undefined && existing.businessId !== input.businessId)
+    throw new Error(
+      'Canonical source User belongs to a different business boundary.',
+    );
   if (existing !== undefined)
     return { userId: existing.userId, created: false };
 
   await lockUserKey(db, `users:command:${input.idempotencyKey}`);
   const createCommand = {
+    businessId: input.businessId,
     idempotencyKey: input.idempotencyKey,
     context: input.context,
     profile: input.profile,
@@ -73,11 +83,13 @@ const resolveOrCreateCanonicalSourceUser = async (
     );
 
   const created = await insertStoredUser(db, {
+    businessId: input.businessId,
     profile: input.profile,
     authorityFields: userProfileFields,
     now: input.now,
   });
   await saveUserCommandReceipt(db, {
+    businessId: input.businessId,
     idempotencyKey: input.idempotencyKey,
     commandHash,
     context: input.context,
@@ -107,6 +119,7 @@ const resolveOrCreateCanonicalSourceUser = async (
     updatedAt: input.now,
   });
   await signalDuplicateUserContacts(db, {
+    businessId: input.businessId,
     userId: created.id,
     profile: input.profile,
     now: input.now,

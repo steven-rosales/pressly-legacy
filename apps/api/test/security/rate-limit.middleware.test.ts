@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http';
 import express, { type Express } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  makeIdentityRateLimiter,
   makeIpRateLimiter,
   makeMemoryRateLimitStore,
 } from '../../src/http/middleware/rate-limit.middleware.ts';
@@ -113,6 +114,56 @@ describe('API rate limiting', () => {
         message: 'Too many requests. Please try again later.',
       },
     });
+  });
+
+  it('isolates authenticated identity windows and fails closed without auth context', async () => {
+    const app = express();
+    const store = makeMemoryRateLimitStore();
+    const limiter = makeIdentityRateLimiter({
+      name: 'identity-test',
+      limit: 1,
+      windowMs: 10_000,
+      store,
+      logger,
+      securityEvents,
+    });
+
+    app.get(
+      '/:identityId',
+      (request, response, next) => {
+        if (request.params['identityId'] !== 'missing')
+          response.locals['auth'] = {
+            principal: { identityId: request.params['identityId'] },
+          };
+        next();
+      },
+      limiter,
+      (_request, response) => response.json({ ok: true }),
+    );
+    app.use(
+      (
+        error: unknown,
+        _request: unknown,
+        response: express.Response,
+        _next: unknown,
+      ) => {
+        const appError = error as {
+          status: number;
+          code: string;
+          safeMessage: string;
+        };
+        response.status(appError.status).json({
+          ok: false,
+          error: { code: appError.code, message: appError.safeMessage },
+        });
+      },
+    );
+
+    const baseUrl = await start(app);
+    expect((await fetch(`${baseUrl}/identity-a`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/identity-b`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/identity-a`)).status).toBe(429);
+    expect((await fetch(`${baseUrl}/missing`)).status).toBe(401);
   });
 });
 

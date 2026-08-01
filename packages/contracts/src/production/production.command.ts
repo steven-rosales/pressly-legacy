@@ -59,8 +59,6 @@ export type StartScheduleCommand = z.infer<typeof startScheduleCommandSchema>;
 export type ProductionRunBoardParams = z.infer<
   typeof productionRunBoardParamsSchema
 >;
-/** @deprecated Use ProductionRunBoardParams. */
-export type ProductionBoardParams = ProductionRunBoardParams;
 export type ProductionRunCommand = z.infer<typeof productionRunCommandSchema>;
 export type StageCommand = z.infer<typeof stageCommandSchema>;
 export type StartStageCommand = z.infer<typeof startStageCommandSchema>;

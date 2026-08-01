@@ -4,6 +4,10 @@ export {
   type UsersApplicationDeps,
 } from './main.ts';
 export {
+  decodeUserCursor,
+  encodeUserCursor,
+} from './user-pagination.policy.ts';
+export {
   makePostgresCanonicalSourceUserAcceptanceAdapter,
   type CanonicalSourceUserAcceptanceAdapter,
   type CanonicalSourceUserAcceptanceInput,
@@ -14,6 +18,11 @@ export type {
   CreateUserCommand,
   UpdateUser,
   UpdateUserCommand,
+  GetUser,
+  ListUsers,
+  ListUsersQuery,
+  UserListResult,
+  UserSummary,
   UserCommandResult,
   UserFieldName,
   UserProfile,

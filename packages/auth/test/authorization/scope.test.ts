@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  businessScope,
   globalScope,
   locationScope,
   resourceScope,
@@ -11,6 +12,7 @@ import {
 describe('scopeKey', () => {
   it('builds stable keys for each scope kind', () => {
     expect(scopeKey(globalScope())).toBe('global:*');
+    expect(scopeKey(businessScope('pressly'))).toBe('business:pressly');
     expect(scopeKey(locationScope('hoboken'))).toBe('location:hoboken');
     expect(scopeKey(resourceScope('pricing.catalog', 'catalog_1'))).toBe(
       'resource:pricing.catalog:catalog_1',
@@ -32,6 +34,18 @@ describe('scopeCovers', () => {
     ).toBe(true);
     expect(
       scopeCovers(locationScope('hoboken'), locationScope('jersey-city')),
+    ).toBe(false);
+  });
+
+  it('matches business assignments only to the same business', () => {
+    expect(
+      scopeCovers(businessScope('pressly'), businessScope('pressly')),
+    ).toBe(true);
+    expect(
+      scopeCovers(businessScope('pressly'), businessScope('another-business')),
+    ).toBe(false);
+    expect(
+      scopeCovers(businessScope('pressly'), locationScope('pressly-one')),
     ).toBe(false);
   });
 

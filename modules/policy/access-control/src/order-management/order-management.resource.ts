@@ -1,4 +1,5 @@
 import {
+  businessScope,
   globalScope,
   locationScope,
   type AuthResource,
@@ -19,7 +20,7 @@ export type OrderManagementLocationResource = Omit<
 > &
   Readonly<{
     kind: 'order-management.location';
-    attributes: Readonly<{ locationId: string }>;
+    attributes: Readonly<{ locationId: string; businessId: string }>;
   }>;
 
 export type OrderManagementResource =
@@ -36,9 +37,11 @@ export const orderManagementUsersResource =
 
 export const orderManagementLocationResource = (
   locationId: string,
+  businessId: string,
 ): OrderManagementLocationResource => ({
   kind: 'order-management.location',
   id: `order-management:${locationId}`,
   scope: locationScope(locationId),
-  attributes: { locationId },
+  ancestorScopes: [businessScope(businessId)],
+  attributes: { locationId, businessId },
 });

@@ -159,6 +159,75 @@ describe('authorize middleware', () => {
     });
   });
 
+  it('awaits asynchronous resource resolution before authorizing', async () => {
+    const deferred: {
+      resolve?: (resource: AuthResource) => void;
+    } = {};
+    const readResource = vi.fn(
+      () =>
+        new Promise<AuthResource>((resolve) => {
+          deferred.resolve = resolve;
+        }),
+    );
+    const authorize = makeAuthorizeMiddleware()({
+      action: 'pricing:publish',
+      policies: allowPolicy({
+        id: 'pricing.publish.admin',
+        action: 'pricing:publish',
+        roles: ['admin'],
+      }),
+      readResource,
+    });
+    const req = makeRequest();
+    const res = makeResponse(makeAuthLocals());
+    const next = vi.fn();
+
+    authorize(req, res as unknown as Response, next as NextFunction);
+    await waitForController();
+
+    expect(readResource).toHaveBeenCalledWith(req, res);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.locals['authorization']).toBeUndefined();
+
+    deferred.resolve?.(routeResource);
+    await waitForController();
+    await waitForController();
+
+    expect(next.mock.calls).toEqual([[]]);
+    expect(res.locals['authorization']).toMatchObject({
+      action: 'pricing:publish',
+      resource: routeResource,
+      decision: { tag: 'allowed' },
+    });
+  });
+
+  it('propagates canonical resource resolver failures unchanged', async () => {
+    const resolverError = Object.assign(
+      new Error('Location ancestry could not be resolved.'),
+      { code: 'location_ancestry_missing' },
+    );
+    const readResource = vi.fn(async () => {
+      throw resolverError;
+    });
+    const authorize = makeAuthorizeMiddleware()({
+      action: 'pricing:publish',
+      policies: allowPolicy({
+        id: 'pricing.publish.admin',
+        action: 'pricing:publish',
+        roles: ['admin'],
+      }),
+      readResource,
+    });
+    const req = makeRequest();
+    const res = makeResponse(makeAuthLocals());
+    const next = vi.fn();
+
+    await runHandler({ handler: authorize, req, res, next });
+
+    expect(next).toHaveBeenCalledWith(resolverError);
+    expect(res.locals['authorization']).toBeUndefined();
+  });
+
   it('requires authenticate middleware to run first', async () => {
     const authorize = makeAuthorizeMiddleware()({
       action: 'pricing:publish',

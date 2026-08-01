@@ -393,7 +393,7 @@ describe('module architecture boundaries', () => {
 
   it('keeps canonical mutations scoped and success-enveloped', () => {
     const routes = [
-      'apps/api/src/http/order-management/users/user-command.route.ts',
+      'apps/api/src/http/control/data/control-customer.route.ts',
       'apps/api/src/http/order-management/orders/order-command.route.ts',
       'apps/api/src/http/order-management/orders/order-lifecycle.route.ts',
       'apps/api/src/http/order-management/orders/fulfillment-release.route.ts',
@@ -401,7 +401,9 @@ describe('module architecture boundaries', () => {
       .map((filePath) => readFileSync(path.join(repoRoot, filePath), 'utf8'))
       .join('\n');
 
-    expect(routes).toContain("'/order-management/users'");
+    expect(routes).toContain("'/customers'");
+    expect(routes).toContain("'/customers/:userId'");
+    expect(routes).toContain('businessId: controlAccess(response).business.id');
     expect(routes).toContain(
       "'/order-management/locations/:locationId/orders/:orderId'",
     );
@@ -412,7 +414,7 @@ describe('module architecture boundaries', () => {
       "'/order-management/locations/:locationId/orders/:orderId/cancel'",
     );
     expect(routes).toContain("locationId: request.params['locationId']");
-    expect(routes.match(/apiSuccess\(/g)?.length).toBe(8);
+    expect(routes.match(/apiSuccess\(/g)?.length).toBe(10);
   });
 
   it('keeps submitted candidates outside canonical lifecycle and guards source closure through Production', () => {

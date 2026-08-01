@@ -67,10 +67,7 @@ const recordLoginFailure = async (
     eventType: 'auth.login.failed',
     resourceType: 'auth_identity',
     ...(input.identityId === undefined ? {} : { resourceId: input.identityId }),
-    metadata: {
-      email: input.emailNormalized,
-      failureCode: 'invalid_credentials',
-    },
+    metadata: { failureCode: 'invalid_credentials' },
   });
   securityEvents.emit({
     name: 'authentication.login_failed',
@@ -128,7 +125,7 @@ export const makeLogin =
       await deps.store.recordAuditEvent({
         eventType: 'auth.login.rate_limited',
         resourceType: 'auth_identity',
-        metadata: { email: emailNormalized },
+        metadata: { failureCode: 'rate_limited' },
       });
       securityEvents.emit({
         name: 'authentication.login_rate_limited',
@@ -232,9 +229,10 @@ export const makeLogin =
     }
 
     const accessToken = deps.tokenIssuer.issue();
-    const requiresMfa =
-      identity.value.mfaEnabled &&
-      identity.value.roles.some((role) => role === 'owner' || role === 'admin');
+    // An enrolled second factor belongs to the identity, not to one current
+    // role projection. Always honor it so an invited or temporarily unassigned
+    // identity cannot fall back to password-only authentication.
+    const requiresMfa = identity.value.mfaEnabled;
 
     if (requiresMfa) {
       const challengeToken = accessToken;
@@ -304,7 +302,7 @@ export const makeLogin =
       eventType: 'auth.login.succeeded',
       resourceType: 'auth_session',
       resourceId: session.value.id,
-      metadata: { email: emailNormalized },
+      metadata: {},
     });
     securityEvents.emit({
       name: 'authentication.login_succeeded',

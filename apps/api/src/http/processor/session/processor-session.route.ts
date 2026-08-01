@@ -14,7 +14,10 @@ import {
   type ProcessorCookieNames,
 } from './processor-cookie.adapter.ts';
 import { requireProcessorOrigin } from './processor-csrf.policy.ts';
-import { processorUnauthorized } from './processor-session.error.ts';
+import {
+  processorForbidden,
+  processorUnauthorized,
+} from './processor-session.error.ts';
 import {
   processorBrowserSession,
   processorRequestId,
@@ -24,6 +27,7 @@ import type { LoadProcessorCookieSession } from './processor-session.middleware.
 import {
   isResultError,
   type ProcessorAuthApplication,
+  type ResolveProcessorAccess,
   type ProcessorSessionOptions,
 } from './processor-session.port.ts';
 
@@ -34,14 +38,67 @@ const sendFailure = (response: Response, error: AppError): void => {
 export const makeProcessorSessionRoutes = (input: {
   application: ProcessorAuthApplication;
   loadCookieSession: LoadProcessorCookieSession;
+  resolveAccess: ResolveProcessorAccess;
   names: ProcessorCookieNames;
   options: ProcessorSessionOptions;
 }): Router => {
   const routes = Router();
   routes.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('Pragma', 'no-cache');
+    response.setHeader('Vary', 'Origin');
     next();
   });
+
+  const establishBrowserSession = async (
+    response: Response,
+    accessToken: string,
+    expiresAt: string,
+  ): Promise<void> => {
+    const loaded = await input.application.loadSession({
+      bearerToken: accessToken,
+    });
+    if (isResultError(loaded)) {
+      sendFailure(response, loaded.error);
+      return;
+    }
+    const access = await input.resolveAccess(loaded.value);
+    if (access === null) {
+      await input.application.revokeSession({
+        bearerToken: accessToken,
+        ...(processorRequestId(response) === undefined
+          ? {}
+          : { requestId: processorRequestId(response)! }),
+      });
+      clearProcessorCookie(response, input.names.session, input.options);
+      throw processorForbidden({
+        code: 'processor_access_unavailable',
+        message:
+          'Identity has no active production capability at an active location.',
+        safeMessage: 'Your account does not have access to Pressly Processor.',
+      });
+    }
+
+    setProcessorCookie(
+      response,
+      input.names.session,
+      accessToken,
+      expiresAt,
+      input.options,
+    );
+    response
+      .status(200)
+      .json(
+        apiSuccess(
+          processorBrowserSession(
+            loaded.value,
+            access,
+            accessToken,
+            input.options,
+          ),
+        ),
+      );
+  };
 
   routes.post(
     '/login',
@@ -83,31 +140,11 @@ export const makeProcessorSessionRoutes = (input: {
       }
 
       clearProcessorCookie(response, input.names.mfa, input.options);
-      const loaded = await input.application.loadSession({
-        bearerToken: authenticated.value.accessToken,
-      });
-      if (isResultError(loaded)) {
-        sendFailure(response, loaded.error);
-        return;
-      }
-      setProcessorCookie(
+      await establishBrowserSession(
         response,
-        input.names.session,
         authenticated.value.accessToken,
         authenticated.value.expiresAt,
-        input.options,
       );
-      response
-        .status(200)
-        .json(
-          apiSuccess(
-            processorBrowserSession(
-              loaded.value,
-              authenticated.value.accessToken,
-              input.options,
-            ),
-          ),
-        );
     }),
   );
 
@@ -147,31 +184,11 @@ export const makeProcessorSessionRoutes = (input: {
       }
 
       clearProcessorCookie(response, input.names.mfa, input.options);
-      const loaded = await input.application.loadSession({
-        bearerToken: completed.value.accessToken,
-      });
-      if (isResultError(loaded)) {
-        sendFailure(response, loaded.error);
-        return;
-      }
-      setProcessorCookie(
+      await establishBrowserSession(
         response,
-        input.names.session,
         completed.value.accessToken,
         completed.value.expiresAt,
-        input.options,
       );
-      response
-        .status(200)
-        .json(
-          apiSuccess(
-            processorBrowserSession(
-              loaded.value,
-              completed.value.accessToken,
-              input.options,
-            ),
-          ),
-        );
     }),
   );
 
@@ -185,6 +202,7 @@ export const makeProcessorSessionRoutes = (input: {
           apiSuccess(
             processorBrowserSession(
               session.loaded,
+              session.access,
               session.sessionToken,
               input.options,
             ),

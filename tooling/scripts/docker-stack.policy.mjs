@@ -4,6 +4,7 @@ export const localStackServices = Object.freeze([
   'web',
   'worker',
   'processor',
+  'control',
 ]);
 
 export const apiUpArgs = Object.freeze([

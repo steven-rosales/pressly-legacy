@@ -1,0 +1,232 @@
+{
+  "team": {
+    "common": {
+      "cancel": "Cancelar",
+      "confirm": "Confirmar",
+      "refresh": "Actualizar",
+      "email": "Correo electrónico"
+    },
+    "roles": {
+      "owner": "Propietario",
+      "manager": "Gerente",
+      "operator": "Operador"
+    },
+    "rolesLower": {
+      "owner": "propietario",
+      "manager": "gerente",
+      "operator": "operador"
+    },
+    "membershipStates": {
+      "active": "activo",
+      "suspended": "suspendido",
+      "ended": "finalizado"
+    },
+    "selectedLocation": "la ubicación seleccionada",
+    "entireBusiness": "Todo el negocio",
+    "allLocations": "Todas las ubicaciones",
+    "assignedLocation": "Ubicación asignada",
+    "accessLevel": "Nivel de acceso",
+    "invitationAttention": "La invitación requiere atención",
+    "accessAttention": "El acceso requiere atención",
+    "errors": {
+      "conflict": "Este registro cambió mientras trabajabas. Actualiza y revisa el acceso más reciente antes de intentarlo de nuevo.",
+      "load": "No se pudo cargar el equipo.",
+      "memberLoad": "No se pudo cargar al miembro del equipo.",
+      "accessChange": "No se pudo cambiar el acceso.",
+      "invitationReplay": "Esta solicitud exacta ya se procesó. Reemplaza el enlace existente si el empleado necesita uno nuevo.",
+      "invitationCreate": "No se pudo crear la invitación.",
+      "invitationChange": "No se pudo cambiar la invitación."
+    },
+    "workspace": {
+      "title": "Personas y acceso",
+      "description": "Cada persona inicia sesión con su propia identidad. El acceso se limita al trabajo y a las ubicaciones que necesita.",
+      "attention": "El equipo requiere atención",
+      "readOnlyTitle": "Acceso de solo lectura al equipo",
+      "readOnlyDescription": "Tu sesión actual puede revisar el acceso del equipo. Completa la verificación de seguridad requerida antes de cambiarlo.",
+      "loadingTitle": "Cargando el equipo",
+      "loadingDescription": "Control está consultando las membresías e invitaciones actuales."
+    },
+    "table": {
+      "person": "Persona",
+      "access": "Acceso",
+      "expires": "Vence",
+      "actions": "Acciones",
+      "actionsFor": "Acciones para {{name}}",
+      "security": "Seguridad",
+      "status": "Estado",
+      "open": "Abrir"
+    },
+    "invite": {
+      "action": "Invitar compañero",
+      "title": "Invitar a un compañero",
+      "description": "Crea acceso personal para un empleado. Pressly mostrará el enlace de invitación una sola vez para que lo entregues directamente.",
+      "employeeName": "Nombre del empleado",
+      "workLocation": "Ubicación de trabajo",
+      "locationScope": "Alcance por ubicación",
+      "chooseLocation": "Elige una ubicación",
+      "locationRequired": "Configura una ubicación antes de invitar a un operador.",
+      "managerBoundary": "Los gerentes no pueden crear propietarios ni otorgar acceso fuera de sus propias ubicaciones. Pressly vuelve a verificar esa autoridad en el servidor.",
+      "create": "Crear enlace de invitación"
+    },
+    "oneTimeInvitation": {
+      "title": "Copia ahora este enlace de invitación",
+      "description": "Esta es la única vez que Pressly muestra este enlace. Envíalo directamente al empleado indicado; crear otro enlace invalida este.",
+      "credentialTitle": "Credencial de un solo uso",
+      "credentialDescription": "La invitación original no se guarda en Control ni en el almacenamiento del navegador. Cualquier persona con este enlace puede usarlo hasta que venza o sea revocado.",
+      "linkLabel": "Enlace de invitación",
+      "copied": "Copiado",
+      "copy": "Copiar enlace de invitación",
+      "saved": "Guardé el enlace"
+    },
+    "accessPreview": {
+      "title": "Vista previa del acceso",
+      "owner": "Los propietarios pueden administrar el negocio, su personal y todas las ubicaciones. Se requiere autenticación multifactor antes de que este acceso entre en vigor.",
+      "managerBusiness": "Este gerente puede administrar el trabajo diario del negocio en todas las ubicaciones. Se requiere autenticación multifactor.",
+      "managerLocation": "Este gerente puede administrar el trabajo diario en {{location}}. Se requiere autenticación multifactor.",
+      "operator": "Este operador puede usar Processor para el trabajo de planta en {{location}}."
+    },
+    "invitations": {
+      "title": "Invitaciones pendientes",
+      "description": "Los enlaces de invitación son de un solo uso y vencen automáticamente.",
+      "replace": "Reemplazar enlace de invitación",
+      "revoke": "Revocar invitación",
+      "replaceTitle": "¿Reemplazar el enlace de invitación de {{name}}?",
+      "revokeTitle": "¿Revocar la invitación de {{name}}?",
+      "replaceDescription": "El enlace actual dejará de funcionar. Pressly mostrará el reemplazo una sola vez.",
+      "revokeDescription": "El empleado no podrá aceptar esta invitación. Las membresías existentes no cambiarán."
+    },
+    "members": {
+      "title": "Miembros del equipo",
+      "description": "Abre una persona para revisar su acceso, seguridad y estado de membresía actuales.",
+      "emptyTitle": "No se encontraron miembros del equipo",
+      "emptyDescription": "Invita al primer empleado cuando estés listo para asignar acceso a Pressly.",
+      "noEffectiveAccess": "Sin acceso vigente",
+      "mfaEnabled": "MFA activada",
+      "passwordOnly": "Solo contraseña",
+      "review": "Revisar",
+      "reviewFor": "Revisar a {{name}}"
+    },
+    "memberDetail": {
+      "fallbackTitle": "Miembro del equipo",
+      "loading": "Cargando la membresía y el acceso actuales.",
+      "joined": "{{email}} · se incorporó el {{date}}",
+      "status": "Estado",
+      "mfa": "MFA",
+      "enabled": "Activada",
+      "notSetUp": "No configurada",
+      "activeSessions": "Sesiones activas"
+    },
+    "access": {
+      "title": "Acceso asignado",
+      "description": "Los permisos vigentes determinan qué espacios de Pressly y qué ubicaciones puede usar esta persona.",
+      "empty": "No hay permisos de acceso asignados.",
+      "notYetEffective": " · aún no está vigente",
+      "revoke": "Revocar",
+      "revokeFor": "Revocar el acceso de {{role}} para {{name}}",
+      "add": "Agregar acceso",
+      "scope": "Alcance",
+      "chooseScope": "Elige un alcance",
+      "revokeTitle": "¿Revocar el acceso de {{role}}?",
+      "revokeDescription": "Pressly eliminará este permiso y revocará de inmediato las sesiones afectadas. El historial de producción se conservará.",
+      "confirmRevoke": "Confirmar revocación",
+      "keep": "Mantener acceso"
+    },
+    "sessions": {
+      "title": "Sesiones del navegador",
+      "description": "Revisa los inicios de sesión recientes de este empleado. Finalizar una sesión cierra ese navegador sin cambiar el historial de membresía.",
+      "empty": "No hay sesiones registradas para esta membresía.",
+      "browser": "Navegador",
+      "lastUsedHeading": "Último uso",
+      "currentBrowser": "Navegador actual",
+      "signedIn": "Inicio de sesión: {{date}}",
+      "lastUsed": "Último uso: {{date}}",
+      "active": "Activa",
+      "ended": "Finalizada",
+      "signOut": "Cerrar sesión",
+      "signOutFor": "Cerrar la sesión de {{session}}",
+      "signOutAll": "Cerrar sesión en todos los navegadores",
+      "signOutAllFor": "Cerrar todas las sesiones de navegador de {{name}}",
+      "selfHint": "Usa Cerrar sesión en el menú de la aplicación para finalizar la sesión de tu navegador actual.",
+      "confirmAllTitle": "¿Cerrar la sesión de este empleado en todas partes?",
+      "confirmOneTitle": "¿Cerrar la sesión de este navegador?",
+      "confirmDescription": "El trabajo activo se conserva, pero los navegadores afectados deberán iniciar sesión de nuevo antes de usar Pressly.",
+      "confirmSignOut": "Confirmar cierre de sesión",
+      "keepSignedIn": "Mantener la sesión"
+    },
+    "membership": {
+      "selfTitle": "Esta es tu membresía",
+      "selfDescription": "Pressly impide que cambies tu propio acceso. Otro propietario autorizado debe cambiar tu membresía o tus permisos.",
+      "title": "Membresía",
+      "description": "Suspender pausa el acceso y revoca las sesiones activas. Finalizar el acceso es permanente.",
+      "suspend": "Suspender acceso",
+      "suspendFor": "Suspender el acceso de {{name}}",
+      "reactivate": "Reactivar acceso",
+      "reactivateFor": "Reactivar el acceso de {{name}}",
+      "end": "Finalizar membresía",
+      "endFor": "Finalizar la membresía de {{name}}",
+      "suspendTitle": "¿Suspender esta membresía?",
+      "reactivateTitle": "¿Reactivar esta membresía?",
+      "endTitle": "¿Finalizar esta membresía permanentemente?",
+      "reactivateDescription": "Pressly restaurará solamente los permisos de acceso que sigan activos.",
+      "removeDescription": "Pressly revocará de inmediato las sesiones activas. El historial de pedidos y producción seguirá atribuido a este empleado.",
+      "managerNote": "Nota del gerente",
+      "notePlaceholder": "Contexto opcional para el registro de auditoría"
+    },
+    "invitationAcceptance": {
+      "attention": "La invitación requiere atención",
+      "confirmationAttention": "La confirmación requiere atención",
+      "password": "Contraseña",
+      "verificationMethod": "Método de verificación",
+      "authenticatorCode": "Código de autenticación",
+      "recoveryCode": "Código de recuperación",
+      "sixDigitCode": "Código de seis dígitos",
+      "loading": {
+        "title": "Confirmando tu invitación",
+        "description": "Pressly está verificando que esta invitación de un solo uso siga vigente."
+      },
+      "success": {
+        "title": "Tu cuenta de Pressly está lista",
+        "joined": "Te uniste a {{business}} como {{role}}.",
+        "nextStep": {
+          "setupMfa": "Inicia sesión y configura la autenticación multifactor antes de administrar el negocio.",
+          "controlReady": "Tu identidad está confirmada y tu sesión segura de Control está lista.",
+          "processorReady": "Tu identidad existente de Pressly está confirmada. Abre Processor para comenzar a trabajar.",
+          "passwordReady": "Ahora puedes iniciar sesión con la contraseña que creaste."
+        }
+      },
+      "existing": {
+        "title": "Únete a {{business}}",
+        "description": "Esta invitación coincide con una identidad existente de Pressly para {{email}}. Confirma esa cuenta antes de que Pressly agregue este negocio.",
+        "passwordNoticeTitle": "Usa tu contraseña existente de Pressly",
+        "passwordNoticeDescription": "La invitación por sí sola no puede agregar acceso a una identidad existente. Pressly verifica primero la cuenta correspondiente.",
+        "mfaNoticeTitle": "Completa la verificación de la cuenta",
+        "mfaNoticeDescription": "Ingresa un código de la aplicación de autenticación que ya está conectada a esta identidad de Pressly."
+      },
+      "newIdentity": {
+        "title": "Bienvenido, {{name}}",
+        "description": "Crea tu contraseña personal de Pressly para aceptar la invitación de {{email}}. No compartas esta contraseña con otro empleado.",
+        "passwordDescription": "Usa {{count}} caracteres o más, con letras mayúsculas y minúsculas, un número y un símbolo. Se recomienda un administrador de contraseñas.",
+        "passwordRequirements": "Usa {{count}} caracteres o más, con letras mayúsculas y minúsculas, un número y un símbolo.",
+        "confirmPassword": "Confirmar contraseña",
+        "showPasswords": "Mostrar contraseñas",
+        "hidePasswords": "Ocultar contraseñas",
+        "passwordsDiffer": "Las contraseñas no coinciden."
+      },
+      "actions": {
+        "returnToSignIn": "Volver al inicio de sesión",
+        "openControl": "Abrir Pressly Control",
+        "signInToControl": "Iniciar sesión en Control",
+        "openProcessor": "Abrir Pressly Processor",
+        "confirmAccount": "Confirmar cuenta",
+        "verifyAndJoin": "Verificar y unirse",
+        "accept": "Aceptar invitación"
+      },
+      "errors": {
+        "confirm": "No se pudo confirmar esta invitación.",
+        "existingAccount": "No se pudo confirmar la cuenta existente.",
+        "invalidSecurityCode": "Ingresa un código de seguridad válido.",
+        "accept": "No se pudo aceptar la invitación."
+      }
+    }
+  }
+}

@@ -12,6 +12,17 @@ describe("AppShell", () => {
       locationName="Laundry Production"
       timezone="America/New_York"
       principalName="Olivia Press"
+      capabilities={[
+        "processor:view",
+        "production:read",
+        "production:intake",
+        "production:admission",
+        "production:stage",
+        "production:schedule",
+        "production:accept",
+        "production:override",
+        "production:resources",
+      ]}
       logoutBusy={false}
       onLogout={vi.fn()}
     >

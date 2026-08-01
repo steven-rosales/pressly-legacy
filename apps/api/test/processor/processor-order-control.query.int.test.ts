@@ -1,5 +1,6 @@
 import type { ListProductionOrderControlResult } from '@pressly/contracts';
 import {
+  business,
   createDatabaseRuntime,
   laundryProduction,
   orders,
@@ -20,6 +21,7 @@ const testDb = createDatabaseRuntime({ databaseUrl, maxConnections: 4 });
 const uuid = (value: number): string =>
   `00000000-0000-4000-8000-${value.toString().padStart(12, '0')}`;
 const hash = (value: number): string => value.toString(16).padStart(64, '0');
+const businessId = '00000000-0000-4000-8000-000000000100';
 const sameTime = new Date('2026-07-28T18:00:00.000Z');
 
 const resetDatabase = async (): Promise<void> => {
@@ -30,10 +32,6 @@ const resetDatabase = async (): Promise<void> => {
       order_demands,
       production_locations,
       order_command_receipts,
-      order_field_authorities,
-      order_source_observation_decisions,
-      order_source_control_revisions,
-      order_source_capability_profiles,
       order_source_snapshots,
       order_source_links,
       order_fulfillments,
@@ -104,13 +102,23 @@ describe('Postgres Processor Order control composition', () => {
     const productionOrderIds = [uuid(401), uuid(402), uuid(403)] as const;
     const sourceLinkId = uuid(501);
 
+    await testDb.db
+      .insert(business.businessAccounts)
+      .values({
+        id: businessId,
+        slug: 'pressly-one',
+        displayName: 'Pressly One',
+      })
+      .onConflictDoNothing();
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'east',
+      businessId,
       name: 'East',
       timezone: 'America/New_York',
     });
     await testDb.db.insert(users.users).values({
       id: customerId,
+      businessId,
       version: 4,
       firstName: 'Santiago',
       lastName: 'Jackson',
@@ -119,6 +127,7 @@ describe('Postgres Processor Order control composition', () => {
     await testDb.db.insert(orders.orders).values(
       orderIds.map((orderId, index) => ({
         id: orderId,
+        businessId,
         customerUserId: customerId,
         customerResolution: 'resolved',
         displayNumber: `ORDER-${index + 1}`,
@@ -130,6 +139,7 @@ describe('Postgres Processor Order control composition', () => {
     await testDb.db.insert(orders.orderFulfillments).values(
       fulfillmentIds.map((fulfillmentId, index) => ({
         id: fulfillmentId,
+        businessId,
         orderId: orderIds[index]!,
         typeCode: 'wash_fold',
         locationId: 'east',
@@ -153,7 +163,6 @@ describe('Postgres Processor Order control composition', () => {
         revisionHash: hash(200 + index),
         revisionAt: sameTime,
         phase: 'expected',
-        sourceStatusCode: 'canonical:open',
         estimatedWeightLbs: 20,
         estimatedWeightSource: 'source_estimate',
         dueAt: new Date('2026-07-29T20:00:00.000Z'),

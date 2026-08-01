@@ -7,6 +7,7 @@ import {
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import type { OrdersApplication } from '@pressly/orders';
+import type { LocationAncestryPort } from '@pressly/access-control';
 import { Router, type RequestHandler } from 'express';
 import {
   orderManagementCommandContext,
@@ -18,6 +19,7 @@ export const makeFulfillmentReleaseRoutes = (input: {
   authenticate: RequestHandler;
   authorize: RequestHandler;
   readPrincipal: ReadOrderManagementPrincipal;
+  resolveBusinessId: LocationAncestryPort['resolveBusinessId'];
 }): Router => {
   const routes = Router();
 
@@ -34,6 +36,9 @@ export const makeFulfillmentReleaseRoutes = (input: {
     catchAsync(async (request, response) => {
       const outcome = await input.orders.releaseFulfillment({
         ...request.body,
+        businessId: await input.resolveBusinessId(
+          request.params['locationId'] as string,
+        ),
         context: orderManagementCommandContext(response, input.readPrincipal),
         fulfillmentId: request.params['fulfillmentId'] as string,
         locationId: request.params['locationId'] as string,
@@ -50,6 +55,9 @@ export const makeFulfillmentReleaseRoutes = (input: {
     catchAsync(async (request, response) => {
       const outcome = await input.orders.withdrawFulfillment({
         ...request.body,
+        businessId: await input.resolveBusinessId(
+          request.params['locationId'] as string,
+        ),
         context: orderManagementCommandContext(response, input.readPrincipal),
         fulfillmentId: request.params['fulfillmentId'] as string,
         locationId: request.params['locationId'] as string,

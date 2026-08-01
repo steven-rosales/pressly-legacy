@@ -30,6 +30,10 @@ inside `src`.
 
 Use Vitest for repo tests.
 
+Playwright is reserved for cross-application browser behavior under
+`tooling/browser-e2e`. It runs against a disposable production-like topology;
+it must not duplicate state-machine, policy, repository, or controller proof.
+
 ## Three-Second Rule
 
 When opening a test file, the reader should know these four things fast:
@@ -139,6 +143,7 @@ tests prove technical runtime behavior. Do not recreate an app-wide
 | Web/API contract     | `apps/web/test/contracts/*.test.ts`    | fake request core      | shared path/schema agreements                   |
 | Architecture fixture | `tooling/test/architecture-*.test.mjs` | ESLint `lintText`      | forbidden and allowed dependency edges          |
 | Package unit         | `packages/*/test/*.test.ts`            | no framework IO        | reusable library behavior                       |
+| Browser composition  | `tooling/browser-e2e/specs/*.spec.ts`  | disposable local stack | cookies, app boundaries, a11y, assembled flows  |
 
 Use the smallest test type that can prove the behavior.
 
@@ -847,6 +852,19 @@ Run the workspace fast gate:
 ```sh
 pnpm test
 ```
+
+Run the local-only browser smoke after installing Chromium once:
+
+```sh
+pnpm test:browser:install
+pnpm test:browser:smoke
+```
+
+The browser runner must own a fresh synthetic database and unique Compose
+project. It must refuse remote Docker, bind only loopback HTTPS, keep temporary
+credentials outside the repository, and prove teardown. Never point the
+credentialed suite at a deployed environment. Browser diagnostics belong under
+`.artifacts/playwright/`, which is ignored by Git.
 
 ## Running Module Tests
 

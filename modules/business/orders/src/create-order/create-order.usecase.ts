@@ -32,6 +32,7 @@ export const makeCreateOrder =
       },
     };
     if (
+      command.businessId.trim() === '' ||
       command.idempotencyKey.trim() === '' ||
       !isCommandContextValid(command.context) ||
       !isOrderCommandReasonValid({
@@ -60,7 +61,18 @@ export const makeCreateOrder =
               }
             : { kind: 'idempotency_conflict' as const };
 
+        const referencesValid = await operations.validateReferences({
+          businessId: command.businessId,
+          locationId: canonicalOrder.fulfillment.locationId,
+          customerUserId:
+            canonicalOrder.customer.resolution === 'resolved'
+              ? canonicalOrder.customer.userId
+              : null,
+        });
+        if (!referencesValid) return { kind: 'reference_not_found' as const };
+
         const value = await operations.createOrder({
+          businessId: command.businessId,
           order: canonicalOrder,
           now,
         });
@@ -76,6 +88,14 @@ export const makeCreateOrder =
         return { kind: 'ok' as const, value };
       });
       if (outcome.kind === 'ok') return result.ok(outcome.value);
+      if (outcome.kind === 'reference_not_found')
+        return result.err(
+          orderError(
+            'ORDER_REFERENCE_NOT_FOUND',
+            'The selected customer or fulfillment location was not found.',
+            404,
+          ),
+        );
       return result.err(
         orderError(
           'ORDER_IDEMPOTENCY_CONFLICT',

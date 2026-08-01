@@ -1,74 +1,53 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { getTableConfig, getTableName, orders } from '../src/index.ts';
+import { getTableConfig, orders } from '../src/index.ts';
 
 const checkNames = (table: Parameters<typeof getTableConfig>[0]): string[] =>
   getTableConfig(table).checks.map((candidate) => candidate.name);
 
-describe('Order source authority evidence schema', () => {
-  it('exports the three bounded, versioned evidence tables', () => {
-    expect(getTableName(orders.orderSourceCapabilityProfiles)).toBe(
-      'order_source_capability_profiles',
-    );
-    expect(getTableName(orders.orderSourceControlRevisions)).toBe(
-      'order_source_control_revisions',
-    );
-    expect(getTableName(orders.orderSourceObservationDecisions)).toBe(
-      'order_source_observation_decisions',
-    );
-  });
-
-  it('binds immutable profiles, graph-valid posture revisions, and exact observations', () => {
-    expect(checkNames(orders.orderSourceCapabilityProfiles)).toEqual(
-      expect.arrayContaining([
-        'order_source_capability_profiles_definition_object',
-        'order_source_capability_profiles_hash_shape',
-        'order_source_capability_profiles_context_present',
-      ]),
-    );
-    expect(checkNames(orders.orderSourceControlRevisions)).toEqual(
-      expect.arrayContaining([
-        'order_source_control_revisions_positive_version',
-        'order_source_control_revisions_initialization_consistent',
-        'order_source_control_revisions_transition_consistent',
-        'order_source_control_revisions_context_present',
-      ]),
-    );
-    expect(checkNames(orders.orderSourceObservationDecisions)).toEqual(
-      expect.arrayContaining([
-        'order_source_observation_decisions_configuration_consistent',
-        'order_source_observation_decisions_unconfigured_denied',
-        'order_source_observation_decisions_evidence_arrays',
-        'order_source_observation_decisions_effect_consistent',
-        'order_source_observation_decisions_shadow_has_no_effect',
-        'order_source_observation_decisions_nonnewer_has_no_effect',
-      ]),
-    );
-
-    const observationConfig = getTableConfig(
-      orders.orderSourceObservationDecisions,
-    );
-    expect(
-      observationConfig.foreignKeys.map((candidate) => candidate.getName()),
-    ).toEqual(
-      expect.arrayContaining([
-        'order_source_observation_decisions_source_link_fk',
-        'order_source_observation_decisions_profile_fk',
-        'order_source_observation_decisions_control_fk',
-      ]),
-    );
-    expect(orders.orderSourceObservationDecisions.profileVersion.notNull).toBe(
-      false,
-    );
-    expect(orders.orderSourceObservationDecisions.controlVersion.notNull).toBe(
-      false,
-    );
+describe('Order source authority evidence retirement', () => {
+  it('keeps retired source-authority storage out of the current schema', () => {
+    expect('orderFieldAuthorities' in orders).toBe(false);
+    expect('orderSourceCapabilityProfiles' in orders).toBe(false);
+    expect('orderSourceControlRevisions' in orders).toBe(false);
+    expect('orderSourceObservationDecisions' in orders).toBe(false);
     expect(
       getTableConfig(orders.orderSourceLinks).indexes.find(
         (candidate) =>
           candidate.config.name === 'order_source_links_id_identity_unique',
       )?.config.unique,
     ).toBe(true);
+  });
+
+  it('removes the retired tables, their trigger function, and the legacy demand field in dependency order', async () => {
+    const migration = await readFile(
+      new URL(
+        '../src/migrations/0039_fantastic_energizer.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+
+    const observationDrop = migration.indexOf(
+      'DROP TABLE "order_source_observation_decisions"',
+    );
+    const controlDrop = migration.indexOf(
+      'DROP TABLE "order_source_control_revisions"',
+    );
+    const profileDrop = migration.indexOf(
+      'DROP TABLE "order_source_capability_profiles"',
+    );
+    expect(observationDrop).toBeGreaterThanOrEqual(0);
+    expect(controlDrop).toBeGreaterThan(observationDrop);
+    expect(profileDrop).toBeGreaterThan(controlDrop);
+    expect(migration).toContain('DROP TABLE "order_field_authorities"');
+    expect(migration).toContain(
+      'DROP FUNCTION "reject_order_source_authority_evidence_mutation"()',
+    );
+    expect(migration).toContain(
+      'ALTER TABLE "order_demands" DROP COLUMN "source_status_code"',
+    );
+    expect(migration).not.toMatch(/\bCASCADE\b/i);
   });
 
   it('extends command receipts with optional, coherent human-readable reasons', () => {

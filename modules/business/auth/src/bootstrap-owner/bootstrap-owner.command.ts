@@ -5,6 +5,8 @@ import { makeAppError, normalizeUnknownError } from '@pressly/errors';
 import { makeBootstrapOwnerStore } from './bootstrap-owner.repo.ts';
 import { makeBootstrapOwner } from './bootstrap-owner.usecase.ts';
 
+const PRELAUNCH_BUSINESS_ID = '00000000-0000-4000-8000-000000000100';
+
 const readRequiredEnv = (key: string): string => {
   const value = process.env[key];
 
@@ -76,6 +78,9 @@ const main = async (): Promise<void> => {
     });
 
     const bootstrapResult = await bootstrapOwner({
+      businessId:
+        process.env['PRESSLY_BOOTSTRAP_BUSINESS_ID']?.trim() ||
+        PRELAUNCH_BUSINESS_ID,
       email: readRequiredEnv('PRESSLY_BOOTSTRAP_OWNER_EMAIL'),
       password: await readPasswordFromStdin(),
       confirmation: readRequiredEnv('PRESSLY_BOOTSTRAP_OWNER_CONFIRM'),

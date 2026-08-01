@@ -49,6 +49,7 @@
   "navigation": {
     "label": "Procesador",
     "open": "Abrir navegación",
+    "skipToContent": "Saltar al contenido principal",
     "dialogTitle": "Navegación del Procesador",
     "dialogDescription": "Elige un espacio de trabajo del Procesador para esta ubicación.",
     "home": "Inicio",
@@ -75,7 +76,20 @@
     "laundryProduction": "Producción de lavandería",
     "locationAndTimezone": "{{location}} · {{timezone}}",
     "signedInAs": "Sesión iniciada como {{name}}",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar sesión",
+    "lockAndSwitch": "Bloquear / cambiar empleado",
+    "applications": "Aplicaciones de Pressly",
+    "switchApplication": "Cambiar desde {{application}}"
+  },
+  "applications": {
+    "processor": {
+      "label": "Procesador Pressly",
+      "description": "Opera la producción de lavandería."
+    },
+    "control": {
+      "label": "Control de Pressly",
+      "description": "Administra el negocio."
+    }
   },
   "connection": {
     "offline": "Sin conexión",

@@ -21,6 +21,7 @@ import { makeCentsWebhookRoute } from '../http/webhooks/cents/cents-webhook.rout
 import { makeCentsWebhookPayloadCipher } from '../http/webhooks/cents/cents-webhook.quarantine.ts';
 import {
   makeIpRateLimiter,
+  makeIdentityRateLimiter,
   makeMemoryRateLimitStore,
 } from '../http/middleware/rate-limit.middleware.ts';
 import { requireJsonContentType } from '@pressly/http/express';
@@ -34,6 +35,11 @@ import { makeProcessorOperationalOrderIdentityResolver } from '../http/processor
 import { makeProcessorOperationalOrderReadModel } from '../http/processor/operational-order-identity/operational-order-identity.read-model.ts';
 import { makeProcessorOperationalOrderRoutes } from '../http/processor/operational-order-identity/operational-order-identity.route.ts';
 import { makeApiCapabilities } from './api-capabilities.composition.ts';
+import { makeControlWorkforceRoutes } from '../http/control/workforce/control-workforce.route.ts';
+import { makeControlInvitationAcceptanceRoutes } from '../http/control/workforce/control-invitation.route.ts';
+import { makeControlSecurityRoutes } from '../http/control/security/control-security.route.ts';
+import { makeControlCustomerRoutes } from '../http/control/data/control-customer.route.ts';
+import { makeControlOrderRoutes } from '../http/control/data/control-order.route.ts';
 
 export type ApiCompositionOverrides = Readonly<{
   centsWebhookVerifier?: CentsWebhookVerifier;
@@ -50,9 +56,18 @@ export const makeApiApp = (
   const rateLimitStore = makeMemoryRateLimitStore();
   const clock = overrides.clock ?? { now: () => new Date() };
   const ids = overrides.ids ?? { next: () => randomUUID() };
+  const controlIdentityRateLimit = makeIdentityRateLimiter({
+    name: 'control_identity',
+    ...runtime.env.rateLimits.controlMutation,
+    store: rateLimitStore,
+    logger: runtime.logger,
+    securityEvents: runtime.securityEvents,
+  });
   const {
     accessControlModule,
     authModule,
+    controlBoundary,
+    locationAncestry,
     orders,
     pricingModule,
     processorBoundary,
@@ -165,6 +180,56 @@ export const makeApiApp = (
   );
 
   app.use(
+    '/control/auth/login',
+    makeIpRateLimiter({
+      name: 'control_auth_login',
+      ...runtime.env.rateLimits.login,
+      store: rateLimitStore,
+      logger: runtime.logger,
+      securityEvents: runtime.securityEvents,
+    }),
+    requireJsonContentType(),
+    express.json({ limit: '8kb' }),
+  );
+
+  app.use(
+    '/control/auth/mfa/challenge',
+    requireJsonContentType(),
+    express.json({ limit: '4kb' }),
+  );
+
+  app.use(
+    [
+      '/control/invitations/preview',
+      '/control/invitations/accept/new',
+      '/control/invitations/accept/existing',
+      '/control/invitations/accept/existing/password',
+      '/control/invitations/accept/existing/mfa',
+    ],
+    makeIpRateLimiter({
+      name: 'control_invitation_accept',
+      ...runtime.env.rateLimits.invitationAccept,
+      store: rateLimitStore,
+      logger: runtime.logger,
+      securityEvents: runtime.securityEvents,
+    }),
+    requireJsonContentType(),
+    express.json({ limit: '8kb' }),
+  );
+
+  app.use(
+    '/control',
+    makeIpRateLimiter({
+      name: 'control_boundary',
+      ...runtime.env.rateLimits.controlMutation,
+      store: rateLimitStore,
+      logger: runtime.logger,
+      securityEvents: runtime.securityEvents,
+    }),
+    express.json({ limit: '16kb' }),
+  );
+
+  app.use(
     '/pricing/changes',
     requireJsonContentType(),
     express.json({ limit: '16kb' }),
@@ -194,17 +259,90 @@ export const makeApiApp = (
     }),
   );
 
+  app.use(
+    '/control',
+    makeControlCustomerRoutes({
+      users,
+      authenticate: controlBoundary.authenticate,
+      limitIdentity: controlIdentityRateLimit,
+      requireRead: controlBoundary.requireCapability('customers:read'),
+      requireWrite: controlBoundary.requireCapability('customers:write'),
+    }),
+  );
+
+  app.use(
+    '/control',
+    makeControlOrderRoutes({
+      orders,
+      authenticate: controlBoundary.authenticate,
+      limitIdentity: controlIdentityRateLimit,
+      requireRead: controlBoundary.requireCapability('orders:read'),
+      requireWrite: controlBoundary.requireCapability('orders:write'),
+    }),
+  );
+
   app.use(express.json({ limit: '64kb' }));
 
   app.use('/auth', authModule.routes);
 
   app.use('/processor/auth', processorBoundary.routes);
 
+  app.use('/control/auth', controlBoundary.routes);
+
+  app.use(
+    '/control/invitations',
+    makeControlInvitationAcceptanceRoutes({
+      application: authModule.application.workforce,
+      authApplication: authModule.application,
+      authenticateExisting: controlBoundary.authenticate,
+      limitExistingIdentity: controlIdentityRateLimit,
+      requireOrigin: controlBoundary.requireOrigin,
+      names: controlBoundary.invitationBootstrap.names,
+      sessionOptions: controlBoundary.invitationBootstrap.options,
+      resolveAccess: controlBoundary.invitationBootstrap.resolveAccess,
+    }),
+  );
+
+  app.use(
+    '/control',
+    makeControlWorkforceRoutes({
+      application: authModule.application.workforce,
+      authenticate: controlBoundary.authenticate,
+      limitIdentity: controlIdentityRateLimit,
+      requireRead: controlBoundary.requireCapability('team:read'),
+      requireWrite: controlBoundary.requireCapability('team:write'),
+    }),
+  );
+
+  app.use(
+    '/control',
+    makeControlSecurityRoutes({
+      application: authModule.application.workforce,
+      authenticate: controlBoundary.authenticate,
+      limitIdentity: controlIdentityRateLimit,
+      requireRead: controlBoundary.requireCapability('security:read'),
+    }),
+  );
+
   app.use(
     '/auth',
     authModule.makeAdministrationRoutes({
       sessions: accessControlModule.authSessions,
       mfa: accessControlModule.mfa,
+    }),
+  );
+
+  app.use(
+    '/control/auth',
+    authModule.makeAdministrationRoutes({
+      sessions: {
+        ...accessControlModule.authSessions,
+        authenticate: controlBoundary.authenticate,
+      },
+      mfa: {
+        ...accessControlModule.mfa,
+        authenticate: controlBoundary.authenticate,
+      },
     }),
   );
 
@@ -231,12 +369,11 @@ export const makeApiApp = (
 
   app.use(
     makeOrderManagementRoutes({
-      users,
       orders,
       authenticate: processorBoundary.authenticate,
-      authorizeUsers: accessControlModule.orderManagement.writeUsers,
       authorizeOrders: accessControlModule.orderManagement.writeOrders,
       readPrincipal: authModule.guards.readPrincipal,
+      resolveBusinessId: locationAncestry.resolveBusinessId,
     }),
   );
 

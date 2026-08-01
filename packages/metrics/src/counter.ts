@@ -15,7 +15,6 @@ export type CounterName =
   | 'worker.leases_recovered'
   | 'worker.lease_losses'
   | 'worker.loop_failures'
-  | 'worker.reconciliation_drift'
   | 'api.command_conflicts'
   | 'api.http_requests'
   | 'api.webhook_rejections'

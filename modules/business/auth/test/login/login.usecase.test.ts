@@ -118,7 +118,7 @@ describe('login user', () => {
         eventType: 'auth.login.succeeded',
         resourceType: 'auth_session',
         resourceId: makeDefaultSession().id,
-        metadata: { email: 'admin@pressly.com' },
+        metadata: {},
       },
     ]);
 
@@ -167,6 +167,54 @@ describe('login user', () => {
     });
   });
 
+  it('requires the MFA challenge for a manager backed by workforce authority', async () => {
+    const { login, calls } = makeSubject({
+      store: {
+        identity: makeDefaultIdentity({
+          mfaEnabled: true,
+          roles: ['manager'],
+        }),
+      },
+    });
+
+    const actual = await login(makeLoginCommand());
+
+    expect(actual).toEqual({
+      tag: 'ok',
+      value: {
+        status: 'mfa_required',
+        challengeToken: accessToken,
+        expiresAt: '2026-05-29T12:05:00.000Z',
+      },
+    });
+    expect(calls.createSession).toEqual([]);
+    expect(calls.createMfaChallenge).toHaveLength(1);
+  });
+
+  it('honors enrolled MFA without a current role projection', async () => {
+    const { login, calls } = makeSubject({
+      store: {
+        identity: makeDefaultIdentity({
+          mfaEnabled: true,
+          roles: [],
+        }),
+      },
+    });
+
+    const actual = await login(makeLoginCommand());
+
+    expect(actual).toEqual({
+      tag: 'ok',
+      value: {
+        status: 'mfa_required',
+        challengeToken: accessToken,
+        expiresAt: '2026-05-29T12:05:00.000Z',
+      },
+    });
+    expect(calls.createSession).toEqual([]);
+    expect(calls.createMfaChallenge).toHaveLength(1);
+  });
+
   it('rate limits before looking up the identity', async () => {
     const { login, calls } = makeSubject({
       store: { failedAttempts: 5 },
@@ -190,7 +238,7 @@ describe('login user', () => {
       {
         eventType: 'auth.login.rate_limited',
         resourceType: 'auth_identity',
-        metadata: { email: 'admin@pressly.com' },
+        metadata: { failureCode: 'rate_limited' },
       },
     ]);
   });
@@ -216,10 +264,7 @@ describe('login user', () => {
       {
         eventType: 'auth.login.failed',
         resourceType: 'auth_identity',
-        metadata: {
-          email: 'admin@pressly.com',
-          failureCode: 'invalid_credentials',
-        },
+        metadata: { failureCode: 'invalid_credentials' },
       },
     ]);
   });
@@ -253,10 +298,7 @@ describe('login user', () => {
         eventType: 'auth.login.failed',
         resourceType: 'auth_identity',
         resourceId: makeDefaultIdentity().id,
-        metadata: {
-          email: 'admin@pressly.com',
-          failureCode: 'invalid_credentials',
-        },
+        metadata: { failureCode: 'invalid_credentials' },
       },
     ]);
   });
@@ -285,10 +327,7 @@ describe('login user', () => {
         eventType: 'auth.login.failed',
         resourceType: 'auth_identity',
         resourceId: makeDefaultIdentity().id,
-        metadata: {
-          email: 'admin@pressly.com',
-          failureCode: 'invalid_credentials',
-        },
+        metadata: { failureCode: 'invalid_credentials' },
       },
     ]);
   });
@@ -308,10 +347,7 @@ describe('login user', () => {
         eventType: 'auth.login.failed',
         resourceType: 'auth_identity',
         resourceId: makeDefaultIdentity().id,
-        metadata: {
-          email: 'admin@pressly.com',
-          failureCode: 'invalid_credentials',
-        },
+        metadata: { failureCode: 'invalid_credentials' },
       },
     ]);
     expect(calls.recordLoginAttempt).toEqual([
@@ -507,10 +543,7 @@ describe('login user', () => {
       {
         eventType: 'auth.login.failed',
         resourceType: 'auth_identity',
-        metadata: {
-          email: 'admin@pressly.com',
-          failureCode: 'invalid_credentials',
-        },
+        metadata: { failureCode: 'invalid_credentials' },
       },
     ]);
   });

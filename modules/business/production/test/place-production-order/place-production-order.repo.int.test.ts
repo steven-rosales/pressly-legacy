@@ -119,6 +119,7 @@ const seed = async () => {
   const plannedCompletionAt = new Date('2026-07-14T19:36:00.000Z');
   await testDb.db.insert(laundryProduction.productionLocations).values({
     id: 'location-1',
+    businessId: '00000000-0000-4000-8000-000000000100',
     name: 'Placement Test Facility',
     timezone: 'America/New_York',
   });
@@ -250,7 +251,6 @@ const seed = async () => {
       revisionHash: 'c'.repeat(64),
       revisionAt: createdAt,
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date(shiftEndsAt),
     },
     {
@@ -261,7 +261,6 @@ const seed = async () => {
       revisionHash: 'd'.repeat(64),
       revisionAt: createdAt,
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date(shiftEndsAt),
     },
     {
@@ -272,7 +271,6 @@ const seed = async () => {
       revisionHash: 'e'.repeat(64),
       revisionAt: createdAt,
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date(shiftEndsAt),
     },
   ]);
@@ -548,7 +546,7 @@ describe('place production order Postgres commit', () => {
       locationId: 'location-1',
       productionOrderId: ids.arrivingOrder,
       actorId: ids.actor,
-      actorRole: 'operator',
+      authorizedAction: 'production:queue',
       idempotencyKey: 'race-safe-unique-run-placement',
     });
     await runsRead;
@@ -665,6 +663,7 @@ describe('place production order Postgres commit', () => {
         productionRunId: ids.run,
         productionOrderId: ids.arrivingOrder,
         actorId: ids.actor,
+        authorizedAction: 'production:queue',
         idempotencyKey: 'pending-overtime-postgres',
         idempotency: {
           operation: 'production_order_placed_automatically',
@@ -793,7 +792,7 @@ describe('place production order Postgres commit', () => {
       expectedQueueVersion: 1,
       expectedBatchVersion: 1,
       actorId: ids.actor,
-      actorRole: 'owner' as const,
+      authorizedAction: 'production:override' as const,
       idempotencyKey: 'exact-placement-postgres',
     };
     await expect(place.placeExactly(command)).resolves.toMatchObject({
@@ -981,7 +980,7 @@ describe('place production order Postgres commit', () => {
       expectedQueueVersion: 1,
       expectedBatchVersion: 1,
       actorId: ids.actor,
-      actorRole: 'operator',
+      authorizedAction: 'production:queue',
       idempotencyKey: 'race-freeze-first',
     });
     await delay(30);
@@ -993,7 +992,7 @@ describe('place production order Postgres commit', () => {
       expectedQueueVersion: 1,
       expectedBatchVersion: 1,
       actorId: ids.actor,
-      actorRole: 'owner',
+      authorizedAction: 'production:override',
       idempotencyKey: 'race-placement-second',
     });
     await delay(30);
@@ -1092,7 +1091,6 @@ describe('place production order Postgres commit', () => {
       revisionHash: '9'.repeat(64),
       revisionAt: now,
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date(shiftEndsAt),
     });
     await testDb.db.insert(laundryProduction.productionOrders).values({
@@ -1222,7 +1220,7 @@ describe('place production order Postgres commit', () => {
       productionRunId: ids.run,
       productionOrderId: ids.queuedOrder,
       actorId: ids.actor,
-      actorRole: 'operator',
+      authorizedAction: 'production:stage',
       kind: 'queued_move',
       reason: 'manual_rebatch',
       restartStage: 'sorting',
@@ -1237,7 +1235,7 @@ describe('place production order Postgres commit', () => {
       productionRunId: ids.run,
       productionOrderId: ids.queuedOrder,
       actorId: ids.actor,
-      actorRole: 'operator',
+      authorizedAction: 'production:stage',
       kind: 'queued_move',
       reason: 'manual_rebatch',
       restartStage: 'sorting',

@@ -10,6 +10,7 @@ import { makeOrderManagementRoutes } from '../../src/http/order-management/order
 const servers: Server[] = [];
 const id = (value: number) =>
   `00000000-0000-4000-8000-${value.toString().padStart(12, '0')}`;
+const businessId = id(91);
 
 const start = async (app: express.Express): Promise<string> => {
   const server = createServer(app);
@@ -20,7 +21,6 @@ const start = async (app: express.Express): Promise<string> => {
 
 const security = () => ({
   authenticate: vi.fn<RequestHandler>((_request, _response, next) => next()),
-  authorizeUsers: vi.fn<RequestHandler>((_request, _response, next) => next()),
   authorizeOrders: vi.fn<RequestHandler>((_request, _response, next) => next()),
   readPrincipal: vi.fn(() => ({
     identityId: id(90),
@@ -29,14 +29,6 @@ const security = () => ({
 });
 
 const applications = () => {
-  const createUser = vi.fn(async () => ({
-    tag: 'ok' as const,
-    value: { userId: id(1), version: 1, replayed: false },
-  }));
-  const updateUser = vi.fn(async () => ({
-    tag: 'ok' as const,
-    value: { userId: id(1), version: 2, replayed: false },
-  }));
   const createOrder = vi.fn(async () => ({
     tag: 'ok' as const,
     value: {
@@ -111,7 +103,6 @@ const applications = () => {
     },
   }));
   return {
-    users: { createUser, updateUser },
     orders: {
       createOrder,
       correctOrder,
@@ -124,7 +115,6 @@ const applications = () => {
       rejectIncomingOrderProposal,
       restoreIncomingOrderProposal,
     },
-    createUser,
     createOrder,
     correctOrder,
     completeOrder,
@@ -146,9 +136,9 @@ const makeApp = (input: {
   app.use(express.json());
   app.use(
     makeOrderManagementRoutes({
-      users: input.applications.users,
       orders: input.applications.orders,
       ...input.security,
+      resolveBusinessId: async () => businessId,
     }),
   );
   app.use(((error, _request, response, _next) => {
@@ -178,36 +168,49 @@ afterEach(async () => {
 });
 
 describe('canonical command routes', () => {
-  it('derives mutation provenance from the authenticated principal', async () => {
+  it('derives business ancestry and mutation provenance on direct Order creation', async () => {
     const apps = applications();
     const guards = security();
     const base = await start(makeApp({ applications: apps, security: guards }));
-    const response = await fetch(`${base}/order-management/users`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        idempotencyKey: 'create-user-001',
-        profile: {
-          firstName: 'Ada',
-          lastName: 'Rivera',
-          businessName: null,
-          phone: '+12015550101',
-          email: null,
-        },
-      }),
-    });
+    const response = await fetch(
+      `${base}/order-management/locations/east/orders`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          idempotencyKey: 'create-order-provenance-001',
+          reasonCode: 'new_customer_order',
+          reasonNote: null,
+          customer: { resolution: 'not_provided', userId: null },
+          displayNumber: 'P-1001',
+          dueAt: '2026-07-22T20:00:00.000Z',
+          currency: 'USD',
+          totalAmountCents: 3000,
+          balanceDueCents: 3000,
+          items: [],
+          fulfillment: {
+            typeCode: 'wash_fold',
+            locationId: 'east',
+            estimatedWeightLbs: null,
+            estimatedWeightSource: null,
+          },
+        }),
+      },
+    );
 
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({
       ok: true,
       data: {
-        userId: id(1),
+        orderId: id(2),
+        fulfillmentId: id(3),
         version: 1,
         replayed: false,
       },
     });
-    expect(apps.createUser).toHaveBeenCalledWith(
+    expect(apps.createOrder).toHaveBeenCalledWith(
       expect.objectContaining({
+        businessId,
         context: {
           origin: 'pressly_processor',
           principal: { kind: 'human', id: id(90) },
@@ -315,6 +318,7 @@ describe('canonical command routes', () => {
 
     expect(response.status).toBe(200);
     expect(apps.completeOrder).toHaveBeenCalledWith({
+      businessId,
       idempotencyKey: 'complete-order-001',
       expectedVersion: 1,
       reasonCode: 'service_completed',
@@ -372,6 +376,7 @@ describe('canonical command routes', () => {
 
     expect(response.status).toBe(200);
     expect(apps.correctOrder).toHaveBeenCalledWith({
+      businessId,
       idempotencyKey: 'correct-order-claims',
       expectedOrderVersion: 1,
       expectedFulfillmentVersion: 1,
@@ -430,6 +435,7 @@ describe('canonical command routes', () => {
 
     expect(response.status).toBe(200);
     expect(apps.releaseFulfillment).toHaveBeenCalledWith({
+      businessId,
       idempotencyKey: 'release-fulfillment-001',
       expectedOrderVersion: 1,
       expectedFulfillmentVersion: 1,
@@ -442,32 +448,6 @@ describe('canonical command routes', () => {
       fulfillmentId: id(3),
       locationId: 'east',
     });
-  });
-
-  it('does not reach canonical mutations when authorization rejects the request', async () => {
-    const apps = applications();
-    const guards = security();
-    guards.authorizeUsers.mockImplementation((_request, response) => {
-      response.sendStatus(403);
-    });
-    const base = await start(makeApp({ applications: apps, security: guards }));
-    const response = await fetch(`${base}/order-management/users`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        idempotencyKey: 'create-user-002',
-        profile: {
-          firstName: null,
-          lastName: null,
-          businessName: 'Pressly Test',
-          phone: null,
-          email: null,
-        },
-      }),
-    });
-
-    expect(response.status).toBe(403);
-    expect(apps.createUser).not.toHaveBeenCalled();
   });
 
   it('does not reach an Order command when Order scope authorization rejects it', async () => {

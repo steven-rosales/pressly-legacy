@@ -256,7 +256,7 @@ const asPreviewCommand = (
     productionRunId: command.productionRunId,
     productionOrderId: command.productionOrderId,
     actorId: command.actorId,
-    actorRole: command.actorRole,
+    authorizedAction: command.authorizedAction,
     expectedQueueVersion: command.expectedQueueVersion,
     expectedOrderVersion: command.expectedOrderVersion,
     expectedSourceBatchVersion: command.expectedSourceBatchVersion,
@@ -338,6 +338,7 @@ export const makeRouteProductionOrder = (deps: {
           expectedVersion: command.expectedOrderVersion,
           payload: {
             kind: command.kind,
+            authorizedAction: command.authorizedAction,
             reason: command.reason,
             restartStage: command.restartStage,
             expectedQueueVersion: command.expectedQueueVersion,

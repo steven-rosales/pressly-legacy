@@ -6,11 +6,19 @@ import {
 } from '../src/incoming-order-proposal.policy.ts';
 import { isOrderInputValid } from '../src/order-input.policy.ts';
 import {
+  decideFulfillmentRelease,
+  decideOrderLifecycle,
   mayTransitionFulfillment,
   mayTransitionOrder,
 } from '../src/order-lifecycle.policy.ts';
 import { fulfillmentDemandEvent } from '../src/order-outbox.policy.ts';
-import type { OrderInput } from '../src/orders.port.ts';
+import type {
+  FulfillmentReleaseState,
+  IncomingOrderProposalEvent,
+  IncomingOrderProposalState,
+  OrderInput,
+  OrderState,
+} from '../src/orders.port.ts';
 
 const input = (): OrderInput => ({
   customer: { resolution: 'not_provided', userId: null, externalUserId: null },
@@ -122,6 +130,121 @@ describe('Orders policies', () => {
     expect(mayTransitionFulfillment('unreleased', 'released')).toBe(true);
     expect(mayTransitionFulfillment('released', 'withdrawn')).toBe(true);
     expect(mayTransitionFulfillment('withdrawn', 'released')).toBe(false);
+  });
+
+  it('defines every commercial order state and event combination', () => {
+    const states: readonly OrderState[] = ['open', 'completed', 'canceled'];
+    const events = ['complete', 'cancel'] as const;
+    const expected = new Map([
+      ['open:complete', 'completed'],
+      ['open:cancel', 'canceled'],
+    ]);
+
+    for (const state of states)
+      for (const type of events) {
+        const decision = decideOrderLifecycle(state, { type });
+        const target = expected.get(`${state}:${type}`);
+        if (target === undefined) {
+          expect(decision).toEqual({
+            kind: 'denied',
+            from: state,
+            event: type,
+            allowedEvents: [],
+          });
+        } else {
+          expect(decision).toEqual({
+            kind: 'allowed',
+            from: state,
+            to: target,
+            event: type,
+          });
+        }
+      }
+  });
+
+  it('defines every fulfillment release state and event combination', () => {
+    const states: readonly FulfillmentReleaseState[] = [
+      'unreleased',
+      'released',
+      'withdrawn',
+    ];
+    const events = ['release', 'withdraw'] as const;
+    const expected = new Map([
+      ['unreleased:release', 'released'],
+      ['unreleased:withdraw', 'withdrawn'],
+      ['released:withdraw', 'withdrawn'],
+    ]);
+    const allowedEvents = new Map<FulfillmentReleaseState, readonly string[]>([
+      ['unreleased', ['release', 'withdraw']],
+      ['released', ['withdraw']],
+      ['withdrawn', []],
+    ]);
+
+    for (const state of states)
+      for (const type of events) {
+        const decision = decideFulfillmentRelease(state, { type });
+        const target = expected.get(`${state}:${type}`);
+        if (target === undefined) {
+          expect(decision).toEqual({
+            kind: 'denied',
+            from: state,
+            event: type,
+            allowedEvents: allowedEvents.get(state),
+          });
+        } else {
+          expect(decision).toEqual({
+            kind: 'allowed',
+            from: state,
+            to: target,
+            event: type,
+          });
+        }
+      }
+  });
+
+  it('defines every incoming proposal state and event combination', () => {
+    const states: readonly IncomingOrderProposalState[] = [
+      'pending',
+      'source_closed',
+      'restored_pending',
+      'accepted',
+      'rejected',
+    ];
+    const events: readonly IncomingOrderProposalEvent[] = [
+      'accept',
+      'reject',
+      'source_close',
+      'restore',
+    ];
+    const expected = new Map([
+      ['pending:accept', 'accepted'],
+      ['pending:reject', 'rejected'],
+      ['pending:source_close', 'source_closed'],
+      ['source_closed:restore', 'restored_pending'],
+      ['restored_pending:accept', 'accepted'],
+      ['restored_pending:reject', 'rejected'],
+    ]);
+
+    for (const state of states)
+      for (const event of events) {
+        const decision = decideIncomingOrderProposal(state, event);
+        const target = expected.get(`${state}:${event}`);
+        if (target === undefined) {
+          expect(decision).toEqual({
+            kind: 'denied',
+            from: state,
+            event,
+            allowedEvents: allowedIncomingOrderProposalEvents(state),
+          });
+        } else {
+          expect(decision).toEqual({
+            kind: 'allowed',
+            from: state,
+            to: target,
+            event,
+          });
+        }
+      }
   });
 
   it('rejects ambiguous weight provenance and duplicate line identities', () => {

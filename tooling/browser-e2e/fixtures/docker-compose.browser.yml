@@ -1,0 +1,13 @@
+services:
+  caddy:
+    depends_on: !override
+      api:
+        condition: service_healthy
+      processor:
+        condition: service_healthy
+      control:
+        condition: service_healthy
+    volumes: !override
+      - ${PRESSLY_BROWSER_E2E_FIXTURE_DIR:?}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config

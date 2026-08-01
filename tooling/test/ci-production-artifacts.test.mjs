@@ -44,6 +44,11 @@ const applications = {
     sbom: 'Generate Processor SBOM',
     scan: 'Block critical Processor vulnerabilities',
   },
+  control: {
+    build: 'Build Control image once',
+    sbom: 'Generate Control SBOM',
+    scan: 'Block critical Control vulnerabilities',
+  },
 };
 
 const step = (name) => {
@@ -62,8 +67,8 @@ const runtimeStage = (dockerfile) => {
   return dockerfile.slice(stageStart + 1);
 };
 
-describe('four-image CI release', () => {
-  it('keeps branch CI build-only for all four application images', () => {
+describe('five-image CI release', () => {
+  it('keeps branch CI build-only for all five application images', () => {
     const branchJobs = [
       workflow.jobs['web-docker-build'],
       workflow.jobs['api-docker-build'],
@@ -71,7 +76,7 @@ describe('four-image CI release', () => {
     ];
     for (const job of branchJobs) {
       expect(job.if).toBe("github.ref != 'refs/heads/main'");
-      expect(job.needs).toEqual(['integration-tests']);
+      expect(job.needs).toEqual(['integration-tests', 'browser-e2e']);
       expect(JSON.stringify(job.steps)).not.toContain('docker/login-action');
       expect(JSON.stringify(job.steps)).not.toContain('docker push');
     }
@@ -93,6 +98,7 @@ describe('four-image CI release', () => {
     expect(workflow.jobs['lpms-docker-build'].strategy.matrix.app).toEqual([
       'worker',
       'processor',
+      'control',
     ]);
     expect(
       workflow.jobs['lpms-docker-build'].steps.find(
@@ -109,8 +115,9 @@ describe('four-image CI release', () => {
     expect(production.if).toBe(
       "github.event_name == 'push' && github.ref == 'refs/heads/main'",
     );
-    expect(production.needs).toEqual(['integration-tests']);
+    expect(production.needs).toEqual(['integration-tests', 'browser-e2e']);
     expect(workflow.jobs['integration-tests'].needs).toEqual(['quality']);
+    expect(workflow.jobs['browser-e2e'].needs).toEqual(['quality']);
     expect(
       workflow.jobs['integration-tests'].steps.find(
         (candidate) =>
@@ -208,7 +215,7 @@ describe('four-image CI release', () => {
     }
   });
 
-  it('generates four SBOMs and blocks every critical scan before publishing', () => {
+  it('generates five SBOMs and blocks every critical scan before publishing', () => {
     const publishIndex = stepIndex('Publish verified images');
     const loginIndex = stepIndex('Log in to GitHub Container Registry');
     const scanIndexes = [];
@@ -233,15 +240,15 @@ describe('four-image CI release', () => {
     expect(Math.max(...scanIndexes)).toBeLessThan(loginIndex);
     expect(loginIndex).toBeLessThan(publishIndex);
     const publish = step('Publish verified images');
-    expect(publish.run.match(/docker push "\$[A-Z]+_TAG"/g)).toHaveLength(4);
+    expect(publish.run.match(/docker push "\$[A-Z]+_TAG"/g)).toHaveLength(5);
     expect(
       productionSteps
         .slice(0, publishIndex)
         .filter((candidate) => candidate.name.startsWith('Block critical ')),
-    ).toHaveLength(4);
+    ).toHaveLength(5);
   });
 
-  it('records registry digests and uploads one exact four-image release artifact', () => {
+  it('records registry digests and uploads one exact five-image release artifact', () => {
     const publishIndex = stepIndex('Publish verified images');
     const manifestIndex = stepIndex('Record immutable release manifest');
     const uploadIndex = stepIndex('Upload release evidence');
@@ -276,7 +283,7 @@ describe('four-image CI release', () => {
       'retention-days': 90,
     });
     expect(workflowSource.match(/artifacts\/[a-z]+\.spdx\.json/g)).toHaveLength(
-      4,
+      5,
     );
   });
 });

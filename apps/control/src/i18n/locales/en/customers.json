@@ -1,0 +1,106 @@
+{
+  "customers": {
+    "workspace": {
+      "title": "Customer records",
+      "description": "Keep customer names and contact details accurate for future orders."
+    },
+    "search": {
+      "label": "Search customers",
+      "placeholder": "Name, business, phone, or email"
+    },
+    "filters": {
+      "active": "Active customers",
+      "inactive": "Inactive customers",
+      "all": "All customers"
+    },
+    "status": {
+      "label": "Status",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "actions": {
+      "new": "New customer",
+      "search": "Search",
+      "refresh": "Refresh",
+      "review": "Review",
+      "reviewCustomer": "Review {{customer}}",
+      "previous": "Previous",
+      "next": "Next",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "create": "Create customer",
+      "saveCorrection": "Save correction"
+    },
+    "errors": {
+      "conflict": "This customer changed while you were working. Refresh and review the latest record before trying again.",
+      "loadList": "Control could not load customer records.",
+      "loadDetail": "Control could not load this customer.",
+      "create": "Control could not create this customer.",
+      "save": "Control could not save this customer.",
+      "listTitle": "Customer records need attention",
+      "openTitle": "Customer could not be opened",
+      "openDescription": "Refresh the customer list and try this record again."
+    },
+    "list": {
+      "title": "Customers",
+      "description": "Customers available to this business.",
+      "showingMatches": "Showing matches for “{{query}}”.",
+      "possibleMatch_one": "{{count}} possible match",
+      "possibleMatch_other": "{{count}} possible matches"
+    },
+    "loading": {
+      "listTitle": "Loading customers",
+      "listDescription": "Loading the latest customers.",
+      "detailTitle": "Loading customer"
+    },
+    "empty": {
+      "title": "No customers match this view",
+      "description": "Adjust the search or status filter, or create the first customer record."
+    },
+    "table": {
+      "customer": "Customer",
+      "contact": "Contact",
+      "status": "Status",
+      "review": "Review"
+    },
+    "types": {
+      "individual": "Individual customer",
+      "commercial": "Commercial customer"
+    },
+    "contact": {
+      "notRecorded": "No contact details"
+    },
+    "pagination": {
+      "page": "Page {{page}}"
+    },
+    "create": {
+      "title": "Create customer",
+      "description": "Create a customer profile for future Pressly orders."
+    },
+    "detail": {
+      "fallbackTitle": "Customer record",
+      "editDescription": "Review identity details and save factual corrections.",
+      "readDescription": "Review customer details.",
+      "name": "Name"
+    },
+    "duplicate": {
+      "title": "Possible matching identity",
+      "description_one": "{{count}} other customer record may match this identity. Review before changing contact details.",
+      "description_other": "{{count}} other customer records may match this identity. Review before changing contact details."
+    },
+    "form": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "businessName": "Business name",
+      "businessDescription": "Use this for commercial accounts or organizations.",
+      "phone": "Phone",
+      "email": "Email",
+      "recordStatus": "Record status",
+      "statusDescription": "Inactive customers stay in the permanent record but are hidden from active order entry.",
+      "saveErrorTitle": "Customer was not saved",
+      "validation": {
+        "identityRequired": "Enter a customer name, business name, phone number, or email."
+      }
+    }
+  }
+}

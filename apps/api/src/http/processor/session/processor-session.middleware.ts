@@ -9,16 +9,22 @@ import {
   processorRequestNeedsCsrf,
   requireProcessorCsrf,
 } from './processor-csrf.policy.ts';
-import { processorUnauthorized } from './processor-session.error.ts';
+import {
+  processorForbidden,
+  processorUnauthorized,
+} from './processor-session.error.ts';
 import {
   isResultError,
   type LoadedProcessorSession,
+  type ProcessorAccess,
   type ProcessorAuthApplication,
+  type ResolveProcessorAccess,
   type ProcessorSessionOptions,
 } from './processor-session.port.ts';
 
 export type LoadedCookieSession = Readonly<{
   loaded: LoadedProcessorSession;
+  access: ProcessorAccess;
   sessionToken: string;
 }>;
 
@@ -29,6 +35,7 @@ export type LoadProcessorCookieSession = (
 
 export const makeProcessorSessionAuthentication = (input: {
   application: ProcessorAuthApplication;
+  resolveAccess: ResolveProcessorAccess;
   bearerAuthenticate: RequestHandler;
   names: ProcessorCookieNames;
   options: ProcessorSessionOptions;
@@ -61,9 +68,21 @@ export const makeProcessorSessionAuthentication = (input: {
       throw loaded.error;
     }
 
+    const access = await input.resolveAccess(loaded.value);
+    if (access === null) {
+      clearProcessorCookie(response, input.names.session, input.options);
+      throw processorForbidden({
+        code: 'processor_access_unavailable',
+        message:
+          'Identity has no active production capability at an active location.',
+        safeMessage: 'Your account does not have access to Pressly Processor.',
+      });
+    }
+
     response.locals['auth'] = loaded.value;
+    response.locals['processorAccess'] = access;
     response.locals['processorSessionToken'] = sessionToken;
-    return { loaded: loaded.value, sessionToken };
+    return { loaded: loaded.value, access, sessionToken };
   };
 
   const authenticate = catchAsync(async (request, response, next) => {

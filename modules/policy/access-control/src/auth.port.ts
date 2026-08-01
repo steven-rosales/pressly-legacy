@@ -11,7 +11,7 @@ export type AccessControlAuthorize = <R extends AuthResource>(
   input: Readonly<{
     action: Action;
     policies: readonly PolicyRule<R>[];
-    readResource: (req: Request, res: Response) => R;
+    readResource: (req: Request, res: Response) => R | Promise<R>;
   }>,
 ) => RequestHandler;
 

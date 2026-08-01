@@ -1,0 +1,33 @@
+{
+  "authentication": {
+    "title": {
+      "signIn": "Sign in to Control",
+      "verify": "Verify your identity"
+    },
+    "description": {
+      "signIn": "Use your Pressly account. Your session stays in a protected, host-only browser cookie.",
+      "verify": "Enter a code from your authenticator or use a recovery code."
+    },
+    "attention": "Sign in needs attention",
+    "email": "Email",
+    "password": "Password",
+    "verificationMethod": "Verification method",
+    "authenticatorCode": "Authenticator code",
+    "recoveryCode": "Recovery code",
+    "sixDigitCode": "Six-digit code",
+    "invalidSixDigitCode": "Enter a valid six-digit code.",
+    "invalidRecoveryCode": "Enter a valid recovery code.",
+    "actions": {
+      "signIn": "Sign in",
+      "verifyAndContinue": "Verify and continue",
+      "backToSignIn": "Back to sign in"
+    },
+    "errors": {
+      "restore": "Control could not restore your session.",
+      "sessionExpired": "Your session expired. Sign in again to continue.",
+      "signIn": "Control could not sign you in.",
+      "verifyCode": "Control could not verify this code.",
+      "signOut": "Control could not confirm that you were signed out."
+    }
+  }
+}

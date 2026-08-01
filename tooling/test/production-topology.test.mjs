@@ -29,7 +29,7 @@ const renderCompose = () =>
   );
 
 describe('production topology', () => {
-  it('renders all four applications while publishing only Caddy', () => {
+  it('renders all five applications while publishing only Caddy', () => {
     const config = renderCompose();
     const services = config.services;
 
@@ -39,6 +39,7 @@ describe('production topology', () => {
         'web',
         'worker',
         'processor',
+        'control',
         'caddy',
         'postgres',
       ]),
@@ -57,6 +58,9 @@ describe('production topology', () => {
     expect(services.processor.expose).toEqual(['80']);
     expect(services.processor.read_only).toBe(true);
     expect(services.processor.cap_drop).toContain('ALL');
+    expect(services.control.expose).toEqual(['80']);
+    expect(services.control.read_only).toBe(true);
+    expect(services.control.cap_drop).toContain('ALL');
     expect(services.api.environment.SENTRY_RELEASE).toBe('e'.repeat(40));
     expect(services.worker.environment.SENTRY_RELEASE).toBe('e'.repeat(40));
     expect(services.api.environment.NODE_ENV).toBe('production');
@@ -65,7 +69,7 @@ describe('production topology', () => {
     expect(services.api.environment.FEATURE_METRICS_ENABLED).toBe('true');
     expect(services.worker.environment.SENTRY_ENABLED).toBe('true');
 
-    for (const name of ['api', 'web', 'worker', 'processor'])
+    for (const name of ['api', 'web', 'worker', 'processor', 'control'])
       expect(services[name].image).toMatch(/@sha256:[0-9a-f]{64}$/);
   });
 
@@ -82,6 +86,38 @@ describe('production topology', () => {
     expect(caddyfile).toContain('uri strip_prefix /api');
     expect(caddyfile).toContain('reverse_proxy api:4000');
     expect(caddyfile).toContain('reverse_proxy processor:80');
+  });
+
+  it('routes Control through its same-origin API boundary with hardened headers', () => {
+    const caddyfile = readFileSync(
+      resolve(root, 'infra/aws/lightsail/Caddyfile'),
+      'utf8',
+    );
+
+    expect(caddyfile).toContain(
+      '{$PRESSLY_CONTROL_DOMAIN:control.trypressly.com}',
+    );
+    expect(caddyfile).toContain('@control_api path /api /api/*');
+    expect(caddyfile).toContain('reverse_proxy control:80');
+    expect(caddyfile).toContain("default-src 'self'");
+    expect(caddyfile).toContain("script-src 'self'");
+    expect(caddyfile).not.toMatch(/script-src[^;\n]*'unsafe-inline'/);
+    expect(caddyfile).toContain("frame-ancestors 'none'");
+    expect(caddyfile).toContain('Referrer-Policy "no-referrer"');
+    expect(caddyfile).toContain('X-Content-Type-Options "nosniff"');
+
+    const nginx = readFileSync(
+      resolve(root, 'apps/control/nginx.conf'),
+      'utf8',
+    );
+    expect(nginx).toContain("default-src 'self'");
+    expect(nginx).toContain("script-src 'self'");
+    expect(nginx).toContain("frame-ancestors 'none'");
+    expect(nginx).toContain('Referrer-Policy "no-referrer"');
+    expect(nginx).toContain('X-Content-Type-Options "nosniff"');
+    expect(nginx).toContain('proxy_pass http://api:4000/');
+    expect(nginx).not.toMatch(/script-src[^;\n]*'unsafe-inline'/);
+    expect(nginx).not.toContain("'unsafe-eval'");
   });
 
   it('redirects the www web hostname to the canonical hostname', () => {

@@ -9,7 +9,7 @@ export type PlacementCommitInput = Readonly<{
   expectedQueueVersion: number;
   actualQueueVersion: number;
   placementType: 'automatic' | 'manager_exact';
-  actorRole: string;
+  authorizedAction: 'production:queue' | 'production:override';
   orderWeightLbs: number;
   pulseCapacityLbs: number;
   overtime: Readonly<{
@@ -21,12 +21,6 @@ export type PlacementCommitInput = Readonly<{
     }> | null;
   }>;
 }>;
-
-const canOperate = (role: string): boolean =>
-  role === 'operator' || role === 'owner' || role === 'admin';
-
-const canManage = (role: string): boolean =>
-  role === 'owner' || role === 'admin';
 
 export const evaluatePlacementCommit = (
   input: PlacementCommitInput,
@@ -72,12 +66,15 @@ export const evaluatePlacementCommit = (
     });
 
   if (input.placementType === 'manager_exact') {
-    if (!canManage(input.actorRole))
+    if (input.authorizedAction !== 'production:override')
       return result.err({
         code: 'EXACT_PLACEMENT_FORBIDDEN',
-        message: 'Only an owner or administrator may place an exact batch pin.',
+        message: 'Exact batch placement requires production override access.',
       });
-  } else if (!canOperate(input.actorRole))
+  } else if (
+    input.authorizedAction !== 'production:queue' &&
+    input.authorizedAction !== 'production:override'
+  )
     return result.err({
       code: 'AUTOMATIC_PLACEMENT_FORBIDDEN',
       message: 'This actor cannot place eligible production work.',
@@ -91,10 +88,11 @@ export const evaluatePlacementCommit = (
       message: 'A manager must explicitly accept the projected overtime.',
     });
 
-  if (!canManage(input.actorRole))
+  if (input.authorizedAction !== 'production:override')
     return result.err({
       code: 'OVERTIME_CONFIRMATION_FORBIDDEN',
-      message: 'Only an owner or administrator may accept overtime.',
+      message:
+        'Accepting projected overtime requires production override access.',
     });
 
   if (

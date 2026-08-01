@@ -17,6 +17,7 @@ const migration = postgres(requiredUrl('PRESSLY_TEST_MIGRATION_DATABASE_URL'), {
 });
 
 const ids = {
+  business: '00000000-0000-4000-8000-000000000000',
   actor: '00000000-0000-4000-8000-000000000001',
   shift: '00000000-0000-4000-8000-000000000002',
   config: '00000000-0000-4000-8000-000000000003',
@@ -61,7 +62,6 @@ const lpmsTables = [
   'order_demands',
   'order_outbox_events',
   'order_command_receipts',
-  'order_field_authorities',
   'order_source_snapshots',
   'order_source_customer_refs',
   'order_source_links',
@@ -72,34 +72,46 @@ const lpmsTables = [
   'webhook_receipt_quarantine',
   'source_location_bindings',
   'production_locations',
+  'business_accounts',
 ] as const;
 
 const seedLocations = async (): Promise<void> => {
   await runtime`
-    insert into production_locations (id, name, timezone)
+    insert into business_accounts (id, slug, display_name)
+    values (${ids.business}, 'synthetic-laundry', 'Synthetic Laundry')
+  `;
+  await runtime`
+    insert into production_locations (id, business_id, name, timezone)
     values
-      (${locations.first}, 'Synthetic Facility One', 'America/New_York'),
-      (${locations.second}, 'Synthetic Facility Two', 'America/Chicago')
+      (
+        ${locations.first}, ${ids.business}, 'Synthetic Facility One',
+        'America/New_York'
+      ),
+      (
+        ${locations.second}, ${ids.business}, 'Synthetic Facility Two',
+        'America/Chicago'
+      )
   `;
 };
 
 const seedCanonicalOrder = async (): Promise<void> => {
   await runtime`
     insert into orders (
-      id, customer_resolution, display_number, state, due_at, currency,
-      total_amount_cents, version
+      id, business_id, customer_resolution, display_number, state, due_at,
+      currency, total_amount_cents, version
     ) values (
-      ${ids.canonicalOrder}, 'not_provided', 'synthetic-order-1', 'open',
-      '2026-07-10T20:00:00Z', 'USD', 0, 1
+      ${ids.canonicalOrder}, ${ids.business}, 'not_provided',
+      'synthetic-order-1', 'open', '2026-07-10T20:00:00Z', 'USD', 0, 1
     )
   `;
   await runtime`
     insert into order_fulfillments (
-      id, order_id, type_code, location_id, release_state,
+      id, business_id, order_id, type_code, location_id, release_state,
       estimated_weight_lbs, estimated_weight_source, bag_count, version
     ) values (
-      ${ids.fulfillment}, ${ids.canonicalOrder}, 'wash_fold',
-      ${locations.first}, 'released', 80, 'external_estimate', null, 1
+      ${ids.fulfillment}, ${ids.business}, ${ids.canonicalOrder},
+      'wash_fold', ${locations.first}, 'released', 80, 'external_estimate',
+      null, 1
     )
   `;
 };
@@ -465,13 +477,13 @@ describe('LPMS database invariants', () => {
       insert into order_demands (
         id, fulfillment_id, fulfillment_version, projection_hash,
         admission_state, commercial_state, demand_key, display_reference,
-        location_id, revision_hash, revision_at, phase, source_status_code,
+        location_id, revision_hash, revision_at, phase,
         due_at
       ) values (
         ${ids.orderDemand}, ${ids.fulfillment}, 1, ${'a'.repeat(64)},
         'released', 'open', 'synthetic:order:1', 'synthetic-order-1',
         ${locations.first}, 'source-hash-1', '2026-07-10T14:00:00Z',
-        'production_released', 'IN_PROGRESS',
+        'production_released',
         '2026-07-10T20:00:00Z'
       )
     `;
@@ -515,14 +527,14 @@ describe('LPMS database invariants', () => {
       insert into order_demands (
         id, fulfillment_id, fulfillment_version, projection_hash,
         admission_state, commercial_state, demand_key, display_reference,
-        location_id, revision_hash, revision_at, phase, source_status_code,
+        location_id, revision_hash, revision_at, phase,
         due_at
       ) values (
         ${ids.orderDemand}, ${ids.fulfillment}, 1, ${'b'.repeat(64)},
         'released', 'open', 'synthetic:order:cross-location',
         'cross-location-order', ${locations.first},
         'source-hash-cross-location', '2026-07-10T14:00:00Z',
-        'production_released', 'IN_PROGRESS', '2026-07-10T20:00:00Z'
+        'production_released', '2026-07-10T20:00:00Z'
       )
     `;
     await expect(

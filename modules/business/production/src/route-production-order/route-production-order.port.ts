@@ -17,7 +17,7 @@ import type {
 
 export type ProductionOrderRoutingActor = Readonly<{
   actorId: string;
-  actorRole: 'operator' | 'owner';
+  authorizedAction: 'production:stage';
 }>;
 
 export type PreviewProductionOrderRouteCommand =

@@ -96,7 +96,7 @@ export const makeManageBatchMembership = (deps: {
           action: command.action,
           batchStatus: context.productionBatch.status,
           membershipFrozen: context.productionBatch.membershipFrozenAt !== null,
-          actorRole: command.actorRole,
+          authorizedAction: command.authorizedAction,
         });
         if (decision.tag === 'err')
           return result.err(
@@ -125,6 +125,7 @@ export const makeManageBatchMembership = (deps: {
           idempotencyKey: command.idempotencyKey,
           payload: {
             action: command.action,
+            authorizedAction: command.authorizedAction,
             queueVersion: mutation.queueVersion,
             batchVersion: mutation.batchVersion,
           },

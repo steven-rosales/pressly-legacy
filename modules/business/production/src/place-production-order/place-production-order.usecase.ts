@@ -123,6 +123,7 @@ const executePlacementInTransaction = async (deps: {
 }): Promise<Result<ProductionOrderPlacementResult, AppError>> => {
   const payload = {
     expectedQueueVersion: deps.command.expectedQueueVersion,
+    authorizedAction: deps.command.authorizedAction,
     ...(deps.command.expectedBatchVersion === undefined
       ? {}
       : { expectedBatchVersion: deps.command.expectedBatchVersion }),
@@ -260,7 +261,7 @@ const executePlacementInTransaction = async (deps: {
     expectedQueueVersion: deps.command.expectedQueueVersion,
     actualQueueVersion: context.input.run.queueVersion,
     placementType: deps.mode.type,
-    actorRole: deps.command.actorRole,
+    authorizedAction: deps.command.authorizedAction,
     orderWeightLbs: context.input.order.derivedWeightLbs,
     pulseCapacityLbs: context.input.run.pulseCapacityLbs,
     overtime: {

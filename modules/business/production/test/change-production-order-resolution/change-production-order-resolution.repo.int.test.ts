@@ -30,6 +30,7 @@ describe('production order resolution Postgres workflow', () => {
     const now = new Date('2026-07-26T23:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Resolution Lookup Facility',
       timezone: 'America/New_York',
     });
@@ -41,7 +42,6 @@ describe('production order resolution Postgres workflow', () => {
       revisionHash: 'resolution-lookup',
       revisionAt: now,
       phase: 'expected',
-      sourceStatusCode: 'SUBMITTED',
       estimatedWeightLbs: 24,
       estimatedWeightSource: 'external_price',
       dueAt: new Date('2026-07-27T20:00:00.000Z'),
@@ -83,6 +83,7 @@ describe('production order resolution Postgres workflow', () => {
     const now = new Date('2026-07-26T23:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Resolution Test Facility',
       timezone: 'America/New_York',
     });
@@ -94,7 +95,6 @@ describe('production order resolution Postgres workflow', () => {
       revisionHash: 'resolution',
       revisionAt: now,
       phase: 'expected',
-      sourceStatusCode: 'SUBMITTED',
       estimatedWeightLbs: 24,
       estimatedWeightSource: 'external_price',
       dueAt: new Date('2026-07-27T20:00:00.000Z'),
@@ -213,6 +213,7 @@ describe('production order resolution Postgres workflow', () => {
     const currentDueAt = new Date('2026-08-02T18:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Current Source Restore Facility',
       timezone: 'America/New_York',
     });
@@ -224,7 +225,6 @@ describe('production order resolution Postgres workflow', () => {
       revisionHash: 'resolution-current-source-v1',
       revisionAt: resolvedAt,
       phase: 'expected',
-      sourceStatusCode: 'SUBMITTED',
       estimatedWeightLbs: 24,
       estimatedWeightSource: 'external_estimate',
       dueAt: originalDueAt,
@@ -273,7 +273,6 @@ describe('production order resolution Postgres workflow', () => {
         admissionState: 'released',
         commercialState: 'open',
         phase: 'production_released',
-        sourceStatusCode: 'IN_PROGRESS',
         estimatedWeightLbs: 48,
         estimatedWeightSource: 'external_estimate',
         dueAt: currentDueAt,
@@ -338,6 +337,7 @@ describe('production order resolution Postgres workflow', () => {
     const dueAt = new Date('2026-07-27T20:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Resolution Idempotency Facility',
       timezone: 'America/New_York',
     });
@@ -349,7 +349,6 @@ describe('production order resolution Postgres workflow', () => {
       revisionHash: 'resolution-concurrent',
       revisionAt: now,
       phase: 'expected',
-      sourceStatusCode: 'SUBMITTED',
       estimatedWeightLbs: 24,
       estimatedWeightSource: 'external_estimate',
       dueAt,
@@ -419,6 +418,7 @@ describe('production order resolution Postgres workflow', () => {
     const now = new Date('2026-07-26T23:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Selection Evidence Facility',
       timezone: 'America/New_York',
     });
@@ -430,7 +430,6 @@ describe('production order resolution Postgres workflow', () => {
       revisionHash: 'resolution-historical-selection',
       revisionAt: now,
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       estimatedWeightLbs: 24,
       estimatedWeightSource: 'external_price',
       dueAt: new Date('2026-07-27T20:00:00.000Z'),

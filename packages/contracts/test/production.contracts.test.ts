@@ -210,6 +210,7 @@ const bootstrapManifest = {
   schemaVersion: 1,
   location: {
     id: locationId,
+    businessId: '00000000-0000-4000-8000-000000000100',
     name: 'Main Facility',
     timezone: 'America/New_York',
     isActive: true,

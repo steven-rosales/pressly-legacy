@@ -24,6 +24,10 @@ describe('access-control module composition', () => {
             }) satisfies Principal,
         ),
       },
+      locationAncestry: {
+        resolveBusinessId: vi.fn(async () => 'business-1'),
+        listLocationIdsForBusinesses: vi.fn(async () => ['location-1']),
+      },
       policies: {
         pricing: {
           freshSessionMaxAgeMinutes: 15,

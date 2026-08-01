@@ -10,11 +10,14 @@ export const hasScopedRole = <R extends AuthResource>(
   name: 'has_scope_role',
   denyReason: 'missing_assignment',
   safeMessage: 'You do not have permission to perform this action.',
-  evaluate: ({ principalAttributes, resource, environment }) =>
-    principalAttributes.assignments.some(
+  evaluate: ({ principalAttributes, resource, environment }) => {
+    const resourceScopes = [resource.scope, ...(resource.ancestorScopes ?? [])];
+
+    return principalAttributes.assignments.some(
       (assignment) =>
         roles.includes(assignment.role) &&
         isAssignmentActive(assignment, environment.now) &&
-        scopeCovers(assignment.scope, resource.scope),
-    ),
+        resourceScopes.some((scope) => scopeCovers(assignment.scope, scope)),
+    );
+  },
 });

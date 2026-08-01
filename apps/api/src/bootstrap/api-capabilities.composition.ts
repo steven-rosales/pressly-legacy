@@ -12,8 +12,11 @@ import {
 } from '@pressly/users';
 import { makePostgresWebhookIngestionApplication } from '@pressly/webhook-ingestion';
 import { makeProcessorBrowserBoundary } from '../http/processor/session/processor-session.boundary.ts';
+import { makeProcessorAccessResolver } from '../http/processor/session/processor-access.query.ts';
+import { makeControlBrowserBoundary } from '../http/control/session/control-session.boundary.ts';
 import type { ApiRuntime } from '../runtime/api-runtime.ts';
 import { makeProductionDomainSignals } from './production-signals.adapter.ts';
+import { makePostgresLocationAncestryAdapter } from '../http/authorization/postgres-location-ancestry.adapter.ts';
 
 export type ApiClock = Readonly<{ now: () => Date }>;
 export type ApiIds = Readonly<{ next: () => string }>;
@@ -21,6 +24,8 @@ export type ApiIds = Readonly<{ next: () => string }>;
 export type ApiCapabilities = Readonly<{
   accessControlModule: ReturnType<typeof makeAccessControlModule>;
   authModule: ReturnType<typeof makeAuthModule>;
+  controlBoundary: ReturnType<typeof makeControlBrowserBoundary>;
+  locationAncestry: ReturnType<typeof makePostgresLocationAncestryAdapter>;
   orders: ReturnType<typeof makePostgresOrdersApplication>;
   pricingModule: ReturnType<typeof makePricingModule>;
   processorBoundary: ReturnType<typeof makeProcessorBrowserBoundary>;
@@ -53,8 +58,13 @@ export const makeApiCapabilities = (input: {
     mfaEncryptionKey: revealSecret(input.runtime.env.auth.mfaEncryptionKey),
     mfaIssuer: input.runtime.env.auth.mfaIssuer,
   });
+  const locationAncestry = makePostgresLocationAncestryAdapter(
+    input.runtime.database.db,
+  );
   const accessControlModule = makeAccessControlModule({
     auth: authModule.guards,
+    locationAncestry,
+    clock: input.clock,
     policies: {
       pricing: {
         freshSessionMaxAgeMinutes:
@@ -72,10 +82,25 @@ export const makeApiCapabilities = (input: {
   });
   const processorBoundary = makeProcessorBrowserBoundary({
     application: authModule.application,
+    resolveAccess: makeProcessorAccessResolver({
+      db: input.runtime.database.db,
+      processorOrigin: input.runtime.env.processor.origin,
+      controlOrigin: input.runtime.env.control.origin,
+    }),
     bearerAuthenticate: authModule.guards.authenticate,
     options: {
       origin: input.runtime.env.processor.origin,
       csrfSecret: revealSecret(input.runtime.env.processor.csrfSecret),
+      secureCookies: input.runtime.env.nodeEnv === 'production',
+    },
+  });
+  const controlBoundary = makeControlBrowserBoundary({
+    db: input.runtime.database.db,
+    application: authModule.application,
+    options: {
+      origin: input.runtime.env.control.origin,
+      csrfSecret: revealSecret(input.runtime.env.control.csrfSecret),
+      processorOrigin: input.runtime.env.processor.origin,
       secureCookies: input.runtime.env.nodeEnv === 'production',
     },
   });
@@ -110,6 +135,8 @@ export const makeApiCapabilities = (input: {
   return {
     accessControlModule,
     authModule,
+    controlBoundary,
+    locationAncestry,
     orders,
     pricingModule,
     processorBoundary,

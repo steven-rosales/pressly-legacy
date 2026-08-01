@@ -26,7 +26,7 @@ export const makePlaceProductionOrderAutomaticallyController = (
         expectedQueueVersion: request.body.expectedQueueVersion as number,
         idempotencyKey: request.body.idempotencyKey as string,
         actorId: input.readActorId(response),
-        actorRole: 'operator',
+        authorizedAction: 'production:override',
       }),
     );
   });
@@ -46,7 +46,7 @@ export const makePlaceProductionOrderExactlyController = (
         expectedBatchVersion: request.body.expectedBatchVersion as number,
         idempotencyKey: request.body.idempotencyKey as string,
         actorId: input.readActorId(response),
-        actorRole: 'owner',
+        authorizedAction: 'production:override',
       }),
     );
   });
@@ -65,7 +65,7 @@ export const makeConfirmProductionOrderOvertimeController = (
         proposalHash: request.body.proposalHash as string,
         idempotencyKey: request.body.idempotencyKey as string,
         actorId: input.readActorId(response),
-        actorRole: 'owner',
+        authorizedAction: 'production:override',
       }),
     );
   });

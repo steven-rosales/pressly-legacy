@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { auth, eq, sql, type Database } from '@pressly/db';
+import { auth, business, eq, sql, type Database } from '@pressly/db';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import { makeLoginStore } from '../../src/login/login.repo.ts';
 import { createAuthTestDatabase } from '../support/database.ts';
@@ -58,7 +58,7 @@ const insertRoles = async (
 };
 
 describe('login repository integration', () => {
-  it('loads an identity by normalized email with valid stored roles', async () => {
+  it('loads compatible roles but ignores legacy workforce assignments', async () => {
     const identity = await insertIdentity(testDb.db);
     await insertRoles(testDb.db, identity.id, ['admin', 'operator']);
     const store = makeLoginStore(testDb.db);
@@ -74,8 +74,7 @@ describe('login repository integration', () => {
       email: 'admin@pressly.com',
       isActive: true,
     });
-    expect(value?.roles).toEqual(expect.arrayContaining(['admin', 'operator']));
-    expect(value?.roles).toHaveLength(2);
+    expect(value?.roles).toEqual(['admin']);
   });
 
   it('rejects roles outside the auth role enum', async () => {
@@ -109,6 +108,45 @@ describe('login repository integration', () => {
       isActive: true,
       roles: expect.arrayContaining(['service', 'ci']),
     });
+  });
+
+  it('treats a null workforce grant start as effective immediately', async () => {
+    const identity = await insertIdentity(testDb.db);
+    const [businessAccount] = await testDb.db
+      .insert(business.businessAccounts)
+      .values({
+        slug: `null-start-${identity.id}`,
+        displayName: 'Null Start Workforce',
+      })
+      .returning();
+    if (businessAccount === undefined)
+      throw new Error('Business account was not inserted.');
+    const [membership] = await testDb.db
+      .insert(auth.workforceMemberships)
+      .values({
+        businessId: businessAccount.id,
+        identityId: identity.id,
+      })
+      .returning();
+    if (membership === undefined)
+      throw new Error('Workforce membership was not inserted.');
+    await testDb.db.insert(auth.authAccessGrants).values({
+      businessId: businessAccount.id,
+      membershipId: membership.id,
+      identityId: identity.id,
+      role: 'owner',
+      scopeKind: 'business',
+      scopeId: businessAccount.id,
+      startsAt: null,
+      createdByIdentityId: identity.id,
+    });
+    const store = makeLoginStore(testDb.db);
+
+    const actual = expectOk(
+      await store.findIdentityByEmail('admin@pressly.com'),
+    );
+
+    expect(actual?.roles).toContain('owner');
   });
 
   it('returns undefined when no identity or password credential exists', async () => {

@@ -32,6 +32,7 @@ const ids = {
 const seedLocation = async (): Promise<void> => {
   await testDb.db.insert(laundryProduction.productionLocations).values({
     id: 'location-1',
+    businessId: '00000000-0000-4000-8000-000000000100',
     name: 'Remaining-day Test Facility',
     timezone: 'America/New_York',
   });
@@ -49,7 +50,6 @@ describe('remaining-day forecast Postgres read model', () => {
         revisionHash: 'overdue',
         revisionAt: new Date('2026-03-08T15:00:00.000Z'),
         phase: 'expected',
-        sourceStatusCode: 'SUBMITTED',
         estimatedWeightLbs: 20,
         estimatedWeightSource: 'external_price',
         dueAt: new Date('2026-03-07T23:00:00.000Z'),
@@ -62,7 +62,6 @@ describe('remaining-day forecast Postgres read model', () => {
         revisionHash: 'today',
         revisionAt: new Date('2026-03-08T15:00:00.000Z'),
         phase: 'expected',
-        sourceStatusCode: 'SUBMITTED',
         estimatedWeightLbs: 30,
         estimatedWeightSource: 'external_price',
         dueAt: new Date('2026-03-09T03:30:00.000Z'),
@@ -75,7 +74,6 @@ describe('remaining-day forecast Postgres read model', () => {
         revisionHash: 'missing',
         revisionAt: new Date('2026-03-08T15:00:00.000Z'),
         phase: 'expected',
-        sourceStatusCode: 'SUBMITTED',
         estimatedWeightLbs: null,
         estimatedWeightSource: null,
         dueAt: new Date('2026-03-08T18:00:00.000Z'),
@@ -88,7 +86,6 @@ describe('remaining-day forecast Postgres read model', () => {
         revisionHash: 'later',
         revisionAt: new Date('2026-03-08T15:00:00.000Z'),
         phase: 'expected',
-        sourceStatusCode: 'SUBMITTED',
         estimatedWeightLbs: 40,
         estimatedWeightSource: 'external_price',
         dueAt: new Date('2026-03-09T04:00:00.000Z'),
@@ -245,7 +242,6 @@ describe('remaining-day forecast Postgres read model', () => {
       revisionHash: 'active',
       revisionAt: startsAt,
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       estimatedWeightLbs: 42,
       estimatedWeightSource: 'external_price',
       dueAt: new Date('2026-07-28T18:00:00.000Z'),

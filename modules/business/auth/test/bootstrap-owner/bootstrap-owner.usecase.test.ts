@@ -59,6 +59,7 @@ const makeSubject = (
 };
 
 const validCommand = {
+  businessId: '00000000-0000-4000-8000-000000000100',
   email: ' Steven@Pressly.COM ',
   password: 'CorrectHorse1!Battery',
   confirmation: BOOTSTRAP_OWNER_CONFIRMATION,
@@ -78,6 +79,7 @@ describe('bootstrap owner', () => {
     expect(calls.hash).toEqual(['CorrectHorse1!Battery']);
     expect(calls.createFirstOwner).toEqual([
       {
+        businessId: '00000000-0000-4000-8000-000000000100',
         email: 'Steven@Pressly.COM',
         emailNormalized: 'steven@pressly.com',
         passwordHash: 'stored-password-hash',

@@ -1,6 +1,5 @@
 import { sql } from 'drizzle-orm';
 import {
-  bigint,
   boolean,
   check,
   foreignKey,
@@ -16,7 +15,10 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { productionLocations } from './business.schema.ts';
 import { orderFulfillments } from './orders.schema.ts';
+
+export { productionLocations } from './business.schema.ts';
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true })
@@ -35,17 +37,6 @@ export const stageBoundaryProvenanceEnum = pgEnum('stage_boundary_provenance', [
   'operator_reported',
   'not_recorded',
 ]);
-
-export const productionLocations = pgTable('production_locations', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  timezone: text('timezone').notNull(),
-  isActive: boolean('is_active').notNull().default(true),
-  liveRevision: bigint('live_revision', { mode: 'number' })
-    .notNull()
-    .default(0),
-  ...timestamps,
-});
 
 export const orderDemands = pgTable(
   'order_demands',
@@ -68,7 +59,6 @@ export const orderDemands = pgTable(
       withTimezone: true,
     }).notNull(),
     phase: text('phase').notNull(),
-    sourceStatusCode: text('source_status_code').notNull(),
     estimatedWeightLbs: weight('estimated_weight_lbs'),
     estimatedWeightSource: text('estimated_weight_source'),
     dueAt: timestamp('due_at', { withTimezone: true }).notNull(),

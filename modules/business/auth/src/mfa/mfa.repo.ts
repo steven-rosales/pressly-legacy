@@ -5,8 +5,10 @@ import {
   gt,
   isNull,
   lt,
+  lte,
   ne,
   or,
+  sql,
   type Database,
 } from '@pressly/db';
 import { result } from '@pressly/kernel';
@@ -69,10 +71,54 @@ export const makeMfaRepository = (db: Database): MfaRepository => ({
       if (row === undefined || row.credential.status !== 'enabled')
         return undefined;
 
-      const roles = await db
-        .select({ role: auth.authRoleAssignments.role })
-        .from(auth.authRoleAssignments)
-        .where(eq(auth.authRoleAssignments.identityId, row.identity.id));
+      const [workforceRoles, compatibilityRoles] = await Promise.all([
+        db
+          .select({ role: auth.authAccessGrants.role })
+          .from(auth.authAccessGrants)
+          .innerJoin(
+            auth.workforceMemberships,
+            and(
+              eq(
+                auth.workforceMemberships.id,
+                auth.authAccessGrants.membershipId,
+              ),
+              eq(
+                auth.workforceMemberships.businessId,
+                auth.authAccessGrants.businessId,
+              ),
+              eq(
+                auth.workforceMemberships.identityId,
+                auth.authAccessGrants.identityId,
+              ),
+            ),
+          )
+          .where(
+            and(
+              eq(auth.authAccessGrants.identityId, row.identity.id),
+              eq(auth.authAccessGrants.state, 'active'),
+              eq(auth.workforceMemberships.state, 'active'),
+              or(
+                isNull(auth.authAccessGrants.startsAt),
+                lte(auth.authAccessGrants.startsAt, sql`now()`),
+              ),
+              or(
+                isNull(auth.authAccessGrants.endsAt),
+                gt(auth.authAccessGrants.endsAt, sql`now()`),
+              ),
+            ),
+          ),
+        db
+          .select({ role: auth.authRoleAssignments.role })
+          .from(auth.authRoleAssignments)
+          .where(
+            and(
+              eq(auth.authRoleAssignments.identityId, row.identity.id),
+              ne(auth.authRoleAssignments.role, 'owner'),
+              ne(auth.authRoleAssignments.role, 'manager'),
+              ne(auth.authRoleAssignments.role, 'operator'),
+            ),
+          ),
+      ]);
 
       return {
         challengeId: row.challenge.id,
@@ -81,7 +127,7 @@ export const makeMfaRepository = (db: Database): MfaRepository => ({
         displayName: row.identity.displayName,
         ...(row.identity.email === null ? {} : { email: row.identity.email }),
         isActive: row.identity.isActive,
-        roles: mapStoredRoles(roles),
+        roles: mapStoredRoles([...workforceRoles, ...compatibilityRoles]),
         encryptedSecret: row.credential.encryptedSecret,
         lastUsedCounter: row.credential.lastUsedCounter,
         expiresAt: row.challenge.expiresAt,

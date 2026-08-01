@@ -222,6 +222,7 @@ Current scope kinds:
 
 ```txt
 global
+business
 location
 resource
 ```
@@ -230,6 +231,7 @@ Scope coverage is intentionally conservative:
 
 ```txt
 global covers everything
+business covers only the same business
 location covers only the same location
 resource covers only the same resource type and id
 ```
@@ -239,8 +241,9 @@ This prevents authority from accidentally becoming universal.
 Important current reality:
 
 ```txt
-Location scope exists as auth infrastructure.
-No current production policy uses location scope for real facility enforcement.
+Production and order-management policies enforce persisted location scope.
+Business grants cover locations only through server-resolved, persisted
+location-to-business ancestry; request input cannot establish that ancestry.
 Pricing is currently global.
 ```
 

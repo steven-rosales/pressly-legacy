@@ -1,0 +1,123 @@
+{
+  "common": {
+    "appName": "Control de Pressly",
+    "close": "Cerrar",
+    "returnHome": "Volver al inicio"
+  },
+  "errors": {
+    "sessionRefreshRequired": "Actualiza tu sesión segura antes de intentarlo de nuevo.",
+    "requestTimeout": "La solicitud tardó demasiado. Inténtalo de nuevo.",
+    "serviceUnreachable": "Control no pudo comunicarse con el servicio. Revisa tu conexión e inténtalo de nuevo.",
+    "unreadableResponse": "Control recibió una respuesta que no se pudo leer. Inténtalo de nuevo.",
+    "authenticationRequired": "Control no pudo confirmar tu identidad. Revisa tus credenciales o inicia sesión de nuevo.",
+    "permissionDenied": "No tienes acceso para hacer eso.",
+    "recordNotFound": "Ese registro ya no está disponible.",
+    "conflict": "Este registro cambió mientras trabajabas. Actualiza e inténtalo de nuevo.",
+    "invalidRequest": "Revisa la información e inténtalo de nuevo.",
+    "rateLimited": "Se hicieron demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
+    "serviceUnavailable": "Control no está disponible temporalmente. Inténtalo de nuevo en unos minutos.",
+    "requestRejected": "Control no pudo confirmar esta solicitud."
+  },
+  "navigation": {
+    "label": "Navegación de Control",
+    "dialogTitle": "Navegación de Pressly Control",
+    "dialogDescription": "Abre un espacio de trabajo de Control.",
+    "open": "Abrir navegación",
+    "skipToContent": "Saltar al contenido principal",
+    "home": "Inicio",
+    "orders": "Pedidos",
+    "customers": "Clientes",
+    "team": "Equipo",
+    "security": "Seguridad",
+    "configuration": "Configuración",
+    "sections": {
+      "business": "Negocio",
+      "peopleAccess": "Personas y acceso",
+      "system": "Sistema"
+    },
+    "signedInAs": "Sesión iniciada como {{name}}",
+    "signOut": "Cerrar sesión",
+    "businessAccess": "Acceso al negocio",
+    "locationAndTimezone": "{{location}} · {{timezone}}",
+    "applications": "Aplicaciones de Pressly",
+    "switchApplication": "Cambiar desde {{application}}"
+  },
+  "workspace": {
+    "home": {
+      "title": "Inicio",
+      "description": "Administra pedidos, clientes y las personas que operan tu negocio."
+    },
+    "orders": {
+      "title": "Pedidos",
+      "description": "Crea y administra pedidos de clientes antes de que comience la producción."
+    },
+    "customers": {
+      "title": "Clientes",
+      "description": "Mantén los registros de clientes actualizados y listos para pedidos futuros."
+    },
+    "team": {
+      "title": "Equipo",
+      "description": "Invita empleados y administra su acceso a Pressly."
+    },
+    "security": {
+      "title": "Seguridad",
+      "description": "Revisa el acceso, las sesiones activas y los eventos importantes de la cuenta."
+    },
+    "configuration": {
+      "title": "Configuración",
+      "description": "Elige el idioma y la apariencia que usa Control en este navegador."
+    },
+    "restoring": {
+      "title": "Restaurando tu sesión segura",
+      "description": "Control está confirmando tu identidad y acceso."
+    },
+    "accessDenied": {
+      "title": "No tienes acceso asignado",
+      "description": "Tu sesión está iniciada, pero este espacio está fuera de tus permisos actuales."
+    },
+    "notFound": {
+      "title": "Espacio no encontrado",
+      "description": "Esta dirección de Control no coincide con un espacio disponible."
+    },
+    "loading": {
+      "team": "Cargando el equipo",
+      "security": "Cargando seguridad",
+      "customers": "Cargando clientes",
+      "orders": "Cargando pedidos",
+      "description": "Control está confirmando el estado más reciente del negocio."
+    }
+  },
+  "home": {
+    "title": "Espacios disponibles",
+    "description": "Abre un espacio según el acceso asignado a tu cuenta.",
+    "openWorkspace": "Abrir espacio",
+    "openWorkspaceLabel": "Abrir {{workspace}}",
+    "cards": {
+      "orders": {
+        "description": "Crea pedidos y prepara el trabajo del cliente antes de producción."
+      },
+      "customers": {
+        "description": "Mantén los datos de contacto y del negocio del cliente."
+      },
+      "team": {
+        "description": "Invita empleados y administra el acceso asignado."
+      },
+      "security": {
+        "description": "Revisa sesiones, acceso de cuentas y eventos de seguridad."
+      },
+      "configuration": {
+        "description": "Elige el idioma y la apariencia usadas en este navegador."
+      }
+    }
+  },
+  "applications": {
+    "processor": {
+      "label": "Procesador Pressly",
+      "description": "Opera la producción de lavandería."
+    },
+    "control": {
+      "label": "Control de Pressly",
+      "description": "Administra el negocio."
+    }
+  }
+}

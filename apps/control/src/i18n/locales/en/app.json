@@ -1,0 +1,123 @@
+{
+  "common": {
+    "appName": "Pressly Control",
+    "close": "Close",
+    "returnHome": "Return home"
+  },
+  "errors": {
+    "sessionRefreshRequired": "Your secure session must be refreshed before trying again.",
+    "requestTimeout": "The request took too long. Try again.",
+    "serviceUnreachable": "Control could not reach the service. Check your connection and try again.",
+    "unreadableResponse": "Control received an unreadable response. Try again.",
+    "authenticationRequired": "Control could not confirm your identity. Check your credentials or sign in again.",
+    "permissionDenied": "You do not have access to do that.",
+    "recordNotFound": "That record is no longer available.",
+    "conflict": "This record changed while you were working. Refresh and try again.",
+    "invalidRequest": "Review the information and try again.",
+    "rateLimited": "Too many attempts were made. Wait a few minutes and try again.",
+    "serviceUnavailable": "Control is temporarily unavailable. Try again shortly.",
+    "requestRejected": "Control could not confirm this request."
+  },
+  "navigation": {
+    "label": "Control navigation",
+    "dialogTitle": "Pressly Control navigation",
+    "dialogDescription": "Open a Control workspace.",
+    "open": "Open navigation",
+    "skipToContent": "Skip to main content",
+    "home": "Home",
+    "orders": "Orders",
+    "customers": "Customers",
+    "team": "Team",
+    "security": "Security",
+    "configuration": "Configuration",
+    "sections": {
+      "business": "Business",
+      "peopleAccess": "People & access",
+      "system": "System"
+    },
+    "signedInAs": "Signed in as {{name}}",
+    "signOut": "Sign out",
+    "businessAccess": "Business access",
+    "locationAndTimezone": "{{location}} · {{timezone}}",
+    "applications": "Pressly applications",
+    "switchApplication": "Switch from {{application}}"
+  },
+  "workspace": {
+    "home": {
+      "title": "Home",
+      "description": "Manage orders, customers, and the people who operate your business."
+    },
+    "orders": {
+      "title": "Orders",
+      "description": "Create and manage customer orders before production begins."
+    },
+    "customers": {
+      "title": "Customers",
+      "description": "Keep customer records current and ready for repeat orders."
+    },
+    "team": {
+      "title": "Team",
+      "description": "Invite employees and manage their access to Pressly."
+    },
+    "security": {
+      "title": "Security",
+      "description": "Review access, active sessions, and important account events."
+    },
+    "configuration": {
+      "title": "Configuration",
+      "description": "Choose the language and appearance used by Control on this browser."
+    },
+    "restoring": {
+      "title": "Restoring your secure session",
+      "description": "Control is confirming your identity and access."
+    },
+    "accessDenied": {
+      "title": "Access is not assigned",
+      "description": "Your account is signed in, but this workspace is outside your current capabilities."
+    },
+    "notFound": {
+      "title": "Workspace not found",
+      "description": "This Control address does not match an available workspace."
+    },
+    "loading": {
+      "team": "Loading the team",
+      "security": "Loading security",
+      "customers": "Loading customers",
+      "orders": "Loading orders",
+      "description": "Control is confirming the latest business state."
+    }
+  },
+  "home": {
+    "title": "Available workspaces",
+    "description": "Open a workspace based on the access assigned to your account.",
+    "openWorkspace": "Open workspace",
+    "openWorkspaceLabel": "Open {{workspace}}",
+    "cards": {
+      "orders": {
+        "description": "Create orders and prepare customer work before production."
+      },
+      "customers": {
+        "description": "Maintain customer contact and business records."
+      },
+      "team": {
+        "description": "Invite employees and manage their assigned access."
+      },
+      "security": {
+        "description": "Review sessions, account access, and security events."
+      },
+      "configuration": {
+        "description": "Choose the language and appearance used on this browser."
+      }
+    }
+  },
+  "applications": {
+    "processor": {
+      "label": "Pressly Processor",
+      "description": "Run laundry production."
+    },
+    "control": {
+      "label": "Pressly Control",
+      "description": "Manage the business."
+    }
+  }
+}

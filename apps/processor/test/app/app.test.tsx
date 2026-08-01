@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import {
   act,
+  fireEvent,
   render,
   renderHook,
   screen,
@@ -18,6 +19,7 @@ import {
 } from "@/app/app.composition"
 import {
   classifyScheduleContext,
+  hasProcessorCapability,
   resolveLocationSelection,
   useProcessorAppModel,
 } from "@/app/app.model"
@@ -40,7 +42,32 @@ const session: ProcessorAuthenticatedSession = {
     identityId: "00000000-0000-4000-8000-000000000099",
     displayName: "Olivia Press",
     email: "olivia@example.com",
-    roles: ["operator"],
+  },
+  access: {
+    locations: [
+      {
+        id: testLocation.id,
+        name: testLocation.name,
+        timezone: testLocation.timezone,
+        capabilities: [
+          "processor:view",
+          "production:read",
+          "production:priority",
+          "production:intake",
+          "production:admission",
+          "production:stage",
+          "production:queue",
+        ],
+      },
+    ],
+    applications: [
+      {
+        id: "processor",
+        label: "Pressly Processor",
+        description: "Run laundry-floor production.",
+        href: "http://localhost:4173",
+      },
+    ],
   },
   expiresAt: "2099-08-01T20:00:00.000Z",
   csrfToken: "c".repeat(43),
@@ -55,6 +82,47 @@ const response = (data: unknown, status = 200) =>
     ),
     { status }
   )
+
+const managerSession = (): ProcessorAuthenticatedSession => ({
+  ...session,
+  access: {
+    locations: session.access.locations.map((location) => ({
+      ...location,
+      capabilities: [
+        ...location.capabilities,
+        "production:schedule",
+        "production:accept",
+        "production:start",
+        "production:override",
+        "production:resources",
+      ],
+    })),
+    applications: [
+      ...session.access.applications,
+      {
+        id: "control",
+        label: "Pressly Control",
+        description: "Manage people, customers, orders, and account security.",
+        href: "http://localhost:4174",
+      },
+    ],
+  },
+})
+
+const sessionForLocations = (
+  locations: readonly (typeof testLocation)[]
+): ProcessorAuthenticatedSession => ({
+  ...session,
+  access: {
+    ...session.access,
+    locations: locations.map((location) => ({
+      id: location.id,
+      name: location.name,
+      timezone: location.timezone,
+      capabilities: session.access.locations[0]!.capabilities,
+    })),
+  },
+})
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -130,7 +198,7 @@ describe("processor application composition", () => {
     document.documentElement.className = ""
   })
 
-  it("uses the root as a compact daily overview", async () => {
+  it("uses the root as a compact operator overview without manager-only work", async () => {
     const fetch = makeFetch()
     window.history.replaceState(null, "", "/")
 
@@ -138,38 +206,52 @@ describe("processor application composition", () => {
 
     expect(await screen.findByRole("heading", { name: "Home" })).toBeVisible()
     expect(
-      await screen.findByRole("region", { name: "Order attention" })
-    ).toBeVisible()
-    expect(await screen.findByText("No orders need attention")).toBeVisible()
+      screen.queryByRole("region", { name: "Order attention" })
+    ).not.toBeInTheDocument()
     expect(await screen.findByText("Remaining today")).toBeVisible()
     expect(
       screen.queryByRole("heading", { name: "Order control" })
     ).not.toBeInTheDocument()
     expect(
-      fetch.mock.calls.some(([request]) => {
-        const url = new URL(String(request), "http://processor.test")
-        return (
-          url.pathname.endsWith(
-            `/production/locations/${testLocation.id}/order-control`
-          ) && url.searchParams.get("limit") === "3"
-        )
-      })
-    ).toBe(true)
+      fetch.mock.calls.some(([request]) =>
+        String(request).includes("/order-control")
+      )
+    ).toBe(false)
     expect(window.location.pathname).toBe("/")
+  })
+
+  it("filters operator navigation and replaces a manager-only direct route", async () => {
+    window.history.replaceState(null, "", "/configuration")
+    renderApp(makeFetch())
+
+    expect(
+      await screen.findByRole("heading", { name: "Home", level: 1 })
+    ).toBeVisible()
+    expect(window.location.pathname).toBe("/")
+    expect(screen.getByRole("button", { name: "Intake" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "Production" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "Forecast" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "History" })).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: "Schedule" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "Orders" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "Configuration" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("heading", { name: "Published production pulse" })
+    ).not.toBeInTheDocument()
   })
 
   it("keeps order control and old-order review on the dedicated Orders route", async () => {
     const user = userEvent.setup()
-    const managerSession: typeof session = {
-      ...session,
-      principal: {
-        ...session.principal,
-        roles: ["admin"],
-      },
-    }
+    const privilegedSession = managerSession()
     window.history.replaceState(null, "", "/orders")
 
-    const { unmount } = renderApp(makeFetch(200, managerSession))
+    const { unmount } = renderApp(makeFetch(200, privilegedSession))
 
     expect(
       await screen.findByRole("heading", { name: "Orders", level: 1 })
@@ -186,23 +268,12 @@ describe("processor application composition", () => {
     ).toBeVisible()
 
     unmount()
-    window.history.replaceState(null, "", "/orders")
-    renderApp(makeFetch())
-    await screen.findByRole("heading", { name: "Orders", level: 1 })
-    await screen.findByRole("heading", { name: "Reported orders", level: 2 })
-    await user.click(screen.getByRole("tab", { name: "Current orders" }))
-    expect(
-      await screen.findByRole("heading", { name: "Order control", level: 2 })
-    ).toBeVisible()
-    expect(
-      screen.queryByRole("button", { name: "Review old orders" })
-    ).toBeNull()
   })
 
   it("opens Orders from the Home attention digest", async () => {
     const user = userEvent.setup()
     window.history.replaceState(null, "", "/")
-    renderApp(makeFetch())
+    renderApp(makeFetch(200, managerSession()))
     await screen.findByRole("region", { name: "Order attention" })
 
     await user.click(screen.getByRole("button", { name: "Open Orders" }))
@@ -229,6 +300,12 @@ describe("processor application composition", () => {
       await screen.findByRole("heading", { name: "Remaining day", level: 2 })
     ).toBeVisible()
     expect(await screen.findByText("Order C-2001")).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: "Open Schedule" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getAllByRole("button", { name: "Open Production" }).length
+    ).toBeGreaterThan(0)
     expect(window.location.pathname).toBe("/forecast")
     expect(
       fetch.mock.calls.some(([request]) =>
@@ -254,7 +331,7 @@ describe("processor application composition", () => {
   })
 
   it("keeps Home order attention available when the forecast request fails", async () => {
-    const baseFetch = makeFetch()
+    const baseFetch = makeFetch(200, managerSession())
     const fetch = vi.fn(
       async (request: RequestInfo | URL, init?: RequestInit) =>
         String(request).includes("/forecast?")
@@ -297,7 +374,7 @@ describe("processor application composition", () => {
   })
 
   it("restores a cookie session, discovers locations, and resumes live workspace", async () => {
-    const fetch = makeFetch()
+    const fetch = makeFetch(200, managerSession())
     renderApp(fetch)
 
     expect(
@@ -330,10 +407,54 @@ describe("processor application composition", () => {
     )
   })
 
+  it("shows only server-provided application destinations", async () => {
+    renderApp(makeFetch(200, managerSession()))
+
+    await screen.findByRole("heading", { name: "Schedule" })
+    fireEvent.pointerDown(
+      screen.getByRole("button", { name: "Switch from Pressly Processor" }),
+      { button: 0, ctrlKey: false }
+    )
+
+    expect(
+      screen.getByRole("menuitem", { name: /Pressly Control/i })
+    ).toHaveAttribute("href", "http://localhost:4174")
+  })
+
+  it("locks a shared-floor session in one action and clears operational state", async () => {
+    const user = userEvent.setup()
+    const fetch = makeFetch()
+    window.history.replaceState(
+      null,
+      "",
+      `/production/${testWorkspace.activeRuns[0]!.id}`
+    )
+    renderApp(fetch)
+
+    await screen.findByRole("heading", { name: "Production" })
+    await user.click(
+      screen.getByRole("button", { name: "Lock / switch employee" })
+    )
+
+    expect(await screen.findByLabelText("Email")).toBeVisible()
+    expect(
+      screen.queryByRole("heading", { name: "Production" })
+    ).not.toBeInTheDocument()
+    expect(
+      fetch.mock.calls.some(
+        ([request, init]) =>
+          String(request).endsWith("/processor/auth/logout") &&
+          init?.method === "POST" &&
+          init.credentials === "same-origin"
+      )
+    ).toBe(true)
+  })
+
   it("uses one mobile navigation surface and closes its drawer after selection", async () => {
     const user = userEvent.setup()
+    window.history.replaceState(null, "", "/")
     renderApp(makeFetch())
-    await screen.findByRole("heading", { name: "Schedule" })
+    await screen.findByRole("heading", { name: "Home" })
 
     expect(
       screen.getAllByRole("navigation", { name: "Processor" })
@@ -345,8 +466,13 @@ describe("processor application composition", () => {
     })
     expect(within(drawer).getByText("Daily work")).toBeVisible()
     expect(within(drawer).getByText("Manage & review")).toBeVisible()
-    expect(within(drawer).getByText("System")).toBeVisible()
-    expect(within(drawer).getByRole("button", { name: "Orders" })).toBeVisible()
+    expect(within(drawer).queryByText("System")).not.toBeInTheDocument()
+    expect(
+      within(drawer).queryByRole("button", { name: "Orders" })
+    ).not.toBeInTheDocument()
+    expect(
+      within(drawer).queryByRole("button", { name: "Schedule" })
+    ).not.toBeInTheDocument()
     expect(
       within(drawer).getByRole("button", { name: "Forecast" })
     ).toBeVisible()
@@ -382,7 +508,10 @@ describe("processor application composition", () => {
       name: "West Plant",
       timezone: "America/Denver",
     }
-    const baseFetch = makeFetch()
+    const baseFetch = makeFetch(
+      200,
+      sessionForLocations([testLocation, otherLocation])
+    )
     const fetch = vi.fn(
       async (request: RequestInfo | URL, init?: RequestInit) => {
         if (String(request).endsWith("/production/locations"))
@@ -412,7 +541,7 @@ describe("processor application composition", () => {
     await user.click(await screen.findByRole("option", { name: "East Plant" }))
 
     expect(
-      await screen.findByRole("heading", { name: "Schedule" })
+      await screen.findByRole("heading", { name: "Home" })
     ).toBeInTheDocument()
     expect(window.localStorage.getItem("pressly.processor.location")).toBe(
       testLocation.id
@@ -466,6 +595,28 @@ describe("processor application composition", () => {
     ).toBe(west.id)
   })
 
+  it("derives browser controls from the selected location capabilities", () => {
+    const privilegedSession = managerSession()
+
+    expect(
+      hasProcessorCapability(session, testLocation.id, "production:override")
+    ).toBe(false)
+    expect(
+      hasProcessorCapability(
+        privilegedSession,
+        testLocation.id,
+        "production:override"
+      )
+    ).toBe(true)
+    expect(
+      hasProcessorCapability(
+        privilegedSession,
+        "not-an-authorized-location",
+        "production:read"
+      )
+    ).toBe(false)
+  })
+
   it("routes a started run to live Schedule changes while dropping completed implicit history", () => {
     expect(
       classifyScheduleContext({
@@ -516,14 +667,11 @@ describe("processor application composition", () => {
     freshWorkspace.currentShift = null
     freshWorkspace.board = null
     let defaultWorkspaceLoads = 0
-    const managerSession = {
-      ...session,
-      principal: { ...session.principal, roles: ["admin" as const] },
-    }
+    const privilegedSession = managerSession()
     const fetch = vi.fn(async (request: RequestInfo | URL) => {
       const url = String(request)
       if (url.endsWith("/processor/auth/session"))
-        return response(managerSession)
+        return response(privilegedSession)
       if (url.endsWith("/production/locations"))
         return response({ items: [testLocation], asOf: testWorkspace.asOf })
       if (url.includes(`/production/locations/${testLocation.id}/workspace`)) {
@@ -581,11 +729,15 @@ describe("processor application composition", () => {
     otherWorkspace.orders = otherOrders
     const staleWorkspace = deferred<typeof testWorkspace>()
     let eastWorkspaceCalls = 0
+    const multipleLocationSession = sessionForLocations([
+      testLocation,
+      otherLocation,
+    ])
     const runtime: ProcessorRuntime = {
       authentication: {
-        restore: async () => session,
-        login: async () => session,
-        completeMfa: async () => session,
+        restore: async () => multipleLocationSession,
+        login: async () => multipleLocationSession,
+        completeMfa: async () => multipleLocationSession,
         logout: async () => undefined,
       },
       orderManagement: makeTestOrderManagementPort(),
@@ -655,7 +807,7 @@ describe("processor application composition", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }))
 
     expect(
-      await screen.findByRole("heading", { name: "Schedule" })
+      await screen.findByRole("heading", { name: "Home" })
     ).toBeInTheDocument()
     expect(JSON.stringify(window.localStorage)).not.toMatch(
       /correct-horse|csrf/
@@ -737,7 +889,7 @@ describe("processor application composition", () => {
 
   it("persists only the explicit light or dark appearance choice", async () => {
     const user = userEvent.setup()
-    renderApp(makeFetch())
+    renderApp(makeFetch(200, managerSession()))
     await screen.findByRole("heading", { name: "Schedule" })
 
     await user.click(
@@ -751,7 +903,7 @@ describe("processor application composition", () => {
 
   it("follows browser back and forward navigation between real workspace paths", async () => {
     const user = userEvent.setup()
-    renderApp(makeFetch())
+    renderApp(makeFetch(200, managerSession()))
     await screen.findByRole("heading", {
       name: englishAppMessages.navigation.schedule,
     })
@@ -860,7 +1012,10 @@ describe("processor application composition", () => {
       locationId: westLocation.id,
     }))
     westWorkspace.orders = westOrders
-    const baseFetch = makeFetch()
+    const baseFetch = makeFetch(
+      200,
+      sessionForLocations([testLocation, westLocation])
+    )
     const fetch = vi.fn(
       async (request: RequestInfo | URL, init?: RequestInit) => {
         const url = String(request)
@@ -931,15 +1086,12 @@ describe("processor application composition", () => {
         scheduleRunId: acceptedWorkspace.currentScheduleProposal!.scheduleRunId,
       },
     ]
-    const managerSession = {
-      ...session,
-      principal: { ...session.principal, roles: ["admin" as const] },
-    }
+    const privilegedSession = managerSession()
     let started = false
     const fetch = vi.fn(async (request: RequestInfo | URL) => {
       const url = String(request)
       if (url.endsWith("/processor/auth/session"))
-        return response(managerSession)
+        return response(privilegedSession)
       if (url.endsWith("/production/locations"))
         return response({ items: [testLocation], asOf: testWorkspace.asOf })
       if (url.includes(`/production/locations/${testLocation.id}/workspace`))
@@ -999,6 +1151,7 @@ describe("processor application composition", () => {
 
   it("defines the web palette, status, focus, and reduced-motion tokens", async () => {
     const css = await readFile(resolve(process.cwd(), "src/index.css"), "utf8")
+    expect(css).toContain("--sidebar-accent")
     expect(css).toContain("--primary: #4285f4;")
     expect(css).toContain("--primary: #8ab4f8;")
     expect(css).toContain("--sidebar-accent: #e8f0fe;")

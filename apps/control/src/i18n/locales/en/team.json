@@ -1,0 +1,232 @@
+{
+  "team": {
+    "common": {
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "refresh": "Refresh",
+      "email": "Email"
+    },
+    "roles": {
+      "owner": "Owner",
+      "manager": "Manager",
+      "operator": "Operator"
+    },
+    "rolesLower": {
+      "owner": "owner",
+      "manager": "manager",
+      "operator": "operator"
+    },
+    "membershipStates": {
+      "active": "active",
+      "suspended": "suspended",
+      "ended": "ended"
+    },
+    "selectedLocation": "the selected location",
+    "entireBusiness": "Entire business",
+    "allLocations": "All locations",
+    "assignedLocation": "Assigned location",
+    "accessLevel": "Access level",
+    "invitationAttention": "Invitation needs attention",
+    "accessAttention": "Access needs attention",
+    "errors": {
+      "conflict": "This record changed while you were working. Refresh and review the latest access before trying again.",
+      "load": "The team could not be loaded.",
+      "memberLoad": "The team member could not be loaded.",
+      "accessChange": "Access could not be changed.",
+      "invitationReplay": "This exact request was already processed. Replace the existing link if the employee needs a new one.",
+      "invitationCreate": "The invitation could not be created.",
+      "invitationChange": "The invitation could not be changed."
+    },
+    "workspace": {
+      "title": "People and access",
+      "description": "Each person signs in with their own identity. Access stays scoped to the work and locations they need.",
+      "attention": "Team needs attention",
+      "readOnlyTitle": "Read-only team access",
+      "readOnlyDescription": "Your current session can review team access. Complete required security verification before changing it.",
+      "loadingTitle": "Loading the team",
+      "loadingDescription": "Control is reading current memberships and invitations."
+    },
+    "table": {
+      "person": "Person",
+      "access": "Access",
+      "expires": "Expires",
+      "actions": "Actions",
+      "actionsFor": "Actions for {{name}}",
+      "security": "Security",
+      "status": "Status",
+      "open": "Open"
+    },
+    "invite": {
+      "action": "Invite teammate",
+      "title": "Invite a teammate",
+      "description": "Create personal access for one employee. Pressly will show the invitation link once for deliberate delivery.",
+      "employeeName": "Employee name",
+      "workLocation": "Work location",
+      "locationScope": "Location scope",
+      "chooseLocation": "Choose a location",
+      "locationRequired": "Configure a location before inviting an operator.",
+      "managerBoundary": "Managers cannot create owners or grant access outside their own locations. Pressly checks that authority again on the server.",
+      "create": "Create invitation link"
+    },
+    "oneTimeInvitation": {
+      "title": "Copy this invitation link now",
+      "description": "This is the only time Pressly displays this link. Send it directly to the intended employee; creating another link invalidates this one.",
+      "credentialTitle": "One-time credential",
+      "credentialDescription": "The raw invitation is not saved in Control or browser storage. Anyone with this link can use it until it expires or is revoked.",
+      "linkLabel": "Invitation link",
+      "copied": "Copied",
+      "copy": "Copy invitation link",
+      "saved": "I saved the link"
+    },
+    "accessPreview": {
+      "title": "Access preview",
+      "owner": "Owners can manage the business, its people, and all locations. Multi-factor authentication is required before this access becomes effective.",
+      "managerBusiness": "This manager can manage daily business work across every location. Multi-factor authentication is required.",
+      "managerLocation": "This manager can manage daily work at {{location}}. Multi-factor authentication is required.",
+      "operator": "This operator can use Processor for floor work at {{location}}."
+    },
+    "invitations": {
+      "title": "Pending invitations",
+      "description": "Invitation links remain single-use and expire automatically.",
+      "replace": "Replace invitation link",
+      "revoke": "Revoke invitation",
+      "replaceTitle": "Replace {{name}}'s invitation link?",
+      "revokeTitle": "Revoke {{name}}'s invitation?",
+      "replaceDescription": "The current link will stop working. Pressly will display the replacement once.",
+      "revokeDescription": "The employee will not be able to accept this invitation. Existing memberships are unchanged."
+    },
+    "members": {
+      "title": "Team members",
+      "description": "Open a person to review current access, security, and membership status.",
+      "emptyTitle": "No team members found",
+      "emptyDescription": "Invite the first employee when you are ready to assign Pressly access.",
+      "noEffectiveAccess": "No effective access",
+      "mfaEnabled": "MFA enabled",
+      "passwordOnly": "Password only",
+      "review": "Review",
+      "reviewFor": "Review {{name}}"
+    },
+    "memberDetail": {
+      "fallbackTitle": "Team member",
+      "loading": "Loading current membership and access.",
+      "joined": "{{email}} · joined {{date}}",
+      "status": "Status",
+      "mfa": "MFA",
+      "enabled": "Enabled",
+      "notSetUp": "Not set up",
+      "activeSessions": "Active sessions"
+    },
+    "access": {
+      "title": "Assigned access",
+      "description": "Effective grants determine which Pressly workspaces and locations this person can use.",
+      "empty": "No access grants are assigned.",
+      "notYetEffective": " · not yet effective",
+      "revoke": "Revoke",
+      "revokeFor": "Revoke {{role}} access for {{name}}",
+      "add": "Add access",
+      "scope": "Scope",
+      "chooseScope": "Choose scope",
+      "revokeTitle": "Revoke {{role}} access?",
+      "revokeDescription": "Pressly will remove this grant and revoke affected sessions immediately. Production history is preserved.",
+      "confirmRevoke": "Confirm revoke",
+      "keep": "Keep access"
+    },
+    "sessions": {
+      "title": "Browser sessions",
+      "description": "Review recent sign-ins for this employee. Ending a session signs that browser out without changing membership history.",
+      "empty": "No sessions are recorded for this membership.",
+      "browser": "Browser",
+      "lastUsedHeading": "Last used",
+      "currentBrowser": "Current browser",
+      "signedIn": "Signed in {{date}}",
+      "lastUsed": "Last used {{date}}",
+      "active": "Active",
+      "ended": "Ended",
+      "signOut": "Sign out",
+      "signOutFor": "Sign out {{session}}",
+      "signOutAll": "Sign out all browsers",
+      "signOutAllFor": "Sign out all browsers for {{name}}",
+      "selfHint": "Use Sign out in the app menu to end your current browser session.",
+      "confirmAllTitle": "Sign this employee out everywhere?",
+      "confirmOneTitle": "Sign this browser out?",
+      "confirmDescription": "Active work is preserved, but affected browsers must sign in again before using Pressly.",
+      "confirmSignOut": "Confirm sign out",
+      "keepSignedIn": "Keep signed in"
+    },
+    "membership": {
+      "selfTitle": "This is your membership",
+      "selfDescription": "Pressly prevents self-access changes. Another authorized owner must change your membership or grants.",
+      "title": "Membership",
+      "description": "Suspending pauses access and revokes active sessions. Ending access is permanent.",
+      "suspend": "Suspend access",
+      "suspendFor": "Suspend access for {{name}}",
+      "reactivate": "Reactivate access",
+      "reactivateFor": "Reactivate access for {{name}}",
+      "end": "End membership",
+      "endFor": "End membership for {{name}}",
+      "suspendTitle": "Suspend this membership?",
+      "reactivateTitle": "Reactivate this membership?",
+      "endTitle": "End this membership permanently?",
+      "reactivateDescription": "Pressly will restore only still-active access grants.",
+      "removeDescription": "Pressly will revoke active sessions immediately. Order and production history remains attributed to this employee.",
+      "managerNote": "Manager note",
+      "notePlaceholder": "Optional context for the audit record"
+    },
+    "invitationAcceptance": {
+      "attention": "Invitation needs attention",
+      "confirmationAttention": "Confirmation needs attention",
+      "password": "Password",
+      "verificationMethod": "Verification method",
+      "authenticatorCode": "Authenticator code",
+      "recoveryCode": "Recovery code",
+      "sixDigitCode": "Six-digit code",
+      "loading": {
+        "title": "Confirming your invitation",
+        "description": "Pressly is checking that this one-time invitation is still valid."
+      },
+      "success": {
+        "title": "Your Pressly account is ready",
+        "joined": "You joined {{business}} as {{role}}.",
+        "nextStep": {
+          "setupMfa": "Sign in and set up multi-factor authentication before managing the business.",
+          "controlReady": "Your identity is confirmed and your secure Control session is ready.",
+          "processorReady": "Your existing Pressly identity is confirmed. Open Processor to begin work.",
+          "passwordReady": "You can now sign in with the password you created."
+        }
+      },
+      "existing": {
+        "title": "Join {{business}}",
+        "description": "This invitation matches an existing Pressly identity for {{email}}. Confirm that account before Pressly adds this business.",
+        "passwordNoticeTitle": "Use your existing Pressly password",
+        "passwordNoticeDescription": "The invitation alone cannot add access to an existing identity. Pressly verifies the matching account first.",
+        "mfaNoticeTitle": "Complete account verification",
+        "mfaNoticeDescription": "Enter a code from the authenticator already connected to this Pressly identity."
+      },
+      "newIdentity": {
+        "title": "Welcome, {{name}}",
+        "description": "Create your personal Pressly password to accept the invitation for {{email}}. Do not share this password with another employee.",
+        "passwordDescription": "Use {{count}} or more characters with uppercase and lowercase letters, a number, and a symbol. A password manager is recommended.",
+        "passwordRequirements": "Use {{count}} or more characters with uppercase and lowercase letters, a number, and a symbol.",
+        "confirmPassword": "Confirm password",
+        "showPasswords": "Show passwords",
+        "hidePasswords": "Hide passwords",
+        "passwordsDiffer": "Passwords do not match."
+      },
+      "actions": {
+        "returnToSignIn": "Return to sign in",
+        "openControl": "Open Pressly Control",
+        "signInToControl": "Sign in to Control",
+        "openProcessor": "Open Pressly Processor",
+        "confirmAccount": "Confirm account",
+        "verifyAndJoin": "Verify and join",
+        "accept": "Accept invitation"
+      },
+      "errors": {
+        "confirm": "This invitation could not be confirmed.",
+        "existingAccount": "The existing account could not be confirmed.",
+        "invalidSecurityCode": "Enter a valid security code.",
+        "accept": "The invitation could not be accepted."
+      }
+    }
+  }
+}

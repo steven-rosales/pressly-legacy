@@ -74,7 +74,7 @@ export function AuthenticationView({
           <div className="mb-3 grid size-10 place-items-center rounded-lg bg-foreground text-background">
             {mode === "login" ? <IconLock /> : <IconShieldCheck />}
           </div>
-          <CardTitle>
+          <CardTitle role="heading" aria-level={1}>
             {mode === "login"
               ? t("authentication.signInTitle")
               : t("authentication.verifyTitle")}

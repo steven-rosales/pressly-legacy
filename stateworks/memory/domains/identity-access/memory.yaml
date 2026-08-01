@@ -1,0 +1,255 @@
+domain_id: identity-access
+name: Identity Access
+version: 2
+status: active
+summary: >
+  Durable domain memory for Pressly business membership, workforce invitations,
+  scoped access grants, credentials, sessions, and application capabilities.
+  Canonical customer profiles and commercial Orders remain separate peer
+  domains.
+actors:
+  - id: business_owner
+    description: A human with business-wide authority who can manage managers,
+      operators, locations, customer and Order administration, and security
+      settings without receiving deployment-global platform authority.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: business_manager
+    description: A human who may manage operators and business work only inside
+      explicitly granted business and location scope.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: production_operator
+    description: A human who performs authorized physical-floor work with an
+      individually attributable Pressly identity.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+external_systems: []
+objects:
+  - id: business_account
+    description:
+      The explicit authority and data-ancestry root for one Pressly SMB
+      and its locations, workforce memberships, customers, and Orders.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: auth_identity
+    description: A security identity that owns credentials, MFA state, global
+      security lock state, and sessions but is not itself a customer profile.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: workforce_membership
+    description:
+      One identity's versioned relationship to one business with active,
+      suspended, or ended lifecycle state.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: workforce_invitation
+    description:
+      A versioned pending offer bound to one normalized email, business,
+      intended role and location scope, and one hashed single-use bearer token.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: access_grant
+    description: One versioned and auditable role assignment whose authority is
+      bounded to a business, location, or resource and whose lifecycle is
+      active, revoked, or expired.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: application_session
+    description:
+      An opaque server-validated session scoped to one Pressly browser
+      application and re-evaluated against current identity, membership, grant,
+      and assurance truth.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+states: {}
+workflows:
+  - id: invite_workforce_member
+    steps:
+      - a currently authorized and freshly MFA-assured owner or manager selects
+        one business, intended role, and allowed locations
+      - the application re-evaluates the actor's current membership and grants
+        inside the transaction
+      - Auth creates one pending invitation with expected version, bounded
+        expiry, hashed random token, command receipt, and audit evidence
+      - the raw invite link is returned once for deliberate delivery and is
+        never stored in browser storage, audit metadata, logs, or Stateworks
+      - acceptance proves the exact identity or creates a new identity with the
+        invitee's own password and MFA when the intended role is privileged
+      - one transaction accepts the invitation, activates membership and grants,
+        writes transition evidence, and invalidates the token
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: change_workforce_access
+    steps:
+      - an authorized actor submits a named suspend, reactivate, end, grant,
+        revoke, or expire command with expected versions, reason, and
+        idempotency key
+      - Auth locks and reloads the actor, target membership, affected grants,
+        and last-owner count
+      - the authoritative membership and grant graphs decide the event and
+        policies enforce business, location, delegation, self-escalation, and
+        owner invariants
+      - one transaction updates versioned current state, appends transitions and
+        audit evidence, stores the command receipt, and revokes affected
+        sessions when authority is reduced
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: authorize_application_action
+    steps:
+      - the application loads the opaque host-specific session and current
+        identity state
+      - Auth loads current business membership, grants, assurance, and
+        selected-location ancestry
+      - server policies evaluate one named action against the exact persisted
+        resource
+      - the browser receives only a safe capability and destination manifest
+      - every mutation re-evaluates the same authority inside its transaction
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+invariants:
+  - id: customer_user_and_auth_identity_are_distinct
+    statement: A canonical customer User and an Auth identity are independent
+      objects; neither email nor phone may silently create, merge, or link one
+      to the other.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: authority_has_business_and_location_ancestry
+    statement:
+      Every workforce membership, grant, capability, customer query, Order
+      query, and Production action resolves through explicit persisted business
+      and location ancestry; request-body authority and deployment- global SMB
+      ownership are forbidden.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: workforce_lifecycles_use_authoritative_graphs
+    statement:
+      Invitation is pending to accepted, revoked, or expired; membership is
+      active to suspended, suspended to active, and active or suspended to
+      ended; grant is active to revoked or expired. Terminal states expose no
+      further lifecycle event, and callers submit events rather than target
+      states.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: access_reduction_revokes_sessions_atomically
+    statement:
+      Suspension, ending, grant reduction, password or MFA recovery, and
+      global identity lock revoke affected application sessions in the same
+      transaction as the security-state change.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: last_active_owner_is_preserved
+    statement: Concurrent commands cannot suspend, end, or remove the ownership
+      grant of the final active owner of a business.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: managers_cannot_escalate_authority
+    statement: A manager may manage only operators inside the manager's active
+      business and location grants and may never create or modify owners or
+      managers, change their own authority, grant deployment-global access, or
+      exceed their scope.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: privileged_capabilities_require_mfa
+    statement:
+      Owner and manager capabilities are ineffective until MFA is enrolled
+      and require current MFA assurance for workforce, credential, session, and
+      security mutations.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: application_sessions_are_host_isolated
+    statement:
+      Processor and Control use distinct host-only Secure HttpOnly SameSite
+      Strict opaque-session cookies and distinct CSRF derivation boundaries; no
+      credential is shared through a parent-domain cookie, browser storage, URL,
+      or app switch.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: security_commands_are_versioned_idempotent_and_audited
+    statement:
+      Invitation, membership, grant, credential, MFA, and session mutations
+      require expected versions and idempotency keys and atomically record
+      bounded audit evidence without secrets or customer PII.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+policies:
+  - id: invitation_bearer_secret_policy
+    statement: Invitation and reset secrets use at least 32 random bytes, keyed
+      hashes at rest, bounded expiry, per-token and per-client throttling,
+      transactional single use, rotation on reissue, fragment bootstrap,
+      immediate browser-history removal, generic errors, and no analytics or
+      referrer leakage.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: shared_device_session_policy
+    statement:
+      Processor provides a prominent Lock or Switch Employee action that
+      revokes server session state and clears browser-held operational data;
+      session lifetimes respect a production shift, while Control uses a shorter
+      idle lifetime and fresh MFA for privileged actions.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: capability_manifest_policy
+    statement: Browser navigation, app destinations, and controls consume
+      server-evaluated capabilities for the selected business and location and
+      never reconstruct authority from role strings; API and use-case policy
+      checks remain final.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+decisions:
+  - id: identity_security_aggregate_lives_in_auth
+    statement:
+      Credentials, MFA, sessions, workforce membership, invitations, and
+      scoped grants live inside the Auth security aggregate so invitation
+      acceptance and offboarding remain atomic, while Users and Orders remain
+      separate peer modules.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: control_is_a_separate_application
+    statement:
+      Pressly Control is a separate management-plane application with its
+      own browser session boundary and the same shared shadcn and Tailwind
+      design language as Processor; Processor remains the physical-execution
+      workspace.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+  - id: opaque_server_sessions_remain_authoritative
+    statement:
+      Pressly retains opaque server-validated sessions while Auth, Control,
+      Processor, and the API remain one deployable modular monolith; distributed
+      JWT or OIDC adoption remains gated by a real independent service boundary.
+    status: active
+    sources:
+      - memdelta-2026-07-29-control-workforce-identity
+assumptions: []
+open_questions: []
+sources:
+  - id: memdelta-2026-07-29-control-workforce-identity
+    path: stateworks/memory/domains/identity-access/sessions/2026-07-29-control-workforce-identity.md
+    type: conversation_checkpoint

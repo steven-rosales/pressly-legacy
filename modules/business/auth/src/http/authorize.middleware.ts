@@ -21,7 +21,7 @@ export type AuthorizeMiddlewareInput<R extends AuthResource = AuthResource> =
   Readonly<{
     action: Action;
     policies: readonly PolicyRule<R>[];
-    readResource: (req: Request, res: Response) => R;
+    readResource: (req: Request, res: Response) => R | Promise<R>;
   }>;
 
 export type AuthorizeMiddlewareFactory = <R extends AuthResource>(
@@ -58,7 +58,7 @@ export const makeAuthorizeMiddleware =
   <R extends AuthResource>(input: AuthorizeMiddlewareInput<R>) =>
     catchAsync(async (req, res, next) => {
       const auth = readAuthContext(res);
-      const resource = input.readResource(req, res);
+      const resource = await input.readResource(req, res);
       const environment = environmentFromRequest(req, auth.principal);
 
       const decision = authorize({

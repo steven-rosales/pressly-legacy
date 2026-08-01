@@ -19,7 +19,7 @@ const project = 'pressly-v2-smoke-test';
 const port = '24443';
 const runtimeSecret = randomBytes(32).toString('hex');
 const imageEnvironment = Object.fromEntries(
-  ['API', 'WEB', 'WORKER', 'PROCESSOR'].map((service) => [
+  ['API', 'WEB', 'WORKER', 'PROCESSOR', 'CONTROL'].map((service) => [
     `PRESSLY_${service}_IMAGE`,
     `${project}-${service.toLowerCase()}:release-a`,
   ]),
@@ -55,6 +55,7 @@ const renderSmokeCompose = () =>
           PRESSLY_SMOKE_AUTH_SECRET: runtimeSecret,
           PRESSLY_SMOKE_MFA_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
           PRESSLY_SMOKE_CSRF_SECRET: runtimeSecret,
+          PRESSLY_SMOKE_CONTROL_CSRF_SECRET: runtimeSecret,
           PRESSLY_SMOKE_CENTS_HMAC_KEY: runtimeSecret,
           PRESSLY_SMOKE_CENTS_QUARANTINE_KEY:
             randomBytes(32).toString('base64'),
@@ -173,6 +174,7 @@ describe('offline production topology smoke harness', () => {
     expect(config.services.api.environment).toMatchObject({
       NODE_ENV: 'production',
       PROCESSOR_ORIGIN: `https://processor.pressly.test:${port}`,
+      CONTROL_ORIGIN: `https://control.pressly.test:${port}`,
       FEATURE_METRICS_ENABLED: 'false',
       SENTRY_ENABLED: 'false',
       CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY: expect.any(String),
@@ -187,6 +189,9 @@ describe('offline production topology smoke harness', () => {
       VITE_SENTRY_RELEASE: 'pressly-offline-smoke',
       VITE_SENTRY_TRACES_SAMPLE_RATE: '0',
     });
+    expect(config.services.control.build.args).toMatchObject({
+      VITE_API_URL: '/api',
+    });
     expect(config.services.api.environment.SENTRY_RELEASE).toBe('a'.repeat(40));
     expect(config.services.worker.environment.SENTRY_RELEASE).toBe(
       'a'.repeat(40),
@@ -194,7 +199,7 @@ describe('offline production topology smoke harness', () => {
     expect(config.services.worker.ports).toBeUndefined();
     expect(config.services.worker.expose).toBeUndefined();
 
-    for (const service of ['api', 'web', 'worker', 'processor']) {
+    for (const service of ['api', 'web', 'worker', 'processor', 'control']) {
       expect(config.services[service].build).toMatchObject({
         context: root,
         dockerfile: `apps/${service}/Dockerfile`,
@@ -288,8 +293,11 @@ describe('offline production topology smoke harness', () => {
       resolve(fixtureDirectory, 'Caddyfile.smoke'),
       'utf8',
     );
-    expect(caddyfile.match(/tls internal/g)).toHaveLength(3);
+    expect(caddyfile.match(/tls internal/g)).toHaveLength(4);
     expect(caddyfile).toContain('@processor_api path /api /api/*');
+    expect(caddyfile).toContain('@control_api path /api /api/*');
+    expect(caddyfile).toContain('reverse_proxy control:80');
+    expect(caddyfile).toContain("frame-ancestors 'none'");
     expect(caddyfile).toContain('uri strip_prefix /api');
 
     const envFixtures = readdirSync(resolve(fixtureDirectory, 'env')).map(

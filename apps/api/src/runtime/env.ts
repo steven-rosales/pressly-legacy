@@ -43,6 +43,9 @@ const quarantineRetentionDays = z.coerce.number().int().min(1).max(90);
 const localProcessorCsrfSecret = hmacKey.parse(
   'local-dev-processor-csrf-key-32-bytes-minimum',
 );
+const localControlCsrfSecret = hmacKey.parse(
+  'local-dev-control-csrf-key-32-bytes-minimum',
+);
 
 const centsWebhookAuthMode = z.enum(['hmac', 'unsigned']);
 
@@ -63,6 +66,10 @@ const apiEnvSchema = z
     API_GLOBAL_RATE_WINDOW_SECONDS: envRateLimit.default(60),
     API_LOGIN_RATE_LIMIT: envRateLimit.default(20),
     API_LOGIN_RATE_WINDOW_SECONDS: envRateLimit.default(900),
+    API_CONTROL_MUTATION_RATE_LIMIT: envRateLimit.default(60),
+    API_CONTROL_MUTATION_RATE_WINDOW_SECONDS: envRateLimit.default(60),
+    API_INVITATION_ACCEPT_RATE_LIMIT: envRateLimit.default(10),
+    API_INVITATION_ACCEPT_RATE_WINDOW_SECONDS: envRateLimit.default(900),
 
     AUTH_SECRET: secret,
     AUTH_SESSION_TTL_MINUTES: envInteger.default(43_200),
@@ -76,6 +83,8 @@ const apiEnvSchema = z
 
     PROCESSOR_ORIGIN: z.url().optional(),
     PROCESSOR_CSRF_SECRET: hmacKey.optional(),
+    CONTROL_ORIGIN: z.url().optional(),
+    CONTROL_CSRF_SECRET: hmacKey.optional(),
 
     CENTS_WEBHOOK_AUTH_MODE: centsWebhookAuthMode.default('hmac'),
     CENTS_WEBHOOK_HMAC_CURRENT_KEY: hmacKey.optional(),
@@ -150,6 +159,31 @@ const apiEnvSchema = z
         path: ['PROCESSOR_CSRF_SECRET'],
         message: 'PROCESSOR_CSRF_SECRET is required in production.',
       });
+
+    if (env.NODE_ENV === 'production' && env.CONTROL_ORIGIN === undefined)
+      context.addIssue({
+        code: 'custom',
+        path: ['CONTROL_ORIGIN'],
+        message: 'CONTROL_ORIGIN is required in production.',
+      });
+
+    if (
+      env.NODE_ENV === 'production' &&
+      env.CONTROL_ORIGIN !== undefined &&
+      new URL(env.CONTROL_ORIGIN).protocol !== 'https:'
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['CONTROL_ORIGIN'],
+        message: 'CONTROL_ORIGIN must use HTTPS in production.',
+      });
+
+    if (env.NODE_ENV === 'production' && env.CONTROL_CSRF_SECRET === undefined)
+      context.addIssue({
+        code: 'custom',
+        path: ['CONTROL_CSRF_SECRET'],
+        message: 'CONTROL_CSRF_SECRET is required in production.',
+      });
   });
 
 export const rawApiEnv = parseEnv(apiEnvSchema, process.env);
@@ -173,6 +207,14 @@ const configuredApiEnv = {
       limit: rawApiEnv.API_LOGIN_RATE_LIMIT,
       windowMs: rawApiEnv.API_LOGIN_RATE_WINDOW_SECONDS * 1_000,
     },
+    controlMutation: {
+      limit: rawApiEnv.API_CONTROL_MUTATION_RATE_LIMIT,
+      windowMs: rawApiEnv.API_CONTROL_MUTATION_RATE_WINDOW_SECONDS * 1_000,
+    },
+    invitationAccept: {
+      limit: rawApiEnv.API_INVITATION_ACCEPT_RATE_LIMIT,
+      windowMs: rawApiEnv.API_INVITATION_ACCEPT_RATE_WINDOW_SECONDS * 1_000,
+    },
   },
   auth: {
     secret: rawApiEnv.AUTH_SECRET,
@@ -189,6 +231,10 @@ const configuredApiEnv = {
     origin: new URL(rawApiEnv.PROCESSOR_ORIGIN ?? 'http://localhost:4173')
       .origin,
     csrfSecret: rawApiEnv.PROCESSOR_CSRF_SECRET ?? localProcessorCsrfSecret,
+  },
+  control: {
+    origin: new URL(rawApiEnv.CONTROL_ORIGIN ?? 'http://localhost:4174').origin,
+    csrfSecret: rawApiEnv.CONTROL_CSRF_SECRET ?? localControlCsrfSecret,
   },
   centsWebhook: {
     authMode: rawApiEnv.CENTS_WEBHOOK_AUTH_MODE,

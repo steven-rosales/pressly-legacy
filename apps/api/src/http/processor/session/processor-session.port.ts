@@ -1,4 +1,8 @@
 import type { AuthModule } from '@pressly/auth-module';
+import type {
+  PresslyApplication,
+  ProcessorCapability,
+} from '@pressly/contracts';
 import type { Router, RequestHandler } from 'express';
 
 export type ProcessorAuthApplication = AuthModule['application'];
@@ -17,6 +21,20 @@ export type ResultLike<Value, Error> =
 export const isResultError = <Value, Error>(
   value: ResultLike<Value, Error>,
 ): value is Readonly<{ tag: 'err'; error: Error }> => value.tag === 'err';
+
+export type ProcessorAccess = Readonly<{
+  locations: readonly Readonly<{
+    id: string;
+    name: string;
+    timezone: string;
+    capabilities: readonly ProcessorCapability[];
+  }>[];
+  applications: readonly PresslyApplication[];
+}>;
+
+export type ResolveProcessorAccess = (
+  session: LoadedProcessorSession,
+) => Promise<ProcessorAccess | null>;
 
 export type ProcessorSessionOptions = Readonly<{
   origin: string;

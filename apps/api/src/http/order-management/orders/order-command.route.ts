@@ -9,6 +9,7 @@ import { makeAppError } from '@pressly/errors';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import type { OrderCustomer, OrdersApplication } from '@pressly/orders';
+import type { LocationAncestryPort } from '@pressly/access-control';
 import { Router, type RequestHandler } from 'express';
 import {
   orderManagementCommandContext,
@@ -37,6 +38,7 @@ export const makeOrderCommandRoutes = (input: {
   authenticate: RequestHandler;
   authorize: RequestHandler;
   readPrincipal: ReadOrderManagementPrincipal;
+  resolveBusinessId: LocationAncestryPort['resolveBusinessId'];
 }): Router => {
   const routes = Router();
   const locationSecurity = [
@@ -60,6 +62,9 @@ export const makeOrderCommandRoutes = (input: {
         });
       const outcome = await input.orders.createOrder({
         ...request.body,
+        businessId: await input.resolveBusinessId(
+          request.params['locationId'] as string,
+        ),
         context: orderManagementCommandContext(response, input.readPrincipal),
         customer: directCustomer(request.body.customer),
         dueAt: new Date(request.body.dueAt),
@@ -79,6 +84,9 @@ export const makeOrderCommandRoutes = (input: {
     catchAsync(async (request, response) => {
       const body = request.body;
       const outcome = await input.orders.correctOrder({
+        businessId: await input.resolveBusinessId(
+          request.params['locationId'] as string,
+        ),
         idempotencyKey: body.idempotencyKey,
         context: orderManagementCommandContext(response, input.readPrincipal),
         reasonCode: body.reasonCode,

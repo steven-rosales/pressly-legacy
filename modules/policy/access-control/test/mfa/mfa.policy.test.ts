@@ -24,11 +24,16 @@ const decide = (input: {
   action: 'auth:mfa:enroll' | 'auth:mfa:manage';
   assuranceLevel: 'password' | 'mfa';
   age?: number;
+  role?: 'owner' | 'manager' | 'operator';
+  identityActive?: boolean;
 }) => {
   const principalAttributes: PrincipalAttributes = {
-    identityActive: true,
+    identityActive: input.identityActive ?? true,
     assuranceLevel: input.assuranceLevel,
-    assignments: [{ role: 'owner', scope: globalScope() }],
+    assignments:
+      input.role === undefined
+        ? []
+        : [{ role: input.role, scope: globalScope() }],
   };
   return authorize({
     principal,
@@ -44,21 +49,48 @@ const decide = (input: {
 };
 
 describe('MFA policy', () => {
-  it('allows a fresh password session to enroll itself', () => {
+  it('allows any active human to enroll itself from a fresh password session', () => {
     expect(
       decide({ action: 'auth:mfa:enroll', assuranceLevel: 'password' }).tag,
     ).toBe('allowed');
+    expect(
+      decide({
+        action: 'auth:mfa:enroll',
+        assuranceLevel: 'password',
+        role: 'operator',
+      }).tag,
+    ).toBe('allowed');
+    expect(
+      decide({
+        action: 'auth:mfa:enroll',
+        assuranceLevel: 'password',
+        identityActive: false,
+      }),
+    ).toMatchObject({ tag: 'denied', reason: 'inactive_identity' });
   });
 
   it('requires fresh MFA assurance for removal and recovery regeneration', () => {
     expect(
-      decide({ action: 'auth:mfa:manage', assuranceLevel: 'mfa' }).tag,
+      decide({
+        action: 'auth:mfa:manage',
+        assuranceLevel: 'mfa',
+        role: 'operator',
+      }).tag,
     ).toBe('allowed');
     expect(
-      decide({ action: 'auth:mfa:manage', assuranceLevel: 'password' }),
+      decide({
+        action: 'auth:mfa:manage',
+        assuranceLevel: 'password',
+        role: 'owner',
+      }),
     ).toMatchObject({ tag: 'denied', reason: 'insufficient_assurance' });
     expect(
-      decide({ action: 'auth:mfa:manage', assuranceLevel: 'mfa', age: 16 }),
+      decide({
+        action: 'auth:mfa:manage',
+        assuranceLevel: 'mfa',
+        role: 'owner',
+        age: 16,
+      }),
     ).toMatchObject({ tag: 'denied', reason: 'stale_session' });
   });
 });

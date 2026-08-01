@@ -1,0 +1,19 @@
+{
+  "configuration": {
+    "language": {
+      "title": "Idioma",
+      "description": "Elige el idioma que usa Control en este navegador.",
+      "preferenceSaved": "Tu elección se guarda en este navegador.",
+      "english": "English",
+      "spanish": "Español"
+    },
+    "appearance": {
+      "title": "Apariencia",
+      "description": "Elige cómo se ve Control en este navegador.",
+      "colorMode": "Modo de color",
+      "preferenceSaved": "Tu elección se guarda en este navegador.",
+      "light": "Claro",
+      "dark": "Oscuro"
+    }
+  }
+}

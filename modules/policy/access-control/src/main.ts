@@ -19,6 +19,7 @@ import {
   makeOrderManagementAccessControl,
   type OrderManagementAccessControl,
 } from './order-management/order-management.guard.ts';
+import type { LocationAncestryPort } from './location-ancestry.port.ts';
 
 export type AccessControlModule = Readonly<{
   pricing: PricingAccessControl;
@@ -30,6 +31,8 @@ export type AccessControlModule = Readonly<{
 
 export type AccessControlModuleDeps = Readonly<{
   auth: AccessControlAuthPort;
+  locationAncestry: LocationAncestryPort;
+  clock?: Readonly<{ now: () => Date }>;
   policies: Readonly<{
     pricing: Readonly<{
       freshSessionMaxAgeMinutes: number;
@@ -59,6 +62,13 @@ export const makeAccessControlModule = (
     auth: input.auth,
     freshSessionMaxAgeMinutes: input.policies.mfa.freshSessionMaxAgeMinutes,
   }),
-  orderManagement: makeOrderManagementAccessControl({ auth: input.auth }),
-  production: makeProductionAccessControl({ auth: input.auth }),
+  orderManagement: makeOrderManagementAccessControl({
+    auth: input.auth,
+    locationAncestry: input.locationAncestry,
+  }),
+  production: makeProductionAccessControl({
+    auth: input.auth,
+    locationAncestry: input.locationAncestry,
+    ...(input.clock === undefined ? {} : { clock: input.clock }),
+  }),
 });

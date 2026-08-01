@@ -7,9 +7,16 @@ import type { CorrectOrderCommand } from '../orders.port.ts';
 
 export type CorrectOrderOperations = OrderCommandOperations &
   Readonly<{
-    lockOrder: (orderId: string) => Promise<void>;
-    lockFulfillment: (fulfillmentId: string) => Promise<void>;
-    loadOrder: (orderId: string) => Promise<StoredOrderAggregate | null>;
+    lockOrder: (businessId: string, orderId: string) => Promise<void>;
+    lockFulfillment: (
+      businessId: string,
+      fulfillmentId: string,
+    ) => Promise<void>;
+    loadOrder: (
+      businessId: string,
+      orderId: string,
+    ) => Promise<StoredOrderAggregate | null>;
+    customerExists: (businessId: string, userId: string) => Promise<boolean>;
     applyOrderCorrection: (input: {
       current: StoredOrderAggregate;
       changes: CorrectOrderCommand['changes'];

@@ -63,8 +63,7 @@ SELECT
 \endif
 
 SELECT
-  to_regclass('public.order_source_observation_decisions') IS NOT NULL
-  AND to_regclass('public.order_source_proposal_transitions') IS NOT NULL
+  to_regclass('public.order_source_proposal_transitions') IS NOT NULL
   AND to_regclass('public.order_source_terminal_tombstones') IS NOT NULL
     AS production_schema_confirmed
 \gset
@@ -204,7 +203,6 @@ TRUNCATE TABLE
   order_source_terminal_tombstones,
   order_source_proposal_resolutions,
   order_source_proposals,
-  order_source_observation_decisions,
   stage_machine_assignments,
   production_order_stage_attempts,
   production_batch_orders,
@@ -220,7 +218,6 @@ TRUNCATE TABLE
   production_shifts,
   order_outbox_events,
   order_command_receipts,
-  order_field_authorities,
   order_source_snapshots,
   order_source_customer_refs,
   order_source_links,
@@ -238,7 +235,6 @@ BEGIN
     + (SELECT count(*) FROM order_source_terminal_tombstones)
     + (SELECT count(*) FROM order_source_proposal_resolutions)
     + (SELECT count(*) FROM order_source_proposals)
-    + (SELECT count(*) FROM order_source_observation_decisions)
     + (SELECT count(*) FROM stage_machine_assignments)
     + (SELECT count(*) FROM production_order_stage_attempts)
     + (SELECT count(*) FROM production_batch_orders)
@@ -254,7 +250,6 @@ BEGIN
     + (SELECT count(*) FROM production_shifts)
     + (SELECT count(*) FROM order_outbox_events)
     + (SELECT count(*) FROM order_command_receipts)
-    + (SELECT count(*) FROM order_field_authorities)
     + (SELECT count(*) FROM order_source_snapshots)
     + (SELECT count(*) FROM order_source_customer_refs)
     + (SELECT count(*) FROM order_source_links)
@@ -322,14 +317,6 @@ SELECT
     FROM source_location_bindings
     WHERE location_id = 'pressly-one'
   ) AS source_bindings_preserved,
-  (
-    SELECT count(*)
-    FROM order_source_capability_profiles
-  ) AS source_capability_profiles_preserved,
-  (
-    SELECT count(*)
-    FROM order_source_control_revisions
-  ) AS source_control_revisions_preserved,
   (
     SELECT count(*)
     FROM webhook_events

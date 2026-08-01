@@ -23,7 +23,7 @@ const routingIdentity = (
   productionRunId: request.params['productionRunId'] as string,
   productionOrderId: request.params['productionOrderId'] as string,
   actorId: input.readActorId(response),
-  actorRole: 'operator' as const,
+  authorizedAction: 'production:stage' as const,
 });
 
 export const makePreviewProductionOrderRouteController = (

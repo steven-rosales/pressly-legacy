@@ -2,6 +2,7 @@ import type { Result } from '@pressly/kernel';
 import type { AppError } from '@pressly/errors';
 
 export type CreateBootstrapOwnerInput = Readonly<{
+  businessId: string;
   email: string;
   emailNormalized: string;
   passwordHash: string;

@@ -9,6 +9,7 @@ export const makeCreateUser =
   (deps: { repo: CreateUserRepository; clock: UserClockPort }): CreateUser =>
   async (command) => {
     if (
+      command.businessId.trim() === '' ||
       command.idempotencyKey.trim() === '' ||
       !isCommandContextValid(command.context)
     )
@@ -36,6 +37,7 @@ export const makeCreateUser =
             : { kind: 'idempotency_conflict' as const };
 
         const created = await operations.createUser({
+          businessId: command.businessId,
           profile: command.profile,
           authorityFields: userProfileFields,
           now,
@@ -46,6 +48,7 @@ export const makeCreateUser =
           replayed: false,
         };
         await operations.saveCommandReceipt({
+          businessId: command.businessId,
           idempotencyKey: command.idempotencyKey,
           commandHash,
           context: command.context,
@@ -53,6 +56,7 @@ export const makeCreateUser =
           now,
         });
         await operations.signalDuplicateContacts({
+          businessId: command.businessId,
           userId: created.id,
           profile: command.profile,
           now,

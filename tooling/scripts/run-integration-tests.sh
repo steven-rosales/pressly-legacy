@@ -17,7 +17,25 @@ case "$target" in
   all)
     pnpm -F @pressly/db test:integration
     pnpm -F @pressly/auth-module test:integration
+    pnpm -F @pressly/users test:integration
+    pnpm -F @pressly/orders test:integration
     pnpm -F @pressly/pricing test:integration
+    pnpm -F @pressly/webhook-ingestion test:integration
+    pnpm -F @pressly/production test:integration
+    pnpm -F @pressly/api test:integration
+    ;;
+  lpms)
+    pnpm -F @pressly/db test:integration
+    pnpm -F @pressly/users test:integration
+    pnpm -F @pressly/users test
+    pnpm -F @pressly/orders test:integration
+    pnpm -F @pressly/orders test
+    pnpm -F @pressly/webhook-ingestion test:integration
+    pnpm -F @pressly/webhook-ingestion test
+    pnpm -F @pressly/worker test
+    pnpm -F @pressly/production test:integration
+    pnpm -F @pressly/production test
+    pnpm exec vitest run tooling/test/cents-webhook-assets.test.mjs
     ;;
   auth)
     pnpm -F @pressly/auth-module test:integration

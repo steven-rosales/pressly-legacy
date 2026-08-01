@@ -6,14 +6,17 @@ import type { ListProductionLocations } from './list-production-locations.port.t
 
 export const makeListProductionLocationsController = (input: {
   listLocations: ListProductionLocations;
-  readAllowedLocationIds: (response: Response) => readonly string[] | null;
+  readAllowedLocationIds: (
+    response: Response,
+  ) => Promise<readonly string[] | null>;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
+    const allowedLocationIds = await input.readAllowedLocationIds(response);
     sendProductionResult(
       response,
       await input.listLocations({
         ...(request.query as unknown as ListProductionLocationsQuery),
-        allowedLocationIds: input.readAllowedLocationIds(response),
+        allowedLocationIds,
       }),
     );
   });

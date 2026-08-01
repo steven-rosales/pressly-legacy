@@ -218,6 +218,22 @@ export const createOrderRequestSchema = z
   })
   .strict();
 
+const controlCanonicalCustomerReferenceSchema = z
+  .object({
+    resolution: z.literal('resolved'),
+    userId: z.uuid(),
+  })
+  .strict();
+
+/**
+ * Control is first-party order entry. A canonical customer must therefore be
+ * selected explicitly instead of creating an unidentified Order that would
+ * need fuzzy reconciliation later.
+ */
+export const controlCreateOrderRequestSchema = createOrderRequestSchema
+  .safeExtend({ customer: controlCanonicalCustomerReferenceSchema })
+  .strict();
+
 export const correctOrderRequestSchema = z
   .object({
     idempotencyKey: z.string().min(8).max(200),
@@ -270,6 +286,16 @@ export const correctOrderRequestSchema = z
       .refine((value) => Object.keys(value).length > 0, {
         message: 'At least one descriptive correction is required.',
       }),
+  })
+  .strict();
+
+export const controlCorrectOrderRequestSchema = correctOrderRequestSchema
+  .safeExtend({
+    changes: correctOrderRequestSchema.shape.changes
+      .safeExtend({
+        customer: controlCanonicalCustomerReferenceSchema.optional(),
+      })
+      .strict(),
   })
   .strict();
 
@@ -329,7 +355,77 @@ export const orderMutationResultSchema = z
   })
   .strict();
 
+export const controlOrderListQuerySchema = z
+  .object({
+    query: z.string().trim().max(120).optional(),
+    state: z.enum(['open', 'completed', 'canceled']).optional(),
+    locationId: z.string().trim().min(1).max(200).optional(),
+    cursor: z.string().trim().min(1).max(1_000).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  })
+  .strict();
+
+const controlOrderCustomerSchema = z
+  .object({
+    resolution: z.enum([
+      'resolved',
+      'not_provided',
+      'pending',
+      'conflict',
+      'legacy_unknown',
+    ]),
+    userId: z.uuid().nullable(),
+    displayName: z.string().trim().min(1).nullable(),
+    phone: z.string().trim().min(1).nullable(),
+    email: z.email().nullable(),
+  })
+  .strict();
+
+const controlOrderFulfillmentSchema = z
+  .object({
+    id: z.uuid(),
+    version: z.number().int().positive(),
+    typeCode: z.string().trim().min(1),
+    locationId: z.string().trim().min(1),
+    releaseState: z.enum(['unreleased', 'released', 'withdrawn']),
+    estimatedWeightLbs: z.number().positive().nullable(),
+    estimatedWeightSource: z.string().trim().min(1).nullable(),
+    bagCount: z.number().int().nonnegative().nullable(),
+  })
+  .strict();
+
+export const controlOrderSchema = z
+  .object({
+    id: z.uuid(),
+    version: z.number().int().positive(),
+    displayNumber: z.string().trim().min(1).nullable(),
+    state: z.enum(['open', 'completed', 'canceled']),
+    dueAt: utcIsoStringSchema,
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    totalAmountCents: z.number().int().nonnegative(),
+    balanceDueCents: z.number().int().nonnegative().nullable(),
+    customer: controlOrderCustomerSchema,
+    fulfillment: controlOrderFulfillmentSchema,
+    createdAt: utcIsoStringSchema,
+    updatedAt: utcIsoStringSchema,
+  })
+  .strict();
+
+export const controlOrderDetailSchema = controlOrderSchema
+  .extend({ items: z.array(orderItemInputSchema) })
+  .strict();
+
+export const controlOrderListSchema = z
+  .object({
+    items: z.array(controlOrderSchema),
+    nextCursor: z.string().trim().min(1).nullable(),
+  })
+  .strict();
+
 export type CreateOrderRequest = z.infer<typeof createOrderRequestSchema>;
+export type ControlCreateOrderRequest = z.infer<
+  typeof controlCreateOrderRequestSchema
+>;
 export type IncomingOrderProposalState = z.infer<
   typeof incomingOrderProposalStateSchema
 >;
@@ -362,6 +458,9 @@ export type RestoreIncomingOrderProposalResult = z.infer<
   typeof restoreIncomingOrderProposalResultSchema
 >;
 export type CorrectOrderRequest = z.infer<typeof correctOrderRequestSchema>;
+export type ControlCorrectOrderRequest = z.infer<
+  typeof controlCorrectOrderRequestSchema
+>;
 export type CompleteOrderRequest = z.infer<typeof completeOrderRequestSchema>;
 export type CancelOrderRequest = z.infer<typeof cancelOrderRequestSchema>;
 export type ReleaseFulfillmentRequest = z.infer<
@@ -371,3 +470,7 @@ export type WithdrawFulfillmentRequest = z.infer<
   typeof withdrawFulfillmentRequestSchema
 >;
 export type OrderMutationResult = z.infer<typeof orderMutationResultSchema>;
+export type ControlOrder = z.infer<typeof controlOrderSchema>;
+export type ControlOrderDetail = z.infer<typeof controlOrderDetailSchema>;
+export type ControlOrderList = z.infer<typeof controlOrderListSchema>;
+export type ControlOrderListQuery = z.infer<typeof controlOrderListQuerySchema>;

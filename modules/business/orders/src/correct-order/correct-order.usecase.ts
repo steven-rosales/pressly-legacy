@@ -16,6 +16,7 @@ export const makeCorrectOrder =
   }): CorrectOrder =>
   async (command) => {
     if (
+      command.businessId.trim() === '' ||
       command.idempotencyKey.trim() === '' ||
       !isCommandContextValid(command.context) ||
       command.locationId.trim() === '' ||
@@ -51,15 +52,24 @@ export const makeCorrectOrder =
               }
             : { kind: 'idempotency_conflict' as const };
 
-        await operations.lockOrder(command.orderId);
-        const candidate = await operations.loadOrder(command.orderId);
+        await operations.lockOrder(command.businessId, command.orderId);
+        const candidate = await operations.loadOrder(
+          command.businessId,
+          command.orderId,
+        );
         if (
           candidate === null ||
           candidate.fulfillment.locationId !== command.locationId
         )
           return { kind: 'not_found' as const };
-        await operations.lockFulfillment(candidate.fulfillment.id);
-        const current = await operations.loadOrder(command.orderId);
+        await operations.lockFulfillment(
+          command.businessId,
+          candidate.fulfillment.id,
+        );
+        const current = await operations.loadOrder(
+          command.businessId,
+          command.orderId,
+        );
         if (
           current === null ||
           current.fulfillment.id !== candidate.fulfillment.id ||
@@ -71,6 +81,14 @@ export const makeCorrectOrder =
           current.fulfillment.version !== command.expectedFulfillmentVersion
         )
           return { kind: 'version_conflict' as const };
+        if (
+          command.changes.customer?.resolution === 'resolved' &&
+          !(await operations.customerExists(
+            command.businessId,
+            command.changes.customer.userId,
+          ))
+        )
+          return { kind: 'customer_not_found' as const };
 
         const decision = decideOrderCorrection({
           current,
@@ -124,6 +142,14 @@ export const makeCorrectOrder =
           orderError(
             'ORDER_VERSION_CONFLICT',
             'The Order or fulfillment changed after this correction was prepared. Refresh and try again.',
+          ),
+        );
+      if (outcome.kind === 'customer_not_found')
+        return result.err(
+          orderError(
+            'ORDER_CUSTOMER_NOT_FOUND',
+            'The selected customer was not found.',
+            404,
           ),
         );
       if (outcome.kind === 'correction_denied')

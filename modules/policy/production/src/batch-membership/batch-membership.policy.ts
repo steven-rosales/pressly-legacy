@@ -6,14 +6,8 @@ export type BatchMembershipTransitionInput = Readonly<{
   action: 'freeze' | 'unfreeze';
   batchStatus: string;
   membershipFrozen: boolean;
-  actorRole: string;
+  authorizedAction: 'production:queue' | 'production:override';
 }>;
-
-const canOperate = (role: string): boolean =>
-  role === 'operator' || role === 'owner' || role === 'admin';
-
-const canManage = (role: string): boolean =>
-  role === 'owner' || role === 'admin';
 
 export const evaluateBatchMembershipTransition = (
   input: BatchMembershipTransitionInput,
@@ -25,7 +19,10 @@ export const evaluateBatchMembershipTransition = (
     });
 
   if (input.action === 'freeze') {
-    if (!canOperate(input.actorRole))
+    if (
+      input.authorizedAction !== 'production:queue' &&
+      input.authorizedAction !== 'production:override'
+    )
       return result.err({
         code: 'BATCH_FREEZE_FORBIDDEN',
         message: 'This actor cannot freeze production batch membership.',
@@ -40,10 +37,10 @@ export const evaluateBatchMembershipTransition = (
     return result.ok({ membershipFrozen: true });
   }
 
-  if (!canManage(input.actorRole))
+  if (input.authorizedAction !== 'production:override')
     return result.err({
       code: 'BATCH_UNFREEZE_FORBIDDEN',
-      message: 'Only an owner or administrator may unfreeze queued work.',
+      message: 'Unfreezing queued work requires production override access.',
     });
 
   if (!input.membershipFrozen)

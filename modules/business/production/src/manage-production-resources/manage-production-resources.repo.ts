@@ -82,6 +82,7 @@ export const makeManageProductionResourcesRepository = (deps: {
             ? null
             : {
                 id: location.id,
+                businessId: location.businessId,
                 name: location.name,
                 timezone: location.timezone,
                 isActive: location.isActive,

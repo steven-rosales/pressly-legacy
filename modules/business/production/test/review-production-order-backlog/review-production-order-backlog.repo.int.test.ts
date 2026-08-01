@@ -45,6 +45,7 @@ describe('production order backlog Postgres workflow', () => {
     const dueAt = new Date('2026-06-01T12:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Backlog Test Facility',
       timezone: 'America/New_York',
     });
@@ -57,7 +58,7 @@ describe('production order backlog Postgres workflow', () => {
         revisionHash: 'backlog-ready',
         revisionAt: dueAt,
         phase: 'post_production',
-        sourceStatusCode: 'COMPLETED',
+        commercialState: 'completed',
         estimatedWeightLbs: 24,
         estimatedWeightSource: 'external_price',
         dueAt,
@@ -70,7 +71,6 @@ describe('production order backlog Postgres workflow', () => {
         revisionHash: 'backlog-open',
         revisionAt: dueAt,
         phase: 'expected',
-        sourceStatusCode: 'SUBMITTED',
         estimatedWeightLbs: 18,
         estimatedWeightSource: 'external_price',
         dueAt,
@@ -222,6 +222,7 @@ describe('production order backlog Postgres workflow', () => {
     const dueAt = new Date('2026-06-01T12:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Backlog Idempotency Facility',
       timezone: 'America/New_York',
     });
@@ -233,7 +234,7 @@ describe('production order backlog Postgres workflow', () => {
       revisionHash: 'backlog-concurrent',
       revisionAt: dueAt,
       phase: 'post_production',
-      sourceStatusCode: 'COMPLETED',
+      commercialState: 'completed',
       estimatedWeightLbs: 24,
       estimatedWeightSource: 'external_price',
       dueAt,
@@ -314,6 +315,7 @@ describe('production order backlog Postgres workflow', () => {
     const dueAt = new Date('2026-06-01T12:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Backlog Pagination Facility',
       timezone: 'America/New_York',
     });
@@ -333,7 +335,7 @@ describe('production order backlog Postgres workflow', () => {
         revisionHash: `backlog-page-${index + 1}`,
         revisionAt: dueAt,
         phase: 'post_production' as const,
-        sourceStatusCode: 'COMPLETED',
+        commercialState: 'completed',
         estimatedWeightLbs: 20 + index,
         estimatedWeightSource: 'external_price' as const,
         dueAt,
@@ -433,6 +435,7 @@ describe('production order backlog Postgres workflow', () => {
     const dueAt = new Date('2026-06-01T12:00:00.000Z');
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Backlog Evidence Facility',
       timezone: 'America/New_York',
     });
@@ -445,7 +448,6 @@ describe('production order backlog Postgres workflow', () => {
         revisionHash: 'backlog-evidence-snapshot',
         revisionAt: dueAt,
         phase: 'expected',
-        sourceStatusCode: 'SUBMITTED',
         estimatedWeightLbs: 24,
         estimatedWeightSource: 'external_price',
         dueAt,
@@ -458,7 +460,6 @@ describe('production order backlog Postgres workflow', () => {
         revisionHash: 'backlog-evidence-event',
         revisionAt: dueAt,
         phase: 'expected',
-        sourceStatusCode: 'SUBMITTED',
         estimatedWeightLbs: 18,
         estimatedWeightSource: 'external_price',
         dueAt,

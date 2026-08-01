@@ -1,11 +1,17 @@
 export type Scope =
   | Readonly<{ kind: 'global'; id: '*' }>
+  | Readonly<{ kind: 'business'; id: string }>
   | Readonly<{ kind: 'location'; id: string }>
   | Readonly<{ kind: 'resource'; type: string; id: string }>;
 
 export const globalScope = (): Scope => ({
   kind: 'global',
   id: '*',
+});
+
+export const businessScope = (businessId: string): Scope => ({
+  kind: 'business',
+  id: businessId,
 });
 
 export const locationScope = (locationId: string): Scope => ({
@@ -30,6 +36,9 @@ export const scopeCovers = (
   resourceScope: Scope,
 ): boolean => {
   if (assignmentScope.kind === 'global') return true;
+
+  if (assignmentScope.kind === 'business' && resourceScope.kind === 'business')
+    return assignmentScope.id === resourceScope.id;
 
   if (assignmentScope.kind === 'location' && resourceScope.kind === 'location')
     return assignmentScope.id === resourceScope.id;

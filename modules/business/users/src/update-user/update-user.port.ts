@@ -6,9 +6,13 @@ import type { UserFieldName, UserProfile, UserRecord } from '../users.port.ts';
 
 export type UpdateUserOperations = UserCommandOperations &
   Readonly<{
-    lockUser: (userId: string) => Promise<void>;
-    loadUser: (userId: string) => Promise<UserRecord | null>;
+    lockUser: (businessId: string, userId: string) => Promise<void>;
+    loadUser: (
+      businessId: string,
+      userId: string,
+    ) => Promise<UserRecord | null>;
     updateUser: (input: {
+      businessId: string;
       userId: string;
       changes: Partial<UserProfile> & Readonly<{ active?: boolean }>;
       authorityFields: readonly UserFieldName[];
@@ -16,6 +20,7 @@ export type UpdateUserOperations = UserCommandOperations &
       now: Date;
     }) => Promise<void>;
     signalDuplicateContacts: (input: {
+      businessId: string;
       userId: string;
       profile: UserProfile;
       now: Date;

@@ -28,6 +28,7 @@ export function ForecastSummaryView({
     return (
       <Skeleton
         className={variant === "home" ? "h-24 w-full" : "h-16 w-full"}
+        role="status"
         aria-label={t("forecast.loadingSummary")}
       />
     )

@@ -12,6 +12,7 @@ const transactionRepo = <Operations>(
 });
 
 const clock = { now: () => new Date('2026-07-21T12:00:00.000Z') };
+const businessId = '00000000-0000-4000-8000-000000000100';
 const directContext = {
   origin: 'pressly_dashboard',
   principal: { kind: 'human', id: 'identity-1' },
@@ -20,6 +21,7 @@ const directContext = {
 const aggregate = {
   order: {
     id: 'order-1',
+    businessId,
     version: 2,
     customerUserId: null,
     customerResolution: 'not_provided' as const,
@@ -32,6 +34,7 @@ const aggregate = {
   },
   fulfillment: {
     id: 'fulfillment-1',
+    businessId,
     orderId: 'order-1',
     version: 2,
     typeCode: 'wash_fold',
@@ -66,6 +69,7 @@ describe('Orders use cases', () => {
     });
 
     const outcome = await change({
+      businessId,
       idempotencyKey: 'release-1',
       context: directContext,
       reasonCode: 'ready_for_production',
@@ -101,6 +105,7 @@ describe('Orders use cases', () => {
     });
 
     const outcome = await change({
+      businessId,
       idempotencyKey: 'release-2',
       context: directContext,
       reasonCode: 'ready_for_production',

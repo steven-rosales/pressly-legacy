@@ -66,9 +66,6 @@ describe('LPMS schema', () => {
     );
     expect(laundryProduction.orderDemands.revisionAt.name).toBe('revision_at');
     expect(laundryProduction.orderDemands.phase.name).toBe('phase');
-    expect(laundryProduction.orderDemands.sourceStatusCode.name).toBe(
-      'source_status_code',
-    );
     expect(laundryProduction.orderDemands.estimatedWeightLbs.name).toBe(
       'estimated_weight_lbs',
     );

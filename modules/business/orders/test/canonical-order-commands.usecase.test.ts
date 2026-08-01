@@ -23,6 +23,7 @@ const transactionRepo = <Operations>(
 });
 
 const clock = { now: () => new Date('2026-07-28T16:00:00.000Z') };
+const businessId = '00000000-0000-4000-8000-000000000100';
 const context = {
   origin: 'pressly_processor',
   principal: { kind: 'human', id: 'manager-1' },
@@ -30,6 +31,7 @@ const context = {
 const aggregate = {
   order: {
     id: 'order-1',
+    businessId,
     version: 2,
     customerUserId: null,
     customerResolution: 'not_provided' as const,
@@ -42,6 +44,7 @@ const aggregate = {
   },
   fulfillment: {
     id: 'fulfillment-1',
+    businessId,
     orderId: 'order-1',
     version: 2,
     typeCode: 'wash_fold',
@@ -67,6 +70,7 @@ describe('canonical Order commands', () => {
       lockCommand: vi.fn(),
       loadCommandReceipt: vi.fn().mockResolvedValue(null),
       saveCommandReceipt,
+      validateReferences: vi.fn().mockResolvedValue(true),
       createOrder,
     };
     const create = makeCreateOrder({
@@ -75,6 +79,7 @@ describe('canonical Order commands', () => {
     });
 
     const outcome = await create({
+      businessId,
       idempotencyKey: 'create-order-001',
       context,
       reasonCode: 'new_customer_order',
@@ -100,6 +105,7 @@ describe('canonical Order commands', () => {
 
     expect(outcome).toMatchObject({ tag: 'ok' });
     expect(createOrder).toHaveBeenCalledWith({
+      businessId,
       order: expect.objectContaining({
         state: 'open',
         fulfillment: expect.objectContaining({
@@ -127,6 +133,7 @@ describe('canonical Order commands', () => {
       lockOrder: vi.fn(),
       lockFulfillment: vi.fn(),
       loadOrder: vi.fn().mockResolvedValue(aggregate),
+      customerExists: vi.fn().mockResolvedValue(true),
       applyOrderCorrection,
     };
     const correct = makeCorrectOrder({
@@ -134,6 +141,7 @@ describe('canonical Order commands', () => {
       clock,
     });
     const allowed = await correct({
+      businessId,
       idempotencyKey: 'correct-order-001',
       context,
       reasonCode: 'customer_correction',
@@ -145,6 +153,7 @@ describe('canonical Order commands', () => {
       changes: { displayNumber: 'P-101', totalAmountCents: 3_100 },
     });
     const stale = await correct({
+      businessId,
       idempotencyKey: 'correct-order-002',
       context,
       reasonCode: 'customer_correction',
@@ -179,6 +188,7 @@ describe('canonical Order commands', () => {
       lockOrder: vi.fn(),
       lockFulfillment: vi.fn(),
       loadOrder: vi.fn().mockResolvedValue(aggregate),
+      customerExists: vi.fn().mockResolvedValue(true),
       applyOrderCorrection,
     };
     const correct = makeCorrectOrder({
@@ -186,6 +196,7 @@ describe('canonical Order commands', () => {
       clock,
     });
     const allowed = await correct({
+      businessId,
       idempotencyKey: 'correct-order-source-claims',
       context,
       reasonCode: 'source_discrepancy',
@@ -234,6 +245,7 @@ describe('canonical Order commands', () => {
     );
 
     const move = await correct({
+      businessId,
       idempotencyKey: 'correct-order-cross-location',
       context,
       reasonCode: 'source_discrepancy',
@@ -264,6 +276,7 @@ describe('canonical Order commands', () => {
     });
     await expect(
       committed({
+        businessId,
         idempotencyKey: 'correct-order-committed-type',
         context,
         reasonCode: 'manager_correction',
@@ -282,6 +295,7 @@ describe('canonical Order commands', () => {
 
   it('uses the commercial graph for completion and cancellation and replays exact receipts', async () => {
     const command = {
+      businessId,
       idempotencyKey: 'complete-order-001',
       context,
       reasonCode: 'service_completed' as const,
@@ -342,6 +356,7 @@ describe('canonical Order commands', () => {
     });
     await expect(
       cancel({
+        businessId,
         idempotencyKey: 'cancel-order-001',
         context,
         reasonCode: 'customer_canceled',
@@ -379,6 +394,7 @@ describe('canonical Order commands', () => {
       clock,
     });
     const allowed = await release({
+      businessId,
       idempotencyKey: 'release-fulfillment-001',
       context,
       reasonCode: 'ready_for_production',
@@ -389,6 +405,7 @@ describe('canonical Order commands', () => {
       expectedFulfillmentVersion: 2,
     });
     const stale = await release({
+      businessId,
       idempotencyKey: 'release-fulfillment-002',
       context,
       reasonCode: 'ready_for_production',
@@ -427,6 +444,7 @@ describe('canonical Order commands', () => {
     });
     await expect(
       withdraw({
+        businessId,
         idempotencyKey: 'withdraw-fulfillment-001',
         context,
         reasonCode: 'commercial_canceled',

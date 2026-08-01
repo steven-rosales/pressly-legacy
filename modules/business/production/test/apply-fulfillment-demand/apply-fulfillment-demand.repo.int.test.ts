@@ -35,6 +35,7 @@ describe('canonical fulfillment demand materialization', () => {
     const ids = makeIds();
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: baseCommand.locationId,
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Synthetic Facility',
       timezone: 'America/New_York',
     });
@@ -145,6 +146,7 @@ describe('canonical fulfillment demand materialization', () => {
     const ids = makeIds();
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: baseCommand.locationId,
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Synthetic Facility',
       timezone: 'America/New_York',
     });
@@ -239,6 +241,7 @@ describe('canonical fulfillment demand materialization', () => {
   it('keeps pre-release forecasts off the floor while showing released or physically admitted work', async () => {
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: baseCommand.locationId,
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Synthetic Facility',
       timezone: 'America/New_York',
     });

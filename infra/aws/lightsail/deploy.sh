@@ -20,6 +20,7 @@ WEB_ENV_FILE="${PRESSLY_WEB_ENV_FILE:-$ENV_DIR/web.env}"
 API_ENV_FILE="${PRESSLY_API_ENV_FILE:-$ENV_DIR/api.env}"
 WORKER_ENV_FILE="${PRESSLY_WORKER_ENV_FILE:-$ENV_DIR/worker.env}"
 PROCESSOR_ENV_FILE="${PRESSLY_PROCESSOR_ENV_FILE:-$ENV_DIR/processor.env}"
+CONTROL_ENV_FILE="${PRESSLY_CONTROL_ENV_FILE:-$ENV_DIR/control.env}"
 POSTGRES_ENV_FILE="${PRESSLY_POSTGRES_ENV_FILE:-$ENV_DIR/postgres.env}"
 MIGRATION_ENV_FILE="${PRESSLY_MIGRATION_ENV_FILE:-$ENV_DIR/migration.env}"
 BACKUP_ENV_FILE="${PRESSLY_BACKUP_ENV_FILE:-$ENV_DIR/backup.env}"
@@ -28,6 +29,7 @@ DEPLOY_SHA="${DEPLOY_SHA:-}"
 API_HEALTH_URL="${PRESSLY_API_HEALTH_URL:-https://api.trypressly.com/health/ready}"
 WEB_HEALTH_URL="${PRESSLY_WEB_HEALTH_URL:-https://trypressly.com/health}"
 PROCESSOR_HEALTH_URL="${PRESSLY_PROCESSOR_HEALTH_URL:-https://processor.trypressly.com/health}"
+CONTROL_HEALTH_URL="${PRESSLY_CONTROL_HEALTH_URL:-https://control.trypressly.com/health}"
 HEALTH_MAX_ATTEMPTS="${PRESSLY_HEALTH_MAX_ATTEMPTS:-30}"
 HEALTH_RETRY_DELAY_SECONDS="${PRESSLY_HEALTH_RETRY_DELAY_SECONDS:-2}"
 HEALTH_REQUEST_TIMEOUT_SECONDS="${PRESSLY_HEALTH_REQUEST_TIMEOUT_SECONDS:-10}"
@@ -39,7 +41,8 @@ PRESSLY_API_IMAGE="${PRESSLY_API_IMAGE:-}"
 PRESSLY_WEB_IMAGE="${PRESSLY_WEB_IMAGE:-}"
 PRESSLY_WORKER_IMAGE="${PRESSLY_WORKER_IMAGE:-}"
 PRESSLY_PROCESSOR_IMAGE="${PRESSLY_PROCESSOR_IMAGE:-}"
-TARGET_RELEASE_FORMAT="${PRESSLY_TARGET_RELEASE_FORMAT:-four-image-v1}"
+PRESSLY_CONTROL_IMAGE="${PRESSLY_CONTROL_IMAGE:-}"
+TARGET_RELEASE_FORMAT="${PRESSLY_TARGET_RELEASE_FORMAT:-five-image-v1}"
 LEGACY_ROLLBACK_MANIFEST_FILE="${PRESSLY_LEGACY_ROLLBACK_MANIFEST_FILE:-}"
 deployment_completed=false
 release_snapshot_tmp=""
@@ -136,6 +139,7 @@ export PRESSLY_WEB_ENV_FILE="$WEB_ENV_FILE"
 export PRESSLY_API_ENV_FILE="$API_ENV_FILE"
 export PRESSLY_WORKER_ENV_FILE="$WORKER_ENV_FILE"
 export PRESSLY_PROCESSOR_ENV_FILE="$PROCESSOR_ENV_FILE"
+export PRESSLY_CONTROL_ENV_FILE="$CONTROL_ENV_FILE"
 export PRESSLY_POSTGRES_ENV_FILE="$POSTGRES_ENV_FILE"
 export PRESSLY_MIGRATION_ENV_FILE="$MIGRATION_ENV_FILE"
 export PRESSLY_BACKUP_ENV_FILE="$BACKUP_ENV_FILE"
@@ -143,6 +147,7 @@ export PRESSLY_API_IMAGE
 export PRESSLY_WEB_IMAGE
 export PRESSLY_WORKER_IMAGE
 export PRESSLY_PROCESSOR_IMAGE
+export PRESSLY_CONTROL_IMAGE
 export PRESSLY_RELEASE_SHA="${DEPLOY_SHA,,}"
 
 if [[ ! "$DEPLOY_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
@@ -161,6 +166,24 @@ if [[ ! "$PRESSLY_WEB_IMAGE" =~ $image_pattern ]]; then
 fi
 
 case "$TARGET_RELEASE_FORMAT" in
+  five-image-v1)
+    if [[ ! "$PRESSLY_WORKER_IMAGE" =~ $image_pattern ]]; then
+      echo "PRESSLY_WORKER_IMAGE must be an immutable GHCR digest." >&2
+      exit 1
+    fi
+    if [[ ! "$PRESSLY_PROCESSOR_IMAGE" =~ $image_pattern ]]; then
+      echo "PRESSLY_PROCESSOR_IMAGE must be an immutable GHCR digest." >&2
+      exit 1
+    fi
+    if [[ ! "$PRESSLY_CONTROL_IMAGE" =~ $image_pattern ]]; then
+      echo "PRESSLY_CONTROL_IMAGE must be an immutable GHCR digest." >&2
+      exit 1
+    fi
+    if [[ -n "$LEGACY_ROLLBACK_MANIFEST_FILE" ]]; then
+      echo "A five-image deploy cannot use a legacy rollback manifest." >&2
+      exit 1
+    fi
+    ;;
   four-image-v1)
     if [[ ! "$PRESSLY_WORKER_IMAGE" =~ $image_pattern ]]; then
       echo "PRESSLY_WORKER_IMAGE must be an immutable GHCR digest." >&2
@@ -170,14 +193,22 @@ case "$TARGET_RELEASE_FORMAT" in
       echo "PRESSLY_PROCESSOR_IMAGE must be an immutable GHCR digest." >&2
       exit 1
     fi
+    if [[ -n "$PRESSLY_CONTROL_IMAGE" ]]; then
+      echo "A four-image rollback cannot include a Control image." >&2
+      exit 1
+    fi
     if [[ -n "$LEGACY_ROLLBACK_MANIFEST_FILE" ]]; then
       echo "A four-image deploy cannot use a legacy rollback manifest." >&2
       exit 1
     fi
     ;;
   legacy-two-image-v1)
-    if [[ -n "$PRESSLY_WORKER_IMAGE" || -n "$PRESSLY_PROCESSOR_IMAGE" ]]; then
-      echo "A legacy rollback cannot include Worker or Processor images." >&2
+    if [[
+      -n "$PRESSLY_WORKER_IMAGE" ||
+      -n "$PRESSLY_PROCESSOR_IMAGE" ||
+      -n "$PRESSLY_CONTROL_IMAGE"
+    ]]; then
+      echo "A legacy rollback cannot include Worker, Processor, or Control images." >&2
       exit 1
     fi
     if [[ ! -f "$LEGACY_ROLLBACK_MANIFEST_FILE" ]]; then
@@ -203,7 +234,7 @@ if ! docker compose version >/dev/null; then
   exit 1
 fi
 
-for env_file in \
+required_env_files=(
   "$COMPOSE_ENV_FILE" \
   "$CADDY_ENV_FILE" \
   "$WEB_ENV_FILE" \
@@ -212,7 +243,13 @@ for env_file in \
   "$PROCESSOR_ENV_FILE" \
   "$POSTGRES_ENV_FILE" \
   "$MIGRATION_ENV_FILE" \
-  "$BACKUP_ENV_FILE"; do
+  "$BACKUP_ENV_FILE"
+)
+if [[ "$TARGET_RELEASE_FORMAT" == "five-image-v1" ]]; then
+  required_env_files+=("$CONTROL_ENV_FILE")
+fi
+
+for env_file in "${required_env_files[@]}"; do
   if [[ ! -f "$env_file" ]]; then
     echo "Missing env file: $env_file" >&2
     exit 1
@@ -247,6 +284,7 @@ python3 - \
   "$PRESSLY_WEB_IMAGE" \
   "$PRESSLY_WORKER_IMAGE" \
   "$PRESSLY_PROCESSOR_IMAGE" \
+  "$PRESSLY_CONTROL_IMAGE" \
   "${LEGACY_ROLLBACK_MANIFEST_FILE:--}" <<'PY'
 import json
 import os
@@ -263,6 +301,7 @@ import sys
     target_web,
     target_worker,
     target_processor,
+    target_control,
     legacy_manifest_path,
 ) = sys.argv[1:]
 
@@ -276,6 +315,16 @@ four_fields = {
     'webImage',
     'workerImage',
     'processorImage',
+    'deployedAt',
+}
+five_fields = {
+    'releaseFormat',
+    'sourceSha',
+    'apiImage',
+    'webImage',
+    'workerImage',
+    'processorImage',
+    'controlImage',
     'deployedAt',
 }
 legacy_fields = {
@@ -330,6 +379,14 @@ def validate_images(value, fields):
 
 
 def normalize_current(value):
+    if set(value) == five_fields and value.get('releaseFormat') == 'five-image-v1':
+        validate_common(value)
+        validate_images(
+            value,
+            ('apiImage', 'webImage', 'workerImage', 'processorImage', 'controlImage'),
+        )
+        return value
+
     if set(value) == four_fields and value.get('releaseFormat') == 'four-image-v1':
         validate_common(value)
         validate_images(
@@ -383,7 +440,18 @@ def validate_target_manifest():
 def validate_target_identity():
     if not sha_pattern.fullmatch(target_sha):
         raise ValueError('target source SHA is invalid')
-    if target_format == 'four-image-v1':
+    if target_format == 'five-image-v1':
+        validate_images(
+            {
+                'apiImage': target_api,
+                'webImage': target_web,
+                'workerImage': target_worker,
+                'processorImage': target_processor,
+                'controlImage': target_control,
+            },
+            ('apiImage', 'webImage', 'workerImage', 'processorImage', 'controlImage'),
+        )
+    elif target_format == 'four-image-v1':
         validate_images(
             {
                 'apiImage': target_api,
@@ -396,6 +464,16 @@ def validate_target_identity():
 
 
 def target_identity():
+    if target_format == 'five-image-v1':
+        return (
+            target_format,
+            target_sha,
+            target_api,
+            target_web,
+            target_worker,
+            target_processor,
+            target_control,
+        )
     if target_format == 'four-image-v1':
         return (
             target_format,
@@ -409,6 +487,16 @@ def target_identity():
 
 
 def current_identity(value):
+    if value['releaseFormat'] == 'five-image-v1':
+        return (
+            value['releaseFormat'],
+            value['sourceSha'],
+            value['apiImage'],
+            value['webImage'],
+            value['workerImage'],
+            value['processorImage'],
+            value['controlImage'],
+        )
     if value['releaseFormat'] == 'four-image-v1':
         return (
             value['releaseFormat'],
@@ -533,9 +621,15 @@ verify_image_revision() {
 
 verify_image_revision "API" "$PRESSLY_API_IMAGE"
 verify_image_revision "Web" "$PRESSLY_WEB_IMAGE"
-if [[ "$TARGET_RELEASE_FORMAT" == "four-image-v1" ]]; then
+if [[
+  "$TARGET_RELEASE_FORMAT" == "five-image-v1" ||
+  "$TARGET_RELEASE_FORMAT" == "four-image-v1"
+]]; then
   verify_image_revision "Worker" "$PRESSLY_WORKER_IMAGE"
   verify_image_revision "Processor" "$PRESSLY_PROCESSOR_IMAGE"
+fi
+if [[ "$TARGET_RELEASE_FORMAT" == "five-image-v1" ]]; then
+  verify_image_revision "Control" "$PRESSLY_CONTROL_IMAGE"
 fi
 
 docker compose \
@@ -557,15 +651,30 @@ docker compose \
 
 wait_for_health "API" "$API_HEALTH_URL"
 wait_for_health "Web" "$WEB_HEALTH_URL"
-if [[ "$TARGET_RELEASE_FORMAT" == "four-image-v1" ]]; then
+if [[
+  "$TARGET_RELEASE_FORMAT" == "five-image-v1" ||
+  "$TARGET_RELEASE_FORMAT" == "four-image-v1"
+]]; then
   wait_for_health "Processor" "$PROCESSOR_HEALTH_URL"
+fi
+if [[ "$TARGET_RELEASE_FORMAT" == "five-image-v1" ]]; then
+  wait_for_health "Control" "$CONTROL_HEALTH_URL"
 fi
 
 deployed_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 current_release_tmp="$(mktemp "${CURRENT_RELEASE_FILE}.tmp.XXXXXX")"
 current_metadata_tmp="$(mktemp "${CURRENT_RELEASE_METADATA_FILE}.tmp.XXXXXX")"
 printf '%s\n' "$target_sha" > "$current_release_tmp"
-if [[ "$TARGET_RELEASE_FORMAT" == "four-image-v1" ]]; then
+if [[ "$TARGET_RELEASE_FORMAT" == "five-image-v1" ]]; then
+  printf '{"releaseFormat":"five-image-v1","sourceSha":"%s","apiImage":"%s","webImage":"%s","workerImage":"%s","processorImage":"%s","controlImage":"%s","deployedAt":"%s"}\n' \
+    "$target_sha" \
+    "$PRESSLY_API_IMAGE" \
+    "$PRESSLY_WEB_IMAGE" \
+    "$PRESSLY_WORKER_IMAGE" \
+    "$PRESSLY_PROCESSOR_IMAGE" \
+    "$PRESSLY_CONTROL_IMAGE" \
+    "$deployed_at" > "$current_metadata_tmp"
+elif [[ "$TARGET_RELEASE_FORMAT" == "four-image-v1" ]]; then
   printf '{"releaseFormat":"four-image-v1","sourceSha":"%s","apiImage":"%s","webImage":"%s","workerImage":"%s","processorImage":"%s","deployedAt":"%s"}\n' \
     "$target_sha" \
     "$PRESSLY_API_IMAGE" \
@@ -586,10 +695,16 @@ mv "$current_release_tmp" "$CURRENT_RELEASE_FILE"
 echo "Deployed source SHA: $target_sha"
 echo "API image: $PRESSLY_API_IMAGE"
 echo "Web image: $PRESSLY_WEB_IMAGE"
-if [[ "$TARGET_RELEASE_FORMAT" == "four-image-v1" ]]; then
+if [[
+  "$TARGET_RELEASE_FORMAT" == "five-image-v1" ||
+  "$TARGET_RELEASE_FORMAT" == "four-image-v1"
+]]; then
   echo "Worker image: $PRESSLY_WORKER_IMAGE"
   echo "Processor image: $PRESSLY_PROCESSOR_IMAGE"
-else
+fi
+if [[ "$TARGET_RELEASE_FORMAT" == "five-image-v1" ]]; then
+  echo "Control image: $PRESSLY_CONTROL_IMAGE"
+elif [[ "$TARGET_RELEASE_FORMAT" == "legacy-two-image-v1" ]]; then
   echo "Release format: transitional legacy two-image rollback"
 fi
 echo "Deployment time: $deployed_at"

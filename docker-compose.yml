@@ -57,7 +57,7 @@ services:
       DATABASE_URL: postgres://pressly:pressly@postgres:5432/pressly
       DATABASE_MAX_CONNECTIONS: 10
       SHUTDOWN_GRACE_PERIOD_MS: 30000
-      CORS_ORIGIN: http://localhost:3000,http://localhost:4173
+      CORS_ORIGIN: http://localhost:3000,http://localhost:4173,http://localhost:4174
       AUTH_SECRET: local-dev-auth-secret
       AUTH_MFA_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
       CENTS_WEBHOOK_AUTH_MODE: ${CENTS_WEBHOOK_AUTH_MODE:-unsigned}
@@ -161,6 +161,25 @@ services:
         VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}
     ports:
       - '${PROCESSOR_PORT:-4173}:80'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'wget -qO- http://127.0.0.1/health >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  control:
+    image: pressly-control:local
+    build:
+      context: .
+      dockerfile: apps/control/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    ports:
+      - '${CONTROL_PORT:-4174}:80'
     depends_on:
       api:
         condition: service_healthy
