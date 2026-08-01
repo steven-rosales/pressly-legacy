@@ -28,6 +28,9 @@ const contractsSource = fileURLToPath(
 const dbSource = fileURLToPath(
   new URL('../../packages/db/src/index.ts', import.meta.url),
 );
+const dbTestingSource = fileURLToPath(
+  new URL('../../packages/db/src/testing.ts', import.meta.url),
+);
 const httpSource = fileURLToPath(
   new URL('../../packages/http/src/index.ts', import.meta.url),
 );
@@ -67,6 +70,9 @@ const productionSchedulingSource = fileURLToPath(
 const timeSource = fileURLToPath(
   new URL('../../packages/time/src/index.ts', import.meta.url),
 );
+const testkitDatabaseSource = fileURLToPath(
+  new URL('../../packages/testkit/src/database.ts', import.meta.url),
+);
 
 export default defineConfig({
   resolve: {
@@ -98,6 +104,10 @@ export default defineConfig({
       {
         find: /^@pressly\/contracts$/,
         replacement: contractsSource,
+      },
+      {
+        find: /^@pressly\/db\/testing$/,
+        replacement: dbTestingSource,
       },
       {
         find: /^@pressly\/db$/,
@@ -146,6 +156,10 @@ export default defineConfig({
       {
         find: /^@pressly\/production-scheduling$/,
         replacement: productionSchedulingSource,
+      },
+      {
+        find: /^@pressly\/testkit\/database$/,
+        replacement: testkitDatabaseSource,
       },
       {
         find: /^@pressly\/time$/,

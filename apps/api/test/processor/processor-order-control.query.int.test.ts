@@ -1,45 +1,45 @@
 import type { ListProductionOrderControlResult } from '@pressly/contracts';
+import { business, laundryProduction, orders, users } from '@pressly/db';
 import {
-  business,
-  createDatabaseRuntime,
-  laundryProduction,
-  orders,
-  sql,
-  users,
-} from '@pressly/db';
+  createTestDatabaseRuntime,
+  getTestDatabaseUrl,
+} from '@pressly/testkit/database';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makeProcessorOrderControlReadModel } from '../../src/http/processor/order-control/order-control.query.ts';
 import { makeProcessorOperationalOrderIdentityResolver } from '../../src/http/processor/operational-order-identity/operational-order-identity.query.ts';
 
-const databaseUrl =
-  process.env['PRESSLY_TEST_DATABASE_URL'] ??
-  'postgres://pressly:pressly@localhost:55434/pressly_test';
-if (!new URL(databaseUrl).pathname.includes('test'))
-  throw new Error('Processor query integration tests require a test database.');
-
-const testDb = createDatabaseRuntime({ databaseUrl, maxConnections: 4 });
+const testDb = createTestDatabaseRuntime({
+  databaseUrl: getTestDatabaseUrl(
+    'PRESSLY_TEST_DATABASE_URL',
+    'postgres://pressly:pressly@localhost:55434/pressly_test',
+  ),
+  tableNames: [
+    'work_events',
+    'production_orders',
+    'order_demands',
+    'production_locations',
+    'order_command_receipts',
+    'order_source_snapshots',
+    'order_source_links',
+    'order_fulfillments',
+    'orders',
+    'users',
+  ],
+  maxConnections: 4,
+  ...(process.env['PRESSLY_TEST_DATABASE_RESET_URL'] === undefined
+    ? {}
+    : {
+        resetDatabaseUrl: getTestDatabaseUrl(
+          'PRESSLY_TEST_DATABASE_RESET_URL',
+          'postgres://pressly:pressly@localhost:55434/pressly_test',
+        ),
+      }),
+});
 const uuid = (value: number): string =>
   `00000000-0000-4000-8000-${value.toString().padStart(12, '0')}`;
 const hash = (value: number): string => value.toString(16).padStart(64, '0');
 const businessId = '00000000-0000-4000-8000-000000000100';
 const sameTime = new Date('2026-07-28T18:00:00.000Z');
-
-const resetDatabase = async (): Promise<void> => {
-  await testDb.db.execute(sql`
-    truncate table
-      work_events,
-      production_orders,
-      order_demands,
-      production_locations,
-      order_command_receipts,
-      order_source_snapshots,
-      order_source_links,
-      order_fulfillments,
-      orders,
-      users
-    restart identity cascade
-  `);
-};
 
 const makeBaseItem = (
   productionOrderId: string,
@@ -90,7 +90,7 @@ const makeBaseItem = (
 });
 
 beforeAll(testDb.check);
-beforeEach(resetDatabase);
+beforeEach(testDb.reset);
 afterAll(testDb.close);
 
 describe('Postgres Processor Order control composition', () => {

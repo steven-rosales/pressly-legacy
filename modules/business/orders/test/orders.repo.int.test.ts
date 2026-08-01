@@ -15,6 +15,7 @@ import { createOrdersTestDatabase } from './support/database.ts';
 const testDb = createOrdersTestDatabase();
 const clock = { now: () => new Date('2026-07-21T16:00:00.000Z') };
 const businessId = '00000000-0000-4000-8000-000000000100';
+const primaryLocationId = 'east';
 const otherBusinessId = '00000000-0000-4000-8000-000000000202';
 const otherLocationId = 'orders-isolation-location';
 const incomingOrderProposalCustomer = {
@@ -113,6 +114,24 @@ beforeAll(async () => {
   await testDb.db
     .insert(businessSchema.businessAccounts)
     .values({
+      id: businessId,
+      slug: 'pressly-one',
+      displayName: 'Pressly One',
+      status: 'active',
+    })
+    .onConflictDoNothing();
+  await testDb.db
+    .insert(businessSchema.productionLocations)
+    .values({
+      id: primaryLocationId,
+      businessId,
+      name: 'Orders primary location',
+      timezone: 'America/New_York',
+    })
+    .onConflictDoNothing();
+  await testDb.db
+    .insert(businessSchema.businessAccounts)
+    .values({
       id: otherBusinessId,
       slug: 'orders-isolation-fixture',
       displayName: 'Orders isolation fixture',
@@ -130,6 +149,10 @@ beforeAll(async () => {
 });
 beforeEach(testDb.reset);
 afterAll(async () => {
+  await testDb.reset();
+  await testDb.db
+    .delete(businessSchema.productionLocations)
+    .where(eq(businessSchema.productionLocations.id, primaryLocationId));
   await testDb.db
     .delete(businessSchema.productionLocations)
     .where(eq(businessSchema.productionLocations.id, otherLocationId));
