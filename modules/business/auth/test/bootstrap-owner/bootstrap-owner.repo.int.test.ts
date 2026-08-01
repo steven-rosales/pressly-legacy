@@ -10,7 +10,18 @@ const testDb = createAuthTestDatabase();
 const bootstrapBusinessId = '00000000-0000-4000-8000-000000000100';
 
 beforeAll(testDb.check);
-beforeEach(testDb.reset);
+beforeEach(async () => {
+  await testDb.reset();
+  await testDb.db
+    .insert(business.businessAccounts)
+    .values({
+      id: bootstrapBusinessId,
+      slug: 'pressly-one',
+      displayName: 'Pressly One',
+      status: 'active',
+    })
+    .onConflictDoNothing();
+});
 afterAll(testDb.close);
 
 const missingReturnedRow = (message: string): never => {
@@ -138,6 +149,7 @@ describe('bootstrap owner repository integration', () => {
     const [businessAccount] = await testDb.db
       .select()
       .from(business.businessAccounts)
+      .where(eq(business.businessAccounts.id, bootstrapBusinessId))
       .limit(1);
 
     if (businessAccount === undefined)

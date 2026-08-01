@@ -208,6 +208,9 @@ if [[ "${CI:-false}" == true ]]; then
   playwright_args+=(--fail-on-flaky-tests)
 fi
 
+echo '[browser-e2e] building host-side browser contract dependencies'
+pnpm exec turbo build --filter=@pressly/contracts
+
 echo "[browser-e2e] running Chromium against disposable local HTTPS; artifacts=$ARTIFACT_DIR"
 cd "$ROOT_DIR"
 pnpm exec playwright test \
