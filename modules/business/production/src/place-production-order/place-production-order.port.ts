@@ -21,7 +21,7 @@ import type {
 
 export type PlacementActor = Readonly<{
   actorId: string;
-  actorRole: 'operator' | 'owner';
+  authorizedAction: 'production:queue' | 'production:override';
 }>;
 
 export type PlaceProductionOrderAutomatically = (
@@ -50,6 +50,7 @@ export type PlacementOutcomeInput = Readonly<{
   productionRunId: string;
   productionOrderId: string;
   actorId: string;
+  authorizedAction: 'production:queue' | 'production:override';
   idempotencyKey: string;
   idempotency: WorkEventCommandIdentity;
   result: ProductionOrderPlacementResult;

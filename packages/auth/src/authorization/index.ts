@@ -31,6 +31,7 @@ export { isRole } from './role.ts';
 
 export type { Scope } from './scope.ts';
 export {
+  businessScope,
   globalScope,
   locationScope,
   resourceScope,

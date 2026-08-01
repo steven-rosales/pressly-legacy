@@ -5,7 +5,32 @@ authorization.
 
 This document is about stored facts.
 
-Policy behavior is explained in [Security](../security.md).
+Policy behavior is explained in
+[Authorization and Authentication](../security/authz-authn.md).
+
+## Business and Workforce Authority
+
+The current Control workforce model is defined by
+`packages/db/src/schema/business.schema.ts` and
+`packages/db/src/schema/auth.schema.ts`. Its durable authority chain is:
+
+```txt
+business_accounts
+  -> workforce_memberships
+  -> auth_access_grants
+
+workforce_invitations
+  -> accepted identity and membership
+  -> scoped access grant
+```
+
+`auth_lifecycle_transitions` records the valid invitation, membership, and
+grant state changes. `auth_command_receipts` makes retried workforce commands
+idempotent. `auth_role_assignments` remains compatibility-only for pre-Control
+sessions; new Control workforce grants are persisted in `auth_access_grants`.
+
+The historical identity, credential, session, and compatibility-table detail
+below remains useful, but it must be read alongside this workforce model.
 
 ## Short Model
 

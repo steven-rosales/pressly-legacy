@@ -260,6 +260,20 @@
       "when": 1785342289615,
       "tag": "0037_submitted_candidate_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1785372876882,
+      "tag": "0038_smooth_omega_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1785524290895,
+      "tag": "0039_fantastic_energizer",
+      "breakpoints": true
     }
   ]
 }

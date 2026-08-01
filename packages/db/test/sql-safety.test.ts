@@ -18,6 +18,7 @@ const ignoredDirectories = new Set([
   'dist',
   'node_modules',
 ]);
+const repositoryScanTimeoutMs = 15_000;
 
 const listSourceFiles = async (directory: string): Promise<string[]> => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -37,6 +38,16 @@ const listSourceFiles = async (directory: string): Promise<string[]> => {
   return files.flat();
 };
 
+let sourceFilesPromise: Promise<string[]> | undefined;
+
+const loadSourceFiles = (): Promise<string[]> => {
+  sourceFilesPromise ??= Promise.all(
+    sourceRoots.map((root) => listSourceFiles(root)),
+  ).then((files) => files.flat());
+
+  return sourceFilesPromise;
+};
+
 describe('SQL safety boundaries', () => {
   it('exposes parameterized SQL without raw construction helpers', () => {
     expect(sql).toBeTypeOf('function');
@@ -44,39 +55,44 @@ describe('SQL safety boundaries', () => {
     expect('identifier' in sql).toBe(false);
   });
 
-  it('keeps direct Drizzle imports inside the database package', async () => {
-    const violations: string[] = [];
-    const files = (
-      await Promise.all(sourceRoots.map((root) => listSourceFiles(root)))
-    ).flat();
-    const drizzleImportPattern =
-      /(?:\bfrom\s+|\bimport\s*(?:\(\s*)?)['"]drizzle-orm(?:\/[^'"]*)?['"]/;
+  it(
+    'keeps direct Drizzle imports inside the database package',
+    async () => {
+      const violations: string[] = [];
+      const files = await loadSourceFiles();
+      const drizzleImportPattern =
+        /(?:\bfrom\s+|\bimport\s*(?:\(\s*)?)['"]drizzle-orm(?:\/[^'"]*)?['"]/;
 
-    for (const file of files) {
-      const repositoryPath = relative(repositoryRoot, file);
-      if (repositoryPath.startsWith('packages/db/src/')) continue;
+      for (const file of files) {
+        const repositoryPath = relative(repositoryRoot, file);
+        if (repositoryPath.startsWith('packages/db/src/')) continue;
 
-      const contents = await readFile(file, 'utf8');
-      if (drizzleImportPattern.test(contents)) violations.push(repositoryPath);
-    }
+        const contents = await readFile(file, 'utf8');
+        if (drizzleImportPattern.test(contents))
+          violations.push(repositoryPath);
+      }
 
-    expect(violations).toEqual([]);
-  });
+      expect(violations).toEqual([]);
+    },
+    repositoryScanTimeoutMs,
+  );
 
-  it('does not use raw SQL construction', async () => {
-    const violations: string[] = [];
-    const files = (
-      await Promise.all(sourceRoots.map((root) => listSourceFiles(root)))
-    ).flat();
+  it(
+    'does not use raw SQL construction',
+    async () => {
+      const violations: string[] = [];
+      const files = await loadSourceFiles();
 
-    for (const file of files) {
-      const contents = await readFile(file, 'utf8');
-      if (/\bsql\.raw\s*\(/.test(contents))
-        violations.push(relative(repositoryRoot, file));
-    }
+      for (const file of files) {
+        const contents = await readFile(file, 'utf8');
+        if (/\bsql\.raw\s*\(/.test(contents))
+          violations.push(relative(repositoryRoot, file));
+      }
 
-    expect(violations).toEqual([]);
-  });
+      expect(violations).toEqual([]);
+    },
+    repositoryScanTimeoutMs,
+  );
 
   it('rejects unsafe test table identifiers before executing SQL', async () => {
     const execute = vi.fn();

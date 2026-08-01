@@ -35,6 +35,11 @@ import { makeCloseIncomingOrderSource } from './incoming-order-proposal/close-in
 import type { OrderClockPort } from './orders.port.ts';
 import { makePostgresRetryOrderOutboxRepository } from './retry-order-outbox/retry-order-outbox.repo.ts';
 import { makeRetryOrderOutbox } from './retry-order-outbox/retry-order-outbox.usecase.ts';
+import { makePostgresReadOrdersRepository } from './read-orders/read-orders.repo.ts';
+import {
+  makeGetCanonicalOrder,
+  makeListCanonicalOrders,
+} from './read-orders/read-orders.usecase.ts';
 
 export type OrdersApplicationDeps = Readonly<{
   db: Database;
@@ -52,6 +57,7 @@ const makePostgresOrderOutboxApplication = (deps: OrdersPersistenceDeps) => {
   const completeRepo = makePostgresCompleteOrderOutboxRepository(deps.db);
   const retryRepo = makePostgresRetryOrderOutboxRepository(deps.db);
   const deadLetterRepo = makePostgresDeadLetterOrderOutboxRepository(deps.db);
+
   return {
     claimOutbox: makeClaimOrderOutbox({
       repo: claimRepo,
@@ -78,6 +84,8 @@ export const makePostgresOrdersApplication = (deps: OrdersApplicationDeps) => {
     deps.incomingOrderProposalCustomer,
   );
   const releaseRepo = makePostgresChangeFulfillmentReleaseRepository(deps.db);
+  const readRepo = makePostgresReadOrdersRepository(deps.db);
+
   return {
     proposeIncomingOrder: makeProposeIncomingOrder(incomingProposalRepo),
     listIncomingOrderProposals:
@@ -112,6 +120,8 @@ export const makePostgresOrdersApplication = (deps: OrdersApplicationDeps) => {
       repo: releaseRepo,
       clock: deps.clock,
     }),
+    listCanonicalOrders: makeListCanonicalOrders(readRepo),
+    getCanonicalOrder: makeGetCanonicalOrder(readRepo),
     ...makePostgresOrderOutboxApplication(deps),
   };
 };

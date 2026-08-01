@@ -1,4 +1,15 @@
-import { and, auth, eq, gt, sql, type Database } from '@pressly/db';
+import {
+  and,
+  auth,
+  eq,
+  gt,
+  isNull,
+  lte,
+  ne,
+  or,
+  sql,
+  type Database,
+} from '@pressly/db';
 import type { LoginStore } from './login.port.ts';
 import { recordAuthAuditEvent } from '../persistence/auth-audit.ts';
 import {
@@ -18,17 +29,60 @@ export const makeLoginStore = (db: Database): LoginStore => ({
 
       if (identity === undefined) return undefined;
 
-      const [roles, mfaCredentials] = await Promise.all([
-        db
-          .select()
-          .from(auth.authRoleAssignments)
-          .where(eq(auth.authRoleAssignments.identityId, identity.id)),
-        db
-          .select({ status: auth.authMfaCredentials.status })
-          .from(auth.authMfaCredentials)
-          .where(eq(auth.authMfaCredentials.identityId, identity.id))
-          .limit(1),
-      ]);
+      const [workforceGrants, compatibilityRoles, mfaCredentials] =
+        await Promise.all([
+          db
+            .select({ role: auth.authAccessGrants.role })
+            .from(auth.authAccessGrants)
+            .innerJoin(
+              auth.workforceMemberships,
+              and(
+                eq(
+                  auth.workforceMemberships.id,
+                  auth.authAccessGrants.membershipId,
+                ),
+                eq(
+                  auth.workforceMemberships.businessId,
+                  auth.authAccessGrants.businessId,
+                ),
+                eq(
+                  auth.workforceMemberships.identityId,
+                  auth.authAccessGrants.identityId,
+                ),
+              ),
+            )
+            .where(
+              and(
+                eq(auth.authAccessGrants.identityId, identity.id),
+                eq(auth.authAccessGrants.state, 'active'),
+                eq(auth.workforceMemberships.state, 'active'),
+                or(
+                  isNull(auth.authAccessGrants.startsAt),
+                  lte(auth.authAccessGrants.startsAt, sql`now()`),
+                ),
+                or(
+                  isNull(auth.authAccessGrants.endsAt),
+                  gt(auth.authAccessGrants.endsAt, sql`now()`),
+                ),
+              ),
+            ),
+          db
+            .select()
+            .from(auth.authRoleAssignments)
+            .where(
+              and(
+                eq(auth.authRoleAssignments.identityId, identity.id),
+                ne(auth.authRoleAssignments.role, 'owner'),
+                ne(auth.authRoleAssignments.role, 'manager'),
+                ne(auth.authRoleAssignments.role, 'operator'),
+              ),
+            ),
+          db
+            .select({ status: auth.authMfaCredentials.status })
+            .from(auth.authMfaCredentials)
+            .where(eq(auth.authMfaCredentials.identityId, identity.id))
+            .limit(1),
+        ]);
 
       return {
         id: identity.id,
@@ -36,7 +90,7 @@ export const makeLoginStore = (db: Database): LoginStore => ({
         displayName: identity.displayName,
         ...(identity.email === null ? {} : { email: identity.email }),
         isActive: identity.isActive,
-        roles: mapStoredRoles(roles),
+        roles: mapStoredRoles([...workforceGrants, ...compatibilityRoles]),
         mfaEnabled: mfaCredentials[0]?.status === 'enabled',
       };
     }),

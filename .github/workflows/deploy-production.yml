@@ -121,7 +121,7 @@ jobs:
           const output = process.env.GITHUB_OUTPUT;
           require('node:fs').appendFileSync(
             output,
-            `api_image=${manifest.apiImage}\nweb_image=${manifest.webImage}\nworker_image=${manifest.workerImage}\nprocessor_image=${manifest.processorImage}\n`,
+            `api_image=${manifest.apiImage}\nweb_image=${manifest.webImage}\nworker_image=${manifest.workerImage}\nprocessor_image=${manifest.processorImage}\ncontrol_image=${manifest.controlImage}\n`,
           );
           NODE
 
@@ -158,6 +158,7 @@ jobs:
           WEB_IMAGE: ${{ steps.release.outputs.web_image }}
           WORKER_IMAGE: ${{ steps.release.outputs.worker_image }}
           PROCESSOR_IMAGE: ${{ steps.release.outputs.processor_image }}
+          CONTROL_IMAGE: ${{ steps.release.outputs.control_image }}
         run: |
           set -euo pipefail
 
@@ -194,7 +195,7 @@ jobs:
           ssh \
             "${ssh_args[@]}" \
             "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
-            "set -euo pipefail; test \"\$(stat -c '%a' '$remote_dir')\" = 700; chmod 700 '$remote_deploy_script'; printf '%s  %s\\n' '$deploy_script_digest' '$remote_deploy_script' | sha256sum --check --status; DEPLOY_SHA='$DEPLOY_SHA' PRESSLY_API_IMAGE='$API_IMAGE' PRESSLY_WEB_IMAGE='$WEB_IMAGE' PRESSLY_WORKER_IMAGE='$WORKER_IMAGE' PRESSLY_PROCESSOR_IMAGE='$PROCESSOR_IMAGE' '$remote_deploy_script'"
+            "set -euo pipefail; test \"\$(stat -c '%a' '$remote_dir')\" = 700; chmod 700 '$remote_deploy_script'; printf '%s  %s\\n' '$deploy_script_digest' '$remote_deploy_script' | sha256sum --check --status; DEPLOY_SHA='$DEPLOY_SHA' PRESSLY_API_IMAGE='$API_IMAGE' PRESSLY_WEB_IMAGE='$WEB_IMAGE' PRESSLY_WORKER_IMAGE='$WORKER_IMAGE' PRESSLY_PROCESSOR_IMAGE='$PROCESSOR_IMAGE' PRESSLY_CONTROL_IMAGE='$CONTROL_IMAGE' '$remote_deploy_script'"
 
       - name: Record deployment result
         if: always()

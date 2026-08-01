@@ -51,7 +51,10 @@ const policy = {
             message: 'Membership cannot change after work starts.',
           },
         };
-      if (input.action === 'unfreeze' && input.actorRole === 'operator')
+      if (
+        input.action === 'unfreeze' &&
+        input.authorizedAction !== 'production:override'
+      )
         return {
           tag: 'err' as const,
           error: {
@@ -112,7 +115,7 @@ const freezeCommand = {
   expectedQueueVersion: 4,
   expectedBatchVersion: 7,
   actorId: ids.actor,
-  actorRole: 'operator',
+  authorizedAction: 'production:queue' as const,
   idempotencyKey: 'freeze-batch-1',
 };
 

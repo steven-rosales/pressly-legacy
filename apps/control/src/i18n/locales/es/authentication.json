@@ -1,0 +1,33 @@
+{
+  "authentication": {
+    "title": {
+      "signIn": "Inicia sesión en Control",
+      "verify": "Verifica tu identidad"
+    },
+    "description": {
+      "signIn": "Usa tu cuenta de Pressly. Tu sesión permanece en una cookie protegida y exclusiva de este sitio.",
+      "verify": "Ingresa un código de tu aplicación de autenticación o usa un código de recuperación."
+    },
+    "attention": "El inicio de sesión requiere atención",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "verificationMethod": "Método de verificación",
+    "authenticatorCode": "Código de autenticación",
+    "recoveryCode": "Código de recuperación",
+    "sixDigitCode": "Código de seis dígitos",
+    "invalidSixDigitCode": "Ingresa un código válido de seis dígitos.",
+    "invalidRecoveryCode": "Ingresa un código de recuperación válido.",
+    "actions": {
+      "signIn": "Iniciar sesión",
+      "verifyAndContinue": "Verificar y continuar",
+      "backToSignIn": "Volver al inicio de sesión"
+    },
+    "errors": {
+      "restore": "Control no pudo restaurar tu sesión.",
+      "sessionExpired": "Tu sesión venció. Inicia sesión de nuevo para continuar.",
+      "signIn": "Control no pudo iniciar tu sesión.",
+      "verifyCode": "Control no pudo verificar este código.",
+      "signOut": "Control no pudo confirmar el cierre de sesión."
+    }
+  }
+}

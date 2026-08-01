@@ -250,7 +250,7 @@ describe('production order backlog HTTP boundary', () => {
       resources: permit,
       stage: permit,
       readActorId: () => actorId,
-      readAllowedLocationIds: () => null,
+      readAllowedLocationIds: async () => null,
     } satisfies ProductionRouteSecurity;
     const app = express();
     app.use(express.json());

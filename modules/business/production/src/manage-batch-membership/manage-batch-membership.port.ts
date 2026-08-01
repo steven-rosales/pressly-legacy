@@ -21,7 +21,7 @@ export type ManageBatchMembership = (
   command: BatchMembershipCommand & {
     action: BatchMembershipAction;
     actorId: string;
-    actorRole: string;
+    authorizedAction: 'production:queue' | 'production:override';
   },
 ) => Promise<Result<ProductionBatchMembershipMutationResult, AppError>>;
 

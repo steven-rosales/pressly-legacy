@@ -19,16 +19,9 @@ export type CentsWebhookVerificationResult =
       kind: 'invalid_authentication' | 'verification_unavailable';
     }>;
 
-type LegacyCentsWebhookVerificationResult = boolean;
-
 export type CentsWebhookVerifier = (
   input: CentsWebhookVerificationInput,
-) =>
-  | CentsWebhookVerificationResult
-  | LegacyCentsWebhookVerificationResult
-  | Promise<
-      CentsWebhookVerificationResult | LegacyCentsWebhookVerificationResult
-    >;
+) => CentsWebhookVerificationResult | Promise<CentsWebhookVerificationResult>;
 
 export type CentsWebhookHmacVerifierOptions = Readonly<{
   currentKey?: string;
@@ -154,11 +147,6 @@ const invalidAuthentication = () =>
     status: 401,
   });
 
-const normalizeVerificationResult = (
-  value: CentsWebhookVerificationResult | boolean,
-): CentsWebhookVerificationResult =>
-  typeof value === 'boolean' ? (value ? verified() : rejected()) : value;
-
 export const rejectUnverifiedCentsWebhook: CentsWebhookVerifier = () =>
   verificationUnavailable();
 
@@ -179,12 +167,10 @@ export const makeCentsWebhookBoundary =
 
     let verification: CentsWebhookVerificationResult;
     try {
-      verification = normalizeVerificationResult(
-        await verify({
-          rawBody: request.body,
-          headers: request.headers,
-        }),
-      );
+      verification = await verify({
+        rawBody: request.body,
+        headers: request.headers,
+      });
     } catch {
       next(unavailable());
       return;

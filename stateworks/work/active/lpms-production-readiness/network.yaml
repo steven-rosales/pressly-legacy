@@ -440,7 +440,7 @@ tasks:
       - T5
       - T6
     reads:
-      - repo:tooling/scripts/run-integration.sh
+      - repo:tooling/scripts/run-integration-tests.sh
       - repo:apps/api/test/lpms
       - repo:apps/worker/test
       - repo:apps/processor/test
@@ -450,7 +450,7 @@ tasks:
       - repo:tooling/cents-webhook.postman_collection.json
       - repo:tooling/cents-webhook.postman_environment.example.json
       - repo:docs/runbooks/cents-webhook.md
-      - repo:tooling/scripts/run-integration.sh
+      - repo:tooling/scripts/run-integration-tests.sh
       - repo:apps/api/test/lpms
       - repo:apps/worker/test
       - repo:apps/processor/test

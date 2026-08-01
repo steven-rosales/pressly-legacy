@@ -8,7 +8,7 @@ const valid = {
   expectedQueueVersion: 4,
   actualQueueVersion: 4,
   placementType: 'automatic',
-  actorRole: 'operator',
+  authorizedAction: 'production:queue',
   orderWeightLbs: 40,
   pulseCapacityLbs: 100,
   overtime: {
@@ -36,7 +36,7 @@ describe('placement commit policy', () => {
       {
         ...valid,
         placementType: 'manager_exact',
-        actorRole: 'operator',
+        authorizedAction: 'production:queue',
       },
       'EXACT_PLACEMENT_FORBIDDEN',
     ],
@@ -50,7 +50,7 @@ describe('placement commit policy', () => {
   it('binds overtime acceptance to a manager, proposal hash, and queue version', () => {
     const overtime = {
       ...valid,
-      actorRole: 'owner',
+      authorizedAction: 'production:override',
       overtime: {
         required: true,
         proposalHash: 'proposal-1',

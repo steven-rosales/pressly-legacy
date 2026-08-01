@@ -12,12 +12,21 @@ importers:
 
   .:
     devDependencies:
+      '@axe-core/playwright':
+        specifier: ^4.10.2
+        version: 4.12.1(playwright-core@1.62.1)
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.3.0(jiti@2.6.1))
       '@next/eslint-plugin-next':
         specifier: ^16.2.5
         version: 16.2.5
+      '@playwright/test':
+        specifier: ^1.55.1
+        version: 1.62.1
+      '@pressly/contracts':
+        specifier: workspace:*
+        version: link:packages/contracts
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
@@ -30,6 +39,9 @@ importers:
       eslint-plugin-react-hooks:
         specifier: ^7.1.1
         version: 7.1.1(eslint@10.3.0(jiti@2.6.1))
+      otpauth:
+        specifier: ^9.4.1
+        version: 9.5.1
       prettier:
         specifier: ^3.8.3
         version: 3.8.3
@@ -124,6 +136,9 @@ importers:
         specifier: 4.3.6
         version: 4.3.6
     devDependencies:
+      '@pressly/testkit':
+        specifier: workspace:*
+        version: link:../../packages/testkit
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
@@ -203,6 +218,133 @@ importers:
       vitest:
         specifier: ^4.1.5
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.0)(yaml@2.9.0))
+
+  apps/control:
+    dependencies:
+      '@fontsource-variable/inter':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@pressly/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@pressly/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../../packages/time
+      '@tabler/icons-react':
+        specifier: ^3.44.0
+        version: 3.44.0(react@19.2.6)
+      '@tailwindcss/vite':
+        specifier: ^4
+        version: 4.3.0(vite@8.0.10(@types/node@24.13.1)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: ^4.4.0
+        version: 4.4.0
+      i18next:
+        specifier: ^26.3.6
+        version: 26.3.6(typescript@6.0.3)
+      input-otp:
+        specifier: ^1.4.2
+        version: 1.4.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      radix-ui:
+        specifier: ^1.5.0
+        version: 1.5.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: ^19.2.6
+        version: 19.2.6
+      react-day-picker:
+        specifier: ^10.0.1
+        version: 10.0.1(@types/react@19.2.14)(react@19.2.6)
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.6(react@19.2.6)
+      react-i18next:
+        specifier: ^17.0.10
+        version: 17.0.10(i18next@26.3.6(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
+      react-router-dom:
+        specifier: ^7.18.1
+        version: 7.18.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      shadcn:
+        specifier: ^4.10.0
+        version: 4.10.0(@types/node@24.13.1)(typescript@6.0.3)
+      tailwind-merge:
+        specifier: ^3.6.0
+        version: 3.6.0
+      tailwindcss:
+        specifier: ^4
+        version: 4.3.0
+      tw-animate-css:
+        specifier: ^1.4.0
+        version: 1.4.0
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@eslint/js':
+        specifier: ^10
+        version: 10.0.1(eslint@10.3.0(jiti@2.6.1))
+      '@testing-library/jest-dom':
+        specifier: ^6.9.1
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@testing-library/user-event':
+        specifier: ^14.6.1
+        version: 14.6.1(@testing-library/dom@10.4.1)
+      '@types/node':
+        specifier: ^24
+        version: 24.13.1
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: ^6
+        version: 6.0.1(babel-plugin-react-compiler@1.0.0)(vite@8.0.10(@types/node@24.13.1)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
+      eslint:
+        specifier: ^10
+        version: 10.3.0(jiti@2.6.1)
+      eslint-plugin-react-hooks:
+        specifier: ^7.1.1
+        version: 7.1.1(eslint@10.3.0(jiti@2.6.1))
+      eslint-plugin-react-refresh:
+        specifier: ^0.5.2
+        version: 0.5.2(eslint@10.3.0(jiti@2.6.1))
+      globals:
+        specifier: ^17
+        version: 17.6.0
+      jsdom:
+        specifier: ^28.1.0
+        version: 28.1.0(@noble/hashes@2.2.0)
+      prettier:
+        specifier: ^3.8.3
+        version: 3.8.3
+      prettier-plugin-tailwindcss:
+        specifier: ^0.8.0
+        version: 0.8.0(prettier@3.8.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      typescript-eslint:
+        specifier: ^8
+        version: 8.59.2(eslint@10.3.0(jiti@2.6.1))(typescript@6.0.3)
+      vite:
+        specifier: ^8
+        version: 8.0.10(@types/node@24.13.1)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.13.1)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@24.13.1)(typescript@6.0.3))(vite@8.0.10(@types/node@24.13.1)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   apps/processor:
     dependencies:
@@ -395,7 +537,7 @@ importers:
         version: 1.2.4(@types/react@19.2.14)(react@19.2.6)
       '@sentry/nextjs':
         specifier: ^10
-        version: 10.50.0(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(webpack@5.106.2(esbuild@0.28.0))
+        version: 10.50.0(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(webpack@5.106.2(esbuild@0.28.0))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -413,7 +555,7 @@ importers:
         version: 1.11.0(react@19.2.6)
       next:
         specifier: ^16.2.6
-        version: 16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       posthog-js:
         specifier: ^1.372.3
         version: 1.372.3
@@ -529,9 +671,6 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
-      posthog-node:
-        specifier: ^5.30.6
-        version: 5.30.6
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -1085,6 +1224,11 @@ packages:
 
   '@asamuzakjp/nwsapi@2.3.9':
     resolution: {integrity: sha512-n8GuYSrI9bF7FFZ/SjhwevlHc8xaVlb/7HmHelnc/PZXBD2ZR49NnN9sMMuDdEGPeeRQ5d0hqlSlEpgCX3Wl0Q==}
+
+  '@axe-core/playwright@4.12.1':
+    resolution: {integrity: sha512-rMd7xriptqKpP+w5265i4Hdkv2X5kbu6uiBi/B2I7uf3hieRBM3qDCfaKPtxfiYb2mKXfF+yLODJwIx+Jv1GDw==}
+    peerDependencies:
+      playwright-core: '>= 1.0.0'
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -2682,6 +2826,11 @@ packages:
   '@phc/format@1.0.0':
     resolution: {integrity: sha512-m7X9U6BG2+J+R1lSOdCiITLLrxm+cWlNI3HUFA92oLO77ObGNzaKdh8pMLqdZcshtkKuV84olNNXDfMc4FezBQ==}
     engines: {node: '>=10'}
+
+  '@playwright/test@1.62.1':
+    resolution: {integrity: sha512-DTcUc8qii+cpHvtOwggMtBRMjKZHXYWdw8syRYu2vtzuq4Wxphqq4NfCs5Zt44L6mA8rfDfj+PHnxFc/FeK6mQ==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   '@posthog/core@1.27.7':
     resolution: {integrity: sha512-6rzOZajUkhuezgPeF+ReMMly0D9oiwIZtMQrsJtZcS/mwi5OtvuYgxeaohgP9PKOhkK1c7cvGskX0Y2YUtBYCw==}
@@ -4834,6 +4983,10 @@ packages:
     resolution: {integrity: sha512-ooviqdwwgfIfNmDwo94wlshcdzfO64XV0Cg6oDsDYBJfITDz1EngD2z7DkbvCWn+XIMsIqW27sEVF6qcpJrRcg==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
+  axe-core@4.12.1:
+    resolution: {integrity: sha512-s7iGf5GaVMxEG0ENN9x+xTr7GFZCb1ZP/1uATUpCEK2X78nDB3RwbtFCo9pGAf9ru+VwoQ464DkaLEeRM08wJA==}
+    engines: {node: '>=4'}
+
   babel-plugin-react-compiler@1.0.0:
     resolution: {integrity: sha512-Ixm8tFfoKKIPYdCCKYTsqv+Fd4IJ0DQqMyEimo+pxUOMUR9cVPlwTrFt9Avu+3cb6Zp3mAzl+t1MrG2fxxKsxw==}
 
@@ -5630,6 +5783,11 @@ packages:
   fs-extra@11.3.5:
     resolution: {integrity: sha512-eKpRKAovdpZtR1WopLHxlBWvAgPny3c4gX1G5Jhwmmw4XJj0ifSD5qB5TOo8hmA0wlRKDAOAhEE1yVPgs6Fgcg==}
     engines: {node: '>=14.14'}
+
+  fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -6504,6 +6662,16 @@ packages:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
 
+  playwright-core@1.62.1:
+    resolution: {integrity: sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.62.1:
+    resolution: {integrity: sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   postcss-selector-parser@7.1.1:
     resolution: {integrity: sha512-orRsuYpJVw8LdAwqqLykBj9ecS5/cRHlI5+nvTo8LcCKmzDmqVORXtOIYEEQuL9D4BxtA1lm5isAqzQZCoQ6Eg==}
     engines: {node: '>=4'}
@@ -6538,15 +6706,6 @@ packages:
 
   posthog-js@1.372.3:
     resolution: {integrity: sha512-CpKWMt6RkgY4lPpyvYzKcilKKB5VhL2gmS8HgibxmXZkEk/2rUxrEtRMScH8xi4n5WDaNSluCo87dh9yo9zArQ==}
-
-  posthog-node@5.30.6:
-    resolution: {integrity: sha512-deZuSiLkpdEipiywkww1FhQoKpVVFmJP6SAVQcZcMbugTLwJRYSGjgm+qV0Y91xghf2yP6Nr5Plfl52i9Qj15Q==}
-    engines: {node: ^20.20.0 || >=22.22.0}
-    peerDependencies:
-      rxjs: ^7.0.0
-    peerDependenciesMeta:
-      rxjs:
-        optional: true
 
   powershell-utils@0.1.0:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
@@ -7638,6 +7797,11 @@ snapshots:
 
   '@asamuzakjp/nwsapi@2.3.9': {}
 
+  '@axe-core/playwright@4.12.1(playwright-core@1.62.1)':
+    dependencies:
+      axe-core: 4.12.1
+      playwright-core: 1.62.1
+
   '@babel/code-frame@7.29.0':
     dependencies:
       '@babel/helper-validator-identifier': 7.28.5
@@ -7674,7 +7838,7 @@ snapshots:
 
   '@babel/generator@7.29.1':
     dependencies:
-      '@babel/parser': 7.29.2
+      '@babel/parser': 7.29.7
       '@babel/types': 7.29.0
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
@@ -7848,7 +8012,7 @@ snapshots:
   '@babel/template@7.28.6':
     dependencies:
       '@babel/code-frame': 7.29.0
-      '@babel/parser': 7.29.2
+      '@babel/parser': 7.29.7
       '@babel/types': 7.29.0
 
   '@babel/template@7.29.7':
@@ -7862,7 +8026,7 @@ snapshots:
       '@babel/code-frame': 7.29.0
       '@babel/generator': 7.29.1
       '@babel/helper-globals': 7.28.0
-      '@babel/parser': 7.29.2
+      '@babel/parser': 7.29.7
       '@babel/template': 7.28.6
       '@babel/types': 7.29.0
       debug: 4.4.3
@@ -8993,6 +9157,10 @@ snapshots:
   '@oxc-project/types@0.127.0': {}
 
   '@phc/format@1.0.0': {}
+
+  '@playwright/test@1.62.1':
+    dependencies:
+      playwright: 1.62.1
 
   '@posthog/core@1.27.7':
     dependencies:
@@ -10311,7 +10479,7 @@ snapshots:
 
   '@sentry/core@10.50.0': {}
 
-  '@sentry/nextjs@10.50.0(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(webpack@5.106.2(esbuild@0.28.0))':
+  '@sentry/nextjs@10.50.0(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(webpack@5.106.2(esbuild@0.28.0))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/semantic-conventions': 1.40.0
@@ -10324,7 +10492,7 @@ snapshots:
       '@sentry/react': 10.50.0(react@19.2.6)
       '@sentry/vercel-edge': 10.50.0
       '@sentry/webpack-plugin': 5.2.0(webpack@5.106.2(esbuild@0.28.0))
-      next: 16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      next: 16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       rollup: 4.60.2
       stacktrace-parser: 0.1.11
     transitivePeerDependencies:
@@ -11165,6 +11333,8 @@ snapshots:
 
   auto-bind@5.0.1: {}
 
+  axe-core@4.12.1: {}
+
   babel-plugin-react-compiler@1.0.0:
     dependencies:
       '@babel/types': 7.29.0
@@ -11956,6 +12126,9 @@ snapshots:
       jsonfile: 6.2.1
       universalify: 2.0.1
 
+  fsevents@2.3.2:
+    optional: true
+
   fsevents@2.3.3:
     optional: true
 
@@ -12575,7 +12748,7 @@ snapshots:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
 
-  next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
+  next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
     dependencies:
       '@next/env': 16.2.6
       '@swc/helpers': 0.5.15
@@ -12595,6 +12768,7 @@ snapshots:
       '@next/swc-win32-arm64-msvc': 16.2.6
       '@next/swc-win32-x64-msvc': 16.2.6
       '@opentelemetry/api': 1.9.1
+      '@playwright/test': 1.62.1
       babel-plugin-react-compiler: 1.0.0
       sharp: 0.34.5
     transitivePeerDependencies:
@@ -12704,7 +12878,7 @@ snapshots:
 
   parse-json@5.2.0:
     dependencies:
-      '@babel/code-frame': 7.29.0
+      '@babel/code-frame': 7.29.7
       error-ex: 1.3.4
       json-parse-even-better-errors: 2.3.1
       lines-and-columns: 1.2.4
@@ -12785,6 +12959,14 @@ snapshots:
 
   pkce-challenge@5.0.1: {}
 
+  playwright-core@1.62.1: {}
+
+  playwright@1.62.1:
+    dependencies:
+      playwright-core: 1.62.1
+    optionalDependencies:
+      fsevents: 2.3.2
+
   postcss-selector-parser@7.1.1:
     dependencies:
       cssesc: 3.0.0
@@ -12829,10 +13011,6 @@ snapshots:
       preact: 10.29.1
       query-selector-shadow-dom: 1.0.1
       web-vitals: 5.2.0
-
-  posthog-node@5.30.6:
-    dependencies:
-      '@posthog/core': 1.27.7
 
   powershell-utils@0.1.0: {}
 
@@ -13256,7 +13434,7 @@ snapshots:
   shadcn@4.10.0(@types/node@24.13.1)(typescript@6.0.3):
     dependencies:
       '@babel/core': 7.29.0
-      '@babel/parser': 7.29.2
+      '@babel/parser': 7.29.7
       '@babel/plugin-transform-typescript': 7.29.7(@babel/core@7.29.0)
       '@babel/preset-typescript': 7.29.7(@babel/core@7.29.0)
       '@dotenvx/dotenvx': 1.71.0

@@ -33,7 +33,7 @@ export const makeManageBatchMembershipRoute = (input: {
     makeManageBatchMembershipController({
       ...input,
       action: 'freeze',
-      effectiveActorRole: 'operator',
+      authorizedAction: 'production:queue',
     }),
   );
   router.post(
@@ -47,7 +47,7 @@ export const makeManageBatchMembershipRoute = (input: {
     makeManageBatchMembershipController({
       ...input,
       action: 'unfreeze',
-      effectiveActorRole: 'owner',
+      authorizedAction: 'production:override',
     }),
   );
 

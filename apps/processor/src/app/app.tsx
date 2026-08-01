@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { BrowserRouter, useLocation, useNavigate } from "react-router-dom"
+import {
+  BrowserRouter,
+  Navigate,
+  useLocation,
+  useNavigate,
+} from "react-router-dom"
 import {
   IconAlertTriangle,
   IconMapPin,
@@ -52,6 +57,7 @@ import {
   useProcessorAppModel,
 } from "./app.model"
 import {
+  canAccessWorkspaceView,
   readWorkspaceRoute,
   workspaceRouteForView,
   workspaceRoutePath,
@@ -246,6 +252,16 @@ function ProcessorWorkspace({
       navigateToView("board", { runId: target.runId })
     else navigateToView(target.view)
   }
+  const canNavigateFromForecast = (
+    target:
+      | Readonly<{ view: "intake" }>
+      | Readonly<{ view: "production"; runId: string }>
+      | Readonly<{ view: "schedule" }>
+  ) =>
+    canAccessWorkspaceView(
+      model.selectedCapabilities,
+      target.view === "production" ? "board" : target.view
+    )
 
   const resolvedRunId =
     route.runId ??
@@ -373,6 +389,9 @@ function ProcessorWorkspace({
       </main>
     )
 
+  if (!canAccessWorkspaceView(model.selectedCapabilities, route.view))
+    return <Navigate to="/" replace />
+
   return (
     <AppShell
       current={route.view}
@@ -382,6 +401,8 @@ function ProcessorWorkspace({
       locationName={location.name}
       timezone={location.timezone}
       principalName={model.session.principal.displayName}
+      capabilities={model.selectedCapabilities}
+      applications={model.session.access.applications}
       logoutBusy={model.authBusy}
       onLogout={() => void model.logout()}
       actions={
@@ -462,6 +483,7 @@ function ProcessorWorkspace({
                 now={runtime.now}
                 variant="full"
                 onNavigate={navigateFromForecast}
+                canNavigate={canNavigateFromForecast}
                 onOpenForecast={() => navigateToView("forecast")}
               />
             )}
@@ -488,16 +510,21 @@ function ProcessorWorkspace({
                   onNavigate={navigateFromForecast}
                   onOpenForecast={() => navigateToView("forecast")}
                 />
-                <OrderAttentionSummaryContainer
-                  production={runtime.production}
-                  idempotency={runtime.idempotency}
-                  locationId={location.id}
-                  timezone={location.timezone}
-                  board={model.workspace.board}
-                  revision={model.workspace.asOf}
-                  onMutated={model.refreshWorkspace}
-                  onOpenOrders={() => navigateToView("orders")}
-                />
+                {canAccessWorkspaceView(
+                  model.selectedCapabilities,
+                  "orders"
+                ) && (
+                  <OrderAttentionSummaryContainer
+                    production={runtime.production}
+                    idempotency={runtime.idempotency}
+                    locationId={location.id}
+                    timezone={location.timezone}
+                    board={model.workspace.board}
+                    revision={model.workspace.asOf}
+                    onMutated={model.refreshWorkspace}
+                    onOpenOrders={() => navigateToView("orders")}
+                  />
+                )}
               </>
             )}
             {route.view === "orders" && (
@@ -515,8 +542,8 @@ function ProcessorWorkspace({
                       idempotency={runtime.idempotency}
                       locationId={location.id}
                       timezone={location.timezone}
-                      canManage={model.session.principal.roles.some(
-                        (role) => role === "owner" || role === "admin"
+                      canManage={model.selectedCapabilities.includes(
+                        "production:override"
                       )}
                       now={runtime.now}
                       onMutated={model.refreshWorkspace}
@@ -544,8 +571,8 @@ function ProcessorWorkspace({
                 shift={scheduleContext.shift}
                 productionRun={scheduleContext.productionRun}
                 changes={scheduleContext.changes}
-                canManage={model.session.principal.roles.some(
-                  (role) => role === "owner" || role === "admin"
+                canManage={model.selectedCapabilities.includes(
+                  "production:override"
                 )}
                 online={model.online}
                 updatesState={model.liveConnectionState}
@@ -604,8 +631,8 @@ function ProcessorWorkspace({
                   currentShift={scheduleContext.shift}
                   shiftSelection={model.workspace.shiftSelection}
                   initialProposal={scheduleContext.proposal ?? undefined}
-                  canManage={model.session.principal.roles.some(
-                    (role) => role === "owner" || role === "admin"
+                  canManage={model.selectedCapabilities.includes(
+                    "production:schedule"
                   )}
                   remainingDayContext={
                     <ForecastWorkspaceContainer
@@ -620,7 +647,14 @@ function ProcessorWorkspace({
                       onOpenForecast={() => navigateToView("forecast")}
                     />
                   }
-                  onOpenConfiguration={() => navigateToView("settings")}
+                  onOpenConfiguration={
+                    canAccessWorkspaceView(
+                      model.selectedCapabilities,
+                      "settings"
+                    )
+                      ? () => navigateToView("settings")
+                      : undefined
+                  }
                   onScheduleChanged={async (productionShiftId) => {
                     goToRoute(
                       workspaceRouteForView("schedule", {
@@ -657,13 +691,16 @@ function ProcessorWorkspace({
                 refreshBoard={model.refreshBoard}
                 online={model.online}
                 updatesState={model.liveConnectionState}
-                canManage={model.session.principal.roles.some(
-                  (role) => role === "owner" || role === "admin"
+                canManage={model.selectedCapabilities.includes(
+                  "production:override"
                 )}
-                onOpenSchedule={(productionShiftId) =>
-                  navigateToView("schedule", {
-                    shiftId: productionShiftId,
-                  })
+                onOpenSchedule={
+                  canAccessWorkspaceView(model.selectedCapabilities, "schedule")
+                    ? (productionShiftId) =>
+                        navigateToView("schedule", {
+                          shiftId: productionShiftId,
+                        })
+                    : undefined
                 }
               />
             )}
@@ -680,36 +717,50 @@ function ProcessorWorkspace({
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
-                  {model.workspace.candidateShifts.map((candidate) => (
-                    <Button
-                      key={candidate.productionShiftId}
-                      variant="outline"
-                      onClick={() =>
-                        navigateToView(
-                          candidate.productionRunId === null
-                            ? "schedule"
-                            : "board",
-                          {
-                            shiftId: candidate.productionShiftId,
-                            runId: candidate.productionRunId,
-                          }
+                  {model.workspace.candidateShifts
+                    .filter(
+                      (candidate) =>
+                        candidate.productionRunId !== null ||
+                        canAccessWorkspaceView(
+                          model.selectedCapabilities,
+                          "schedule"
                         )
-                      }
-                    >
-                      {t("workspace.openCandidate", {
-                        reason: t(
-                          candidate.reason === "started_run"
-                            ? "workspace.candidateReason.startedRun"
-                            : candidate.reason === "accepted_plan"
-                              ? "workspace.candidateReason.acceptedPlan"
-                              : "workspace.candidateReason.openShift"
-                        ),
-                      })}
+                    )
+                    .map((candidate) => (
+                      <Button
+                        key={candidate.productionShiftId}
+                        variant="outline"
+                        onClick={() =>
+                          navigateToView(
+                            candidate.productionRunId === null
+                              ? "schedule"
+                              : "board",
+                            {
+                              shiftId: candidate.productionShiftId,
+                              runId: candidate.productionRunId,
+                            }
+                          )
+                        }
+                      >
+                        {t("workspace.openCandidate", {
+                          reason: t(
+                            candidate.reason === "started_run"
+                              ? "workspace.candidateReason.startedRun"
+                              : candidate.reason === "accepted_plan"
+                                ? "workspace.candidateReason.acceptedPlan"
+                                : "workspace.candidateReason.openShift"
+                          ),
+                        })}
+                      </Button>
+                    ))}
+                  {canAccessWorkspaceView(
+                    model.selectedCapabilities,
+                    "schedule"
+                  ) && (
+                    <Button onClick={() => navigateToView("schedule")}>
+                      {t("workspace.openScheduling")}
                     </Button>
-                  ))}
-                  <Button onClick={() => navigateToView("schedule")}>
-                    {t("workspace.openScheduling")}
-                  </Button>
+                  )}
                 </EmptyContent>
               </Empty>
             )}
@@ -720,8 +771,8 @@ function ProcessorWorkspace({
                 locationId={location.id}
                 timezone={location.timezone}
                 revision={model.workspace.asOf}
-                canManage={model.session.principal.roles.some(
-                  (role) => role === "owner" || role === "admin"
+                canManage={model.selectedCapabilities.includes(
+                  "production:override"
                 )}
                 onMutated={model.refreshWorkspace}
               />
@@ -735,8 +786,8 @@ function ProcessorWorkspace({
                 production={runtime.production}
                 idempotency={runtime.idempotency}
                 locationId={location.id}
-                canManage={model.session.principal.roles.some(
-                  (role) => role === "owner" || role === "admin"
+                canManage={model.selectedCapabilities.includes(
+                  "production:schedule"
                 )}
                 onConfigurationPublished={async () => {
                   await model.refreshWorkspace(route.shiftId ?? undefined)

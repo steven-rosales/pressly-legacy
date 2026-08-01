@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -12,6 +13,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { businessAccounts } from './business.schema.ts';
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true })
@@ -26,6 +28,9 @@ export const users = pgTable(
   'users',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    businessId: uuid('business_id')
+      .notNull()
+      .references(() => businessAccounts.id),
     version: integer('version').notNull().default(1),
     firstName: text('first_name'),
     lastName: text('last_name'),
@@ -36,7 +41,9 @@ export const users = pgTable(
     ...timestamps,
   },
   (table) => [
+    uniqueIndex('users_id_business_unique').on(table.id, table.businessId),
     check('users_positive_version', sql`${table.version} > 0`),
+    index('users_business_active_idx').on(table.businessId, table.active),
     index('users_phone_idx').on(table.phone),
     index('users_email_idx').on(table.email),
   ],
@@ -175,19 +182,29 @@ export const userCommandReceipts = pgTable(
   'user_command_receipts',
   {
     idempotencyKey: text('idempotency_key').primaryKey(),
+    businessId: uuid('business_id')
+      .notNull()
+      .references(() => businessAccounts.id),
     commandHash: text('command_hash').notNull(),
     origin: text('origin').notNull(),
     actorKind: text('actor_kind').notNull(),
     actorId: text('actor_id').notNull(),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id),
+    userId: uuid('user_id').notNull(),
     result: jsonb('result_json').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      name: 'user_command_receipts_user_business_fk',
+      columns: [table.userId, table.businessId],
+      foreignColumns: [users.id, users.businessId],
+    }),
+    check(
+      'user_command_receipts_command_hash_shape',
+      sql`${table.commandHash} ~ '^[a-f0-9]{64}$'`,
+    ),
     check(
       'user_command_receipts_actor_kind_valid',
       sql`${table.actorKind} in ('human', 'service', 'system')`,

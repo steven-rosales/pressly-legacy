@@ -12,7 +12,7 @@ Usage: tooling/scripts/production-topology-smoke.sh [--skip-build]
 
 Builds and exercises a disposable, loopback-only production Compose topology.
 The script refuses remote Docker contexts, uses an isolated project and volume,
-proves the run-centered LPMS lifecycle, rotates two synthetic local four-image
+proves the run-centered LPMS lifecycle, rotates two synthetic local five-image
 releases, and always tears the stack down.
 EOF
 }
@@ -57,7 +57,7 @@ PROJECT_VOLUMES="$(docker volume ls -q --filter "label=com.docker.compose.projec
 [[ -z "$PROJECT_CONTAINERS" && -z "$PROJECT_NETWORKS" && -z "$PROJECT_VOLUMES" ]] ||
   fail "refusing to reuse a Compose project that already owns Docker resources: $PROJECT_NAME"
 
-for service in api web worker processor; do
+for service in api web worker processor control; do
   release_a_image="${PROJECT_NAME}-${service}:release-a"
   release_b_image="${PROJECT_NAME}-${service}:release-b"
   if [[ "$SKIP_BUILD" == true ]]; then
@@ -92,6 +92,7 @@ export PRESSLY_SMOKE_DATABASE_PASSWORD="$(node --input-type=module -e "import { 
 export PRESSLY_SMOKE_AUTH_SECRET="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(48).toString('base64url')); ")"
 export PRESSLY_SMOKE_MFA_ENCRYPTION_KEY="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(32).toString('base64')); ")"
 export PRESSLY_SMOKE_CSRF_SECRET="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(48).toString('base64url')); ")"
+export PRESSLY_SMOKE_CONTROL_CSRF_SECRET="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(48).toString('base64url')); ")"
 export PRESSLY_SMOKE_CENTS_HMAC_KEY="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(48).toString('base64url')); ")"
 export PRESSLY_SMOKE_CENTS_QUARANTINE_KEY="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(32).toString('base64')); ")"
 OWNER_PASSWORD="$(node --input-type=module -e "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(24).toString('base64url') + 'Aa1!'); ")"
@@ -111,6 +112,7 @@ set_release() {
   export PRESSLY_WEB_IMAGE="$(release_image "$release" web)"
   export PRESSLY_WORKER_IMAGE="$(release_image "$release" worker)"
   export PRESSLY_PROCESSOR_IMAGE="$(release_image "$release" processor)"
+  export PRESSLY_CONTROL_IMAGE="$(release_image "$release" control)"
   case "$release" in
     release-a) export PRESSLY_RELEASE_SHA="$RELEASE_A_SOURCE" ;;
     release-b) export PRESSLY_RELEASE_SHA="$RELEASE_B_SOURCE" ;;
@@ -135,7 +137,7 @@ cleanup() {
   set +e
   if ((exit_code != 0)); then
     compose ps >&2
-    compose logs --no-color --tail=200 caddy web api worker processor postgres >&2
+    compose logs --no-color --tail=200 caddy web api worker processor control postgres >&2
   fi
   if ! compose down --volumes --remove-orphans --timeout 10 >/dev/null; then
     echo 'offline topology smoke cleanup failed: docker compose down did not succeed.' >&2
@@ -143,7 +145,7 @@ cleanup() {
   fi
   for release in release-a release-b; do
     [[ "$SKIP_BUILD" == true && "$release" == release-a ]] && continue
-    for service in api web worker processor; do
+    for service in api web worker processor control; do
       local image_name
       image_name="$(release_image "$release" "$service")"
       if ! docker image rm "$image_name" >/dev/null 2>&1; then
@@ -235,20 +237,20 @@ if (published[0].port.target !== 443)
   throw new Error('The smoke Caddy port must terminate local HTTPS on container port 443.');
 if (config.services.worker.ports !== undefined || config.services.worker.expose !== undefined)
   throw new Error('Worker must have no published or exposed port.');
-for (const service of ['api', 'web', 'worker', 'processor']) {
+for (const service of ['api', 'web', 'worker', 'processor', 'control']) {
   if (config.services[service].read_only !== true)
     throw new Error(`${service} must have a read-only filesystem.`);
 }
 NODE
 
 if [[ "$SKIP_BUILD" == false ]]; then
-  echo '[v2] building release-a from all four production Dockerfiles'
-  compose build api web worker processor
+  echo '[v2] building release-a from all five production Dockerfiles'
+  compose build api web worker processor control
 else
   echo '[v2] build skipped explicitly; pre-existing project-scoped release-a images are required'
 fi
 
-for service in api web worker processor; do
+for service in api web worker processor control; do
   release_a_image="$(release_image release-a "$service")"
   release_b_image="$(release_image release-b "$service")"
   docker image inspect "$release_a_image" >/dev/null ||
@@ -290,7 +292,7 @@ database_scalar() {
 }
 
 assert_release_images() {
-  for service in api web worker processor; do
+  for service in api web worker processor control; do
     local container_id actual expected
     container_id="$(compose ps -q "$service")"
     actual="$(docker inspect --format '{{.Config.Image}}' "$container_id")"
@@ -305,12 +307,13 @@ write_metadata() {
   local source_sha="$2"
   local temporary
   temporary="$(mktemp "${path}.tmp.XXXXXX")"
-  printf '{"sourceSha":"%s","apiImage":"%s","webImage":"%s","workerImage":"%s","processorImage":"%s","kind":"local-synthetic"}\n' \
+  printf '{"sourceSha":"%s","apiImage":"%s","webImage":"%s","workerImage":"%s","processorImage":"%s","controlImage":"%s","kind":"local-synthetic"}\n' \
     "$source_sha" \
     "$PRESSLY_API_IMAGE" \
     "$PRESSLY_WEB_IMAGE" \
     "$PRESSLY_WORKER_IMAGE" \
-    "$PRESSLY_PROCESSOR_IMAGE" > "$temporary"
+    "$PRESSLY_PROCESSOR_IMAGE" \
+    "$PRESSLY_CONTROL_IMAGE" > "$temporary"
   mv "$temporary" "$path"
 }
 
@@ -357,7 +360,7 @@ const verify = (path, source, release) => {
   const value = JSON.parse(readFileSync(path, 'utf8'));
   if (value.sourceSha !== source || value.kind !== 'local-synthetic')
     throw new Error(`Unexpected release metadata in ${path}`);
-  for (const service of ['api', 'web', 'worker', 'processor']) {
+  for (const service of ['api', 'web', 'worker', 'processor', 'control']) {
     const field = `${service}Image`;
     const expected = `${project}-${service}:${release}`;
     if (value[field] !== expected)
@@ -391,6 +394,9 @@ probe_routes() {
   probe_ok processor.pressly.test /
   probe_ok processor.pressly.test /health
   probe_ok processor.pressly.test /api/health/ready
+  probe_ok control.pressly.test /
+  probe_ok control.pressly.test /health
+  probe_ok control.pressly.test /api/health/ready
 
   local auth_response="$WORK_DIR/processor-auth.json"
   local auth_status
@@ -1616,7 +1622,7 @@ printf '%s\n' "$OWNER_PASSWORD" | \
     --password-stdin >/dev/null
 
 echo '[v2] starting release-a and proving Caddy routes'
-compose up -d --wait --wait-timeout 180 api web worker processor caddy
+compose up -d --wait --wait-timeout 180 api web worker processor control caddy
 assert_release_images release-a
 probe_routes
 echo '[v2] proving production HTTPS cookie, session restoration, and CSRF behavior through Caddy'
@@ -1657,10 +1663,10 @@ finish_lpms_live_flow
 
 promote_metadata "$RELEASE_A_SOURCE"
 
-echo '[v2] migrating and switching all four applications to synthetic release-b'
+echo '[v2] migrating and switching all five applications to synthetic release-b'
 set_release release-b
 run_migrations
-compose up -d --force-recreate --wait --wait-timeout 180 api web worker processor
+compose up -d --force-recreate --wait --wait-timeout 180 api web worker processor control
 assert_release_images release-b
 probe_routes
 wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" finished
@@ -1668,10 +1674,10 @@ wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" finished
 promote_metadata "$RELEASE_B_SOURCE"
 assert_metadata "$RELEASE_B_SOURCE" release-b "$RELEASE_A_SOURCE" release-a
 
-echo '[v2] rolling all four applications back to release-a without invoking deploy.sh or Git'
+echo '[v2] rolling all five applications back to release-a without invoking deploy.sh or Git'
 set_release release-a
 run_migrations
-compose up -d --force-recreate --wait --wait-timeout 180 api web worker processor
+compose up -d --force-recreate --wait --wait-timeout 180 api web worker processor control
 assert_release_images release-a
 probe_routes
 wait_for_projection "$LPMS_FIRST_EXTERNAL_ORDER_ID" finished

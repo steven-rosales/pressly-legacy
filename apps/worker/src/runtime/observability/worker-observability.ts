@@ -116,7 +116,6 @@ const metricAttributes = (
 const secondsMeasurements = new Set<MeasurementName>([
   'worker.inbox_oldest_pending_age_seconds',
   'worker.processing_latency_seconds',
-  'worker.reconciliation_lag_seconds',
 ]);
 
 export const workerHeartbeatMonitorSlug = 'pressly-worker-heartbeat';

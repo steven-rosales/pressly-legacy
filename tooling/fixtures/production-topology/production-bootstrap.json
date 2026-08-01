@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "location": {
     "id": "offline-smoke-location",
+    "businessId": "00000000-0000-4000-8000-000000000100",
     "name": "Offline Smoke Facility",
     "timezone": "America/New_York",
     "isActive": true

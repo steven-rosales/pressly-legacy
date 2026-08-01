@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  businessScope,
   globalScope,
   hasScopedRole,
   locationScope,
@@ -61,6 +62,33 @@ describe('hasScopedRole', () => {
         resource(locationScope('hoboken')),
       ),
     ).toBe(true);
+  });
+
+  it('allows a business assignment only through an explicit matching ancestor', () => {
+    const businessResource: AuthResource = {
+      kind: 'production.location',
+      scope: locationScope('hoboken'),
+      ancestorScopes: [businessScope('pressly')],
+    };
+
+    expect(
+      evaluate(
+        attributes([{ role: 'owner', scope: businessScope('pressly') }]),
+        businessResource,
+      ),
+    ).toBe(true);
+    expect(
+      evaluate(
+        attributes([{ role: 'owner', scope: businessScope('competitor') }]),
+        businessResource,
+      ),
+    ).toBe(false);
+    expect(
+      evaluate(
+        attributes([{ role: 'owner', scope: businessScope('pressly') }]),
+        resource(locationScope('hoboken')),
+      ),
+    ).toBe(false);
   });
 
   it('denies location assignments for another location', () => {

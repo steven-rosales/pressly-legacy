@@ -91,7 +91,7 @@ const command = {
   productionRunId: ids.run,
   productionOrderId: ids.order,
   actorId: ids.actor,
-  actorRole: 'operator' as const,
+  authorizedAction: 'production:stage' as const,
   kind: 'queued_move' as const,
   reason: 'manual_rebatch' as const,
   restartStage: 'sorting' as const,

@@ -24,6 +24,39 @@ const principal = {
   email: 'operator@example.com',
   roles: ['operator' as const],
 };
+const browserPrincipal = {
+  identityId: principal.identityId,
+  displayName: principal.displayName,
+  email: principal.email,
+};
+const access = {
+  locations: [
+    {
+      id: 'pressly-one',
+      name: 'Pressly One',
+      timezone: 'America/New_York',
+      capabilities: [
+        'processor:view' as const,
+        'production:read' as const,
+        'production:intake' as const,
+      ],
+    },
+  ],
+  applications: [
+    {
+      id: 'processor' as const,
+      label: 'Pressly Processor',
+      description: 'Run laundry-floor production.',
+      href: origin,
+    },
+    {
+      id: 'control' as const,
+      label: 'Pressly Control',
+      description: 'Manage the business.',
+      href: 'http://control.test',
+    },
+  ],
+};
 
 const loadedSession = {
   principal: {
@@ -122,6 +155,7 @@ const makeApplication = (
 
 const makeTestApp = (input: {
   application: AuthModule['application'];
+  resolvedAccess?: typeof access | null;
   secureCookies?: boolean;
 }) => {
   const bearerAuthenticate = vi.fn<RequestHandler>(
@@ -132,6 +166,9 @@ const makeTestApp = (input: {
   );
   const boundary = makeProcessorBrowserBoundary({
     application: input.application,
+    resolveAccess: vi.fn(async () =>
+      input.resolvedAccess === undefined ? access : input.resolvedAccess,
+    ),
     bearerAuthenticate,
     options: {
       origin,
@@ -175,9 +212,11 @@ describe('processor browser session boundary', () => {
     expect(response.status).toBe(200);
     expect(body.data).toMatchObject({
       status: 'authenticated',
-      principal,
+      principal: browserPrincipal,
+      access,
       csrfToken: deriveProcessorCsrfToken(sessionToken, csrfSecret),
     });
+    expect(JSON.stringify(body)).not.toContain('"roles"');
     expect(JSON.stringify(body)).not.toMatch(/accessToken|challengeToken/);
     expect(setCookie).toContain('pressly_processor_session=');
     expect(setCookie).toContain('HttpOnly');
@@ -200,6 +239,7 @@ describe('processor browser session boundary', () => {
       headers: { Cookie: cookie },
     });
     expect(restored.status).toBe(200);
+    expect(restored.headers.get('cache-control')).toBe('no-store');
     expect(application.loadSession).toHaveBeenCalledWith({
       bearerToken: sessionToken,
     });
@@ -229,6 +269,7 @@ describe('processor browser session boundary', () => {
       },
     });
     expect(logout.status).toBe(200);
+    expect(logout.headers.get('cache-control')).toBe('no-store');
     expect(application.revokeSession).toHaveBeenCalledWith(
       expect.objectContaining({ bearerToken: sessionToken }),
     );
@@ -250,6 +291,29 @@ describe('processor browser session boundary', () => {
     expect(response.status).toBe(200);
     expect(bearerAuthenticate).toHaveBeenCalledOnce();
     expect(application.loadSession).not.toHaveBeenCalled();
+  });
+
+  it('denies and revokes a newly-created browser session without active Processor access', async () => {
+    const application = makeApplication();
+    const { app } = makeTestApp({ application, resolvedAccess: null });
+    const baseUrl = await start(app);
+
+    const response = await fetch(`${baseUrl}/processor/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify({
+        email: principal.email,
+        password: 'correct-horse-battery',
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(application.revokeSession).toHaveBeenCalledWith(
+      expect.objectContaining({ bearerToken: sessionToken }),
+    );
+    expect(response.headers.get('set-cookie')).toContain(
+      'pressly_processor_session=',
+    );
   });
 
   it('keeps the MFA challenge in its own HttpOnly cookie and never returns it to JavaScript', async () => {

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { auth, eq, type Database } from '@pressly/db';
+import { auth, business, eq, type Database } from '@pressly/db';
 import { expectOk } from '@pressly/testkit/result';
 import { makeBootstrapOwnerStore } from '../../src/bootstrap-owner/bootstrap-owner.repo.ts';
 import { createAuthTestDatabase } from '../support/database.ts';
@@ -7,9 +7,21 @@ import { createAuthTestDatabase } from '../support/database.ts';
 type AuthIdentityRow = typeof auth.authIdentities.$inferSelect;
 
 const testDb = createAuthTestDatabase();
+const bootstrapBusinessId = '00000000-0000-4000-8000-000000000100';
 
 beforeAll(testDb.check);
-beforeEach(testDb.reset);
+beforeEach(async () => {
+  await testDb.reset();
+  await testDb.db
+    .insert(business.businessAccounts)
+    .values({
+      id: bootstrapBusinessId,
+      slug: 'pressly-one',
+      displayName: 'Pressly One',
+      status: 'active',
+    })
+    .onConflictDoNothing();
+});
 afterAll(testDb.close);
 
 const missingReturnedRow = (message: string): never => {
@@ -41,10 +53,11 @@ const insertIdentity = async (
 };
 
 describe('bootstrap owner repository integration', () => {
-  it('creates the first owner identity, credential, role assignment, and audit event', async () => {
+  it('creates the first owner identity, credential, workforce authority, and audit event', async () => {
     const store = makeBootstrapOwnerStore(testDb.db);
 
     const actual = await store.createFirstOwner({
+      businessId: bootstrapBusinessId,
       email: 'Steven@Pressly.COM',
       emailNormalized: 'steven@pressly.com',
       passwordHash: 'stored-password-hash',
@@ -89,31 +102,87 @@ describe('bootstrap owner repository integration', () => {
       scopeResourceType: '*',
     });
 
+    const [membership] = await testDb.db
+      .select()
+      .from(auth.workforceMemberships)
+      .where(eq(auth.workforceMemberships.identityId, value.identityId));
+
+    expect(membership).toMatchObject({
+      state: 'active',
+      version: 1,
+    });
+
+    const [grant] = await testDb.db
+      .select()
+      .from(auth.authAccessGrants)
+      .where(eq(auth.authAccessGrants.identityId, value.identityId));
+
+    expect(grant).toMatchObject({
+      businessId: membership?.businessId,
+      membershipId: membership?.id,
+      role: 'owner',
+      scopeKind: 'business',
+      scopeId: membership?.businessId,
+      scopeResourceType: '*',
+      state: 'active',
+      version: 1,
+      createdByIdentityId: value.identityId,
+    });
+
     const [auditEvent] = await testDb.db
       .select()
       .from(auth.authAuditEvents)
       .where(eq(auth.authAuditEvents.eventType, 'auth.owner_bootstrapped'));
 
     expect(auditEvent).toMatchObject({
+      businessId: membership?.businessId,
       principalIdentityId: null,
       resourceType: 'auth_identity',
       resourceId: value.identityId,
-      metadata: { email: 'steven@pressly.com', role: 'owner' },
+      metadata: { role: 'owner', scope: 'business' },
     });
   });
 
   it('does not create anything when an owner already exists', async () => {
     const existingOwner = await insertIdentity(testDb.db);
 
-    await testDb.db.insert(auth.authRoleAssignments).values({
+    const [businessAccount] = await testDb.db
+      .select()
+      .from(business.businessAccounts)
+      .where(eq(business.businessAccounts.id, bootstrapBusinessId))
+      .limit(1);
+
+    if (businessAccount === undefined)
+      throw new Error('Expected the bootstrap business account.');
+
+    const [membership] = await testDb.db
+      .insert(auth.workforceMemberships)
+      .values({
+        businessId: businessAccount.id,
+        identityId: existingOwner.id,
+        state: 'active',
+      })
+      .returning();
+
+    if (membership === undefined)
+      throw new Error('Expected the existing owner membership.');
+
+    await testDb.db.insert(auth.authAccessGrants).values({
+      businessId: businessAccount.id,
+      membershipId: membership.id,
       identityId: existingOwner.id,
       role: 'owner',
-      scopeKind: 'global',
+      scopeKind: 'business',
+      scopeId: businessAccount.id,
+      scopeResourceType: '*',
+      state: 'active',
+      createdByIdentityId: existingOwner.id,
     });
 
     const store = makeBootstrapOwnerStore(testDb.db);
 
     const actual = await store.createFirstOwner({
+      businessId: bootstrapBusinessId,
       email: 'NewOwner@Pressly.COM',
       emailNormalized: 'newowner@pressly.com',
       passwordHash: 'stored-password-hash',
@@ -139,6 +208,7 @@ describe('bootstrap owner repository integration', () => {
     const store = makeBootstrapOwnerStore(testDb.db);
 
     const actual = await store.createFirstOwner({
+      businessId: bootstrapBusinessId,
       email: 'Steven@Pressly.COM',
       emailNormalized: 'steven@pressly.com',
       passwordHash: 'stored-password-hash',

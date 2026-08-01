@@ -39,6 +39,8 @@ services:
         condition: service_healthy
       processor:
         condition: service_healthy
+      control:
+        condition: service_healthy
 
   web:
     restart: unless-stopped
@@ -156,6 +158,38 @@ services:
     logging: *default-logging
     env_file:
       - path: ${PRESSLY_PROCESSOR_ENV_FILE:-/opt/pressly/env/processor.env}
+        required: false
+    expose:
+      - '80'
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+      - /var/cache/nginx:rw,noexec,nosuid,nodev,size=32m
+      - /var/run:rw,noexec,nosuid,nodev,size=4m
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'wget -qO- http://127.0.0.1/health >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  control:
+    restart: unless-stopped
+    image: ${PRESSLY_CONTROL_IMAGE:?PRESSLY_CONTROL_IMAGE must be an immutable digest}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+    pids_limit: 100
+    mem_limit: 128m
+    logging: *default-logging
+    env_file:
+      - path: ${PRESSLY_CONTROL_ENV_FILE:-/opt/pressly/env/control.env}
         required: false
     expose:
       - '80'

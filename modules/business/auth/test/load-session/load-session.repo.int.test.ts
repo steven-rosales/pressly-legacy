@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { auth, eq, type Database } from '@pressly/db';
+import { auth, business, eq, type Database } from '@pressly/db';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import { makeLoadSessionStore } from '../../src/load-session/load-session.repo.ts';
 import { createAuthTestDatabase } from '../support/database.ts';
@@ -67,7 +67,9 @@ const insertSession = async (
     typeof auth.authSessions.$inferInsert,
     'identityId' | 'tokenHash' | 'issuedAt' | 'expiresAt'
   > &
-    Partial<Pick<AuthSessionRow, 'id' | 'revokedAt' | 'lastUsedAt'>>,
+    Partial<
+      Pick<AuthSessionRow, 'id' | 'revokedAt' | 'lastUsedAt' | 'assuranceLevel'>
+    >,
 ): Promise<AuthSessionRow> => {
   const [session] = await db
     .insert(auth.authSessions)
@@ -76,6 +78,9 @@ const insertSession = async (
       tokenHash: input.tokenHash,
       issuedAt: input.issuedAt,
       expiresAt: input.expiresAt,
+      ...(input.assuranceLevel === undefined
+        ? {}
+        : { assuranceLevel: input.assuranceLevel }),
       ...(input.id === undefined ? {} : { id: input.id }),
       ...(input.revokedAt === undefined ? {} : { revokedAt: input.revokedAt }),
       ...(input.lastUsedAt === undefined
@@ -88,7 +93,7 @@ const insertSession = async (
 };
 
 describe('load session repository integration', () => {
-  it('loads a stored session principal by token hash', async () => {
+  it('loads a stored session and ignores legacy workforce assignments', async () => {
     const identity = await insertIdentity(testDb.db);
     await insertGlobalAssignments(testDb.db, identity.id, [
       'admin',
@@ -119,13 +124,9 @@ describe('load session repository integration', () => {
       expiresAt,
       revokedAt: null,
     });
-    expect(value?.assignments).toEqual(
-      expect.arrayContaining([
-        { role: 'admin', scope: { kind: 'global', id: '*' } },
-        { role: 'operator', scope: { kind: 'global', id: '*' } },
-      ]),
-    );
-    expect(value?.assignments).toHaveLength(2);
+    expect(value?.assignments).toEqual([
+      { role: 'admin', scope: { kind: 'global', id: '*' } },
+    ]);
   });
 
   it('returns undefined when no session exists for the token hash', async () => {
@@ -193,6 +194,70 @@ describe('load session repository integration', () => {
       isActive: false,
       revokedAt,
     });
+  });
+
+  it('returns the persisted business grant without fabricating location grants', async () => {
+    const identity = await insertIdentity(testDb.db);
+    const [assignedBusiness] = await testDb.db
+      .insert(business.businessAccounts)
+      .values({
+        slug: `assigned-${identity.id}`,
+        displayName: 'Assigned business',
+      })
+      .returning();
+    if (assignedBusiness === undefined)
+      throw new Error('Business account was not inserted.');
+    const [membership] = await testDb.db
+      .insert(auth.workforceMemberships)
+      .values({
+        businessId: assignedBusiness.id,
+        identityId: identity.id,
+      })
+      .returning();
+    if (membership === undefined)
+      throw new Error('Workforce membership was not inserted.');
+    await testDb.db.insert(auth.authAccessGrants).values({
+      businessId: assignedBusiness.id,
+      membershipId: membership.id,
+      identityId: identity.id,
+      role: 'owner',
+      scopeKind: 'business',
+      scopeId: assignedBusiness.id,
+      createdByIdentityId: identity.id,
+    });
+    await testDb.db.insert(auth.authMfaCredentials).values({
+      identityId: identity.id,
+      encryptedSecret: 'encrypted-test-secret',
+      status: 'enabled',
+      enabledAt: new Date('2026-05-29T11:55:00.000Z'),
+    });
+    await insertSession(testDb.db, {
+      identityId: identity.id,
+      tokenHash: 'business-location-expansion',
+      assuranceLevel: 'mfa',
+      issuedAt: new Date('2026-05-29T12:00:00.000Z'),
+      expiresAt: new Date('2026-05-29T12:30:00.000Z'),
+    });
+
+    const value = expectOk(
+      await makeLoadSessionStore(testDb.db).findByTokenHash(
+        'business-location-expansion',
+      ),
+    );
+
+    expect(value?.assignments).toEqual([
+      {
+        role: 'owner',
+        scope: { kind: 'business', id: assignedBusiness.id },
+        state: 'active',
+        version: 1,
+      },
+    ]);
+    expect(
+      value?.assignments.some(
+        (assignment) => assignment.scope.kind === 'location',
+      ),
+    ).toBe(false);
   });
 
   it('updates last_used_at when a session is touched', async () => {

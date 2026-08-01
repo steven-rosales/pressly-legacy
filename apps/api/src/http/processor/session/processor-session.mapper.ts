@@ -1,38 +1,16 @@
-import type {
-  AuthPrincipalResult,
-  ProcessorAuthenticatedSession,
-} from '@pressly/contracts';
+import type { ProcessorAuthenticatedSession } from '@pressly/contracts';
 import { makeAppError } from '@pressly/errors';
 import type { Request, Response } from 'express';
 import { deriveProcessorCsrfToken } from './processor-csrf.policy.ts';
 import type {
   LoadedProcessorSession,
+  ProcessorAccess,
   ProcessorSessionOptions,
 } from './processor-session.port.ts';
 
-const rolesFromLoadedSession = (
-  assignments: readonly {
-    role: string;
-    startsAt?: Date;
-    endsAt?: Date;
-  }[],
-): AuthPrincipalResult['roles'] =>
-  [
-    ...new Set(
-      assignments
-        .filter((assignment) => {
-          const now = new Date();
-          return (
-            (assignment.startsAt === undefined || assignment.startsAt <= now) &&
-            (assignment.endsAt === undefined || assignment.endsAt > now)
-          );
-        })
-        .map((assignment) => assignment.role),
-    ),
-  ] as AuthPrincipalResult['roles'];
-
 export const processorBrowserSession = (
   loaded: LoadedProcessorSession,
+  access: ProcessorAccess,
   sessionToken: string,
   options: ProcessorSessionOptions,
 ): ProcessorAuthenticatedSession => {
@@ -53,7 +31,13 @@ export const processorBrowserSession = (
       ...(loaded.principal.email === undefined
         ? {}
         : { email: loaded.principal.email }),
-      roles: rolesFromLoadedSession(loaded.principalAttributes.assignments),
+    },
+    access: {
+      locations: access.locations.map((location) => ({
+        ...location,
+        capabilities: [...location.capabilities],
+      })),
+      applications: [...access.applications],
     },
     expiresAt: loaded.principal.sessionExpiresAt.toISOString(),
     csrfToken: deriveProcessorCsrfToken(sessionToken, options.csrfSecret),

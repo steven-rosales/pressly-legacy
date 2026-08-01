@@ -43,6 +43,7 @@ describe('local Docker stack policy', () => {
       'web',
       'worker',
       'processor',
+      'control',
     ]);
   });
 

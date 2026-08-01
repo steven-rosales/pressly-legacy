@@ -18,6 +18,7 @@ export type UserCommandOperations = Readonly<{
     idempotencyKey: string,
   ) => Promise<StoredUserCommandReceipt | null>;
   saveCommandReceipt: (input: {
+    businessId: string;
     idempotencyKey: string;
     commandHash: string;
     context: CommandContext;

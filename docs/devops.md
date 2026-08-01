@@ -8,9 +8,9 @@ The repository's production topology is:
 ```txt
 GitHub
   -> CI verifies commits
-  -> successful main CI publishes one four-image manifest
+  -> successful main CI publishes one five-image manifest
   -> deploy workflow SSHes into Lightsail
-  -> Lightsail pulls immutable API, Web, Worker, and Processor images
+  -> Lightsail pulls immutable API, Web, Worker, Processor, and Control images
   -> Compose runs them with Caddy and Postgres on one private network
 ```
 
@@ -47,14 +47,21 @@ lint
 typecheck
 unit tests
 build
+database privilege integration tests with Postgres
 auth integration tests with Postgres
+users integration tests with Postgres
+orders integration tests with Postgres
 pricing integration tests with Postgres
-LPMS Worker lease integration tests
+webhook-ingestion lease integration tests
+LPMS production repository integration tests
+API integration tests
 LPMS composed happy-path proof
+browser smoke tests for Processor and Control
 web Docker build
 API Docker build
 Worker Docker build
 Processor Docker build
+Control Docker build
 ```
 
 Branch Docker jobs use `push: false`. A push to `main` instead runs one
@@ -64,14 +71,14 @@ The main release job:
 
 1. Builds each application image once with the same `GITHUB_SHA` revision
    label.
-2. Verifies all four labels against the release SHA.
+2. Verifies all five labels against the release SHA.
 3. Generates one SPDX JSON SBOM per image.
 4. Blocks critical OS or library vulnerabilities in every image.
-5. Pushes all four SHA-tagged images only after every scan passes.
+5. Pushes all five SHA-tagged images only after every scan passes.
 6. Resolves the registry digests and verifies each published digest still
    carries the same release SHA.
 7. Creates one strict release manifest.
-8. Uploads the manifest and four SBOMs as `production-release` for 90 days.
+8. Uploads the manifest and five SBOMs as `production-release` for 90 days.
 
 The release manifest contains exactly:
 
@@ -81,6 +88,7 @@ apiImage
 webImage
 workerImage
 processorImage
+controlImage
 builtAt
 ```
 
@@ -98,11 +106,13 @@ The integration database is a GitHub Actions Postgres service. It is separate
 from local Docker and production Docker.
 
 The run-centered LPMS migration, API, Worker, and Processor are one coordinated
-release unit. The contracts intentionally separate Compute, Accept, and Start
+runtime unit. The contracts intentionally separate Compute, Accept, and Start
 and replace shift-derived board lookup with explicit run IDs, so deploying any
-one of those surfaces alone is unsupported. CI must prove the forward
-migration, the signed synthetic Cents path, run-centered API/Processor tests,
-and all three LPMS images before that release is eligible for deployment.
+one of those surfaces alone is unsupported. The production release also pins
+Web and Control to the same source SHA. CI must prove the forward migration,
+the signed synthetic Cents path, run-centered API/Processor tests, browser
+smoke, and all five application images before that release is eligible for
+deployment.
 
 Repository tests prove workflow structure and manifest validation offline. A
 successful main-branch run is still required to prove GitHub runner, action,
@@ -116,9 +126,9 @@ privileged manual selection of a full main-branch commit with successful CI.
 
 It checks out the verified target release on the runner, hashes that release's
 deploy script, stages it in a random mode-700 directory on Lightsail, verifies
-the transferred hash, and executes that staged script. This matters on the
-first four-image cutover: invoking the script from the old host checkout would
-continue running the old two-image deployment logic even after Git checks out
+the transferred hash, and executes that staged script. The historical first
+four-image cutover established this rule: invoking the script from an old host
+checkout could continue running old deployment logic even after Git checks out
 the new commit.
 
 For a non-mutating host check, the same target script supports:
@@ -129,6 +139,7 @@ PRESSLY_API_IMAGE=<digest-reference> \
 PRESSLY_WEB_IMAGE=<digest-reference> \
 PRESSLY_WORKER_IMAGE=<digest-reference> \
 PRESSLY_PROCESSOR_IMAGE=<digest-reference> \
+PRESSLY_CONTROL_IMAGE=<digest-reference> \
   ./infra/aws/lightsail/deploy.sh --preflight-only
 ```
 
@@ -140,30 +151,32 @@ migration, service mutation, or release-metadata rotation.
 The deploy script:
 
 ```txt
-validates the source SHA and four immutable image digests
+validates the source SHA and five immutable image digests
 snapshots the immediately active release before changing deployment state
 checks out the selected commit without building application images
-pulls the API, Web, Worker, and Processor release set
+pulls the API, Web, Worker, Processor, and Control release set
 runs migrations
 starts services
-checks private API, Web, Processor, and Worker health
-polls public API, Web, and Processor readiness with bounded retries
+checks private API, Web, Processor, Control, and Worker health
+polls public API, Web, Processor, and Control readiness with bounded retries
 records current release metadata only after public readiness passes
 ```
 
 Host release metadata is discriminated. Normal current and rollback records use
-`four-image-v1` and require all four distinct digest-qualified images from one
+`five-image-v1` and require all five distinct digest-qualified images from one
 full source SHA. Before checkout, migration, or Compose mutation, deploy writes
 the validated current record atomically as the rollback target. A failed
 upgrade therefore rolls back to the release that was active immediately before
 that attempt.
 
-For the first four-image cutover only, deploy can normalize the exact legacy
-API/Web metadata produced by the old host script into a marked
+Rollback retains explicit compatibility with complete pre-Control
+`four-image-v1` records and restores them without inventing a Control image.
+For the historical first four-image cutover only, deploy can also normalize the
+exact API/Web metadata produced by the old host script into a marked
 `legacy-two-image-v1` rollback record. Rollback may use that marked record to
 check out the old two-image Compose and run it with `--remove-orphans`. It does
-not accept an unmarked, arbitrary, or mixed partial manifest. Subsequent
-rollbacks require complete four-image metadata.
+not accept an unmarked, arbitrary, or mixed partial manifest. New deployments
+write only complete `five-image-v1` metadata.
 
 This mechanism proves release selection, not historical compatibility.
 Migrations are forward-only, and H3 must prove that the intended previous
@@ -174,7 +187,7 @@ Production runtime values live in mode-600 service-specific files on the
 server, not in GitHub:
 
 ```txt
-/opt/pressly/env/{compose,caddy,web,api,worker,processor,postgres,migration,backup}.env
+/opt/pressly/env/{compose,caddy,web,api,worker,processor,control,postgres,migration,backup}.env
 ```
 
 `api.env` must include a dedicated 32-byte base64
@@ -222,21 +235,25 @@ Do not expose:
 4000/tcp
 3000/tcp
 Processor container port 80
+Control container port 80
 any Worker port
 ```
 
 Postgres is private inside the Docker network.
 
-The LPMS target also keeps Worker private and routes Processor through Caddy:
+The application target also keeps Worker private and routes Processor and
+Control through Caddy:
 
 ```txt
 processor hostname /*     -> processor:80
 processor hostname /api/* -> api:4000 with /api stripped
+control hostname /*       -> control:80
+control hostname /api/*   -> api:4000 with /api stripped
 ```
 
-Processor therefore uses same-origin cookie authentication. API container
-ports, Processor container ports, Worker, Postgres, and internal service
-traffic are not published on the host.
+Processor and Control therefore use separate same-origin cookie boundaries.
+API container ports, browser-app container ports, Worker, Postgres, and
+internal service traffic are not published on the host.
 
 Use a 4 GB Lightsail instance as the pilot floor unless offline container
 measurements prove the existing instance has safe headroom.
@@ -273,6 +290,7 @@ background, waits for its health gates, and then returns control to the shell:
 - Web
 - LPMS worker
 - LPMS processor
+- Pressly Control
 
 The API startup also applies the idempotent local topology fixture at
 `tooling/fixtures/pressly-one.production-bootstrap.json`. It creates the active

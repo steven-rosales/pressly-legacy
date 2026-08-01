@@ -1,4 +1,4 @@
-import { auth, eq, sql, type Database } from '@pressly/db';
+import { and, auth, business, eq, sql, type Database } from '@pressly/db';
 import type { BootstrapOwnerStore } from './bootstrap-owner.port.ts';
 import {
   databaseFailure,
@@ -15,10 +15,56 @@ export const makeBootstrapOwnerStore = (db: Database): BootstrapOwnerStore => ({
 
         const [ownerCount] = await tx
           .select({ count: sql<number>`count(*)::int` })
-          .from(auth.authRoleAssignments)
-          .where(eq(auth.authRoleAssignments.role, 'owner'));
+          .from(auth.authAccessGrants)
+          .innerJoin(
+            auth.workforceMemberships,
+            and(
+              eq(
+                auth.workforceMemberships.id,
+                auth.authAccessGrants.membershipId,
+              ),
+              eq(
+                auth.workforceMemberships.businessId,
+                auth.authAccessGrants.businessId,
+              ),
+              eq(
+                auth.workforceMemberships.identityId,
+                auth.authAccessGrants.identityId,
+              ),
+            ),
+          )
+          .innerJoin(
+            auth.authIdentities,
+            eq(auth.authIdentities.id, auth.authAccessGrants.identityId),
+          )
+          .where(
+            and(
+              eq(auth.authAccessGrants.role, 'owner'),
+              eq(auth.authAccessGrants.state, 'active'),
+              eq(auth.workforceMemberships.state, 'active'),
+              eq(auth.authIdentities.isActive, true),
+            ),
+          );
 
         if ((ownerCount?.count ?? 0) > 0) return { status: 'owner_exists' };
+
+        const [businessAccount] = await tx
+          .select({ id: business.businessAccounts.id })
+          .from(business.businessAccounts)
+          .where(
+            and(
+              eq(business.businessAccounts.id, input.businessId),
+              eq(business.businessAccounts.status, 'active'),
+            ),
+          )
+          .limit(1);
+
+        if (businessAccount === undefined)
+          throw databaseFailure(
+            'bootstrap owner target business account is not active',
+          );
+
+        const businessId = businessAccount.id;
 
         const [existingIdentity] = await tx
           .select({ id: auth.authIdentities.id })
@@ -56,11 +102,38 @@ export const makeBootstrapOwnerStore = (db: Database): BootstrapOwnerStore => ({
           scopeKind: 'global',
         });
 
+        const [membership] = await tx
+          .insert(auth.workforceMemberships)
+          .values({
+            businessId,
+            identityId: identity.id,
+            state: 'active',
+          })
+          .returning({ id: auth.workforceMemberships.id });
+
+        if (membership === undefined)
+          throw databaseFailure(
+            'bootstrap owner workforce membership insert returned no row',
+          );
+
+        await tx.insert(auth.authAccessGrants).values({
+          businessId,
+          membershipId: membership.id,
+          identityId: identity.id,
+          role: 'owner',
+          scopeKind: 'business',
+          scopeId: businessId,
+          scopeResourceType: '*',
+          state: 'active',
+          createdByIdentityId: identity.id,
+        });
+
         await tx.insert(auth.authAuditEvents).values({
+          businessId,
           eventType: 'auth.owner_bootstrapped',
           resourceType: 'auth_identity',
           resourceId: identity.id,
-          metadata: { email: input.emailNormalized, role: 'owner' },
+          metadata: { role: 'owner', scope: 'business' },
         });
 
         return { status: 'created', identityId: identity.id };

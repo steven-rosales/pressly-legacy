@@ -7,10 +7,17 @@ import type { FulfillmentReleaseState } from '../orders.port.ts';
 
 export type ChangeFulfillmentReleaseOperations = OrderCommandOperations &
   Readonly<{
-    findOrderId: (fulfillmentId: string) => Promise<string | null>;
-    lockOrder: (orderId: string) => Promise<void>;
-    lockFulfillment: (fulfillmentId: string) => Promise<void>;
+    findOrderId: (
+      businessId: string,
+      fulfillmentId: string,
+    ) => Promise<string | null>;
+    lockOrder: (businessId: string, orderId: string) => Promise<void>;
+    lockFulfillment: (
+      businessId: string,
+      fulfillmentId: string,
+    ) => Promise<void>;
     loadFulfillmentOrder: (
+      businessId: string,
       fulfillmentId: string,
     ) => Promise<StoredOrderAggregate | null>;
     applyFulfillmentRelease: (input: {

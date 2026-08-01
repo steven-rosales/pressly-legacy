@@ -8,7 +8,7 @@ describe('batch membership policy', () => {
         action: 'freeze',
         batchStatus: 'queued',
         membershipFrozen: false,
-        actorRole: 'operator',
+        authorizedAction: 'production:queue',
       }),
     ).toEqual({ tag: 'ok', value: { membershipFrozen: true } });
     expect(
@@ -16,7 +16,7 @@ describe('batch membership policy', () => {
         action: 'unfreeze',
         batchStatus: 'queued',
         membershipFrozen: true,
-        actorRole: 'owner',
+        authorizedAction: 'production:override',
       }),
     ).toEqual({ tag: 'ok', value: { membershipFrozen: false } });
   });
@@ -27,7 +27,7 @@ describe('batch membership policy', () => {
         action: 'unfreeze',
         batchStatus: 'queued',
         membershipFrozen: true,
-        actorRole: 'operator',
+        authorizedAction: 'production:queue',
       }),
     ).toMatchObject({
       tag: 'err',
@@ -38,7 +38,7 @@ describe('batch membership policy', () => {
         action: 'unfreeze',
         batchStatus: 'sorting',
         membershipFrozen: true,
-        actorRole: 'admin',
+        authorizedAction: 'production:override',
       }),
     ).toMatchObject({
       tag: 'err',

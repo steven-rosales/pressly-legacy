@@ -33,6 +33,7 @@ const makeOrderLifecycleCommand =
   }) =>
   async (command: Command) => {
     if (
+      command.businessId.trim() === '' ||
       command.idempotencyKey.trim() === '' ||
       !isCommandContextValid(command.context) ||
       command.locationId.trim() === '' ||
@@ -67,8 +68,11 @@ const makeOrderLifecycleCommand =
               }
             : { kind: 'idempotency_conflict' as const };
 
-        await operations.lockOrder(command.orderId);
-        const current = await operations.loadOrder(command.orderId);
+        await operations.lockOrder(command.businessId, command.orderId);
+        const current = await operations.loadOrder(
+          command.businessId,
+          command.orderId,
+        );
         if (
           current === null ||
           current.fulfillment.locationId !== command.locationId

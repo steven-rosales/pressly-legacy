@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type {
   ProcessorAuthenticatedSession,
+  ProcessorCapability,
   ProcessorProductionOrderListItem,
   ProcessorProductionOrderSummary,
   ProcessorProductionWorkspace,
@@ -30,7 +31,14 @@ export type ProcessorAuthStatus =
   | "authenticated"
   | "forbidden"
 
-const allowedRoles = new Set(["owner", "admin", "operator"])
+export const hasProcessorCapability = (
+  session: ProcessorAuthenticatedSession,
+  locationId: string,
+  capability: ProcessorCapability
+): boolean =>
+  session.access.locations
+    .find((location) => location.id === locationId)
+    ?.capabilities.includes(capability) === true
 
 export const resolveLocationSelection = (input: {
   locations: readonly ProductionLocation[]
@@ -288,13 +296,15 @@ export function useProcessorAppModel(
   )
 
   const acceptSession = useCallback((next: ProcessorAuthenticatedSession) => {
-    const hasProcessorRole = next.principal.roles.some((role) =>
-      allowedRoles.has(role)
+    const hasProcessorAccess = next.access.locations.some(
+      (location) =>
+        location.capabilities.includes("processor:view") &&
+        location.capabilities.includes("production:read")
     )
     setSession(next)
     setAuthError(null)
-    setAuthStatus(hasProcessorRole ? "authenticated" : "forbidden")
-    setLocationsLoading(hasProcessorRole)
+    setAuthStatus(hasProcessorAccess ? "authenticated" : "forbidden")
+    setLocationsLoading(hasProcessorAccess)
   }, [])
 
   useEffect(
@@ -363,7 +373,13 @@ export function useProcessorAppModel(
     setWorkspaceError(null)
     try {
       const response = await runtime.production.listLocations()
-      const allowed = response.items.filter((location) => location.isActive)
+      const authorizedLocationIds = new Set(
+        session?.access.locations.map((location) => location.id) ?? []
+      )
+      const allowed = response.items.filter(
+        (location) =>
+          location.isActive && authorizedLocationIds.has(location.id)
+      )
       setLocations(allowed)
       if (allowed.length === 0) {
         sync.setTarget(null)
@@ -409,7 +425,7 @@ export function useProcessorAppModel(
     } finally {
       setLocationsLoading(false)
     }
-  }, [errorMessages, runtime, sync])
+  }, [errorMessages, runtime, session, sync])
 
   useEffect(() => {
     if (authStatus !== "authenticated") return
@@ -620,6 +636,12 @@ export function useProcessorAppModel(
   )
   const selectedLocation =
     locations.find((location) => location.id === selectedLocationId) ?? null
+  const selectedCapabilities =
+    session === null || selectedLocationId === null
+      ? []
+      : (session.access.locations.find(
+          (location) => location.id === selectedLocationId
+        )?.capabilities ?? [])
   const liveConnectionState:
     | "inactive"
     | "connecting"
@@ -643,6 +665,7 @@ export function useProcessorAppModel(
     locationsLoading,
     selectedLocationId,
     selectedLocation,
+    selectedCapabilities,
     workspace,
     orders,
     schedulingOrders,

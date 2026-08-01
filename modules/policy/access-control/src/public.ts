@@ -1,5 +1,6 @@
 export type { AccessControlModule, AccessControlModuleDeps } from './main.ts';
 export { makeAccessControlModule } from './main.ts';
+export type { LocationAncestryPort } from './location-ancestry.port.ts';
 export type { OrderManagementAccessControl } from './order-management/order-management.guard.ts';
 export { makeOrderManagementPolicies } from './order-management/order-management.policy.ts';
 export {
@@ -9,7 +10,14 @@ export {
   type OrderManagementUsersResource,
 } from './order-management/order-management.resource.ts';
 export type { ProductionAccessControl } from './production/production.guard.ts';
-export { makeProductionPolicies } from './production/production.policy.ts';
+export {
+  makeProductionPolicies,
+  productionCapabilitiesForLocation,
+  productionCapabilityActions,
+  productionFloorActions,
+  productionManagerActions,
+  type ProductionCapabilityAction,
+} from './production/production.policy.ts';
 export {
   productionLocationResource,
   type ProductionLocationResource,

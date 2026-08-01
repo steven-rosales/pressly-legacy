@@ -10,6 +10,8 @@ import {
 } from '@pressly/db';
 import { createHash } from 'node:crypto';
 
+export const productionTestBusinessId = '00000000-0000-4000-8000-000000000100';
+
 const productionTables = [
   'work_events',
   'production_order_stage_attempts',
@@ -29,7 +31,6 @@ const productionTables = [
   'production_shifts',
   'order_demands',
   'order_outbox_events',
-  'order_field_authorities',
   'order_source_snapshots',
   'order_source_customer_refs',
   'order_source_links',
@@ -61,6 +62,7 @@ export const seedCanonicalFulfillment = async (
   input: Readonly<{
     orderId: string;
     fulfillmentId: string;
+    businessId?: string;
     locationId: string;
     displayNumber: string | null;
     dueAt: string;
@@ -72,6 +74,7 @@ export const seedCanonicalFulfillment = async (
   }>,
 ): Promise<void> => {
   const now = new Date('2026-07-01T00:00:00.000Z');
+  const businessId = input.businessId ?? productionTestBusinessId;
   const version = input.version ?? 1;
   const estimatedWeightLbs =
     input.estimatedWeightLbs === undefined ? 1 : input.estimatedWeightLbs;
@@ -83,6 +86,7 @@ export const seedCanonicalFulfillment = async (
       : input.estimatedWeightSource;
   await db.insert(orderSchema.orders).values({
     id: input.orderId,
+    businessId,
     customerUserId: null,
     customerResolution: 'not_provided',
     displayNumber: input.displayNumber,
@@ -97,6 +101,7 @@ export const seedCanonicalFulfillment = async (
   });
   await db.insert(orderSchema.orderFulfillments).values({
     id: input.fulfillmentId,
+    businessId,
     orderId: input.orderId,
     typeCode: 'wash_fold',
     locationId: input.locationId,
@@ -123,7 +128,7 @@ export type ProductionDemandSeed = Readonly<{
     | 'production_released'
     | 'post_production'
     | 'withdrawn';
-  sourceStatusCode: string;
+  commercialState?: 'open' | 'completed' | 'canceled';
   estimatedWeightLbs?: number | null;
   estimatedWeightSource?: string | null;
   dueAt: Date;
@@ -142,13 +147,6 @@ export const seedProductionDemands = async (
             demand.phase === 'post_production'
           ? 'released'
           : 'unreleased';
-    const commercialState =
-      demand.sourceStatusCode === 'COMPLETED'
-        ? 'completed'
-        : demand.sourceStatusCode === 'CANCELED' ||
-            demand.sourceStatusCode === 'CANCELLED'
-          ? 'canceled'
-          : 'open';
     await seedCanonicalFulfillment(db, {
       orderId: demand.id,
       fulfillmentId: demand.id,
@@ -167,7 +165,7 @@ export const seedProductionDemands = async (
         ? demand.revisionHash
         : createHash('sha256').update(demand.revisionHash).digest('hex'),
       admissionState: releaseState,
-      commercialState,
+      commercialState: demand.commercialState ?? 'open',
     });
   }
 };

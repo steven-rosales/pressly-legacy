@@ -40,7 +40,7 @@ const seedOrder = async (input: {
   dueAt: string;
   status: 'intake_pending' | 'eligible' | 'scheduled' | 'finished';
   phase?: 'production_released' | 'post_production' | 'withdrawn';
-  sourceStatusCode?: string;
+  commercialState?: 'open' | 'completed' | 'canceled';
   pendingPlacement?: Readonly<Record<string, unknown>> | null;
   resolutionState?: 'open' | 'resolved_without_production';
 }) => {
@@ -56,9 +56,9 @@ const seedOrder = async (input: {
     revisionHash: input.reference,
     revisionAt: dueAt,
     phase,
-    sourceStatusCode:
-      input.sourceStatusCode ??
-      (input.status === 'finished' ? 'COMPLETED' : 'IN_PROGRESS'),
+    commercialState:
+      input.commercialState ??
+      (input.status === 'finished' ? 'completed' : 'open'),
     estimatedWeightLbs: 10,
     estimatedWeightSource: 'external_price',
     dueAt,
@@ -98,6 +98,7 @@ describe('list production order control due filtering', () => {
   it('uses the location calendar and excludes finished work', async () => {
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Timezone Test Facility',
       timezone: 'America/New_York',
     });
@@ -156,6 +157,7 @@ describe('list production order control due filtering', () => {
   it('does not turn source lifecycle differences into floor attention', async () => {
     await testDb.db.insert(laundryProduction.productionLocations).values({
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Attention Test Facility',
       timezone: 'America/New_York',
     });
@@ -167,7 +169,7 @@ describe('list production order control due filtering', () => {
       dueAt,
       status: 'eligible',
       phase: 'post_production',
-      sourceStatusCode: 'COMPLETED',
+      commercialState: 'completed',
     });
     await seedOrder({
       demandId: ids.canceledDemand,
@@ -176,7 +178,7 @@ describe('list production order control due filtering', () => {
       dueAt,
       status: 'scheduled',
       phase: 'withdrawn',
-      sourceStatusCode: 'CANCELED',
+      commercialState: 'canceled',
     });
     await seedOrder({
       demandId: ids.finishedDemand,
@@ -185,7 +187,6 @@ describe('list production order control due filtering', () => {
       dueAt,
       status: 'finished',
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
     });
     await seedOrder({
       demandId: ids.intakeDemand,

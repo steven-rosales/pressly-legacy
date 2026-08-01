@@ -1,0 +1,106 @@
+{
+  "customers": {
+    "workspace": {
+      "title": "Registros de clientes",
+      "description": "Mantén actualizados los nombres y datos de contacto para futuros pedidos."
+    },
+    "search": {
+      "label": "Buscar clientes",
+      "placeholder": "Nombre, negocio, teléfono o correo electrónico"
+    },
+    "filters": {
+      "active": "Clientes activos",
+      "inactive": "Clientes inactivos",
+      "all": "Todos los clientes"
+    },
+    "status": {
+      "label": "Estado",
+      "active": "Activo",
+      "inactive": "Inactivo"
+    },
+    "actions": {
+      "new": "Nuevo cliente",
+      "search": "Buscar",
+      "refresh": "Actualizar",
+      "review": "Revisar",
+      "reviewCustomer": "Revisar a {{customer}}",
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "cancel": "Cancelar",
+      "saving": "Guardando…",
+      "create": "Crear cliente",
+      "saveCorrection": "Guardar corrección"
+    },
+    "errors": {
+      "conflict": "Este cliente cambió mientras trabajabas. Actualiza y revisa el registro más reciente antes de intentarlo de nuevo.",
+      "loadList": "Control no pudo cargar los registros de clientes.",
+      "loadDetail": "Control no pudo cargar este cliente.",
+      "create": "Control no pudo crear este cliente.",
+      "save": "Control no pudo guardar este cliente.",
+      "listTitle": "Los registros de clientes necesitan atención",
+      "openTitle": "No se pudo abrir el cliente",
+      "openDescription": "Actualiza la lista de clientes e intenta abrir este registro de nuevo."
+    },
+    "list": {
+      "title": "Clientes",
+      "description": "Clientes disponibles para este negocio.",
+      "showingMatches": "Mostrando resultados para “{{query}}”.",
+      "possibleMatch_one": "{{count}} posible coincidencia",
+      "possibleMatch_other": "{{count}} posibles coincidencias"
+    },
+    "loading": {
+      "listTitle": "Cargando clientes",
+      "listDescription": "Cargando los clientes más recientes.",
+      "detailTitle": "Cargando cliente"
+    },
+    "empty": {
+      "title": "Ningún cliente coincide con esta vista",
+      "description": "Ajusta la búsqueda o el filtro de estado, o crea el primer registro de cliente."
+    },
+    "table": {
+      "customer": "Cliente",
+      "contact": "Contacto",
+      "status": "Estado",
+      "review": "Revisar"
+    },
+    "types": {
+      "individual": "Cliente individual",
+      "commercial": "Cliente comercial"
+    },
+    "contact": {
+      "notRecorded": "Sin datos de contacto"
+    },
+    "pagination": {
+      "page": "Página {{page}}"
+    },
+    "create": {
+      "title": "Crear cliente",
+      "description": "Crea un perfil de cliente para futuros pedidos de Pressly."
+    },
+    "detail": {
+      "fallbackTitle": "Registro del cliente",
+      "editDescription": "Revisa los datos de identidad y guarda las correcciones de hechos.",
+      "readDescription": "Revisa los datos del cliente.",
+      "name": "Nombre"
+    },
+    "duplicate": {
+      "title": "Posible identidad coincidente",
+      "description_one": "{{count}} registro de otro cliente podría corresponder a esta identidad. Revísalo antes de cambiar los datos de contacto.",
+      "description_other": "{{count}} registros de otros clientes podrían corresponder a esta identidad. Revísalos antes de cambiar los datos de contacto."
+    },
+    "form": {
+      "firstName": "Nombre",
+      "lastName": "Apellido",
+      "businessName": "Nombre del negocio",
+      "businessDescription": "Usa este campo para cuentas comerciales u organizaciones.",
+      "phone": "Teléfono",
+      "email": "Correo electrónico",
+      "recordStatus": "Estado del registro",
+      "statusDescription": "Los clientes inactivos permanecen en el registro permanente, pero no aparecen al ingresar pedidos activos.",
+      "saveErrorTitle": "No se guardó el cliente",
+      "validation": {
+        "identityRequired": "Ingresa el nombre del cliente, el nombre del negocio, el teléfono o el correo electrónico."
+      }
+    }
+  }
+}

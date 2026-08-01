@@ -2,6 +2,9 @@
 .github
 node_modules
 **/node_modules
+.pnpm-store
+.vercel
+.codex
 
 .turbo
 .next
@@ -9,6 +12,10 @@ node_modules
 dist
 build
 coverage
+.artifacts
+.playwright-cli
+playwright-report
+test-results
 
 .env
 .env.*

@@ -52,6 +52,7 @@ export {
   mfaMutationResultSchema,
   mfaRecoveryCodesResultSchema,
   processorAuthenticatedSessionSchema,
+  processorCapabilitySchema,
   processorCompleteMfaChallengeRequestSchema,
   processorLoginResultSchema,
   processorMfaChallengeSchema,
@@ -89,6 +90,9 @@ export type {
   SessionInventoryResult,
   SessionResult,
 } from './auth/auth.result.ts';
+export type { ProcessorCapability } from './auth/auth.contracts.ts';
+export * from './auth/control.contracts.ts';
+export * from './auth/workforce.contracts.ts';
 
 /*
 ===============

@@ -35,6 +35,7 @@ const makeFulfillmentReleaseCommand =
   }) =>
   async (command: Command) => {
     if (
+      command.businessId.trim() === '' ||
       command.idempotencyKey.trim() === '' ||
       !isCommandContextValid(command.context) ||
       command.fulfillmentId.trim() === '' ||
@@ -70,14 +71,21 @@ const makeFulfillmentReleaseCommand =
               }
             : { kind: 'idempotency_conflict' as const };
 
-        const orderId = await operations.findOrderId(command.fulfillmentId);
+        const orderId = await operations.findOrderId(
+          command.businessId,
+          command.fulfillmentId,
+        );
         if (orderId === null) return { kind: 'not_found' as const };
 
         // All canonical fulfillment commands acquire aggregate locks in the
         // same order: Order first, then Fulfillment.
-        await operations.lockOrder(orderId);
-        await operations.lockFulfillment(command.fulfillmentId);
+        await operations.lockOrder(command.businessId, orderId);
+        await operations.lockFulfillment(
+          command.businessId,
+          command.fulfillmentId,
+        );
         const current = await operations.loadFulfillmentOrder(
+          command.businessId,
           command.fulfillmentId,
         );
         if (

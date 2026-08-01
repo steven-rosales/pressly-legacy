@@ -613,7 +613,7 @@ describe('LPMS run-centered app-composed happy path', () => {
         productionOrderId: arrival.value.productionOrderId,
         expectedQueueVersion: 1,
         actorId,
-        actorRole: 'owner',
+        authorizedAction: 'production:override',
         idempotencyKey: 'manager-add-arrival-12001',
       }),
     ).resolves.toMatchObject({

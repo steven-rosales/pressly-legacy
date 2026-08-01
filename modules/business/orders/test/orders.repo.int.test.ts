@@ -1,4 +1,9 @@
-import { eq, orders as schema, users as userSchema } from '@pressly/db';
+import {
+  business as businessSchema,
+  eq,
+  orders as schema,
+  users as userSchema,
+} from '@pressly/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   makePostgresOrdersApplication,
@@ -9,6 +14,10 @@ import { createOrdersTestDatabase } from './support/database.ts';
 
 const testDb = createOrdersTestDatabase();
 const clock = { now: () => new Date('2026-07-21T16:00:00.000Z') };
+const businessId = '00000000-0000-4000-8000-000000000100';
+const primaryLocationId = 'east';
+const otherBusinessId = '00000000-0000-4000-8000-000000000202';
+const otherLocationId = 'orders-isolation-location';
 const incomingOrderProposalCustomer = {
   resolveOrCreate: async (): Promise<never> => {
     throw new Error('Incoming proposal customer persistence is not used here.');
@@ -23,6 +32,7 @@ const sourceContext = {
   principal: { kind: 'system', id: 'cents-webhook' },
 } as const;
 const baseOrder = {
+  businessId,
   reasonCode: 'new_customer_order' as const,
   reasonNote: null,
   customer: {
@@ -99,9 +109,58 @@ const storedProposalId = async (
   return outcome.value.proposalId;
 };
 
-beforeAll(testDb.check);
+beforeAll(async () => {
+  await testDb.check();
+  await testDb.db
+    .insert(businessSchema.businessAccounts)
+    .values({
+      id: businessId,
+      slug: 'pressly-one',
+      displayName: 'Pressly One',
+      status: 'active',
+    })
+    .onConflictDoNothing();
+  await testDb.db
+    .insert(businessSchema.productionLocations)
+    .values({
+      id: primaryLocationId,
+      businessId,
+      name: 'Orders primary location',
+      timezone: 'America/New_York',
+    })
+    .onConflictDoNothing();
+  await testDb.db
+    .insert(businessSchema.businessAccounts)
+    .values({
+      id: otherBusinessId,
+      slug: 'orders-isolation-fixture',
+      displayName: 'Orders isolation fixture',
+    })
+    .onConflictDoNothing();
+  await testDb.db
+    .insert(businessSchema.productionLocations)
+    .values({
+      id: otherLocationId,
+      businessId: otherBusinessId,
+      name: 'Orders isolation location',
+      timezone: 'America/New_York',
+    })
+    .onConflictDoNothing();
+});
 beforeEach(testDb.reset);
-afterAll(testDb.close);
+afterAll(async () => {
+  await testDb.reset();
+  await testDb.db
+    .delete(businessSchema.productionLocations)
+    .where(eq(businessSchema.productionLocations.id, primaryLocationId));
+  await testDb.db
+    .delete(businessSchema.productionLocations)
+    .where(eq(businessSchema.productionLocations.id, otherLocationId));
+  await testDb.db
+    .delete(businessSchema.businessAccounts)
+    .where(eq(businessSchema.businessAccounts.id, otherBusinessId));
+  await testDb.close();
+});
 
 describe('Postgres Orders application', () => {
   it('accepts one immutable submitted candidate into one unreleased canonical Order transaction', async () => {
@@ -632,6 +691,7 @@ describe('Postgres Orders application', () => {
     const [canonical] = await testDb.db
       .insert(schema.orders)
       .values({
+        businessId,
         customerResolution: 'not_provided',
         displayNumber: 'P-NO-FULFILLMENT',
         dueAt: baseOrder.dueAt,
@@ -756,7 +816,7 @@ describe('Postgres Orders application', () => {
 
     expect(outcome).toMatchObject({
       tag: 'err',
-      error: { code: 'order_create_failed' },
+      error: { code: 'order_reference_not_found' },
     });
     await expect(testDb.db.select().from(schema.orders)).resolves.toHaveLength(
       0,
@@ -764,6 +824,84 @@ describe('Postgres Orders application', () => {
     await expect(
       testDb.db.select().from(schema.orderOutboxEvents),
     ).resolves.toHaveLength(0);
+  });
+
+  it('isolates canonical Orders and exact customer identity by business ancestry', async () => {
+    const application = makePostgresOrdersApplication({
+      db: testDb.db,
+      clock,
+      incomingOrderProposalCustomer,
+    });
+    const primary = await application.createOrder({
+      ...baseOrder,
+      context: directContext,
+      idempotencyKey: 'create-order-primary-business',
+    });
+    const other = await application.createOrder({
+      ...baseOrder,
+      businessId: otherBusinessId,
+      context: directContext,
+      idempotencyKey: 'create-order-other-business',
+      fulfillment: {
+        ...baseOrder.fulfillment,
+        locationId: otherLocationId,
+      },
+    });
+    expect(primary.tag).toBe('ok');
+    expect(other.tag).toBe('ok');
+    if (primary.tag === 'err' || other.tag === 'err') return;
+
+    const page = await application.listCanonicalOrders({
+      businessId,
+      locationIds: ['east'],
+      query: null,
+      state: null,
+      limit: 50,
+      cursor: null,
+    });
+    expect(page).toMatchObject({
+      tag: 'ok',
+      value: { items: [{ orderId: primary.value.orderId }] },
+    });
+    await expect(
+      application.getCanonicalOrder({
+        businessId,
+        locationIds: ['east'],
+        orderId: other.value.orderId,
+      }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'order_not_found' },
+    });
+
+    const [otherCustomer] = await testDb.db
+      .insert(userSchema.users)
+      .values({
+        businessId: otherBusinessId,
+        firstName: 'Other',
+        lastName: 'Customer',
+      })
+      .returning({ id: userSchema.users.id });
+    expect(otherCustomer).toBeDefined();
+    if (otherCustomer === undefined) return;
+    await expect(
+      application.createOrder({
+        ...baseOrder,
+        context: directContext,
+        idempotencyKey: 'create-order-cross-business-customer',
+        customer: {
+          resolution: 'resolved',
+          userId: otherCustomer.id,
+          externalUserId: null,
+        },
+      }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'order_reference_not_found' },
+    });
+    await expect(
+      testDb.db.select().from(schema.orderOutboxEvents),
+    ).resolves.toHaveLength(2);
   });
 
   it('lease-fences an outbox claim and makes an explicit retry claimable later', async () => {
@@ -825,6 +963,7 @@ describe('Postgres Orders application', () => {
 
     await expect(
       application.correctOrder({
+        businessId,
         idempotencyKey: 'update-order-wrong-location',
         context: directContext,
         reasonCode: 'customer_correction',
@@ -841,6 +980,7 @@ describe('Postgres Orders application', () => {
     });
     await expect(
       application.releaseFulfillment({
+        businessId,
         idempotencyKey: 'release-order-wrong-location',
         context: directContext,
         reasonCode: 'ready_for_production',
@@ -884,6 +1024,7 @@ describe('Postgres Orders application', () => {
     );
     if (created?.tag !== 'ok') return;
     const cancelCommand = {
+      businessId,
       idempotencyKey: 'cancel-order-concurrent',
       context: directContext,
       reasonCode: 'created_in_error' as const,

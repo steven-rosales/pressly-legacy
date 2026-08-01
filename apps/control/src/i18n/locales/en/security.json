@@ -1,0 +1,119 @@
+{
+  "security": {
+    "common": {
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "copied": "Copied",
+      "copy": "Copy"
+    },
+    "errors": {
+      "beginMfa": "MFA setup could not begin.",
+      "confirmAuthenticator": "The authenticator code could not be confirmed.",
+      "loadHistory": "Security history could not be loaded.",
+      "loadMoreHistory": "More security history could not be loaded.",
+      "completeChange": "The security change could not be completed."
+    },
+    "workspace": {
+      "title": "Account security",
+      "description": "Protect your personal Pressly identity and review the session you are using now.",
+      "attention": "Security needs attention"
+    },
+    "recoveryCodes": {
+      "title": "Save your recovery codes now",
+      "description": "Each code works once if your authenticator is unavailable. Pressly will not display these codes again.",
+      "credentialsTitle": "One-time security credentials",
+      "credentialsDescription": "Store these in a password manager. Do not send them in email or team chat.",
+      "ariaLabel": "Recovery codes",
+      "copyAll": "Copy all codes",
+      "saved": "I saved these codes"
+    },
+    "mfaSetup": {
+      "title": "Set up multi-factor authentication",
+      "description": "Use a personal authenticator app. Pressly never asks an employee to share their security codes.",
+      "attention": "Setup needs attention",
+      "readyTitle": "Have your authenticator ready",
+      "readyDescription": "Pressly will show a private setup key. Add it to your authenticator, then enter the six-digit code it generates.",
+      "showKey": "Show setup key",
+      "setupKey": "Setup key",
+      "copyKeyAria": "Copy setup key",
+      "keyDescription": "This key remains only in this setup view. It is not saved in browser storage.",
+      "sixDigitCode": "Six-digit code",
+      "enterAllDigits": "Enter all six digits.",
+      "verifyAndEnable": "Verify and enable"
+    },
+    "mfa": {
+      "title": "Multi-factor authentication",
+      "enabled": "Enabled",
+      "required": "Required",
+      "description": "An authenticator code protects manager and owner actions even if a password is exposed.",
+      "pausedTitle": "Management actions are paused",
+      "pausedDescription": "Set up MFA to invite employees or change business access. Read-only review remains available.",
+      "setUp": "Set up MFA",
+      "verified": "Your current session is MFA verified.",
+      "replaceRecoveryCodes": "Replace recovery codes",
+      "remove": "Remove MFA"
+    },
+    "session": {
+      "title": "Current session",
+      "description": "This browser session is protected by a host-only, HttpOnly cookie. Control never exposes the credential to page scripts.",
+      "signedInAs": "Signed in as",
+      "expires": "Session expires"
+    },
+    "history": {
+      "title": "Security history",
+      "auditRecord": "Audit record",
+      "description": "Important workforce and account changes are recorded without exposing credentials, invitation links, or private payloads.",
+      "attention": "Security history needs attention",
+      "emptyTitle": "No security changes recorded",
+      "emptyDescription": "Invitations, access changes, and session actions will appear here.",
+      "loadOlder": "Load older activity",
+      "presslySystem": "Pressly system",
+      "columns": {
+        "change": "Change",
+        "area": "Area",
+        "actor": "Actor",
+        "when": "When"
+      },
+      "resources": {
+        "invitation": "Invitation",
+        "membership": "Team membership",
+        "grant": "Access grant",
+        "session": "Session",
+        "identity": "Identity",
+        "accountSecurity": "Account security"
+      },
+      "eventTypes": {
+        "owner_bootstrapped": "Owner Bootstrapped",
+        "login_failed": "Login Failed",
+        "login_rate_limited": "Login Rate Limited",
+        "login_succeeded": "Login Succeeded",
+        "mfa_challenge_created": "Mfa Challenge Created",
+        "mfa_challenge_completed": "Mfa Challenge Completed",
+        "mfa_enrolled": "Mfa Enrolled",
+        "mfa_recovery_codes_regenerated": "Mfa Recovery Codes Regenerated",
+        "mfa_recovery_used": "Mfa Recovery Used",
+        "mfa_removed": "Mfa Removed",
+        "logout": "Logout",
+        "workforce_access_granted": "Workforce Access Granted",
+        "workforce_access_revoked": "Workforce Access Revoked",
+        "workforce_invitation_accepted": "Workforce Invitation Accepted",
+        "workforce_invitation_issued": "Workforce Invitation Issued",
+        "workforce_invitation_reissued": "Workforce Invitation Reissued",
+        "workforce_invitation_revoked": "Workforce Invitation Revoked",
+        "workforce_membership_suspend": "Workforce Membership Suspended",
+        "workforce_membership_reactivate": "Workforce Membership Reactivated",
+        "workforce_membership_end": "Workforce Membership Ended",
+        "workforce_membership_suspended": "Workforce Membership Suspended",
+        "workforce_sessions_revoked": "Workforce Sessions Revoked",
+        "workforce_session_revoked": "Workforce Session Revoked",
+        "session_revoked": "Session Revoked"
+      }
+    },
+    "confirm": {
+      "removeTitle": "Remove multi-factor authentication?",
+      "removeDescription": "Other active sessions will be revoked and privileged Control actions will pause until MFA is set up again.",
+      "replaceTitle": "Replace every recovery code?",
+      "replaceDescription": "Every current recovery code will stop working. Pressly will display the replacements once."
+    }
+  }
+}

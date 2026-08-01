@@ -18,7 +18,10 @@ const principal: Principal = {
 type RecordedAuthorizeInput = Readonly<{
   action: Action;
   policies: readonly unknown[];
-  readResource: (req: Request, res: Response) => AuthResource;
+  readResource: (
+    req: Request,
+    res: Response,
+  ) => AuthResource | Promise<AuthResource>;
 }>;
 
 const makeAuthorizeFake = (
@@ -34,7 +37,7 @@ const makeAuthorizeFake = (
     authorize: <R extends AuthResource>(input: {
       action: Action;
       policies: readonly PolicyRule<R>[];
-      readResource: (req: Request, res: Response) => R;
+      readResource: (req: Request, res: Response) => R | Promise<R>;
     }): RequestHandler => {
       const handler = handlers[calls.length];
 
@@ -80,7 +83,7 @@ describe('pricing access-control guards', () => {
     ]);
   });
 
-  it('reads pricing resources from validated request bodies', () => {
+  it('reads pricing resources from validated request bodies', async () => {
     const { authorize, calls } = makeAuthorizeFake([
       vi.fn() as unknown as RequestHandler,
       vi.fn() as unknown as RequestHandler,
@@ -96,7 +99,7 @@ describe('pricing access-control guards', () => {
     });
 
     const planInput = calls[0];
-    const resource = planInput?.readResource(
+    const resource = await planInput?.readResource(
       {
         body: {
           serviceSlug: 'wash-fold',

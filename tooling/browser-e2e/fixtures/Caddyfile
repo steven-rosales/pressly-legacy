@@ -1,0 +1,38 @@
+{$PRESSLY_PROCESSOR_DOMAIN:processor.pressly.test} {
+	tls internal
+	encode zstd gzip
+
+	@processor_api path /api /api/*
+	handle @processor_api {
+		uri strip_prefix /api
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy processor:80
+	}
+}
+
+{$PRESSLY_CONTROL_DOMAIN:control.pressly.test} {
+	tls internal
+	encode zstd gzip
+
+	header {
+		Content-Security-Policy "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'"
+		Cross-Origin-Opener-Policy "same-origin"
+		Permissions-Policy "camera=(), geolocation=(), microphone=(), payment=(), usb=()"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+
+	@control_api path /api /api/*
+	handle @control_api {
+		uri strip_prefix /api
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy control:80
+	}
+}

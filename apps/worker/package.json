@@ -33,7 +33,6 @@
     "@pressly/webhook-ingestion": "workspace:*",
     "@sentry/node": "^10.50.0",
     "dotenv": "^17.4.2",
-    "posthog-node": "^5.30.6",
     "zod": "^4.3.6"
   }
 }

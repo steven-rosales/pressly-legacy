@@ -16,8 +16,9 @@ const operations = (tx: DatabaseExecutor): UpdateUserOperations => ({
   lockCommand: (key) => lockUserKey(tx, `users:command:${key}`),
   loadCommandReceipt: (key) => loadUserCommandReceipt(tx, key),
   saveCommandReceipt: (input) => saveUserCommandReceipt(tx, input),
-  lockUser: (userId) => lockUserKey(tx, `users:id:${userId}`),
-  loadUser: (userId) => loadStoredUser(tx, userId),
+  lockUser: (businessId, userId) =>
+    lockUserKey(tx, `users:${businessId}:id:${userId}`),
+  loadUser: (businessId, userId) => loadStoredUser(tx, businessId, userId),
   updateUser: (input) => updateStoredUser(tx, input),
   signalDuplicateContacts: (input) => signalDuplicateUserContacts(tx, input),
 });

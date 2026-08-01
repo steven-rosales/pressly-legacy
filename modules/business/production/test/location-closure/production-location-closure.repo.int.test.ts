@@ -64,7 +64,6 @@ const productionTables = [
   'production_shifts',
   'order_demands',
   'order_outbox_events',
-  'order_field_authorities',
   'order_source_snapshots',
   'order_source_customer_refs',
   'order_source_links',
@@ -97,11 +96,13 @@ const seedLocationClosure = async (): Promise<void> => {
   await testDb.db.insert(laundryProduction.productionLocations).values([
     {
       id: location.first,
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Synthetic Location One',
       timezone: 'America/New_York',
     },
     {
       id: location.second,
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Synthetic Location Two',
       timezone: 'America/Chicago',
     },
@@ -206,7 +207,6 @@ const seedLocationClosure = async (): Promise<void> => {
       revisionHash: 'eligible-source-hash',
       revisionAt: now,
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       dueAt: due,
     },
     {
@@ -217,7 +217,6 @@ const seedLocationClosure = async (): Promise<void> => {
       revisionHash: 'pending-source-hash',
       revisionAt: now,
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       dueAt: due,
     },
     {
@@ -228,7 +227,6 @@ const seedLocationClosure = async (): Promise<void> => {
       revisionHash: 'other-source-hash',
       revisionAt: now,
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       dueAt: due,
     },
   ]);

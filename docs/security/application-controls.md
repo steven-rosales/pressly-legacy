@@ -8,17 +8,17 @@ session and CSRF boundary where those concerns determine request safety.
 
 ## Control Status
 
-| Control                   | Status                        | Enforcement point                          |
-| ------------------------- | ----------------------------- | ------------------------------------------ |
-| CORS                      | Active                        | API middleware                             |
-| Browser security headers  | Active                        | API Helmet middleware and web CSP          |
-| HTML sanitization         | Available, unused             | Feature boundary when rich HTML is added   |
-| SSRF protection           | Not triggered                 | Add before user-directed outbound requests |
-| CSRF protection           | Active for Processor sessions | Processor browser boundary                 |
-| Request validation        | Active                        | HTTP adapters and API body parsers         |
-| SQL injection prevention  | Active                        | `@pressly/db` query boundary and CI        |
-| Rate limiting             | Active                        | API ingress                                |
-| Safe errors and telemetry | Active                        | API error boundary and security event sink |
+| Control                   | Status                      | Enforcement point                          |
+| ------------------------- | --------------------------- | ------------------------------------------ |
+| CORS                      | Active                      | API middleware                             |
+| Browser security headers  | Active                      | API Helmet middleware and web CSP          |
+| HTML sanitization         | Available, unused           | Feature boundary when rich HTML is added   |
+| SSRF protection           | Not triggered               | Add before user-directed outbound requests |
+| CSRF protection           | Active for browser sessions | Processor and Control browser boundaries   |
+| Request validation        | Active                      | HTTP adapters and API body parsers         |
+| SQL injection prevention  | Active                      | `@pressly/db` query boundary and CI        |
+| Rate limiting             | Active                      | API ingress                                |
+| Safe errors and telemetry | Active                      | API error boundary and security event sink |
 
 "Not triggered" means the vulnerable capability does not exist today.
 It does not mean that an empty middleware file protects the application.
@@ -198,27 +198,39 @@ Cross-Site Request Forgery (CSRF) abuses credentials that a browser attaches aut
 CORS is not sufficient CSRF protection.
 Some browser requests do not require a CORS preflight, and the server must protect state changes based on how credentials are transported.
 
-### Processor Browser Boundary
+### Processor and Control Browser Boundaries
 
-The Processor uses an opaque server-side session token in an `HttpOnly`,
-`SameSite=Strict` cookie. Production cookies are `Secure` and use the `__Host-`
-prefix. Local HTTP development uses an explicitly non-secure local cookie name.
+Processor and Control each use an opaque server-side session token in their own
+`HttpOnly`, `SameSite=Strict` cookie. Production cookies are `Secure` and use
+app-specific `__Host-` names. Local HTTP development uses explicitly
+non-secure, app-specific cookie names.
 
 JavaScript never receives the reusable session token. A successful login or
-session restore returns a session-bound CSRF proof. The Processor keeps that
-proof in memory and sends it in `X-CSRF-Token` on unsafe requests.
+session restore returns an app-specific, session-bound CSRF proof. Each browser
+application keeps only its own proof in memory and sends it in `X-CSRF-Token`
+on unsafe requests.
 
-`apps/api/src/http/processor/session/processor-session.boundary.ts` composes the
-protocol from explicit cookie, CSRF, session, route, and mapping roles:
+The boundaries are composed independently in:
 
-1. Login requires the exact configured Processor `Origin`.
+- `apps/api/src/http/processor/session/processor-session.boundary.ts`
+- `apps/api/src/http/control/session/control-session.boundary.ts`
+
+They apply the same protocol without sharing host authority:
+
+1. Login requires the exact configured origin for that application.
 2. `POST`, `PUT`, `PATCH`, `DELETE`, and any other unsafe method require both
-   that exact origin and the derived CSRF proof.
+   that application's exact origin and its derived CSRF proof.
 3. The API derives the expected proof from the opaque session token and a
-   separate CSRF secret, then compares it without timing-dependent equality.
+   domain-separated CSRF secret, then compares it without timing-dependent
+   equality.
 4. `GET`, `HEAD`, and `OPTIONS` remain free of state changes. Authenticated safe
    requests still require a valid session cookie.
 5. Session responses use `Cache-Control: no-store`.
+
+Processor and Control cookies are host-only and use different names. Their
+CSRF derivation domains are also different. A cookie or proof issued for one
+application is not valid at the other, and neither application relies on a
+shared parent-domain session.
 
 Other non-browser API boundaries may use explicit bearer authentication. Do not
 add cookie support to one of those routes without defining its origin and CSRF

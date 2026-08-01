@@ -18,6 +18,7 @@ import type { BootstrapOwnerStore } from './bootstrap-owner.port.ts';
 export const BOOTSTRAP_OWNER_CONFIRMATION = 'bootstrap-first-owner';
 
 export type BootstrapOwnerCommand = Readonly<{
+  businessId: string;
   email: string;
   password: string;
   confirmation: string;
@@ -64,6 +65,7 @@ export const makeBootstrapOwner =
     if (result.isErr(passwordHash)) return passwordHash;
 
     const created = await deps.store.createFirstOwner({
+      businessId: command.businessId,
       email,
       emailNormalized,
       passwordHash: passwordHash.value,

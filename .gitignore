@@ -153,3 +153,9 @@ vite.config.ts.timestamp-*
 .claude
 .vercel
 .env*.local
+
+# Local browser and visual-QA artifacts
+.artifacts/
+.playwright-cli/
+playwright-report/
+test-results/

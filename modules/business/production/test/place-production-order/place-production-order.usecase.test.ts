@@ -214,7 +214,7 @@ const automaticCommand = {
   expectedQueueVersion: 4,
   idempotencyKey: 'place-order-automatic-1',
   actorId: ids.actor,
-  actorRole: 'operator' as const,
+  authorizedAction: 'production:queue' as const,
 };
 
 const makePlacement = (input: {
@@ -287,6 +287,7 @@ describe('place production order', () => {
           payload: {
             expectedQueueVersion: automaticCommand.expectedQueueVersion,
             mode: 'automatic',
+            authorizedAction: automaticCommand.authorizedAction,
           },
         },
         result: storedResult,
@@ -311,7 +312,7 @@ describe('place production order', () => {
     await expect(
       placement.placeExactly({
         ...automaticCommand,
-        actorRole: 'owner',
+        authorizedAction: 'production:override',
         productionBatchId: ids.batchB,
         expectedBatchVersion: 2,
         idempotencyKey: 'place-order-exact-stale',
@@ -341,7 +342,7 @@ describe('place production order', () => {
 
     await placement.placeExactly({
       ...automaticCommand,
-      actorRole: 'owner',
+      authorizedAction: 'production:override',
       productionBatchId: ids.batchB,
       expectedBatchVersion: 3,
       idempotencyKey: 'place-order-exact-current',
@@ -417,7 +418,7 @@ describe('place production order', () => {
     await expect(
       placement.confirmOvertime({
         ...automaticCommand,
-        actorRole: 'owner',
+        authorizedAction: 'production:override',
         proposalHash: originalHash,
         idempotencyKey: 'confirm-overtime-stale',
       }),
@@ -450,7 +451,7 @@ describe('place production order', () => {
     await expect(
       placement.confirmOvertime({
         ...automaticCommand,
-        actorRole: 'owner',
+        authorizedAction: 'production:override',
         proposalHash: proposal.placementPlanHash,
         idempotencyKey: 'confirm-overtime-old-queue',
       }),
@@ -487,7 +488,7 @@ describe('place production order', () => {
     await expect(
       placement.confirmOvertime({
         ...automaticCommand,
-        actorRole: 'owner',
+        authorizedAction: 'production:override',
         proposalHash: proposal.placementPlanHash,
         idempotencyKey: 'confirm-overtime-current',
       }),

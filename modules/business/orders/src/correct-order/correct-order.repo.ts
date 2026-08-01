@@ -1,4 +1,10 @@
-import type { Database, DatabaseExecutor } from '@pressly/db';
+import {
+  and,
+  eq,
+  users as userSchema,
+  type Database,
+  type DatabaseExecutor,
+} from '@pressly/db';
 import {
   applyStoredOrderCorrection,
   loadOrderAggregate,
@@ -17,9 +23,24 @@ const operations = (tx: DatabaseExecutor): CorrectOrderOperations => ({
   lockCommand: (key) => lockOrderKey(tx, `orders:command:${key}`),
   loadCommandReceipt: (key) => loadOrderCommandReceipt(tx, key),
   saveCommandReceipt: (input) => saveOrderCommandReceipt(tx, input),
-  lockOrder: (orderId) => lockStoredOrder(tx, orderId),
-  lockFulfillment: (fulfillmentId) => lockStoredFulfillment(tx, fulfillmentId),
-  loadOrder: (orderId) => loadOrderAggregate(tx, orderId),
+  lockOrder: (businessId, orderId) => lockStoredOrder(tx, businessId, orderId),
+  lockFulfillment: (businessId, fulfillmentId) =>
+    lockStoredFulfillment(tx, businessId, fulfillmentId),
+  loadOrder: (businessId, orderId) =>
+    loadOrderAggregate(tx, businessId, orderId),
+  customerExists: async (businessId, userId) => {
+    const [customer] = await tx
+      .select({ id: userSchema.users.id })
+      .from(userSchema.users)
+      .where(
+        and(
+          eq(userSchema.users.businessId, businessId),
+          eq(userSchema.users.id, userId),
+        ),
+      )
+      .limit(1);
+    return customer !== undefined;
+  },
   applyOrderCorrection: (input) => applyStoredOrderCorrection(tx, input),
 });
 

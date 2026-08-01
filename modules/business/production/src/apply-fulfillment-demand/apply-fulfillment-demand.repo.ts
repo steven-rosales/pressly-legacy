@@ -91,7 +91,6 @@ const compatibilityFields = (command: ApplyFulfillmentDemandCommand) => ({
   revisionHash: command.projectionHash,
   revisionAt: new Date(command.observedAt),
   phase: phaseFor(command.admissionState),
-  sourceStatusCode: `canonical:${command.commercialState}`,
 });
 
 export const makeApplyFulfillmentDemandRepository = (deps: {

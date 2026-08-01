@@ -3,8 +3,7 @@ export type MeasurementName =
   | 'api.sse_active_connections'
   | 'worker.inbox_oldest_pending_age_seconds'
   | 'worker.inbox_pending_count'
-  | 'worker.processing_latency_seconds'
-  | 'worker.reconciliation_lag_seconds';
+  | 'worker.processing_latency_seconds';
 
 export type MeasurementLabels = Readonly<Record<string, string>>;
 

@@ -1,0 +1,119 @@
+{
+  "security": {
+    "common": {
+      "cancel": "Cancelar",
+      "confirm": "Confirmar",
+      "copied": "Copiado",
+      "copy": "Copiar"
+    },
+    "errors": {
+      "beginMfa": "No se pudo iniciar la configuración de MFA.",
+      "confirmAuthenticator": "No se pudo confirmar el código del autenticador.",
+      "loadHistory": "No se pudo cargar el historial de seguridad.",
+      "loadMoreHistory": "No se pudo cargar más historial de seguridad.",
+      "completeChange": "No se pudo completar el cambio de seguridad."
+    },
+    "workspace": {
+      "title": "Seguridad de la cuenta",
+      "description": "Protege tu identidad personal de Pressly y revisa la sesión que estás usando ahora.",
+      "attention": "La seguridad requiere atención"
+    },
+    "recoveryCodes": {
+      "title": "Guarda ahora tus códigos de recuperación",
+      "description": "Cada código funciona una sola vez si no tienes acceso a tu autenticador. Pressly no volverá a mostrar estos códigos.",
+      "credentialsTitle": "Credenciales de seguridad de un solo uso",
+      "credentialsDescription": "Guárdalas en un gestor de contraseñas. No las envíes por correo electrónico ni por el chat del equipo.",
+      "ariaLabel": "Códigos de recuperación",
+      "copyAll": "Copiar todos los códigos",
+      "saved": "Ya guardé estos códigos"
+    },
+    "mfaSetup": {
+      "title": "Configurar la autenticación multifactor",
+      "description": "Usa una aplicación de autenticación personal. Pressly nunca le pide a un empleado que comparta sus códigos de seguridad.",
+      "attention": "La configuración requiere atención",
+      "readyTitle": "Ten listo tu autenticador",
+      "readyDescription": "Pressly mostrará una clave de configuración privada. Agrégala a tu autenticador y luego ingresa el código de seis dígitos que genere.",
+      "showKey": "Mostrar clave de configuración",
+      "setupKey": "Clave de configuración",
+      "copyKeyAria": "Copiar clave de configuración",
+      "keyDescription": "Esta clave permanece solo en esta pantalla de configuración. No se guarda en el almacenamiento del navegador.",
+      "sixDigitCode": "Código de seis dígitos",
+      "enterAllDigits": "Ingresa los seis dígitos.",
+      "verifyAndEnable": "Verificar y activar"
+    },
+    "mfa": {
+      "title": "Autenticación multifactor",
+      "enabled": "Activada",
+      "required": "Obligatoria",
+      "description": "Un código del autenticador protege las acciones de gerentes y propietarios incluso si una contraseña queda expuesta.",
+      "pausedTitle": "Las acciones de administración están pausadas",
+      "pausedDescription": "Configura MFA para invitar empleados o cambiar el acceso al negocio. La revisión de solo lectura sigue disponible.",
+      "setUp": "Configurar MFA",
+      "verified": "Tu sesión actual está verificada con MFA.",
+      "replaceRecoveryCodes": "Reemplazar códigos de recuperación",
+      "remove": "Eliminar MFA"
+    },
+    "session": {
+      "title": "Sesión actual",
+      "description": "Esta sesión del navegador está protegida por una cookie HttpOnly vinculada únicamente a este host. Control nunca expone la credencial a los scripts de la página.",
+      "signedInAs": "Sesión iniciada como",
+      "expires": "La sesión vence"
+    },
+    "history": {
+      "title": "Historial de seguridad",
+      "auditRecord": "Registro de auditoría",
+      "description": "Los cambios importantes del personal y de la cuenta se registran sin exponer credenciales, enlaces de invitación ni datos privados.",
+      "attention": "El historial de seguridad requiere atención",
+      "emptyTitle": "No hay cambios de seguridad registrados",
+      "emptyDescription": "Las invitaciones, los cambios de acceso y las acciones sobre sesiones aparecerán aquí.",
+      "loadOlder": "Cargar actividad anterior",
+      "presslySystem": "Sistema de Pressly",
+      "columns": {
+        "change": "Cambio",
+        "area": "Área",
+        "actor": "Responsable",
+        "when": "Cuándo"
+      },
+      "resources": {
+        "invitation": "Invitación",
+        "membership": "Membresía del equipo",
+        "grant": "Permiso de acceso",
+        "session": "Sesión",
+        "identity": "Identidad",
+        "accountSecurity": "Seguridad de la cuenta"
+      },
+      "eventTypes": {
+        "owner_bootstrapped": "Propietario inicial configurado",
+        "login_failed": "Inicio de sesión fallido",
+        "login_rate_limited": "Inicio de sesión limitado",
+        "login_succeeded": "Inicio de sesión exitoso",
+        "mfa_challenge_created": "Verificación MFA creada",
+        "mfa_challenge_completed": "Verificación MFA completada",
+        "mfa_enrolled": "MFA configurada",
+        "mfa_recovery_codes_regenerated": "Códigos de recuperación de MFA regenerados",
+        "mfa_recovery_used": "Código de recuperación de MFA utilizado",
+        "mfa_removed": "MFA eliminada",
+        "logout": "Cierre de sesión",
+        "workforce_access_granted": "Acceso del personal concedido",
+        "workforce_access_revoked": "Acceso del personal revocado",
+        "workforce_invitation_accepted": "Invitación del personal aceptada",
+        "workforce_invitation_issued": "Invitación del personal emitida",
+        "workforce_invitation_reissued": "Invitación del personal reemitida",
+        "workforce_invitation_revoked": "Invitación del personal revocada",
+        "workforce_membership_suspend": "Membresía del personal suspendida",
+        "workforce_membership_reactivate": "Membresía del personal reactivada",
+        "workforce_membership_end": "Membresía del personal finalizada",
+        "workforce_membership_suspended": "Membresía del personal suspendida",
+        "workforce_sessions_revoked": "Sesiones del personal revocadas",
+        "workforce_session_revoked": "Sesión del personal revocada",
+        "session_revoked": "Sesión revocada"
+      }
+    },
+    "confirm": {
+      "removeTitle": "¿Eliminar la autenticación multifactor?",
+      "removeDescription": "Se revocarán las demás sesiones activas y las acciones privilegiadas de Control se pausarán hasta que se vuelva a configurar MFA.",
+      "replaceTitle": "¿Reemplazar todos los códigos de recuperación?",
+      "replaceDescription": "Todos los códigos de recuperación actuales dejarán de funcionar. Pressly mostrará los reemplazos una sola vez."
+    }
+  }
+}

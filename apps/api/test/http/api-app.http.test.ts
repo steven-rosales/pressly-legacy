@@ -167,6 +167,8 @@ const makeRuntime = (
       rateLimits: {
         global: { limit: 1_000, windowMs: 60_000 },
         login: { limit: 1_000, windowMs: 60_000 },
+        controlMutation: { limit: 1_000, windowMs: 60_000 },
+        invitationAccept: { limit: 1_000, windowMs: 60_000 },
       },
       auth: {
         secret: secretValue('test-auth-secret'),
@@ -184,6 +186,10 @@ const makeRuntime = (
         csrfSecret: secretValue(
           'test-processor-csrf-key-with-at-least-32-bytes',
         ),
+      },
+      control: {
+        origin: 'http://localhost:4174',
+        csrfSecret: secretValue('test-control-csrf-key-with-at-least-32-bytes'),
       },
       centsWebhook: {
         authMode: input.centsWebhookAuthMode ?? 'hmac',

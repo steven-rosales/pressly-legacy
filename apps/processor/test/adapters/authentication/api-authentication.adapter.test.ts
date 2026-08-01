@@ -7,7 +7,24 @@ const authenticated = {
     identityId: "00000000-0000-4000-8000-000000000001",
     displayName: "Operator One",
     email: "operator@example.com",
-    roles: ["operator" as const],
+  },
+  access: {
+    locations: [
+      {
+        id: "pressly-one",
+        name: "Pressly One",
+        timezone: "America/New_York",
+        capabilities: ["processor:view" as const, "production:read" as const],
+      },
+    ],
+    applications: [
+      {
+        id: "processor" as const,
+        label: "Pressly Processor",
+        description: "Run laundry-floor production.",
+        href: "http://localhost:4173",
+      },
+    ],
   },
   expiresAt: "2026-08-01T20:00:00.000Z",
   csrfToken: "a".repeat(43),

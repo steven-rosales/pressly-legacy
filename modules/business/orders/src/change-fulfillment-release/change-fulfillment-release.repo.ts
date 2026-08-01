@@ -20,11 +20,13 @@ const operations = (
   lockCommand: (key) => lockOrderKey(tx, `orders:command:${key}`),
   loadCommandReceipt: (key) => loadOrderCommandReceipt(tx, key),
   saveCommandReceipt: (input) => saveOrderCommandReceipt(tx, input),
-  findOrderId: (fulfillmentId) => findOrderIdByFulfillmentId(tx, fulfillmentId),
-  lockOrder: (orderId) => lockStoredOrder(tx, orderId),
-  lockFulfillment: (fulfillmentId) => lockStoredFulfillment(tx, fulfillmentId),
-  loadFulfillmentOrder: (fulfillmentId) =>
-    loadOrderAggregateByFulfillmentId(tx, fulfillmentId),
+  findOrderId: (businessId, fulfillmentId) =>
+    findOrderIdByFulfillmentId(tx, businessId, fulfillmentId),
+  lockOrder: (businessId, orderId) => lockStoredOrder(tx, businessId, orderId),
+  lockFulfillment: (businessId, fulfillmentId) =>
+    lockStoredFulfillment(tx, businessId, fulfillmentId),
+  loadFulfillmentOrder: (businessId, fulfillmentId) =>
+    loadOrderAggregateByFulfillmentId(tx, businessId, fulfillmentId),
   applyFulfillmentRelease: (input) => applyStoredFulfillmentRelease(tx, input),
 });
 

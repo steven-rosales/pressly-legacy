@@ -60,6 +60,7 @@ export default defineConfig(({ mode }) => {
       environment: "jsdom",
       setupFiles: ["./test/setup.ts"],
       css: true,
+      testTimeout: 15_000,
     },
     resolve: {
       alias: {

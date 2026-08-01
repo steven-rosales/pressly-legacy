@@ -19,9 +19,11 @@ const profile = {
   phone: null,
   email: null,
 };
+const businessId = '00000000-0000-4000-8000-000000000100';
 
 const user = {
   id: 'user-1',
+  businessId,
   version: 1,
   active: true,
   ...profile,
@@ -62,6 +64,7 @@ describe('Users use cases', () => {
 
   it('preserves an exact create replay without creating another User', async () => {
     const command = {
+      businessId,
       idempotencyKey: 'create-user-1',
       context: directContext,
       profile,
@@ -91,6 +94,7 @@ describe('Users use cases', () => {
     });
     const update = makeUpdateUser({ repo: transactionRepo(operations), clock });
     const outcome = await update({
+      businessId,
       idempotencyKey: 'update-user-1',
       context: directContext,
       userId: 'user-1',
@@ -110,6 +114,7 @@ describe('Users use cases', () => {
     const operations = updateOperations({ updateUser });
     const update = makeUpdateUser({ repo: transactionRepo(operations), clock });
     const outcome = await update({
+      businessId,
       idempotencyKey: 'update-user-2',
       context: directContext,
       userId: 'user-1',

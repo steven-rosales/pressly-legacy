@@ -1,5 +1,7 @@
 import type { Request, RequestHandler, Response } from 'express';
+import { isAssignmentActive } from '@pressly/auth/authorization';
 import type { AccessControlAuthPort } from '../auth.port.ts';
+import type { LocationAncestryPort } from '../location-ancestry.port.ts';
 import { makeProductionPolicies } from './production.policy.ts';
 import {
   productionLocationResource,
@@ -20,10 +22,12 @@ export type ProductionAccessControl = Readonly<{
   resources: RequestHandler;
   stage: RequestHandler;
   readActorId: (response: Response) => string;
-  readAllowedLocationIds: (response: Response) => readonly string[] | null;
+  readAllowedLocationIds: (
+    response: Response,
+  ) => Promise<readonly string[] | null>;
 }>;
 
-const readResource = (request: Request) => {
+const readLocationId = (request: Request): string => {
   const locationId = request.params['locationId'];
 
   if (typeof locationId !== 'string' || locationId.length === 0)
@@ -31,13 +35,22 @@ const readResource = (request: Request) => {
       code: 'production_location_required',
     });
 
-  return productionLocationResource(locationId);
+  return locationId;
 };
 
 export const makeProductionAccessControl = (input: {
   auth: AccessControlAuthPort;
+  locationAncestry: LocationAncestryPort;
+  clock?: Readonly<{ now: () => Date }>;
 }): ProductionAccessControl => {
+  const clock = input.clock ?? { now: () => new Date() };
   const policies = makeProductionPolicies();
+  const readResource = async (request: Request) => {
+    const locationId = readLocationId(request);
+    const businessId =
+      await input.locationAncestry.resolveBusinessId(locationId);
+    return productionLocationResource(locationId, businessId);
+  };
   const locationGuard = (
     action: Parameters<AccessControlAuthPort['authorize']>[0]['action'],
   ) => input.auth.authorize({ action, policies, readResource });
@@ -60,11 +73,14 @@ export const makeProductionAccessControl = (input: {
     }),
     stage: locationGuard('production:stage'),
     readActorId: (response) => input.auth.readPrincipal(response).identityId,
-    readAllowedLocationIds: (response) => {
+    readAllowedLocationIds: async (response) => {
       const assignments =
         input.auth.readPrincipalAttributes?.(response).assignments ?? [];
-      const productionAssignments = assignments.filter((assignment) =>
-        ['owner', 'admin', 'operator'].includes(assignment.role),
+      const now = clock.now();
+      const productionAssignments = assignments.filter(
+        (assignment) =>
+          ['owner', 'manager', 'admin', 'operator'].includes(assignment.role) &&
+          isAssignmentActive(assignment, now),
       );
 
       if (
@@ -74,12 +90,25 @@ export const makeProductionAccessControl = (input: {
       )
         return null;
 
-      return [
+      const directLocationIds = productionAssignments.flatMap((assignment) =>
+        assignment.scope.kind === 'location' ? [assignment.scope.id] : [],
+      );
+      const businessIds = [
         ...new Set(
           productionAssignments.flatMap((assignment) =>
-            assignment.scope.kind === 'location' ? [assignment.scope.id] : [],
+            assignment.scope.kind === 'business' ? [assignment.scope.id] : [],
           ),
         ),
+      ];
+      const inheritedLocationIds =
+        businessIds.length === 0
+          ? []
+          : await input.locationAncestry.listLocationIdsForBusinesses(
+              businessIds,
+            );
+
+      return [
+        ...new Set([...directLocationIds, ...inheritedLocationIds]),
       ].sort();
     },
   };

@@ -15,8 +15,10 @@ const operations = (tx: DatabaseExecutor): ChangeOrderLifecycleOperations => ({
   lockCommand: (key) => lockOrderKey(tx, `orders:command:${key}`),
   loadCommandReceipt: (key) => loadOrderCommandReceipt(tx, key),
   saveCommandReceipt: (input) => saveOrderCommandReceipt(tx, input),
-  lockOrder: (orderId) => lockOrderKey(tx, `orders:id:${orderId}`),
-  loadOrder: (orderId) => loadOrderAggregate(tx, orderId),
+  lockOrder: (businessId, orderId) =>
+    lockOrderKey(tx, `orders:${businessId}:id:${orderId}`),
+  loadOrder: (businessId, orderId) =>
+    loadOrderAggregate(tx, businessId, orderId),
   applyOrderLifecycle: (input) => applyStoredOrderLifecycle(tx, input),
 });
 

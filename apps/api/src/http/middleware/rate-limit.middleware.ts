@@ -128,3 +128,75 @@ export const makeIpRateLimiter =
       }),
     );
   };
+
+export const makeIdentityRateLimiter =
+  (input: {
+    name: string;
+    limit: number;
+    windowMs: number;
+    store: RateLimitStore;
+    logger: Logger;
+    securityEvents: SecurityEventSink;
+  }): RequestHandler =>
+  (req, res, next): void => {
+    const identityId = (
+      res.locals['auth'] as
+        | Readonly<{
+            principal?: Readonly<{ identityId?: string }>;
+          }>
+        | undefined
+    )?.principal?.identityId;
+
+    if (identityId === undefined) {
+      input.logger.warn('identity rate limiter missing auth context', {
+        limiter: input.name,
+        path: req.path,
+      });
+      next(
+        makeAppError({
+          kind: 'PermissionError',
+          code: 'identity_rate_limit_auth_missing',
+          message: `Identity rate limiter ${input.name} ran without authentication.`,
+          safeMessage: 'Authentication is required.',
+          status: 401,
+        }),
+      );
+      return;
+    }
+
+    const decision = input.store.consume(
+      `${input.name}:${identityId}`,
+      input.limit,
+      input.windowMs,
+    );
+    setRateLimitHeaders(res, decision);
+
+    if (decision.allowed) {
+      next();
+      return;
+    }
+
+    res.setHeader('Retry-After', String(decision.retryAfterSeconds));
+    input.securityEvents.emit({
+      name: 'request.rate_limited',
+      occurredAt: new Date().toISOString(),
+      outcome: 'denied',
+      ...((res.locals['requestId'] as string | undefined) === undefined
+        ? {}
+        : { requestId: res.locals['requestId'] as string }),
+      principalId: identityId,
+      resourceType: 'http.route',
+      resourceId: req.path,
+      reason: input.name,
+    });
+    next(
+      makeAppError({
+        kind: 'RateLimitError',
+        code: 'rate_limit_exceeded',
+        message: `Rate limit exceeded for ${input.name}.`,
+        safeMessage: 'Too many requests. Please try again later.',
+        status: 429,
+        details: { retryAfterSeconds: decision.retryAfterSeconds },
+      }),
+    );
+  };

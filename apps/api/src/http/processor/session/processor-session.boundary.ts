@@ -4,6 +4,7 @@ import { makeProcessorSessionAuthentication } from './processor-session.middlewa
 import type {
   ProcessorAuthApplication,
   ProcessorBrowserBoundary,
+  ResolveProcessorAccess,
   ProcessorSessionOptions,
 } from './processor-session.port.ts';
 import { makeProcessorSessionRoutes } from './processor-session.route.ts';
@@ -17,12 +18,14 @@ export type {
 
 export const makeProcessorBrowserBoundary = (input: {
   application: ProcessorAuthApplication;
+  resolveAccess: ResolveProcessorAccess;
   bearerAuthenticate: RequestHandler;
   options: ProcessorSessionOptions;
 }): ProcessorBrowserBoundary => {
   const names = processorCookieNames(input.options.secureCookies);
   const authentication = makeProcessorSessionAuthentication({
     application: input.application,
+    resolveAccess: input.resolveAccess,
     bearerAuthenticate: input.bearerAuthenticate,
     names,
     options: input.options,
@@ -31,6 +34,7 @@ export const makeProcessorBrowserBoundary = (input: {
     routes: makeProcessorSessionRoutes({
       application: input.application,
       loadCookieSession: authentication.loadCookieSession,
+      resolveAccess: input.resolveAccess,
       names,
       options: input.options,
     }),

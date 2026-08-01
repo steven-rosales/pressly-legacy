@@ -1,5 +1,6 @@
 import {
   and,
+  business as businessSchema,
   desc,
   eq,
   inArray,
@@ -43,6 +44,7 @@ export type IncomingOrderProposalCustomerPersistence = Readonly<{
     db: DatabaseExecutor,
     input: Readonly<{
       source: string;
+      businessId: string;
       externalUserId: string;
       profile: Omit<
         IncomingOrderProposalCustomer,
@@ -489,7 +491,9 @@ const resolveOrCreateExactCustomer = async (
       userId: null,
       externalUserId: null,
     };
+  const businessId = await businessIdForLocation(tx, proposal.locationId);
   const resolved = await persistence.resolveOrCreate(tx, {
+    businessId,
     source: proposal.source,
     externalUserId: customer.externalUserId,
     profile: {
@@ -515,6 +519,22 @@ const resolveOrCreateExactCustomer = async (
     userId: resolved.userId,
     externalUserId: customer.externalUserId,
   };
+};
+
+const businessIdForLocation = async (
+  tx: DatabaseExecutor,
+  locationId: string,
+): Promise<string> => {
+  const [location] = await tx
+    .select({ businessId: businessSchema.productionLocations.businessId })
+    .from(businessSchema.productionLocations)
+    .where(eq(businessSchema.productionLocations.id, locationId))
+    .limit(1);
+  if (location === undefined)
+    throw new Error(
+      'Incoming Order proposal location has no authoritative business ancestry.',
+    );
+  return location.businessId;
 };
 
 const insertResolution = async (
@@ -685,6 +705,10 @@ const decisionOperations = (
       now,
     ),
   acceptProposal: async (input) => {
+    const businessId = await businessIdForLocation(
+      tx,
+      input.proposal.locationId,
+    );
     const canonical: OrderInput = {
       customer: input.customer,
       displayNumber: input.proposal.snapshot.displayNumber,
@@ -701,6 +725,7 @@ const decisionOperations = (
       },
     };
     const value = await createStoredPresslyOrder(tx, {
+      businessId,
       order: canonical,
       now: input.decidedAt,
     });

@@ -121,11 +121,13 @@ function ForecastItemRow({
   timezone,
   locale,
   onNavigate,
+  canNavigate,
 }: Readonly<{
   item: ForecastItem
   timezone: string
   locale: string
   onNavigate: (target: ForecastNavigationTarget) => void
+  canNavigate: (target: ForecastNavigationTarget) => boolean
 }>) {
   const { t } = useTranslation()
   const target = forecastNavigationTarget(item)
@@ -164,7 +166,7 @@ function ForecastItemRow({
           </p>
         )}
       </div>
-      {target !== null && actionLabelKey !== null && (
+      {target !== null && actionLabelKey !== null && canNavigate(target) && (
         <Button
           type="button"
           variant="outline"
@@ -184,11 +186,13 @@ function ForecastGroupCard({
   timezone,
   locale,
   onNavigate,
+  canNavigate,
 }: Readonly<{
   group: ForecastGroup
   timezone: string
   locale: string
   onNavigate: (target: ForecastNavigationTarget) => void
+  canNavigate: (target: ForecastNavigationTarget) => boolean
 }>) {
   const { t } = useTranslation()
   return (
@@ -226,6 +230,7 @@ function ForecastGroupCard({
                 timezone={timezone}
                 locale={locale}
                 onNavigate={onNavigate}
+                canNavigate={canNavigate}
               />
             ))}
           </ul>
@@ -331,10 +336,12 @@ export function ForecastView({
   model,
   timezone,
   onNavigate,
+  canNavigate = () => true,
 }: Readonly<{
   model: RemainingDayForecastModel
   timezone: string
   onNavigate: (target: ForecastNavigationTarget) => void
+  canNavigate?: (target: ForecastNavigationTarget) => boolean
 }>) {
   const { t, i18n } = useTranslation()
   const locale = localeForLanguage(i18n.resolvedLanguage)
@@ -548,6 +555,7 @@ export function ForecastView({
                 timezone={forecast.timezone}
                 locale={locale}
                 onNavigate={onNavigate}
+                canNavigate={canNavigate}
               />
             ))}
           </div>

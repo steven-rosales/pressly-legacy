@@ -13,6 +13,10 @@ export {
 } from './main.ts';
 export { fulfillmentDemandEvent } from './order-outbox.policy.ts';
 export {
+  decodeOrderCursor,
+  encodeOrderCursor,
+} from './order-pagination.policy.ts';
+export {
   decideFulfillmentRelease,
   decideOrderLifecycle,
   mayTransitionFulfillment,
@@ -72,6 +76,12 @@ export type {
   ListIncomingOrderProposals,
   ListIncomingOrderProposalsQuery,
   OrderCustomer,
+  CanonicalOrderDetail,
+  CanonicalOrderListResult,
+  CanonicalOrderSummary,
+  GetCanonicalOrder,
+  ListCanonicalOrders,
+  ListCanonicalOrdersQuery,
   OrderDescriptionCorrection,
   OrderInput,
   OrderItemInput,

@@ -17,7 +17,7 @@ type MembershipCommand =
 export const makeManageBatchMembershipController = (input: {
   manage: ManageBatchMembership;
   action: BatchMembershipAction;
-  effectiveActorRole: 'operator' | 'owner';
+  authorizedAction: 'production:queue' | 'production:override';
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
@@ -33,7 +33,7 @@ export const makeManageBatchMembershipController = (input: {
         productionBatchId: request.params['productionBatchId'] as string,
         action: input.action,
         actorId: input.readActorId(response),
-        actorRole: input.effectiveActorRole,
+        authorizedAction: input.authorizedAction,
       }),
     );
   });

@@ -35,7 +35,7 @@ services:
       - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/api.env.example
         required: true
     environment:
-      CORS_ORIGIN: https://web.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?},https://processor.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?}
+      CORS_ORIGIN: https://web.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?},https://processor.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?},https://control.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?}
       DATABASE_URL: postgres://pressly:${PRESSLY_SMOKE_DATABASE_PASSWORD:?}@postgres:5432/pressly
       FEATURE_METRICS_ENABLED: 'false'
       SENTRY_ENABLED: 'false'
@@ -43,6 +43,8 @@ services:
       AUTH_MFA_ENCRYPTION_KEY: ${PRESSLY_SMOKE_MFA_ENCRYPTION_KEY:?}
       PROCESSOR_ORIGIN: https://processor.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?}
       PROCESSOR_CSRF_SECRET: ${PRESSLY_SMOKE_CSRF_SECRET:?}
+      CONTROL_ORIGIN: https://control.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?}
+      CONTROL_CSRF_SECRET: ${PRESSLY_SMOKE_CONTROL_CSRF_SECRET:?}
       CENTS_WEBHOOK_HMAC_CURRENT_KEY: ${PRESSLY_SMOKE_CENTS_HMAC_KEY:?}
       CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY: ${PRESSLY_SMOKE_CENTS_QUARANTINE_KEY:?}
 
@@ -72,6 +74,18 @@ services:
         VITE_SENTRY_TRACES_SAMPLE_RATE: '0'
     env_file: !override
       - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/processor.env.example
+        required: true
+
+  control:
+    pull_policy: never
+    build:
+      context: ${PRESSLY_SMOKE_REPO_ROOT:?}
+      dockerfile: apps/control/Dockerfile
+      target: runner
+      args:
+        VITE_API_URL: /api
+    env_file: !override
+      - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/control.env.example
         required: true
 
   migrate:

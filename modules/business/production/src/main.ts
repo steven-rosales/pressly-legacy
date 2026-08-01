@@ -400,7 +400,9 @@ export type ProductionRouteSecurity = Readonly<{
   resources: RequestHandler;
   stage: RequestHandler;
   readActorId: (response: Response) => string;
-  readAllowedLocationIds: (response: Response) => readonly string[] | null;
+  readAllowedLocationIds: (
+    response: Response,
+  ) => Promise<readonly string[] | null>;
 }>;
 
 export const makeProductionRoutes = (input: {

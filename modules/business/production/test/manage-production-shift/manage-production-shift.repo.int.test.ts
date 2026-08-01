@@ -25,6 +25,7 @@ const now = new Date('2026-07-15T12:00:00.000Z');
 const seedShift = async (withAcceptedSchedule: boolean) => {
   await testDb.db.insert(laundryProduction.productionLocations).values({
     id: 'location-1',
+    businessId: '00000000-0000-4000-8000-000000000100',
     name: 'Shift Update Facility',
     timezone: 'America/New_York',
   });

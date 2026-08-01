@@ -10,6 +10,7 @@ const immutableImages = {
   webImage: `ghcr.io/pressly/pressly-web@sha256:${'c'.repeat(64)}`,
   workerImage: `ghcr.io/pressly/pressly-worker@sha256:${'d'.repeat(64)}`,
   processorImage: `ghcr.io/pressly/pressly-processor@sha256:${'e'.repeat(64)}`,
+  controlImage: `ghcr.io/pressly/pressly-control@sha256:${'f'.repeat(64)}`,
 };
 const validManifest = {
   sourceSha: sha,
@@ -39,27 +40,33 @@ test('rejects abbreviated source SHAs', () => {
   ).toThrow(/malformed/);
 });
 
-test.each(['apiImage', 'webImage', 'workerImage', 'processorImage'])(
-  'rejects a manifest missing %s',
-  (field) => {
-    const input = { ...validManifest };
-    delete input[field];
+test.each([
+  'apiImage',
+  'webImage',
+  'workerImage',
+  'processorImage',
+  'controlImage',
+])('rejects a manifest missing %s', (field) => {
+  const input = { ...validManifest };
+  delete input[field];
 
-    expect(() => createReleaseManifest(input)).toThrow(/malformed/);
-  },
-);
+  expect(() => createReleaseManifest(input)).toThrow(/malformed/);
+});
 
-test.each(['apiImage', 'webImage', 'workerImage', 'processorImage'])(
-  'rejects a malformed digest in %s',
-  (field) => {
-    expect(() =>
-      createReleaseManifest({
-        ...validManifest,
-        [field]: validManifest[field].slice(0, -1),
-      }),
-    ).toThrow(/malformed/);
-  },
-);
+test.each([
+  'apiImage',
+  'webImage',
+  'workerImage',
+  'processorImage',
+  'controlImage',
+])('rejects a malformed digest in %s', (field) => {
+  expect(() =>
+    createReleaseManifest({
+      ...validManifest,
+      [field]: validManifest[field].slice(0, -1),
+    }),
+  ).toThrow(/malformed/);
+});
 
 test('rejects application images assigned to the wrong manifest field', () => {
   expect(() =>
@@ -80,11 +87,11 @@ test('rejects different application repositories sharing one digest', () => {
   ).toThrow(/malformed/);
 });
 
-test('rejects extra fields beyond the four-image schema', () => {
+test('rejects extra fields beyond the five-image schema', () => {
   expect(() =>
     validateReleaseManifest({
       ...validManifest,
-      adminImage: `ghcr.io/pressly/admin@sha256:${'f'.repeat(64)}`,
+      adminImage: `ghcr.io/pressly/admin@sha256:${'0'.repeat(64)}`,
     }),
   ).toThrow(/malformed/);
 });

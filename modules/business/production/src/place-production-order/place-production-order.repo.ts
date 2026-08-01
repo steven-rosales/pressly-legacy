@@ -137,6 +137,7 @@ const recordOutcome = async (
     idempotencyKey: input.idempotencyKey,
     payload: {
       productionRunId: input.productionRunId,
+      authorizedAction: input.authorizedAction,
       mode: input.mode,
       targetBatchId: input.targetBatchId,
       proposalHash: input.proposal?.placementPlanHash ?? null,

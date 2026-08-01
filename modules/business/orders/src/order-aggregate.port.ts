@@ -6,6 +6,7 @@ import type {
 
 export type StoredOrderRecord = Readonly<{
   id: string;
+  businessId: string;
   version: number;
   customerUserId: string | null;
   customerResolution: OrderCustomer['resolution'];
@@ -20,6 +21,7 @@ export type StoredOrderRecord = Readonly<{
 export type StoredFulfillmentRecord = FulfillmentInput &
   Readonly<{
     id: string;
+    businessId: string;
     orderId: string;
     version: number;
   }>;

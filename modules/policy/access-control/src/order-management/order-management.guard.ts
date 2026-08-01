@@ -1,5 +1,6 @@
 import type { Request, RequestHandler } from 'express';
 import type { AccessControlAuthPort } from '../auth.port.ts';
+import type { LocationAncestryPort } from '../location-ancestry.port.ts';
 import { makeOrderManagementPolicies } from './order-management.policy.ts';
 import {
   orderManagementLocationResource,
@@ -11,19 +12,26 @@ export type OrderManagementAccessControl = Readonly<{
   writeOrders: RequestHandler;
 }>;
 
-const readLocationResource = (request: Request) => {
+const readLocationId = (request: Request): string => {
   const locationId = request.params['locationId'];
   if (typeof locationId !== 'string' || locationId.length === 0)
     throw Object.assign(new Error('Order location is required.'), {
       code: 'order_location_required',
     });
-  return orderManagementLocationResource(locationId);
+  return locationId;
 };
 
 export const makeOrderManagementAccessControl = (input: {
   auth: AccessControlAuthPort;
+  locationAncestry: LocationAncestryPort;
 }): OrderManagementAccessControl => {
   const policies = makeOrderManagementPolicies();
+  const readLocationResource = async (request: Request) => {
+    const locationId = readLocationId(request);
+    const businessId =
+      await input.locationAncestry.resolveBusinessId(locationId);
+    return orderManagementLocationResource(locationId, businessId);
+  };
   return {
     writeUsers: input.auth.authorize({
       action: 'order-management:user:write',

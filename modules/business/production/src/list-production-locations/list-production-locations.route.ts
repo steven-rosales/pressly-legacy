@@ -7,7 +7,9 @@ import type { ListProductionLocations } from './list-production-locations.usecas
 export const makeListProductionLocationsRoute = (input: {
   listLocations: ListProductionLocations;
   authenticate: RequestHandler;
-  readAllowedLocationIds: (response: Response) => readonly string[] | null;
+  readAllowedLocationIds: (
+    response: Response,
+  ) => Promise<readonly string[] | null>;
 }): Router => {
   const router = Router();
   router.get(

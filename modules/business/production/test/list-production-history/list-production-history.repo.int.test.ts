@@ -49,11 +49,13 @@ const seed = async () => {
   await testDb.db.insert(laundryProduction.productionLocations).values([
     {
       id: 'location-1',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'History Facility',
       timezone: 'America/New_York',
     },
     {
       id: 'location-2',
+      businessId: '00000000-0000-4000-8000-000000000100',
       name: 'Sibling Facility',
       timezone: 'America/Chicago',
     },
@@ -169,7 +171,6 @@ const seed = async () => {
       revisionHash: 'revision-1',
       revisionAt: new Date('2026-07-15T10:00:00.000Z'),
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date('2026-07-15T20:00:00.000Z'),
     },
     {
@@ -180,7 +181,6 @@ const seed = async () => {
       revisionHash: 'revision-2',
       revisionAt: new Date('2026-07-15T10:00:00.000Z'),
       phase: 'production_released',
-      sourceStatusCode: 'IN_PROGRESS',
       dueAt: new Date('2026-07-15T20:00:00.000Z'),
     },
   ]);
@@ -421,7 +421,7 @@ describe('production history Postgres read model', () => {
         revisionHash: 'revision-resolved',
         revisionAt: new Date('2026-07-15T10:00:00.000Z'),
         phase: 'expected',
-        sourceStatusCode: 'COMPLETED',
+        commercialState: 'completed',
         dueAt: new Date('2026-07-14T20:00:00.000Z'),
       },
     ]);

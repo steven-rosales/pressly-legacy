@@ -14,6 +14,7 @@ const manifest = (): ProductionBootstrapManifest => ({
   schemaVersion: 1,
   location: {
     id: 'location-1',
+    businessId: '00000000-0000-4000-8000-000000000100',
     name: 'Synthetic Facility',
     timezone: 'America/New_York',
     isActive: true,

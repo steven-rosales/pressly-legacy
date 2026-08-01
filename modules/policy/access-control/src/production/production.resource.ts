@@ -1,4 +1,5 @@
 import {
+  businessScope,
   globalScope,
   locationScope,
   type AuthResource,
@@ -10,7 +11,7 @@ export type ProductionLocationResource = Omit<
 > &
   Readonly<{
     kind: 'production.location';
-    attributes: Readonly<{ locationId: string }>;
+    attributes: Readonly<{ locationId: string; businessId: string }>;
   }>;
 
 export type ProductionOperationsResource = Omit<
@@ -28,11 +29,13 @@ export type ProductionResource =
 
 export const productionLocationResource = (
   locationId: string,
+  businessId: string,
 ): ProductionLocationResource => ({
   kind: 'production.location',
   id: `production:${locationId}`,
   scope: locationScope(locationId),
-  attributes: { locationId },
+  ancestorScopes: [businessScope(businessId)],
+  attributes: { locationId, businessId },
 });
 
 export const productionOperationsResource =

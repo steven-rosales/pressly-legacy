@@ -61,6 +61,7 @@ const seedQueuedBatch = async () => {
 
   await testDb.db.insert(laundryProduction.productionLocations).values({
     id: 'location-1',
+    businessId: '00000000-0000-4000-8000-000000000100',
     name: 'Membership Test Facility',
     timezone: 'America/New_York',
   });
@@ -170,7 +171,7 @@ describe('batch membership Postgres workflows', () => {
         expectedQueueVersion: 1,
         expectedBatchVersion: 1,
         actorId: fixed.actor,
-        actorRole: 'operator',
+        authorizedAction: 'production:queue',
         idempotencyKey: 'membership-freeze-1',
       }),
     ).resolves.toMatchObject({
@@ -186,7 +187,7 @@ describe('batch membership Postgres workflows', () => {
         expectedQueueVersion: 2,
         expectedBatchVersion: 2,
         actorId: fixed.actor,
-        actorRole: 'owner',
+        authorizedAction: 'production:override',
         idempotencyKey: 'membership-unfreeze-1',
       }),
     ).resolves.toMatchObject({
@@ -272,7 +273,7 @@ describe('batch membership Postgres workflows', () => {
         expectedQueueVersion: 4,
         expectedBatchVersion: 4,
         actorId: fixed.actor,
-        actorRole: 'owner',
+        authorizedAction: 'production:override',
         idempotencyKey: 'membership-unfreeze-after-start',
       }),
     ).resolves.toMatchObject({

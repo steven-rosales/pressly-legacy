@@ -53,6 +53,7 @@ api = release.get('apiImage', '')
 web = release.get('webImage', '')
 worker = release.get('workerImage', '')
 processor = release.get('processorImage', '')
+control = release.get('controlImage', '')
 deployed_at = release.get('deployedAt', '')
 release_format = release.get('releaseFormat', '')
 image = re.compile(r'^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$')
@@ -64,6 +65,16 @@ four_fields = {
     'webImage',
     'workerImage',
     'processorImage',
+    'deployedAt',
+}
+five_fields = {
+    'releaseFormat',
+    'sourceSha',
+    'apiImage',
+    'webImage',
+    'workerImage',
+    'processorImage',
+    'controlImage',
     'deployedAt',
 }
 legacy_fields = {
@@ -90,6 +101,15 @@ four_valid = (
     and image.fullmatch(processor)
     and len({api, web, worker, processor}) == 4
 )
+five_valid = (
+    release_format == 'five-image-v1'
+    and set(release) == five_fields
+    and common_valid
+    and image.fullmatch(worker)
+    and image.fullmatch(processor)
+    and image.fullmatch(control)
+    and len({api, web, worker, processor, control}) == 5
+)
 legacy_valid = (
     release_format == 'legacy-two-image-v1'
     and set(release) == legacy_fields
@@ -97,27 +117,40 @@ legacy_valid = (
     and common_valid
 )
 
-if not four_valid and not legacy_valid:
+if not five_valid and not four_valid and not legacy_valid:
     raise SystemExit('Previous release manifest is invalid.')
 
 print(release_format)
 print(sha)
 print(api)
 print(web)
-if four_valid:
+if five_valid or four_valid:
     print(worker)
     print(processor)
+if five_valid:
+    print(control)
 PY
 )"
 mapfile -t release <<< "$release_output"
 
 case "${release[0]}" in
+  five-image-v1)
+    DEPLOY_SHA="${release[1]}" \
+    PRESSLY_API_IMAGE="${release[2]}" \
+    PRESSLY_WEB_IMAGE="${release[3]}" \
+    PRESSLY_WORKER_IMAGE="${release[4]}" \
+    PRESSLY_PROCESSOR_IMAGE="${release[5]}" \
+    PRESSLY_CONTROL_IMAGE="${release[6]}" \
+    PRESSLY_TARGET_RELEASE_FORMAT="five-image-v1" \
+      "$DEPLOY_SCRIPT"
+    ;;
   four-image-v1)
     DEPLOY_SHA="${release[1]}" \
     PRESSLY_API_IMAGE="${release[2]}" \
     PRESSLY_WEB_IMAGE="${release[3]}" \
     PRESSLY_WORKER_IMAGE="${release[4]}" \
     PRESSLY_PROCESSOR_IMAGE="${release[5]}" \
+    PRESSLY_CONTROL_IMAGE="" \
     PRESSLY_TARGET_RELEASE_FORMAT="four-image-v1" \
       "$DEPLOY_SCRIPT"
     ;;
@@ -132,6 +165,7 @@ case "${release[0]}" in
     PRESSLY_WEB_IMAGE="${release[3]}" \
     PRESSLY_WORKER_IMAGE="" \
     PRESSLY_PROCESSOR_IMAGE="" \
+    PRESSLY_CONTROL_IMAGE="" \
     PRESSLY_TARGET_RELEASE_FORMAT="legacy-two-image-v1" \
     PRESSLY_LEGACY_ROLLBACK_MANIFEST_FILE="$legacy_manifest_copy" \
       "$DEPLOY_SCRIPT"

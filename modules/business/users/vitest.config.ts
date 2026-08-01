@@ -8,6 +8,10 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: /^@pressly\/db\/testing$/,
+        replacement: alias('../../../packages/db/src/testing.ts'),
+      },
+      {
         find: /^@pressly\/db$/,
         replacement: alias('../../../packages/db/src/index.ts'),
       },

@@ -1,5 +1,6 @@
 export type Role =
   | 'owner'
+  | 'manager'
   | 'admin'
   | 'operator'
   | 'customer'
@@ -10,6 +11,7 @@ export type Role =
 
 export const isRole = (value: unknown): value is Role =>
   value === 'owner' ||
+  value === 'manager' ||
   value === 'admin' ||
   value === 'operator' ||
   value === 'customer' ||

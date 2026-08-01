@@ -4,6 +4,10 @@ build
 .next
 .turbo
 coverage
+.artifacts
+.playwright-cli
+playwright-report
+test-results
 pnpm-lock.yaml
 .env
 .env.*

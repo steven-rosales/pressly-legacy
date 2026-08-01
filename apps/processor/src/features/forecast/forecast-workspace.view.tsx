@@ -12,6 +12,7 @@ export function ForecastWorkspaceContainer({
   now,
   variant,
   onNavigate,
+  canNavigate,
   onOpenForecast,
 }: Readonly<{
   production: ProductionPort
@@ -21,6 +22,7 @@ export function ForecastWorkspaceContainer({
   now: () => Date
   variant: "full" | "home" | "schedule"
   onNavigate: (target: ForecastNavigationTarget) => void
+  canNavigate?: (target: ForecastNavigationTarget) => boolean
   onOpenForecast: () => void
 }>) {
   const model = useRemainingDayForecastModel({
@@ -32,7 +34,12 @@ export function ForecastWorkspaceContainer({
   })
 
   return variant === "full" ? (
-    <ForecastView model={model} timezone={timezone} onNavigate={onNavigate} />
+    <ForecastView
+      model={model}
+      timezone={timezone}
+      onNavigate={onNavigate}
+      canNavigate={canNavigate}
+    />
   ) : (
     <ForecastSummaryView
       model={model}

@@ -1,13 +1,17 @@
 import type { Principal } from '@pressly/auth/authentication';
 import {
   authorize,
+  businessScope,
   globalScope,
   locationScope,
   type Action,
   type Role,
 } from '@pressly/auth/authorization';
 import { describe, expect, it } from 'vitest';
-import { makeProductionPolicies } from '../../src/production/production.policy.ts';
+import {
+  makeProductionPolicies,
+  productionCapabilitiesForLocation,
+} from '../../src/production/production.policy.ts';
 import {
   productionLocationResource,
   productionOperationsResource,
@@ -41,13 +45,13 @@ const decide = (input: {
       assuranceLevel: 'password',
     },
     action: input.action,
-    resource: productionLocationResource('location-1'),
+    resource: productionLocationResource('location-1', 'business-1'),
     environment: { now: new Date('2026-07-10T14:00:00.000Z') },
     policies: makeProductionPolicies(),
   });
 
 describe('production access-control policy', () => {
-  it.each(['owner', 'admin'] as const)(
+  it.each(['owner', 'manager', 'admin'] as const)(
     'allows %s to perform every production action in scope',
     (role) => {
       for (const action of [
@@ -60,7 +64,6 @@ describe('production access-control policy', () => {
         'production:priority',
         'production:intake',
         'production:admission',
-        'production:resources',
         'production:stage',
       ] as const)
         expect(decide({ action, role })).toMatchObject({ tag: 'allowed' });
@@ -110,6 +113,66 @@ describe('production access-control policy', () => {
         identityActive: false,
       }),
     ).toMatchObject({ tag: 'denied', reason: 'inactive_identity' });
+  });
+
+  it('allows business roles only for locations with matching canonical ancestry', () => {
+    const decideBusiness = (businessId: string, resourceBusinessId: string) =>
+      authorize({
+        principal,
+        principalAttributes: {
+          assignments: [{ role: 'manager', scope: businessScope(businessId) }],
+          identityActive: true,
+          assuranceLevel: 'mfa',
+        },
+        action: 'production:read',
+        resource: productionLocationResource('location-1', resourceBusinessId),
+        environment: { now: new Date('2026-07-10T14:00:00.000Z') },
+        policies: makeProductionPolicies(),
+      });
+
+    expect(decideBusiness('business-1', 'business-1')).toMatchObject({
+      tag: 'allowed',
+    });
+    expect(decideBusiness('business-2', 'business-1')).toMatchObject({
+      tag: 'denied',
+      reason: 'missing_assignment',
+    });
+  });
+
+  it('projects capabilities from the same exact-location policy used by API guards', () => {
+    const capabilities = productionCapabilitiesForLocation({
+      principal,
+      principalAttributes: {
+        assignments: [
+          { role: 'manager', scope: locationScope('location-1') },
+          { role: 'owner', scope: locationScope('location-2') },
+        ],
+        identityActive: true,
+        assuranceLevel: 'mfa',
+      },
+      locationId: 'location-1',
+      businessId: 'business-1',
+      now: new Date('2026-07-10T14:00:00.000Z'),
+    });
+
+    expect(capabilities).toContain('production:read');
+    expect(capabilities).toContain('production:override');
+    expect(capabilities).not.toContain('production:resources');
+    expect(
+      productionCapabilitiesForLocation({
+        principal,
+        principalAttributes: {
+          assignments: [
+            { role: 'manager', scope: locationScope('location-2') },
+          ],
+          identityActive: true,
+          assuranceLevel: 'mfa',
+        },
+        locationId: 'location-1',
+        businessId: 'business-1',
+        now: new Date('2026-07-10T14:00:00.000Z'),
+      }),
+    ).toEqual([]);
   });
 
   it('reserves global recovery resources for globally assigned operators', () => {

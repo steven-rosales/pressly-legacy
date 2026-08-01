@@ -9,6 +9,7 @@ export const makeUpdateUser =
   (deps: { repo: UpdateUserRepository; clock: UserClockPort }): UpdateUser =>
   async (command) => {
     if (
+      command.businessId.trim() === '' ||
       command.idempotencyKey.trim() === '' ||
       !isCommandContextValid(command.context) ||
       command.userId.trim() === '' ||
@@ -34,8 +35,11 @@ export const makeUpdateUser =
               }
             : { kind: 'idempotency_conflict' as const };
 
-        await operations.lockUser(command.userId);
-        const current = await operations.loadUser(command.userId);
+        await operations.lockUser(command.businessId, command.userId);
+        const current = await operations.loadUser(
+          command.businessId,
+          command.userId,
+        );
         if (current === null) return { kind: 'not_found' as const };
         if (current.version !== command.expectedVersion)
           return { kind: 'version_conflict' as const };
@@ -45,6 +49,7 @@ export const makeUpdateUser =
         );
         const nextVersion = current.version + 1;
         await operations.updateUser({
+          businessId: command.businessId,
           userId: command.userId,
           changes: command.changes,
           authorityFields,
@@ -57,6 +62,7 @@ export const makeUpdateUser =
           replayed: false,
         };
         await operations.saveCommandReceipt({
+          businessId: command.businessId,
           idempotencyKey: command.idempotencyKey,
           commandHash,
           context: command.context,
@@ -64,6 +70,7 @@ export const makeUpdateUser =
           now,
         });
         await operations.signalDuplicateContacts({
+          businessId: command.businessId,
           userId: command.userId,
           profile: { ...userProfileFrom(current), ...command.changes },
           now,

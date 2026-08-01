@@ -52,6 +52,7 @@ export const parseUserCommandReceipt = (row: {
 
 export const userFromRow = (row: {
   id: string;
+  businessId: string;
   version: number;
   active: boolean;
   firstName: string | null;
@@ -61,6 +62,7 @@ export const userFromRow = (row: {
   email: string | null;
 }): UserRecord => ({
   id: row.id,
+  businessId: row.businessId,
   version: row.version,
   active: row.active,
   firstName: row.firstName,
@@ -72,7 +74,12 @@ export const userFromRow = (row: {
 
 export const signalDuplicateUserContacts = async (
   db: DatabaseExecutor,
-  input: { userId: string; profile: UserProfile; now: Date },
+  input: {
+    businessId: string;
+    userId: string;
+    profile: UserProfile;
+    now: Date;
+  },
 ): Promise<void> => {
   const candidates = new Map<string, Set<string>>();
   const record = (candidateId: string, reason: string) => {
@@ -87,6 +94,7 @@ export const signalDuplicateUserContacts = async (
       .from(schema.users)
       .where(
         and(
+          eq(schema.users.businessId, input.businessId),
           eq(schema.users.phone, input.profile.phone),
           ne(schema.users.id, input.userId),
         ),
@@ -99,6 +107,7 @@ export const signalDuplicateUserContacts = async (
       .from(schema.users)
       .where(
         and(
+          eq(schema.users.businessId, input.businessId),
           eq(schema.users.email, input.profile.email),
           ne(schema.users.id, input.userId),
         ),
@@ -142,6 +151,7 @@ export const loadUserCommandReceipt = async (
 export const saveUserCommandReceipt = async (
   db: DatabaseExecutor,
   input: {
+    businessId: string;
     idempotencyKey: string;
     commandHash: string;
     context: CommandContext;
@@ -150,6 +160,7 @@ export const saveUserCommandReceipt = async (
   },
 ): Promise<void> => {
   await db.insert(schema.userCommandReceipts).values({
+    businessId: input.businessId,
     idempotencyKey: input.idempotencyKey,
     commandHash: input.commandHash,
     ...commandContextColumns(input.context),
@@ -161,12 +172,15 @@ export const saveUserCommandReceipt = async (
 
 export const loadStoredUser = async (
   db: DatabaseExecutor,
+  businessId: string,
   userId: string,
 ): Promise<UserRecord | null> => {
   const [row] = await db
     .select()
     .from(schema.users)
-    .where(eq(schema.users.id, userId))
+    .where(
+      and(eq(schema.users.businessId, businessId), eq(schema.users.id, userId)),
+    )
     .limit(1);
   return row === undefined ? null : userFromRow(row);
 };
@@ -174,6 +188,7 @@ export const loadStoredUser = async (
 export const insertStoredUser = async (
   db: DatabaseExecutor,
   input: {
+    businessId: string;
     profile: UserProfile;
     authorityFields: readonly UserFieldName[];
     now: Date;
@@ -182,6 +197,7 @@ export const insertStoredUser = async (
   const [created] = await db
     .insert(schema.users)
     .values({
+      businessId: input.businessId,
       ...input.profile,
       version: 1,
       createdAt: input.now,
@@ -204,6 +220,7 @@ export const insertStoredUser = async (
 export const updateStoredUser = async (
   db: DatabaseExecutor,
   input: {
+    businessId: string;
     userId: string;
     changes: Partial<UserProfile> & Readonly<{ active?: boolean }>;
     authorityFields: readonly UserFieldName[];
@@ -218,7 +235,12 @@ export const updateStoredUser = async (
       version: input.nextVersion,
       updatedAt: input.now,
     })
-    .where(eq(schema.users.id, input.userId));
+    .where(
+      and(
+        eq(schema.users.businessId, input.businessId),
+        eq(schema.users.id, input.userId),
+      ),
+    );
   for (const fieldName of input.authorityFields)
     await db
       .insert(schema.userFieldAuthorities)

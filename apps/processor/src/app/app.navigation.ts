@@ -8,6 +8,7 @@ import {
   IconPackage,
   IconPackageImport,
 } from "@tabler/icons-react"
+import type { ProcessorCapability } from "@pressly/contracts"
 
 export type WorkspaceView =
   | "home"
@@ -86,6 +87,39 @@ export const workspaceNavigationSections = [
     ],
   },
 ] as const
+
+const workspaceViewCapabilities = {
+  home: ["production:read"],
+  orders: ["production:accept", "production:override"],
+  intake: ["production:intake", "production:admission"],
+  schedule: ["production:schedule"],
+  forecast: ["production:read"],
+  board: ["production:stage"],
+  history: ["production:read"],
+  settings: ["production:schedule", "production:resources"],
+} as const satisfies Record<WorkspaceView, readonly ProcessorCapability[]>
+
+export const canAccessWorkspaceView = (
+  capabilities: readonly ProcessorCapability[],
+  view: WorkspaceView
+): boolean => {
+  const available = new Set(capabilities)
+  return workspaceViewCapabilities[view].some((capability) =>
+    available.has(capability)
+  )
+}
+
+export const visibleWorkspaceNavigationSections = (
+  capabilities: readonly ProcessorCapability[]
+) =>
+  workspaceNavigationSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) =>
+        canAccessWorkspaceView(capabilities, item.id)
+      ),
+    }))
+    .filter((section) => section.items.length > 0)
 
 export type WorkspaceNavigationItem =
   | typeof workspaceHomeNavigation

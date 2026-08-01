@@ -1,4 +1,5 @@
 import {
+  businessScope,
   globalScope,
   locationScope,
   resourceScope,
@@ -13,6 +14,7 @@ const mapScope = (row: {
   scopeResourceType: string;
 }): Scope | undefined => {
   if (row.scopeKind === 'global') return globalScope();
+  if (row.scopeKind === 'business') return businessScope(row.scopeId);
   if (row.scopeKind === 'location') return locationScope(row.scopeId);
 
   if (row.scopeKind === 'resource' && row.scopeResourceType !== '*')
@@ -29,6 +31,8 @@ export const mapStoredAssignments = (
     scopeResourceType: string;
     startsAt: Date | null;
     endsAt: Date | null;
+    state?: 'active' | 'revoked' | 'expired';
+    version?: number;
   }[],
 ): RoleAssignment[] =>
   rows.flatMap((row) => {
@@ -43,6 +47,8 @@ export const mapStoredAssignments = (
         scope,
         ...(row.startsAt === null ? {} : { startsAt: row.startsAt }),
         ...(row.endsAt === null ? {} : { endsAt: row.endsAt }),
+        ...(row.state === undefined ? {} : { state: row.state }),
+        ...(row.version === undefined ? {} : { version: row.version }),
       },
     ];
   });

@@ -73,8 +73,8 @@ Processor and removes source maps after uploading them. See
 `docs/observability.md` for dashboard, alert, and incident-response setup.
 
 Deployment is driven by `.github/workflows/deploy-production.yml`. The workflow
-supplies one exact source SHA and the API, Web, Worker, and Processor image
-digests to `deploy.sh`. It stages and verifies `deploy.sh` from that exact
+supplies one exact source SHA and the API, Web, Worker, Processor, and Control
+image digests to `deploy.sh`. It stages and verifies `deploy.sh` from that exact
 target checkout before execution; it does not trust the deployment logic from
 the currently checked-out host release during the first cutover.
 
@@ -82,16 +82,18 @@ Before `deploy.sh` checks out another commit, runs migrations, or changes
 Compose, it validates the active release and atomically writes that exact
 identity to `previous-release.json`. A failed upgrade therefore keeps the
 immediately preceding release as its rollback target instead of an older
-N-minus-one release. Successful normal deploys write a `four-image-v1` current
-record containing all four immutable digests from one source SHA.
+N-minus-one release. Successful normal deploys write a `five-image-v1` current
+record containing all five immutable digests from one source SHA.
 
 After Compose reports the private services healthy, deploy polls the public
-API, Web, and Processor routes with bounded timeouts and retries. This absorbs
+API, Web, Processor, and Control routes with bounded timeouts and retries. This absorbs
 the normal TLS-certificate convergence window after Caddy restarts without
 declaring an unverified release successful. Current release metadata is written
 only after every public route passes.
 
-The first four-image cutover has one narrower compatibility path. The deploy
+The first five-image cutover can snapshot and restore a complete
+`four-image-v1` release without inventing a Control image. The older first
+four-image cutover has one narrower compatibility path. The deploy
 preflight recognizes only the exact unmarked two-image metadata written by the
 old deploy script, normalizes it to a marked `legacy-two-image-v1` rollback
 record, and rejects all other partial shapes. That marker is not a general
@@ -100,7 +102,7 @@ two-image deployment option.
 ## Non-Mutating Deployment Preflight
 
 Run preflight from the reviewed target checkout with the exact release SHA and
-four digest-qualified image references:
+five digest-qualified image references:
 
 ```bash
 DEPLOY_SHA='<40-character-main-commit-sha>' \
@@ -108,6 +110,7 @@ PRESSLY_API_IMAGE='ghcr.io/<owner>/<api-image>@sha256:<64-hex-digest>' \
 PRESSLY_WEB_IMAGE='ghcr.io/<owner>/<web-image>@sha256:<64-hex-digest>' \
 PRESSLY_WORKER_IMAGE='ghcr.io/<owner>/<worker-image>@sha256:<64-hex-digest>' \
 PRESSLY_PROCESSOR_IMAGE='ghcr.io/<owner>/<processor-image>@sha256:<64-hex-digest>' \
+PRESSLY_CONTROL_IMAGE='ghcr.io/<owner>/<control-image>@sha256:<64-hex-digest>' \
   ./infra/aws/lightsail/deploy.sh --preflight-only
 ```
 
@@ -194,11 +197,11 @@ pnpm docker:production:smoke
 ```
 
 The harness refuses remote Docker endpoints, binds only one random high
-loopback port, builds all four production Dockerfiles, migrates a unique clean
+loopback port, builds all five production Dockerfiles, migrates a unique clean
 Postgres volume, and applies an explicit synthetic facility and owner fixture.
 It then proves local HTTPS Caddy routes, production cookie and CSRF behavior, a
 signed Cents event applied by Worker, independent API and Worker restarts,
-and a complete release-A to release-B switch followed by four-image rollback.
+and a complete release-A to release-B switch followed by five-image rollback.
 Current/previous release metadata exists only in its temporary directory.
 
 Both release identities deliberately reference the same current-tree content
@@ -220,15 +223,17 @@ ssh ubuntu@<server>
 curl --fail --silent --show-error https://api.trypressly.com/health/ready
 curl --fail --silent --show-error https://trypressly.com/health
 curl --fail --silent --show-error https://processor.trypressly.com/health
+curl --fail --silent --show-error https://control.trypressly.com/health
 ```
 
-Normal rollback requires one complete `four-image-v1` record with four distinct
-immutable image digests and one full source SHA. During only the first cutover,
-rollback also accepts the normalized `legacy-two-image-v1` record. It checks
-out that old source SHA, restores its two-image Compose definition, and starts
-it with `--remove-orphans`, which removes the new Worker and Processor
-containers. An unmarked two-image record, a legacy record with extra images, or
-any partial four-image record is rejected.
+Normal rollback requires one complete `five-image-v1` record with five distinct
+immutable image digests and one full source SHA. During the first Control
+cutover, rollback also accepts a complete `four-image-v1` record. During only
+the older first four-image cutover, it accepts the normalized
+`legacy-two-image-v1` record. It checks out that old source SHA, restores its
+historical Compose definition, and starts it with `--remove-orphans`, removing
+applications that did not exist in that release. Unmarked legacy records,
+mixed shapes, and partial release records are rejected.
 
 Database migrations remain forward-only. Offline tests prove metadata
 selection and Compose rollback mechanics, but they do not prove that a
@@ -244,7 +249,7 @@ Allow public ports 80 and 443. The current GitHub-hosted deploy runner also
 requires rate-limited public SSH because it has no stable egress address; keep
 SSH key-only, disable root login, pin the host key in GitHub, and allow only the
 deployment user. Replace this with static egress or a private deployment channel
-when one is available. Never publish Postgres, API, Processor, or Worker
+when one is available. Never publish Postgres, API, Processor, Control, or Worker
 container ports.
 
 ## Backups

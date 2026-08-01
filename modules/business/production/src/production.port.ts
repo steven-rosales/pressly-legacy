@@ -494,7 +494,7 @@ export type ProductionPolicyPort = Readonly<{
     action: 'freeze' | 'unfreeze';
     batchStatus: string;
     membershipFrozen: boolean;
-    actorRole: string;
+    authorizedAction: 'production:queue' | 'production:override';
   }) => PolicyDecision<Readonly<{ membershipFrozen: boolean }>>;
   evaluatePlacementCommit: (input: {
     runStatus: string;
@@ -503,7 +503,7 @@ export type ProductionPolicyPort = Readonly<{
     expectedQueueVersion: number;
     actualQueueVersion: number;
     placementType: 'automatic' | 'manager_exact';
-    actorRole: string;
+    authorizedAction: 'production:queue' | 'production:override';
     orderWeightLbs: number;
     pulseCapacityLbs: number;
     overtime: Readonly<{
