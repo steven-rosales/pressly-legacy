@@ -7,7 +7,7 @@ import {
   type DatabaseExecutor,
 } from '@pressly/db';
 import { projectProductionBoard } from './production-board-projection.ts';
-import type { ProductionBoardProjection } from '../production-board-read.policy.ts';
+import type { ProductionBoardProjection } from '../production-policy/production-board-read.policy.ts';
 
 export const loadProductionBoardProjection = async (
   db: DatabaseExecutor,

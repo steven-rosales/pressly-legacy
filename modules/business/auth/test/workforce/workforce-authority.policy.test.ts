@@ -4,7 +4,7 @@ import {
   decideWorkforceSessionAdministration,
   isWorkforceGrantEffective,
   type WorkforceAuthority,
-} from '../../src/workforce-authority.policy.ts';
+} from '../../src/workforce/workforce-authority.policy.ts';
 
 const owner: WorkforceAuthority = {
   identityActive: true,

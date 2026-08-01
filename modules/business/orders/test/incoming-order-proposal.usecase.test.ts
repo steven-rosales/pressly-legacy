@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { hashOrderCommand } from '../src/order-command-idempotency.policy.ts';
+import { hashOrderCommand } from '../src/command-execution/order-command-idempotency.policy.ts';
 import { makeCloseIncomingOrderSource } from '../src/incoming-order-proposal/close-incoming-order-source.usecase.ts';
 import {
   makeAcceptIncomingOrderProposal,
@@ -20,7 +20,7 @@ import type {
 import type {
   AcceptIncomingOrderProposalCommand,
   CloseIncomingOrderSourceCommand,
-} from '../src/orders.port.ts';
+} from '../src/incoming-order-proposal/incoming-order-proposal.port.ts';
 
 const context = {
   origin: 'pressly_processor',

@@ -1,11 +1,13 @@
 import type {
   ClockPort,
   IdPort,
-  ProductionApplicationSchedulerPort,
-  ProductionPolicyPort,
+} from '../../src/command-execution/production-command.port.ts';
+import type { ProductionApplicationSchedulerPort } from '../../src/scheduling/production-scheduler.port.ts';
+import type { ProductionPolicyPort } from '../../src/production-policy/production-policy.port.ts';
+import type {
   SchedulingInput,
   SchedulingOutput,
-} from '../../src/production.port.ts';
+} from '../../src/scheduling/production-scheduling.port.ts';
 
 export const makeIds = (): IdPort => {
   let value = 1;

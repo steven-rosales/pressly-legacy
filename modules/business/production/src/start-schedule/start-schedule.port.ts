@@ -7,11 +7,11 @@ import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
-  ProductionOrderSchedulingMutation,
-  SchedulingInput,
-  Transactional,
   WorkEventCommandIdentity,
-} from '../production.port.ts';
+} from '../command-execution/production-command.port.ts';
+import type { ProductionOrderSchedulingMutation } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { SchedulingInput } from '../scheduling/production-scheduling.port.ts';
+import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type ScheduleStartRecord = Readonly<{
   schedule: ScheduleProposal;

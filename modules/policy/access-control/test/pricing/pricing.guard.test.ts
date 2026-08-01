@@ -7,7 +7,7 @@ import type {
 import type { Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import { makePricingAccessControl } from '../../src/pricing/pricing.guard.ts';
-import type { AccessControlAuthorize } from '../../src/auth.port.ts';
+import type { AccessControlAuthorize } from '../../src/http/auth.port.ts';
 
 const principal: Principal = {
   identityId: '11111111-1111-4111-8111-111111111111',

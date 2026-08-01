@@ -7,9 +7,9 @@ import {
   saveUserCommandReceipt,
   signalDuplicateUserContacts,
 } from '../persistence/postgres-user.shared.ts';
-import { hashUserCommand } from '../user-command-idempotency.policy.ts';
-import { userProfileFields } from '../user-profile.policy.ts';
-import type { UserProfile } from '../users.port.ts';
+import { hashUserCommand } from '../command-execution/user-command-idempotency.policy.ts';
+import { userProfileFields } from '../user-profile/user-profile.policy.ts';
+import type { UserProfile } from '../user-profile/user-profile.port.ts';
 
 export type CanonicalSourceUserAcceptanceInput = Readonly<{
   businessId: string;
@@ -45,6 +45,7 @@ const resolveOrCreateCanonicalSourceUser = async (
   input: CanonicalSourceUserAcceptanceInput,
 ): Promise<CanonicalSourceUserAcceptanceResult> => {
   await lockUserKey(db, `users:source:${input.source}:${input.externalUserId}`);
+
   const [existing] = await db
     .select({
       userId: schema.userSourceLinks.userId,
@@ -59,6 +60,7 @@ const resolveOrCreateCanonicalSourceUser = async (
       ),
     )
     .limit(1);
+
   if (existing !== undefined && existing.businessId !== input.businessId)
     throw new Error(
       'Canonical source User belongs to a different business boundary.',
@@ -67,6 +69,7 @@ const resolveOrCreateCanonicalSourceUser = async (
     return { userId: existing.userId, created: false };
 
   await lockUserKey(db, `users:command:${input.idempotencyKey}`);
+
   const createCommand = {
     businessId: input.businessId,
     idempotencyKey: input.idempotencyKey,
@@ -74,6 +77,7 @@ const resolveOrCreateCanonicalSourceUser = async (
     profile: input.profile,
   };
   const commandHash = hashUserCommand(createCommand);
+
   const receipt = await loadUserCommandReceipt(db, input.idempotencyKey);
   if (receipt !== null)
     throw new Error(
@@ -88,6 +92,7 @@ const resolveOrCreateCanonicalSourceUser = async (
     authorityFields: userProfileFields,
     now: input.now,
   });
+
   await saveUserCommandReceipt(db, {
     businessId: input.businessId,
     idempotencyKey: input.idempotencyKey,
@@ -96,6 +101,7 @@ const resolveOrCreateCanonicalSourceUser = async (
     value: { userId: created.id, version: created.version, replayed: false },
     now: input.now,
   });
+
   const [link] = await db
     .insert(schema.userSourceLinks)
     .values({
@@ -106,8 +112,10 @@ const resolveOrCreateCanonicalSourceUser = async (
       updatedAt: input.now,
     })
     .returning({ id: schema.userSourceLinks.id });
+
   if (link === undefined)
     throw new Error('Canonical User source link insert returned no row.');
+
   await db.insert(schema.userSourceSnapshots).values({
     sourceLinkId: link.id,
     sourceRevisionAt: input.revision.at,
@@ -118,12 +126,14 @@ const resolveOrCreateCanonicalSourceUser = async (
     createdAt: input.now,
     updatedAt: input.now,
   });
+
   await signalDuplicateUserContacts(db, {
     businessId: input.businessId,
     userId: created.id,
     profile: input.profile,
     now: input.now,
   });
+
   return { userId: created.id, created: true };
 };
 

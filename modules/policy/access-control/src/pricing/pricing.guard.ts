@@ -1,6 +1,6 @@
 import type { Request, RequestHandler, Response } from 'express';
 import type { PricingChangeRequest } from '@pressly/contracts';
-import type { AccessControlAuthPort } from '../auth.port.ts';
+import type { AccessControlAuthPort } from '../http/auth.port.ts';
 import { pricingCatalogResourceFromRequest } from './pricing.resource.ts';
 import {
   makePricingPolicies,

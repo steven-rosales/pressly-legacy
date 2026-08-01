@@ -9,12 +9,14 @@ import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
+  WorkEventInput,
+} from '../command-execution/production-command.port.ts';
+import type {
   ProductionBatchLifecycleDecision,
   ProductionOrderStageAttemptMutation,
   ProductionTerminalLifecycleDecisions,
-  Transactional,
-  WorkEventInput,
-} from '../production.port.ts';
+} from '../production-lifecycle/production-lifecycle.port.ts';
+import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type ReconcileProductionBatchProgressCommandWithActor =
   ReconcileProductionBatchProgressCommand & Readonly<{ actorId: string }>;

@@ -1,70 +1,63 @@
 export {
+  decideFulfillmentRelease,
+  mayTransitionFulfillment,
+  releaseFulfillmentReasonCodes,
+  type FulfillmentReleaseDecision,
+  type FulfillmentReleaseEvent,
+  withdrawFulfillmentReasonCodes,
+} from './change-fulfillment-release/change-fulfillment-release.policy.ts';
+export type {
+  ReleaseFulfillment,
+  ReleaseFulfillmentCommand,
+  ReleaseFulfillmentReasonCode,
+  WithdrawFulfillment,
+  WithdrawFulfillmentCommand,
+  WithdrawFulfillmentReasonCode,
+} from './change-fulfillment-release/change-fulfillment-release.port.ts';
+export {
+  cancelOrderReasonCodes,
+  completeOrderReasonCodes,
+  decideOrderLifecycle,
+  mayTransitionOrder,
+  type OrderLifecycleDecision,
+  type OrderLifecycleEvent,
+} from './change-order-lifecycle/change-order-lifecycle.policy.ts';
+export type {
+  CancelOrder,
+  CancelOrderCommand,
+  CancelOrderReasonCode,
+  CompleteOrder,
+  CompleteOrderCommand,
+  CompleteOrderReasonCode,
+} from './change-order-lifecycle/change-order-lifecycle.port.ts';
+export type { OrderMutationResult } from './command-execution/order-command.port.ts';
+export { correctOrderReasonCodes } from './correct-order/correct-order.policy.ts';
+export type {
+  CorrectOrder,
+  CorrectOrderCommand,
+  CorrectOrderReasonCode,
+  FulfillmentDescriptionCorrection,
+  OrderDescriptionCorrection,
+} from './correct-order/correct-order.port.ts';
+export { createOrderReasonCodes } from './create-order/create-order.policy.ts';
+export type {
+  CreateOrder,
+  CreateOrderCommand,
+  CreateOrderReasonCode,
+} from './create-order/create-order.port.ts';
+export {
   allowedIncomingOrderProposalEvents,
   decideIncomingOrderProposal,
   incomingOrderProposalGraph,
   type IncomingOrderProposalDecision,
-} from './incoming-order-proposal.policy.ts';
-export {
-  makePostgresOrdersApplication,
-  makePostgresOrdersWorkerApplication,
-  type OrdersApplication,
-  type OrdersApplicationDeps,
-  type OrdersWorkerApplication,
-} from './main.ts';
-export { fulfillmentDemandEvent } from './order-outbox.policy.ts';
-export {
-  decodeOrderCursor,
-  encodeOrderCursor,
-} from './order-pagination.policy.ts';
-export {
-  decideFulfillmentRelease,
-  decideOrderLifecycle,
-  mayTransitionFulfillment,
-  mayTransitionOrder,
-  type FulfillmentReleaseDecision,
-  type FulfillmentReleaseEvent,
-  type OrderLifecycleDecision,
-  type OrderLifecycleEvent,
-} from './order-lifecycle.policy.ts';
-export {
-  cancelOrderReasonCodes,
-  completeOrderReasonCodes,
-  correctOrderReasonCodes,
-  createOrderReasonCodes,
-  releaseFulfillmentReasonCodes,
-  withdrawFulfillmentReasonCodes,
-} from './order-command-reason.policy.ts';
+} from './incoming-order-proposal/incoming-order-proposal.policy.ts';
 export type {
   AcceptIncomingOrderProposal,
   AcceptIncomingOrderProposalCommand,
   AcceptIncomingOrderProposalReasonCode,
-  CancelOrder,
-  CancelOrderCommand,
-  CancelOrderReasonCode,
-  CanonicalOrderCommand,
-  ClaimOrderOutbox,
-  ClaimOrderOutboxCommand,
   CloseIncomingOrderSource,
   CloseIncomingOrderSourceCommand,
   CloseIncomingOrderSourceResult,
-  CompleteOrder,
-  CompleteOrderCommand,
-  CompleteOrderReasonCode,
-  CompleteOrderOutbox,
-  CompleteOrderOutboxCommand,
-  CorrectOrder,
-  CorrectOrderCommand,
-  CorrectOrderReasonCode,
-  DeadLetterOrderOutbox,
-  DeadLetterOrderOutboxCommand,
-  CreateOrder,
-  CreateOrderCommand,
-  CreateOrderReasonCode,
-  DirectFulfillmentInput,
-  DirectOrderInput,
-  FulfillmentDescriptionCorrection,
-  FulfillmentInput,
-  FulfillmentReleaseState,
   IncomingOrderProposalCustomer,
   IncomingOrderProposalDecisionResult,
   IncomingOrderProposalEvent,
@@ -75,19 +68,6 @@ export type {
   IncomingOrderProposalSummary,
   ListIncomingOrderProposals,
   ListIncomingOrderProposalsQuery,
-  OrderCustomer,
-  CanonicalOrderDetail,
-  CanonicalOrderListResult,
-  CanonicalOrderSummary,
-  GetCanonicalOrder,
-  ListCanonicalOrders,
-  ListCanonicalOrdersQuery,
-  OrderDescriptionCorrection,
-  OrderInput,
-  OrderItemInput,
-  OrderMutationResult,
-  OrderOutboxEvent,
-  OrderState,
   ProposeIncomingOrder,
   ProposeIncomingOrderCommand,
   RejectIncomingOrderProposal,
@@ -96,12 +76,68 @@ export type {
   RestoreIncomingOrderProposal,
   RestoreIncomingOrderProposalCommand,
   RestoreIncomingOrderProposalResult,
-  ReleaseFulfillment,
-  ReleaseFulfillmentCommand,
-  ReleaseFulfillmentReasonCode,
+} from './incoming-order-proposal/incoming-order-proposal.port.ts';
+export {
+  makePostgresOrdersApplication,
+  makePostgresOrdersWorkerApplication,
+  type OrdersApplication,
+  type OrdersApplicationDeps,
+  type OrdersWorkerApplication,
+} from './main.ts';
+export type {
+  DirectFulfillmentInput,
+  DirectOrderInput,
+  FulfillmentInput,
+  FulfillmentReleaseState,
+  OrderCustomer,
+  OrderInput,
+  OrderItemInput,
+  OrderState,
+} from './order-model/order-model.port.ts';
+export { fulfillmentDemandEvent } from './order-outbox/order-outbox.policy.ts';
+export type {
+  ClaimOrderOutbox,
+  ClaimOrderOutboxCommand,
+  CompleteOrderOutbox,
+  CompleteOrderOutboxCommand,
+  DeadLetterOrderOutbox,
+  DeadLetterOrderOutboxCommand,
+  OrderOutboxEvent,
   RetryOrderOutbox,
   RetryOrderOutboxCommand,
-  WithdrawFulfillment,
+} from './order-outbox/order-outbox.port.ts';
+export {
+  decodeOrderCursor,
+  encodeOrderCursor,
+} from './read-orders/order-pagination.policy.ts';
+export type {
+  CanonicalOrderDetail,
+  CanonicalOrderListResult,
+  CanonicalOrderSummary,
+  GetCanonicalOrder,
+  ListCanonicalOrders,
+  ListCanonicalOrdersQuery,
+} from './read-orders/read-orders.port.ts';
+import type {
+  ReleaseFulfillmentCommand,
   WithdrawFulfillmentCommand,
-  WithdrawFulfillmentReasonCode,
-} from './orders.port.ts';
+} from './change-fulfillment-release/change-fulfillment-release.port.ts';
+import type {
+  CancelOrderCommand,
+  CompleteOrderCommand,
+} from './change-order-lifecycle/change-order-lifecycle.port.ts';
+import type { CorrectOrderCommand } from './correct-order/correct-order.port.ts';
+import type { CreateOrderCommand } from './create-order/create-order.port.ts';
+
+/*
+ * Canonical lifecycle and release commands intentionally have distinct
+ * public types. A first-party caller cannot smuggle a target state through a
+ * generic update payload.
+ */
+export type CanonicalOrderCommand =
+  | CreateOrderCommand
+  | CorrectOrderCommand
+  | CompleteOrderCommand
+  | CancelOrderCommand
+  | ReleaseFulfillmentCommand
+  | WithdrawFulfillmentCommand;

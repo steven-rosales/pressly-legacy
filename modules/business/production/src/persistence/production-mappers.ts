@@ -6,7 +6,7 @@ import type {
 } from '@pressly/contracts';
 import type { laundryProduction } from '@pressly/db';
 import { productionDueBucket } from './production-due-bucket.policy.ts';
-import type { SchedulingOutput } from '../production.port.ts';
+import type { SchedulingOutput } from '../scheduling/production-scheduling.port.ts';
 
 export const asDate = (value: string): Date => new Date(value);
 

@@ -3,7 +3,7 @@ import { makePostgresCreateUserRepository } from './create-user/create-user.repo
 import { makeCreateUser } from './create-user/create-user.usecase.ts';
 import { makePostgresUpdateUserRepository } from './update-user/update-user.repo.ts';
 import { makeUpdateUser } from './update-user/update-user.usecase.ts';
-import type { UserClockPort } from './users.port.ts';
+import type { UserClockPort } from './command-execution/user-command.port.ts';
 import { makePostgresReadUsersRepository } from './read-users/read-users.repo.ts';
 import { makeGetUser, makeListUsers } from './read-users/read-users.usecase.ts';
 

@@ -8,11 +8,9 @@ import type { AcceptScheduleRepository } from '../../src/accept-schedule/accept-
 import { makeAcceptSchedule } from '../../src/accept-schedule/accept-schedule.usecase.ts';
 import type { CreateScheduleRepository } from '../../src/create-schedule/create-schedule.port.ts';
 import { makeCreateSchedule } from '../../src/create-schedule/create-schedule.usecase.ts';
-import { defineWorkEventCommand } from '../../src/production-idempotency.policy.ts';
-import type {
-  ProductionPolicyPort,
-  StoredWorkEvent,
-} from '../../src/production.port.ts';
+import { defineWorkEventCommand } from '../../src/command-execution/production-idempotency.policy.ts';
+import type { ProductionPolicyPort } from '../../src/production-policy/production-policy.port.ts';
+import type { StoredWorkEvent } from '../../src/command-execution/production-command.port.ts';
 import type { StartScheduleRepository } from '../../src/start-schedule/start-schedule.port.ts';
 import { makeStartSchedule } from '../../src/start-schedule/start-schedule.usecase.ts';
 

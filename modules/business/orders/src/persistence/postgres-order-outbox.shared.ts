@@ -19,7 +19,7 @@ import type {
   DeadLetterOrderOutboxCommand,
   OrderOutboxEvent,
   RetryOrderOutboxCommand,
-} from '../orders.port.ts';
+} from '../order-outbox/order-outbox.port.ts';
 
 export const claimStoredOrderOutbox = async (
   db: Database,

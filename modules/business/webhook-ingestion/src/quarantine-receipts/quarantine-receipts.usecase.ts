@@ -1,9 +1,9 @@
 import { result } from '@pressly/kernel';
-import { webhookIngestionError } from '../webhook-ingestion.error.ts';
+import { webhookIngestionError } from '../ingestion/webhook-ingestion.error.ts';
 import type {
   WebhookIngestionClockPort,
   WebhookIngestionIdPort,
-} from '../webhook-ingestion.port.ts';
+} from '../ingestion/webhook-ingestion.port.ts';
 import type {
   CaptureWebhookReceipt,
   LinkWebhookReceipt,

@@ -1,5 +1,5 @@
 import { result } from '@pressly/kernel';
-import { productionError } from '../production.error.ts';
+import { productionError } from '../failure-mapping/production.error.ts';
 import type {
   LoadSchedule,
   LoadScheduleRepository,

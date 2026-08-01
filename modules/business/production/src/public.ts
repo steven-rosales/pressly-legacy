@@ -10,17 +10,21 @@ export {
 } from './main.ts';
 export type {
   ClockPort,
-  DemandForecastInput,
   IdPort,
-  OrderDemandPhase,
-  PolicyDecision,
-  ProductionPolicyPort,
-  ProductionSignalsPort,
-  ProductionSchedulerPort,
+} from './command-execution/production-command.port.ts';
+export type {
+  DemandForecastInput,
   SchedulingInput,
   SchedulingOutput,
-  Transactional,
-} from './production.port.ts';
+} from './scheduling/production-scheduling.port.ts';
+export type { OrderDemandPhase } from './production-lifecycle/order-demand.port.ts';
+export type {
+  PolicyDecision,
+  ProductionPolicyPort,
+} from './production-policy/production-policy.port.ts';
+export type { ProductionSignalsPort } from './production-signals/production-signals.port.ts';
+export type { ProductionSchedulerPort } from './scheduling/production-scheduler.port.ts';
+export type { Transactional } from './persistence/production-transaction.port.ts';
 export type {
   ApplyFulfillmentDemand,
   ApplyFulfillmentDemandCommand,

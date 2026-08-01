@@ -3,7 +3,7 @@ import type { ChangeFulfillmentReleaseOperations } from '../src/change-fulfillme
 import { makeReleaseFulfillment } from '../src/change-fulfillment-release/change-fulfillment-release.usecase.ts';
 import type { ClaimOrderOutboxRepository } from '../src/claim-order-outbox/claim-order-outbox.port.ts';
 import { makeClaimOrderOutbox } from '../src/claim-order-outbox/claim-order-outbox.usecase.ts';
-import type { OrderTransactionPort } from '../src/order-transaction.port.ts';
+import type { OrderTransactionPort } from '../src/persistence/order-transaction.port.ts';
 
 const transactionRepo = <Operations>(
   operations: Operations,

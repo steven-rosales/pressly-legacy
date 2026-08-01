@@ -1,6 +1,6 @@
 import type { ProductionBatchMembershipMutationResult } from '@pressly/contracts';
 import { describe, expect, it, vi } from 'vitest';
-import type { ProductionPolicyPort } from '../../src/production.port.ts';
+import type { ProductionPolicyPort } from '../../src/production-policy/production-policy.port.ts';
 import type {
   BatchMembershipContext,
   ManageBatchMembershipRepository,

@@ -1,24 +1,24 @@
 import { isCommandContextValid, result } from '@pressly/kernel';
-import { hashOrderCommand } from '../order-command-idempotency.policy.ts';
-import {
-  isOrderCommandReasonValid,
-  releaseFulfillmentReasonCodes,
-  withdrawFulfillmentReasonCodes,
-} from '../order-command-reason.policy.ts';
-import { orderError } from '../order.error.ts';
-import {
-  decideFulfillmentRelease,
-  type FulfillmentReleaseEvent,
-} from '../order-lifecycle.policy.ts';
+import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
 import type {
-  FulfillmentReleaseState,
   OrderClockPort,
   OrderMutationResult,
+} from '../command-execution/order-command.port.ts';
+import { isOrderCommandReasonValid } from '../command-execution/order-command-reason.policy.ts';
+import { orderError } from '../failure-mapping/order.error.ts';
+import type { FulfillmentReleaseState } from '../order-model/order-model.port.ts';
+import {
+  decideFulfillmentRelease,
+  releaseFulfillmentReasonCodes,
+  type FulfillmentReleaseEvent,
+  withdrawFulfillmentReasonCodes,
+} from './change-fulfillment-release.policy.ts';
+import type {
   ReleaseFulfillment,
   ReleaseFulfillmentCommand,
   WithdrawFulfillment,
   WithdrawFulfillmentCommand,
-} from '../orders.port.ts';
+} from './change-fulfillment-release.port.ts';
 import type { ChangeFulfillmentReleaseRepository } from './change-fulfillment-release.port.ts';
 
 type FulfillmentCommand =

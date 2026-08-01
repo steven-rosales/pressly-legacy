@@ -1,6 +1,6 @@
 import { result } from '@pressly/kernel';
-import { orderError } from '../order.error.ts';
-import type { RetryOrderOutbox } from '../orders.port.ts';
+import { orderError } from '../failure-mapping/order.error.ts';
+import type { RetryOrderOutbox } from '../order-outbox/order-outbox.port.ts';
 import type { RetryOrderOutboxRepository } from './retry-order-outbox.port.ts';
 
 export const makeRetryOrderOutbox =

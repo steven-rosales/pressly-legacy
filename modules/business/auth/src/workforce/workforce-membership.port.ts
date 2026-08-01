@@ -7,8 +7,8 @@ import type {
   WorkforceActorRef,
   WorkforceMemberDetail,
   WorkforcePage,
-} from '../workforce.port.ts';
-import type { WorkforceCursor } from '../workforce-pagination.policy.ts';
+} from './workforce.port.ts';
+import type { WorkforceCursor } from './workforce-pagination.policy.ts';
 
 export type TransitionMembershipStoreInput = Readonly<{
   actor: WorkforceActorRef;

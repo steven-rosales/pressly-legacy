@@ -17,7 +17,7 @@ import type {
   ProductionOrderControlItem,
   ProductionOrderRouteAttempt,
 } from '@pressly/contracts';
-import type { ProductionPolicyPort } from '../production.port.ts';
+import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import {
   mapProductionOrderListItem,
   productionDueFilter,
@@ -26,11 +26,11 @@ import { hasAnyProductionOrderSelectionEvidence } from '../persistence/productio
 import {
   assessProductionOrderResolution,
   toProductionOrderResolutionAvailability,
-} from '../production-order-resolution.policy.ts';
+} from '../production-policy/production-order-resolution.policy.ts';
 import {
   assessProductionOrderCommandCapabilities,
   type ProductionOrderCommandCapabilityContext,
-} from '../production-order-command-capability.policy.ts';
+} from '../list-production-order-control/production-order-command-capability.policy.ts';
 import {
   decodeProductionOrderControlCursor,
   encodeProductionOrderControlCursor,

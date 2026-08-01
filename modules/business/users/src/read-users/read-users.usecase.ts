@@ -1,7 +1,10 @@
 import { result } from '@pressly/kernel';
-import { userError } from '../user.error.ts';
-import type { GetUser, ListUsers } from '../users.port.ts';
-import type { ReadUsersRepository } from './read-users.port.ts';
+import { userError } from '../failure-mapping/user.error.ts';
+import type {
+  GetUser,
+  ListUsers,
+  ReadUsersRepository,
+} from './read-users.port.ts';
 
 export const makeListUsers =
   (repo: ReadUsersRepository): ListUsers =>

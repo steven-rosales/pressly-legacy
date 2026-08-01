@@ -1,8 +1,26 @@
+import type { AppError } from '@pressly/errors';
+import type { Result } from '@pressly/kernel';
+import type {
+  AuditedOrderCommand,
+  OrderMutationResult,
+} from '../command-execution/order-command.port.ts';
+import type {
+  DirectOrderInput,
+  OrderInput,
+} from '../order-model/order-model.port.ts';
 import type {
   OrderCommandOperations,
   OrderTransactionPort,
-} from '../order-transaction.port.ts';
-import type { OrderInput, OrderMutationResult } from '../orders.port.ts';
+} from '../persistence/order-transaction.port.ts';
+
+export type CreateOrderReasonCode = 'new_customer_order' | 'recovery_entry';
+
+export type CreateOrderCommand = DirectOrderInput &
+  AuditedOrderCommand<CreateOrderReasonCode>;
+
+export type CreateOrder = (
+  command: CreateOrderCommand,
+) => Promise<Result<OrderMutationResult, AppError>>;
 
 export type CreateOrderOperations = OrderCommandOperations &
   Readonly<{

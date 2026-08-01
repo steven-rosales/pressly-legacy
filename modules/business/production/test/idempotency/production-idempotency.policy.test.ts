@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
-} from '../../src/production-idempotency.policy.ts';
+} from '../../src/command-execution/production-idempotency.policy.ts';
 
 const command = defineWorkEventCommand({
   operation: 'production_order_priority_changed',

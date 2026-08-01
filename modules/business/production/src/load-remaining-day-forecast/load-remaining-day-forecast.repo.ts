@@ -17,11 +17,11 @@ import {
   calendarDayRangeAt,
   instantFromDate,
 } from '@pressly/time';
+import type { OnlinePlacementInput } from '../scheduling/online-placement.port.ts';
 import type {
-  OnlinePlacementInput,
   SchedulingInput,
   SchedulingOutput,
-} from '../production.port.ts';
+} from '../scheduling/production-scheduling.port.ts';
 import type {
   LoadRemainingDayForecastRepository,
   RemainingDayForecastDemandRow,

@@ -14,7 +14,7 @@ import type {
   StageNextActionReadContext,
   UnevaluatedProductionBatch,
   UnevaluatedStageRun,
-} from '../production-board-read.policy.ts';
+} from '../production-policy/production-board-read.policy.ts';
 import { productionDueBucket } from './production-due-bucket.policy.ts';
 
 export type ProductionBoardShiftRow = Readonly<{

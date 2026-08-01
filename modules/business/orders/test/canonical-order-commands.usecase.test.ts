@@ -13,8 +13,8 @@ import type { CorrectOrderOperations } from '../src/correct-order/correct-order.
 import { makeCorrectOrder } from '../src/correct-order/correct-order.usecase.ts';
 import type { CreateOrderOperations } from '../src/create-order/create-order.port.ts';
 import { makeCreateOrder } from '../src/create-order/create-order.usecase.ts';
-import { hashOrderCommand } from '../src/order-command-idempotency.policy.ts';
-import type { OrderTransactionPort } from '../src/order-transaction.port.ts';
+import { hashOrderCommand } from '../src/command-execution/order-command-idempotency.policy.ts';
+import type { OrderTransactionPort } from '../src/persistence/order-transaction.port.ts';
 
 const transactionRepo = <Operations>(
   operations: Operations,

@@ -3,17 +3,15 @@ import { result } from '@pressly/kernel';
 import {
   productionError,
   productionIdempotencyConflict,
-} from '../production.error.ts';
+} from '../failure-mapping/production.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
-} from '../production-idempotency.policy.ts';
-import type {
-  ClockPort,
-  ProductionPolicyPort,
-  ScheduleSupersessionDecision,
-  ProductionSignalsPort,
-} from '../production.port.ts';
+} from '../command-execution/production-idempotency.policy.ts';
+import type { ClockPort } from '../command-execution/production-command.port.ts';
+import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
+import type { ScheduleSupersessionDecision } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ProductionSignalsPort } from '../production-signals/production-signals.port.ts';
 import type {
   ReplaceShiftOrderSelection,
   ReplaceShiftOrderSelectionRepository,

@@ -3,8 +3,8 @@ import type {
   SourceLocationBindingRejection,
 } from '@pressly/contracts';
 import { result } from '@pressly/kernel';
-import { webhookIngestionError } from '../webhook-ingestion.error.ts';
-import type { WebhookIngestionClockPort } from '../webhook-ingestion.port.ts';
+import { webhookIngestionError } from '../ingestion/webhook-ingestion.error.ts';
+import type { WebhookIngestionClockPort } from '../ingestion/webhook-ingestion.port.ts';
 import type {
   ManageSourceLocationBindings,
   ResolveSourceLocation,

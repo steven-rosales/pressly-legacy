@@ -3,22 +3,26 @@ import {
   allowedIncomingOrderProposalEvents,
   decideIncomingOrderProposal,
   incomingOrderProposalGraph,
-} from '../src/incoming-order-proposal.policy.ts';
-import { isOrderInputValid } from '../src/order-input.policy.ts';
-import {
-  decideFulfillmentRelease,
-  decideOrderLifecycle,
-  mayTransitionFulfillment,
-  mayTransitionOrder,
-} from '../src/order-lifecycle.policy.ts';
-import { fulfillmentDemandEvent } from '../src/order-outbox.policy.ts';
+} from '../src/incoming-order-proposal/incoming-order-proposal.policy.ts';
 import type {
-  FulfillmentReleaseState,
   IncomingOrderProposalEvent,
   IncomingOrderProposalState,
+} from '../src/incoming-order-proposal/incoming-order-proposal.port.ts';
+import {
+  decideFulfillmentRelease,
+  mayTransitionFulfillment,
+} from '../src/change-fulfillment-release/change-fulfillment-release.policy.ts';
+import {
+  decideOrderLifecycle,
+  mayTransitionOrder,
+} from '../src/change-order-lifecycle/change-order-lifecycle.policy.ts';
+import { isOrderInputValid } from '../src/order-model/order-input.policy.ts';
+import type {
+  FulfillmentReleaseState,
   OrderInput,
   OrderState,
-} from '../src/orders.port.ts';
+} from '../src/order-model/order-model.port.ts';
+import { fulfillmentDemandEvent } from '../src/order-outbox/order-outbox.policy.ts';
 
 const input = (): OrderInput => ({
   customer: { resolution: 'not_provided', userId: null, externalUserId: null },

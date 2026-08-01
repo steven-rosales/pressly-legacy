@@ -3,6 +3,10 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
+import {
+  moduleFoundationTargets,
+  moduleRootFileDelta,
+} from '../../eslint.config.mjs';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const eslint = new ESLint({ cwd: repoRoot });
@@ -28,6 +32,10 @@ const modulePackageNames = new Set(
     (manifestPath) => JSON.parse(readFileSync(manifestPath, 'utf8')).name,
   ),
 );
+
+const moduleSourceRoots = moduleManifests
+  .map((manifestPath) => path.join(path.dirname(manifestPath), 'src'))
+  .filter(existsSync);
 
 const readFiles = (directory) =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -78,20 +86,50 @@ const expectRejectedBy = async (filePath, source, ruleId) => {
 };
 
 describe('module architecture boundaries', () => {
+  it('describes missing and unexpected module root files for ESLint', () => {
+    expect(
+      moduleRootFileDelta(['main.ts', 'notes.md', 'public.ts', 'seed.sql']),
+    ).toEqual({
+      missing: [],
+      unexpected: ['notes.md', 'seed.sql'],
+    });
+    expect(moduleRootFileDelta(['main.ts'])).toEqual({
+      missing: ['public.ts'],
+      unexpected: [],
+    });
+    expect(moduleRootFileDelta(['public.ts'])).toEqual({
+      missing: ['main.ts'],
+      unexpected: [],
+    });
+  });
+
+  it('seals every module source root to main.ts and public.ts', () => {
+    for (const sourceRoot of moduleSourceRoots) {
+      const rootFiles = readdirSync(sourceRoot, { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name)
+        .sort();
+
+      expect(rootFiles).toEqual(['main.ts', 'public.ts']);
+    }
+  });
+
   it('keeps real business capability files inside the closed role vocabulary', () => {
-    const invalidFiles = businessSourceRoots.flatMap((sourceRoot) =>
-      readFiles(sourceRoot)
+    const invalidFiles = businessSourceRoots.flatMap((sourceRoot) => {
+      const moduleName = path.basename(path.dirname(sourceRoot));
+      const foundations =
+        moduleFoundationTargets.get(`business/${moduleName}`) ?? new Set();
+
+      return readFiles(sourceRoot)
         .map((filePath) => path.relative(sourceRoot, filePath))
         .filter(
           (relativePath) =>
             relativePath !== 'main.ts' &&
             relativePath !== 'public.ts' &&
-            !['http', 'persistence'].includes(
-              relativePath.split(path.sep)[0],
-            ) &&
+            !foundations.has(relativePath.split(path.sep)[0]) &&
             !businessCapabilityRolePattern.test(relativePath),
-        ),
-    );
+        );
+    });
 
     expect(invalidFiles).toEqual([]);
   });
@@ -119,6 +157,16 @@ describe('module architecture boundaries', () => {
     );
   });
 
+  it('allows repositories to compose a same-capability repository collaborator', async () => {
+    await expectAllowed(
+      'modules/business/auth/src/workforce/access-grant.repo.ts',
+      `
+        import { loadAuthorizedActor } from './workforce-store.repo.ts';
+        export const loadActor = loadAuthorizedActor;
+      `,
+    );
+  });
+
   it('allows access-control capabilities to use the explicit identity foundation', async () => {
     await expectAllowed(
       'modules/policy/access-control/src/mfa/mfa.guard.ts',
@@ -141,7 +189,7 @@ describe('module architecture boundaries', () => {
 
   it('allows the intentionally HTTP-shaped access-control auth port to import HTTP types', async () => {
     await expectAllowed(
-      'modules/policy/access-control/src/auth.port.ts',
+      'modules/policy/access-control/src/http/auth.port.ts',
       `
         import type { Request, RequestHandler } from 'express';
         export type Authenticate = (request: Request) => RequestHandler;
@@ -159,15 +207,43 @@ describe('module architecture boundaries', () => {
     );
   });
 
-  it('allows a capability to use narrow root ports and errors', async () => {
+  it('allows a capability to use an explicit named foundation', async () => {
     await expectAllowed(
-      'modules/business/production/src/create-schedule/create-schedule.usecase.ts',
+      'modules/business/users/src/create-user/create-user.usecase.ts',
       `
-        import type { ProductionSchedulerPort } from '../production.port.ts';
-        import { productionError } from '../production.error.ts';
-        export const dependencies = { productionError };
-        export type Scheduler = ProductionSchedulerPort;
+        import type { UserProfile } from '../user-profile/user-profile.port.ts';
+        export type Profile = UserProfile;
       `,
+    );
+  });
+
+  it('allows only declared dependencies between explicit foundations', async () => {
+    await expectAllowed(
+      'modules/business/production/src/persistence/example.ts',
+      `
+        import type { ProductionOrderStage } from '../production-lifecycle/production-lifecycle.port.ts';
+        export type StoredStage = ProductionOrderStage;
+      `,
+    );
+
+    await expectRejectedBy(
+      'modules/business/production/src/production-signals/example.port.ts',
+      `
+        import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
+        export type Policy = ProductionPolicyPort;
+      `,
+      'architecture/module-capability-imports',
+    );
+  });
+
+  it('rejects dependencies from a foundation back to a consumer capability', async () => {
+    await expectRejectedBy(
+      'modules/business/production/src/production-policy/example.port.ts',
+      `
+        import type { ApplyFulfillmentDemand } from '../apply-fulfillment-demand/apply-fulfillment-demand.port.ts';
+        export type Demand = ApplyFulfillmentDemand;
+      `,
+      'architecture/module-capability-imports',
     );
   });
 
@@ -186,6 +262,14 @@ describe('module architecture boundaries', () => {
     await expectAllowed(
       'modules/business/auth/src/public.ts',
       'export const publicSurface = true;',
+    );
+  });
+
+  it('rejects every other file at a module source root', async () => {
+    await expectRejectedBy(
+      'modules/business/production/src/production.port.ts',
+      'export type ProductionPort = unknown;',
+      'no-restricted-syntax',
     );
   });
 
@@ -363,7 +447,6 @@ describe('module architecture boundaries', () => {
       'modules/business/orders/src/order-mutations/order-mutations.repo.ts',
       'modules/business/orders/src/order-mutations/order-mutations.port.ts',
       'modules/business/orders/src/order-outbox/order-outbox.repo.ts',
-      'modules/business/orders/src/order-outbox/order-outbox.port.ts',
     ])
       expect(existsSync(path.join(repoRoot, legacyAdapter))).toBe(false);
   });
@@ -617,7 +700,7 @@ describe('module architecture boundaries', () => {
 
   it('rejects runtime imports from the access-control auth port', async () => {
     await expectRejectedBy(
-      'modules/policy/access-control/src/auth.port.ts',
+      'modules/policy/access-control/src/http/auth.port.ts',
       `
         import { Router } from 'express';
         export const leakedRuntime = Router;

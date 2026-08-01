@@ -4,7 +4,7 @@ import { makeAdvanceProductionStageRepository } from '../../src/advance-producti
 import { makeAdvanceProductionStage } from '../../src/advance-production-stage/advance-production-stage.usecase.ts';
 import { makeManageBatchMembershipRepository } from '../../src/manage-batch-membership/manage-batch-membership.repo.ts';
 import { makeManageBatchMembership } from '../../src/manage-batch-membership/manage-batch-membership.usecase.ts';
-import type { ProductionPolicyPort } from '../../src/production.port.ts';
+import type { ProductionPolicyPort } from '../../src/production-policy/production-policy.port.ts';
 import { createProductionTestDatabase } from '../support/database.ts';
 import { allowPolicy, makeIds } from '../support/production.fake.ts';
 

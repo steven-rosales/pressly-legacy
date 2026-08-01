@@ -51,14 +51,98 @@ const restrictedFileNameRule = (message) => ({
   ],
 });
 
-const moduleFoundationTargets = new Map([
+const requiredModuleRootFiles = ['main.ts', 'public.ts'];
+
+export const moduleRootFileDelta = (fileNames) => {
+  const actualFiles = new Set(fileNames);
+
+  return {
+    missing: requiredModuleRootFiles.filter((file) => !actualFiles.has(file)),
+    unexpected: [...actualFiles]
+      .filter((file) => !requiredModuleRootFiles.includes(file))
+      .sort(),
+  };
+};
+
+export const moduleFoundationTargets = new Map([
   ['business/auth', new Set(['http', 'persistence'])],
-  ['business/orders', new Set(['persistence'])],
-  ['business/production', new Set(['http', 'persistence'])],
-  ['business/users', new Set(['persistence'])],
+  [
+    'business/orders',
+    new Set([
+      'command-execution',
+      'failure-mapping',
+      'order-model',
+      'order-outbox',
+      'persistence',
+    ]),
+  ],
+  [
+    'business/production',
+    new Set([
+      'command-execution',
+      'failure-mapping',
+      'http',
+      'persistence',
+      'production-lifecycle',
+      'production-policy',
+      'production-signals',
+      'scheduling',
+    ]),
+  ],
+  [
+    'business/users',
+    new Set([
+      'command-execution',
+      'failure-mapping',
+      'persistence',
+      'user-profile',
+    ]),
+  ],
+  ['business/webhook-ingestion', new Set(['ingestion'])],
   ['computation/scheduling', new Set(['fixed-pulse'])],
-  ['policy/access-control', new Set(['identity'])],
+  ['policy/access-control', new Set(['http', 'identity'])],
 ]);
+
+const moduleFoundationDependencies = new Map([
+  [
+    'business/orders',
+    new Map([
+      ['order-outbox', new Set(['order-model'])],
+      [
+        'persistence',
+        new Set(['command-execution', 'order-model', 'order-outbox']),
+      ],
+    ]),
+  ],
+  [
+    'business/production',
+    new Map([
+      ['production-policy', new Set(['production-lifecycle'])],
+      [
+        'persistence',
+        new Set([
+          'command-execution',
+          'production-lifecycle',
+          'production-policy',
+          'scheduling',
+        ]),
+      ],
+    ]),
+  ],
+  [
+    'business/users',
+    new Map([['persistence', new Set(['command-execution', 'user-profile'])]]),
+  ],
+]);
+
+const moduleFoundationSourcePatternsFor = (group) =>
+  [...moduleFoundationTargets.entries()].flatMap(([moduleKey, foundations]) =>
+    moduleKey.startsWith(`${group}/`)
+      ? [...foundations].map(
+          (foundation) => `modules/${moduleKey}/src/${foundation}/**/*.ts`,
+        )
+      : [],
+  );
 
 const businessModuleSourceRoleSuffixes = [
   'command',
@@ -131,6 +215,66 @@ const importVisitors = (checkImport) => ({
 
 export const architecturePlugin = {
   rules: {
+    'module-root-files': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'Seal every module src root to its composition and public surfaces.',
+        },
+        schema: [],
+        messages: {
+          invalidSurface:
+            'Module src roots must contain exactly main.ts and public.ts. {{details}}',
+        },
+      },
+      create(context) {
+        const filename = path.resolve(context.filename);
+        const normalizedFilename = filename.replaceAll(path.sep, '/');
+
+        if (
+          !/\/modules\/(?:business|policy|computation)\/[^/]+\/src\/(?:main|public)\.ts$/.test(
+            normalizedFilename,
+          )
+        )
+          return {};
+
+        const sourceRoot = path.dirname(filename);
+
+        if (
+          path.basename(filename) === 'public.ts' &&
+          existsSync(path.join(sourceRoot, 'main.ts'))
+        )
+          return {};
+
+        return {
+          Program(node) {
+            const rootFiles = readdirSync(sourceRoot, { withFileTypes: true })
+              .filter((entry) => !entry.isDirectory())
+              .map((entry) => entry.name);
+            const { missing, unexpected } = moduleRootFileDelta(rootFiles);
+
+            if (missing.length === 0 && unexpected.length === 0) return;
+
+            const details = [
+              ...(missing.length === 0
+                ? []
+                : [`Missing: ${missing.join(', ')}.`]),
+              ...(unexpected.length === 0
+                ? []
+                : [`Unexpected: ${unexpected.join(', ')}.`]),
+            ].join(' ');
+
+            context.report({
+              node,
+              messageId: 'invalidSurface',
+              data: { details },
+            });
+          },
+        };
+      },
+    },
+
     'module-isolation': {
       meta: {
         type: 'problem',
@@ -203,7 +347,7 @@ export const architecturePlugin = {
           outsideModule:
             'Module internals cannot use relative imports outside their own module.',
           rootInternal:
-            'Capability files may only import root-level module ports, policies, or errors, not root composition or public files.',
+            'Capability files cannot import module-root files. Only main.ts and public.ts belong at the module root; move shared internals into an explicit foundation.',
         },
       },
       create(context) {
@@ -223,6 +367,8 @@ export const architecturePlugin = {
           normalizedFilename.indexOf(srcMarker) + srcMarker.length,
         );
         const foundations = moduleFoundationTargets.get(moduleKey) ?? new Set();
+        const foundationDependencies =
+          moduleFoundationDependencies.get(moduleKey) ?? new Map();
 
         const checkImport = (node) => {
           const specifier = importSpecifier(node);
@@ -244,18 +390,18 @@ export const architecturePlugin = {
           if (targetCapability === sourceCapability) return;
 
           if (!targetRelative.includes('/')) {
-            if (/\.(?:port|policy|error)\.(?:ts|js)$/.test(targetRelative))
-              return;
-
             context.report({ node, messageId: 'rootInternal' });
             return;
           }
 
-          if (
-            foundations.has(targetCapability) &&
-            !foundations.has(sourceCapability)
-          )
-            return;
+          if (foundations.has(targetCapability)) {
+            if (!foundations.has(sourceCapability)) return;
+
+            const allowedDependencies =
+              foundationDependencies.get(sourceCapability) ?? new Set();
+
+            if (allowedDependencies.has(targetCapability)) return;
+          }
 
           context.report({
             node,
@@ -764,9 +910,9 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.(?!(?:/[^/]+\\.(?:usecase|policy|port|error)|\\./[^/]+\\.(?:policy|port|error))(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!.*\/[^/]+\\.(?:usecase|policy|port|error)(?:\\.(?:ts|js))?$).*',
               message:
-                'Usecases may only import sibling usecases, policies, ports, or errors.',
+                'Usecases may only import usecases, policies, ports, or errors; capability ownership is enforced separately.',
             },
           ],
         },
@@ -829,7 +975,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/policy/access-control/src/auth.port.ts'],
+    files: ['modules/policy/access-control/src/http/auth.port.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -895,7 +1041,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/*/*/src/main.ts'],
+    files: ['modules/*/*/src/{main,public}.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -973,9 +1119,9 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.(?!.*\\.(?:port|policy|mapper)(?:\\.(?:ts|js))?$|\\./persistence/[^/]+(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!.*\\.(?:port|policy|mapper|repo)(?:\\.(?:ts|js))?$|\\./persistence/[^/]+(?:\\.(?:ts|js))?$).*',
               message:
-                'Repositories may only import sibling ports or policies, plus the explicit persistence foundation.',
+                'Repositories may only import same-capability ports, policies, mappers, or repository collaborators, plus explicit foundations.',
             },
           ],
         },
@@ -1039,10 +1185,25 @@ export default tseslint.config(
   },
 
   {
+    files: ['modules/*/*/src/main.ts'],
+    rules: {
+      'architecture/module-root-files': 'error',
+    },
+  },
+
+  {
     files: ['modules/*/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
     rules: {
       'architecture/module-capability-imports': 'error',
     },
+  },
+
+  {
+    files: ['modules/*/*/src/*.{js,jsx,mjs,cjs,ts,tsx}'],
+    ignores: ['modules/*/*/src/main.ts', 'modules/*/*/src/public.ts'],
+    rules: restrictedFileNameRule(
+      'Module src roots are sealed. Only main.ts and public.ts may be root files; move this file into its owning capability or an explicit named foundation.',
+    ),
   },
 
   {
@@ -1087,8 +1248,7 @@ export default tseslint.config(
     ignores: [
       'modules/business/*/src/main.ts',
       'modules/business/*/src/public.ts',
-      'modules/business/*/src/http/**/*.ts',
-      'modules/business/*/src/persistence/**/*.ts',
+      ...moduleFoundationSourcePatternsFor('business'),
       businessModuleSourceRolePattern,
     ],
     rules: restrictedFileNameRule(
@@ -1096,7 +1256,7 @@ export default tseslint.config(
         .map((suffix) => `*.${suffix}.ts`)
         .join(
           ', ',
-        )}. Descriptive filenames are reserved for explicit http/ and persistence/ foundations.`,
+        )}. Descriptive filenames are reserved for registered explicit foundations.`,
     ),
   },
 
@@ -1105,6 +1265,7 @@ export default tseslint.config(
     ignores: [
       'modules/policy/*/src/main.ts',
       'modules/policy/*/src/public.ts',
+      ...moduleFoundationSourcePatternsFor('policy'),
       policyModuleSourceRolePattern,
     ],
     rules: restrictedFileNameRule(
@@ -1119,6 +1280,7 @@ export default tseslint.config(
     ignores: [
       'modules/computation/*/src/main.ts',
       'modules/computation/*/src/public.ts',
+      ...moduleFoundationSourcePatternsFor('computation'),
       computationModuleSourceRolePattern,
     ],
     rules: restrictedFileNameRule(

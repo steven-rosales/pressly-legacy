@@ -1,10 +1,10 @@
-import type { ProductionPolicyPort } from '../../src/production.port.ts';
+import type { ProductionPolicyPort } from '../../src/production-policy/production-policy.port.ts';
 import type {
   LockedIntakeOrder,
   RecordOrderIntakeRepository,
 } from '../../src/record-order-intake/record-order-intake.port.ts';
-import type { StoredWorkEvent } from '../../src/production.port.ts';
-import { defineWorkEventCommand } from '../../src/production-idempotency.policy.ts';
+import type { StoredWorkEvent } from '../../src/command-execution/production-command.port.ts';
+import { defineWorkEventCommand } from '../../src/command-execution/production-idempotency.policy.ts';
 import { makeRecordOrderIntake } from '../../src/record-order-intake/record-order-intake.usecase.ts';
 import { result } from '@pressly/kernel';
 import { describe, expect, it, vi } from 'vitest';

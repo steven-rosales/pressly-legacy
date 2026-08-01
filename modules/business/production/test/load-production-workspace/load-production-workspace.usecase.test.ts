@@ -15,7 +15,7 @@ import type {
 } from '../../src/load-production-workspace/load-production-workspace.port.ts';
 import { makeLoadProductionWorkspace } from '../../src/load-production-workspace/load-production-workspace.usecase.ts';
 import { projectProductionBoard } from '../../src/persistence/production-board-projection.ts';
-import { evaluateProductionBoardProjection } from '../../src/production-board-read.policy.ts';
+import { evaluateProductionBoardProjection } from '../../src/production-policy/production-board-read.policy.ts';
 import { allowPolicy, simpleScheduler } from '../support/production.fake.ts';
 
 const ids = {

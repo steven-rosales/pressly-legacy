@@ -11,7 +11,7 @@ import { makePublishSchedulerConfigRepository } from '../../src/publish-schedule
 import { makeSetProductionOrderPriorityRepository } from '../../src/set-production-order-priority/set-production-order-priority.repo.ts';
 import { makeSetProductionOrderPriority } from '../../src/set-production-order-priority/set-production-order-priority.usecase.ts';
 import { makeStartScheduleRepository } from '../../src/start-schedule/start-schedule.repo.ts';
-import { defineWorkEventCommand } from '../../src/production-idempotency.policy.ts';
+import { defineWorkEventCommand } from '../../src/command-execution/production-idempotency.policy.ts';
 import {
   allowPolicy,
   makeClock,

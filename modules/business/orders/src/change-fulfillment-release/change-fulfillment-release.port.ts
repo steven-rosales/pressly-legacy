@@ -1,9 +1,44 @@
-import type { StoredOrderAggregate } from '../order-aggregate.port.ts';
+import type { AppError } from '@pressly/errors';
+import type { Result } from '@pressly/kernel';
+import type {
+  AuditedOrderCommand,
+  OrderMutationResult,
+} from '../command-execution/order-command.port.ts';
+import type { FulfillmentReleaseState } from '../order-model/order-model.port.ts';
+import type { StoredOrderAggregate } from '../persistence/order-aggregate.port.ts';
 import type {
   OrderCommandOperations,
   OrderTransactionPort,
-} from '../order-transaction.port.ts';
-import type { FulfillmentReleaseState } from '../orders.port.ts';
+} from '../persistence/order-transaction.port.ts';
+
+export type ReleaseFulfillmentReasonCode =
+  | 'ready_for_production'
+  | 'manager_override';
+export type WithdrawFulfillmentReasonCode =
+  | 'commercial_canceled'
+  | 'production_hold'
+  | 'manager_override';
+
+type FulfillmentReleaseCommand<ReasonCode extends string> =
+  AuditedOrderCommand<ReasonCode> &
+    Readonly<{
+      fulfillmentId: string;
+      locationId: string;
+      expectedOrderVersion: number;
+      expectedFulfillmentVersion: number;
+    }>;
+
+export type ReleaseFulfillmentCommand =
+  FulfillmentReleaseCommand<ReleaseFulfillmentReasonCode>;
+export type ReleaseFulfillment = (
+  command: ReleaseFulfillmentCommand,
+) => Promise<Result<OrderMutationResult, AppError>>;
+
+export type WithdrawFulfillmentCommand =
+  FulfillmentReleaseCommand<WithdrawFulfillmentReasonCode>;
+export type WithdrawFulfillment = (
+  command: WithdrawFulfillmentCommand,
+) => Promise<Result<OrderMutationResult, AppError>>;
 
 export type ChangeFulfillmentReleaseOperations = OrderCommandOperations &
   Readonly<{

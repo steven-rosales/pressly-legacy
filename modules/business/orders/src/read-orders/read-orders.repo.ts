@@ -13,16 +13,18 @@ import {
 import {
   decodeOrderCursor,
   encodeOrderCursor,
-} from '../order-pagination.policy.ts';
+} from './order-pagination.policy.ts';
 import type {
-  CanonicalOrderDetail,
-  CanonicalOrderSummary,
+  FulfillmentReleaseState,
   OrderCustomer,
   OrderItemInput,
   OrderState,
-  FulfillmentReleaseState,
-} from '../orders.port.ts';
-import type { ReadOrdersRepository } from './read-orders.port.ts';
+} from '../order-model/order-model.port.ts';
+import type {
+  CanonicalOrderDetail,
+  CanonicalOrderSummary,
+  ReadOrdersRepository,
+} from './read-orders.port.ts';
 
 type ReadRow = Readonly<{
   order: typeof schema.orders.$inferSelect;

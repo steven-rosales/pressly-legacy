@@ -1,7 +1,7 @@
 import type {
   WebhookEventClaim,
   WebhookEventCompletion,
-} from '../webhook-ingestion.port.ts';
+} from '../ingestion/webhook-ingestion.port.ts';
 
 export type RetryWebhookEvent = (
   command: WebhookEventClaim & {

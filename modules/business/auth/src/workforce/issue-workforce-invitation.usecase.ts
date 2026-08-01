@@ -6,13 +6,13 @@ import {
   requireDisplayName,
   requireEmail,
   requireIdentifier,
-} from '../workforce-validation.policy.ts';
-import { workforceStoreFailure } from '../workforce.error.ts';
+} from './workforce-validation.policy.ts';
+import { workforceStoreFailure } from './workforce.error.ts';
 import type {
   WorkforceActorRef,
   WorkforceInvitationSummary,
   WorkforceRole,
-} from '../workforce.port.ts';
+} from './workforce.port.ts';
 import type {
   InvitationTokenService,
   WorkforceClock,

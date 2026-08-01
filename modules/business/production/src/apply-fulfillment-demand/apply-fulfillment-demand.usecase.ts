@@ -2,18 +2,18 @@ import { result } from '@pressly/kernel';
 import {
   productionError,
   productionIdempotencyConflict,
-} from '../production.error.ts';
+} from '../failure-mapping/production.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
-} from '../production-idempotency.policy.ts';
+} from '../command-execution/production-idempotency.policy.ts';
 import type {
   ClockPort,
   IdPort,
-  OrderDemandPhase,
-  ProductionOrderExecutionState,
-  ProductionPolicyPort,
-} from '../production.port.ts';
+} from '../command-execution/production-command.port.ts';
+import type { OrderDemandPhase } from '../production-lifecycle/order-demand.port.ts';
+import type { ProductionOrderExecutionState } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import type {
   ApplyFulfillmentDemand,
   ApplyFulfillmentDemandRepository,

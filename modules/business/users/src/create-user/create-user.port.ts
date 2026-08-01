@@ -1,8 +1,26 @@
+import type { AppError } from '@pressly/errors';
+import type { CommandContext, Result } from '@pressly/kernel';
 import type {
   UserCommandOperations,
   UserTransactionPort,
-} from '../user-transaction.port.ts';
-import type { UserFieldName, UserProfile, UserRecord } from '../users.port.ts';
+} from '../persistence/user-transaction.port.ts';
+import type { UserCommandResult } from '../command-execution/user-command.port.ts';
+import type {
+  UserFieldName,
+  UserProfile,
+  UserRecord,
+} from '../user-profile/user-profile.port.ts';
+
+export type CreateUserCommand = Readonly<{
+  businessId: string;
+  idempotencyKey: string;
+  context: CommandContext;
+  profile: UserProfile;
+}>;
+
+export type CreateUser = (
+  command: CreateUserCommand,
+) => Promise<Result<UserCommandResult, AppError>>;
 
 export type CreateUserOperations = UserCommandOperations &
   Readonly<{

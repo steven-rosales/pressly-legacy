@@ -6,7 +6,7 @@ import type {
 import type {
   StoredWorkEvent,
   WorkEventInput,
-} from '../../src/production.port.ts';
+} from '../../src/command-execution/production-command.port.ts';
 import type {
   ReconcileProductionBatchProgressRepository,
   ReconciliationContext,

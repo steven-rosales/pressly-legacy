@@ -1,17 +1,13 @@
 import { isCommandContextValid, result } from '@pressly/kernel';
-import { hashOrderCommand } from '../order-command-idempotency.policy.ts';
-import {
-  createOrderReasonCodes,
-  isOrderCommandReasonValid,
-} from '../order-command-reason.policy.ts';
-import { orderError } from '../order.error.ts';
-import { isOrderInputValid } from '../order-input.policy.ts';
-import type {
-  CreateOrder,
-  OrderClockPort,
-  OrderInput,
-} from '../orders.port.ts';
+import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
+import type { OrderClockPort } from '../command-execution/order-command.port.ts';
+import { isOrderCommandReasonValid } from '../command-execution/order-command-reason.policy.ts';
+import { orderError } from '../failure-mapping/order.error.ts';
+import { isOrderInputValid } from '../order-model/order-input.policy.ts';
+import type { OrderInput } from '../order-model/order-model.port.ts';
+import type { CreateOrder } from './create-order.port.ts';
 import type { CreateOrderRepository } from './create-order.port.ts';
+import { createOrderReasonCodes } from './create-order.policy.ts';
 
 export const makeCreateOrder =
   (deps: { repo: CreateOrderRepository; clock: OrderClockPort }): CreateOrder =>

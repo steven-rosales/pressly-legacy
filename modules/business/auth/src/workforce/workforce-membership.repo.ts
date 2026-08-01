@@ -13,7 +13,6 @@ import {
   type Database,
 } from '@pressly/db';
 import {
-  authorizeTarget,
   checkReceipt,
   loadAuthorizedActor,
   loadMemberDetail,
@@ -21,18 +20,18 @@ import {
   recordAudit,
   recordReceipt,
   recordTransition,
-  strongestRole,
-} from '../persistence/workforce.shared.ts';
-import type {
-  WorkforceMemberDetail,
-  WorkforceRole,
-} from '../workforce.port.ts';
-import { encodeWorkforceCursor } from '../workforce-pagination.policy.ts';
+} from './workforce-store.repo.ts';
+import type { WorkforceMemberDetail, WorkforceRole } from './workforce.port.ts';
+import { encodeWorkforceCursor } from './workforce-pagination.policy.ts';
 import {
   databaseFailure,
   toDatabaseResult,
 } from '../persistence/database-result.ts';
 import { decideWorkforceMembership } from './workforce-membership.policy.ts';
+import {
+  authorizeWorkforceTarget,
+  strongestWorkforceRole,
+} from './workforce-authority.policy.ts';
 import type { WorkforceMembershipStore } from './workforce-membership.port.ts';
 
 const targetLocationForActor = (
@@ -48,7 +47,7 @@ const targetLocationForActor = (
   )?.scope.id ?? null;
 
 const targetRole = (member: WorkforceMemberDetail): WorkforceRole | null =>
-  strongestRole(
+  strongestWorkforceRole(
     member.grants
       .filter((grant) => grant.effective)
       .map((grant) => ({ role: grant.role })),
@@ -282,7 +281,7 @@ export const makeWorkforceMembershipStore = (
         const role = targetRole(member);
         if (role === null)
           return { status: 'rejected', reason: 'invalid_state' };
-        const denied = authorizeTarget({
+        const denied = authorizeWorkforceTarget({
           actor,
           actorRef: input.actor,
           businessId: input.businessId,

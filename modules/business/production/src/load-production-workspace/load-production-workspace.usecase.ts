@@ -1,12 +1,10 @@
 import { result } from '@pressly/kernel';
-import { productionError } from '../production.error.ts';
-import type {
-  ClockPort,
-  ProductionPolicyPort,
-  ProductionSchedulerPort,
-} from '../production.port.ts';
-import { projectLiveRunChanges } from '../live-run-changes.policy.ts';
-import { evaluateProductionBoardProjection } from '../production-board-read.policy.ts';
+import { productionError } from '../failure-mapping/production.error.ts';
+import type { ClockPort } from '../command-execution/production-command.port.ts';
+import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
+import type { ProductionSchedulerPort } from '../scheduling/production-scheduler.port.ts';
+import { projectLiveRunChanges } from '../load-production-workspace/live-run-changes.policy.ts';
+import { evaluateProductionBoardProjection } from '../production-policy/production-board-read.policy.ts';
 import { projectDemandOutlook } from './demand-outlook.policy.ts';
 import type {
   LoadProductionWorkspace,

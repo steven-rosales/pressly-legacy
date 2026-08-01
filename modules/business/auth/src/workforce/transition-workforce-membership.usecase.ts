@@ -1,12 +1,12 @@
 import type { AppError } from '@pressly/errors';
 import { result, type Result } from '@pressly/kernel';
-import { workforceStoreFailure } from '../workforce.error.ts';
+import { workforceStoreFailure } from './workforce.error.ts';
 import {
   commandFingerprint,
   requireExpectedVersion,
   requireIdentifier,
-} from '../workforce-validation.policy.ts';
-import type { WorkforceActorRef } from '../workforce.port.ts';
+} from './workforce-validation.policy.ts';
+import type { WorkforceActorRef } from './workforce.port.ts';
 import type { WorkforceClock } from './workforce-invitation.port.ts';
 import type { WorkforceMembershipEvent } from './workforce-membership.policy.ts';
 import type {

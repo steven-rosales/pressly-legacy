@@ -222,6 +222,8 @@ All modules should keep these surfaces:
 
 - `main.ts` is the module composition root.
 - `public.ts` is the stable module surface.
+- The `src/` root contains exactly those two files. Every other source file
+  belongs to a named capability or an explicit, narrowly scoped foundation.
 - `test/` holds module tests outside `src/`.
 - Other modules never import this module; apps consume `public.ts` and compose
   peer modules.
@@ -274,12 +276,15 @@ Rules:
 - Business capability source uses a closed architectural vocabulary. A new
   business role suffix requires an intentional architecture change, not a
   local naming preference.
-- Explicit business `http/` and `persistence/` foundations may use descriptive
-  filenames because the directory already establishes their technical role.
+- Registered explicit foundations may use descriptive filenames because the
+  directory already establishes their architectural role.
+- A foundation never imports a consumer capability. Dependencies between two
+  foundations must be directed and declared in the root ESLint architecture
+  graph; undeclared foundation edges are rejected.
 
 Auth has explicit `http/` and `persistence/` foundations. Access-control has an
-explicit `identity/` foundation. Those are directed dependencies, not
-general-purpose dumping grounds.
+explicit `http/` and `identity/` foundation. Those are directed dependencies,
+not general-purpose dumping grounds.
 
 ### Business Modules
 
@@ -328,10 +333,12 @@ Current examples:
 modules/policy/access-control/
   src/
     auth-sessions/
+    http/
+      auth.port.ts
+    identity/
+      location-ancestry.port.ts
     mfa/
     pricing/
-    identity/
-    auth.port.ts
     main.ts
     public.ts
   test/
@@ -964,10 +971,13 @@ Business capability source uses this deliberately closed vocabulary:
 *.usecase.ts      application behavior
 ```
 
-Within `modules/business/*/src/`, only `main.ts`, `public.ts`, and files inside
-an explicit `http/` or `persistence/` foundation may omit a role suffix.
-Foundation filenames should describe the narrow mechanism they centralize,
-such as `http/auth-context.ts` or `persistence/database-result.ts`.
+Within every module, the `src/` root contains exactly `main.ts` and `public.ts`.
+Business capability files use the role suffixes above; files inside an explicit
+foundation may omit one when the foundation itself supplies the architectural
+role. Foundation names and filenames should describe the narrow responsibility
+they centralize, such as `http/auth-context.ts`,
+`persistence/database-result.ts`, `command-execution/user-command.port.ts`, or
+`failure-mapping/order.error.ts`.
 
 Policy modules use this closed policy vocabulary:
 
@@ -990,10 +1000,10 @@ internals. Computation modules use their own closed vocabulary:
 Every module may use `main.ts` for composition and `public.ts` for its stable
 external surface.
 
-A module may also expose a narrowly named root `*.port.ts` or `*.error.ts` as
-mechanism-free language shared by its own capabilities. These files are not a
-route around capability ownership: root composition and generic shared/common
-buckets remain forbidden.
+There are no root-file exceptions for ports, policies, or errors. Mechanism-free
+language shared by multiple capabilities belongs in a narrowly named explicit
+foundation. Generic `shared/`, `common/`, and `internal/` buckets remain
+forbidden because they hide ownership instead of naming it.
 
 Module tests live under `test/`, where test-specific names such as
 `*.test.ts`, `*.fake.ts`, and `*.builder.ts` are allowed. Runtime boundary

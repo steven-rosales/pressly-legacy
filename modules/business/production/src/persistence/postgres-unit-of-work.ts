@@ -1,5 +1,5 @@
 import type { Database, DatabaseExecutor } from '@pressly/db';
-import type { Transactional } from '../production.port.ts';
+import type { Transactional } from './production-transaction.port.ts';
 
 export const makePostgresUnitOfWork = <Operations>(
   db: Database,

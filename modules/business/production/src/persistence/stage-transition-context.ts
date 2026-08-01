@@ -9,7 +9,7 @@ import {
 import type {
   StageTransitionContext,
   StoredStage,
-} from '../production.port.ts';
+} from '../production-lifecycle/stage-transition.port.ts';
 import { iso } from './production-mappers.ts';
 
 const batchStatus = (

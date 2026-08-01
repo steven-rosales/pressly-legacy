@@ -1,6 +1,6 @@
 import type { Request, RequestHandler } from 'express';
-import type { AccessControlAuthPort } from '../auth.port.ts';
-import type { LocationAncestryPort } from '../location-ancestry.port.ts';
+import type { AccessControlAuthPort } from '../http/auth.port.ts';
+import type { LocationAncestryPort } from '../identity/location-ancestry.port.ts';
 import { makeOrderManagementPolicies } from './order-management.policy.ts';
 import {
   orderManagementLocationResource,

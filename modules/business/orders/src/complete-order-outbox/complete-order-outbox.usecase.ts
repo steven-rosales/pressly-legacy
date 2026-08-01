@@ -1,6 +1,7 @@
 import { result } from '@pressly/kernel';
-import { orderError } from '../order.error.ts';
-import type { CompleteOrderOutbox, OrderClockPort } from '../orders.port.ts';
+import type { OrderClockPort } from '../command-execution/order-command.port.ts';
+import { orderError } from '../failure-mapping/order.error.ts';
+import type { CompleteOrderOutbox } from '../order-outbox/order-outbox.port.ts';
 import type { CompleteOrderOutboxRepository } from './complete-order-outbox.port.ts';
 
 export const makeCompleteOrderOutbox =

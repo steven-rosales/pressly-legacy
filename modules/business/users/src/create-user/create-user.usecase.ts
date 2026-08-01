@@ -1,9 +1,9 @@
 import { isCommandContextValid, result } from '@pressly/kernel';
-import { hashUserCommand } from '../user-command-idempotency.policy.ts';
-import { userError } from '../user.error.ts';
-import { userProfileFields } from '../user-profile.policy.ts';
-import type { CreateUser, UserClockPort } from '../users.port.ts';
-import type { CreateUserRepository } from './create-user.port.ts';
+import { hashUserCommand } from '../command-execution/user-command-idempotency.policy.ts';
+import { userError } from '../failure-mapping/user.error.ts';
+import type { UserClockPort } from '../command-execution/user-command.port.ts';
+import { userProfileFields } from '../user-profile/user-profile.policy.ts';
+import type { CreateUser, CreateUserRepository } from './create-user.port.ts';
 
 export const makeCreateUser =
   (deps: { repo: CreateUserRepository; clock: UserClockPort }): CreateUser =>

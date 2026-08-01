@@ -1,4 +1,5 @@
 import type { Database } from '@pressly/db';
+import type { OrderClockPort } from './command-execution/order-command.port.ts';
 import { makePostgresChangeOrderLifecycleRepository } from './change-order-lifecycle/change-order-lifecycle.repo.ts';
 import {
   makeCancelOrder,
@@ -32,7 +33,6 @@ import {
   makeRestoreIncomingOrderProposal,
 } from './incoming-order-proposal/incoming-order-proposal.usecase.ts';
 import { makeCloseIncomingOrderSource } from './incoming-order-proposal/close-incoming-order-source.usecase.ts';
-import type { OrderClockPort } from './orders.port.ts';
 import { makePostgresRetryOrderOutboxRepository } from './retry-order-outbox/retry-order-outbox.repo.ts';
 import { makeRetryOrderOutbox } from './retry-order-outbox/retry-order-outbox.usecase.ts';
 import { makePostgresReadOrdersRepository } from './read-orders/read-orders.repo.ts';

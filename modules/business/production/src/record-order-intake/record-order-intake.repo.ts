@@ -5,7 +5,7 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
-import type { IdPort } from '../production.port.ts';
+import type { IdPort } from '../command-execution/production-command.port.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';

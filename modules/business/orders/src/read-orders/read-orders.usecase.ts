@@ -1,7 +1,10 @@
 import { result } from '@pressly/kernel';
-import { orderError } from '../order.error.ts';
-import type { GetCanonicalOrder, ListCanonicalOrders } from '../orders.port.ts';
-import type { ReadOrdersRepository } from './read-orders.port.ts';
+import { orderError } from '../failure-mapping/order.error.ts';
+import type {
+  GetCanonicalOrder,
+  ListCanonicalOrders,
+  ReadOrdersRepository,
+} from './read-orders.port.ts';
 
 export const makeListCanonicalOrders =
   (repo: ReadOrdersRepository): ListCanonicalOrders =>

@@ -8,7 +8,7 @@ import type {
   ManageProductionResourcesRepository,
   StoredProductionResources,
 } from '../../src/manage-production-resources/manage-production-resources.port.ts';
-import type { StoredWorkEvent } from '../../src/production.port.ts';
+import type { StoredWorkEvent } from '../../src/command-execution/production-command.port.ts';
 
 const manifest = (): ProductionBootstrapManifest => ({
   schemaVersion: 1,

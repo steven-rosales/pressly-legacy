@@ -1,7 +1,7 @@
 import type { Request, RequestHandler, Response } from 'express';
 import { isAssignmentActive } from '@pressly/auth/authorization';
-import type { AccessControlAuthPort } from '../auth.port.ts';
-import type { LocationAncestryPort } from '../location-ancestry.port.ts';
+import type { AccessControlAuthPort } from '../http/auth.port.ts';
+import type { LocationAncestryPort } from '../identity/location-ancestry.port.ts';
 import { makeProductionPolicies } from './production.policy.ts';
 import {
   productionLocationResource,

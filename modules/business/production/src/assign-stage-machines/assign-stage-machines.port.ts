@@ -4,12 +4,12 @@ import type {
 } from '@pressly/contracts';
 import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
+import type { StageTransitionContext } from '../production-lifecycle/stage-transition.port.ts';
 import type {
-  StageTransitionContext,
   FindWorkEvent,
-  Transactional,
   WorkEventInput,
-} from '../production.port.ts';
+} from '../command-execution/production-command.port.ts';
+import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type AssignStageMachines = (
   command: AssignStageMachinesCommand & {

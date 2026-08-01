@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CreateUserOperations } from '../src/create-user/create-user.port.ts';
 import { makeCreateUser } from '../src/create-user/create-user.usecase.ts';
-import { hashUserCommand } from '../src/user-command-idempotency.policy.ts';
-import type { UserTransactionPort } from '../src/user-transaction.port.ts';
+import { hashUserCommand } from '../src/command-execution/user-command-idempotency.policy.ts';
+import type { UserTransactionPort } from '../src/persistence/user-transaction.port.ts';
 import type { UpdateUserOperations } from '../src/update-user/update-user.port.ts';
 import { makeUpdateUser } from '../src/update-user/update-user.usecase.ts';
 

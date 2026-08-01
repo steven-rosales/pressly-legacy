@@ -11,12 +11,14 @@ import {
   or,
   type Database,
 } from '@pressly/db';
-import { isWorkforceGrantEffective } from '../workforce-authority.policy.ts';
-import { commandFingerprint } from '../workforce-validation.policy.ts';
-import { encodeWorkforceCursor } from '../workforce-pagination.policy.ts';
-import type { WorkforceRole } from '../workforce.port.ts';
 import {
-  authorizeTarget,
+  authorizeWorkforceTarget,
+  isWorkforceGrantEffective,
+} from './workforce-authority.policy.ts';
+import { commandFingerprint } from './workforce-validation.policy.ts';
+import { encodeWorkforceCursor } from './workforce-pagination.policy.ts';
+import type { WorkforceRole } from './workforce.port.ts';
+import {
   checkReceipt,
   invitationSummary,
   loadAuthorizedActor,
@@ -25,7 +27,7 @@ import {
   recordAudit,
   recordReceipt,
   recordTransition,
-} from '../persistence/workforce.shared.ts';
+} from './workforce-store.repo.ts';
 import {
   databaseFailure,
   toDatabaseResult,
@@ -88,7 +90,7 @@ export const makeWorkforceInvitationStore = (
           .from(auth.authIdentities)
           .where(eq(auth.authIdentities.emailNormalized, input.emailNormalized))
           .limit(1);
-        const denied = authorizeTarget({
+        const denied = authorizeWorkforceTarget({
           actor,
           actorRef: input.actor,
           businessId: input.businessId,
@@ -219,7 +221,7 @@ export const makeWorkforceInvitationStore = (
         const edge = decideWorkforceInvitation(current.state, 'revoke');
         if (edge.kind === 'denied')
           return { status: 'rejected', reason: 'invalid_state' };
-        const denied = authorizeTarget({
+        const denied = authorizeWorkforceTarget({
           actor,
           actorRef: input.actor,
           businessId: input.businessId,
@@ -360,7 +362,7 @@ export const makeWorkforceInvitationStore = (
         const edge = decideWorkforceInvitation(current.state, 'revoke');
         if (edge.kind === 'denied')
           return { status: 'rejected', reason: 'invalid_state' };
-        const denied = authorizeTarget({
+        const denied = authorizeWorkforceTarget({
           actor,
           actorRef: input.actor,
           businessId: input.businessId,

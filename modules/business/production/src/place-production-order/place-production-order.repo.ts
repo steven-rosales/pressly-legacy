@@ -13,7 +13,7 @@ import type {
   ProductionPendingPlacement,
   ProductionPlacementPreview,
 } from '@pressly/contracts';
-import type { OnlinePlacementProposal } from '../production.port.ts';
+import type { OnlinePlacementProposal } from '../scheduling/online-placement.port.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import {
   loadProductionPlacementOrder,
@@ -23,7 +23,7 @@ import {
 } from '../persistence/production-order-placement-context.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
-import type { ProductionOrderSchedulingMutation } from '../production.port.ts';
+import type { ProductionOrderSchedulingMutation } from '../production-lifecycle/production-lifecycle.port.ts';
 import type {
   PlaceProductionOrderRepository,
   PlacementContext,

@@ -1,6 +1,6 @@
 import { result } from '@pressly/kernel';
-import { productionError } from '../production.error.ts';
-import type { ClockPort } from '../production.port.ts';
+import { productionError } from '../failure-mapping/production.error.ts';
+import type { ClockPort } from '../command-execution/production-command.port.ts';
 import type {
   ListProductionHistoryActivity,
   ListProductionHistoryPlans,

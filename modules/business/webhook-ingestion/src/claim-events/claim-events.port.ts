@@ -1,4 +1,4 @@
-import type { WebhookEventClaim } from '../webhook-ingestion.port.ts';
+import type { WebhookEventClaim } from '../ingestion/webhook-ingestion.port.ts';
 
 export type ClaimedWebhookEvent = Readonly<
   WebhookEventClaim & {

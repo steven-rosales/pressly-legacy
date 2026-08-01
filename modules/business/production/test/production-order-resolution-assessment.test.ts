@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assessProductionOrderResolution,
   toProductionOrderResolutionAvailability,
-} from '../src/production-order-resolution.policy.ts';
+} from '../src/production-policy/production-order-resolution.policy.ts';
 import { allowPolicy } from './support/production.fake.ts';
 
 const facts = {

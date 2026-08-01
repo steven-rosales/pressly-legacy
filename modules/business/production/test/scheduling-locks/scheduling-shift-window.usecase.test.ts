@@ -4,7 +4,7 @@ import type { AcceptScheduleRepository } from '../../src/accept-schedule/accept-
 import { makeAcceptSchedule } from '../../src/accept-schedule/accept-schedule.usecase.ts';
 import type { CreateScheduleRepository } from '../../src/create-schedule/create-schedule.port.ts';
 import { makeCreateSchedule } from '../../src/create-schedule/create-schedule.usecase.ts';
-import type { SchedulingInput } from '../../src/production.port.ts';
+import type { SchedulingInput } from '../../src/scheduling/production-scheduling.port.ts';
 import type { StartScheduleRepository } from '../../src/start-schedule/start-schedule.port.ts';
 import { makeStartSchedule } from '../../src/start-schedule/start-schedule.usecase.ts';
 import { allowPolicy } from '../support/production.fake.ts';

@@ -13,9 +13,8 @@ import {
 import {
   decodeUserCursor,
   encodeUserCursor,
-} from '../user-pagination.policy.ts';
-import type { UserSummary } from '../users.port.ts';
-import type { ReadUsersRepository } from './read-users.port.ts';
+} from './user-pagination.policy.ts';
+import type { ReadUsersRepository, UserSummary } from './read-users.port.ts';
 
 const displayName = (row: {
   firstName: string | null;

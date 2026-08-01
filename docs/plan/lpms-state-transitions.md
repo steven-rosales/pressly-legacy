@@ -87,14 +87,14 @@ parallel lifecycle machines.
 
 ### Incoming Order Candidate
 
-| Property        | Value                                                                      |
-| --------------- | -------------------------------------------------------------------------- |
-| Persisted field | immutable candidate, current state, append-only transitions, and tombstone |
-| States          | `pending`, `source_closed`, `restored_pending`, `accepted`, `rejected`     |
-| Owner           | `modules/business/orders/src/incoming-order-proposal.policy.ts`            |
-| Current writers | source-neutral submit/close; explicit operator Accept, Reject, or Restore  |
-| Lock/version    | exact source identity, candidate lock, optimistic version                  |
-| Terminal states | `accepted`, `rejected`                                                     |
+| Property        | Value                                                                                   |
+| --------------- | --------------------------------------------------------------------------------------- |
+| Persisted field | immutable candidate, current state, append-only transitions, and tombstone              |
+| States          | `pending`, `source_closed`, `restored_pending`, `accepted`, `rejected`                  |
+| Owner           | `modules/business/orders/src/incoming-order-proposal/incoming-order-proposal.policy.ts` |
+| Current writers | source-neutral submit/close; explicit operator Accept, Reject, or Restore               |
+| Lock/version    | exact source identity, candidate lock, optimistic version                               |
+| Terminal states | `accepted`, `rejected`                                                                  |
 
 Authoritative graph:
 
@@ -113,14 +113,14 @@ unreleased fulfillment; rejection creates none.
 
 ### Commercial Order
 
-| Property        | Value                                                   |
-| --------------- | ------------------------------------------------------- |
-| Persisted field | `orders.state`                                          |
-| States          | `open`, `completed`, `canceled`                         |
-| Owner           | `modules/business/orders/src/order-lifecycle.policy.ts` |
-| Current writers | explicit lifecycle command; initial order creation      |
-| Lock/version    | Order aggregate lock and `orders.version`               |
-| Terminal states | `completed`, `canceled`                                 |
+| Property        | Value                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------- |
+| Persisted field | `orders.state`                                                                        |
+| States          | `open`, `completed`, `canceled`                                                       |
+| Owner           | `modules/business/orders/src/change-order-lifecycle/change-order-lifecycle.policy.ts` |
+| Current writers | explicit lifecycle command; initial order creation                                    |
+| Lock/version    | Order aggregate lock and `orders.version`                                             |
+| Terminal states | `completed`, `canceled`                                                               |
 
 Authoritative graph:
 
@@ -135,14 +135,14 @@ operator context.
 
 ### Fulfillment Release
 
-| Property        | Value                                                       |
-| --------------- | ----------------------------------------------------------- |
-| Persisted field | `order_fulfillments.release_state`                          |
-| States          | `unreleased`, `released`, `withdrawn`                       |
-| Owner           | `modules/business/orders/src/order-lifecycle.policy.ts`     |
-| Current writers | `change-fulfillment-release`; initial order creation        |
-| Lock/version    | Fulfillment aggregate lock and `order_fulfillments.version` |
-| Terminal state  | `withdrawn`                                                 |
+| Property        | Value                                                                                         |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| Persisted field | `order_fulfillments.release_state`                                                            |
+| States          | `unreleased`, `released`, `withdrawn`                                                         |
+| Owner           | `modules/business/orders/src/change-fulfillment-release/change-fulfillment-release.policy.ts` |
+| Current writers | `change-fulfillment-release`; initial order creation                                          |
+| Lock/version    | Fulfillment aggregate lock and `order_fulfillments.version`                                   |
+| Terminal state  | `withdrawn`                                                                                   |
 
 Authoritative graph:
 

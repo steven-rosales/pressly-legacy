@@ -10,9 +10,11 @@ import type {
   OnlinePlacementInput,
   ProductionOrderPlacementContext,
   ProductionRunPlacementContext,
+} from '../scheduling/online-placement.port.ts';
+import type {
   SchedulingInput,
   SchedulingOutput,
-} from '../production.port.ts';
+} from '../scheduling/production-scheduling.port.ts';
 
 export type ProductionPlacementRunRow = Readonly<{
   id: string;

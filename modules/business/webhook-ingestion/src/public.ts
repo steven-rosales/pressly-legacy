@@ -7,7 +7,7 @@ export type { ClaimedWebhookEvent } from './claim-events/claim-events.port.ts';
 export type {
   WebhookEventClaim,
   WebhookEventCompletion,
-} from './webhook-ingestion.port.ts';
+} from './ingestion/webhook-ingestion.port.ts';
 export type {
   CaptureWebhookReceipt,
   CaptureWebhookReceiptCommand,

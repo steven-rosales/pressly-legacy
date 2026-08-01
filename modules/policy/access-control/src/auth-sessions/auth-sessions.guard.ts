@@ -1,5 +1,5 @@
 import type { Request, RequestHandler, Response } from 'express';
-import type { AccessControlAuthPort } from '../auth.port.ts';
+import type { AccessControlAuthPort } from '../http/auth.port.ts';
 import { makeAuthSessionPolicies } from './auth-sessions.policy.ts';
 import { authIdentityResource } from '../identity/auth-identity.resource.ts';
 

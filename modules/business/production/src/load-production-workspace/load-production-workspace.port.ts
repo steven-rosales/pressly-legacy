@@ -4,8 +4,8 @@ import type { Result } from '@pressly/kernel';
 import type {
   ProductionLiveRunPlacementOrder,
   ProductionRunPlacementContext,
-} from '../production.port.ts';
-import type { ProductionBoardProjection } from '../production-board-read.policy.ts';
+} from '../scheduling/online-placement.port.ts';
+import type { ProductionBoardProjection } from '../production-policy/production-board-read.policy.ts';
 
 export type ProductionWorkspaceReadModel = Readonly<{
   workspace: ProductionWorkspace & Readonly<{ board: null }>;

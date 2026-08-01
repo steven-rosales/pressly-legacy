@@ -1,13 +1,16 @@
 import { isCommandContextValid, result } from '@pressly/kernel';
-import { hashOrderCommand } from '../order-command-idempotency.policy.ts';
+import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
+import type { OrderClockPort } from '../command-execution/order-command.port.ts';
+import { isOrderCommandReasonValid } from '../command-execution/order-command-reason.policy.ts';
+import { orderError } from '../failure-mapping/order.error.ts';
+import type {
+  CorrectOrder,
+  CorrectOrderRepository,
+} from './correct-order.port.ts';
 import {
   correctOrderReasonCodes,
-  isOrderCommandReasonValid,
-} from '../order-command-reason.policy.ts';
-import { orderError } from '../order.error.ts';
-import type { CorrectOrder, OrderClockPort } from '../orders.port.ts';
-import type { CorrectOrderRepository } from './correct-order.port.ts';
-import { decideOrderCorrection } from './correct-order.policy.ts';
+  decideOrderCorrection,
+} from './correct-order.policy.ts';
 
 export const makeCorrectOrder =
   (deps: {

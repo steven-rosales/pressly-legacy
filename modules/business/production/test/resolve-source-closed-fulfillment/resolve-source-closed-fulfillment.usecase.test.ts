@@ -5,7 +5,7 @@ import type {
   ChangeProductionOrderResolutionRepository,
   ProductionOrderResolutionCandidate,
 } from '../../src/change-production-order-resolution/change-production-order-resolution.port.ts';
-import { productionError } from '../../src/production.error.ts';
+import { productionError } from '../../src/failure-mapping/production.error.ts';
 import { makeResolveSourceClosedFulfillment } from '../../src/change-production-order-resolution/resolve-source-closed-fulfillment.usecase.ts';
 
 const candidate = (

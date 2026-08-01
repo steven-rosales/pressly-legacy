@@ -10,18 +10,16 @@ import { result, type Result } from '@pressly/kernel';
 import {
   productionError,
   productionIdempotencyConflict,
-} from '../production.error.ts';
+} from '../failure-mapping/production.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
-} from '../production-idempotency.policy.ts';
-import type {
-  ClockPort,
-  OnlinePlacementProposal,
-  ProductionPolicyPort,
-  ProductionSchedulerPort,
-} from '../production.port.ts';
-import { productionPlacementFailureReason } from '../production-placement.policy.ts';
+} from '../command-execution/production-idempotency.policy.ts';
+import type { ClockPort } from '../command-execution/production-command.port.ts';
+import type { OnlinePlacementProposal } from '../scheduling/online-placement.port.ts';
+import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
+import type { ProductionSchedulerPort } from '../scheduling/production-scheduler.port.ts';
+import { productionPlacementFailureReason } from '../scheduling/production-placement.policy.ts';
 import type {
   ConfirmProductionOrderOvertime,
   PlaceProductionOrderAutomatically,

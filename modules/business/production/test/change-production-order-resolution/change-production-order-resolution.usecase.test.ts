@@ -5,8 +5,8 @@ import type {
   LockedProductionOrderResolution,
 } from '../../src/change-production-order-resolution/change-production-order-resolution.port.ts';
 import { makeChangeProductionOrderResolution } from '../../src/change-production-order-resolution/change-production-order-resolution.usecase.ts';
-import { defineWorkEventCommand } from '../../src/production-idempotency.policy.ts';
-import type { StoredWorkEvent } from '../../src/production.port.ts';
+import { defineWorkEventCommand } from '../../src/command-execution/production-idempotency.policy.ts';
+import type { StoredWorkEvent } from '../../src/command-execution/production-command.port.ts';
 import { allowPolicy } from '../support/production.fake.ts';
 
 const ids = {

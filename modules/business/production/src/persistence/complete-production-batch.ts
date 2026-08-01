@@ -6,7 +6,7 @@ import {
   sql,
   type DatabaseExecutor,
 } from '@pressly/db';
-import type { ProductionTerminalLifecycleDecisions } from '../production.port.ts';
+import type { ProductionTerminalLifecycleDecisions } from '../production-lifecycle/production-lifecycle.port.ts';
 
 export type ProductionBatchTerminalization = Readonly<{
   finishedOrderCount: number;

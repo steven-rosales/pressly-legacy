@@ -1,8 +1,8 @@
 import type { AppError } from '@pressly/errors';
 import { result, type Result } from '@pressly/kernel';
-import { requireIdentifier } from '../workforce-validation.policy.ts';
-import { workforceStoreFailure } from '../workforce.error.ts';
-import type { WorkforceInvitationPreview } from '../workforce.port.ts';
+import { requireIdentifier } from './workforce-validation.policy.ts';
+import { workforceStoreFailure } from './workforce.error.ts';
+import type { WorkforceInvitationPreview } from './workforce.port.ts';
 import type {
   InvitationTokenService,
   WorkforceClock,

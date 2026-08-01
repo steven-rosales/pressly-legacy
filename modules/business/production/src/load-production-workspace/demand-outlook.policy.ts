@@ -6,11 +6,9 @@ import type {
   SchedulerConfig,
 } from '@pressly/contracts';
 import { calendarDayRangeAt, instantFromDate, toUtcIso } from '@pressly/time';
-import type {
-  DemandForecastOutput,
-  OrderDemandPhase,
-  ProductionSchedulerPort,
-} from '../production.port.ts';
+import type { DemandForecastOutput } from '../scheduling/production-scheduling.port.ts';
+import type { OrderDemandPhase } from '../production-lifecycle/order-demand.port.ts';
+import type { ProductionSchedulerPort } from '../scheduling/production-scheduler.port.ts';
 import type { DemandOutlookRow } from './load-production-workspace.port.ts';
 
 const mapPhase = (value: string): OrderDemandPhase => {

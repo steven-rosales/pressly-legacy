@@ -1,7 +1,7 @@
 import type {
   ClaimOrderOutboxCommand,
   OrderOutboxEvent,
-} from '../orders.port.ts';
+} from '../order-outbox/order-outbox.port.ts';
 
 export type ClaimOrderOutboxRepository = Readonly<{
   claim: (input: {

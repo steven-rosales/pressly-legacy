@@ -1,6 +1,7 @@
 import { result } from '@pressly/kernel';
-import { orderError } from '../order.error.ts';
-import type { DeadLetterOrderOutbox, OrderClockPort } from '../orders.port.ts';
+import type { OrderClockPort } from '../command-execution/order-command.port.ts';
+import { orderError } from '../failure-mapping/order.error.ts';
+import type { DeadLetterOrderOutbox } from '../order-outbox/order-outbox.port.ts';
 import type { DeadLetterOrderOutboxRepository } from './dead-letter-order-outbox.port.ts';
 
 export const makeDeadLetterOrderOutbox =

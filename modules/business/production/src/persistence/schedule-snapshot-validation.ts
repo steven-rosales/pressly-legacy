@@ -1,5 +1,5 @@
 import type { ScheduleProposal } from '@pressly/contracts';
-import type { SchedulingInput } from '../production.port.ts';
+import type { SchedulingInput } from '../scheduling/production-scheduling.port.ts';
 
 /**
  * A proposal is a lossless partition of its input orders: every snapshot order

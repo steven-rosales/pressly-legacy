@@ -1,14 +1,17 @@
 import { result } from '@pressly/kernel';
 import type { SchedulerConfig } from '@pressly/contracts';
-import type { ClockPort, IdPort } from '../production.port.ts';
+import type {
+  ClockPort,
+  IdPort,
+} from '../command-execution/production-command.port.ts';
 import {
   productionError,
   productionIdempotencyConflict,
-} from '../production.error.ts';
+} from '../failure-mapping/production.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
-} from '../production-idempotency.policy.ts';
+} from '../command-execution/production-idempotency.policy.ts';
 import type {
   PublishSchedulerConfig,
   PublishSchedulerConfigRepository,

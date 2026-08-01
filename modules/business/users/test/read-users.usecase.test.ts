@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   decodeUserCursor,
   encodeUserCursor,
-} from '../src/user-pagination.policy.ts';
+} from '../src/read-users/user-pagination.policy.ts';
 import { makeListUsers } from '../src/read-users/read-users.usecase.ts';
 
 const businessId = '00000000-0000-4000-8000-000000000100';

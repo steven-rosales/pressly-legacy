@@ -7,13 +7,13 @@ import {
   type DatabaseExecutor,
 } from '@pressly/db';
 import type { CommandContext } from '@pressly/kernel';
-import type { StoredUserCommandReceipt } from '../user-transaction.port.ts';
+import type { UserCommandResult } from '../command-execution/user-command.port.ts';
 import type {
-  UserCommandResult,
   UserFieldName,
   UserProfile,
   UserRecord,
-} from '../users.port.ts';
+} from '../user-profile/user-profile.port.ts';
+import type { StoredUserCommandReceipt } from './user-transaction.port.ts';
 
 export const lockUserKey = async (
   db: DatabaseExecutor,
@@ -145,6 +145,7 @@ export const loadUserCommandReceipt = async (
     .from(schema.userCommandReceipts)
     .where(eq(schema.userCommandReceipts.idempotencyKey, idempotencyKey))
     .limit(1);
+
   return row === undefined ? null : parseUserCommandReceipt(row);
 };
 

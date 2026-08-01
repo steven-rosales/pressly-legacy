@@ -4,12 +4,12 @@ import type {
   ProductionStageStartConfirmationRequiredResult,
 } from '@pressly/contracts';
 import { describe, expect, it, vi } from 'vitest';
+import type { ProductionPolicyPort } from '../../src/production-policy/production-policy.port.ts';
+import type { StageTransitionContext } from '../../src/production-lifecycle/stage-transition.port.ts';
 import type {
-  ProductionPolicyPort,
-  StageTransitionContext,
   StoredWorkEvent,
   WorkEventInput,
-} from '../../src/production.port.ts';
+} from '../../src/command-execution/production-command.port.ts';
 import type { AdvanceProductionStageRepository } from '../../src/advance-production-stage/advance-production-stage.port.ts';
 import { makeAdvanceProductionStage } from '../../src/advance-production-stage/advance-production-stage.usecase.ts';
 import { allowPolicy } from '../support/production.fake.ts';

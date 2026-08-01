@@ -12,7 +12,11 @@ import {
   type DatabaseExecutor,
 } from '@pressly/db';
 import type { CommandContext } from '@pressly/kernel';
-import { isOrderInputValid } from '../order-input.policy.ts';
+import { isOrderInputValid } from '../order-model/order-input.policy.ts';
+import type {
+  OrderCustomer,
+  OrderInput,
+} from '../order-model/order-model.port.ts';
 import {
   createStoredPresslyOrder,
   loadOrderCommandReceipt,
@@ -22,11 +26,7 @@ import {
 import type {
   IncomingOrderProposalCustomer,
   IncomingOrderProposalSnapshot,
-  OrderCustomer,
-  OrderInput,
   ProposeIncomingOrderCommand,
-} from '../orders.port.ts';
-import type {
   DecideIncomingOrderProposalOperations,
   DecideIncomingOrderProposalRepository,
   CloseIncomingOrderSourceOperations,

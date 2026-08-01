@@ -3,12 +3,12 @@ import {
   type ProductionPendingOrder,
 } from '@pressly/contracts';
 import { describe, expect, it, vi } from 'vitest';
-import { projectLiveRunChanges } from '../../src/live-run-changes.policy.ts';
+import { projectLiveRunChanges } from '../../src/load-production-workspace/live-run-changes.policy.ts';
 import type {
   OnlinePlacementInput,
   OnlinePlacementProposal,
   ProductionOrderPlacementContext,
-} from '../../src/production.port.ts';
+} from '../../src/scheduling/online-placement.port.ts';
 
 const ids = {
   run: '00000000-0000-4000-8000-000000000001',

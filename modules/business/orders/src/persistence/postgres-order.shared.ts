@@ -7,23 +7,35 @@ import {
 } from '@pressly/db';
 import { fulfillmentDemandChangedEventType } from '@pressly/contracts';
 import type { CommandContext } from '@pressly/kernel';
-import { fulfillmentDemandEvent } from '../order-outbox.policy.ts';
+import type { OrderMutationResult } from '../command-execution/order-command.port.ts';
+import type {
+  FulfillmentInput,
+  FulfillmentReleaseState,
+  OrderCustomer,
+  OrderInput,
+  OrderItemInput,
+  OrderState,
+} from '../order-model/order-model.port.ts';
+import { fulfillmentDemandEvent } from '../order-outbox/order-outbox.policy.ts';
 import type {
   StoredFulfillmentRecord,
   StoredOrderAggregate,
   StoredOrderRecord,
-} from '../order-aggregate.port.ts';
-import type { StoredOrderCommandReceipt } from '../order-transaction.port.ts';
-import type {
-  FulfillmentInput,
-  FulfillmentReleaseState,
-  CorrectOrderCommand,
-  OrderCustomer,
-  OrderInput,
-  OrderItemInput,
-  OrderMutationResult,
-  OrderState,
-} from '../orders.port.ts';
+} from './order-aggregate.port.ts';
+import type { StoredOrderCommandReceipt } from './order-transaction.port.ts';
+
+type StoredOrderDescriptionCorrection = Partial<
+  Pick<
+    OrderInput,
+    | 'customer'
+    | 'displayNumber'
+    | 'dueAt'
+    | 'currency'
+    | 'totalAmountCents'
+    | 'balanceDueCents'
+    | 'items'
+  >
+>;
 
 const orderStates = new Set<OrderState>(['open', 'completed', 'canceled']);
 const releaseStates = new Set<FulfillmentReleaseState>([
@@ -390,7 +402,7 @@ export const applyStoredOrderCorrection = async (
   db: DatabaseExecutor,
   input: {
     current: StoredOrderAggregate;
-    changes: CorrectOrderCommand['changes'];
+    changes: StoredOrderDescriptionCorrection;
     nextFulfillment: StoredFulfillmentRecord;
     nextOrderVersion: number;
     nextFulfillmentVersion: number;

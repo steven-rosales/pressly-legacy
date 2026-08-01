@@ -8,12 +8,14 @@ import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
-  OrderRoutingStage,
+  WorkEventCommandIdentity,
+} from '../command-execution/production-command.port.ts';
+import type { OrderRoutingStage } from '../production-policy/order-routing-policy.port.ts';
+import type {
   ProductionOrderExecutionState,
   ProductionOrderStageAttemptMutation,
-  Transactional,
-  WorkEventCommandIdentity,
-} from '../production.port.ts';
+} from '../production-lifecycle/production-lifecycle.port.ts';
+import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type ProductionOrderRoutingActor = Readonly<{
   actorId: string;

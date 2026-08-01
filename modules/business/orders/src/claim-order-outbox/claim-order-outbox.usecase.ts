@@ -1,6 +1,7 @@
 import { result } from '@pressly/kernel';
-import { orderError } from '../order.error.ts';
-import type { ClaimOrderOutbox, OrderClockPort } from '../orders.port.ts';
+import type { OrderClockPort } from '../command-execution/order-command.port.ts';
+import { orderError } from '../failure-mapping/order.error.ts';
+import type { ClaimOrderOutbox } from '../order-outbox/order-outbox.port.ts';
 import type { ClaimOrderOutboxRepository } from './claim-order-outbox.port.ts';
 
 export const makeClaimOrderOutbox =

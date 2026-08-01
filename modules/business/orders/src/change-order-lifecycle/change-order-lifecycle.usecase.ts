@@ -1,24 +1,24 @@
 import { isCommandContextValid, result } from '@pressly/kernel';
-import { hashOrderCommand } from '../order-command-idempotency.policy.ts';
+import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
+import type {
+  OrderClockPort,
+  OrderMutationResult,
+} from '../command-execution/order-command.port.ts';
+import { isOrderCommandReasonValid } from '../command-execution/order-command-reason.policy.ts';
+import { orderError } from '../failure-mapping/order.error.ts';
+import type { OrderState } from '../order-model/order-model.port.ts';
 import {
   cancelOrderReasonCodes,
   completeOrderReasonCodes,
-  isOrderCommandReasonValid,
-} from '../order-command-reason.policy.ts';
-import { orderError } from '../order.error.ts';
-import {
   decideOrderLifecycle,
   type OrderLifecycleEvent,
-} from '../order-lifecycle.policy.ts';
+} from './change-order-lifecycle.policy.ts';
 import type {
   CancelOrder,
   CancelOrderCommand,
   CompleteOrder,
   CompleteOrderCommand,
-  OrderClockPort,
-  OrderMutationResult,
-  OrderState,
-} from '../orders.port.ts';
+} from './change-order-lifecycle.port.ts';
 import type { ChangeOrderLifecycleRepository } from './change-order-lifecycle.port.ts';
 
 type LifecycleCommand = CompleteOrderCommand | CancelOrderCommand;

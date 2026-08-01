@@ -33,7 +33,7 @@ import {
 import type {
   WebhookIngestionClockPort,
   WebhookIngestionIdPort,
-} from './webhook-ingestion.port.ts';
+} from './ingestion/webhook-ingestion.port.ts';
 
 export type WebhookIngestionApplicationDeps = Readonly<{
   db: Database;

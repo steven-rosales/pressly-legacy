@@ -7,11 +7,11 @@ import { result, type Result } from '@pressly/kernel';
 import {
   weakInvitationPassword,
   workforceStoreFailure,
-} from '../workforce.error.ts';
+} from './workforce.error.ts';
 import {
   commandFingerprint,
   requireIdentifier,
-} from '../workforce-validation.policy.ts';
+} from './workforce-validation.policy.ts';
 import type {
   AcceptedInvitation,
   InvitationTokenService,

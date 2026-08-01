@@ -1,9 +1,7 @@
 import type { CommitProductionOrderRouteResult } from '@pressly/contracts';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  nullProductionSignals,
-  type StoredWorkEvent,
-} from '../../src/production.port.ts';
+import { nullProductionSignals } from '../../src/production-signals/production-signals.port.ts';
+import type { StoredWorkEvent } from '../../src/command-execution/production-command.port.ts';
 import type {
   ProductionOrderRoutingContext,
   RouteProductionOrderRepository,

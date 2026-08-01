@@ -9,19 +9,19 @@ import type { AppError } from '@pressly/errors';
 import {
   productionError,
   productionIdempotencyConflict,
-} from '../production.error.ts';
+} from '../failure-mapping/production.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
-} from '../production-idempotency.policy.ts';
+} from '../command-execution/production-idempotency.policy.ts';
+import type { ClockPort } from '../command-execution/production-command.port.ts';
 import type {
-  ClockPort,
   OrderRoutingPolicyDecision,
   OrderRoutingStage,
-  ProductionPolicyPort,
-  ProductionOrderStageAttemptMutation,
-  ProductionSignalsPort,
-} from '../production.port.ts';
+} from '../production-policy/order-routing-policy.port.ts';
+import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
+import type { ProductionOrderStageAttemptMutation } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ProductionSignalsPort } from '../production-signals/production-signals.port.ts';
 import type {
   CommitProductionOrderRoute,
   CommitProductionOrderRouteCommand,

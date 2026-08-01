@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decodeWorkforceCursor,
   encodeWorkforceCursor,
-} from '../../src/workforce-pagination.policy.ts';
+} from '../../src/workforce/workforce-pagination.policy.ts';
 
 describe('workforce pagination cursor', () => {
   it('round-trips a stable created-at and id boundary without exposing query text', () => {

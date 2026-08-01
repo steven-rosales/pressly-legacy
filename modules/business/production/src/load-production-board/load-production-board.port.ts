@@ -4,7 +4,7 @@ import type {
 } from '@pressly/contracts';
 import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
-import type { ProductionBoardProjection } from '../production-board-read.policy.ts';
+import type { ProductionBoardProjection } from '../production-policy/production-board-read.policy.ts';
 
 export type LoadProductionBoard = (
   command: ProductionRunBoardParams,

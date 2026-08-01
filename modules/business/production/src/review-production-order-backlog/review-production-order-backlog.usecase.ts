@@ -12,19 +12,19 @@ import { result } from '@pressly/kernel';
 import {
   productionError,
   productionIdempotencyConflict,
-} from '../production.error.ts';
+} from '../failure-mapping/production.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
-} from '../production-idempotency.policy.ts';
-import { assessProductionOrderResolution } from '../production-order-resolution.policy.ts';
+} from '../command-execution/production-idempotency.policy.ts';
+import { assessProductionOrderResolution } from '../production-policy/production-order-resolution.policy.ts';
 import type {
   ClockPort,
   IdPort,
-  ProductionOrderResolutionLifecycleDecision,
-  ProductionPolicyPort,
   WorkEventCommandIdentity,
-} from '../production.port.ts';
+} from '../command-execution/production-command.port.ts';
+import type { ProductionOrderResolutionLifecycleDecision } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import type {
   BacklogSnapshotScope,
   CommitProductionOrderBacklog,

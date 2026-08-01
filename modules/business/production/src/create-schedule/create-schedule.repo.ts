@@ -8,7 +8,7 @@ import {
   type DatabaseExecutor,
 } from '@pressly/db';
 import type { CreateScheduleRepository } from './create-schedule.port.ts';
-import type { SchedulingInput } from '../production.port.ts';
+import type { SchedulingInput } from '../scheduling/production-scheduling.port.ts';
 import { asDate, iso, mapSchedule } from '../persistence/production-mappers.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';

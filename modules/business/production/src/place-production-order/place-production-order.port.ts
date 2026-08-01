@@ -12,12 +12,14 @@ import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
+  WorkEventCommandIdentity,
+} from '../command-execution/production-command.port.ts';
+import type {
   OnlinePlacementProposal,
   ProductionOrderPlacementContext,
-  ProductionOrderSchedulingMutation,
-  Transactional,
-  WorkEventCommandIdentity,
-} from '../production.port.ts';
+} from '../scheduling/online-placement.port.ts';
+import type { ProductionOrderSchedulingMutation } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type PlacementActor = Readonly<{
   actorId: string;

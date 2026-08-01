@@ -1,11 +1,11 @@
 import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
-import type { WorkforceCursor } from '../workforce-pagination.policy.ts';
+import type { WorkforceCursor } from './workforce-pagination.policy.ts';
 import type {
   StoreFailureReason,
   StoreMutationResult,
   WorkforceActorRef,
-} from '../workforce.port.ts';
+} from './workforce.port.ts';
 
 export type WorkforceSessionSummary = Readonly<{
   id: string;

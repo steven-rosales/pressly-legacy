@@ -1,4 +1,4 @@
-import type { WebhookIngestionClockPort } from '../webhook-ingestion.port.ts';
+import type { WebhookIngestionClockPort } from '../ingestion/webhook-ingestion.port.ts';
 import type {
   CompleteWebhookEvent,
   CompleteWebhookEventRepository,

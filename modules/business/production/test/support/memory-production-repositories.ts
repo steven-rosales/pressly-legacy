@@ -15,22 +15,26 @@ import type {
   UnevaluatedProductionBatch,
   UnevaluatedProductionBoard,
   UnevaluatedStageRun,
-} from '../../src/production-board-read.policy.ts';
+} from '../../src/production-policy/production-board-read.policy.ts';
 import type { ProductionWorkspaceReadModel } from '../../src/load-production-workspace/load-production-workspace.port.ts';
 import type { ProductionRepositories } from '../../src/main.ts';
 import type {
   IdPort,
-  OnlinePlacementProposal,
+  StoredWorkEvent,
+  WorkEventInput,
+} from '../../src/command-execution/production-command.port.ts';
+import type { OnlinePlacementProposal } from '../../src/scheduling/online-placement.port.ts';
+import type {
   ProductionOrderExecutionState,
   ProductionOrderSchedulingMutation,
   ProductionOrderStageAttemptState,
-  SchedulingInput,
+} from '../../src/production-lifecycle/production-lifecycle.port.ts';
+import type { SchedulingInput } from '../../src/scheduling/production-scheduling.port.ts';
+import type {
   StageTransitionContext,
-  StoredWorkEvent,
   StoredStage,
-  Transactional,
-  WorkEventInput,
-} from '../../src/production.port.ts';
+} from '../../src/production-lifecycle/stage-transition.port.ts';
+import type { Transactional } from '../../src/persistence/production-transaction.port.ts';
 import type {
   ApplyFulfillmentDemandCommand,
   FulfillmentProductionMutation,

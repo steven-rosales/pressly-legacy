@@ -7,11 +7,13 @@ import type { Result } from '@pressly/kernel';
 import type {
   SchedulingInput,
   SchedulingOutput,
-  ScheduleSupersessionDecision,
+} from '../scheduling/production-scheduling.port.ts';
+import type { ScheduleSupersessionDecision } from '../production-lifecycle/production-lifecycle.port.ts';
+import type {
   FindWorkEvent,
-  Transactional,
   WorkEventInput,
-} from '../production.port.ts';
+} from '../command-execution/production-command.port.ts';
+import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type CreateSchedule = (
   command: CreateScheduleCommand & { locationId: string; actorId: string },

@@ -4,7 +4,7 @@ import type { Result } from '@pressly/kernel';
 import type {
   RemainingDayForecastInput,
   RemainingDayForecastOutput,
-} from '../production.port.ts';
+} from '../scheduling/remaining-day-forecast.port.ts';
 
 export type RemainingDayForecastDemandRow = Readonly<{
   orderDemandId: string;

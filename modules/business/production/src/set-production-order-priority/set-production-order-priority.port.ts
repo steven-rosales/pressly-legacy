@@ -6,9 +6,9 @@ import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
-  Transactional,
   WorkEventInput,
-} from '../production.port.ts';
+} from '../command-execution/production-command.port.ts';
+import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type SetProductionOrderPriority = (
   command: SetProductionOrderPriorityCommand & {

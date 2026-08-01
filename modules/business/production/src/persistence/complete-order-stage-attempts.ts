@@ -5,7 +5,7 @@ import {
   laundryProduction,
   type DatabaseExecutor,
 } from '@pressly/db';
-import type { ProductionOrderStageAttemptMutation } from '../production.port.ts';
+import type { ProductionOrderStageAttemptMutation } from '../production-lifecycle/production-lifecycle.port.ts';
 
 export const completeAssignedOrderStageAttempts = async (
   db: DatabaseExecutor,

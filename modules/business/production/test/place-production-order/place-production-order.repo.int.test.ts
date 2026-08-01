@@ -1,7 +1,5 @@
-import type {
-  ProductionPolicyPort,
-  ProductionSchedulerPort,
-} from '../../src/production.port.ts';
+import type { ProductionPolicyPort } from '../../src/production-policy/production-policy.port.ts';
+import type { ProductionSchedulerPort } from '../../src/scheduling/production-scheduler.port.ts';
 import {
   afterAll,
   beforeAll,

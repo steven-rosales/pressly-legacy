@@ -10,7 +10,7 @@ import {
   makeMfaAccessControl,
   type MfaAccessControl,
 } from './mfa/mfa.guard.ts';
-import type { AccessControlAuthPort } from './auth.port.ts';
+import type { AccessControlAuthPort } from './http/auth.port.ts';
 import {
   makeProductionAccessControl,
   type ProductionAccessControl,
@@ -19,7 +19,7 @@ import {
   makeOrderManagementAccessControl,
   type OrderManagementAccessControl,
 } from './order-management/order-management.guard.ts';
-import type { LocationAncestryPort } from './location-ancestry.port.ts';
+import type { LocationAncestryPort } from './identity/location-ancestry.port.ts';
 
 export type AccessControlModule = Readonly<{
   pricing: PricingAccessControl;

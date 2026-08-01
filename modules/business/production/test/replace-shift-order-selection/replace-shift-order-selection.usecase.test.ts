@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { makeProductionApplication } from '../../src/main.ts';
-import { nullProductionSignals } from '../../src/production.port.ts';
+import { nullProductionSignals } from '../../src/production-signals/production-signals.port.ts';
 import { makeMemoryProductionRepositories } from '../support/memory-production-repositories.ts';
 import {
   allowPolicy,

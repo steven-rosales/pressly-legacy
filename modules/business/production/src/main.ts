@@ -82,12 +82,14 @@ import type { PlaceProductionOrderRepository } from './place-production-order/pl
 import type {
   ClockPort,
   IdPort,
+} from './command-execution/production-command.port.ts';
+import type {
   ProductionApplicationSchedulerPort,
-  ProductionPolicyPort,
-  ProductionSignalsPort,
   ProductionSchedulerPort,
-} from './production.port.ts';
-import { nullProductionSignals } from './production.port.ts';
+} from './scheduling/production-scheduler.port.ts';
+import type { ProductionPolicyPort } from './production-policy/production-policy.port.ts';
+import type { ProductionSignalsPort } from './production-signals/production-signals.port.ts';
+import { nullProductionSignals } from './production-signals/production-signals.port.ts';
 import { makePublishSchedulerConfig } from './publish-scheduler-config/publish-scheduler-config.usecase.ts';
 import { makePublishSchedulerConfigRoute } from './publish-scheduler-config/publish-scheduler-config.route.ts';
 import { makePublishSchedulerConfigRepository } from './publish-scheduler-config/publish-scheduler-config.repo.ts';

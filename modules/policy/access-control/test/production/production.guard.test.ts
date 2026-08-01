@@ -11,7 +11,7 @@ import {
 } from '@pressly/auth/authorization';
 import type { Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import type { AccessControlAuthorize } from '../../src/auth.port.ts';
+import type { AccessControlAuthorize } from '../../src/http/auth.port.ts';
 import { makeProductionAccessControl } from '../../src/production/production.guard.ts';
 
 const principal: Principal = {

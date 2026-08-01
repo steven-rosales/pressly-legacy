@@ -3,7 +3,7 @@ import type {
   IdPort,
   StoredWorkEvent,
   WorkEventInput,
-} from '../production.port.ts';
+} from '../command-execution/production-command.port.ts';
 
 const idempotencyEnvelopeKey = '_idempotency';
 

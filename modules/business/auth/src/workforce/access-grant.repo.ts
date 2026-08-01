@@ -11,7 +11,6 @@ import {
   type Database,
 } from '@pressly/db';
 import {
-  authorizeTarget,
   checkReceipt,
   grantSummary,
   loadAuthorizedActor,
@@ -21,8 +20,9 @@ import {
   recordAudit,
   recordReceipt,
   recordTransition,
-} from '../persistence/workforce.shared.ts';
+} from './workforce-store.repo.ts';
 import { decideAccessGrant } from './access-grant.policy.ts';
+import { authorizeWorkforceTarget } from './workforce-authority.policy.ts';
 import {
   databaseFailure,
   toDatabaseResult,
@@ -97,7 +97,7 @@ export const makeAccessGrantStore = (db: Database): AccessGrantStore => ({
         )
           return { status: 'rejected', reason: 'outside_business' };
 
-        const denied = authorizeTarget({
+        const denied = authorizeWorkforceTarget({
           actor,
           actorRef: input.actor,
           businessId: input.businessId,
@@ -246,7 +246,7 @@ export const makeAccessGrantStore = (db: Database): AccessGrantStore => ({
           now: input.now,
         });
         if (member === null) return { status: 'rejected', reason: 'not_found' };
-        const denied = authorizeTarget({
+        const denied = authorizeWorkforceTarget({
           actor,
           actorRef: input.actor,
           businessId: input.businessId,

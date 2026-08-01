@@ -16,11 +16,13 @@ import {
   lockBusiness,
   recordAudit,
   recordReceipt,
-  strongestRole,
-} from '../persistence/workforce.shared.ts';
-import { decideWorkforceSessionAdministration } from '../workforce-authority.policy.ts';
-import { encodeWorkforceCursor } from '../workforce-pagination.policy.ts';
-import type { WorkforceMemberDetail } from '../workforce.port.ts';
+} from './workforce-store.repo.ts';
+import {
+  decideWorkforceSessionAdministration,
+  strongestWorkforceRole,
+} from './workforce-authority.policy.ts';
+import { encodeWorkforceCursor } from './workforce-pagination.policy.ts';
+import type { WorkforceMemberDetail } from './workforce.port.ts';
 import {
   databaseFailure,
   toDatabaseResult,
@@ -28,7 +30,7 @@ import {
 import type { WorkforceSecurityStore } from './workforce-security.port.ts';
 
 const effectiveTargetRole = (member: WorkforceMemberDetail) =>
-  strongestRole(
+  strongestWorkforceRole(
     member.grants
       .filter((grant) => grant.effective)
       .map((grant) => ({ role: grant.role })),

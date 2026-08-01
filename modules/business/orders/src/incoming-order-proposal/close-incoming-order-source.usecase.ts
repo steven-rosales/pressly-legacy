@@ -1,11 +1,9 @@
 import { isCommandContextValid, result } from '@pressly/kernel';
-import { hashOrderCommand } from '../order-command-idempotency.policy.ts';
-import { orderError } from '../order.error.ts';
-import { decideIncomingOrderProposal } from '../incoming-order-proposal.policy.ts';
-import type {
-  CloseIncomingOrderSource,
-  OrderClockPort,
-} from '../orders.port.ts';
+import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
+import type { OrderClockPort } from '../command-execution/order-command.port.ts';
+import { orderError } from '../failure-mapping/order.error.ts';
+import { decideIncomingOrderProposal } from './incoming-order-proposal.policy.ts';
+import type { CloseIncomingOrderSource } from './incoming-order-proposal.port.ts';
 import type { CloseIncomingOrderSourceRepository } from './incoming-order-proposal.port.ts';
 
 const commandValid = (

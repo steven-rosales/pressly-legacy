@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { assessProductionOrderCommandCapabilities } from '../src/production-order-command-capability.policy.ts';
-import type {
-  OrderRoutingPolicyDecision,
-  ProductionPolicyPort,
-} from '../src/production.port.ts';
+import { assessProductionOrderCommandCapabilities } from '../src/list-production-order-control/production-order-command-capability.policy.ts';
+import type { OrderRoutingPolicyDecision } from '../src/production-policy/order-routing-policy.port.ts';
+import type { ProductionPolicyPort } from '../src/production-policy/production-policy.port.ts';
 import { allowPolicy } from './support/production.fake.ts';
 
 const batch = (

@@ -1,9 +1,19 @@
-import type { StoredOrderAggregate } from '../order-aggregate.port.ts';
+import type { FulfillmentInput } from '../order-model/order-model.port.ts';
+import type { StoredOrderAggregate } from '../persistence/order-aggregate.port.ts';
 import {
   areOrderItemsValid,
   isEstimatedWeightValid,
-} from '../order-input.policy.ts';
-import type { CorrectOrderCommand, FulfillmentInput } from '../orders.port.ts';
+} from '../order-model/order-input.policy.ts';
+import type {
+  CorrectOrderCommand,
+  CorrectOrderReasonCode,
+} from './correct-order.port.ts';
+
+export const correctOrderReasonCodes = [
+  'customer_correction',
+  'manager_correction',
+  'source_discrepancy',
+] as const satisfies readonly CorrectOrderReasonCode[];
 
 export type OrderCorrectionDecision =
   | Readonly<{

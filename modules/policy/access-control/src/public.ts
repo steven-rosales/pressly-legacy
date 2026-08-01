@@ -1,6 +1,6 @@
 export type { AccessControlModule, AccessControlModuleDeps } from './main.ts';
 export { makeAccessControlModule } from './main.ts';
-export type { LocationAncestryPort } from './location-ancestry.port.ts';
+export type { LocationAncestryPort } from './identity/location-ancestry.port.ts';
 export type { OrderManagementAccessControl } from './order-management/order-management.guard.ts';
 export { makeOrderManagementPolicies } from './order-management/order-management.policy.ts';
 export {

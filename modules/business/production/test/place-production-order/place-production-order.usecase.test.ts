@@ -1,11 +1,9 @@
 import type { ProductionOrderPlacementResult } from '@pressly/contracts';
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  OnlinePlacementProposal,
-  ProductionPolicyPort,
-  ProductionSchedulerPort,
-  StoredWorkEvent,
-} from '../../src/production.port.ts';
+import type { OnlinePlacementProposal } from '../../src/scheduling/online-placement.port.ts';
+import type { ProductionPolicyPort } from '../../src/production-policy/production-policy.port.ts';
+import type { ProductionSchedulerPort } from '../../src/scheduling/production-scheduler.port.ts';
+import type { StoredWorkEvent } from '../../src/command-execution/production-command.port.ts';
 import type {
   PlaceProductionOrderRepository,
   PlacementContext,

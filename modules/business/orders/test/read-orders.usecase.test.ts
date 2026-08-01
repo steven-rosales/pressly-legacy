@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   decodeOrderCursor,
   encodeOrderCursor,
-} from '../src/order-pagination.policy.ts';
+} from '../src/read-orders/order-pagination.policy.ts';
 import { makeGetCanonicalOrder } from '../src/read-orders/read-orders.usecase.ts';
 
 const businessId = '00000000-0000-4000-8000-000000000100';

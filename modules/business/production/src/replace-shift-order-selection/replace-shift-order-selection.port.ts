@@ -6,10 +6,10 @@ import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
-  Transactional,
   WorkEventInput,
-  ScheduleSupersessionDecision,
-} from '../production.port.ts';
+} from '../command-execution/production-command.port.ts';
+import type { Transactional } from '../persistence/production-transaction.port.ts';
+import type { ScheduleSupersessionDecision } from '../production-lifecycle/production-lifecycle.port.ts';
 
 export type ReplaceShiftOrderSelection = (
   command: ReplaceProductionShiftSelectionCommand &
