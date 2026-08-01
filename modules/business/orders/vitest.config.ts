@@ -16,6 +16,10 @@ export default defineConfig({
         replacement: alias('../../../packages/db/src/index.ts'),
       },
       {
+        find: /^@pressly\/contracts$/,
+        replacement: alias('../../../packages/contracts/src/index.ts'),
+      },
+      {
         find: '@pressly/errors',
         replacement: alias('../../../packages/errors/src/index.ts'),
       },
