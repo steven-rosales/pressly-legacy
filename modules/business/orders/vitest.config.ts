@@ -28,6 +28,10 @@ export default defineConfig({
         replacement: alias('../../../packages/kernel/src/index.ts'),
       },
       {
+        find: /^@pressly\/time$/,
+        replacement: alias('../../../packages/time/src/index.ts'),
+      },
+      {
         find: /^@pressly\/testkit\/(.+)$/,
         replacement: `${alias('../../../packages/testkit/src')}/$1.ts`,
       },
