@@ -3,6 +3,7 @@ set -euo pipefail
 
 target="${1:-all}"
 
+export VITEST_MAX_WORKERS="${VITEST_MAX_WORKERS:-1}"
 export PRESSLY_TEST_ADMIN_DATABASE_URL="${PRESSLY_TEST_ADMIN_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test}"
 export PRESSLY_TEST_MIGRATION_DATABASE_URL="${PRESSLY_TEST_MIGRATION_DATABASE_URL:-postgres://pressly_migration:pressly_migration_test@localhost:55434/pressly_test}"
 export PRESSLY_TEST_RUNTIME_DATABASE_URL="${PRESSLY_TEST_RUNTIME_DATABASE_URL:-postgres://pressly_runtime:pressly_runtime_test@localhost:55434/pressly_test}"

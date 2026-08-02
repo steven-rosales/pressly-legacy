@@ -22,6 +22,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
+      "passThroughEnv": ["VITEST_MAX_WORKERS"],
       "outputs": []
     },
     "clean": {
