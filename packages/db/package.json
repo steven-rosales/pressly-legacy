@@ -23,8 +23,8 @@
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
     "test": "vitest run --dir test --exclude '**/*.int.test.ts'",
     "test:integration": "vitest run --dir test --no-file-parallelism",
-    "migrate": "drizzle-kit migrate --config drizzle.config.ts",
-    "generate": "drizzle-kit generate --config drizzle.config.ts",
+    "migrate": "pnpm -F @pressly/errors build && drizzle-kit migrate --config drizzle.config.ts",
+    "generate": "pnpm -F @pressly/errors build && drizzle-kit generate --config drizzle.config.ts",
     "seed:pricing": "tsx src/seeds/pricing.ts",
     "migrate:docker": "pnpm --dir ../.. docker:db:migrate",
     "clean": "rm -rf dist"
