@@ -7,6 +7,7 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { invariantViolationError } from '@pressly/errors';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import {
   hasCurrentProductionOrderSelection,
@@ -20,6 +21,13 @@ import type {
   ProductionOrderResolutionCandidate,
 } from './change-production-order-resolution.port.ts';
 
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
 const asOperationalStatus = (
   value: string,
 ): LockedProductionOrderResolution['operationalStatus'] => {
@@ -32,7 +40,10 @@ const asOperationalStatus = (
     case 'finished':
       return value;
     default:
-      throw new Error(`Unknown production-order status: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_resolution_status_invalid',
+        `Unknown production-order status: ${value}.`,
+      );
   }
 };
 
@@ -45,7 +56,10 @@ const asAdmissionState = (
     case 'withdrawn':
       return value;
     default:
-      throw new Error(`Unknown fulfillment admission state: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_resolution_admission_state_invalid',
+        `Unknown fulfillment admission state: ${value}.`,
+      );
   }
 };
 
@@ -58,7 +72,10 @@ const asCommercialState = (
     case 'canceled':
       return value;
     default:
-      throw new Error(`Unknown commercial order state: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_resolution_commercial_state_invalid',
+        `Unknown commercial order state: ${value}.`,
+      );
   }
 };
 
@@ -73,20 +90,29 @@ const asDemandPhase = (
     case 'withdrawn':
       return value;
     default:
-      throw new Error(`Unknown demand phase: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_resolution_demand_phase_invalid',
+        `Unknown demand phase: ${value}.`,
+      );
   }
 };
 
 const asAdmissionOverride = (value: string | null): 'released' | null => {
   if (value === null || value === 'released') return value;
-  throw new Error(`Unknown production admission override: ${value}.`);
+  throw productionInvariantViolation(
+    'production_order_resolution_admission_override_invalid',
+    `Unknown production admission override: ${value}.`,
+  );
 };
 
 const asResolutionState = (
   value: string,
 ): 'open' | 'resolved_without_production' => {
   if (value === 'open' || value === 'resolved_without_production') return value;
-  throw new Error(`Unknown production-order resolution state: ${value}.`);
+  throw productionInvariantViolation(
+    'production_order_resolution_state_invalid',
+    `Unknown production-order resolution state: ${value}.`,
+  );
 };
 
 const toResolutionCandidate = (row: {

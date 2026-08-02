@@ -1,6 +1,6 @@
 import type { WorkforceApplication } from '@pressly/auth-module';
 import { controlSecurityEventQuerySchema } from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
+import { invariantViolationError } from '@pressly/errors';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import { Router, type RequestHandler, type Response } from 'express';
@@ -12,12 +12,10 @@ import type {
 const actor = (response: Response) => {
   const auth = response.locals['auth'] as LoadedControlSession;
   if (auth.principal.sessionId === undefined)
-    throw makeAppError({
-      kind: 'InvariantViolationError',
+    throw invariantViolationError({
       code: 'control_session_id_missing',
       message: 'Authenticated Control principal is missing a session ID.',
       safeMessage: 'Session could not be loaded.',
-      status: 500,
     });
   return {
     identityId: auth.principal.identityId,

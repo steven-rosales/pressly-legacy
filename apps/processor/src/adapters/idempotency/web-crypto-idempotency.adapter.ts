@@ -1,3 +1,4 @@
+import { invariantViolationError } from "@pressly/errors"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 
 const canonicalize = (value: unknown): unknown => {
@@ -19,7 +20,10 @@ const canonicalize = (value: unknown): unknown => {
         .map(([field, entry]) => [field, canonicalize(entry)])
     )
 
-  throw new TypeError("Idempotency payloads must be JSON-compatible.")
+  throw invariantViolationError({
+    code: "processor_idempotency_payload_invalid",
+    message: "Idempotency payloads must be JSON-compatible.",
+  })
 }
 
 const hex = (bytes: ArrayBuffer): string =>
@@ -32,7 +36,10 @@ export const makeWebCryptoIdempotencyAdapter = (
 ): IdempotencyPort => ({
   key: async ({ operation, payload }) => {
     if (!/^[a-z0-9-]{1,48}$/.test(operation))
-      throw new TypeError("Idempotency operation names must be stable slugs.")
+      throw invariantViolationError({
+        code: "processor_idempotency_operation_invalid",
+        message: "Idempotency operation names must be stable slugs.",
+      })
     const canonicalPayload = JSON.stringify(canonicalize(payload))
     const digest = await crypto.subtle.digest(
       "SHA-256",

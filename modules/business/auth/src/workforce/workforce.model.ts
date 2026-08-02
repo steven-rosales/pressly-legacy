@@ -1,9 +1,25 @@
 import type { AccessGrantState } from './access-grant.policy.ts';
 import type { WorkforceInvitationState } from './workforce-invitation.policy.ts';
 import type { WorkforceMembershipState } from './workforce-membership.policy.ts';
-import type { StoreFailureReason } from './workforce-failure.policy.ts';
 
-export type { StoreFailureReason } from './workforce-failure.policy.ts';
+export type StoreFailureReason =
+  | 'actor_inactive'
+  | 'actor_membership_inactive'
+  | 'insufficient_assurance'
+  | 'outside_business'
+  | 'outside_location'
+  | 'manager_target_forbidden'
+  | 'self_access_change'
+  | 'last_owner'
+  | 'not_found'
+  | 'stale_version'
+  | 'invalid_state'
+  | 'email_conflict'
+  | 'authentication_required'
+  | 'wrong_authenticated_identity'
+  | 'invalid_token'
+  | 'expired_token'
+  | 'idempotency_conflict';
 
 export const workforceRoles = ['owner', 'manager', 'operator'] as const;
 

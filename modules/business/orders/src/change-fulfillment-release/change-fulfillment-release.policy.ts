@@ -1,5 +1,5 @@
 import { stateMachine } from '@pressly/kernel';
-import type { FulfillmentReleaseState } from '../order-model/order-model.port.ts';
+import type { FulfillmentReleaseState } from '../order-model/order.model.ts';
 import type {
   ReleaseFulfillmentReasonCode,
   WithdrawFulfillmentReasonCode,

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 import { makeControlAuthenticationApi } from "@/authentication/control-api"
 import { makeControlHttpClient } from "@/api/control-http-client"
 import ControlApp from "@/app/control-app"
+import { ControlErrorBoundary } from "@/app/control-error-boundary"
 import { ThemeProvider } from "@/app/theme-provider"
 import { makeControlTeamApi } from "@/features/team/team-api"
 import { makeControlSecurityApi } from "@/features/security/security-api"
@@ -32,7 +33,13 @@ const runtime = {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider defaultTheme="light">
-      <ControlApp runtime={runtime} />
+      <ControlErrorBoundary
+        report={(error) => {
+          globalThis.reportError?.(error)
+        }}
+      >
+        <ControlApp runtime={runtime} />
+      </ControlErrorBoundary>
     </ThemeProvider>
   </StrictMode>,
 )

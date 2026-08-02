@@ -89,10 +89,11 @@ describe('revoke session http controller', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('returns a failure envelope from revoke session errors', async () => {
+  it('forwards revoke-session application errors to express', async () => {
+    const error = invalidSessionError();
     const revokeSession = vi
       .fn<RevokeSession>()
-      .mockResolvedValue(result.err(invalidSessionError()));
+      .mockResolvedValue(result.err(error));
     const revokeSessionController = makeRevokeSessionController(revokeSession);
     const { req } = makeRevokeSessionRequest();
     const res = makeHttpResponse();
@@ -101,15 +102,9 @@ describe('revoke session http controller', () => {
     await runHandler({ handler: revokeSessionController, req, res, next });
 
     expect(revokeSession).toHaveBeenCalledWith({ bearerToken });
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({
-      ok: false,
-      error: {
-        code: 'invalid_session',
-        message: 'Authentication is required.',
-      },
-    });
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(error);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
   });
 
   it('forwards missing bearer headers to express', async () => {

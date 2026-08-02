@@ -19,6 +19,7 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { invariantViolationError } from '@pressly/errors';
 import {
   decodeProductionHistoryCursor,
   encodeProductionHistoryCursor,
@@ -37,6 +38,13 @@ import type {
   LoadProductionHistoryRunCommand,
   ProductionHistoryRepository,
 } from './list-production-history.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 const locationExists = async (
   db: DatabaseExecutor,
@@ -634,7 +642,10 @@ const mapBatchStatus = (
     case 'finished':
       return status;
     default:
-      throw new Error(`Unknown production-batch history status: ${status}.`);
+      throw productionInvariantViolation(
+        'production_history_batch_status_invalid',
+        `Unknown production-batch history status: ${status}.`,
+      );
   }
 };
 
@@ -643,7 +654,10 @@ const mapStageStatus = (
 ): ProductionHistoryStageProgress['status'] => {
   if (status === 'planned' || status === 'started' || status === 'completed')
     return status;
-  throw new Error(`Unknown stage-run history status: ${status}.`);
+  throw productionInvariantViolation(
+    'production_history_stage_status_invalid',
+    `Unknown stage-run history status: ${status}.`,
+  );
 };
 
 const mapStageKind = (
@@ -656,7 +670,10 @@ const mapStageKind = (
     stage === 'folding_packaging'
   )
     return stage;
-  throw new Error(`Unknown stage-run history kind: ${stage}.`);
+  throw productionInvariantViolation(
+    'production_history_stage_kind_invalid',
+    `Unknown stage-run history kind: ${stage}.`,
+  );
 };
 
 const mapOrderStatus = (
@@ -671,7 +688,10 @@ const mapOrderStatus = (
     case 'finished':
       return status;
     default:
-      throw new Error(`Unknown production-order history status: ${status}.`);
+      throw productionInvariantViolation(
+        'production_history_order_status_invalid',
+        `Unknown production-order history status: ${status}.`,
+      );
   }
 };
 
@@ -686,7 +706,8 @@ const mapPlacementProvenance = (
     case 'exception_route':
       return provenance;
     default:
-      throw new Error(
+      throw productionInvariantViolation(
+        'production_history_placement_provenance_invalid',
         `Unknown production-order placement provenance: ${provenance}.`,
       );
   }
@@ -731,7 +752,8 @@ const mapOrderMembership = (
       row.releasedBy !== null ||
       row.releaseReason !== null
     )
-      throw new Error(
+      throw productionInvariantViolation(
+        'production_history_current_membership_release_metadata_invalid',
         'Current production-order membership has release metadata.',
       );
     return {
@@ -749,7 +771,8 @@ const mapOrderMembership = (
     !releaseMetadata.every((value) => value === null) &&
     !releaseMetadata.every((value) => value !== null)
   )
-    throw new Error(
+    throw productionInvariantViolation(
+      'production_history_released_membership_metadata_incomplete',
       'Released production-order membership has partial release metadata.',
     );
   return {

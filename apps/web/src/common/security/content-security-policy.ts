@@ -1,3 +1,5 @@
+import { configError } from '@pressly/errors';
+
 type ContentSecurityPolicyInput = Readonly<{
   apiBaseUrl: string;
   isDevelopment: boolean;
@@ -6,10 +8,24 @@ type ContentSecurityPolicyInput = Readonly<{
 }>;
 
 const sourceOrigin = (name: string, value: string): string => {
-  const url = new URL(value);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch (cause) {
+    throw configError({
+      code: 'invalid_content_security_policy_origin',
+      message: `${name} must be a valid absolute URL.`,
+      cause,
+      details: { name },
+    });
+  }
 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error(`${name} must use HTTP or HTTPS.`);
+    throw configError({
+      code: 'invalid_content_security_policy_origin',
+      message: `${name} must use HTTP or HTTPS.`,
+      details: { name, protocol: url.protocol },
+    });
   }
 
   return url.origin;

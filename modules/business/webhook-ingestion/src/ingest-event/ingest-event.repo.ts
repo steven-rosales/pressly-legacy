@@ -1,5 +1,13 @@
 import { and, eq, webhookIngestion, type Database } from '@pressly/db';
+import { invariantViolationError, type AppError } from '@pressly/errors';
 import type { IngestWebhookEventRepository } from './ingest-event.port.ts';
+
+const webhookEventInvariant = (code: string, message: string): AppError =>
+  invariantViolationError({
+    code: code.toLowerCase(),
+    message,
+    safeMessage: 'Stored webhook event data is inconsistent.',
+  });
 
 export const makeIngestWebhookEventRepository = (deps: {
   db: Database;
@@ -54,7 +62,10 @@ export const makeIngestWebhookEventRepository = (deps: {
       )
       .limit(1);
     if (existing === undefined)
-      throw new Error('Webhook event insert raced and vanished.');
+      throw webhookEventInvariant(
+        'WEBHOOK_EVENT_INSERT_RESULT_MISSING',
+        'Webhook event insert raced and vanished.',
+      );
     if (
       existing.rawBodySha256 !== command.rawBodySha256 ||
       existing.payloadHash !== payloadHash ||
@@ -64,7 +75,10 @@ export const makeIngestWebhookEventRepository = (deps: {
       existing.sourceLocationId !== command.sourceLocationId ||
       existing.sourceOccurredAt?.toISOString() !== command.sourceOccurredAt
     )
-      throw new Error('Duplicate webhook event contains divergent data.');
+      throw webhookEventInvariant(
+        'WEBHOOK_EVENT_DUPLICATE_DIVERGED',
+        'Duplicate webhook event contains divergent data.',
+      );
     return { eventId: existing.id, duplicate: true };
   },
 });

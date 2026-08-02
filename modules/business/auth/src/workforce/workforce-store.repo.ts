@@ -19,12 +19,11 @@ import type {
   AccessGrantSummary,
   StoreFailureReason,
   WorkforceActorRef,
-  WorkforceInvitationSummary,
   WorkforceMemberDetail,
   WorkforceRole,
-} from './workforce.port.ts';
+} from './workforce.model.ts';
 
-export type ReceiptCheck =
+type ReceiptCheck =
   | Readonly<{ status: 'new' }>
   | Readonly<{ status: 'conflict' }>
   | Readonly<{
@@ -158,23 +157,7 @@ export const recordTransition = async (
   });
 };
 
-type StoredInvitation = typeof auth.workforceInvitations.$inferSelect;
 type StoredGrant = typeof auth.authAccessGrants.$inferSelect;
-
-export const invitationSummary = (
-  invitation: StoredInvitation,
-): WorkforceInvitationSummary => ({
-  id: invitation.id,
-  businessId: invitation.businessId,
-  emailNormalized: invitation.emailNormalized,
-  displayName: invitation.displayName,
-  intendedRole: invitation.intendedRole as WorkforceRole,
-  intendedLocationId: invitation.intendedLocationId,
-  state: invitation.state,
-  version: invitation.version,
-  expiresAt: invitation.expiresAt,
-  createdAt: invitation.createdAt,
-});
 
 export const grantSummary = (
   grant: StoredGrant,
@@ -196,7 +179,7 @@ export const grantSummary = (
   effective,
 });
 
-export type LoadedActor =
+type LoadedActor =
   | Readonly<{
       status: 'authorized';
       role: 'owner' | 'manager';

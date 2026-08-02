@@ -1,4 +1,5 @@
 import type { ProductionOrderListItem } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import {
   productionDueBucket,
   productionDueFilter,
@@ -20,6 +21,18 @@ export type ProductionOrderListRow = Readonly<{
   version: number;
 }>;
 
+const storedProductionInvariant = (
+  code: string,
+  message: string,
+  details?: unknown,
+) =>
+  invariantViolationError({
+    code: code.toLowerCase(),
+    message,
+    safeMessage: 'Stored production order data is inconsistent.',
+    ...(details === undefined ? {} : { details }),
+  });
+
 const mapOrderStatus = (value: string): ProductionOrderListItem['status'] => {
   switch (value) {
     case 'release_pending':
@@ -30,7 +43,11 @@ const mapOrderStatus = (value: string): ProductionOrderListItem['status'] => {
     case 'finished':
       return value;
     default:
-      throw new Error(`Unknown production order status: ${value}.`);
+      throw storedProductionInvariant(
+        'PRODUCTION_ORDER_STATUS_INVALID',
+        `Unknown production order status: ${value}.`,
+        { status: value },
+      );
   }
 };
 
@@ -43,7 +60,11 @@ const mapBagCountProvenance = (
     value === 'operator_intake'
   )
     return value;
-  throw new Error(`Unknown bag-count provenance: ${value}.`);
+  throw storedProductionInvariant(
+    'PRODUCTION_BAG_COUNT_PROVENANCE_INVALID',
+    `Unknown bag-count provenance: ${value}.`,
+    { provenance: value },
+  );
 };
 
 export const mapProductionOrderListItem = (
@@ -55,20 +76,40 @@ export const mapProductionOrderListItem = (
   const bagCountProvenance = mapBagCountProvenance(row.bagCountSource);
 
   if ((row.bagCount === null) !== (bagCountProvenance === null))
-    throw new Error('Bag count and provenance disagree in persistence.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BAG_COUNT_STATE_INVALID',
+      'Bag count and provenance disagree in persistence.',
+      { bagCount: row.bagCount, bagCountProvenance },
+    );
   if (row.bagCount === null && row.intakeVersion !== 0)
-    throw new Error('Missing bag intake must have persistence version zero.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BAG_INTAKE_VERSION_INVALID',
+      'Missing bag intake must have persistence version zero.',
+      { bagCount: row.bagCount, intakeVersion: row.intakeVersion },
+    );
   if (row.bagCount !== null && row.intakeVersion <= 0)
-    throw new Error('Recorded bag intake requires a positive version.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BAG_INTAKE_VERSION_INVALID',
+      'Recorded bag intake requires a positive version.',
+      { bagCount: row.bagCount, intakeVersion: row.intakeVersion },
+    );
   if (status === 'intake_pending' && row.bagCount !== null)
-    throw new Error('An intake-pending order already has bag intake.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BAG_INTAKE_STATE_INVALID',
+      'An intake-pending order already has bag intake.',
+      { status, bagCount: row.bagCount },
+    );
   if (
     status !== 'release_pending' &&
     status !== 'intake_pending' &&
     status !== 'ineligible' &&
     row.bagCount === null
   )
-    throw new Error('A non-pending order is missing bag intake.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BAG_INTAKE_STATE_INVALID',
+      'A non-pending order is missing bag intake.',
+      { status, bagCount: row.bagCount },
+    );
 
   return {
     id: row.id,

@@ -1,7 +1,7 @@
 import type {
   ProductionBatchLifecycleState,
   ProductionOrderStageAttemptState,
-} from '../production-lifecycle/production-lifecycle.port.ts';
+} from './production-lifecycle.model.ts';
 
 export type StoredStage = Readonly<{
   id: string;

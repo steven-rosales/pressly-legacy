@@ -4,6 +4,7 @@ import type {
   ProductionLiveRunChanges,
   ProductionPendingOrder,
 } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import type {
   OnlinePlacementProposal,
   ProductionLiveRunPlacementOrder,
@@ -11,6 +12,13 @@ import type {
 } from '../scheduling/online-placement.port.ts';
 import type { ProductionSchedulerPort } from '../scheduling/production-scheduler.port.ts';
 import { productionPlacementFailureReason } from '../scheduling/production-placement.policy.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 const placementTarget = (
   proposal: OnlinePlacementProposal,
@@ -69,7 +77,10 @@ const placementCapacity = (
             batch.sequence === proposedTarget.insertAtSequence,
         );
   if (projected === undefined)
-    throw new Error('The placement proposal is missing its target batch.');
+    throw productionInvariantViolation(
+      'production_live_changes_target_projection_missing',
+      'The placement proposal is missing its target batch.',
+    );
 
   return {
     beforeLbs: currentTargetBatch?.derivedWeightLbs ?? 0,
@@ -105,7 +116,10 @@ const automaticPlacement = (
   const expectedBatchVersion =
     targetBatchId === null ? null : context.batchVersions[targetBatchId];
   if (expectedBatchVersion === undefined)
-    throw new Error('The recommended target has no batch version.');
+    throw productionInvariantViolation(
+      'production_live_changes_target_version_missing',
+      'The recommended target has no batch version.',
+    );
 
   return {
     mode: 'automatic',
@@ -126,10 +140,16 @@ const exactPlacement = (
   proposal: OnlinePlacementProposal,
 ): ProductionLiveExactBatchTarget => {
   if (proposal.target.type !== 'existing_batch')
-    throw new Error('Manager-exact placement must target an existing batch.');
+    throw productionInvariantViolation(
+      'production_live_changes_exact_target_invalid',
+      'Manager-exact placement must target an existing batch.',
+    );
   const expectedBatchVersion = context.batchVersions[proposal.target.batchId];
   if (expectedBatchVersion === undefined)
-    throw new Error('The exact placement target has no batch version.');
+    throw productionInvariantViolation(
+      'production_live_changes_exact_target_version_missing',
+      'The exact placement target has no batch version.',
+    );
 
   return {
     mode: 'manager_exact',

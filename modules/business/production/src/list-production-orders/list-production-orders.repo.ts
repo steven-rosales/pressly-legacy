@@ -11,8 +11,8 @@ import {
 import {
   decodeProductionOrderCursor,
   encodeProductionOrderCursor,
-  mapProductionOrderListItem,
-} from './list-production-orders.mapper.ts';
+} from './production-order-cursor.mapper.ts';
+import { mapProductionOrderListItem } from '../persistence/production-order-list-item.ts';
 import type { ListProductionOrdersRepository } from './list-production-orders.port.ts';
 
 export const makeListProductionOrdersRepository = (

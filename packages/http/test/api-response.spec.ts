@@ -20,6 +20,8 @@ describe('api response', () => {
       safeMessage: 'Invalid request.',
       status: 400,
       traceId: 'trace_123',
+      details: { databaseColumn: 'private_value' },
+      publicDetails: { field: 'email' },
     });
 
     expect(apiFailure(error)).toEqual({
@@ -28,7 +30,10 @@ describe('api response', () => {
         code: 'invalid_request',
         message: 'Invalid request.',
         traceId: 'trace_123',
+        details: { field: 'email' },
       },
     });
+
+    expect(JSON.stringify(apiFailure(error))).not.toContain('databaseColumn');
   });
 });

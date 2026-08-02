@@ -1,6 +1,6 @@
 import type { LocationAncestryPort } from '@pressly/access-control';
 import { asc, business, eq, inArray, type Database } from '@pressly/db';
-import { makeAppError } from '@pressly/errors';
+import { notFoundError } from '@pressly/errors';
 
 export const makePostgresLocationAncestryAdapter = (
   db: Database,
@@ -12,12 +12,10 @@ export const makePostgresLocationAncestryAdapter = (
       .where(eq(business.productionLocations.id, locationId))
       .limit(1);
     if (location === undefined)
-      throw makeAppError({
-        kind: 'NotFoundError',
+      throw notFoundError({
         code: 'production_location_not_found',
         message: 'Production location has no business ancestry.',
         safeMessage: 'The production location was not found.',
-        status: 404,
       });
     return location.businessId;
   },

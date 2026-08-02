@@ -1,7 +1,6 @@
 import type { RequestHandler } from 'express';
 import type { AssignStageMachinesCommand } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
-import { sendProductionResult } from '../http/production-response.ts';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { AssignStageMachines } from './assign-stage-machines.port.ts';
 
 export const makeAssignStageMachinesController = (input: {
@@ -9,7 +8,7 @@ export const makeAssignStageMachinesController = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.assign({
         ...(request.body as Omit<

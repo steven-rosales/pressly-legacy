@@ -1,4 +1,4 @@
-import type { OrderInput, OrderItemInput } from './order-model.port.ts';
+import type { OrderInput, OrderItemInput } from './order.model.ts';
 
 export const isEstimatedWeightValid = (input: {
   lbs: number | null;

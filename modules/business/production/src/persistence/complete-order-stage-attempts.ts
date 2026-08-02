@@ -5,7 +5,22 @@ import {
   laundryProduction,
   type DatabaseExecutor,
 } from '@pressly/db';
-import type { ProductionOrderStageAttemptMutation } from '../production-lifecycle/production-lifecycle.port.ts';
+import { conflictError, invariantViolationError } from '@pressly/errors';
+import type { ProductionOrderStageAttemptMutation } from '../production-lifecycle/production-lifecycle.model.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 export const completeAssignedOrderStageAttempts = async (
   db: DatabaseExecutor,
@@ -26,11 +41,17 @@ export const completeAssignedOrderStageAttempts = async (
         attempt.lifecycle.state !== 'completed',
     )
   )
-    throw new Error('Stage-attempt lifecycle decisions are invalid.');
+    throw productionInvariantViolation(
+      'production_stage_attempt_lifecycle_invalid',
+      'Stage-attempt lifecycle decisions are invalid.',
+    );
 
   const attemptIds = input.attempts.map((attempt) => attempt.attemptId);
   if (new Set(attemptIds).size !== attemptIds.length)
-    throw new Error('Stage-attempt lifecycle decisions are duplicated.');
+    throw productionInvariantViolation(
+      'production_stage_attempt_lifecycle_duplicated',
+      'Stage-attempt lifecycle decisions are duplicated.',
+    );
 
   const completed = await db
     .update(laundryProduction.productionOrderStageAttempts)
@@ -60,7 +81,10 @@ export const completeAssignedOrderStageAttempts = async (
     .returning({ id: laundryProduction.productionOrderStageAttempts.id });
 
   if (completed.length !== input.attempts.length)
-    throw new Error('Assigned order-stage attempts changed concurrently.');
+    throw productionConcurrencyConflict(
+      'production_stage_attempt_version_conflict',
+      'Assigned order-stage attempts changed concurrently.',
+    );
 
   return completed.length;
 };

@@ -66,7 +66,7 @@ describe('publish pricing change http controller', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('returns a failure envelope from publish errors', async () => {
+  it('forwards publish application errors to express', async () => {
     const error = makeAppError({
       kind: 'PermissionError',
       code: 'missing_permission',
@@ -94,15 +94,9 @@ describe('publish pricing change http controller', () => {
     controller(req, res as unknown as Response, next);
     await waitForController();
 
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({
-      ok: false,
-      error: {
-        code: 'missing_permission',
-        message: 'You do not have permission to perform this action.',
-      },
-    });
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(error);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
   });
 });
 

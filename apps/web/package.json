@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:workspace-deps": "pnpm --dir ../../packages/kernel run build && pnpm --dir ../../packages/time run build && pnpm --dir ../../packages/errors run build && pnpm --dir ../../packages/config run build && pnpm --dir ../../packages/logging run build && pnpm --dir ../../packages/metrics run build && pnpm --dir ../../packages/contracts run build",
+    "build:workspace-deps": "pnpm --dir ../../packages/errors run build && pnpm --dir ../../packages/kernel run build && pnpm --dir ../../packages/time run build && pnpm --dir ../../packages/http run build && pnpm --dir ../../packages/config run build && pnpm --dir ../../packages/logging run build && pnpm --dir ../../packages/metrics run build && pnpm --dir ../../packages/contracts run build",
     "dev": "pnpm run build:workspace-deps && next dev",
     "build": "pnpm run build:workspace-deps && next build",
     "typecheck": "tsc --noEmit",
@@ -38,6 +38,7 @@
     "@pressly/config": "workspace:*",
     "@pressly/contracts": "workspace:*",
     "@pressly/errors": "workspace:*",
+    "@pressly/http": "workspace:*",
     "@pressly/kernel": "workspace:*",
     "@pressly/logging": "workspace:*",
     "@pressly/metrics": "workspace:*",

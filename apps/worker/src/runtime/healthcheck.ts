@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { configError } from '@pressly/errors';
 
 export const isHeartbeatFresh = (input: {
   modifiedAt: Date;
@@ -38,7 +39,11 @@ const main = async (): Promise<void> => {
     process.env['WORKER_HEARTBEAT_MAX_AGE_MS'] ?? '90000',
   );
   if (!Number.isInteger(maxAgeMs) || maxAgeMs <= 0)
-    throw new Error('WORKER_HEARTBEAT_MAX_AGE_MS must be a positive integer.');
+    throw configError({
+      code: 'invalid_worker_heartbeat_max_age',
+      message: 'WORKER_HEARTBEAT_MAX_AGE_MS must be a positive integer.',
+      safeMessage: 'Worker healthcheck configuration is invalid.',
+    });
 
   if (!(await checkWorkerHeartbeat({ path, maxAgeMs }))) process.exitCode = 1;
 };

@@ -1,6 +1,6 @@
 import type { AppError } from '@pressly/errors';
 import type { Result } from '@pressly/kernel';
-import type { UserRecord } from '../user-profile/user-profile.port.ts';
+import type { UserRecord } from '../user-profile/user-profile.model.ts';
 
 export type UserSummary = UserRecord &
   Readonly<{

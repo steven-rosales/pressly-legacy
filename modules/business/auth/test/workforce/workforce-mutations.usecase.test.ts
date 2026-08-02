@@ -117,7 +117,8 @@ describe('workforce membership and access mutation use cases', () => {
     expect(response.tag).toBe('err');
     if (response.tag === 'err') {
       expect(response.error.code).toBe('workforce_stale_version');
-      expect(response.error.details).toEqual({ currentVersion: 4 });
+      expect(response.error.publicDetails).toEqual({ currentVersion: 4 });
+      expect(response.error.details).toBeUndefined();
     }
   });
 

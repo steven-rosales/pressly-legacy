@@ -1,6 +1,4 @@
-import { result, type Result } from '@pressly/kernel';
-
-type Rejection = Readonly<{ code: string; message: string }>;
+import { result, type CodedFailure, type Result } from '@pressly/kernel';
 
 export type BatchMembershipTransitionInput = Readonly<{
   action: 'freeze' | 'unfreeze';
@@ -11,7 +9,7 @@ export type BatchMembershipTransitionInput = Readonly<{
 
 export const evaluateBatchMembershipTransition = (
   input: BatchMembershipTransitionInput,
-): Result<Readonly<{ membershipFrozen: boolean }>, Rejection> => {
+): Result<Readonly<{ membershipFrozen: boolean }>, CodedFailure> => {
   if (input.batchStatus !== 'queued')
     return result.err({
       code: 'BATCH_MEMBERSHIP_IMMUTABLE',

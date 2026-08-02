@@ -7,10 +7,18 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { conflictError } from '@pressly/errors';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import type { ReplaceShiftOrderSelectionRepository } from './replace-shift-order-selection.port.ts';
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 export const makeReplaceShiftOrderSelectionRepository = (deps: {
   db: Database;
@@ -262,7 +270,10 @@ export const makeReplaceShiftOrderSelectionRepository = (deps: {
                 .returning({ id: laundryProduction.scheduleRuns.id })
             )[0];
       if (supersede !== null && superseded === undefined)
-        throw new Error('Current schedule revision changed unexpectedly.');
+        throw productionConcurrencyConflict(
+          'production_shift_selection_schedule_version_conflict',
+          'Current schedule revision changed unexpectedly.',
+        );
 
       return {
         selection: {

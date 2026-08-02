@@ -11,7 +11,7 @@ import type {
   FindWorkEvent,
   WorkEventInput,
 } from '../command-execution/production-command.port.ts';
-import type { ProductionOrderResolutionLifecycleDecision } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ProductionOrderResolutionLifecycleDecision } from '../production-lifecycle/production-lifecycle.model.ts';
 import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type BacklogSnapshotScope = Readonly<{

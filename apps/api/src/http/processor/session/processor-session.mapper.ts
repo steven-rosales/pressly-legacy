@@ -1,5 +1,5 @@
 import type { ProcessorAuthenticatedSession } from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
+import { invariantViolationError } from '@pressly/errors';
 import type { Request, Response } from 'express';
 import { deriveProcessorCsrfToken } from './processor-csrf.policy.ts';
 import type {
@@ -15,12 +15,10 @@ export const processorBrowserSession = (
   options: ProcessorSessionOptions,
 ): ProcessorAuthenticatedSession => {
   if (loaded.principal.sessionExpiresAt === undefined)
-    throw makeAppError({
-      kind: 'InvariantViolationError',
+    throw invariantViolationError({
       code: 'loaded_session_missing_expiry',
       message: 'Loaded processor session is missing its expiry.',
       safeMessage: 'Session could not be loaded.',
-      status: 500,
     });
 
   return {

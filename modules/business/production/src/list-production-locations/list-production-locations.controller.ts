@@ -1,7 +1,6 @@
 import type { ListProductionLocationsQuery } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { RequestHandler, Response } from 'express';
-import { sendProductionResult } from '../http/production-response.ts';
 import type { ListProductionLocations } from './list-production-locations.port.ts';
 
 export const makeListProductionLocationsController = (input: {
@@ -12,7 +11,7 @@ export const makeListProductionLocationsController = (input: {
 }): RequestHandler =>
   catchAsync(async (request, response) => {
     const allowedLocationIds = await input.readAllowedLocationIds(response);
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.listLocations({
         ...(request.query as unknown as ListProductionLocationsQuery),

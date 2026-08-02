@@ -1,5 +1,10 @@
 import { result, type Result } from '@pressly/kernel';
 import { normalizeUnknownError, type AppError } from '@pressly/errors';
+import {
+  attemptObservation,
+  attemptObservationValue,
+  type ObservationValueAttempt,
+} from '@pressly/metrics';
 import type { RequestInput } from '../requests/request-client';
 import type { WebCorePorts } from '../runtime/ports';
 import type { ActionMeta } from './action-meta';
@@ -36,14 +41,22 @@ const recordQueryFailure = (
 const recordQuerySuccess = (
   core: QueryRuntimePorts,
   meta: ActionMeta,
-  startedAt: Date,
+  startedAt: ObservationValueAttempt<Date>,
 ): void => {
-  const context = core.context.get();
+  attemptObservation(() => {
+    const context = core.context.get();
+    const durationFields =
+      startedAt.tag === 'observed'
+        ? {
+            durationMs: core.clock.now().getTime() - startedAt.value.getTime(),
+          }
+        : {};
 
-  core.logger.debug('web query succeeded', {
-    action: meta.action,
-    durationMs: core.clock.now().getTime() - startedAt.getTime(),
-    route: context.route,
+    core.logger.debug('web query succeeded', {
+      action: meta.action,
+      ...durationFields,
+      route: context.route,
+    });
   });
 };
 
@@ -53,7 +66,7 @@ export const createQueryRuntime = (core: QueryRuntimePorts): QueryRuntime =>
       meta,
       work,
     }: QueryRunInput<A>): Promise<Result<A, AppError>> => {
-      const startedAt = core.clock.now();
+      const startedAt = attemptObservationValue(() => core.clock.now());
 
       try {
         const value = await work();
@@ -74,7 +87,7 @@ export const createQueryRuntime = (core: QueryRuntimePorts): QueryRuntime =>
       meta,
       request,
     }: QueryFetchInput<A>): Promise<Result<A, AppError>> => {
-      const startedAt = core.clock.now();
+      const startedAt = attemptObservationValue(() => core.clock.now());
 
       try {
         const queryResult = await core.request.send(request);

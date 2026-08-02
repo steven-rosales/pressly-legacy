@@ -17,6 +17,7 @@ import type {
   ProductionOrderControlItem,
   ProductionOrderRouteAttempt,
 } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import {
   mapProductionOrderListItem,
@@ -39,6 +40,13 @@ import {
 } from './list-production-order-control.mapper.ts';
 import type { ListProductionOrderControlRepository } from './list-production-order-control.port.ts';
 
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
 const asPlacementProvenance = (
   value: string,
 ): NonNullable<
@@ -52,7 +60,10 @@ const asPlacementProvenance = (
     case 'exception_route':
       return value;
     default:
-      throw new Error(`Unknown production placement provenance: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_control_placement_provenance_invalid',
+        `Unknown production placement provenance: ${value}.`,
+      );
   }
 };
 
@@ -74,7 +85,10 @@ const asBatchStatus = (value: string): RoutableBatchStatus => {
     case 'finished':
       return value;
     default:
-      throw new Error(`Unknown production batch status: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_control_batch_status_invalid',
+        `Unknown production batch status: ${value}.`,
+      );
   }
 };
 
@@ -86,7 +100,10 @@ const asStage = (value: string): ProductionOrderRouteAttempt['stage'] => {
     case 'folding_packaging':
       return value;
     default:
-      throw new Error(`Unknown production stage: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_control_stage_invalid',
+        `Unknown production stage: ${value}.`,
+      );
   }
 };
 
@@ -99,7 +116,10 @@ const asStageStatus = (
     case 'completed':
       return value;
     default:
-      throw new Error(`Unknown stage-run status: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_control_stage_status_invalid',
+        `Unknown stage-run status: ${value}.`,
+      );
   }
 };
 
@@ -112,7 +132,10 @@ const asAttemptStatus = (
     case 'released':
       return value;
     default:
-      throw new Error(`Unknown order-stage attempt status: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_control_attempt_status_invalid',
+        `Unknown order-stage attempt status: ${value}.`,
+      );
   }
 };
 
@@ -131,7 +154,10 @@ const asAssignmentReason = (
     case 'other':
       return value;
     default:
-      throw new Error(`Unknown order-stage assignment reason: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_control_assignment_reason_invalid',
+        `Unknown order-stage assignment reason: ${value}.`,
+      );
   }
 };
 
@@ -148,7 +174,10 @@ const asRouteReason = (
     case 'other':
       return value;
     default:
-      throw new Error(`Unknown order-stage release reason: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_control_release_reason_invalid',
+        `Unknown order-stage release reason: ${value}.`,
+      );
   }
 };
 
@@ -161,13 +190,19 @@ const asSourceAdmissionState = (
     case 'withdrawn':
       return value;
     default:
-      throw new Error(`Unknown source admission state: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_control_admission_state_invalid',
+        `Unknown source admission state: ${value}.`,
+      );
   }
 };
 
 const asAdmissionOverride = (value: string | null): 'released' | null => {
   if (value === null || value === 'released') return value;
-  throw new Error(`Unknown production admission override: ${value}.`);
+  throw productionInvariantViolation(
+    'production_order_control_admission_override_invalid',
+    `Unknown production admission override: ${value}.`,
+  );
 };
 
 const attentionFor = (
@@ -751,7 +786,10 @@ export const makeListProductionOrderControlRepository = (
     for (const stage of routingStageRows) {
       const capacityLbs = capacityByBatch.get(stage.productionBatchId);
       if (capacityLbs === undefined)
-        throw new Error('Routing stage is missing its production batch.');
+        throw productionInvariantViolation(
+          'production_order_control_routing_batch_missing',
+          'Routing stage is missing its production batch.',
+        );
       const stages = routingStagesByBatch.get(stage.productionBatchId) ?? [];
       routingStagesByBatch.set(stage.productionBatchId, [
         ...stages,

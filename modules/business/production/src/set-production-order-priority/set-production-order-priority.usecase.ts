@@ -1,9 +1,12 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import type { ProductionMutationResult } from '@pressly/contracts';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -20,7 +23,10 @@ export const makeSetProductionOrderPriority =
   (deps: {
     repo: SetProductionOrderPriorityRepository;
     clock: ClockPort;
-    policy: ProductionPolicyPort;
+    policy: Pick<
+      ProductionPolicyPort,
+      'evaluateProductionOrderOperationalAccess'
+    >;
   }): SetProductionOrderPriority =>
   async (command) => {
     try {
@@ -49,25 +55,31 @@ export const makeSetProductionOrderPriority =
         );
         if (order === null)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_NOT_FOUND',
-              'The production order was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_order_not_found',
+              message: 'The production order was not found.',
+              safeMessage: 'The production order was not found.',
+            }),
           );
         if (order.version !== command.expectedVersion)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_VERSION_CONFLICT',
-              'The order changed before priority could be updated.',
-            ),
+            conflictError({
+              code: 'production_order_version_conflict',
+              message: 'The order changed before priority could be updated.',
+              safeMessage:
+                'The order changed before priority could be updated.',
+            }),
           );
         const access = deps.policy.evaluateProductionOrderOperationalAccess({
           resolutionState: order.resolutionState,
         });
         if (access.tag === 'err')
           return result.err(
-            productionError(access.error.code, access.error.message, 409),
+            conflictError({
+              code: access.error.code.toLowerCase(),
+              message: access.error.message,
+              safeMessage: access.error.message,
+            }),
           );
         const updated = await repo.setOrderPriority({
           locationId: command.locationId,
@@ -79,10 +91,12 @@ export const makeSetProductionOrderPriority =
 
         if (updated === null)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_VERSION_CONFLICT',
-              'The order changed before priority could be updated.',
-            ),
+            conflictError({
+              code: 'production_order_version_conflict',
+              message: 'The order changed before priority could be updated.',
+              safeMessage:
+                'The order changed before priority could be updated.',
+            }),
           );
 
         await repo.appendWorkEvent({
@@ -101,11 +115,14 @@ export const makeSetProductionOrderPriority =
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_PRIORITY_FAILED',
-          'Order priority could not be updated.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_priority_failed',
+            message: 'Order priority could not be updated.',
+            safeMessage: 'Order priority could not be updated.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

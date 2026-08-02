@@ -9,7 +9,11 @@ import {
   type ProductionBootstrapResult,
 } from '@pressly/contracts';
 import { createDatabaseRuntime } from '@pressly/db';
-import { makeAppError, normalizeUnknownError } from '@pressly/errors';
+import {
+  configError,
+  normalizeUnknownError,
+  validationError,
+} from '@pressly/errors';
 import {
   makePostgresProductionApplication,
   type ProductionApplication,
@@ -39,12 +43,10 @@ const valueAfter = (args: readonly string[], flag: string): string => {
   const index = args.indexOf(flag);
   const value = index === -1 ? undefined : args[index + 1];
   if (value === undefined || value.startsWith('--'))
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'production_bootstrap_argument_missing',
       message: `${flag} requires a value.`,
       safeMessage: `${flag} requires a value.`,
-      status: 400,
       details: { flag },
     });
   return value;
@@ -59,22 +61,18 @@ export const parseProductionBootstrapArgs = (
   for (let index = 0; index < normalized.length; index += 1) {
     const argument = normalized[index]!;
     if (!allowed.has(argument))
-      throw makeAppError({
-        kind: 'ValidationError',
+      throw validationError({
         code: 'production_bootstrap_argument_unknown',
         message: `Unknown production bootstrap argument: ${argument}.`,
         safeMessage: `Unknown production bootstrap argument: ${argument}.`,
-        status: 400,
       });
     if (valueFlags.includes(argument)) index += 1;
   }
   if (normalized.includes('--dry-run') && normalized.includes('--apply'))
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'production_bootstrap_mode_conflict',
       message: 'Choose either --dry-run or --apply.',
       safeMessage: 'Choose either --dry-run or --apply.',
-      status: 400,
     });
 
   return commandInputSchema.parse({
@@ -90,35 +88,29 @@ export const readProductionBootstrapManifest = async (
 ): Promise<LpmsBootstrapManifest> => {
   const source = await readFile(file, { encoding: 'utf8' });
   if (Buffer.byteLength(source, 'utf8') > 1_048_576)
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'production_bootstrap_file_too_large',
       message: 'Production bootstrap input exceeds one MiB.',
       safeMessage: 'Production bootstrap input exceeds one MiB.',
-      status: 400,
     });
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(source);
   } catch (error) {
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'production_bootstrap_json_invalid',
       message: 'Production bootstrap input is not valid JSON.',
       safeMessage: 'Production bootstrap input is not valid JSON.',
-      status: 400,
       cause: error,
     });
   }
   const manifest = lpmsBootstrapManifestSchema.safeParse(parsed);
   if (!manifest.success)
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'production_bootstrap_manifest_invalid',
       message: 'Production bootstrap manifest violates its contract.',
       safeMessage: 'Production bootstrap manifest is invalid.',
-      status: 400,
       details: {
         issues: manifest.error.issues.map((issue) => ({
           path: issue.path.map(String).join('.'),
@@ -186,12 +178,10 @@ export const executeProductionBootstrap = async (input: {
 const requiredEnv = (key: string): string => {
   const value = process.env[key];
   if (value !== undefined && value.trim() !== '') return value;
-  throw makeAppError({
-    kind: 'ConfigError',
+  throw configError({
     code: 'production_bootstrap_env_missing',
     message: `${key} is required for production bootstrap.`,
     safeMessage: `${key} is required.`,
-    status: 500,
     details: { key },
   });
 };

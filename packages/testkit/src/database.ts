@@ -1,6 +1,6 @@
 import { createDatabaseRuntime, type Database } from '@pressly/db';
 import { truncateTestTables } from '@pressly/db/testing';
-import { makeAppError } from '@pressly/errors';
+import { configError, invariantViolationError } from '@pressly/errors';
 
 export type TestDatabaseRuntime = Readonly<{
   db: Database;
@@ -20,12 +20,10 @@ export const assertTestRuntime = (): void => {
   if (process.env['NODE_ENV'] === 'test' || process.env['VITEST'] === 'true')
     return;
 
-  throw makeAppError({
-    kind: 'InvariantViolationError',
+  throw invariantViolationError({
     code: 'test_database_outside_test_runtime',
     message: 'Test database helpers can only run in a test runtime.',
     safeMessage: 'Test database setup is invalid.',
-    status: 500,
   });
 };
 
@@ -35,12 +33,10 @@ export const assertSafeTestDatabaseUrl = (databaseUrl: string): void => {
 
   if (databaseName.includes('test')) return;
 
-  throw makeAppError({
-    kind: 'ConfigError',
+  throw configError({
     code: 'unsafe_test_database_url',
     message: `Refusing to reset a non-test database: ${databaseName}.`,
     safeMessage: 'Test database configuration is invalid.',
-    status: 500,
   });
 };
 
@@ -58,12 +54,10 @@ export const getTestDatabaseUrl = (
 const assertSafeTableName = (tableName: string): void => {
   if (/^[a-z][a-z0-9_]*$/.test(tableName)) return;
 
-  throw makeAppError({
-    kind: 'ConfigError',
+  throw configError({
     code: 'unsafe_test_table_name',
     message: `Refusing to truncate unsafe table name: ${tableName}.`,
     safeMessage: 'Test database configuration is invalid.',
-    status: 500,
   });
 };
 
@@ -74,12 +68,10 @@ export const resetTestTables = async (
   assertTestRuntime();
 
   if (tableNames.length === 0)
-    throw makeAppError({
-      kind: 'ConfigError',
+    throw configError({
       code: 'missing_test_table_names',
       message: 'At least one test table name is required before truncating.',
       safeMessage: 'Test database configuration is invalid.',
-      status: 500,
     });
 
   for (const tableName of tableNames) assertSafeTableName(tableName);

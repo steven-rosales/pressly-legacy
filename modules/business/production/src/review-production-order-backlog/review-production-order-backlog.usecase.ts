@@ -7,24 +7,29 @@ import type {
   ProductionOrderBacklogPreview,
   ProductionOrderBacklogPreviewItem,
 } from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
-import { result } from '@pressly/kernel';
 import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  validationError,
+  type AppError,
+} from '@pressly/errors';
+import { result } from '@pressly/kernel';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
 } from '../command-execution/production-idempotency.policy.ts';
-import { assessProductionOrderResolution } from '../production-policy/production-order-resolution.policy.ts';
+import {
+  assessProductionOrderResolution,
+  type ProductionOrderResolutionPolicy,
+} from '../production-policy/production-order-resolution.policy.ts';
 import type {
   ClockPort,
   IdPort,
   WorkEventCommandIdentity,
 } from '../command-execution/production-command.port.ts';
-import type { ProductionOrderResolutionLifecycleDecision } from '../production-lifecycle/production-lifecycle.port.ts';
-import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
+import type { ProductionOrderResolutionLifecycleDecision } from '../production-lifecycle/production-lifecycle.model.ts';
 import type {
   BacklogSnapshotScope,
   CommitProductionOrderBacklog,
@@ -59,6 +64,7 @@ type BacklogCursorPayload = Readonly<{
   orderId: string;
 }>;
 
+// Private parse sentinel; every instance is converted to a typed Result here.
 class InvalidBacklogCursor extends Error {}
 
 const cursorChecksum = (encodedPayload: string): string =>
@@ -233,7 +239,7 @@ const item = (
 });
 
 const classifyOrder = (
-  policy: ProductionPolicyPort,
+  policy: ProductionOrderResolutionPolicy,
   order: ProductionOrderBacklogSnapshotOrder,
 ): ClassifiedOrder => {
   const assessment = assessProductionOrderResolution(policy, {
@@ -278,7 +284,7 @@ const classifyOrder = (
 };
 
 export const classifyProductionOrderBacklogSnapshot = (
-  policy: ProductionPolicyPort,
+  policy: ProductionOrderResolutionPolicy,
   snapshot: ProductionOrderBacklogSnapshot,
 ): ClassifiedSnapshot => ({
   orders: snapshot.orders.map((order) => classifyOrder(policy, order)),
@@ -362,7 +368,7 @@ const previewFromSnapshot = (
 export const makePreviewProductionOrderBacklog =
   (deps: {
     repo: ReviewProductionOrderBacklogRepository;
-    policy: ProductionPolicyPort;
+    policy: ProductionOrderResolutionPolicy;
     clock: ClockPort;
   }): PreviewProductionOrderBacklog =>
   async (command) => {
@@ -378,23 +384,27 @@ export const makePreviewProductionOrderBacklog =
     } catch (error) {
       if (error instanceof InvalidBacklogCursor)
         return result.err(
-          productionError(
-            'PRODUCTION_ORDER_BACKLOG_CURSOR_INVALID',
-            error.message,
-            400,
-          ),
+          validationError({
+            code: 'production_order_backlog_cursor_invalid',
+            message: error.message,
+            safeMessage: error.message,
+          }),
         );
       return result.err(
-        productionError(
-          'PRODUCTION_ORDER_BACKLOG_PREVIEW_FAILED',
-          'The old-order review could not be prepared.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_order_backlog_preview_failed',
+            message: 'The old-order review could not be prepared.',
+            safeMessage: 'The old-order review could not be prepared.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }
   };
 
+// Private transaction-abort sentinel; it never crosses the use-case boundary.
 class BulkResolutionAbort extends Error {
   public constructor(public readonly appError: AppError) {
     super(appError.safeMessage);
@@ -429,7 +439,7 @@ const perOrderCommandIdentity = (input: {
 export const makeCommitProductionOrderBacklog =
   (deps: {
     repo: ReviewProductionOrderBacklogRepository;
-    policy: ProductionPolicyPort;
+    policy: ProductionOrderResolutionPolicy;
     clock: ClockPort;
     ids: IdPort;
   }): CommitProductionOrderBacklog =>
@@ -484,11 +494,13 @@ export const makeCommitProductionOrderBacklog =
         );
         if (actualHash !== command.previewHash)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_BACKLOG_PREVIEW_STALE',
-              'The old-order backlog changed after it was reviewed. Refresh the preview before committing.',
-              409,
-            ),
+            conflictError({
+              code: 'production_order_backlog_preview_stale',
+              message:
+                'The old-order backlog changed after it was reviewed. Refresh the preview before committing.',
+              safeMessage:
+                'The old-order backlog changed after it was reviewed. Refresh the preview before committing.',
+            }),
           );
 
         const ready = classified.orders.filter(
@@ -519,11 +531,13 @@ export const makeCommitProductionOrderBacklog =
           });
           if (changed === null)
             throw new BulkResolutionAbort(
-              productionError(
-                'PRODUCTION_ORDER_BACKLOG_COMMIT_CONFLICT',
-                'An order changed while the old-order backlog was being committed. No orders were archived.',
-                409,
-              ),
+              conflictError({
+                code: 'production_order_backlog_commit_conflict',
+                message:
+                  'An order changed while the old-order backlog was being committed. No orders were archived.',
+                safeMessage:
+                  'An order changed while the old-order backlog was being committed. No orders were archived.',
+              }),
             );
 
           resolved.push(changed);
@@ -600,18 +614,21 @@ export const makeCommitProductionOrderBacklog =
         return result.err(error.appError);
       if (error instanceof InvalidBacklogCursor)
         return result.err(
-          productionError(
-            'PRODUCTION_ORDER_BACKLOG_CURSOR_INVALID',
-            error.message,
-            400,
-          ),
+          validationError({
+            code: 'production_order_backlog_cursor_invalid',
+            message: error.message,
+            safeMessage: error.message,
+          }),
         );
       return result.err(
-        productionError(
-          'PRODUCTION_ORDER_BACKLOG_COMMIT_FAILED',
-          'The old-order backlog could not be archived.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_order_backlog_commit_failed',
+            message: 'The old-order backlog could not be archived.',
+            safeMessage: 'The old-order backlog could not be archived.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

@@ -1,7 +1,6 @@
 import type { ChangeProductionAdmissionCommand } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { RequestHandler } from 'express';
-import { sendProductionResult } from '../http/production-response.ts';
 import type { ChangeProductionAdmission } from './change-production-admission.port.ts';
 
 export const makeChangeProductionAdmissionController = (input: {
@@ -9,7 +8,7 @@ export const makeChangeProductionAdmissionController = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.changeAdmission({
         ...(request.body as Omit<

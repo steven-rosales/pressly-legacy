@@ -13,6 +13,7 @@ import type {
   ProductionPendingPlacement,
   ProductionPlacementPreview,
 } from '@pressly/contracts';
+import { conflictError, invariantViolationError } from '@pressly/errors';
 import type { OnlinePlacementProposal } from '../scheduling/online-placement.port.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import {
@@ -23,13 +24,27 @@ import {
 } from '../persistence/production-order-placement-context.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
-import type { ProductionOrderSchedulingMutation } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ProductionOrderSchedulingMutation } from '../production-lifecycle/production-lifecycle.model.ts';
 import type {
   PlaceProductionOrderRepository,
   PlacementContext,
   PlacementOutcomeInput,
   StoredOvertimeProposal,
 } from './place-production-order.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -167,7 +182,10 @@ const commitPlacement = async (
     input.orderLifecycle.lifecycle.from !== 'unassigned' ||
     input.orderLifecycle.lifecycle.state !== 'scheduled'
   )
-    throw new Error('Production-order execution decision is invalid.');
+    throw productionInvariantViolation(
+      'production_placement_execution_decision_invalid',
+      'Production-order execution decision is invalid.',
+    );
   const changed = input.proposal.affectedBatches.filter(
     (batch) => batch.changed,
   );
@@ -281,7 +299,10 @@ const commitPlacement = async (
     for (const stage of projection.stages) {
       const stationId = stationByKind.get(stage.stage);
       if (stationId === undefined)
-        throw new Error(`Production station missing: ${stage.stage}.`);
+        throw productionInvariantViolation(
+          'production_placement_station_missing',
+          `Production station missing: ${stage.stage}.`,
+        );
       const stageKey = `${batchId}:${stage.stage}`;
       const existingStageRunId = stageRunIdByBatchAndKind.get(stageKey);
       const stageRunId = existingStageRunId ?? ids.next();
@@ -318,7 +339,10 @@ const commitPlacement = async (
           )
           .returning({ id: laundryProduction.stageRuns.id });
         if (updatedStage === undefined)
-          throw new Error('A queued stage changed during reprojection.');
+          throw productionConcurrencyConflict(
+            'production_placement_stage_version_conflict',
+            'A queued stage changed during reprojection.',
+          );
         await db
           .delete(laundryProduction.stageMachineAssignments)
           .where(
@@ -358,7 +382,10 @@ const commitPlacement = async (
       ? input.proposal.target.batchId
       : createdBatchId;
   if (targetBatchId === null)
-    throw new Error('The placement target batch was not materialized.');
+    throw productionInvariantViolation(
+      'production_placement_target_not_materialized',
+      'The placement target batch was not materialized.',
+    );
 
   await db.insert(laundryProduction.productionBatchOrders).values({
     locationId: input.locationId,
@@ -382,7 +409,10 @@ const commitPlacement = async (
       `${targetBatchId}:${stageKind}`,
     );
     if (stageRunId === undefined)
-      throw new Error(`Placed order target stage is missing: ${stageKind}.`);
+      throw productionInvariantViolation(
+        'production_placement_target_stage_missing',
+        `Placed order target stage is missing: ${stageKind}.`,
+      );
     return { stageKind, stageRunId };
   });
   await db.insert(laundryProduction.productionOrderStageAttempts).values(
@@ -430,7 +460,10 @@ const commitPlacement = async (
     )
     .returning({ id: laundryProduction.productionOrders.id });
   if (updatedOrder === undefined)
-    throw new Error('The order stopped being eligible during placement.');
+    throw productionConcurrencyConflict(
+      'production_placement_order_version_conflict',
+      'The order stopped being eligible during placement.',
+    );
 
   const nextQueueVersion = input.context.input.run.queueVersion + 1;
   const acknowledgesOvertime =
@@ -461,12 +494,19 @@ const commitPlacement = async (
     )
     .returning({ id: laundryProduction.productionRuns.id });
   if (updatedRun === undefined)
-    throw new Error('The production queue changed during placement.');
+    throw productionConcurrencyConflict(
+      'production_placement_queue_version_conflict',
+      'The production queue changed during placement.',
+    );
 
   const affectedBatchIds = input.proposal.affectedBatches.map((projection) => {
     if (projection.sourceBatchId !== null) return projection.sourceBatchId;
     const batchId = batchIdByProjection.get(`new:${projection.sequence}`);
-    if (batchId === undefined) throw new Error('New batch mapping is missing.');
+    if (batchId === undefined)
+      throw productionInvariantViolation(
+        'production_placement_new_batch_mapping_missing',
+        'New batch mapping is missing.',
+      );
     return batchId;
   });
   const outcome = {

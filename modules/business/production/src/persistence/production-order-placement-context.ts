@@ -6,6 +6,7 @@ import {
   laundryProduction,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { invariantViolationError } from '@pressly/errors';
 import type {
   OnlinePlacementInput,
   ProductionOrderPlacementContext,
@@ -15,6 +16,13 @@ import type {
   SchedulingInput,
   SchedulingOutput,
 } from '../scheduling/production-scheduling.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 export type ProductionPlacementRunRow = Readonly<{
   id: string;
@@ -45,7 +53,10 @@ const asBatchStatus = (
     case 'finished':
       return status;
     default:
-      throw new Error(`Unknown production batch status: ${status}.`);
+      throw productionInvariantViolation(
+        'production_placement_context_batch_status_invalid',
+        `Unknown production batch status: ${status}.`,
+      );
   }
 };
 
@@ -59,7 +70,10 @@ const asStageKind = (
     case 'folding_packaging':
       return stage;
     default:
-      throw new Error(`Unknown production stage kind: ${stage}.`);
+      throw productionInvariantViolation(
+        'production_placement_context_stage_kind_invalid',
+        `Unknown production stage kind: ${stage}.`,
+      );
   }
 };
 
@@ -84,7 +98,9 @@ export const loadProductionPlacementRun = async (
       ),
     )
     .limit(1);
+
   const rows = lock ? await query.for('update') : await query;
+
   return rows[0] ?? null;
 };
 
@@ -113,7 +129,9 @@ export const loadProductionPlacementOrder = async (
       ),
     )
     .limit(1);
+
   const rows = lock ? await query.for('update') : await query;
+
   return rows[0] ?? null;
 };
 
@@ -137,6 +155,7 @@ export const loadProductionRunPlacementContext = async (
     )
     .limit(1);
   if (schedule === undefined) return null;
+
   const snapshot = schedule.inputSnapshot as SchedulingInput;
   const originalPlan = schedule.outputPlan as SchedulingOutput;
 
@@ -150,10 +169,12 @@ export const loadProductionRunPlacementContext = async (
       ),
     )
     .orderBy(asc(laundryProduction.productionBatches.sequenceIndex));
+
   const batchRows = lockBatches
     ? await batchQuery.for('update')
     : await batchQuery;
   if (batchRows.length === 0) return null;
+
   const batchIds = batchRows.map((batch) => batch.id);
 
   const [membershipRows, stageRows] = await Promise.all([
@@ -202,7 +223,9 @@ export const loadProductionRunPlacementContext = async (
       )
       .orderBy(asc(laundryProduction.stageRuns.plannedStartAt)),
   ]);
+
   const stageIds = stageRows.map((stage) => stage.id);
+
   const assignmentRows =
     stageIds.length === 0
       ? []

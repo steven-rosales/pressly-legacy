@@ -1,9 +1,28 @@
+import { unexpectedError } from '@pressly/errors';
+
 export type WorkerJob = Readonly<{ runOnce: () => Promise<number> }>;
 
 export const makeSequentialJob = (jobs: readonly WorkerJob[]): WorkerJob => ({
   runOnce: async () => {
     let processed = 0;
-    for (const job of jobs) processed += await job.runOnce();
+    const failures: unknown[] = [];
+
+    for (const job of jobs) {
+      try {
+        processed += await job.runOnce();
+      } catch (error: unknown) {
+        failures.push(error);
+      }
+    }
+
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1)
+      throw unexpectedError({
+        code: 'worker_peer_jobs_failed',
+        message: `${failures.length} independent worker jobs failed in one pass.`,
+        details: { failureCount: failures.length },
+        cause: new AggregateError(failures, 'Independent worker jobs failed.'),
+      });
     return processed;
   },
 });

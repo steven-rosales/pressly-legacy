@@ -17,10 +17,12 @@ import {
 } from './workforce-authority.policy.ts';
 import { commandFingerprint } from './workforce-validation.policy.ts';
 import { encodeWorkforceCursor } from './workforce-pagination.policy.ts';
-import type { WorkforceRole } from './workforce.port.ts';
+import type {
+  WorkforceInvitationSummary,
+  WorkforceRole,
+} from './workforce.model.ts';
 import {
   checkReceipt,
-  invitationSummary,
   loadAuthorizedActor,
   locationBelongsToBusiness,
   lockBusiness,
@@ -37,6 +39,23 @@ import type {
   AcceptedInvitation,
   WorkforceInvitationStore,
 } from './workforce-invitation.port.ts';
+
+type StoredInvitation = typeof auth.workforceInvitations.$inferSelect;
+
+const invitationSummary = (
+  invitation: StoredInvitation,
+): WorkforceInvitationSummary => ({
+  id: invitation.id,
+  businessId: invitation.businessId,
+  emailNormalized: invitation.emailNormalized,
+  displayName: invitation.displayName,
+  intendedRole: invitation.intendedRole as WorkforceRole,
+  intendedLocationId: invitation.intendedLocationId,
+  state: invitation.state,
+  version: invitation.version,
+  expiresAt: invitation.expiresAt,
+  createdAt: invitation.createdAt,
+});
 
 const validRole = (role: string): role is WorkforceRole =>
   role === 'owner' || role === 'manager' || role === 'operator';

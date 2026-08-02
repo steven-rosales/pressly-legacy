@@ -1,16 +1,14 @@
-import { makeAppError, type AppError } from '@pressly/errors';
+import { authError, permissionError, type AppError } from '@pressly/errors';
 
 export const processorUnauthorized = (input: {
   code: string;
   message: string;
   safeMessage?: string;
 }): AppError =>
-  makeAppError({
-    kind: 'AuthError',
+  authError({
     code: input.code,
     message: input.message,
     safeMessage: input.safeMessage ?? 'Authentication is required.',
-    status: 401,
   });
 
 export const processorForbidden = (input: {
@@ -18,10 +16,8 @@ export const processorForbidden = (input: {
   message: string;
   safeMessage: string;
 }): AppError =>
-  makeAppError({
-    kind: 'PermissionError',
+  permissionError({
     code: input.code,
     message: input.message,
     safeMessage: input.safeMessage,
-    status: 403,
   });

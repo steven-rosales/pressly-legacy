@@ -6,7 +6,7 @@ import {
   requireExpectedVersion,
   requireIdentifier,
 } from './workforce-validation.policy.ts';
-import type { WorkforceActorRef } from './workforce.port.ts';
+import type { WorkforceActorRef } from './workforce.model.ts';
 import type { WorkforceClock } from './workforce-invitation.port.ts';
 import type { WorkforceMembershipEvent } from './workforce-membership.policy.ts';
 import type {

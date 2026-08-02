@@ -1,10 +1,16 @@
 import { result, type Result } from '@pressly/kernel';
 import {
-  makeAppError,
+  externalServiceError,
+  validationError,
   type AppError,
-  type HttpStatusCode,
+  type ExternalServiceErrorStatus,
 } from '@pressly/errors';
-import { z } from 'zod';
+import {
+  appErrorFromApiFailure,
+  decodeApiResponse,
+  encodeJsonBody,
+  responseTraceId,
+} from '@pressly/http';
 import type {
   RequestClient,
   RequestInput,
@@ -19,47 +25,12 @@ export type MakeFetchRequestClientInput = Readonly<{
   }>;
 }>;
 
-const apiFailureSchema = z.object({
-  ok: z.literal(false),
-  error: z.object({
-    code: z.string(),
-    message: z.string(),
-    traceId: z.string().optional(),
-    details: z.unknown().optional(),
-  }),
-});
-
-const apiSuccessSchema = <A>(data: z.ZodType<A>) =>
-  z.object({
-    ok: z.literal(true),
-    data,
-    meta: z.record(z.string(), z.unknown()).optional(),
-  });
-
 const appendQuery = (url: URL, query: RequestInput<unknown>['query']): URL => {
   for (const [key, value] of Object.entries(query ?? {})) {
     url.searchParams.set(key, String(value));
   }
 
   return url;
-};
-
-const statusFromResponse = (status: number): HttpStatusCode => {
-  switch (status) {
-    case 400:
-    case 401:
-    case 403:
-    case 404:
-    case 409:
-    case 422:
-    case 429:
-    case 500:
-    case 502:
-    case 503:
-      return status;
-    default:
-      return 500;
-  }
 };
 
 const readJson = async (
@@ -78,6 +49,7 @@ const readJson = async (
         message: 'API response body was not valid JSON.',
         safeMessage: 'The server returned an unexpected response.',
         status: 502,
+        traceId: responseTraceId(response.headers),
         cause: error,
       }),
     );
@@ -88,13 +60,12 @@ const makeRequestError = (input: {
   code: string;
   message: string;
   safeMessage: string;
-  status: HttpStatusCode;
+  status: ExternalServiceErrorStatus;
   traceId?: string | undefined;
   details?: unknown;
   cause?: unknown;
 }): AppError =>
-  makeAppError({
-    kind: 'ExternalServiceError',
+  externalServiceError({
     code: input.code,
     message: input.message,
     safeMessage: input.safeMessage,
@@ -145,6 +116,21 @@ export const makeFetchRequestClient = ({
   getContext,
 }: MakeFetchRequestClientInput): RequestClient => ({
   send: async <A>(input: RequestInput<A>): Promise<Result<A, AppError>> => {
+    const encodedBody =
+      input.body === undefined ? undefined : encodeJsonBody(input.body);
+    if (encodedBody?.tag === 'rejected')
+      return result.err(
+        validationError({
+          code: 'request_body_not_serializable',
+          message: 'The Web request body cannot be encoded as JSON.',
+          safeMessage: 'The request contains unsupported data.',
+          details: { reason: encodedBody.reason },
+          ...(encodedBody.cause === undefined
+            ? {}
+            : { cause: encodedBody.cause }),
+        }),
+      );
+
     const timeout = createAbortSignal(input.timeoutMs ?? 15_000, input.signal);
     const context = getContext();
 
@@ -157,7 +143,7 @@ export const makeFetchRequestClient = ({
       headers.set('x-pressly-route', context.route ?? 'unknown');
       headers.set('x-pressly-session-id', context.sessionId ?? 'unknown');
 
-      const hasBody = input.body !== undefined;
+      const hasBody = encodedBody?.tag === 'encoded';
 
       if (hasBody) headers.set('content-type', 'application/json');
 
@@ -167,7 +153,7 @@ export const makeFetchRequestClient = ({
         signal: timeout.signal,
         ...(input.cache === undefined ? {} : { cache: input.cache }),
         ...(input.next === undefined ? {} : { next: input.next }),
-        ...(hasBody ? { body: JSON.stringify(input.body) } : {}),
+        ...(hasBody ? { body: encodedBody.body } : {}),
       });
 
       const jsonResult = await readJson(response);
@@ -175,17 +161,29 @@ export const makeFetchRequestClient = ({
 
       const json = jsonResult.value;
 
-      const failureResult = apiFailureSchema.safeParse(json);
+      const decoded = decodeApiResponse(json, input.response);
 
-      if (failureResult.success)
+      if (!decoded.success)
         return result.err(
           makeRequestError({
-            code: failureResult.data.error.code,
-            message: failureResult.data.error.message,
-            safeMessage: failureResult.data.error.message,
-            status: statusFromResponse(response.status),
-            traceId: failureResult.data.error.traceId,
-            details: failureResult.data.error.details,
+            code: 'invalid_api_response',
+            message: 'API response did not match the expected contract.',
+            safeMessage: 'The server returned an unexpected response.',
+            status: 502,
+            traceId: responseTraceId(response.headers),
+            details: decoded.error.issues,
+            cause: decoded.error,
+          }),
+        );
+
+      const envelope = decoded.data;
+
+      if (envelope.ok === false)
+        return result.err(
+          appErrorFromApiFailure({
+            failure: envelope,
+            responseStatus: response.status,
+            headers: response.headers,
           }),
         );
 
@@ -193,35 +191,40 @@ export const makeFetchRequestClient = ({
         return result.err(
           makeRequestError({
             code: 'http_error_response',
-            message: `API returned HTTP ${response.status}.`,
+            message: `API returned HTTP ${response.status} with a success envelope.`,
             safeMessage: 'The server returned an unsuccessful response.',
-            status: statusFromResponse(response.status),
-            details: json,
-          }),
-        );
-
-      const successResult = apiSuccessSchema(input.response).safeParse(json);
-
-      if (!successResult.success)
-        return result.err(
-          makeRequestError({
-            code: 'invalid_api_response',
-            message: 'API response did not match the expected contract.',
-            safeMessage: 'The server returned an unexpected response.',
             status: 502,
-            details: successResult.error.issues,
-            cause: successResult.error,
+            traceId: responseTraceId(response.headers),
+            details: { receivedStatus: response.status, envelope },
           }),
         );
 
-      return result.ok(successResult.data.data);
+      return result.ok(envelope.data);
     } catch (error) {
+      const callerCancelled = input.signal?.aborted === true;
+      const timedOut =
+        !callerCancelled &&
+        timeout.signal.aborted &&
+        timeout.signal.reason instanceof DOMException &&
+        timeout.signal.reason.name === 'TimeoutError';
       return result.err(
         makeRequestError({
-          code: 'request_failed',
-          message: 'Request failed.',
-          safeMessage: 'The request could not be completed',
-          status: 503,
+          code: callerCancelled
+            ? 'request_cancelled'
+            : timedOut
+              ? 'request_timed_out'
+              : 'request_failed',
+          message: callerCancelled
+            ? 'Request was cancelled by its caller.'
+            : timedOut
+              ? 'Request timed out.'
+              : 'Request failed.',
+          safeMessage: callerCancelled
+            ? 'The request was cancelled.'
+            : timedOut
+              ? 'The request timed out.'
+              : 'The request could not be completed.',
+          status: callerCancelled ? 408 : timedOut ? 504 : 503,
           cause: error,
         }),
       );

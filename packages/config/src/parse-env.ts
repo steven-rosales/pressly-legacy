@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { EnvSource } from './env-source.js';
-import { makeAppError } from '@pressly/errors';
+import { configError } from '@pressly/errors';
 
 export type ParsedEnv<S extends z.ZodType> = Readonly<z.infer<S>>;
 
@@ -17,12 +17,10 @@ export const parseEnv = <S extends z.ZodType>(
     return path.length > 0 ? `${path}: ${issue.message}` : issue.message;
   });
 
-  throw makeAppError({
-    kind: 'ConfigError',
+  throw configError({
     code: 'invalid_environment',
     message: 'Invalid environment configuration.',
     safeMessage: 'Server configuration is invalid.',
-    status: 500,
     details: {
       issues: messages,
     },

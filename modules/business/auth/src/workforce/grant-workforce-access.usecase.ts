@@ -10,7 +10,7 @@ import type {
   WorkforceActorRef,
   WorkforceRole,
   WorkforceScope,
-} from './workforce.port.ts';
+} from './workforce.model.ts';
 import type { WorkforceClock } from './workforce-invitation.port.ts';
 import type { AccessGrantStore } from './access-grant.port.ts';
 

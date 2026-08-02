@@ -1,5 +1,11 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+  type AppError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
-import { webhookIngestionError } from '../ingestion/webhook-ingestion.error.ts';
 import type {
   WebhookIngestionClockPort,
   WebhookIngestionIdPort,
@@ -13,6 +19,21 @@ import type {
 
 export const DEFAULT_WEBHOOK_QUARANTINE_RETENTION_MS =
   30 * 24 * 60 * 60 * 1_000;
+
+const quarantineDatabaseFailure = (
+  code: string,
+  message: string,
+  cause: unknown,
+): AppError =>
+  mapUnknownError(cause, (unknownCause) =>
+    databaseError({
+      code,
+      message,
+      safeMessage: message,
+      status: 503,
+      cause: unknownCause,
+    }),
+  );
 
 export const makeCaptureWebhookReceipt =
   (deps: {
@@ -34,10 +55,9 @@ export const makeCaptureWebhookReceipt =
       );
     } catch (error) {
       return result.err(
-        webhookIngestionError(
-          'WEBHOOK_QUARANTINE_CAPTURE_FAILED',
+        quarantineDatabaseFailure(
+          'webhook_quarantine_capture_failed',
           'The webhook diagnostic receipt could not be stored durably.',
-          503,
           error,
         ),
       );
@@ -57,27 +77,28 @@ export const makeLinkWebhookReceipt =
       });
       if (outcome === 'missing')
         return result.err(
-          webhookIngestionError(
-            'WEBHOOK_QUARANTINE_RECEIPT_NOT_FOUND',
-            'The webhook diagnostic receipt was not found.',
-            503,
-          ),
+          notFoundError({
+            code: 'webhook_quarantine_receipt_not_found',
+            message: 'The webhook diagnostic receipt was not found.',
+            safeMessage: 'The webhook diagnostic receipt was not found.',
+          }),
         );
       if (outcome === 'conflict')
         return result.err(
-          webhookIngestionError(
-            'WEBHOOK_QUARANTINE_LINK_CONFLICT',
-            'The webhook diagnostic receipt is linked to another event.',
-            503,
-          ),
+          conflictError({
+            code: 'webhook_quarantine_link_conflict',
+            message:
+              'The webhook diagnostic receipt is linked to another event.',
+            safeMessage:
+              'The webhook diagnostic receipt is linked to another event.',
+          }),
         );
       return result.ok({ linked: outcome === 'linked' });
     } catch (error) {
       return result.err(
-        webhookIngestionError(
-          'WEBHOOK_QUARANTINE_LINK_FAILED',
+        quarantineDatabaseFailure(
+          'webhook_quarantine_link_failed',
           'The webhook diagnostic receipt could not be linked.',
-          503,
           error,
         ),
       );
@@ -96,10 +117,9 @@ export const makePurgeExpiredWebhookReceipts =
       });
     } catch (error) {
       return result.err(
-        webhookIngestionError(
-          'WEBHOOK_QUARANTINE_PURGE_FAILED',
+        quarantineDatabaseFailure(
+          'webhook_quarantine_purge_failed',
           'Expired webhook diagnostic receipts could not be removed.',
-          503,
           error,
         ),
       );

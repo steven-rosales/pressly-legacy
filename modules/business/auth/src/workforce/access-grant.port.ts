@@ -6,7 +6,7 @@ import type {
   WorkforceActorRef,
   WorkforceRole,
   WorkforceScope,
-} from './workforce.port.ts';
+} from './workforce.model.ts';
 
 export type GrantAccessStoreInput = Readonly<{
   actor: WorkforceActorRef;

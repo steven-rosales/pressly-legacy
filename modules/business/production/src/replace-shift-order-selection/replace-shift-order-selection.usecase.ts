@@ -1,16 +1,19 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import type { ReplaceProductionShiftSelectionResult } from '@pressly/contracts';
 import { result } from '@pressly/kernel';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
 } from '../command-execution/production-idempotency.policy.ts';
 import type { ClockPort } from '../command-execution/production-command.port.ts';
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
-import type { ScheduleSupersessionDecision } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ScheduleSupersessionDecision } from '../production-lifecycle/production-lifecycle.model.ts';
 import type { ProductionSignalsPort } from '../production-signals/production-signals.port.ts';
 import type {
   ReplaceShiftOrderSelection,
@@ -33,7 +36,7 @@ export const makeReplaceShiftOrderSelection =
   (deps: {
     repo: ReplaceShiftOrderSelectionRepository;
     clock: ClockPort;
-    policy: ProductionPolicyPort;
+    policy: Pick<ProductionPolicyPort, 'evaluateScheduleRevisionTransition'>;
     signals?: ProductionSignalsPort;
   }): ReplaceShiftOrderSelection =>
   async (command) => {
@@ -76,27 +79,31 @@ export const makeReplaceShiftOrderSelection =
         );
         if (current.state === 'not_found')
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_NOT_FOUND',
-              'The production shift was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_shift_not_found',
+              message: 'The production shift was not found.',
+              safeMessage: 'The production shift was not found.',
+            }),
           );
         if (current.state === 'run_exists')
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_ALREADY_STARTED',
-              'The order selection is frozen because production has started.',
-              409,
-            ),
+            conflictError({
+              code: 'production_shift_already_started',
+              message:
+                'The order selection is frozen because production has started.',
+              safeMessage:
+                'The order selection is frozen because production has started.',
+            }),
           );
         if (current.version !== command.expectedVersion)
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_SELECTION_VERSION_CONFLICT',
-              'The shift selection changed. Refresh it before choosing orders again.',
-              409,
-            ),
+            conflictError({
+              code: 'production_shift_selection_version_conflict',
+              message:
+                'The shift selection changed. Refresh it before choosing orders again.',
+              safeMessage:
+                'The shift selection changed. Refresh it before choosing orders again.',
+            }),
           );
         if (
           !(await repo.selectedOrdersAreReady(
@@ -105,11 +112,13 @@ export const makeReplaceShiftOrderSelection =
           ))
         )
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_SELECTION_NOT_READY',
-              'One or more selected orders are no longer ready to schedule. Refresh the shift and review the selection.',
-              409,
-            ),
+            conflictError({
+              code: 'production_shift_selection_not_ready',
+              message:
+                'One or more selected orders are no longer ready to schedule. Refresh the shift and review the selection.',
+              safeMessage:
+                'One or more selected orders are no longer ready to schedule. Refresh the shift and review the selection.',
+            }),
           );
 
         const currentOrderIds = sorted(current.selectedOrderIds);
@@ -138,11 +147,13 @@ export const makeReplaceShiftOrderSelection =
               lifecycle.value.state !== 'superseded'
             )
               return result.err(
-                productionError(
-                  'SCHEDULE_CURRENT_PLAN_STATE_INVALID',
-                  'The current schedule revision cannot be superseded.',
-                  409,
-                ),
+                conflictError({
+                  code: 'schedule_current_plan_state_invalid',
+                  message:
+                    'The current schedule revision cannot be superseded.',
+                  safeMessage:
+                    'The current schedule revision cannot be superseded.',
+                }),
               );
             supersede = {
               scheduleRunId: current.currentSchedule.scheduleRunId,
@@ -160,11 +171,13 @@ export const makeReplaceShiftOrderSelection =
           });
           if (saved === null)
             return result.err(
-              productionError(
-                'PRODUCTION_SHIFT_SELECTION_VERSION_CONFLICT',
-                'The shift selection changed. Refresh it before choosing orders again.',
-                409,
-              ),
+              conflictError({
+                code: 'production_shift_selection_version_conflict',
+                message:
+                  'The shift selection changed. Refresh it before choosing orders again.',
+                safeMessage:
+                  'The shift selection changed. Refresh it before choosing orders again.',
+              }),
             );
           replaced = saved;
           superseded = saved.supersededScheduleRunId !== null;
@@ -191,11 +204,14 @@ export const makeReplaceShiftOrderSelection =
       return outcome;
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_SHIFT_SELECTION_FAILED',
-          'The shift order selection could not be saved.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_shift_selection_failed',
+            message: 'The shift order selection could not be saved.',
+            safeMessage: 'The shift order selection could not be saved.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

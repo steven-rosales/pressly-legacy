@@ -1,5 +1,6 @@
+import { databaseError, mapUnknownError } from '@pressly/errors';
 import { result } from '@pressly/kernel';
-import { productionError } from '../failure-mapping/production.error.ts';
+
 import type {
   ChangeProductionOrderResolution,
   ChangeProductionOrderResolutionRepository,
@@ -117,11 +118,15 @@ export const makeResolveSourceClosedFulfillment =
       );
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_SOURCE_CLOSED_RESOLUTION_FAILED',
-          'The source-closed fulfillment could not be evaluated.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_source_closed_resolution_failed',
+            message: 'The source-closed fulfillment could not be evaluated.',
+            safeMessage:
+              'The source-closed fulfillment could not be evaluated.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

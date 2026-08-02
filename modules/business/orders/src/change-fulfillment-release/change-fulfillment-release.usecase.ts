@@ -1,3 +1,10 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+  validationError,
+} from '@pressly/errors';
 import { isCommandContextValid, result } from '@pressly/kernel';
 import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
 import type {
@@ -5,8 +12,8 @@ import type {
   OrderMutationResult,
 } from '../command-execution/order-command.port.ts';
 import { isOrderCommandReasonValid } from '../command-execution/order-command-reason.policy.ts';
-import { orderError } from '../failure-mapping/order.error.ts';
-import type { FulfillmentReleaseState } from '../order-model/order-model.port.ts';
+import { orderInvariantError } from '../order-model/order-invariant.error.ts';
+import type { FulfillmentReleaseState } from '../order-model/order.model.ts';
 import {
   decideFulfillmentRelease,
   releaseFulfillmentReasonCodes,
@@ -49,11 +56,11 @@ const makeFulfillmentReleaseCommand =
       })
     )
       return result.err(
-        orderError(
-          'FULFILLMENT_RELEASE_COMMAND_INVALID',
-          'The fulfillment release command is incomplete.',
-          400,
-        ),
+        validationError({
+          code: 'fulfillment_release_command_invalid',
+          message: 'The fulfillment release command is incomplete.',
+          safeMessage: 'The fulfillment release command is incomplete.',
+        }),
       );
     try {
       const commandHash = hashOrderCommand(command);
@@ -107,7 +114,8 @@ const makeFulfillmentReleaseCommand =
         if (decision.kind === 'denied')
           return { kind: 'invalid_transition' as const };
         if (decision.to !== input.target)
-          throw new Error(
+          throw orderInvariantError(
+            'FULFILLMENT_RELEASE_GRAPH_STATE_INVALID',
             'Fulfillment release graph returned an unexpected state.',
           );
 
@@ -139,39 +147,51 @@ const makeFulfillmentReleaseCommand =
       if (outcome.kind === 'ok') return result.ok(outcome.value);
       if (outcome.kind === 'not_found')
         return result.err(
-          orderError(
-            'FULFILLMENT_NOT_FOUND',
-            'The fulfillment was not found.',
-            404,
-          ),
+          notFoundError({
+            code: 'fulfillment_not_found',
+            message: 'The fulfillment was not found.',
+            safeMessage: 'The fulfillment was not found.',
+          }),
         );
       if (outcome.kind === 'version_conflict')
         return result.err(
-          orderError(
-            'FULFILLMENT_VERSION_CONFLICT',
-            'The Order or fulfillment changed after this request was prepared. Refresh and try again.',
-          ),
+          conflictError({
+            code: 'fulfillment_version_conflict',
+            message:
+              'The Order or fulfillment changed after this request was prepared. Refresh and try again.',
+            safeMessage:
+              'The Order or fulfillment changed after this request was prepared. Refresh and try again.',
+          }),
         );
       if (outcome.kind === 'invalid_transition')
         return result.err(
-          orderError(
-            'FULFILLMENT_TRANSITION_INVALID',
-            'The requested fulfillment command is not allowed from the current release state.',
-          ),
+          conflictError({
+            code: 'fulfillment_transition_invalid',
+            message:
+              'The requested fulfillment command is not allowed from the current release state.',
+            safeMessage:
+              'The requested fulfillment command is not allowed from the current release state.',
+          }),
         );
       return result.err(
-        orderError(
-          'ORDER_IDEMPOTENCY_CONFLICT',
-          'The idempotency key belongs to a different order command.',
-        ),
+        conflictError({
+          code: 'order_idempotency_conflict',
+          message: 'The idempotency key belongs to a different order command.',
+          safeMessage:
+            'The idempotency key belongs to a different order command.',
+        }),
       );
     } catch (error) {
       return result.err(
-        orderError(
-          'FULFILLMENT_RELEASE_COMMAND_FAILED',
-          'The fulfillment release command could not be completed.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'fulfillment_release_command_failed',
+            message: 'The fulfillment release command could not be completed.',
+            safeMessage:
+              'The fulfillment release command could not be completed.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

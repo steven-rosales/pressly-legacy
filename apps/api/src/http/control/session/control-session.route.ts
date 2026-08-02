@@ -4,8 +4,7 @@ import {
   type ControlAuthenticatedSession,
   type ProcessorCompleteMfaChallengeRequest,
 } from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
-import { apiFailure, apiSuccess } from '@pressly/http';
+import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import { Router, type Response } from 'express';
 import {
@@ -31,10 +30,6 @@ import {
   type ControlSessionOptions,
   type ResolveControlAccess,
 } from './control-session.port.ts';
-
-const sendFailure = (response: Response, error: AppError): void => {
-  response.status(error.status).json(apiFailure(error));
-};
 
 export const establishControlBrowserSession = async (input: {
   response: Response;
@@ -119,10 +114,7 @@ export const makeControlSessionRoutes = (input: {
         ...(request.body as { email: string; password: string }),
         ...controlRequestMetadata(request, response),
       });
-      if (isControlResultError(authenticated)) {
-        sendFailure(response, authenticated.error);
-        return;
-      }
+      if (isControlResultError(authenticated)) throw authenticated.error;
 
       if ('challengeToken' in authenticated.value) {
         clearControlCookie(response, input.names.session, input.options);
@@ -179,10 +171,7 @@ export const makeControlSessionRoutes = (input: {
           ? {}
           : { requestId: controlRequestId(response)! }),
       });
-      if (isControlResultError(completed)) {
-        sendFailure(response, completed.error);
-        return;
-      }
+      if (isControlResultError(completed)) throw completed.error;
 
       clearControlCookie(response, input.names.mfa, input.options);
       const session = await establishControlBrowserSession({
@@ -227,10 +216,7 @@ export const makeControlSessionRoutes = (input: {
           ? {}
           : { requestId: controlRequestId(response)! }),
       });
-      if (isControlResultError(revoked)) {
-        sendFailure(response, revoked.error);
-        return;
-      }
+      if (isControlResultError(revoked)) throw revoked.error;
 
       clearControlCookie(response, input.names.session, input.options);
       clearControlCookie(response, input.names.mfa, input.options);

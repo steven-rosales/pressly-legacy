@@ -19,7 +19,7 @@ import {
   type PreviewProductionOrderBacklogCommand,
   type ProductionRemainingDayForecast,
 } from '@pressly/contracts';
-import { apiFailure, apiSuccess } from '@pressly/http';
+import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import type { ProductionApplication } from '@pressly/production';
 import { Router, type RequestHandler } from 'express';
@@ -61,10 +61,7 @@ export const makeProcessorOperationalOrderRoutes = (input: {
         locationId: request.params['locationId'] as string,
         productionRunId: request.params['productionRunId'] as string,
       });
-      if (result.tag === 'err') {
-        response.status(result.error.status).json(apiFailure(result.error));
-        return;
-      }
+      if (result.tag === 'err') throw result.error;
       response.json(
         apiSuccess(
           processorProductionBoardSchema.parse(
@@ -92,10 +89,7 @@ export const makeProcessorOperationalOrderRoutes = (input: {
         ...body,
         locationId: request.params['locationId'] as string,
       });
-      if (preview.tag === 'err') {
-        response.status(preview.error.status).json(apiFailure(preview.error));
-        return;
-      }
+      if (preview.tag === 'err') throw preview.error;
       response.json(
         apiSuccess(
           processorProductionOrderBacklogPreviewSchema.parse(
@@ -169,10 +163,7 @@ export const makeProcessorOperationalOrderRoutes = (input: {
         ...(request.query as unknown as ListProductionHistoryActivityQuery),
         locationId: request.params['locationId'] as string,
       });
-      if (activity.tag === 'err') {
-        response.status(activity.error.status).json(apiFailure(activity.error));
-        return;
-      }
+      if (activity.tag === 'err') throw activity.error;
       response.json(
         apiSuccess(
           processorListProductionHistoryActivityResultSchema.parse(

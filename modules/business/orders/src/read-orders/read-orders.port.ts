@@ -5,7 +5,7 @@ import type {
   OrderCustomer,
   OrderItemInput,
   OrderState,
-} from '../order-model/order-model.port.ts';
+} from '../order-model/order.model.ts';
 
 export type CanonicalOrderSummary = Readonly<{
   orderId: string;

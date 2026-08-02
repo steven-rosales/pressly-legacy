@@ -117,7 +117,7 @@ pressly/
     config/           environment parsing and runtime config
     contracts/        shared protocol contracts, commands, and results
     db/               Drizzle schema, migrations, seeds, and db client
-    errors/           AppError and AppException language
+    errors/           AppError constructors and presentation language
     http/             HTTP helpers, response shapes, Express adapters
     logging/          structured logging capabilities
     metrics/          metrics capabilities
@@ -842,9 +842,7 @@ Rules:
 
 Errors must be structured and predictable.
 
-`AppError` is the structured error value.
-
-`AppException` is the throwable `Error` wrapper.
+`AppError` is both the structured error value and the throwable `Error`.
 
 The common error shape is:
 
@@ -855,18 +853,33 @@ message
 safeMessage
 status
 details
+publicDetails
 cause
 traceId
 ```
 
 Rules:
 
-- Throw `AppException` when code needs to throw.
-- Return or serialize `AppError` when code needs an error value.
+- Return `Result<_, AppError>` for expected application outcomes.
+- Throw `AppError` for unexpected infrastructure or invariant failures.
+- Preserve an existing `AppError`; wrap an unknown failure once at the
+  boundary that can name it.
 - Domain errors should describe violated meaning.
 - Adapter errors should describe failed mechanisms.
-- HTTP status mapping belongs at the HTTP boundary.
-- Internal causes should be logged, not leaked to clients.
+- Semantic constructors own kind and allowed status; clients may interpret the
+  status but must not infer or replace domain meaning.
+- `details` and `cause` are private diagnostics. Only explicitly reviewed
+  `publicDetails` may be serialized.
+- The runtime's outer error boundary owns normalization, observability,
+  correlation, and presentation exactly once.
+- Logging, counters, and error reporting are non-authoritative effects. Run
+  them through `attemptObservation` so a failed sink cannot replace the
+  business result, HTTP envelope, worker disposition, or recovery surface.
+- Encode request bodies before entering the transport effect. Unsupported
+  local data is validation failure, never a network or upstream outage.
+- Native `Error` is reserved for sealed local programmer assertions such as a
+  UI primitive used outside its provider, plus tests and tooling. It must not
+  cross an application, module, persistence, HTTP, or worker boundary.
 - Failed responses should include a trace id when available.
 
 ## 12. Transactions
@@ -964,6 +977,7 @@ Business capability source uses this deliberately closed vocabulary:
 *.error.ts        expected error mapping
 *.mapper.ts       representation mapping
 *.middleware.ts   protocol middleware
+*.model.ts        domain or application data with no injected capability
 *.policy.ts       intrinsic business policy
 *.port.ts         required capability contract
 *.repo.ts         persistence adapter
@@ -977,7 +991,15 @@ foundation may omit one when the foundation itself supplies the architectural
 role. Foundation names and filenames should describe the narrow responsibility
 they centralize, such as `http/auth-context.ts`,
 `persistence/database-result.ts`, `command-execution/user-command.port.ts`, or
-`failure-mapping/order.error.ts`.
+`order-model/order-invariant.error.ts`.
+
+Errors belong to the capability or invariant whose meaning they express.
+Generic module-wide failure routers are not foundations; reusable error
+mechanics belong in `@pressly/errors`.
+
+Models contain mechanism-free domain or application data. They establish no
+injected capability and should not be named as ports merely to satisfy the
+closed vocabulary.
 
 Policy modules use this closed policy vocabulary:
 

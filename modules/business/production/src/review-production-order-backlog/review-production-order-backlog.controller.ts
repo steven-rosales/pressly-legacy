@@ -2,9 +2,8 @@ import type {
   CommitProductionOrderBacklogCommand,
   PreviewProductionOrderBacklogCommand,
 } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { RequestHandler } from 'express';
-import { sendProductionResult } from '../http/production-response.ts';
 import type {
   CommitProductionOrderBacklog,
   PreviewProductionOrderBacklog,
@@ -17,7 +16,7 @@ export const makePreviewProductionOrderBacklogController = (input: {
   preview: PreviewProductionOrderBacklog;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.preview({
         ...(request.body as PreviewRequest),
@@ -31,7 +30,7 @@ export const makeCommitProductionOrderBacklogController = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.commit({
         ...(request.body as CommitRequest),

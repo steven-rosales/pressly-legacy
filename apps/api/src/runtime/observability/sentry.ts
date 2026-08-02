@@ -1,14 +1,15 @@
 import * as Sentry from '@sentry/node';
 import { normalizeUnknownError, type AppError } from '@pressly/errors';
 import { redactLogFields } from '@pressly/logging';
-import type {
-  CounterLabels,
-  CounterName,
-  CounterSink,
-  ErrorReportContext,
-  ErrorReporter,
-  MeasurementLabels,
-  MeasurementSink,
+import {
+  attemptObservation,
+  type CounterLabels,
+  type CounterName,
+  type CounterSink,
+  type ErrorReportContext,
+  type ErrorReporter,
+  type MeasurementLabels,
+  type MeasurementSink,
 } from '@pressly/metrics';
 import type { Logger, LogFields } from '@pressly/logging';
 
@@ -104,9 +105,11 @@ export const makeApiSignalSinks = (input: {
       if (lastAt !== undefined && now - lastAt < exportFailureLogIntervalMs)
         return;
       lastExportFailureAt.set(name, now);
-      input.logger.warn(
-        'api metric export failed',
-        redactLogFields({ metric: name, error }) as LogFields,
+      attemptObservation(() =>
+        input.logger.warn(
+          'api metric export failed',
+          redactLogFields({ metric: name, error }) as LogFields,
+        ),
       );
     }
   };
@@ -115,11 +118,13 @@ export const makeApiSignalSinks = (input: {
     counters: {
       increment: (name, labels) => {
         if (!highVolumeCounters.has(name))
-          input.logger.info('api counter incremented', {
-            metric: name,
-            labels,
-            value: 1,
-          });
+          attemptObservation(() =>
+            input.logger.info('api counter incremented', {
+              metric: name,
+              labels,
+              value: 1,
+            }),
+          );
         exportMetric(name, () =>
           sentryMetrics.count(name, 1, {
             attributes: metricAttributes(labels),
@@ -200,14 +205,16 @@ const setReportContext = (
 
 export const makeSentryErrorReporter = (): ErrorReporter => ({
   capture: (error, context) => {
-    const appError = normalizeUnknownError(error);
+    attemptObservation(() => {
+      const appError = normalizeUnknownError(error);
 
-    Sentry.withScope((scope) => {
-      setReportContext(scope, context);
-      setAppErrorContext(scope, appError);
-      scope.setLevel(appError.status >= 500 ? 'error' : 'warning');
+      Sentry.withScope((scope) => {
+        setReportContext(scope, context);
+        setAppErrorContext(scope, appError);
+        scope.setLevel(appError.status >= 500 ? 'error' : 'warning');
 
-      Sentry.captureException(appError);
+        Sentry.captureException(appError);
+      });
     });
   },
 

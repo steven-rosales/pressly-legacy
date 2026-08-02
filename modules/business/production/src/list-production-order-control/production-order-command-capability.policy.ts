@@ -3,11 +3,19 @@ import type {
   ProductionOrderRouteCommandDenialCode,
   ProductionQueuedMoveTarget,
 } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import type {
   OrderRoutingPolicyInput,
   OrderRoutingStage,
 } from '../production-policy/order-routing-policy.port.ts';
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 type RoutingBatch = OrderRoutingPolicyInput['targetCandidates'][number] &
   Readonly<{
@@ -88,7 +96,10 @@ const queuedTarget = (
   candidate: RoutingBatch,
 ): ProductionQueuedMoveTarget => {
   if (context.source === null)
-    throw new Error('Queued target evaluation requires a source batch.');
+    throw productionInvariantViolation(
+      'production_order_capability_source_batch_missing',
+      'Queued target evaluation requires a source batch.',
+    );
   const decision = policy.evaluateQueuedMoveTarget({
     sourceProductionBatchId: context.source.productionBatchId,
     orderWeightLbs: context.order.weightLbs,

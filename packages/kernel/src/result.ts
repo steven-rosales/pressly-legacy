@@ -8,6 +8,11 @@ export type Err<E> = Readonly<{
   error: E;
 }>;
 
+export type CodedFailure<Code extends string = string> = Readonly<{
+  code: Code;
+  message: string;
+}>;
+
 export type Result<T, E> = Ok<T> | Err<E>;
 
 export const ok = <T>(value: T): Ok<T> => ({

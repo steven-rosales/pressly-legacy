@@ -5,12 +5,15 @@ import type {
   ProductionPendingPlacement,
   ProductionOrderPlacementResult,
 } from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
-import { result, type Result } from '@pressly/kernel';
 import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+  type AppError,
+} from '@pressly/errors';
+import { result, type Result } from '@pressly/kernel';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -59,6 +62,21 @@ type AutomaticPlacementAttemptCommand = Readonly<{
 type PendingRunResolution = Extract<
   ProductionPendingPlacement,
   { status: 'awaiting_run' | 'ambiguous_run' }
+>;
+
+type PlaceProductionOrderPolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluatePlacementCommit'
+  | 'resolveProductionOrderExecutionState'
+  | 'evaluateProductionOrderExecutionTransition'
+  | 'initialProductionBatchState'
+  | 'initialProductionStageState'
+  | 'initialProductionOrderStageAttemptState'
+>;
+
+type PlaceProductionOrderScheduler = Pick<
+  ProductionSchedulerPort,
+  'proposeOnlinePlacement'
 >;
 
 const notPlaced = (input: {
@@ -110,8 +128,8 @@ const confirmationRequired = (input: {
 
 const executePlacementInTransaction = async (deps: {
   repo: PlaceProductionOrderOperations;
-  policy: ProductionPolicyPort;
-  scheduler: ProductionSchedulerPort;
+  policy: PlaceProductionOrderPolicy;
+  scheduler: PlaceProductionOrderScheduler;
   clock: ClockPort;
   command: PlacementCommand;
   mode: PlacementMode;
@@ -168,11 +186,11 @@ const executePlacementInTransaction = async (deps: {
     return result.ok(replayAfterLock.result);
   if (context === null)
     return result.err(
-      productionError(
-        'PRODUCTION_PLACEMENT_CONTEXT_NOT_FOUND',
-        'The production run or order was not found.',
-        404,
-      ),
+      notFoundError({
+        code: 'production_placement_context_not_found',
+        message: 'The production run or order was not found.',
+        safeMessage: 'The production run or order was not found.',
+      }),
     );
 
   if (
@@ -324,11 +342,11 @@ const executePlacementInTransaction = async (deps: {
   });
   if (resolvedExecution.tag === 'err')
     return result.err(
-      productionError(
-        resolvedExecution.error.code,
-        resolvedExecution.error.message,
-        409,
-      ),
+      conflictError({
+        code: resolvedExecution.error.code.toLowerCase(),
+        message: resolvedExecution.error.message,
+        safeMessage: resolvedExecution.error.message,
+      }),
     );
   const orderDecision = deps.policy.evaluateProductionOrderExecutionTransition({
     state: resolvedExecution.value,
@@ -336,22 +354,22 @@ const executePlacementInTransaction = async (deps: {
   });
   if (orderDecision.tag === 'err')
     return result.err(
-      productionError(
-        orderDecision.error.code,
-        orderDecision.error.message,
-        409,
-      ),
+      conflictError({
+        code: orderDecision.error.code.toLowerCase(),
+        message: orderDecision.error.message,
+        safeMessage: orderDecision.error.message,
+      }),
     );
   if (
     orderDecision.value.from !== 'unassigned' ||
     orderDecision.value.state !== 'scheduled'
   )
     return result.err(
-      productionError(
-        'PRODUCTION_ORDER_EXECUTION_TRANSITION_INVALID',
-        'The production order cannot be committed by placement.',
-        409,
-      ),
+      conflictError({
+        code: 'production_order_execution_transition_invalid',
+        message: 'The production order cannot be committed by placement.',
+        safeMessage: 'The production order cannot be committed by placement.',
+      }),
     );
   if (
     context.orderExecutionStatus !== 'unassigned' &&
@@ -359,11 +377,11 @@ const executePlacementInTransaction = async (deps: {
     context.orderExecutionStatus !== 'finished'
   )
     return result.err(
-      productionError(
-        'PRODUCTION_ORDER_EXECUTION_STATE_INVALID',
-        'The production order execution state is invalid.',
-        409,
-      ),
+      conflictError({
+        code: 'production_order_execution_state_invalid',
+        message: 'The production order execution state is invalid.',
+        safeMessage: 'The production order execution state is invalid.',
+      }),
     );
 
   return result.ok(
@@ -400,8 +418,8 @@ const executePlacementInTransaction = async (deps: {
 
 const executePlacement = async (deps: {
   repo: PlaceProductionOrderRepository;
-  policy: ProductionPolicyPort;
-  scheduler: ProductionSchedulerPort;
+  policy: PlaceProductionOrderPolicy;
+  scheduler: PlaceProductionOrderScheduler;
   clock: ClockPort;
   command: PlacementCommand;
   mode: PlacementMode;
@@ -415,8 +433,8 @@ const executePlacement = async (deps: {
 
 export const makePlaceProductionOrder = (deps: {
   repo: PlaceProductionOrderRepository;
-  policy: ProductionPolicyPort;
-  scheduler: ProductionSchedulerPort;
+  policy: PlaceProductionOrderPolicy;
+  scheduler: PlaceProductionOrderScheduler;
   clock: ClockPort;
 }): Readonly<{
   attemptAutomaticPlacement: (
@@ -480,11 +498,14 @@ export const makePlaceProductionOrder = (deps: {
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_ORDER_PLACEMENT_FAILED',
-          'The eligible order could not be placed.',
-          409,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_order_placement_failed',
+            message: 'The eligible order could not be placed.',
+            safeMessage: 'The eligible order could not be placed.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }
@@ -502,11 +523,14 @@ export const makePlaceProductionOrder = (deps: {
       })) as Result<AutomaticProductionOrderPlacementResult, AppError>;
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_ORDER_PLACEMENT_FAILED',
-          'The eligible order could not be placed.',
-          409,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_order_placement_failed',
+            message: 'The eligible order could not be placed.',
+            safeMessage: 'The eligible order could not be placed.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }
@@ -527,11 +551,15 @@ export const makePlaceProductionOrder = (deps: {
       })) as Result<ExactProductionOrderPlacementResult, AppError>;
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_ORDER_PLACEMENT_FAILED',
-          'The eligible order could not be placed into that batch.',
-          409,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_order_placement_failed',
+            message: 'The eligible order could not be placed into that batch.',
+            safeMessage:
+              'The eligible order could not be placed into that batch.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }
@@ -564,11 +592,14 @@ export const makePlaceProductionOrder = (deps: {
       })) as Result<ConfirmProductionOrderOvertimeResult, AppError>;
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_ORDER_OVERTIME_CONFIRMATION_FAILED',
-          'The overtime placement could not be confirmed.',
-          409,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_order_overtime_confirmation_failed',
+            message: 'The overtime placement could not be confirmed.',
+            safeMessage: 'The overtime placement could not be confirmed.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

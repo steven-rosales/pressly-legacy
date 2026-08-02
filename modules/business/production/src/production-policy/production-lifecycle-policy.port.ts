@@ -1,3 +1,4 @@
+import type { Result } from '@pressly/kernel';
 import type {
   ProductionBatchLifecycleDecision,
   ProductionOrderExecutionLifecycleDecision,
@@ -8,15 +9,15 @@ import type {
   ProductionRunLifecycleDecision,
   ProductionShiftLifecycleDecision,
   ScheduleRevisionLifecycleDecision,
-} from '../production-lifecycle/production-lifecycle.port.ts';
-import type { PolicyDecision } from './policy-decision.port.ts';
+} from '../production-lifecycle/production-lifecycle.model.ts';
+import type { ProductionPolicyRejection } from './production-policy.model.ts';
 
 export type ProductionLifecyclePolicyPort = Readonly<{
   initialProductionShiftState: 'open';
   evaluateProductionShiftTransition: (input: {
     state: string;
     event: 'close_after_execution';
-  }) => PolicyDecision<ProductionShiftLifecycleDecision>;
+  }) => Result<ProductionShiftLifecycleDecision, ProductionPolicyRejection>;
   allowedProductionShiftEvents: (
     state: string,
   ) => readonly 'close_after_execution'[];
@@ -24,7 +25,7 @@ export type ProductionLifecyclePolicyPort = Readonly<{
   evaluateScheduleRevisionTransition: (input: {
     state: string;
     event: 'accept' | 'supersede' | 'reject';
-  }) => PolicyDecision<ScheduleRevisionLifecycleDecision>;
+  }) => Result<ScheduleRevisionLifecycleDecision, ProductionPolicyRejection>;
   allowedScheduleRevisionEvents: (
     state: string,
   ) => readonly ('accept' | 'supersede' | 'reject')[];
@@ -32,7 +33,7 @@ export type ProductionLifecyclePolicyPort = Readonly<{
   evaluateProductionRunTransition: (input: {
     state: string;
     event: 'complete_final_batch';
-  }) => PolicyDecision<ProductionRunLifecycleDecision>;
+  }) => Result<ProductionRunLifecycleDecision, ProductionPolicyRejection>;
   allowedProductionRunEvents: (
     state: string,
   ) => readonly 'complete_final_batch'[];
@@ -50,24 +51,33 @@ export type ProductionLifecyclePolicyPort = Readonly<{
       | 'reconcile_to_drying'
       | 'reconcile_to_folding_packaging'
       | 'reconcile_to_finished';
-  }) => PolicyDecision<ProductionBatchLifecycleDecision>;
+  }) => Result<ProductionBatchLifecycleDecision, ProductionPolicyRejection>;
   initialProductionOrderExecutionState: 'unassigned';
   resolveProductionOrderExecutionState: (input: {
     executionState: string | null | undefined;
     operationalStatus: string;
-  }) => PolicyDecision<ProductionOrderExecutionState>;
+  }) => Result<ProductionOrderExecutionState, ProductionPolicyRejection>;
   evaluateProductionOrderExecutionTransition: (input: {
     state: string;
     event: 'schedule_or_place' | 'finish_with_batch';
-  }) => PolicyDecision<ProductionOrderExecutionLifecycleDecision>;
+  }) => Result<
+    ProductionOrderExecutionLifecycleDecision,
+    ProductionPolicyRejection
+  >;
   initialProductionOrderResolutionState: 'open';
   evaluateProductionOrderResolutionTransition: (input: {
     state: string;
     event: 'resolve_without_production' | 'restore';
-  }) => PolicyDecision<ProductionOrderResolutionLifecycleDecision>;
+  }) => Result<
+    ProductionOrderResolutionLifecycleDecision,
+    ProductionPolicyRejection
+  >;
   evaluateProductionOrderOperationalAccess: (input: {
     resolutionState: string;
-  }) => PolicyDecision<Readonly<{ resolutionState: 'open' }>>;
+  }) => Result<
+    Readonly<{ resolutionState: 'open' }>,
+    ProductionPolicyRejection
+  >;
   evaluateProductionOrderResolutionGuard: (input: {
     executionState: ProductionOrderExecutionState;
     hasShiftSelection: boolean;
@@ -83,6 +93,9 @@ export type ProductionLifecyclePolicyPort = Readonly<{
   evaluateProductionOrderStageAttemptTransition: (input: {
     state: string;
     event: 'complete_with_stage' | 'release_for_route';
-  }) => PolicyDecision<ProductionOrderStageAttemptLifecycleDecision>;
+  }) => Result<
+    ProductionOrderStageAttemptLifecycleDecision,
+    ProductionPolicyRejection
+  >;
   initialProductionStageState: 'planned';
 }>;

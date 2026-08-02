@@ -1,7 +1,14 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+  validationError,
+} from '@pressly/errors';
 import { isCommandContextValid, result } from '@pressly/kernel';
 import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
 import type { OrderClockPort } from '../command-execution/order-command.port.ts';
-import { orderError } from '../failure-mapping/order.error.ts';
+import { orderInvariantError } from '../order-model/order-invariant.error.ts';
 import { isOrderInputValid } from '../order-model/order-input.policy.ts';
 import {
   allowedIncomingOrderProposalEvents,
@@ -65,11 +72,13 @@ export const makeProposeIncomingOrder =
   async (command) => {
     if (!proposalInputValid(command))
       return result.err(
-        orderError(
-          'INCOMING_ORDER_PROPOSAL_INVALID',
-          'The incoming Order candidate is incomplete or is not an exact submitted Order.',
-          400,
-        ),
+        validationError({
+          code: 'incoming_order_proposal_invalid',
+          message:
+            'The incoming Order candidate is incomplete or is not an exact submitted Order.',
+          safeMessage:
+            'The incoming Order candidate is incomplete or is not an exact submitted Order.',
+        }),
       );
     try {
       const outcome = await repo.transaction(async (operations) => {
@@ -118,11 +127,14 @@ export const makeProposeIncomingOrder =
       return result.ok(outcome);
     } catch (error) {
       return result.err(
-        orderError(
-          'INCOMING_ORDER_PROPOSAL_FAILED',
-          'The incoming Order proposal could not be stored.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'incoming_order_proposal_failed',
+            message: 'The incoming Order proposal could not be stored.',
+            safeMessage: 'The incoming Order proposal could not be stored.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }
@@ -140,30 +152,33 @@ export const makeListIncomingOrderProposals =
       (query.cursor !== null && query.cursor.trim() === '')
     )
       return result.err(
-        orderError(
-          'INCOMING_ORDER_PROPOSAL_QUERY_INVALID',
-          'The incoming Order proposal query is invalid.',
-          400,
-        ),
+        validationError({
+          code: 'incoming_order_proposal_query_invalid',
+          message: 'The incoming Order proposal query is invalid.',
+          safeMessage: 'The incoming Order proposal query is invalid.',
+        }),
       );
     try {
       const loaded = await repo.listPending(query);
       if (loaded.kind === 'invalid_cursor')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_CURSOR_INVALID',
-            'The incoming Order proposal cursor is invalid.',
-            400,
-          ),
+          validationError({
+            code: 'incoming_order_proposal_cursor_invalid',
+            message: 'The incoming Order proposal cursor is invalid.',
+            safeMessage: 'The incoming Order proposal cursor is invalid.',
+          }),
         );
       return result.ok(loaded.value);
     } catch (error) {
       return result.err(
-        orderError(
-          'INCOMING_ORDER_PROPOSAL_QUERY_FAILED',
-          'Incoming Order proposals could not be loaded.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'incoming_order_proposal_query_failed',
+            message: 'Incoming Order proposals could not be loaded.',
+            safeMessage: 'Incoming Order proposals could not be loaded.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }
@@ -238,11 +253,11 @@ export const makeAcceptIncomingOrderProposal = (deps: {
       command.reasonCode !== 'incoming_order_accepted'
     )
       return result.err(
-        orderError(
-          'INCOMING_ORDER_PROPOSAL_ACCEPT_INVALID',
-          'The incoming Order acceptance is incomplete.',
-          400,
-        ),
+        validationError({
+          code: 'incoming_order_proposal_accept_invalid',
+          message: 'The incoming Order acceptance is incomplete.',
+          safeMessage: 'The incoming Order acceptance is incomplete.',
+        }),
       );
     try {
       const commandHash = hashOrderCommand(command);
@@ -262,7 +277,8 @@ export const makeAcceptIncomingOrderProposal = (deps: {
         if (canonicalReceipt !== null) {
           if (canonicalReceipt.commandHash !== commandHash)
             return { kind: 'conflict' as const };
-          throw new Error(
+          throw orderInvariantError(
+            'INCOMING_ORDER_PROPOSAL_RESOLUTION_MISSING',
             'Canonical Order receipt exists without its proposal resolution.',
           );
         }
@@ -323,46 +339,58 @@ export const makeAcceptIncomingOrderProposal = (deps: {
         return result.ok(outcome.value);
       if (outcome.kind === 'not_found')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_NOT_FOUND',
-            'The incoming Order proposal was not found.',
-            404,
-          ),
+          notFoundError({
+            code: 'incoming_order_proposal_not_found',
+            message: 'The incoming Order proposal was not found.',
+            safeMessage: 'The incoming Order proposal was not found.',
+          }),
         );
       if (outcome.kind === 'version_conflict')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_VERSION_CONFLICT',
-            'The incoming Order proposal changed after this request was prepared.',
-          ),
+          conflictError({
+            code: 'incoming_order_proposal_version_conflict',
+            message:
+              'The incoming Order proposal changed after this request was prepared.',
+            safeMessage:
+              'The incoming Order proposal changed after this request was prepared.',
+          }),
         );
       if (outcome.kind === 'invalid_transition')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_TRANSITION_INVALID',
-            'The incoming Order proposal has already been decided.',
-          ),
+          conflictError({
+            code: 'incoming_order_proposal_transition_invalid',
+            message: 'The incoming Order proposal has already been decided.',
+            safeMessage:
+              'The incoming Order proposal has already been decided.',
+          }),
         );
       if (outcome.kind === 'identity_conflict')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_IDENTITY_CONFLICT',
-            'This exact source Order is already linked to Pressly.',
-          ),
+          conflictError({
+            code: 'incoming_order_proposal_identity_conflict',
+            message: 'This exact source Order is already linked to Pressly.',
+            safeMessage:
+              'This exact source Order is already linked to Pressly.',
+          }),
         );
       return result.err(
-        orderError(
-          'ORDER_IDEMPOTENCY_CONFLICT',
-          'The idempotency key belongs to a different Order command.',
-        ),
+        conflictError({
+          code: 'order_idempotency_conflict',
+          message: 'The idempotency key belongs to a different Order command.',
+          safeMessage:
+            'The idempotency key belongs to a different Order command.',
+        }),
       );
     } catch (error) {
       return result.err(
-        orderError(
-          'INCOMING_ORDER_PROPOSAL_ACCEPT_FAILED',
-          'The incoming Order proposal could not be accepted.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'incoming_order_proposal_accept_failed',
+            message: 'The incoming Order proposal could not be accepted.',
+            safeMessage: 'The incoming Order proposal could not be accepted.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }
@@ -379,11 +407,11 @@ export const makeRejectIncomingOrderProposal = (deps: {
       !rejectReasonCodes.has(command.reasonCode)
     )
       return result.err(
-        orderError(
-          'INCOMING_ORDER_PROPOSAL_REJECT_INVALID',
-          'The incoming Order rejection is incomplete.',
-          400,
-        ),
+        validationError({
+          code: 'incoming_order_proposal_reject_invalid',
+          message: 'The incoming Order rejection is incomplete.',
+          safeMessage: 'The incoming Order rejection is incomplete.',
+        }),
       );
     try {
       const commandHash = hashOrderCommand(command);
@@ -446,39 +474,49 @@ export const makeRejectIncomingOrderProposal = (deps: {
         return result.ok(outcome.value);
       if (outcome.kind === 'not_found')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_NOT_FOUND',
-            'The incoming Order proposal was not found.',
-            404,
-          ),
+          notFoundError({
+            code: 'incoming_order_proposal_not_found',
+            message: 'The incoming Order proposal was not found.',
+            safeMessage: 'The incoming Order proposal was not found.',
+          }),
         );
       if (outcome.kind === 'version_conflict')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_VERSION_CONFLICT',
-            'The incoming Order proposal changed after this request was prepared.',
-          ),
+          conflictError({
+            code: 'incoming_order_proposal_version_conflict',
+            message:
+              'The incoming Order proposal changed after this request was prepared.',
+            safeMessage:
+              'The incoming Order proposal changed after this request was prepared.',
+          }),
         );
       if (outcome.kind === 'invalid_transition')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_TRANSITION_INVALID',
-            'The incoming Order proposal has already been decided.',
-          ),
+          conflictError({
+            code: 'incoming_order_proposal_transition_invalid',
+            message: 'The incoming Order proposal has already been decided.',
+            safeMessage:
+              'The incoming Order proposal has already been decided.',
+          }),
         );
       return result.err(
-        orderError(
-          'ORDER_IDEMPOTENCY_CONFLICT',
-          'The idempotency key belongs to a different Order command.',
-        ),
+        conflictError({
+          code: 'order_idempotency_conflict',
+          message: 'The idempotency key belongs to a different Order command.',
+          safeMessage:
+            'The idempotency key belongs to a different Order command.',
+        }),
       );
     } catch (error) {
       return result.err(
-        orderError(
-          'INCOMING_ORDER_PROPOSAL_REJECT_FAILED',
-          'The incoming Order proposal could not be rejected.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'incoming_order_proposal_reject_failed',
+            message: 'The incoming Order proposal could not be rejected.',
+            safeMessage: 'The incoming Order proposal could not be rejected.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }
@@ -495,11 +533,11 @@ export const makeRestoreIncomingOrderProposal = (deps: {
       command.reasonCode !== 'source_closure_overridden'
     )
       return result.err(
-        orderError(
-          'INCOMING_ORDER_PROPOSAL_RESTORE_INVALID',
-          'The incoming Order restore command is incomplete.',
-          400,
-        ),
+        validationError({
+          code: 'incoming_order_proposal_restore_invalid',
+          message: 'The incoming Order restore command is incomplete.',
+          safeMessage: 'The incoming Order restore command is incomplete.',
+        }),
       );
     try {
       const commandHash = hashOrderCommand(command);
@@ -561,39 +599,48 @@ export const makeRestoreIncomingOrderProposal = (deps: {
       if (outcome.kind === 'ok') return result.ok(outcome.value);
       if (outcome.kind === 'not_found')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_NOT_FOUND',
-            'The incoming Order proposal was not found.',
-            404,
-          ),
+          notFoundError({
+            code: 'incoming_order_proposal_not_found',
+            message: 'The incoming Order proposal was not found.',
+            safeMessage: 'The incoming Order proposal was not found.',
+          }),
         );
       if (outcome.kind === 'version_conflict')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_VERSION_CONFLICT',
-            'The incoming Order proposal changed after this request was prepared.',
-          ),
+          conflictError({
+            code: 'incoming_order_proposal_version_conflict',
+            message:
+              'The incoming Order proposal changed after this request was prepared.',
+            safeMessage:
+              'The incoming Order proposal changed after this request was prepared.',
+          }),
         );
       if (outcome.kind === 'invalid_transition')
         return result.err(
-          orderError(
-            'INCOMING_ORDER_PROPOSAL_TRANSITION_INVALID',
-            'Only a source-closed candidate can be restored.',
-          ),
+          conflictError({
+            code: 'incoming_order_proposal_transition_invalid',
+            message: 'Only a source-closed candidate can be restored.',
+            safeMessage: 'Only a source-closed candidate can be restored.',
+          }),
         );
       return result.err(
-        orderError(
-          'ORDER_IDEMPOTENCY_CONFLICT',
-          'The idempotency key belongs to a different Order command.',
-        ),
+        conflictError({
+          code: 'order_idempotency_conflict',
+          message: 'The idempotency key belongs to a different Order command.',
+          safeMessage:
+            'The idempotency key belongs to a different Order command.',
+        }),
       );
     } catch (error) {
       return result.err(
-        orderError(
-          'INCOMING_ORDER_PROPOSAL_RESTORE_FAILED',
-          'The incoming Order proposal could not be restored.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'incoming_order_proposal_restore_failed',
+            message: 'The incoming Order proposal could not be restored.',
+            safeMessage: 'The incoming Order proposal could not be restored.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

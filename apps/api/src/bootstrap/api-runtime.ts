@@ -1,7 +1,13 @@
 import { createDatabaseRuntime } from '@pressly/db';
 import { makeJsonLogger } from '@pressly/logging';
-import { nullErrorReporter } from '@pressly/metrics';
+import { attemptAsyncObservation, nullErrorReporter } from '@pressly/metrics';
 import { makeApiApp } from './api.composition.ts';
+import {
+  cleanupApiAfterFailure,
+  cleanupApiOrThrow,
+  type ApiCleanupEffect,
+  type ApiCleanupPlan,
+} from './api-cleanup.ts';
 import { apiEnv } from '../runtime/env.ts';
 import { installShutdownHandlers } from './api-lifecycle.ts';
 import { startServer } from '../http/server.ts';
@@ -23,6 +29,34 @@ const makeRuntimeLogger = () =>
       ? {}
       : { release: apiEnv.observability.sentry.release }),
   }).child({ runtime: 'api' });
+
+type ClosableApiResource = Readonly<{ close: () => Promise<void> }>;
+type ApiErrorReporterResource = Readonly<{ shutdown: () => Promise<void> }>;
+
+const makeApiCleanupPlan = (input: {
+  server?: ClosableApiResource;
+  productionChanges: ClosableApiResource;
+  database: ClosableApiResource;
+  errors: ApiErrorReporterResource;
+}): ApiCleanupPlan => {
+  const server = input.server;
+  const serverEffects: readonly ApiCleanupEffect[] =
+    server === undefined
+      ? []
+      : [{ resource: 'http_server', run: () => server.close() }];
+
+  return [
+    [
+      ...serverEffects,
+      {
+        resource: 'production_change_feed',
+        run: () => input.productionChanges.close(),
+      },
+    ],
+    [{ resource: 'database', run: () => input.database.close() }],
+    [{ resource: 'error_reporter', run: () => input.errors.shutdown() }],
+  ];
+};
 
 const startApi = async (): Promise<void> => {
   const logger = makeRuntimeLogger();
@@ -69,16 +103,16 @@ const startApi = async (): Promise<void> => {
   try {
     await productionChanges.start();
   } catch (error: unknown) {
-    await productionChanges.close();
-    await database.close();
-    await errors.shutdown();
-    throw error;
+    return cleanupApiAfterFailure({
+      primaryError: error,
+      plan: makeApiCleanupPlan({ productionChanges, database, errors }),
+      logger,
+    });
   }
-
-  const app = makeApiApp(runtime, { productionChanges });
 
   let server: Awaited<ReturnType<typeof startServer>>;
   try {
+    const app = makeApiApp(runtime, { productionChanges });
     server = await startServer({
       app,
       host: apiEnv.host,
@@ -93,10 +127,11 @@ const startApi = async (): Promise<void> => {
       },
     });
   } catch (error: unknown) {
-    await productionChanges.close();
-    await database.close();
-    await errors.shutdown();
-    throw error;
+    return cleanupApiAfterFailure({
+      primaryError: error,
+      plan: makeApiCleanupPlan({ productionChanges, database, errors }),
+      logger,
+    });
   }
 
   installShutdownHandlers({
@@ -105,13 +140,15 @@ const startApi = async (): Promise<void> => {
 
     forceClose: server.forceClose,
 
-    close: async () => {
-      const serverClosed = server.close();
-      await productionChanges.close();
-      await serverClosed;
-      await database.close();
-      await errors.shutdown();
-    },
+    close: async () =>
+      cleanupApiOrThrow(
+        makeApiCleanupPlan({
+          server,
+          productionChanges,
+          database,
+          errors,
+        }),
+      ),
   });
 };
 
@@ -119,6 +156,8 @@ export const runApi = async (): Promise<void> => {
   try {
     await startApi();
   } catch (error: unknown) {
+    process.exitCode = 1;
+
     const logger = makeRuntimeLogger();
     const errors = apiEnv.observability.sentry.enabled
       ? makeSentryErrorReporter()
@@ -139,7 +178,6 @@ export const runApi = async (): Promise<void> => {
       },
     );
 
-    await flushSentry();
-    process.exitCode = 1;
+    await attemptAsyncObservation(flushSentry);
   }
 };

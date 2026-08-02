@@ -2,8 +2,8 @@ import type {
   CompleteMfaChallengeRequest,
   ConfirmMfaEnrollmentRequest,
 } from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
-import { apiFailure, apiSuccess } from '@pressly/http';
+import { authError } from '@pressly/errors';
+import { apiSuccess } from '@pressly/http';
 import { catchAsync } from '@pressly/http/express';
 import { result } from '@pressly/kernel';
 import type { RequestHandler, Response } from 'express';
@@ -44,12 +44,10 @@ const readMfaPrincipal = (res: Response): MfaPrincipal => {
       label: principal.email ?? principal.displayName ?? principal.identityId,
     };
 
-  throw makeAppError({
-    kind: 'AuthError',
+  throw authError({
     code: 'missing_mfa_principal',
     message: 'Authenticated MFA principal context is missing.',
     safeMessage: 'Authentication is required.',
-    status: 401,
   });
 };
 
@@ -57,10 +55,7 @@ const readRequestId = (res: Response): string | undefined =>
   res.locals?.['requestId'] as string | undefined;
 
 const sendResult = <T>(res: Response, value: Result<T, AppError>): void => {
-  if (result.isErr(value)) {
-    res.status(value.error.status).json(apiFailure(value.error));
-    return;
-  }
+  if (result.isErr(value)) throw value.error;
   res.status(200).json(apiSuccess(value.value));
 };
 

@@ -2,6 +2,7 @@
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { configError } from '@pressly/errors';
 import { config as loadEnv } from 'dotenv';
 import { sql } from 'drizzle-orm';
 import { createDatabaseRuntime, type Database } from '../client.ts';
@@ -17,7 +18,10 @@ const getDatabaseUrl = (): string => {
   const databaseUrl = process.env['DATABASE_URL'];
 
   if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required to seed pricing.');
+    throw configError({
+      code: 'pricing_seed_database_url_missing',
+      message: 'DATABASE_URL is required to seed pricing.',
+    });
   }
 
   return databaseUrl;

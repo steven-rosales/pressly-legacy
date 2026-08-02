@@ -93,7 +93,7 @@ export type {
   OrderInput,
   OrderItemInput,
   OrderState,
-} from './order-model/order-model.port.ts';
+} from './order-model/order.model.ts';
 export { fulfillmentDemandEvent } from './order-outbox/order-outbox.policy.ts';
 export type {
   ClaimOrderOutbox,

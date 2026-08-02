@@ -1,4 +1,4 @@
-import { result, type Result } from '@pressly/kernel';
+import { result, type CodedFailure, type Result } from '@pressly/kernel';
 
 export const floorProgressStageKinds = [
   'sorting',
@@ -57,8 +57,6 @@ export type FloorProgressReconciliationDecision = Readonly<{
   }>[];
 }>;
 
-type Rejection = Readonly<{ code: string; message: string }>;
-
 const milestones: readonly FloorProgressMilestone[] = [
   'waiting_to_sort',
   'sorting_started',
@@ -71,7 +69,7 @@ const milestones: readonly FloorProgressMilestone[] = [
   'finished',
 ];
 
-const rejection = (code: string, message: string): Rejection => ({
+const rejection = (code: string, message: string): CodedFailure => ({
   code,
   message,
 });
@@ -128,7 +126,7 @@ const canonicalStages = (
 
 export const evaluateFloorProgressReconciliation = (
   input: FloorProgressReconciliationInput,
-): Result<FloorProgressReconciliationDecision, Rejection> => {
+): Result<FloorProgressReconciliationDecision, CodedFailure> => {
   if (input.runStatus !== 'started')
     return result.err(
       rejection(

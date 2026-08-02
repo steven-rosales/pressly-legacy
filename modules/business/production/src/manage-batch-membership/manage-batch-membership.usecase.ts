@@ -1,9 +1,12 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import type { ProductionBatchMembershipMutationResult } from '@pressly/contracts';
 import { result } from '@pressly/kernel';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -21,7 +24,7 @@ const eventFor = (action: 'freeze' | 'unfreeze') =>
 
 export const makeManageBatchMembership = (deps: {
   repo: ManageBatchMembershipRepository;
-  policy: ProductionPolicyPort;
+  policy: Pick<ProductionPolicyPort, 'evaluateBatchMembershipTransition'>;
   clock: ClockPort;
 }): ManageBatchMembership =>
   async function manageBatchMembership(command) {
@@ -65,32 +68,37 @@ export const makeManageBatchMembership = (deps: {
           return result.ok(replayAfterLock.result);
         if (context === null)
           return result.err(
-            productionError(
-              'PRODUCTION_BATCH_NOT_FOUND',
-              'The production batch was not found in this run.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_batch_not_found',
+              message: 'The production batch was not found in this run.',
+              safeMessage: 'The production batch was not found in this run.',
+            }),
           );
         if (context.productionRun.status !== 'started')
           return result.err(
-            productionError(
-              'PRODUCTION_RUN_NOT_STARTED',
-              'Batch membership can only change on a started production run.',
-            ),
+            conflictError({
+              code: 'production_run_not_started',
+              message:
+                'Batch membership can only change on a started production run.',
+              safeMessage:
+                'Batch membership can only change on a started production run.',
+            }),
           );
         if (context.productionRun.queueVersion !== command.expectedQueueVersion)
           return result.err(
-            productionError(
-              'PRODUCTION_QUEUE_VERSION_CONFLICT',
-              'The production queue changed before the command.',
-            ),
+            conflictError({
+              code: 'production_queue_version_conflict',
+              message: 'The production queue changed before the command.',
+              safeMessage: 'The production queue changed before the command.',
+            }),
           );
         if (context.productionBatch.version !== command.expectedBatchVersion)
           return result.err(
-            productionError(
-              'PRODUCTION_BATCH_VERSION_CONFLICT',
-              'The production batch changed before the command.',
-            ),
+            conflictError({
+              code: 'production_batch_version_conflict',
+              message: 'The production batch changed before the command.',
+              safeMessage: 'The production batch changed before the command.',
+            }),
           );
 
         const decision = deps.policy.evaluateBatchMembershipTransition({
@@ -101,7 +109,11 @@ export const makeManageBatchMembership = (deps: {
         });
         if (decision.tag === 'err')
           return result.err(
-            productionError(decision.error.code, decision.error.message),
+            conflictError({
+              code: decision.error.code.toLowerCase(),
+              message: decision.error.message,
+              safeMessage: decision.error.message,
+            }),
           );
 
         const now = deps.clock.now();
@@ -137,11 +149,14 @@ export const makeManageBatchMembership = (deps: {
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'BATCH_MEMBERSHIP_CHANGE_FAILED',
-          'Production batch membership could not be changed.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'batch_membership_change_failed',
+            message: 'Production batch membership could not be changed.',
+            safeMessage: 'Production batch membership could not be changed.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

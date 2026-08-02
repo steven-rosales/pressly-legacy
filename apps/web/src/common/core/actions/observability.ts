@@ -1,5 +1,6 @@
 import type { AppError } from '@pressly/errors';
 import {
+  attemptObservation,
   decideObservation,
   type ErrorReportContext,
   type ObservationDecision,
@@ -50,48 +51,53 @@ export const observeWebActionFailure = (
   core: ObservationPorts,
   meta: ActionMeta,
   appError: AppError,
-): ObservationDecision => {
-  const context = core.context.get();
-  const decision = decideObservation({
-    kind: 'error',
-    source: 'web',
-    rail: meta.rail,
-    operation: meta.action,
-    route: context.route,
-    criticality: meta.criticality,
-    productCritical: meta.productCritical,
-    error: {
-      kind: appError.kind,
-      code: appError.code,
-      status: appError.status,
-      traceId: appError.traceId,
-    },
-  });
-
-  if (decision.logLevel !== undefined)
-    logWithLevel(core.logger, decision.logLevel, 'web.action.failed', {
-      action: meta.action,
+): void => {
+  attemptObservation(() => {
+    const context = core.context.get();
+    const decision = decideObservation({
+      kind: 'error',
+      source: 'web',
       rail: meta.rail,
+      operation: meta.action,
+      route: context.route,
       criticality: meta.criticality,
       productCritical: meta.productCritical,
-      kind: appError.kind,
-      code: appError.code,
-      status: appError.status,
-      route: context.route,
-      reason: decision.reason,
+      error: {
+        kind: appError.kind,
+        code: appError.code,
+        status: appError.status,
+        traceId: appError.traceId,
+      },
     });
 
-  if (decision.report)
-    core.errors.capture(
-      appError,
-      reportContext({
-        meta,
-        appError,
-        route: context.route,
-        distinctId: context.distinctId,
-        decision,
-      }),
-    );
+    const logLevel = decision.logLevel;
+    if (logLevel !== undefined)
+      attemptObservation(() =>
+        logWithLevel(core.logger, logLevel, 'web.action.failed', {
+          action: meta.action,
+          rail: meta.rail,
+          criticality: meta.criticality,
+          productCritical: meta.productCritical,
+          kind: appError.kind,
+          code: appError.code,
+          status: appError.status,
+          route: context.route,
+          reason: decision.reason,
+        }),
+      );
 
-  return decision;
+    if (decision.report)
+      attemptObservation(() =>
+        core.errors.capture(
+          appError,
+          reportContext({
+            meta,
+            appError,
+            route: context.route,
+            distinctId: context.distinctId,
+            decision,
+          }),
+        ),
+      );
+  });
 };

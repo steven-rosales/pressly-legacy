@@ -8,7 +8,7 @@ import type {
   FindWorkEvent,
   WorkEventInput,
 } from '../command-execution/production-command.port.ts';
-import type { OrderDemandPhase } from '../production-lifecycle/order-demand.port.ts';
+import type { OrderDemandPhase } from '../production-lifecycle/order-demand.model.ts';
 import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type RecordOrderIntake = (

@@ -1,7 +1,6 @@
 import type { RequestHandler } from 'express';
 import type { CreateScheduleCommand } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
-import { sendProductionResult } from '../http/production-response.ts';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { CreateSchedule } from './create-schedule.port.ts';
 
 export const makeCreateScheduleController = (input: {
@@ -9,7 +8,7 @@ export const makeCreateScheduleController = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.createSchedule({
         ...(request.body as Omit<CreateScheduleCommand, 'locationId'>),

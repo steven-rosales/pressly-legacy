@@ -90,7 +90,7 @@ describe('login http controller', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('returns a failure envelope from login errors', async () => {
+  it('forwards login application errors to express', async () => {
     const error = makeAppError({
       kind: 'PermissionError',
       code: 'invalid_credentials',
@@ -111,15 +111,9 @@ describe('login http controller', () => {
       email: 'admin@pressly.com',
       password: 'MyStrong@0000',
     });
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({
-      ok: false,
-      error: {
-        code: 'invalid_credentials',
-        message: 'Invalid email or password.',
-      },
-    });
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(error);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
   });
 
   it('forwards unexpected async errors to express', async () => {

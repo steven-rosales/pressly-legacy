@@ -13,6 +13,7 @@ import type {
   ProductionRemainingDayForecast,
   ProductionWorkspace,
 } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import type {
   ProcessorOperationalOrderIdentityReference,
   ProcessorOperationalOrderIdentityResolver,
@@ -44,9 +45,10 @@ const requireIdentity = (
 ): ProcessorOperationalOrderIdentity => {
   const identity = identities.get(referenceId);
   if (identity === undefined)
-    throw new Error(
-      `Processor order identity was not resolved for ${referenceId}.`,
-    );
+    throw invariantViolationError({
+      code: 'processor_order_identity_unresolved',
+      message: `Processor order identity was not resolved for ${referenceId}.`,
+    });
   return identity;
 };
 

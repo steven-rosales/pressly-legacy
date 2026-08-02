@@ -70,7 +70,6 @@ export const moduleFoundationTargets = new Map([
     'business/orders',
     new Set([
       'command-execution',
-      'failure-mapping',
       'order-model',
       'order-outbox',
       'persistence',
@@ -80,7 +79,6 @@ export const moduleFoundationTargets = new Map([
     'business/production',
     new Set([
       'command-execution',
-      'failure-mapping',
       'http',
       'persistence',
       'production-lifecycle',
@@ -91,12 +89,7 @@ export const moduleFoundationTargets = new Map([
   ],
   [
     'business/users',
-    new Set([
-      'command-execution',
-      'failure-mapping',
-      'persistence',
-      'user-profile',
-    ]),
+    new Set(['command-execution', 'persistence', 'user-profile']),
   ],
   ['business/webhook-ingestion', new Set(['ingestion'])],
   ['computation/scheduling', new Set(['fixed-pulse'])],
@@ -150,6 +143,7 @@ const businessModuleSourceRoleSuffixes = [
   'error',
   'mapper',
   'middleware',
+  'model',
   'policy',
   'port',
   'repo',
@@ -877,9 +871,9 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.(?!.*\\.(?:policy|port|resource)(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!.*\\.(?:model|policy|port|resource)(?:\\.(?:ts|js))?$).*',
               message:
-                'Policy files may only import sibling policy, port, or resource files.',
+                'Policy files may only import sibling models, policies, ports, or resource files.',
             },
           ],
         },
@@ -890,6 +884,31 @@ export default tseslint.config(
         {
           prefer: 'type-imports',
           fixStyle: 'inline-type-imports',
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['modules/business/**/*.model.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
+              message:
+                'Business models cannot expose database, HTTP, or UI mechanism types.',
+            },
+            {
+              regex:
+                '^(?!(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)).*',
+              allowTypeImports: true,
+              message: 'Business models may only import types.',
+            },
+          ],
         },
       ],
     },
@@ -910,9 +929,9 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.(?!.*\/[^/]+\\.(?:usecase|policy|port|error)(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!.*\/[^/]+\\.(?:usecase|model|policy|port|error)(?:\\.(?:ts|js))?$).*',
               message:
-                'Usecases may only import usecases, policies, ports, or errors; capability ownership is enforced separately.',
+                'Usecases may only import usecases, models, policies, ports, or errors; capability ownership is enforced separately.',
             },
           ],
         },
@@ -1007,9 +1026,10 @@ export default tseslint.config(
                 'Error mapping files cannot import database, HTTP, or UI mechanisms.',
             },
             {
-              regex: '^\\.(?!/?[^/]+\\.(?:policy|error)(?:\\.(?:ts|js))?$).*',
+              regex:
+                '^\\.(?!/?[^/]+\\.(?:model|policy|error)(?:\\.(?:ts|js))?$).*',
               message:
-                'Error mapping files may only import sibling policy or error files.',
+                'Error mapping files may only import sibling model, policy, or error files.',
             },
           ],
         },
@@ -1119,9 +1139,9 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.(?!.*\\.(?:port|policy|mapper|repo)(?:\\.(?:ts|js))?$|\\./persistence/[^/]+(?:\\.(?:ts|js))?$).*',
+                '^\\.(?!.*\\.(?:model|port|policy|mapper|repo)(?:\\.(?:ts|js))?$|\\./persistence/[^/]+(?:\\.(?:ts|js))?$).*',
               message:
-                'Repositories may only import same-capability ports, policies, mappers, or repository collaborators, plus explicit foundations.',
+                'Repositories may only import same-capability models, ports, policies, mappers, or repository collaborators, plus explicit foundations.',
             },
           ],
         },

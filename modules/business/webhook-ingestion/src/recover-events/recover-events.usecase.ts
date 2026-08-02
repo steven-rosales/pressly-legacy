@@ -1,5 +1,10 @@
+import {
+  conflictError,
+  invariantViolationError,
+  notFoundError,
+  validationError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
-import { webhookIngestionError } from '../ingestion/webhook-ingestion.error.ts';
 import type { WebhookIngestionClockPort } from '../ingestion/webhook-ingestion.port.ts';
 import type {
   ListDeadWebhookEvents,
@@ -11,7 +16,12 @@ const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const encodeDeadWebhookEventCursor = (eventId: string): string => {
-  if (!uuidPattern.test(eventId)) throw new Error('Event ID is not a UUID.');
+  if (!uuidPattern.test(eventId))
+    throw invariantViolationError({
+      code: 'dead_webhook_event_id_invalid',
+      message: 'A stored dead webhook event ID is not a UUID.',
+      safeMessage: 'Stored webhook data is inconsistent.',
+    });
   return Buffer.from(eventId, 'utf8').toString('base64url');
 };
 
@@ -34,11 +44,11 @@ export const makeListDeadWebhookEvents =
       query.cursor === undefined ? undefined : decodeCursor(query.cursor);
     if (afterEventId === null)
       return result.err(
-        webhookIngestionError(
-          'DEAD_WEBHOOK_EVENT_CURSOR_INVALID',
-          'The dead-event cursor is invalid.',
-          400,
-        ),
+        validationError({
+          code: 'dead_webhook_event_cursor_invalid',
+          message: 'The dead-event cursor is invalid.',
+          safeMessage: 'The dead-event cursor is invalid.',
+        }),
       );
 
     const rows = await deps.repo.listDead({
@@ -67,18 +77,21 @@ export const makeReplayDeadWebhookEvent =
     const replayed = await deps.repo.replay(eventId, deps.clock.now());
     if (replayed === 'not_found')
       return result.err(
-        webhookIngestionError(
-          'WEBHOOK_EVENT_NOT_FOUND',
-          'The webhook event was not found.',
-          404,
-        ),
+        notFoundError({
+          code: 'webhook_event_not_found',
+          message: 'The webhook event was not found.',
+          safeMessage: 'The webhook event was not found.',
+        }),
       );
     if (replayed === 'not_replayable')
       return result.err(
-        webhookIngestionError(
-          'WEBHOOK_EVENT_NOT_REPLAYABLE',
-          'Only a dead or already queued webhook event can be replayed.',
-        ),
+        conflictError({
+          code: 'webhook_event_not_replayable',
+          message:
+            'Only a dead or already queued webhook event can be replayed.',
+          safeMessage:
+            'Only a dead or already queued webhook event can be replayed.',
+        }),
       );
     return result.ok({ eventId, outcome: replayed });
   };

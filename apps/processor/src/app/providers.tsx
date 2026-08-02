@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { invariantViolationError } from "@pressly/errors"
 import * as React from "react"
 
 type Theme = "dark" | "light" | "system"
@@ -223,7 +224,10 @@ export const useTheme = () => {
   const context = React.useContext(ThemeProviderContext)
 
   if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider")
+    throw invariantViolationError({
+      code: "processor_theme_provider_missing",
+      message: "useTheme must be used within a ThemeProvider.",
+    })
   }
 
   return context

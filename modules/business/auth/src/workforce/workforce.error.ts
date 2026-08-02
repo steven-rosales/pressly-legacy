@@ -1,12 +1,12 @@
 import {
+  authError,
   conflictError,
-  makeAppError,
   notFoundError,
   permissionError,
   validationError,
   type AppError,
 } from '@pressly/errors';
-import type { StoreFailureReason } from './workforce-failure.policy.ts';
+import type { StoreFailureReason } from './workforce.model.ts';
 
 export const weakInvitationPassword = (
   violations: readonly string[],
@@ -15,7 +15,7 @@ export const weakInvitationPassword = (
     code: 'weak_invitation_password',
     message: 'Invitation password does not meet strength requirements.',
     safeMessage: 'Choose a stronger password.',
-    details: { violations },
+    publicDetails: { violations },
   });
 
 const permissionFailure = (reason: StoreFailureReason): AppError =>
@@ -54,13 +54,11 @@ export const workforceStoreFailure = (
     });
 
   if (reason === 'authentication_required')
-    return makeAppError({
-      kind: 'AuthError',
+    return authError({
       code: 'invitation_identity_authentication_required',
       message:
         'Invitation email already belongs to an identity that must authenticate.',
       safeMessage: 'Sign in with the invited email before accepting.',
-      status: 401,
     });
 
   if (reason === 'wrong_authenticated_identity')
@@ -101,6 +99,8 @@ export const workforceStoreFailure = (
     code: `workforce_${reason}`,
     message: `Workforce command conflicts with current state: ${reason}.`,
     safeMessage: safeMessage[reason],
-    ...(currentVersion === undefined ? {} : { details: { currentVersion } }),
+    ...(currentVersion === undefined
+      ? {}
+      : { publicDetails: { currentVersion } }),
   });
 };

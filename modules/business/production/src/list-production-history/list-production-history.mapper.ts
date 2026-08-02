@@ -15,6 +15,14 @@ import {
   type ProductionHistoryRunSummary,
   type ProductionOrderRouteReason,
 } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 export type ProductionHistoryCursorKind = 'runs' | 'activity' | 'plans';
 
@@ -137,9 +145,15 @@ export const mapProductionHistoryRun = (
   statistics: ProductionHistoryRunStatistics,
 ): ProductionHistoryRunSummary => {
   if (row.status !== 'started' && row.status !== 'completed')
-    throw new Error(`Unknown production-run history status: ${row.status}.`);
+    throw productionInvariantViolation(
+      'production_history_run_status_invalid',
+      `Unknown production-run history status: ${row.status}.`,
+    );
   if (row.startedAt === null)
-    throw new Error('Production-run history is missing its start boundary.');
+    throw productionInvariantViolation(
+      'production_history_run_start_missing',
+      'Production-run history is missing its start boundary.',
+    );
 
   return {
     productionRunId: row.id,
@@ -194,7 +208,10 @@ export const mapProductionHistoryPlan = (
     row.status !== 'superseded' &&
     row.status !== 'rejected'
   )
-    throw new Error(`Unknown schedule history status: ${row.status}.`);
+    throw productionInvariantViolation(
+      'production_history_schedule_status_invalid',
+      `Unknown schedule history status: ${row.status}.`,
+    );
 
   return {
     scheduleRunId: row.id,

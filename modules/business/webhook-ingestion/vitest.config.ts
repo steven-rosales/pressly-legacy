@@ -31,6 +31,10 @@ export default defineConfig({
         find: /^@pressly\/kernel$/,
         replacement: source('kernel/src/index.ts'),
       },
+      {
+        find: /^@pressly\/kernel\/node$/,
+        replacement: source('kernel/src/node.ts'),
+      },
       { find: /^@pressly\/time$/, replacement: timeSource },
     ],
   },

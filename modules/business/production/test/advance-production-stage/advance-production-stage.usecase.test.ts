@@ -5,7 +5,7 @@ import type {
 } from '@pressly/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProductionPolicyPort } from '../../src/production-policy/production-policy.port.ts';
-import type { StageTransitionContext } from '../../src/production-lifecycle/stage-transition.port.ts';
+import type { StageTransitionContext } from '../../src/production-lifecycle/stage-transition.model.ts';
 import type {
   StoredWorkEvent,
   WorkEventInput,

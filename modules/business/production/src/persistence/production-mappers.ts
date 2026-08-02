@@ -5,8 +5,16 @@ import type {
   SchedulerConfig,
 } from '@pressly/contracts';
 import type { laundryProduction } from '@pressly/db';
+import { invariantViolationError } from '@pressly/errors';
 import { productionDueBucket } from './production-due-bucket.policy.ts';
 import type { SchedulingOutput } from '../scheduling/production-scheduling.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 export const asDate = (value: string): Date => new Date(value);
 
@@ -89,7 +97,10 @@ export const mapOrder = (
   timezone: string,
 ): ProductionOrderSummary => {
   if (row.bagCount === null)
-    throw new Error('Production order bag intake is incomplete.');
+    throw productionInvariantViolation(
+      'production_order_summary_bag_intake_incomplete',
+      'Production order bag intake is incomplete.',
+    );
 
   return {
     id: row.id,

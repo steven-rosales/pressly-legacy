@@ -1,4 +1,5 @@
 import type { ProductionOrderSummary } from '@pressly/contracts';
+import { configError } from '@pressly/errors';
 import {
   calendarDateAt,
   calendarDayDistance,
@@ -6,6 +7,13 @@ import {
   instantFromDate,
   type CalendarDayRange,
 } from '@pressly/time';
+
+const productionConfigError = (code: string, message: string) =>
+  configError({
+    code,
+    message,
+    safeMessage: 'Production configuration is invalid.',
+  });
 
 type ProductionDueBucket = ProductionOrderSummary['dueBucket'];
 
@@ -21,7 +29,10 @@ const requireDayRange = (
 ): CalendarDayRange => {
   const range = calendarDayRangeAt(timezone, instantFromDate(now), dayOffset);
   if (range.tag === 'err')
-    throw new Error(`Cannot calculate a local production day in ${timezone}.`);
+    throw productionConfigError(
+      'production_timezone_invalid',
+      `Cannot calculate a local production day in ${timezone}.`,
+    );
   return range.value;
 };
 

@@ -1,8 +1,11 @@
-import { result } from '@pressly/kernel';
 import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  validationError,
+} from '@pressly/errors';
+import { result } from '@pressly/kernel';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -11,8 +14,8 @@ import type {
   ClockPort,
   IdPort,
 } from '../command-execution/production-command.port.ts';
-import type { OrderDemandPhase } from '../production-lifecycle/order-demand.port.ts';
-import type { ProductionOrderExecutionState } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { OrderDemandPhase } from '../production-lifecycle/order-demand.model.ts';
+import type { ProductionOrderExecutionState } from '../production-lifecycle/production-lifecycle.model.ts';
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import type {
   ApplyFulfillmentDemand,
@@ -24,6 +27,14 @@ import type {
 
 const systemActorId = '00000000-0000-4000-8000-000000000000';
 const hashPattern = /^[a-f0-9]{64}$/;
+
+type ApplyFulfillmentDemandPolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluateDemandLifecycle'
+  | 'initialProductionOrderExecutionState'
+  | 'resolveProductionOrderExecutionState'
+  | 'deriveProductionOrderOperationalStatus'
+>;
 
 const demandPhase = (
   admission: FulfillmentAdmissionState,
@@ -41,7 +52,7 @@ const demandPhase = (
 export const makeApplyFulfillmentDemand =
   (deps: {
     repo: ApplyFulfillmentDemandRepository;
-    policy: ProductionPolicyPort;
+    policy: ApplyFulfillmentDemandPolicy;
     clock: ClockPort;
     ids: IdPort;
   }): ApplyFulfillmentDemand =>
@@ -87,11 +98,14 @@ export const makeApplyFulfillmentDemand =
             (!Number.isInteger(command.bagCount) || command.bagCount < 0))
         )
           return result.err(
-            productionError(
-              'FULFILLMENT_DEMAND_INVALID',
-              'The fulfillment demand version, dates, hash, or bag count are invalid.',
-              422,
-            ),
+            validationError({
+              code: 'fulfillment_demand_invalid',
+              message:
+                'The fulfillment demand version, dates, hash, or bag count are invalid.',
+              safeMessage:
+                'The fulfillment demand version, dates, hash, or bag count are invalid.',
+              status: 422,
+            }),
           );
 
         if (
@@ -102,20 +116,24 @@ export const makeApplyFulfillmentDemand =
             (command.estimatedWeightSource === null)
         )
           return result.err(
-            productionError(
-              'FULFILLMENT_DEMAND_WEIGHT_INVALID',
-              'The fulfillment estimate and its provenance are inconsistent.',
-              422,
-            ),
+            validationError({
+              code: 'fulfillment_demand_weight_invalid',
+              message:
+                'The fulfillment estimate and its provenance are inconsistent.',
+              safeMessage:
+                'The fulfillment estimate and its provenance are inconsistent.',
+              status: 422,
+            }),
           );
 
         if (!(await repo.locationIsActive(command.locationId)))
           return result.err(
-            productionError(
-              'PRODUCTION_LOCATION_UNAVAILABLE',
-              'The production location is missing or inactive.',
-              422,
-            ),
+            validationError({
+              code: 'production_location_unavailable',
+              message: 'The production location is missing or inactive.',
+              safeMessage: 'The production location is missing or inactive.',
+              status: 422,
+            }),
           );
 
         await repo.lockLocationScheduling(command.locationId);
@@ -125,10 +143,13 @@ export const makeApplyFulfillmentDemand =
 
         if (existing !== null && existing.locationId !== command.locationId)
           return result.err(
-            productionError(
-              'FULFILLMENT_LOCATION_CHANGED',
-              'The fulfillment resolved to a different production location.',
-            ),
+            conflictError({
+              code: 'fulfillment_location_changed',
+              message:
+                'The fulfillment resolved to a different production location.',
+              safeMessage:
+                'The fulfillment resolved to a different production location.',
+            }),
           );
 
         const appendOutcome = async (
@@ -165,10 +186,13 @@ export const makeApplyFulfillmentDemand =
           command.projectionHash !== existing.projectionHash
         )
           return result.err(
-            productionError(
-              'FULFILLMENT_DEMAND_DIVERGED',
-              'The same fulfillment version produced different demand data.',
-            ),
+            conflictError({
+              code: 'fulfillment_demand_diverged',
+              message:
+                'The same fulfillment version produced different demand data.',
+              safeMessage:
+                'The same fulfillment version produced different demand data.',
+            }),
           );
 
         if (
@@ -213,11 +237,11 @@ export const makeApplyFulfillmentDemand =
             });
             if (resolved.tag === 'err')
               return result.err(
-                productionError(
-                  resolved.error.code,
-                  resolved.error.message,
-                  409,
-                ),
+                conflictError({
+                  code: resolved.error.code.toLowerCase(),
+                  message: resolved.error.message,
+                  safeMessage: resolved.error.message,
+                }),
               );
             executionState = resolved.value;
           }
@@ -253,11 +277,14 @@ export const makeApplyFulfillmentDemand =
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'FULFILLMENT_DEMAND_APPLICATION_FAILED',
-          'The fulfillment demand could not be applied.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'fulfillment_demand_application_failed',
+            message: 'The fulfillment demand could not be applied.',
+            safeMessage: 'The fulfillment demand could not be applied.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

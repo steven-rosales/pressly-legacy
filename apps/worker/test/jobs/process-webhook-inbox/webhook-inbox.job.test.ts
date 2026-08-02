@@ -4,6 +4,7 @@ import {
   nullCounterSink,
   nullErrorReporter,
   nullMeasurementSink,
+  type ErrorReporter,
   type MeasurementSink,
 } from '@pressly/metrics';
 import type {
@@ -70,6 +71,7 @@ const processor = (input: {
   consume: WebhookEventConsumer;
   clock?: Readonly<{ now: () => Date }>;
   measurements?: MeasurementSink;
+  errors?: ErrorReporter;
   backlogMeasurementIntervalMs?: number;
 }) =>
   makeWebhookInboxJob({
@@ -82,7 +84,7 @@ const processor = (input: {
     logger: nullLogger,
     counters: nullCounterSink,
     measurements: input.measurements ?? nullMeasurementSink,
-    errors: nullErrorReporter,
+    errors: input.errors ?? nullErrorReporter,
     config: {
       workerId: 'worker-1',
       leaseMs: 30_000,
@@ -203,6 +205,56 @@ describe('generic webhook inbox processor', () => {
       expect.objectContaining({ eventId: 'permanent', code: 'invalid_order' }),
     );
     expect(store.completeEvent).not.toHaveBeenCalled();
+  });
+
+  it('isolates an unexpected consumer failure and continues the claimed batch', async () => {
+    const failed = claimedEvent({ eventId: 'failed' });
+    const succeeded = claimedEvent({ eventId: 'succeeded' });
+    const store = ingestion([failed, succeeded]);
+    const consume = vi
+      .fn<WebhookEventConsumer>()
+      .mockRejectedValueOnce(new Error('consumer crashed'))
+      .mockResolvedValueOnce({ tag: 'ok' });
+
+    await expect(
+      processor({ ingestion: store, consume }).runOnce(),
+    ).resolves.toBe(2);
+
+    expect(store.retryEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'failed',
+        code: 'unexpected_error',
+      }),
+    );
+    expect(store.deadLetterEvent).not.toHaveBeenCalled();
+    expect(store.completeEvent).toHaveBeenCalledWith(succeeded);
+  });
+
+  it('does not let dead-letter reporting strand later claimed work', async () => {
+    const failed = claimedEvent({ eventId: 'failed' });
+    const succeeded = claimedEvent({ eventId: 'succeeded' });
+    const store = ingestion([failed, succeeded]);
+    const consume = vi.fn(async (event: ClaimedWebhookEvent) =>
+      event.eventId === 'failed' ? failure(false) : { tag: 'ok' as const },
+    );
+
+    await expect(
+      processor({
+        ingestion: store,
+        consume,
+        errors: {
+          capture: () => {
+            throw new Error('reporter unavailable');
+          },
+          shutdown: async () => undefined,
+        },
+      }).runOnce(),
+    ).resolves.toBe(2);
+
+    expect(store.deadLetterEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: 'failed' }),
+    );
+    expect(store.completeEvent).toHaveBeenCalledWith(succeeded);
   });
 
   it('leaves the claim processing when completion crashes after domain commit', async () => {

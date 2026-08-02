@@ -29,17 +29,17 @@ const signals = makeWorkerSignalSinks({
   sentryEnabled: workerEnv.observability.sentry.enabled,
 });
 
-runWorker({
-  config: workerEnv,
-  logger,
-  counters: signals.counters,
-  measurements: signals.measurements,
-  errors,
-})
-  .then(async () => {
-    await errors.shutdown();
-  })
-  .catch(async (error: unknown) => {
+const main = async (): Promise<void> => {
+  try {
+    await runWorker({
+      config: workerEnv,
+      logger,
+      counters: signals.counters,
+      measurements: signals.measurements,
+      errors,
+    });
+  } catch (error: unknown) {
+    process.exitCode = 1;
     reportWorkerFailure({
       error,
       operation: 'worker_runtime',
@@ -49,6 +49,36 @@ runWorker({
       level: 'fatal',
       tags: { phase: 'fatal' },
     });
+  }
+
+  try {
     await errors.shutdown();
+  } catch (error: unknown) {
     process.exitCode = 1;
-  });
+    reportWorkerFailure({
+      error,
+      operation: 'worker_error_reporter_shutdown',
+      logger,
+      errors,
+      counters: signals.counters,
+      tags: { phase: 'shutdown' },
+    });
+  }
+};
+
+void main().catch((error: unknown) => {
+  process.exitCode = 1;
+  try {
+    reportWorkerFailure({
+      error,
+      operation: 'worker_main',
+      logger,
+      errors,
+      counters: signals.counters,
+      level: 'fatal',
+      tags: { phase: 'uncaught' },
+    });
+  } catch {
+    // The process exit code is already set. There is no safer sink left.
+  }
+});

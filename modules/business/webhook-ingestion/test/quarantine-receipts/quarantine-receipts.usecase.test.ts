@@ -90,7 +90,7 @@ describe('webhook receipt quarantine', () => {
       }),
     ).resolves.toMatchObject({
       tag: 'err',
-      error: { code: 'webhook_quarantine_link_conflict', status: 503 },
+      error: { code: 'webhook_quarantine_link_conflict', status: 409 },
     });
   });
 

@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { invariantViolationError } from "@pressly/errors"
 import {
   createContext,
   useCallback,
@@ -73,6 +74,9 @@ export function ThemeProvider({
 export function useTheme() {
   const value = useContext(ThemeContext)
   if (value === null)
-    throw new Error("useTheme must be used within a ThemeProvider")
+    throw invariantViolationError({
+      code: "control_theme_provider_missing",
+      message: "useTheme must be used within a ThemeProvider.",
+    })
   return value
 }

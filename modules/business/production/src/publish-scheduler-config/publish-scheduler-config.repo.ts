@@ -5,10 +5,18 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { invariantViolationError } from '@pressly/errors';
 import type { PublishSchedulerConfigRepository } from './publish-scheduler-config.port.ts';
 import { mapConfig, asDate } from '../persistence/production-mappers.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 export const makePublishSchedulerConfigRepository = (deps: {
   db: Database;
@@ -40,7 +48,11 @@ export const makePublishSchedulerConfigRepository = (deps: {
           publishedAt: asDate(config.publishedAt),
         })
         .returning();
-      if (row === undefined) throw new Error('Scheduler config insert failed.');
+      if (row === undefined)
+        throw productionInvariantViolation(
+          'production_scheduler_config_insert_return_missing',
+          'Scheduler config insert failed.',
+        );
       return mapConfig(row);
     },
     appendWorkEvent: (event) => appendWorkEvent(db, deps.ids, event),

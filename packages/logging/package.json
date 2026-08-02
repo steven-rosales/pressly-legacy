@@ -19,6 +19,9 @@
     "test": "vitest run --dir test",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "@pressly/errors": "workspace:*"
+  },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",
     "typescript": "latest",

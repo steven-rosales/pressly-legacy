@@ -2,7 +2,7 @@ import type {
   UserFieldName,
   UserProfile,
   UserRecord,
-} from './user-profile.port.ts';
+} from './user-profile.model.ts';
 
 export const userProfileFields = [
   'firstName',

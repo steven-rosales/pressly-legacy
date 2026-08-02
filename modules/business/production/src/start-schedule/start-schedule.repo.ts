@@ -7,6 +7,7 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { conflictError, invariantViolationError } from '@pressly/errors';
 import { asDate, mapSchedule } from '../persistence/production-mappers.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
@@ -16,6 +17,20 @@ import type {
   ScheduleStartRecord,
   StartScheduleRepository,
 } from './start-schedule.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 export const makeStartScheduleRepository = (deps: {
   db: Database;
@@ -190,7 +205,10 @@ export const makeStartScheduleRepository = (deps: {
           lifecycleByOrderId.size !== selectedOrderIds.length ||
           selectedOrderIds.some((orderId) => !lifecycleByOrderId.has(orderId))
         )
-          throw new Error('Order execution decisions are incomplete at Start.');
+          throw productionInvariantViolation(
+            'production_schedule_start_order_lifecycle_incomplete',
+            'Order execution decisions are incomplete at Start.',
+          );
         for (const orderId of selectedOrderIds) {
           const lifecycle = lifecycleByOrderId.get(orderId)!;
           const [updatedOrder] = await db
@@ -223,7 +241,10 @@ export const makeStartScheduleRepository = (deps: {
             )
             .returning({ id: laundryProduction.productionOrders.id });
           if (updatedOrder === undefined)
-            throw new Error('Not every selected order was available at Start.');
+            throw productionConcurrencyConflict(
+              'production_schedule_start_order_version_conflict',
+              'Not every selected order was available at Start.',
+            );
         }
       }
 
@@ -298,7 +319,10 @@ export const makeStartScheduleRepository = (deps: {
         for (const proposedStage of proposed.stages) {
           const stationId = stationByKind.get(proposedStage.stage);
           if (stationId === undefined)
-            throw new Error(`Station not found: ${proposedStage.stage}.`);
+            throw productionInvariantViolation(
+              'production_schedule_start_station_missing',
+              `Station not found: ${proposedStage.stage}.`,
+            );
           const stageRunId = deps.ids.next();
           await db.insert(laundryProduction.stageRuns).values({
             id: stageRunId,

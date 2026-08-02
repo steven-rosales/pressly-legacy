@@ -3,7 +3,11 @@ import {
   centsSubmittedOrderCandidatePayloadSchema,
   type CentsSubmittedOrderCandidatePayload,
 } from '@pressly/contracts';
-import { makeAppError, type AppError } from '@pressly/errors';
+import {
+  externalServiceError,
+  validationError,
+  type AppError,
+} from '@pressly/errors';
 import type { OrdersWorkerApplication } from '@pressly/orders';
 import type { ProductionApplication } from '@pressly/production';
 import type {
@@ -14,6 +18,7 @@ import type {
   EventConsumerOutcome,
   WebhookEventConsumer,
 } from '../webhook-inbox.job.ts';
+import { isRetryableAppError } from '../../../runtime/failure-disposition.ts';
 
 const centsProposalContext = {
   origin: 'cents',
@@ -46,8 +51,7 @@ const permanentFailure = (error: AppError): EventConsumerOutcome => ({
 
 const invalidEvent = (code: string, message: string): EventConsumerOutcome =>
   permanentFailure(
-    makeAppError({
-      kind: 'ValidationError',
+    validationError({
       code,
       message,
       safeMessage: message,
@@ -96,7 +100,7 @@ const mutationOutcome = (
     : {
         tag: 'err',
         error: result.error,
-        retryable: result.error.status >= 500,
+        retryable: isRetryableAppError(result.error),
       };
 
 export const makeCentsOrderHandler =
@@ -164,14 +168,13 @@ export const makeCentsOrderHandler =
         return {
           tag: 'err',
           error: resolution.error,
-          retryable: resolution.error.status >= 500,
+          retryable: isRetryableAppError(resolution.error),
         };
       if (resolution.value.outcome === 'not_found')
         return {
           tag: 'err',
           retryable: true,
-          error: makeAppError({
-            kind: 'ExternalServiceError',
+          error: externalServiceError({
             code: 'production_projection_pending',
             message:
               'The accepted fulfillment has not been projected into Production yet.',

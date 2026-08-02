@@ -2,14 +2,25 @@ import type {
   SourceLocationBindingChange,
   SourceLocationBindingRejection,
 } from '@pressly/contracts';
+import { databaseError, mapUnknownError, type AppError } from '@pressly/errors';
 import { result } from '@pressly/kernel';
-import { webhookIngestionError } from '../ingestion/webhook-ingestion.error.ts';
 import type { WebhookIngestionClockPort } from '../ingestion/webhook-ingestion.port.ts';
 import type {
   ManageSourceLocationBindings,
   ResolveSourceLocation,
   SourceLocationBindingsRepository,
 } from './source-location-bindings.port.ts';
+
+const sourceLocationBindingsFailed = (cause: unknown): AppError =>
+  mapUnknownError(cause, (unknownCause) =>
+    databaseError({
+      code: 'source_location_bindings_failed',
+      message: 'Source-location bindings could not be managed.',
+      safeMessage: 'Source-location bindings could not be managed.',
+      status: 503,
+      cause: unknownCause,
+    }),
+  );
 
 const naturalKey = (binding: { source: string; externalLocationId: string }) =>
   `${binding.source}\u0000${binding.externalLocationId}`;
@@ -112,13 +123,6 @@ export const makeManageSourceLocationBindings =
         rejections,
       });
     } catch (error) {
-      return result.err(
-        webhookIngestionError(
-          'SOURCE_LOCATION_BINDINGS_FAILED',
-          'Source-location bindings could not be managed.',
-          409,
-          error,
-        ),
-      );
+      return result.err(sourceLocationBindingsFailed(error));
     }
   };

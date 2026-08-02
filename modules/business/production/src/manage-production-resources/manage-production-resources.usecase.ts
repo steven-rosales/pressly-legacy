@@ -1,3 +1,8 @@
+import {
+  databaseError,
+  mapUnknownError,
+  validationError,
+} from '@pressly/errors';
 import { createHash } from 'node:crypto';
 import type {
   ProductionBootstrapDestructiveRejection,
@@ -6,10 +11,7 @@ import type {
   ProductionBootstrapResult,
 } from '@pressly/contracts';
 import { result } from '@pressly/kernel';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -236,6 +238,23 @@ export const makeManageProductionResources =
     clock: ClockPort;
   }): ManageProductionResources =>
   async (command) => {
+    const stationKinds = new Set(
+      command.manifest.stations.map((station) => station.kind),
+    );
+    const machineWithoutStation = command.manifest.machines.find(
+      (machine) => !stationKinds.has(machine.stationKind),
+    );
+    if (machineWithoutStation !== undefined)
+      return result.err(
+        validationError({
+          code: 'production_bootstrap_machine_station_missing',
+          message:
+            'Every production machine must reference a station in the same manifest.',
+          safeMessage:
+            'Every production machine must reference a station in the same manifest.',
+        }),
+      );
+
     try {
       return await deps.repo.transaction(async (repo) => {
         const locationId = command.manifest.location.id;
@@ -305,11 +324,14 @@ export const makeManageProductionResources =
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_BOOTSTRAP_FAILED',
-          'Production resources could not be bootstrapped.',
-          409,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_bootstrap_failed',
+            message: 'Production resources could not be bootstrapped.',
+            safeMessage: 'Production resources could not be bootstrapped.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

@@ -1,25 +1,38 @@
 import type { z } from "zod"
+import { validationError } from "@pressly/errors"
+import {
+  appErrorKindForHttpStatus,
+  appErrorFromApiFailure,
+  decodeApiResponse,
+  encodeJsonBody,
+  responseTraceId,
+  type HttpAppErrorKind,
+} from "@pressly/http"
 import { RequestFailure, type RequestFailureKind } from "@/ports/request.error"
 import type { RequestInput, RequestPort } from "@/ports/request.port"
-
-type ApiEnvelope =
-  | Readonly<{ ok: true; data: unknown }>
-  | Readonly<{
-      ok: false
-      error: Readonly<{ code?: string; message?: string; traceId?: string }>
-    }>
 
 export type RequestFailureContext = Readonly<{
   method: string
   path: string
 }>
 
-const failureKind = (status: number): RequestFailureKind => {
-  if (status === 401) return "unauthorized"
-  if (status === 403) return "forbidden"
-  if (status === 409) return "conflict"
-  if (status === 502 || status === 503 || status === 504) return "unavailable"
-  return "unexpected"
+const failureKind = (kind: HttpAppErrorKind): RequestFailureKind => {
+  switch (kind) {
+    case "AuthError":
+      return "unauthorized"
+    case "PermissionError":
+      return "forbidden"
+    case "ValidationError":
+      return "invalid_request"
+    case "NotFoundError":
+      return "not_found"
+    case "ConflictError":
+      return "conflict"
+    case "RateLimitError":
+      return "rate_limited"
+    case "ExternalServiceError":
+      return "unavailable"
+  }
 }
 
 const isUnsafe = (method: string): boolean =>
@@ -43,7 +56,7 @@ export const makeFetchRequestAdapter = (input: {
   ): Promise<Output> => {
     const method = request.method ?? "GET"
     const csrfToken = isUnsafe(method) ? input.readCsrfToken() : null
-    let response: Response
+
     const observed = (failure: RequestFailure): RequestFailure => {
       try {
         input.onFailure?.(failure, { method, path: request.path })
@@ -53,19 +66,44 @@ export const makeFetchRequestAdapter = (input: {
       return failure
     }
 
+    const encodedBody =
+      request.body === undefined ? undefined : encodeJsonBody(request.body)
+    if (encodedBody?.tag === "rejected") {
+      const appError = validationError({
+        code: "processor_request_body_not_serializable",
+        message: "The Processor request body cannot be encoded as JSON.",
+        safeMessage: "The request contains unsupported data.",
+        details: { reason: encodedBody.reason },
+        ...(encodedBody.cause === undefined
+          ? {}
+          : { cause: encodedBody.cause }),
+      })
+
+      throw observed(
+        new RequestFailure({
+          kind: "invalid_request",
+          code: appError.code,
+          message: appError.safeMessage,
+          status: appError.status,
+          cause: appError,
+        })
+      )
+    }
+
+    let response: Response
+
     try {
       response = await fetcher(joinUrl(input.baseUrl, request.path), {
         method,
         credentials: "same-origin",
         headers: {
           Accept: "application/json",
-          ...(request.body === undefined
+          ...(encodedBody === undefined
             ? {}
             : { "Content-Type": "application/json" }),
           ...(csrfToken === null ? {} : { "X-CSRF-Token": csrfToken }),
         },
-        body:
-          request.body === undefined ? undefined : JSON.stringify(request.body),
+        body: encodedBody?.tag === "encoded" ? encodedBody.body : undefined,
         signal: request.signal,
       })
     } catch (cause) {
@@ -74,20 +112,23 @@ export const makeFetchRequestAdapter = (input: {
         (cause instanceof DOMException && cause.name === "AbortError")
       )
         throw cause
+
       throw observed(
         new RequestFailure({
           kind: "unavailable",
           code: "NETWORK_UNAVAILABLE",
           message: "The production service is unavailable.",
+          cause,
         })
       )
     }
 
-    const requestId = response.headers.get("X-Request-Id") ?? undefined
-    let envelope: ApiEnvelope
+    const requestId = responseTraceId(response.headers)
+    let decoded: unknown
+
     try {
-      envelope = (await response.json()) as ApiEnvelope
-    } catch {
+      decoded = await response.json()
+    } catch (cause) {
       throw observed(
         new RequestFailure({
           kind: "invalid_response",
@@ -95,27 +136,12 @@ export const makeFetchRequestAdapter = (input: {
           message: "The production service returned an unreadable response.",
           status: response.status,
           ...(requestId === undefined ? {} : { requestId }),
+          cause,
         })
       )
     }
 
-    if (!response.ok || envelope.ok === false) {
-      const kind = failureKind(response.status)
-      if (kind === "unauthorized") input.onUnauthorized?.()
-      const error = envelope.ok === false ? envelope.error : {}
-      throw observed(
-        new RequestFailure({
-          kind,
-          code: error.code ?? `HTTP_${response.status}`,
-          message: error.message ?? "The request could not be completed.",
-          status: response.status,
-          ...(requestId === undefined ? {} : { requestId }),
-          ...(error.traceId === undefined ? {} : { traceId: error.traceId }),
-        })
-      )
-    }
-
-    const parsed = outputSchema.safeParse(envelope.data)
+    const parsed = decodeApiResponse(decoded, outputSchema)
     if (!parsed.success)
       throw observed(
         new RequestFailure({
@@ -124,9 +150,54 @@ export const makeFetchRequestAdapter = (input: {
           message: "The production service returned data outside its contract.",
           status: response.status,
           ...(requestId === undefined ? {} : { requestId }),
+          cause: parsed.error,
         })
       )
 
-    return parsed.data
+    const envelope = parsed.data
+
+    if (envelope.ok === false) {
+      const appError = appErrorFromApiFailure({
+        failure: envelope,
+        responseStatus: response.status,
+        headers: response.headers,
+      })
+      const kind = failureKind(appErrorKindForHttpStatus(appError.status))
+      if (kind === "unauthorized") {
+        try {
+          input.onUnauthorized?.()
+        } catch {
+          // Session cleanup cannot replace the authoritative request failure.
+        }
+      }
+
+      throw observed(
+        new RequestFailure({
+          kind,
+          code: appError.code,
+          message: appError.safeMessage,
+          status: appError.status,
+          ...(requestId === undefined ? {} : { requestId }),
+          ...(appError.traceId === undefined
+            ? {}
+            : { traceId: appError.traceId }),
+          cause: appError,
+        })
+      )
+    }
+
+    if (!response.ok)
+      throw observed(
+        new RequestFailure({
+          kind: "unexpected",
+          code: `HTTP_${response.status}`,
+          message:
+            "The production service returned a success envelope with an unsuccessful status.",
+          status: response.status,
+          ...(requestId === undefined ? {} : { requestId }),
+        })
+      )
+
+    return envelope.data
   }
 }

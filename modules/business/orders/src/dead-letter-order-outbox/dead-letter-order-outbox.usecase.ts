@@ -1,6 +1,11 @@
+import {
+  databaseError,
+  mapUnknownError,
+  validationError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import type { OrderClockPort } from '../command-execution/order-command.port.ts';
-import { orderError } from '../failure-mapping/order.error.ts';
+
 import type { DeadLetterOrderOutbox } from '../order-outbox/order-outbox.port.ts';
 import type { DeadLetterOrderOutboxRepository } from './dead-letter-order-outbox.port.ts';
 
@@ -17,11 +22,11 @@ export const makeDeadLetterOrderOutbox =
       command.errorMessage.trim() === ''
     )
       return result.err(
-        orderError(
-          'ORDER_OUTBOX_DEAD_LETTER_INVALID',
-          'The outbox dead-letter request is invalid.',
-          400,
-        ),
+        validationError({
+          code: 'order_outbox_dead_letter_invalid',
+          message: 'The outbox dead-letter request is invalid.',
+          safeMessage: 'The outbox dead-letter request is invalid.',
+        }),
       );
     try {
       return result.ok({
@@ -32,11 +37,14 @@ export const makeDeadLetterOrderOutbox =
       });
     } catch (error) {
       return result.err(
-        orderError(
-          'ORDER_OUTBOX_DEAD_LETTER_FAILED',
-          'The order change could not be terminalized.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'order_outbox_dead_letter_failed',
+            message: 'The order change could not be terminalized.',
+            safeMessage: 'The order change could not be terminalized.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

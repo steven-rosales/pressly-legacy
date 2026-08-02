@@ -1,9 +1,12 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import type { StartScheduleResult } from '@pressly/contracts';
 import { result } from '@pressly/kernel';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -17,11 +20,23 @@ import type {
 } from './start-schedule.port.ts';
 export type { StartSchedule } from './start-schedule.port.ts';
 
+type StartSchedulePolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluateShiftPlanningWindow'
+  | 'evaluateScheduleStart'
+  | 'resolveProductionOrderExecutionState'
+  | 'evaluateProductionOrderExecutionTransition'
+  | 'initialProductionRunState'
+  | 'initialProductionBatchState'
+  | 'initialProductionStageState'
+  | 'initialProductionOrderStageAttemptState'
+>;
+
 export const makeStartSchedule =
   (deps: {
     repo: StartScheduleRepository;
     clock: ClockPort;
-    policy: ProductionPolicyPort;
+    policy: StartSchedulePolicy;
   }): StartSchedule =>
   async (command) => {
     try {
@@ -58,19 +73,21 @@ export const makeStartSchedule =
         );
         if (record === null)
           return result.err(
-            productionError(
-              'SCHEDULE_NOT_FOUND',
-              'The accepted schedule was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'schedule_not_found',
+              message: 'The accepted schedule was not found.',
+              safeMessage: 'The accepted schedule was not found.',
+            }),
           );
         if (record.schedule.outputPlanHash !== command.expectedOutputPlanHash)
           return result.err(
-            productionError(
-              'SCHEDULE_HASH_MISMATCH',
-              'The accepted schedule hash does not match the Start command.',
-              409,
-            ),
+            conflictError({
+              code: 'schedule_hash_mismatch',
+              message:
+                'The accepted schedule hash does not match the Start command.',
+              safeMessage:
+                'The accepted schedule hash does not match the Start command.',
+            }),
           );
         if (
           !(await repo.lockShiftForStart(
@@ -79,11 +96,11 @@ export const makeStartSchedule =
           ))
         )
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_NOT_FOUND',
-              'The production shift was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_shift_not_found',
+              message: 'The production shift was not found.',
+              safeMessage: 'The production shift was not found.',
+            }),
           );
         const now = deps.clock.now();
         const shiftWindow = deps.policy.evaluateShiftPlanningWindow({
@@ -94,11 +111,11 @@ export const makeStartSchedule =
         });
         if (shiftWindow.tag === 'err')
           return result.err(
-            productionError(
-              shiftWindow.error.code,
-              shiftWindow.error.message,
-              409,
-            ),
+            conflictError({
+              code: shiftWindow.error.code.toLowerCase(),
+              message: shiftWindow.error.message,
+              safeMessage: shiftWindow.error.message,
+            }),
           );
         const productionRunExists = await repo.productionRunExists(
           command.locationId,
@@ -121,20 +138,22 @@ export const makeStartSchedule =
         });
         if (startDecision.tag === 'err')
           return result.err(
-            productionError(
-              startDecision.error.code,
-              startDecision.error.message,
-              409,
-            ),
+            conflictError({
+              code: startDecision.error.code.toLowerCase(),
+              message: startDecision.error.message,
+              safeMessage: startDecision.error.message,
+            }),
           );
 
         if (lockedOrders === null)
           return result.err(
-            productionError(
-              'SCHEDULE_INPUT_STALE',
-              'The accepted schedule no longer matches its selected orders.',
-              409,
-            ),
+            conflictError({
+              code: 'schedule_input_stale',
+              message:
+                'The accepted schedule no longer matches its selected orders.',
+              safeMessage:
+                'The accepted schedule no longer matches its selected orders.',
+            }),
           );
         const orderLifecycles: ScheduleStartOrderLifecycle[] = [];
         for (const order of lockedOrders) {
@@ -144,7 +163,11 @@ export const makeStartSchedule =
           });
           if (resolved.tag === 'err')
             return result.err(
-              productionError(resolved.error.code, resolved.error.message, 409),
+              conflictError({
+                code: resolved.error.code.toLowerCase(),
+                message: resolved.error.message,
+                safeMessage: resolved.error.message,
+              }),
             );
           const lifecycle =
             deps.policy.evaluateProductionOrderExecutionTransition({
@@ -153,22 +176,23 @@ export const makeStartSchedule =
             });
           if (lifecycle.tag === 'err')
             return result.err(
-              productionError(
-                lifecycle.error.code,
-                lifecycle.error.message,
-                409,
-              ),
+              conflictError({
+                code: lifecycle.error.code.toLowerCase(),
+                message: lifecycle.error.message,
+                safeMessage: lifecycle.error.message,
+              }),
             );
           if (
             lifecycle.value.from !== 'unassigned' ||
             lifecycle.value.state !== 'scheduled'
           )
             return result.err(
-              productionError(
-                'PRODUCTION_ORDER_EXECUTION_TRANSITION_INVALID',
-                'The production order cannot be committed by Start.',
-                409,
-              ),
+              conflictError({
+                code: 'production_order_execution_transition_invalid',
+                message: 'The production order cannot be committed by Start.',
+                safeMessage:
+                  'The production order cannot be committed by Start.',
+              }),
             );
           if (
             order.executionStatus !== 'unassigned' &&
@@ -176,11 +200,11 @@ export const makeStartSchedule =
             order.executionStatus !== 'finished'
           )
             return result.err(
-              productionError(
-                'PRODUCTION_ORDER_EXECUTION_STATE_INVALID',
-                'The production order execution state is invalid.',
-                409,
-              ),
+              conflictError({
+                code: 'production_order_execution_state_invalid',
+                message: 'The production order execution state is invalid.',
+                safeMessage: 'The production order execution state is invalid.',
+              }),
             );
           orderLifecycles.push({
             productionOrderId: order.id,
@@ -212,11 +236,15 @@ export const makeStartSchedule =
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_RUN_START_FAILED',
-          'Production could not start from the accepted schedule.',
-          409,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_run_start_failed',
+            message: 'Production could not start from the accepted schedule.',
+            safeMessage:
+              'Production could not start from the accepted schedule.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

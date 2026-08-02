@@ -1,10 +1,11 @@
 import { result, type Result } from '@pressly/kernel';
-import type {
-  LoadPricingCatalogResult,
-  PricingChangePlan,
-  PublishPricingChangeResult,
+import {
+  pricingCatalogSchema,
+  type PricingChangePlan,
+  type PublishPricingChangeResult,
 } from '@pressly/contracts';
 import { type AppError } from '@pressly/errors';
+import { z } from 'zod';
 import {
   readApiUrl,
   requestApi,
@@ -18,6 +19,35 @@ import {
 import type { PricingClient } from '../application/ports.ts';
 
 export type PricingCliEnv = ApiClientEnv;
+
+const pricingChangePlanSchema: z.ZodType<PricingChangePlan> = z
+  .object({
+    serviceSlug: z.enum(['wash-fold', 'dry-cleaning']),
+    reason: z.string(),
+    oldPricingSetId: z.string().min(1),
+    currency: z.string().min(1),
+    changes: z.array(
+      z
+        .object({
+          code: z.string().min(1),
+          name: z.string().min(1),
+          oldPriceCents: z.number().int().nonnegative(),
+          newPriceCents: z.number().int().nonnegative(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+const publishPricingChangeResultSchema: z.ZodType<PublishPricingChangeResult> =
+  z
+    .object({
+      oldPricingSetId: z.string().min(1),
+      newPricingSetId: z.string().min(1),
+      auditEventId: z.string().min(1),
+      changeItemCount: z.number().int().nonnegative(),
+    })
+    .strict();
 
 export const makeApiPricingClient = (
   env: PricingCliEnv,
@@ -42,12 +72,13 @@ export const makeApiPricingClient = (
 
       if (result.isErr(token)) return token;
 
-      return requestApi<LoadPricingCatalogResult>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: `/pricing/services/${encodeURIComponent(
           command.serviceSlug,
         )}/pricing`,
         method: 'GET',
+        dataSchema: pricingCatalogSchema,
         bearerToken: token.value,
       });
     },
@@ -57,10 +88,11 @@ export const makeApiPricingClient = (
 
       if (result.isErr(token)) return token;
 
-      return requestApi<PricingChangePlan>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: '/pricing/changes/plan',
         method: 'POST',
+        dataSchema: pricingChangePlanSchema,
         bearerToken: token.value,
         body: input,
       });
@@ -71,10 +103,11 @@ export const makeApiPricingClient = (
 
       if (result.isErr(token)) return token;
 
-      return requestApi<PublishPricingChangeResult>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: '/pricing/changes/publish',
         method: 'POST',
+        dataSchema: publishPricingChangeResultSchema,
         bearerToken: token.value,
         body: input,
       });

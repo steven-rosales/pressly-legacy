@@ -26,6 +26,8 @@ import {
   toDatabaseResult,
 } from '../persistence/database-result.ts';
 
+// Transaction-only rollback sentinel. completeTransaction consumes it at this
+// boundary and converts it back into the expected rejected Result.
 class MfaTransitionRejected extends Error {}
 
 const completeTransaction = async (

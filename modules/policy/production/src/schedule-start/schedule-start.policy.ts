@@ -1,6 +1,4 @@
-import { result, type Result } from '@pressly/kernel';
-
-type Rejection = Readonly<{ code: string; message: string }>;
+import { result, type CodedFailure, type Result } from '@pressly/kernel';
 
 export type ScheduleStartInput = Readonly<{
   scheduleRunId: string;
@@ -13,7 +11,7 @@ export type ScheduleStartInput = Readonly<{
 
 export const evaluateScheduleStart = (
   input: ScheduleStartInput,
-): Result<Readonly<{ started: true }>, Rejection> => {
+): Result<Readonly<{ started: true }>, CodedFailure> => {
   if (input.status !== 'accepted')
     return result.err({
       code: 'SCHEDULE_NOT_ACCEPTED',

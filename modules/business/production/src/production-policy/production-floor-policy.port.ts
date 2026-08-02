@@ -5,7 +5,8 @@ import type {
   ProductionStageNextAction,
   ProductionStageStartTiming,
 } from '@pressly/contracts';
-import type { PolicyDecision } from './policy-decision.port.ts';
+import type { Result } from '@pressly/kernel';
+import type { ProductionPolicyRejection } from './production-policy.model.ts';
 
 export type ProductionFloorPolicyPort = Readonly<{
   evaluateFloorProgressReconciliation: (input: {
@@ -20,7 +21,7 @@ export type ProductionFloorPolicyPort = Readonly<{
     sameKindAlreadyActive: boolean;
     assignedMachineIds: readonly string[];
     overlappingMachineIds: readonly string[];
-  }) => PolicyDecision<
+  }) => Result<
     Readonly<{
       currentMilestone: ProductionFloorMilestone;
       targetMilestone: ProductionFloorProgressTarget;
@@ -48,7 +49,8 @@ export type ProductionFloorPolicyPort = Readonly<{
         currentStatus: 'planned' | 'started' | 'completed';
         nextStatus: 'planned' | 'started' | 'completed';
       }>[];
-    }>
+    }>,
+    ProductionPolicyRejection
   >;
   evaluateStageNextAction: (
     entity: Readonly<{
@@ -66,7 +68,7 @@ export type ProductionFloorPolicyPort = Readonly<{
       assignedMachineIds: readonly string[];
       overlappingMachineIds: readonly string[];
     }>,
-  ) => PolicyDecision<ProductionStageNextAction>;
+  ) => Result<ProductionStageNextAction, ProductionPolicyRejection>;
   evaluateStageTransition: (
     entity: Readonly<{
       state: string;
@@ -86,7 +88,7 @@ export type ProductionFloorPolicyPort = Readonly<{
       assignedMachineIds: readonly string[];
       overlappingMachineIds: readonly string[];
     }>,
-  ) => PolicyDecision<
+  ) => Result<
     | Readonly<{
         status: 'allowed';
         from: 'planned' | 'started' | 'completed';
@@ -105,7 +107,8 @@ export type ProductionFloorPolicyPort = Readonly<{
         code: 'PULSE_BOUNDARY_NOT_REACHED';
         message: string;
         timing: ProductionStageCompletionTiming;
-      }>
+      }>,
+    ProductionPolicyRejection
   >;
   evaluateMachineAssignment: (input: {
     stageKind: string;
@@ -117,5 +120,8 @@ export type ProductionFloorPolicyPort = Readonly<{
       active: boolean;
       overlaps: boolean;
     }>[];
-  }) => PolicyDecision<Readonly<{ machineIds: readonly string[] }>>;
+  }) => Result<
+    Readonly<{ machineIds: readonly string[] }>,
+    ProductionPolicyRejection
+  >;
 }>;

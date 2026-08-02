@@ -1,4 +1,5 @@
-import type { PolicyDecision } from './policy-decision.port.ts';
+import type { Result } from '@pressly/kernel';
+import type { ProductionPolicyRejection } from './production-policy.model.ts';
 
 export type ProductionPlanningPolicyPort = Readonly<{
   evaluateScheduleAcceptance: (input: {
@@ -18,12 +19,12 @@ export type ProductionPlanningPolicyPort = Readonly<{
         pulseMinutes: number;
       }>[];
     }>[];
-  }) => PolicyDecision<Readonly<{ accepted: true }>>;
+  }) => Result<Readonly<{ accepted: true }>, ProductionPolicyRejection>;
   evaluateCurrentPlanAcceptance: (input: {
     scheduleRunId: string;
     currentScheduleRunId: string | null;
     eligibleOrderSnapshotMatches: boolean;
-  }) => PolicyDecision<Readonly<{ current: true }>>;
+  }) => Result<Readonly<{ current: true }>, ProductionPolicyRejection>;
   evaluateScheduleStart: (input: {
     scheduleRunId: string;
     status: string;
@@ -31,19 +32,22 @@ export type ProductionPlanningPolicyPort = Readonly<{
     eligibleOrderSnapshotMatches: boolean;
     productionRunExists: boolean;
     batchCount: number;
-  }) => PolicyDecision<Readonly<{ started: true }>>;
+  }) => Result<Readonly<{ started: true }>, ProductionPolicyRejection>;
   evaluateShiftPlanningWindow: (input: {
     action: 'compute' | 'accept' | 'start';
     now: Date;
     startsAt: Date;
     endsAt: Date;
-  }) => PolicyDecision<Readonly<{ allowed: true }>>;
+  }) => Result<Readonly<{ allowed: true }>, ProductionPolicyRejection>;
   evaluateBatchMembershipTransition: (input: {
     action: 'freeze' | 'unfreeze';
     batchStatus: string;
     membershipFrozen: boolean;
     authorizedAction: 'production:queue' | 'production:override';
-  }) => PolicyDecision<Readonly<{ membershipFrozen: boolean }>>;
+  }) => Result<
+    Readonly<{ membershipFrozen: boolean }>,
+    ProductionPolicyRejection
+  >;
   evaluatePlacementCommit: (input: {
     runStatus: string;
     orderStatus: string;
@@ -62,5 +66,5 @@ export type ProductionPlanningPolicyPort = Readonly<{
         queueVersion: number;
       }> | null;
     }>;
-  }) => PolicyDecision<Readonly<{ commit: true }>>;
+  }) => Result<Readonly<{ commit: true }>, ProductionPolicyRejection>;
 }>;

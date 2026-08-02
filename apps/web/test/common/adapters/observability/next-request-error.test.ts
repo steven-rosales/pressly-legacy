@@ -61,4 +61,18 @@ describe('observeNextRequestError', () => {
     });
     expect(capture).not.toHaveBeenCalled();
   });
+
+  it('does not let reporter failure replace the framework recovery path', () => {
+    expect(() =>
+      observeNextRequestError({
+        error: new Error('render failed'),
+        reporter: {
+          capture: () => {
+            throw new Error('reporter unavailable');
+          },
+          shutdown: async () => undefined,
+        },
+      }),
+    ).not.toThrow();
+  });
 });

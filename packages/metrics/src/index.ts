@@ -1,5 +1,16 @@
 export { defineEvent } from './product-event.js';
 export {
+  attemptAsyncObservation,
+  attemptAsyncObservationValue,
+  attemptObservation,
+  attemptObservationValue,
+} from './observation-effect.js';
+export {
+  isolateCounterSink,
+  isolateMeasurementSink,
+} from './isolated-sinks.js';
+
+export {
   decideObservation,
   shouldReportObservation,
 } from './observability-policy.js';
@@ -9,6 +20,11 @@ export { nullAnalyticsTracker } from './analytics.js';
 export { nullErrorReporter } from './error-reporter.js';
 export { nullCounterSink } from './counter.js';
 export { nullMeasurementSink } from './measurement.js';
+
+export type {
+  ObservationAttempt,
+  ObservationValueAttempt,
+} from './observation-effect.js';
 
 export type {
   EventPrimitive,

@@ -77,7 +77,36 @@ const tokenService = {
 };
 const clock = { now: () => now };
 
+const captureError = (action: () => unknown): unknown => {
+  try {
+    action();
+    return null;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe('workforce invitation use cases', () => {
+  it('rejects invalid invitation TTL configuration consistently', () => {
+    const deps = {
+      store: makeStore(),
+      tokenService,
+      clock,
+      invitationTtlMinutes: 0,
+    };
+
+    for (const factory of [
+      makeIssueWorkforceInvitation,
+      makeReissueWorkforceInvitation,
+    ])
+      expect(captureError(() => factory(deps))).toMatchObject({
+        tag: 'AppError',
+        kind: 'ConfigError',
+        code: 'workforce_invitation_ttl_invalid',
+        status: 500,
+      });
+  });
+
   it('normalizes email, stores only the keyed hash, and returns the raw token once', async () => {
     const store = makeStore();
     const issue = makeIssueWorkforceInvitation({
@@ -182,8 +211,13 @@ describe('workforce invitation use cases', () => {
     });
 
     expect(response.tag).toBe('err');
-    if (response.tag === 'err')
+    if (response.tag === 'err') {
       expect(response.error.code).toBe('weak_invitation_password');
+      expect(response.error.publicDetails).toMatchObject({
+        violations: expect.any(Array),
+      });
+      expect(response.error.details).toBeUndefined();
+    }
     expect(store.accept).not.toHaveBeenCalled();
   });
 

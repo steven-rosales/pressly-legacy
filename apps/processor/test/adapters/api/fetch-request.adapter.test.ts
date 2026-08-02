@@ -36,10 +36,18 @@ describe("processor request boundary", () => {
   })
 
   it.each([
+    [400, "invalid_request"],
     [401, "unauthorized"],
     [403, "forbidden"],
+    [404, "not_found"],
     [409, "conflict"],
+    [413, "invalid_request"],
+    [415, "invalid_request"],
+    [422, "invalid_request"],
+    [429, "rate_limited"],
+    [502, "unavailable"],
     [503, "unavailable"],
+    [504, "unavailable"],
   ] as const)("normalizes HTTP %i as %s", async (status, kind) => {
     const unauthorized = vi.fn()
     const request = makeFetchRequestAdapter({
@@ -64,6 +72,36 @@ describe("processor request boundary", () => {
     expect(unauthorized).toHaveBeenCalledTimes(status === 401 ? 1 : 0)
   })
 
+  it.each([200, 418])(
+    "fails closed with the canonical status for an HTTP %i failure envelope",
+    async (status) => {
+      const request = makeFetchRequestAdapter({
+        baseUrl: "",
+        readCsrfToken: () => null,
+        fetch: vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              ok: false,
+              error: { code: "UNEXPECTED_STATUS", message: "Try again." },
+            }),
+            { status }
+          )
+        ),
+      })
+
+      await expect(
+        request({ path: "/work" }, z.string())
+      ).rejects.toMatchObject({
+        kind: "unavailable",
+        status: 502,
+        cause: expect.objectContaining({
+          kind: "ExternalServiceError",
+          status: 502,
+        }),
+      } satisfies Partial<RequestFailure>)
+    }
+  )
+
   it("rejects data that violates the response contract", async () => {
     const request = makeFetchRequestAdapter({
       baseUrl: "",
@@ -78,6 +116,40 @@ describe("processor request boundary", () => {
     await expect(
       request({ path: "/work" }, z.object({ version: z.number() }))
     ).rejects.toMatchObject({ kind: "invalid_response" })
+  })
+
+  it("accepts success metadata and rejects malformed envelopes", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            data: { version: 2 },
+            meta: { page: 1 },
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(null), { status: 503 })
+      )
+    const request = makeFetchRequestAdapter({
+      baseUrl: "",
+      readCsrfToken: () => null,
+      fetch: fetcher,
+    })
+
+    await expect(
+      request({ path: "/work" }, z.object({ version: z.number() }))
+    ).resolves.toEqual({ version: 2 })
+    await expect(
+      request({ path: "/work" }, z.object({ version: z.number() }))
+    ).rejects.toMatchObject({
+      kind: "invalid_response",
+      code: "INVALID_API_RESPONSE",
+      cause: expect.any(Error),
+    })
   })
 
   it("retains the API request and trace references for the operator and observer", async () => {
@@ -116,6 +188,28 @@ describe("processor request boundary", () => {
     )
   })
 
+  it("uses X-Request-Id when a failure body has no trace ID", async () => {
+    const request = makeFetchRequestAdapter({
+      baseUrl: "",
+      readCsrfToken: () => null,
+      fetch: vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ok: false,
+            error: { code: "UNAVAILABLE", message: "Try again." },
+          }),
+          { status: 503, headers: { "X-Request-Id": "request-edge-5" } }
+        )
+      ),
+    })
+
+    await expect(request({ path: "/work" }, z.string())).rejects.toMatchObject({
+      traceId: "request-edge-5",
+      referenceId: "request-edge-5",
+      cause: expect.objectContaining({ tag: "AppError" }),
+    })
+  })
+
   it("preserves cancellation without reporting it as a service failure", async () => {
     const onFailure = vi.fn()
     const controller = new AbortController()
@@ -132,5 +226,33 @@ describe("processor request boundary", () => {
       request({ path: "/work", signal: controller.signal }, z.string())
     ).rejects.toBe(aborted)
     expect(onFailure).not.toHaveBeenCalled()
+  })
+
+  it("classifies local body encoding failures before transport", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+    const onFailure = vi.fn()
+    const request = makeFetchRequestAdapter({
+      baseUrl: "",
+      readCsrfToken: () => null,
+      onFailure,
+      fetch: fetcher,
+    })
+
+    await expect(
+      request(
+        { method: "POST", path: "/work", body: { value: 1n } },
+        z.unknown()
+      )
+    ).rejects.toMatchObject({
+      kind: "invalid_request",
+      code: "processor_request_body_not_serializable",
+      status: 400,
+      cause: expect.objectContaining({
+        kind: "ValidationError",
+        cause: expect.any(TypeError),
+      }),
+    })
+    expect(onFailure).toHaveBeenCalledOnce()
+    expect(fetcher).not.toHaveBeenCalled()
   })
 })

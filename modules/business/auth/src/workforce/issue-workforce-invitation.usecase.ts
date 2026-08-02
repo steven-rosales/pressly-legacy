@@ -12,12 +12,13 @@ import type {
   WorkforceActorRef,
   WorkforceInvitationSummary,
   WorkforceRole,
-} from './workforce.port.ts';
+} from './workforce.model.ts';
 import type {
   InvitationTokenService,
   WorkforceClock,
   WorkforceInvitationStore,
 } from './workforce-invitation.port.ts';
+import { requireWorkforceInvitationTtlMinutes } from './workforce-invitation-config.policy.ts';
 
 export type IssueWorkforceInvitationCommand = Readonly<{
   actor: WorkforceActorRef;
@@ -44,14 +45,17 @@ export type IssueWorkforceInvitation = (
   command: IssueWorkforceInvitationCommand,
 ) => Promise<Result<IssueWorkforceInvitationResult, AppError>>;
 
-export const makeIssueWorkforceInvitation =
-  (deps: {
-    store: WorkforceInvitationStore;
-    tokenService: InvitationTokenService;
-    clock: WorkforceClock;
-    invitationTtlMinutes: number;
-  }): IssueWorkforceInvitation =>
-  async (command) => {
+export const makeIssueWorkforceInvitation = (deps: {
+  store: WorkforceInvitationStore;
+  tokenService: InvitationTokenService;
+  clock: WorkforceClock;
+  invitationTtlMinutes: number;
+}): IssueWorkforceInvitation => {
+  const invitationTtlMinutes = requireWorkforceInvitationTtlMinutes(
+    deps.invitationTtlMinutes,
+  );
+
+  return async (command) => {
     const businessId = requireIdentifier(command.businessId, 'business_id');
     if (result.isErr(businessId)) return businessId;
     const actorIdentityId = requireIdentifier(
@@ -76,16 +80,8 @@ export const makeIssueWorkforceInvitation =
     const email = requireEmail(emailNormalized);
     if (result.isErr(email)) return email;
 
-    if (
-      !Number.isSafeInteger(deps.invitationTtlMinutes) ||
-      deps.invitationTtlMinutes <= 0
-    )
-      throw new TypeError('invitationTtlMinutes must be a positive integer.');
-
     const now = deps.clock.now();
-    const expiresAt = new Date(
-      now.getTime() + deps.invitationTtlMinutes * 60_000,
-    );
+    const expiresAt = new Date(now.getTime() + invitationTtlMinutes * 60_000);
     const token = deps.tokenService.issue();
     const commandHash = commandFingerprint('issue_workforce_invitation', {
       businessId: businessId.value,
@@ -128,3 +124,4 @@ export const makeIssueWorkforceInvitation =
       token,
     });
   };
+};

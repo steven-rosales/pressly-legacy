@@ -7,12 +7,27 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { conflictError, invariantViolationError } from '@pressly/errors';
 import type { CreateScheduleRepository } from './create-schedule.port.ts';
 import type { SchedulingInput } from '../scheduling/production-scheduling.port.ts';
 import { asDate, iso, mapSchedule } from '../persistence/production-mappers.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 export const makeCreateScheduleRepository = (deps: {
   db: Database;
@@ -145,9 +160,16 @@ export const makeCreateScheduleRepository = (deps: {
       return {
         orders: orderRows.map(({ order }) => {
           const demand = demandById.get(order.orderDemandId);
-          if (demand === undefined) throw new Error('Order demand not found.');
+          if (demand === undefined)
+            throw productionInvariantViolation(
+              'production_schedule_order_demand_missing',
+              'Order demand not found.',
+            );
           if (order.bagCount === null)
-            throw new Error('Eligible order is missing bag intake.');
+            throw productionInvariantViolation(
+              'production_schedule_bag_intake_missing',
+              'Eligible order is missing bag intake.',
+            );
           return {
             id: order.id,
             externalOrderId: demand.displayReference,
@@ -240,7 +262,10 @@ export const makeCreateScheduleRepository = (deps: {
           )
           .returning({ id: laundryProduction.scheduleRuns.id });
         if (superseded.length !== 1)
-          throw new Error('Current schedule revision changed unexpectedly.');
+          throw productionConcurrencyConflict(
+            'production_schedule_revision_version_conflict',
+            'Current schedule revision changed unexpectedly.',
+          );
       }
 
       const [row] = await db
@@ -264,7 +289,11 @@ export const makeCreateScheduleRepository = (deps: {
           createdAt: now,
         })
         .returning();
-      if (row === undefined) throw new Error('Schedule insert failed.');
+      if (row === undefined)
+        throw productionInvariantViolation(
+          'production_schedule_insert_return_missing',
+          'Schedule insert failed.',
+        );
       return mapSchedule(row);
     },
 

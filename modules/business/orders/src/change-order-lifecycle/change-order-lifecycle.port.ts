@@ -4,7 +4,7 @@ import type {
   AuditedOrderCommand,
   OrderMutationResult,
 } from '../command-execution/order-command.port.ts';
-import type { OrderState } from '../order-model/order-model.port.ts';
+import type { OrderState } from '../order-model/order.model.ts';
 import type { StoredOrderAggregate } from '../persistence/order-aggregate.port.ts';
 import type {
   OrderCommandOperations,

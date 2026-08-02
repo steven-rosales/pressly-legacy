@@ -2,7 +2,7 @@ import type {
   StoreFailureReason,
   WorkforceActorRef,
   WorkforceRole,
-} from './workforce.port.ts';
+} from './workforce.model.ts';
 
 export type WorkforceAuthority = Readonly<{
   identityActive: boolean;

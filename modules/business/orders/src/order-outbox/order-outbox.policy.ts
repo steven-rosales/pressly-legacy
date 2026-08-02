@@ -6,7 +6,7 @@ import {
 import type {
   FulfillmentReleaseState,
   OrderState,
-} from '../order-model/order-model.port.ts';
+} from '../order-model/order.model.ts';
 
 export const fulfillmentDemandEvent = (input: {
   fulfillmentId: string;

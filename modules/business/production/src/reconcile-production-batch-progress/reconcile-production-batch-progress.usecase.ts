@@ -1,12 +1,16 @@
+import {
+  conflictError,
+  databaseError,
+  invariantViolationError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import type {
   ProductionBatchProgressReconciliationResult,
   ProductionFloorProgressTarget,
 } from '@pressly/contracts';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -17,7 +21,7 @@ import type {
   ProductionOrderStageAttemptMutation,
   ProductionOrderTerminalExecutionMutation,
   ProductionTerminalLifecycleDecisions,
-} from '../production-lifecycle/production-lifecycle.port.ts';
+} from '../production-lifecycle/production-lifecycle.model.ts';
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import type { ProductionSignalsPort } from '../production-signals/production-signals.port.ts';
 import {
@@ -31,6 +35,20 @@ import type {
   ReconciliationStage,
 } from './reconcile-production-batch-progress.port.ts';
 export type { ReconcileProductionBatchProgress } from './reconcile-production-batch-progress.port.ts';
+
+type ReconcileProductionBatchProgressPolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluateProductionOrderOperationalAccess'
+  | 'evaluateMachineAssignment'
+  | 'evaluateFloorProgressReconciliation'
+  | 'evaluateStageTransition'
+  | 'evaluateProductionOrderStageAttemptTransition'
+  | 'evaluateProductionBatchTransition'
+  | 'resolveProductionOrderExecutionState'
+  | 'evaluateProductionOrderExecutionTransition'
+  | 'evaluateProductionRunTransition'
+  | 'evaluateProductionShiftTransition'
+>;
 
 const activeStageForTarget = (
   target: ProductionFloorProgressTarget,
@@ -75,7 +93,7 @@ const exactStageVersionsMatch = (
 export const makeReconcileProductionBatchProgress =
   (deps: {
     repo: ReconcileProductionBatchProgressRepository;
-    policy: ProductionPolicyPort;
+    policy: ReconcileProductionBatchProgressPolicy;
     clock: ClockPort;
     signals?: ProductionSignalsPort;
   }): ReconcileProductionBatchProgress =>
@@ -125,25 +143,31 @@ export const makeReconcileProductionBatchProgress =
           return result.ok(replayAfterLock.result);
         if (context === null)
           return result.err(
-            productionError(
-              'PRODUCTION_BATCH_NOT_FOUND',
-              'The production batch was not found in this run.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_batch_not_found',
+              message: 'The production batch was not found in this run.',
+              safeMessage: 'The production batch was not found in this run.',
+            }),
           );
         if (context.run.queueVersion !== command.expectedQueueVersion)
           return result.err(
-            productionError(
-              'PRODUCTION_QUEUE_VERSION_CONFLICT',
-              'The production queue changed before floor progress was recorded.',
-            ),
+            conflictError({
+              code: 'production_queue_version_conflict',
+              message:
+                'The production queue changed before floor progress was recorded.',
+              safeMessage:
+                'The production queue changed before floor progress was recorded.',
+            }),
           );
         if (context.batch.version !== command.expectedBatchVersion)
           return result.err(
-            productionError(
-              'PRODUCTION_BATCH_VERSION_CONFLICT',
-              'The production batch changed before floor progress was recorded.',
-            ),
+            conflictError({
+              code: 'production_batch_version_conflict',
+              message:
+                'The production batch changed before floor progress was recorded.',
+              safeMessage:
+                'The production batch changed before floor progress was recorded.',
+            }),
           );
         if (
           !exactStageVersionsMatch(
@@ -152,10 +176,13 @@ export const makeReconcileProductionBatchProgress =
           )
         )
           return result.err(
-            productionError(
-              'STAGE_RUN_VERSION_CONFLICT',
-              'A production stage changed before floor progress was recorded.',
-            ),
+            conflictError({
+              code: 'stage_run_version_conflict',
+              message:
+                'A production stage changed before floor progress was recorded.',
+              safeMessage:
+                'A production stage changed before floor progress was recorded.',
+            }),
           );
         for (const order of context.activeOrders) {
           const access = deps.policy.evaluateProductionOrderOperationalAccess({
@@ -163,7 +190,11 @@ export const makeReconcileProductionBatchProgress =
           });
           if (access.tag === 'err')
             return result.err(
-              productionError(access.error.code, access.error.message, 409),
+              conflictError({
+                code: access.error.code.toLowerCase(),
+                message: access.error.message,
+                safeMessage: access.error.message,
+              }),
             );
         }
 
@@ -173,11 +204,11 @@ export const makeReconcileProductionBatchProgress =
         );
         if (selectedMachines.length !== command.machineIds.length)
           return result.err(
-            productionError(
-              'MACHINE_NOT_FOUND',
-              'One or more requested machines are not available.',
-              404,
-            ),
+            notFoundError({
+              code: 'machine_not_found',
+              message: 'One or more requested machines are not available.',
+              safeMessage: 'One or more requested machines are not available.',
+            }),
           );
 
         let machineIds: readonly string[] = [];
@@ -189,10 +220,11 @@ export const makeReconcileProductionBatchProgress =
           });
           if (machineDecision.tag === 'err')
             return result.err(
-              productionError(
-                machineDecision.error.code,
-                machineDecision.error.message,
-              ),
+              conflictError({
+                code: machineDecision.error.code.toLowerCase(),
+                message: machineDecision.error.message,
+                safeMessage: machineDecision.error.message,
+              }),
             );
           machineIds = machineDecision.value.machineIds;
         }
@@ -216,7 +248,11 @@ export const makeReconcileProductionBatchProgress =
         });
         if (decision.tag === 'err')
           return result.err(
-            productionError(decision.error.code, decision.error.message),
+            conflictError({
+              code: decision.error.code.toLowerCase(),
+              message: decision.error.message,
+              safeMessage: decision.error.message,
+            }),
           );
         const projection = decision.value as ReconciliationProjection;
         const confirmationInput = {
@@ -240,10 +276,12 @@ export const makeReconcileProductionBatchProgress =
           })
         )
           return result.err(
-            productionError(
-              'PROGRESS_RECONCILIATION_CONFIRMATION_STALE',
-              'The floor-progress confirmation is no longer current.',
-            ),
+            conflictError({
+              code: 'progress_reconciliation_confirmation_stale',
+              message: 'The floor-progress confirmation is no longer current.',
+              safeMessage:
+                'The floor-progress confirmation is no longer current.',
+            }),
           );
 
         const now = deps.clock.now();
@@ -262,11 +300,11 @@ export const makeReconcileProductionBatchProgress =
           );
           if (current === undefined)
             return result.err(
-              productionError(
-                'BATCH_STAGE_GRAPH_INVALID',
-                'The production batch stage graph is incomplete.',
-                409,
-              ),
+              invariantViolationError({
+                code: 'batch_stage_graph_invalid',
+                message: 'The production batch stage graph is incomplete.',
+                safeMessage: 'The production batch stage graph is incomplete.',
+              }),
             );
           const stageDecision = deps.policy.evaluateStageTransition(
             {
@@ -307,15 +345,20 @@ export const makeReconcileProductionBatchProgress =
             stageDecision.value.state === 'planned'
           )
             return result.err(
-              productionError(
-                stageDecision.tag === 'err'
+              conflictError({
+                code: (stageDecision.tag === 'err'
                   ? stageDecision.error.code
-                  : 'STAGE_POLICY_INVALID_RESULT',
-                stageDecision.tag === 'err'
-                  ? stageDecision.error.message
-                  : 'The production stage policy returned an invalid reconciliation transition.',
-                409,
-              ),
+                  : 'STAGE_POLICY_INVALID_RESULT'
+                ).toLowerCase(),
+                message:
+                  stageDecision.tag === 'err'
+                    ? stageDecision.error.message
+                    : 'The production stage policy returned an invalid reconciliation transition.',
+                safeMessage:
+                  stageDecision.tag === 'err'
+                    ? stageDecision.error.message
+                    : 'The production stage policy returned an invalid reconciliation transition.',
+              }),
             );
           stageLifecycles.push({
             stageRunId: transition.stageRunId,
@@ -333,11 +376,13 @@ export const makeReconcileProductionBatchProgress =
           );
           if (assignedAttempts.length === 0)
             return result.err(
-              productionError(
-                'PRODUCTION_STAGE_ATTEMPTS_MISSING',
-                'A completed production stage has no assigned order attempts.',
-                409,
-              ),
+              conflictError({
+                code: 'production_stage_attempts_missing',
+                message:
+                  'A completed production stage has no assigned order attempts.',
+                safeMessage:
+                  'A completed production stage has no assigned order attempts.',
+              }),
             );
           for (const attempt of assignedAttempts) {
             const attemptDecision =
@@ -347,11 +392,11 @@ export const makeReconcileProductionBatchProgress =
               });
             if (attemptDecision.tag === 'err')
               return result.err(
-                productionError(
-                  attemptDecision.error.code,
-                  attemptDecision.error.message,
-                  409,
-                ),
+                conflictError({
+                  code: attemptDecision.error.code.toLowerCase(),
+                  message: attemptDecision.error.message,
+                  safeMessage: attemptDecision.error.message,
+                }),
               );
             attemptLifecycles.push({
               attemptId: attempt.id,
@@ -369,11 +414,11 @@ export const makeReconcileProductionBatchProgress =
           });
           if (batchDecision.tag === 'err')
             return result.err(
-              productionError(
-                batchDecision.error.code,
-                batchDecision.error.message,
-                409,
-              ),
+              conflictError({
+                code: batchDecision.error.code.toLowerCase(),
+                message: batchDecision.error.message,
+                safeMessage: batchDecision.error.message,
+              }),
             );
           batchLifecycle = batchDecision.value;
         }
@@ -390,11 +435,11 @@ export const makeReconcileProductionBatchProgress =
             });
             if (resolved.tag === 'err')
               return result.err(
-                productionError(
-                  resolved.error.code,
-                  resolved.error.message,
-                  409,
-                ),
+                conflictError({
+                  code: resolved.error.code.toLowerCase(),
+                  message: resolved.error.message,
+                  safeMessage: resolved.error.message,
+                }),
               );
             const orderDecision =
               deps.policy.evaluateProductionOrderExecutionTransition({
@@ -403,22 +448,24 @@ export const makeReconcileProductionBatchProgress =
               });
             if (orderDecision.tag === 'err')
               return result.err(
-                productionError(
-                  orderDecision.error.code,
-                  orderDecision.error.message,
-                  409,
-                ),
+                conflictError({
+                  code: orderDecision.error.code.toLowerCase(),
+                  message: orderDecision.error.message,
+                  safeMessage: orderDecision.error.message,
+                }),
               );
             if (
               orderDecision.value.from !== 'scheduled' ||
               orderDecision.value.state !== 'finished'
             )
               return result.err(
-                productionError(
-                  'PRODUCTION_ORDER_EXECUTION_TRANSITION_INVALID',
-                  'The production order cannot be finished with this batch.',
-                  409,
-                ),
+                conflictError({
+                  code: 'production_order_execution_transition_invalid',
+                  message:
+                    'The production order cannot be finished with this batch.',
+                  safeMessage:
+                    'The production order cannot be finished with this batch.',
+                }),
               );
             orderLifecycles.push({
               productionOrderId: order.id,
@@ -437,11 +484,11 @@ export const makeReconcileProductionBatchProgress =
           }
           if (orderLifecycles.length === 0)
             return result.err(
-              productionError(
-                'PRODUCTION_BATCH_ORDERS_MISSING',
-                'The production batch has no active orders.',
-                409,
-              ),
+              conflictError({
+                code: 'production_batch_orders_missing',
+                message: 'The production batch has no active orders.',
+                safeMessage: 'The production batch has no active orders.',
+              }),
             );
           const runLifecycle = deps.policy.evaluateProductionRunTransition({
             state: context.run.status,
@@ -457,11 +504,11 @@ export const makeReconcileProductionBatchProgress =
             runLifecycle.value.state !== 'completed'
           )
             return result.err(
-              productionError(
-                'PRODUCTION_RUN_TRANSITION_INVALID',
-                'The production run cannot be completed.',
-                409,
-              ),
+              conflictError({
+                code: 'production_run_transition_invalid',
+                message: 'The production run cannot be completed.',
+                safeMessage: 'The production run cannot be completed.',
+              }),
             );
           if (
             shiftLifecycle.tag === 'err' ||
@@ -469,11 +516,11 @@ export const makeReconcileProductionBatchProgress =
             shiftLifecycle.value.state !== 'closed'
           )
             return result.err(
-              productionError(
-                'PRODUCTION_SHIFT_TRANSITION_INVALID',
-                'The production shift cannot be closed.',
-                409,
-              ),
+              conflictError({
+                code: 'production_shift_transition_invalid',
+                message: 'The production shift cannot be closed.',
+                safeMessage: 'The production shift cannot be closed.',
+              }),
             );
           terminalLifecycle = {
             run: runLifecycle.value,
@@ -495,10 +542,13 @@ export const makeReconcileProductionBatchProgress =
         });
         if (mutation === null)
           return result.err(
-            productionError(
-              'PROGRESS_RECONCILIATION_CONFLICT',
-              'Production changed before floor progress could be recorded.',
-            ),
+            conflictError({
+              code: 'progress_reconciliation_conflict',
+              message:
+                'Production changed before floor progress could be recorded.',
+              safeMessage:
+                'Production changed before floor progress could be recorded.',
+            }),
           );
 
         await repo.appendWorkEvent({
@@ -560,11 +610,14 @@ export const makeReconcileProductionBatchProgress =
       return outcome;
     } catch (error) {
       return result.err(
-        productionError(
-          'PROGRESS_RECONCILIATION_FAILED',
-          'Floor progress could not be recorded.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'progress_reconciliation_failed',
+            message: 'Floor progress could not be recorded.',
+            safeMessage: 'Floor progress could not be recorded.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

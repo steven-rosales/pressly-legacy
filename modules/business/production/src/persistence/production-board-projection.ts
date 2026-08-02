@@ -9,6 +9,7 @@ import {
   type ProductionRunSummary,
   type ProductionShift,
 } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import type {
   ProductionBoardProjection,
   StageNextActionReadContext,
@@ -111,6 +112,18 @@ const stageRank: Readonly<Record<string, number>> = {
   folding_packaging: 3,
 };
 
+const storedProductionInvariant = (
+  code: string,
+  message: string,
+  details?: unknown,
+) =>
+  invariantViolationError({
+    code: code.toLowerCase(),
+    message,
+    safeMessage: 'Stored production board data is inconsistent.',
+    ...(details === undefined ? {} : { details }),
+  });
+
 const groupBy = <Row, Key>(
   rows: readonly Row[],
   keyOf: (row: Row) => Key,
@@ -135,7 +148,11 @@ const mapOrderStatus = (value: string): ProductionOrderListItem['status'] => {
     case 'finished':
       return value;
     default:
-      throw new Error(`Unknown production order status: ${value}.`);
+      throw storedProductionInvariant(
+        'PRODUCTION_ORDER_STATUS_INVALID',
+        `Unknown production order status: ${value}.`,
+        { status: value },
+      );
   }
 };
 
@@ -148,7 +165,11 @@ const mapBagCountProvenance = (
     value === 'operator_intake'
   )
     return value;
-  throw new Error(`Unknown bag-count provenance: ${value}.`);
+  throw storedProductionInvariant(
+    'PRODUCTION_BAG_COUNT_PROVENANCE_INVALID',
+    `Unknown bag-count provenance: ${value}.`,
+    { provenance: value },
+  );
 };
 
 export const mapProductionOrderListItem = (
@@ -159,20 +180,40 @@ export const mapProductionOrderListItem = (
   const status = mapOrderStatus(row.status);
   const bagCountProvenance = mapBagCountProvenance(row.bagCountSource);
   if ((row.bagCount === null) !== (bagCountProvenance === null))
-    throw new Error('Bag count and provenance disagree in persistence.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BAG_COUNT_STATE_INVALID',
+      'Bag count and provenance disagree in persistence.',
+      { bagCount: row.bagCount, bagCountProvenance },
+    );
   if (row.bagCount === null && row.intakeVersion !== 0)
-    throw new Error('Missing bag intake must have persistence version zero.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BAG_INTAKE_VERSION_INVALID',
+      'Missing bag intake must have persistence version zero.',
+      { bagCount: row.bagCount, intakeVersion: row.intakeVersion },
+    );
   if (row.bagCount !== null && row.intakeVersion <= 0)
-    throw new Error('Recorded bag intake requires a positive version.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BAG_INTAKE_VERSION_INVALID',
+      'Recorded bag intake requires a positive version.',
+      { bagCount: row.bagCount, intakeVersion: row.intakeVersion },
+    );
   if (status === 'intake_pending' && row.bagCount !== null)
-    throw new Error('An intake-pending order already has bag intake.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BAG_INTAKE_STATE_INVALID',
+      'An intake-pending order already has bag intake.',
+      { status, bagCount: row.bagCount },
+    );
   if (
     status !== 'release_pending' &&
     status !== 'intake_pending' &&
     status !== 'ineligible' &&
     row.bagCount === null
   )
-    throw new Error('A non-pending order is missing bag intake.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BAG_INTAKE_STATE_INVALID',
+      'A non-pending order is missing bag intake.',
+      { status, bagCount: row.bagCount },
+    );
 
   return {
     id: row.id,
@@ -196,7 +237,11 @@ const mapOrderSummary = (
   timezone: string,
 ): ProductionOrderSummary => {
   if (row.bagCount === null)
-    throw new Error('A production board order is missing completed intake.');
+    throw storedProductionInvariant(
+      'PRODUCTION_BOARD_INTAKE_MISSING',
+      'A production board order is missing completed intake.',
+      { productionOrderId: row.id },
+    );
   return {
     id: row.id,
     externalOrderId: row.externalOrderId,
@@ -215,7 +260,11 @@ const mapShift = (row: ProductionBoardShiftRow): ProductionShift => {
     row.status !== 'open' &&
     row.status !== 'closed'
   )
-    throw new Error(`Unknown production shift status: ${row.status}.`);
+    throw storedProductionInvariant(
+      'PRODUCTION_SHIFT_STATUS_INVALID',
+      `Unknown production shift status: ${row.status}.`,
+      { status: row.status, productionShiftId: row.id },
+    );
   return {
     id: row.id,
     locationId: row.locationId,
@@ -234,7 +283,11 @@ const mapRun = (row: ProductionBoardRunRow): ProductionRunSummary => {
     row.status !== 'started' &&
     row.status !== 'completed'
   )
-    throw new Error(`Unknown production run status: ${row.status}.`);
+    throw storedProductionInvariant(
+      'PRODUCTION_RUN_STATUS_INVALID',
+      `Unknown production run status: ${row.status}.`,
+      { status: row.status, productionRunId: row.id },
+    );
   return {
     id: row.id,
     productionShiftId: row.productionShiftId,
@@ -267,7 +320,11 @@ const mapBatchStatus = (value: string): ProductionBatch['status'] => {
     case 'finished':
       return value;
     default:
-      throw new Error(`Unknown production batch status: ${value}.`);
+      throw storedProductionInvariant(
+        'PRODUCTION_BATCH_STATUS_INVALID',
+        `Unknown production batch status: ${value}.`,
+        { status: value },
+      );
   }
 };
 
@@ -276,7 +333,11 @@ const mapPlacementProvenance = (
 ): ProductionBatch['orders'][number]['placementProvenance'] => {
   const parsed = productionPlacementProvenanceSchema.safeParse(value);
   if (!parsed.success)
-    throw new Error(`Unknown placement provenance: ${value}.`);
+    throw storedProductionInvariant(
+      'PRODUCTION_PLACEMENT_PROVENANCE_INVALID',
+      `Unknown placement provenance: ${value}.`,
+      { provenance: value },
+    );
   return parsed.data;
 };
 
@@ -287,13 +348,21 @@ const mapStage = (row: ProductionBoardStageRow): UnevaluatedStageRun => {
     row.stageKind !== 'drying' &&
     row.stageKind !== 'folding_packaging'
   )
-    throw new Error(`Unknown production stage kind: ${row.stageKind}.`);
+    throw storedProductionInvariant(
+      'PRODUCTION_STAGE_KIND_INVALID',
+      `Unknown production stage kind: ${row.stageKind}.`,
+      { stageKind: row.stageKind, stageRunId: row.id },
+    );
   if (
     row.status !== 'planned' &&
     row.status !== 'started' &&
     row.status !== 'completed'
   )
-    throw new Error(`Unknown production stage status: ${row.status}.`);
+    throw storedProductionInvariant(
+      'PRODUCTION_STAGE_STATUS_INVALID',
+      `Unknown production stage status: ${row.status}.`,
+      { status: row.status, stageRunId: row.id },
+    );
   return {
     id: row.id,
     productionBatchId: row.productionBatchId,
@@ -344,7 +413,11 @@ const mapPendingOrder = (
     row.pendingPlacement,
   );
   if (row.pendingPlacement !== null && !parsed.success)
-    throw new Error('An eligible order has invalid pending placement state.');
+    throw storedProductionInvariant(
+      'PRODUCTION_PENDING_PLACEMENT_INVALID',
+      'An eligible order has invalid pending placement state.',
+      { productionOrderId: row.id },
+    );
   return {
     ...mapOrderSummary(row, now, timezone),
     placement:
@@ -456,7 +529,14 @@ export const projectProductionBoard = (input: {
       (membership): ProductionBatch['orders'][number] => {
         const order = orderById.get(membership.productionOrderId);
         if (order === undefined)
-          throw new Error('A production batch references a missing order.');
+          throw storedProductionInvariant(
+            'PRODUCTION_BATCH_ORDER_MISSING',
+            'A production batch references a missing order.',
+            {
+              productionBatchId: membership.productionBatchId,
+              productionOrderId: membership.productionOrderId,
+            },
+          );
         const placementProvenance = mapPlacementProvenance(
           membership.placementProvenance,
         );

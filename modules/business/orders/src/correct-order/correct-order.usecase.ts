@@ -1,8 +1,15 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+  validationError,
+} from '@pressly/errors';
 import { isCommandContextValid, result } from '@pressly/kernel';
 import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
 import type { OrderClockPort } from '../command-execution/order-command.port.ts';
 import { isOrderCommandReasonValid } from '../command-execution/order-command-reason.policy.ts';
-import { orderError } from '../failure-mapping/order.error.ts';
+
 import type {
   CorrectOrder,
   CorrectOrderRepository,
@@ -33,11 +40,11 @@ export const makeCorrectOrder =
       })
     )
       return result.err(
-        orderError(
-          'ORDER_CORRECTION_INVALID',
-          'The order correction is incomplete.',
-          400,
-        ),
+        validationError({
+          code: 'order_correction_invalid',
+          message: 'The order correction is incomplete.',
+          safeMessage: 'The order correction is incomplete.',
+        }),
       );
     try {
       const commandHash = hashOrderCommand(command);
@@ -138,56 +145,72 @@ export const makeCorrectOrder =
       if (outcome.kind === 'ok') return result.ok(outcome.value);
       if (outcome.kind === 'not_found')
         return result.err(
-          orderError('ORDER_NOT_FOUND', 'The order was not found.', 404),
+          notFoundError({
+            code: 'order_not_found',
+            message: 'The order was not found.',
+            safeMessage: 'The order was not found.',
+          }),
         );
       if (outcome.kind === 'version_conflict')
         return result.err(
-          orderError(
-            'ORDER_VERSION_CONFLICT',
-            'The Order or fulfillment changed after this correction was prepared. Refresh and try again.',
-          ),
+          conflictError({
+            code: 'order_version_conflict',
+            message:
+              'The Order or fulfillment changed after this correction was prepared. Refresh and try again.',
+            safeMessage:
+              'The Order or fulfillment changed after this correction was prepared. Refresh and try again.',
+          }),
         );
       if (outcome.kind === 'customer_not_found')
         return result.err(
-          orderError(
-            'ORDER_CUSTOMER_NOT_FOUND',
-            'The selected customer was not found.',
-            404,
-          ),
+          notFoundError({
+            code: 'order_customer_not_found',
+            message: 'The selected customer was not found.',
+            safeMessage: 'The selected customer was not found.',
+          }),
         );
       if (outcome.kind === 'correction_denied')
         return result.err(
           outcome.reason === 'invalid'
-            ? orderError(
-                'ORDER_CORRECTION_INVALID',
-                'The order correction is incomplete.',
-                400,
-              )
+            ? validationError({
+                code: 'order_correction_invalid',
+                message: 'The order correction is incomplete.',
+                safeMessage: 'The order correction is incomplete.',
+              })
             : outcome.reason === 'location_move'
-              ? orderError(
-                  'ORDER_LOCATION_MOVE_REQUIRES_COMMAND',
-                  'Moving an Order to another location requires a dedicated cross-location command.',
-                  409,
-                )
-              : orderError(
-                  'FULFILLMENT_COMMITMENT_CONFLICT',
-                  'A released fulfillment cannot change its type or location.',
-                  409,
-                ),
+              ? conflictError({
+                  code: 'order_location_move_requires_command',
+                  message:
+                    'Moving an Order to another location requires a dedicated cross-location command.',
+                  safeMessage:
+                    'Moving an Order to another location requires a dedicated cross-location command.',
+                })
+              : conflictError({
+                  code: 'fulfillment_commitment_conflict',
+                  message:
+                    'A released fulfillment cannot change its type or location.',
+                  safeMessage:
+                    'A released fulfillment cannot change its type or location.',
+                }),
         );
       return result.err(
-        orderError(
-          'ORDER_IDEMPOTENCY_CONFLICT',
-          'The idempotency key belongs to a different order command.',
-        ),
+        conflictError({
+          code: 'order_idempotency_conflict',
+          message: 'The idempotency key belongs to a different order command.',
+          safeMessage:
+            'The idempotency key belongs to a different order command.',
+        }),
       );
     } catch (error) {
       return result.err(
-        orderError(
-          'ORDER_CORRECTION_FAILED',
-          'The order could not be corrected.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'order_correction_failed',
+            message: 'The order could not be corrected.',
+            safeMessage: 'The order could not be corrected.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

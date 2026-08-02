@@ -4,6 +4,7 @@ import {
   type ProcessorOrderAuditEntry,
   type ProcessorOrderContext,
 } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import {
   and,
   desc,
@@ -228,9 +229,10 @@ export const makeProcessorOrderControlReadModel = (input: {
       items: base.items.map((item) => {
         const resolved = identityByOrder.get(item.order.id);
         if (resolved === undefined)
-          throw new Error(
-            `Processor order identity was not resolved for ${item.order.id}.`,
-          );
+          throw invariantViolationError({
+            code: 'processor_order_identity_unresolved',
+            message: `Processor order identity was not resolved for ${item.order.id}.`,
+          });
         const context: ProcessorOrderContext | null = (() => {
           if (resolved.canonical === null) return null;
           const selectedSource =

@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build:workspace-deps": "pnpm --dir ../../../packages/kernel run build && pnpm --dir ../../../packages/time run build && pnpm --dir ../../../packages/errors run build && pnpm --dir ../../../packages/auth run build && pnpm --dir ../../../packages/db run build",
+    "build:workspace-deps": "pnpm --dir ../../../packages/errors run build && pnpm --dir ../../../packages/kernel run build && pnpm --dir ../../../packages/time run build && pnpm --dir ../../../packages/auth run build && pnpm --dir ../../../packages/db run build",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm run typecheck:test",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",

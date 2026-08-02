@@ -5,11 +5,26 @@ import type {
   ProductionShift,
   SchedulerConfig,
 } from '@pressly/contracts';
+import { configError, invariantViolationError } from '@pressly/errors';
 import { calendarDayRangeAt, instantFromDate, toUtcIso } from '@pressly/time';
 import type { DemandForecastOutput } from '../scheduling/production-scheduling.port.ts';
-import type { OrderDemandPhase } from '../production-lifecycle/order-demand.port.ts';
+import type { OrderDemandPhase } from '../production-lifecycle/order-demand.model.ts';
 import type { ProductionSchedulerPort } from '../scheduling/production-scheduler.port.ts';
 import type { DemandOutlookRow } from './load-production-workspace.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConfigError = (code: string, message: string) =>
+  configError({
+    code,
+    message,
+    safeMessage: 'Production configuration is invalid.',
+  });
 
 const mapPhase = (value: string): OrderDemandPhase => {
   switch (value) {
@@ -20,7 +35,10 @@ const mapPhase = (value: string): OrderDemandPhase => {
     case 'withdrawn':
       return value;
     default:
-      throw new Error(`Unknown order-demand phase: ${value}.`);
+      throw productionInvariantViolation(
+        'production_demand_outlook_phase_invalid',
+        `Unknown order-demand phase: ${value}.`,
+      );
   }
 };
 
@@ -37,7 +55,10 @@ const mapProductionStatus = (
     case 'finished':
       return value;
     default:
-      throw new Error(`Unknown production-order status: ${value}.`);
+      throw productionInvariantViolation(
+        'production_demand_outlook_order_status_invalid',
+        `Unknown production-order status: ${value}.`,
+      );
   }
 };
 
@@ -70,7 +91,10 @@ const nextServiceDayCutoff = (shift: ProductionShift): string => {
   const end = new Date(shift.endsAt);
   const serviceDay = calendarDayRangeAt(shift.timezone, instantFromDate(end));
   if (serviceDay.tag === 'err')
-    throw new Error('The production service-day cutoff is invalid.');
+    throw productionConfigError(
+      'production_demand_outlook_service_day_invalid',
+      'The production service-day cutoff is invalid.',
+    );
   return toUtcIso(serviceDay.value.endsAt);
 };
 

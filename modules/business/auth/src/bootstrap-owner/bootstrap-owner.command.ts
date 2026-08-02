@@ -1,7 +1,11 @@
 import { createDatabaseRuntime } from '@pressly/db';
 import { makePasswordHasher } from '@pressly/auth/credentials';
 import { result } from '@pressly/kernel';
-import { makeAppError, normalizeUnknownError } from '@pressly/errors';
+import {
+  configError,
+  normalizeUnknownError,
+  validationError,
+} from '@pressly/errors';
 import { makeBootstrapOwnerStore } from './bootstrap-owner.repo.ts';
 import { makeBootstrapOwner } from './bootstrap-owner.usecase.ts';
 
@@ -12,12 +16,10 @@ const readRequiredEnv = (key: string): string => {
 
   if (value !== undefined && value.trim() !== '') return value;
 
-  throw makeAppError({
-    kind: 'ConfigError',
+  throw configError({
     code: 'missing_bootstrap_owner_env',
     message: `${key} is required to bootstrap the first owner.`,
     safeMessage: `${key} is required.`,
-    status: 500,
     details: { key },
   });
 };
@@ -41,25 +43,21 @@ const requirePasswordStdinMode = (args: readonly string[]): void => {
   const unexpectedArgs = optionArgs.filter((arg) => arg !== '--password-stdin');
 
   if (unexpectedArgs.length > 0)
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'unexpected_bootstrap_owner_arg',
       message:
         'Owner bootstrap received unexpected command line arguments. Passwords must not be passed as arguments.',
       safeMessage:
         'Do not pass the owner password as an argument. Pipe it with --password-stdin.',
-      status: 400,
       details: { count: unexpectedArgs.length },
     });
 
   if (optionArgs.includes('--password-stdin') && !process.stdin.isTTY) return;
 
-  throw makeAppError({
-    kind: 'ValidationError',
+  throw validationError({
     code: 'missing_password_stdin',
     message: 'Owner bootstrap password must be piped with --password-stdin.',
     safeMessage: 'Pipe the owner password with --password-stdin.',
-    status: 400,
   });
 };
 

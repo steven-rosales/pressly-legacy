@@ -1,13 +1,17 @@
+import {
+  conflictError,
+  databaseError,
+  invariantViolationError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import type {
   AdvanceProductionStageResult,
   ProductionStageCompletionTiming,
   ProductionStageStartTiming,
 } from '@pressly/contracts';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -18,7 +22,7 @@ import type {
   ProductionOrderStageAttemptMutation,
   ProductionOrderTerminalExecutionMutation,
   ProductionTerminalLifecycleDecisions,
-} from '../production-lifecycle/production-lifecycle.port.ts';
+} from '../production-lifecycle/production-lifecycle.model.ts';
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import type { ProductionSignalsPort } from '../production-signals/production-signals.port.ts';
 import type {
@@ -35,6 +39,18 @@ import {
   matchesStageStartConfirmation,
 } from './stage-start-confirmation.policy.ts';
 export type { AdvanceProductionStage } from './advance-production-stage.port.ts';
+
+type AdvanceProductionStagePolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluateProductionOrderOperationalAccess'
+  | 'evaluateStageTransition'
+  | 'evaluateProductionBatchTransition'
+  | 'evaluateProductionOrderStageAttemptTransition'
+  | 'resolveProductionOrderExecutionState'
+  | 'evaluateProductionOrderExecutionTransition'
+  | 'evaluateProductionRunTransition'
+  | 'evaluateProductionShiftTransition'
+>;
 
 type EarlyCompletionAudit = Readonly<{
   actorId: string;
@@ -118,7 +134,7 @@ const earlyCompletionAudit = (input: {
 
 export const makeAdvanceProductionStage = (deps: {
   repo: AdvanceProductionStageRepository;
-  policy: ProductionPolicyPort;
+  policy: AdvanceProductionStagePolicy;
   clock: ClockPort;
   signals?: ProductionSignalsPort;
 }): AdvanceProductionStage => {
@@ -168,18 +184,19 @@ export const makeAdvanceProductionStage = (deps: {
           return result.ok(replayAfterLock.result);
         if (context === null)
           return result.err(
-            productionError(
-              'STAGE_RUN_NOT_FOUND',
-              'The production stage was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'stage_run_not_found',
+              message: 'The production stage was not found.',
+              safeMessage: 'The production stage was not found.',
+            }),
           );
         if (context.stage.version !== command.expectedVersion)
           return result.err(
-            productionError(
-              'STAGE_RUN_VERSION_CONFLICT',
-              'The production stage changed before the command.',
-            ),
+            conflictError({
+              code: 'stage_run_version_conflict',
+              message: 'The production stage changed before the command.',
+              safeMessage: 'The production stage changed before the command.',
+            }),
           );
         for (const order of context.activeOrders) {
           const access = deps.policy.evaluateProductionOrderOperationalAccess({
@@ -187,7 +204,11 @@ export const makeAdvanceProductionStage = (deps: {
           });
           if (access.tag === 'err')
             return result.err(
-              productionError(access.error.code, access.error.message, 409),
+              conflictError({
+                code: access.error.code.toLowerCase(),
+                message: access.error.message,
+                safeMessage: access.error.message,
+              }),
             );
         }
 
@@ -221,7 +242,11 @@ export const makeAdvanceProductionStage = (deps: {
         );
         if (decision.tag === 'err')
           return result.err(
-            productionError(decision.error.code, decision.error.message, 409),
+            conflictError({
+              code: decision.error.code.toLowerCase(),
+              message: decision.error.message,
+              safeMessage: decision.error.message,
+            }),
           );
 
         let stageLifecycle: Readonly<{
@@ -259,19 +284,23 @@ export const makeAdvanceProductionStage = (deps: {
               })
             )
               return result.err(
-                productionError(
-                  'STAGE_START_CONFIRMATION_STALE',
-                  'The early-start confirmation is no longer current.',
-                ),
+                conflictError({
+                  code: 'stage_start_confirmation_stale',
+                  message: 'The early-start confirmation is no longer current.',
+                  safeMessage:
+                    'The early-start confirmation is no longer current.',
+                }),
               );
 
             if (context.stage.status !== 'planned')
               return result.err(
-                productionError(
-                  'STAGE_POLICY_INVALID_RESULT',
-                  'The production stage policy returned an invalid transition.',
-                  500,
-                ),
+                invariantViolationError({
+                  code: 'stage_policy_invalid_result',
+                  message:
+                    'The production stage policy returned an invalid transition.',
+                  safeMessage:
+                    'The production stage policy returned an invalid transition.',
+                }),
               );
             stageLifecycle = {
               from: context.stage.status,
@@ -312,19 +341,24 @@ export const makeAdvanceProductionStage = (deps: {
               })
             )
               return result.err(
-                productionError(
-                  'STAGE_COMPLETION_CONFIRMATION_STALE',
-                  'The early-completion confirmation is no longer current.',
-                ),
+                conflictError({
+                  code: 'stage_completion_confirmation_stale',
+                  message:
+                    'The early-completion confirmation is no longer current.',
+                  safeMessage:
+                    'The early-completion confirmation is no longer current.',
+                }),
               );
 
             if (context.stage.status !== 'started')
               return result.err(
-                productionError(
-                  'STAGE_POLICY_INVALID_RESULT',
-                  'The production stage policy returned an invalid transition.',
-                  500,
-                ),
+                invariantViolationError({
+                  code: 'stage_policy_invalid_result',
+                  message:
+                    'The production stage policy returned an invalid transition.',
+                  safeMessage:
+                    'The production stage policy returned an invalid transition.',
+                }),
               );
             stageLifecycle = {
               from: context.stage.status,
@@ -338,11 +372,13 @@ export const makeAdvanceProductionStage = (deps: {
             });
           } else
             return result.err(
-              productionError(
-                'STAGE_POLICY_INVALID_RESULT',
-                'The production stage policy returned an invalid confirmation.',
-                500,
-              ),
+              invariantViolationError({
+                code: 'stage_policy_invalid_result',
+                message:
+                  'The production stage policy returned an invalid confirmation.',
+                safeMessage:
+                  'The production stage policy returned an invalid confirmation.',
+              }),
             );
         } else {
           if (
@@ -350,11 +386,13 @@ export const makeAdvanceProductionStage = (deps: {
             decision.value.state === 'planned'
           )
             return result.err(
-              productionError(
-                'STAGE_POLICY_INVALID_RESULT',
-                'The production stage policy returned an invalid transition.',
-                500,
-              ),
+              invariantViolationError({
+                code: 'stage_policy_invalid_result',
+                message:
+                  'The production stage policy returned an invalid transition.',
+                safeMessage:
+                  'The production stage policy returned an invalid transition.',
+              }),
             );
           stageLifecycle = {
             from: decision.value.from,
@@ -379,20 +417,22 @@ export const makeAdvanceProductionStage = (deps: {
           });
           if (batchDecision.tag === 'err')
             return result.err(
-              productionError(
-                batchDecision.error.code,
-                batchDecision.error.message,
-                409,
-              ),
+              conflictError({
+                code: batchDecision.error.code.toLowerCase(),
+                message: batchDecision.error.message,
+                safeMessage: batchDecision.error.message,
+              }),
             );
           batchLifecycle = batchDecision.value;
         } else if (context.batch.status !== context.stage.stage)
           return result.err(
-            productionError(
-              'PRODUCTION_BATCH_STATE_INCONSISTENT',
-              'The production batch state does not match its active stage.',
-              409,
-            ),
+            invariantViolationError({
+              code: 'production_batch_state_inconsistent',
+              message:
+                'The production batch state does not match its active stage.',
+              safeMessage:
+                'The production batch state does not match its active stage.',
+            }),
           );
 
         const attemptLifecycles: ProductionOrderStageAttemptMutation[] = [];
@@ -406,11 +446,11 @@ export const makeAdvanceProductionStage = (deps: {
               });
             if (attemptDecision.tag === 'err')
               return result.err(
-                productionError(
-                  attemptDecision.error.code,
-                  attemptDecision.error.message,
-                  409,
-                ),
+                conflictError({
+                  code: attemptDecision.error.code.toLowerCase(),
+                  message: attemptDecision.error.message,
+                  safeMessage: attemptDecision.error.message,
+                }),
               );
             attemptLifecycles.push({
               attemptId: attempt.id,
@@ -420,11 +460,12 @@ export const makeAdvanceProductionStage = (deps: {
           }
           if (attemptLifecycles.length === 0)
             return result.err(
-              productionError(
-                'PRODUCTION_STAGE_ATTEMPTS_MISSING',
-                'The production stage has no assigned order attempts.',
-                409,
-              ),
+              conflictError({
+                code: 'production_stage_attempts_missing',
+                message: 'The production stage has no assigned order attempts.',
+                safeMessage:
+                  'The production stage has no assigned order attempts.',
+              }),
             );
         }
 
@@ -443,11 +484,11 @@ export const makeAdvanceProductionStage = (deps: {
             });
             if (resolved.tag === 'err')
               return result.err(
-                productionError(
-                  resolved.error.code,
-                  resolved.error.message,
-                  409,
-                ),
+                conflictError({
+                  code: resolved.error.code.toLowerCase(),
+                  message: resolved.error.message,
+                  safeMessage: resolved.error.message,
+                }),
               );
             const orderDecision =
               deps.policy.evaluateProductionOrderExecutionTransition({
@@ -456,22 +497,24 @@ export const makeAdvanceProductionStage = (deps: {
               });
             if (orderDecision.tag === 'err')
               return result.err(
-                productionError(
-                  orderDecision.error.code,
-                  orderDecision.error.message,
-                  409,
-                ),
+                conflictError({
+                  code: orderDecision.error.code.toLowerCase(),
+                  message: orderDecision.error.message,
+                  safeMessage: orderDecision.error.message,
+                }),
               );
             if (
               orderDecision.value.from !== 'scheduled' ||
               orderDecision.value.state !== 'finished'
             )
               return result.err(
-                productionError(
-                  'PRODUCTION_ORDER_EXECUTION_TRANSITION_INVALID',
-                  'The production order cannot be finished with this batch.',
-                  409,
-                ),
+                conflictError({
+                  code: 'production_order_execution_transition_invalid',
+                  message:
+                    'The production order cannot be finished with this batch.',
+                  safeMessage:
+                    'The production order cannot be finished with this batch.',
+                }),
               );
             orderLifecycles.push({
               productionOrderId: order.id,
@@ -490,11 +533,11 @@ export const makeAdvanceProductionStage = (deps: {
           }
           if (orderLifecycles.length === 0)
             return result.err(
-              productionError(
-                'PRODUCTION_BATCH_ORDERS_MISSING',
-                'The production batch has no active orders.',
-                409,
-              ),
+              conflictError({
+                code: 'production_batch_orders_missing',
+                message: 'The production batch has no active orders.',
+                safeMessage: 'The production batch has no active orders.',
+              }),
             );
           const runLifecycle = deps.policy.evaluateProductionRunTransition({
             state: context.productionRunStatus,
@@ -510,11 +553,11 @@ export const makeAdvanceProductionStage = (deps: {
             runLifecycle.value.state !== 'completed'
           )
             return result.err(
-              productionError(
-                'PRODUCTION_RUN_TRANSITION_INVALID',
-                'The production run cannot be completed.',
-                409,
-              ),
+              conflictError({
+                code: 'production_run_transition_invalid',
+                message: 'The production run cannot be completed.',
+                safeMessage: 'The production run cannot be completed.',
+              }),
             );
           if (
             shiftLifecycle.tag === 'err' ||
@@ -522,11 +565,11 @@ export const makeAdvanceProductionStage = (deps: {
             shiftLifecycle.value.state !== 'closed'
           )
             return result.err(
-              productionError(
-                'PRODUCTION_SHIFT_TRANSITION_INVALID',
-                'The production shift cannot be closed.',
-                409,
-              ),
+              conflictError({
+                code: 'production_shift_transition_invalid',
+                message: 'The production shift cannot be closed.',
+                safeMessage: 'The production shift cannot be closed.',
+              }),
             );
           terminalLifecycle = {
             run: runLifecycle.value,
@@ -552,10 +595,11 @@ export const makeAdvanceProductionStage = (deps: {
         });
         if (mutation === null)
           return result.err(
-            productionError(
-              'STAGE_RUN_VERSION_CONFLICT',
-              'The production stage changed before the command.',
-            ),
+            conflictError({
+              code: 'stage_run_version_conflict',
+              message: 'The production stage changed before the command.',
+              safeMessage: 'The production stage changed before the command.',
+            }),
           );
 
         await repo.appendWorkEvent({
@@ -587,11 +631,14 @@ export const makeAdvanceProductionStage = (deps: {
       return outcome;
     } catch (error) {
       return result.err(
-        productionError(
-          'STAGE_TRANSITION_FAILED',
-          'The production stage could not be advanced.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'stage_transition_failed',
+            message: 'The production stage could not be advanced.',
+            safeMessage: 'The production stage could not be advanced.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

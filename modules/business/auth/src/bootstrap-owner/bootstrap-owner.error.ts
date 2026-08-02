@@ -29,7 +29,7 @@ export const weakBootstrapOwnerPassword = (
     code: 'weak_bootstrap_owner_password',
     message: 'Owner bootstrap password does not meet strength requirements.',
     safeMessage: 'Owner password is too weak.',
-    details: { violations },
+    publicDetails: { violations },
   });
 
 export const ownerAlreadyBootstrapped = () =>

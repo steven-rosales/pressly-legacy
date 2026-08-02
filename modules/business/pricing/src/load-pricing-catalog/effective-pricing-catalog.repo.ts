@@ -1,5 +1,10 @@
 import { result, type Result } from '@pressly/kernel';
-import { makeAppError, type AppError } from '@pressly/errors';
+import {
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+  type AppError,
+} from '@pressly/errors';
 import { utcIsoFromDate } from '@pressly/time';
 import {
   and,
@@ -20,23 +25,22 @@ import type {
 import type { EffectivePricingCatalogFinder } from './load-pricing-catalog.port.ts';
 
 const notFound = (message: string): AppError =>
-  makeAppError({
-    kind: 'NotFoundError',
+  notFoundError({
     code: 'pricing_not_found',
     message,
     safeMessage: 'Pricing is not available.',
-    status: 404,
   });
 
 const databaseFailure = (cause: unknown): AppError =>
-  makeAppError({
-    kind: 'DatabaseError',
-    code: 'pricing_read_failed',
-    message: 'Failed to read pricing.',
-    safeMessage: 'Pricing is temporarily unavailable.',
-    status: 500,
-    cause,
-  });
+  mapUnknownError(cause, (unknownCause) =>
+    databaseError({
+      code: 'pricing_read_failed',
+      message: 'Failed to read pricing.',
+      safeMessage: 'Pricing is temporarily unavailable.',
+      status: 503,
+      cause: unknownCause,
+    }),
+  );
 
 const isCurrentPricingSet = () =>
   and(

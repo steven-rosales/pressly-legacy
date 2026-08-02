@@ -8,6 +8,7 @@ import {
   type DatabaseExecutor,
 } from '@pressly/db';
 import type { CommitProductionOrderRouteResult } from '@pressly/contracts';
+import { conflictError, invariantViolationError } from '@pressly/errors';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import type {
@@ -15,6 +16,20 @@ import type {
   ProductionOrderRoutingContext,
   RouteProductionOrderRepository,
 } from './route-production-order.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 const asStage = (
   value: string,
@@ -26,7 +41,10 @@ const asStage = (
     case 'folding_packaging':
       return value;
     default:
-      throw new Error(`Unknown production stage: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_route_stage_invalid',
+        `Unknown production stage: ${value}.`,
+      );
   }
 };
 
@@ -39,7 +57,10 @@ const asStageStatus = (
     case 'completed':
       return value;
     default:
-      throw new Error(`Unknown stage-run status: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_route_stage_status_invalid',
+        `Unknown stage-run status: ${value}.`,
+      );
   }
 };
 
@@ -52,7 +73,10 @@ const asAttemptStatus = (
     case 'released':
       return value;
     default:
-      throw new Error(`Unknown order-stage attempt status: ${value}.`);
+      throw productionInvariantViolation(
+        'production_order_route_attempt_status_invalid',
+        `Unknown order-stage attempt status: ${value}.`,
+      );
   }
 };
 
@@ -321,7 +345,11 @@ const commit = async (
     (candidate) =>
       candidate.productionBatchId === input.proposal.targetProductionBatchId,
   );
-  if (target === undefined) throw new Error('Route target is missing.');
+  if (target === undefined)
+    throw productionInvariantViolation(
+      'production_order_route_target_missing',
+      'Route target is missing.',
+    );
 
   const releasedMembership = await db
     .update(laundryProduction.productionBatchOrders)
@@ -342,7 +370,10 @@ const commit = async (
     )
     .returning({ id: laundryProduction.productionBatchOrders.id });
   if (releasedMembership.length !== 1)
-    throw new Error('Source order membership changed concurrently.');
+    throw productionConcurrencyConflict(
+      'production_order_route_membership_version_conflict',
+      'Source order membership changed concurrently.',
+    );
 
   const expectedReleaseAttemptIds = input.context.attempts
     .filter(
@@ -367,7 +398,8 @@ const commit = async (
         attempt.lifecycle.state !== 'released',
     )
   )
-    throw new Error(
+    throw productionConcurrencyConflict(
+      'production_order_route_source_attempts_conflict',
       'The unfinished source route no longer matches production.',
     );
   if (releaseAttemptIds.length > 0) {
@@ -394,7 +426,10 @@ const commit = async (
       )
       .returning({ id: laundryProduction.productionOrderStageAttempts.id });
     if (releasedAttempts.length !== releaseAttemptIds.length)
-      throw new Error('Source route attempts changed concurrently.');
+      throw productionConcurrencyConflict(
+        'production_order_route_attempt_version_conflict',
+        'Source route attempts changed concurrently.',
+      );
   }
 
   await db.insert(laundryProduction.productionBatchOrders).values({
@@ -419,7 +454,10 @@ const commit = async (
       (candidate) => candidate.stage === stage,
     );
     if (targetStage === undefined)
-      throw new Error(`Target stage is missing: ${stage}.`);
+      throw productionInvariantViolation(
+        'production_order_route_target_stage_missing',
+        `Target stage is missing: ${stage}.`,
+      );
     const attemptNumber =
       Math.max(
         0,
@@ -455,7 +493,10 @@ const commit = async (
     input.context.source.derivedWeightLbs - input.context.order.weightLbs;
   const targetWeight = target.derivedWeightLbs + input.context.order.weightLbs;
   if (sourceWeight <= 0 || targetWeight > target.pulseCapacityLbs)
-    throw new Error('Route aggregate weights violate hard capacity.');
+    throw productionInvariantViolation(
+      'production_order_route_capacity_invalid',
+      'Route aggregate weights violate hard capacity.',
+    );
 
   const [updatedSource] = await db
     .update(laundryProduction.productionBatches)
@@ -492,7 +533,10 @@ const commit = async (
     )
     .returning({ version: laundryProduction.productionBatches.version });
   if (updatedSource === undefined || updatedTarget === undefined)
-    throw new Error('Source or target batch changed concurrently.');
+    throw productionConcurrencyConflict(
+      'production_order_route_batch_version_conflict',
+      'Source or target batch changed concurrently.',
+    );
 
   const [updatedOrder] = await db
     .update(laundryProduction.productionOrders)
@@ -518,7 +562,10 @@ const commit = async (
     )
     .returning({ version: laundryProduction.productionOrders.version });
   if (updatedOrder === undefined)
-    throw new Error('Production order changed concurrently.');
+    throw productionConcurrencyConflict(
+      'production_order_route_order_version_conflict',
+      'Production order changed concurrently.',
+    );
 
   const [updatedRun] = await db
     .update(laundryProduction.productionRuns)
@@ -542,7 +589,10 @@ const commit = async (
     )
     .returning({ queueVersion: laundryProduction.productionRuns.queueVersion });
   if (updatedRun === undefined)
-    throw new Error('Production queue changed concurrently.');
+    throw productionConcurrencyConflict(
+      'production_order_route_queue_version_conflict',
+      'Production queue changed concurrently.',
+    );
 
   const outcome: CommitProductionOrderRouteResult = {
     status: 'routed',

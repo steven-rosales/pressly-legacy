@@ -11,6 +11,7 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { invariantViolationError } from '@pressly/errors';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { hasAnyProductionOrderSelectionEvidence } from '../persistence/production-order-scheduling-evidence.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
@@ -22,11 +23,21 @@ import type {
   ReviewProductionOrderBacklogRepository,
 } from './review-production-order-backlog.port.ts';
 
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
 const asResolutionState = (
   value: string,
 ): ProductionOrderBacklogSnapshotOrder['resolutionState'] => {
   if (value === 'open' || value === 'resolved_without_production') return value;
-  throw new Error(`Unknown production-order resolution state: ${value}.`);
+  throw productionInvariantViolation(
+    'production_backlog_resolution_state_invalid',
+    `Unknown production-order resolution state: ${value}.`,
+  );
 };
 
 const afterCursor = (input: BacklogSnapshotScope) =>
@@ -158,7 +169,8 @@ export const makeReviewProductionOrderBacklogRepository = (deps: {
       now: Date;
     }) => {
       if (input.lifecycle.state !== 'resolved_without_production')
-        throw new Error(
+        throw productionInvariantViolation(
+          'production_backlog_resolution_transition_invalid',
           'Bulk backlog resolution can only persist the resolve transition.',
         );
       const [changed] = await db
@@ -194,7 +206,8 @@ export const makeReviewProductionOrderBacklogRepository = (deps: {
         });
       if (changed === undefined) return null;
       if (changed.resolutionState !== 'resolved_without_production')
-        throw new Error(
+        throw productionInvariantViolation(
+          'production_backlog_persisted_resolution_invalid',
           `Unexpected bulk resolution state: ${changed.resolutionState}.`,
         );
       return {

@@ -1,4 +1,8 @@
-import type { CounterSink, MeasurementSink } from '@pressly/metrics';
+import {
+  attemptObservation,
+  type CounterSink,
+  type MeasurementSink,
+} from '@pressly/metrics';
 import type { RequestHandler } from 'express';
 import { normalizedApiRoute } from './api-route.ts';
 
@@ -22,11 +26,15 @@ export const makeApiRequestMetrics = (input: {
         status: statusClass,
         outcome,
       };
-      input.counters.increment('api.http_requests', labels);
-      input.measurements.observe(
-        'api.http_request_duration_seconds',
-        Number(now() - startedAt) / 1_000_000_000,
-        labels,
+      attemptObservation(() =>
+        input.counters.increment('api.http_requests', labels),
+      );
+      attemptObservation(() =>
+        input.measurements.observe(
+          'api.http_request_duration_seconds',
+          Number(now() - startedAt) / 1_000_000_000,
+          labels,
+        ),
       );
     };
     response.once('finish', () => record('completed'));

@@ -5,7 +5,7 @@ import type {
 import type {
   ProductionOrderResolutionLifecycleDecision,
   ProductionOrderResolutionReviewReason,
-} from '../production-lifecycle/production-lifecycle.port.ts';
+} from '../production-lifecycle/production-lifecycle.model.ts';
 import type { ProductionPolicyPort } from './production-policy.port.ts';
 
 type ResolutionFacts = Readonly<{
@@ -22,6 +22,13 @@ type ResolutionFacts = Readonly<{
   isPriority: boolean;
   hasPendingPlacement: boolean;
 }>;
+
+export type ProductionOrderResolutionPolicy = Pick<
+  ProductionPolicyPort,
+  | 'resolveProductionOrderExecutionState'
+  | 'evaluateProductionOrderResolutionTransition'
+  | 'evaluateProductionOrderResolutionGuard'
+>;
 
 export type ProductionOrderResolutionAssessment =
   | Readonly<{
@@ -45,7 +52,7 @@ export type ProductionOrderResolutionAssessment =
  * facts. External source observations are intentionally absent from this input.
  */
 export const assessProductionOrderResolution = (
-  policy: ProductionPolicyPort,
+  policy: ProductionOrderResolutionPolicy,
   facts: ResolutionFacts,
 ): ProductionOrderResolutionAssessment => {
   if (facts.resolutionState === 'resolved_without_production')

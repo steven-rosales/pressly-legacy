@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { result } from '@pressly/kernel';
-import { apiFailure, apiSuccess } from '@pressly/http';
+import { apiSuccess } from '@pressly/http';
 import type { PricingChangeRequest } from '@pressly/contracts';
 import { catchAsync } from '@pressly/http/express';
 import type { PublishPricingChange } from './publish-pricing-change.usecase.ts';
@@ -23,12 +23,7 @@ export const makePublishPricingChangeController = (input: {
       requestedBy,
     });
 
-    if (result.isErr(publishResult)) {
-      res
-        .status(publishResult.error.status)
-        .json(apiFailure(publishResult.error));
-      return;
-    }
+    if (result.isErr(publishResult)) throw publishResult.error;
 
     res.status(200).json(apiSuccess(publishResult.value));
   });

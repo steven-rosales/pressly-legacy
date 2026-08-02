@@ -2,9 +2,8 @@ import type {
   CommitProductionOrderRouteRequest,
   PreviewProductionOrderRouteRequest,
 } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { RequestHandler } from 'express';
-import { sendProductionResult } from '../http/production-response.ts';
 import type {
   CommitProductionOrderRoute,
   PreviewProductionOrderRoute,
@@ -30,7 +29,7 @@ export const makePreviewProductionOrderRouteController = (
   input: ControllerInput & { preview: PreviewProductionOrderRoute },
 ): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.preview({
         ...(request.body as PreviewProductionOrderRouteRequest),
@@ -43,7 +42,7 @@ export const makeCommitProductionOrderRouteController = (
   input: ControllerInput & { commit: CommitProductionOrderRoute },
 ): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.commit({
         ...(request.body as CommitProductionOrderRouteRequest),

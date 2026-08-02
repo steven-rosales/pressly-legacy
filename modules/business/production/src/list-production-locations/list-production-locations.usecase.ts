@@ -1,5 +1,6 @@
 import { result } from '@pressly/kernel';
 import type { ClockPort } from '../command-execution/production-command.port.ts';
+import { toProductionDatabaseResult } from '../persistence/production-database-result.error.ts';
 import type {
   ListProductionLocations,
   ListProductionLocationsRepository,
@@ -11,10 +12,15 @@ export const makeListProductionLocations =
     clock: ClockPort;
   }): ListProductionLocations =>
   async (command) => {
-    const locations = await deps.repo.listLocations(command);
+    const loaded = await toProductionDatabaseResult(
+      'PRODUCTION_LOCATIONS_LIST_FAILED',
+      'Production locations could not be loaded.',
+      () => deps.repo.listLocations(command),
+    );
+    if (result.isErr(loaded)) return loaded;
 
     return result.ok({
-      items: [...locations],
+      items: [...loaded.value],
       asOf: deps.clock.now().toISOString(),
     });
   };

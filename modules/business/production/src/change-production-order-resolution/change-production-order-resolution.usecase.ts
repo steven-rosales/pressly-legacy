@@ -1,9 +1,12 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import type { ChangeProductionOrderResolutionResult } from '@pressly/contracts';
 import { result } from '@pressly/kernel';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -16,6 +19,14 @@ import type {
   RestoredProductionOrderSourceProjection,
 } from './change-production-order-resolution.port.ts';
 export type { ChangeProductionOrderResolution } from './change-production-order-resolution.port.ts';
+
+type ChangeProductionOrderResolutionPolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluateProductionOrderResolutionTransition'
+  | 'resolveProductionOrderExecutionState'
+  | 'evaluateProductionOrderResolutionGuard'
+  | 'deriveProductionOrderOperationalStatus'
+>;
 
 const restoredAdmissionFact = (input: {
   commercialState: 'open' | 'completed' | 'canceled';
@@ -34,7 +45,7 @@ const restoredAdmissionFact = (input: {
 export const makeChangeProductionOrderResolution =
   (deps: {
     repo: ChangeProductionOrderResolutionRepository;
-    policy: ProductionPolicyPort;
+    policy: ChangeProductionOrderResolutionPolicy;
     clock: ClockPort;
   }): ChangeProductionOrderResolution =>
   async (command) => {
@@ -91,18 +102,21 @@ export const makeChangeProductionOrderResolution =
         const order = await repo.lockOrder(command.locationId, command.orderId);
         if (order === null)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_NOT_FOUND',
-              'The production order was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_order_not_found',
+              message: 'The production order was not found.',
+              safeMessage: 'The production order was not found.',
+            }),
           );
         if (order.productionVersion !== command.expectedVersion)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_VERSION_CONFLICT',
-              'The order changed before its archive status was updated. Refresh and review the current state.',
-            ),
+            conflictError({
+              code: 'production_order_version_conflict',
+              message:
+                'The order changed before its archive status was updated. Refresh and review the current state.',
+              safeMessage:
+                'The order changed before its archive status was updated. Refresh and review the current state.',
+            }),
           );
         if (
           command.sourceStatePrecondition !== undefined &&
@@ -112,10 +126,13 @@ export const makeChangeProductionOrderResolution =
               command.sourceStatePrecondition.admissionState)
         )
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_SOURCE_STATE_CONFLICT',
-              'The canonical order or fulfillment changed before the archive status was updated.',
-            ),
+            conflictError({
+              code: 'production_order_source_state_conflict',
+              message:
+                'The canonical order or fulfillment changed before the archive status was updated.',
+              safeMessage:
+                'The canonical order or fulfillment changed before the archive status was updated.',
+            }),
           );
 
         const transition =
@@ -125,11 +142,11 @@ export const makeChangeProductionOrderResolution =
           });
         if (transition.tag === 'err')
           return result.err(
-            productionError(
-              transition.error.code,
-              transition.error.message,
-              409,
-            ),
+            conflictError({
+              code: transition.error.code.toLowerCase(),
+              message: transition.error.message,
+              safeMessage: transition.error.message,
+            }),
           );
 
         const execution = deps.policy.resolveProductionOrderExecutionState({
@@ -138,7 +155,11 @@ export const makeChangeProductionOrderResolution =
         });
         if (execution.tag === 'err')
           return result.err(
-            productionError(execution.error.code, execution.error.message, 409),
+            conflictError({
+              code: execution.error.code.toLowerCase(),
+              message: execution.error.message,
+              safeMessage: execution.error.message,
+            }),
           );
 
         let clearPendingPlacement = false;
@@ -161,30 +182,36 @@ export const makeChangeProductionOrderResolution =
           });
           if (guard.status === 'blocked')
             return result.err(
-              productionError(
-                'PRODUCTION_ORDER_RESOLUTION_BLOCKED',
-                'This order has production participation and must remain in operational history.',
-                409,
-              ),
+              conflictError({
+                code: 'production_order_resolution_blocked',
+                message:
+                  'This order has production participation and must remain in operational history.',
+                safeMessage:
+                  'This order has production participation and must remain in operational history.',
+              }),
             );
           if (guard.requiresExplicitReview && !command.confirmReviewedFacts)
             return result.err(
-              productionError(
-                'PRODUCTION_ORDER_RESOLUTION_REVIEW_REQUIRED',
-                'Review the recorded operational facts before archiving this order from active work.',
-                409,
-              ),
+              conflictError({
+                code: 'production_order_resolution_review_required',
+                message:
+                  'Review the recorded operational facts before archiving this order from active work.',
+                safeMessage:
+                  'Review the recorded operational facts before archiving this order from active work.',
+              }),
             );
           clearPendingPlacement = guard.mayClearPendingPlacement;
           reviewReasons = guard.reviewReasons;
         } else {
           if (execution.value !== 'unassigned')
             return result.err(
-              productionError(
-                'PRODUCTION_ORDER_RESTORE_BLOCKED',
-                'Only never-produced work can be restored to active operations.',
-                409,
-              ),
+              conflictError({
+                code: 'production_order_restore_blocked',
+                message:
+                  'Only never-produced work can be restored to active operations.',
+                safeMessage:
+                  'Only never-produced work can be restored to active operations.',
+              }),
             );
           if (
             order.sourceEstimatedWeightLbs === null ||
@@ -192,11 +219,13 @@ export const makeChangeProductionOrderResolution =
             order.sourceEstimatedWeightSource === null
           )
             return result.err(
-              productionError(
-                'PRODUCTION_ORDER_RESTORE_DEMAND_INVALID',
-                'The current source demand does not contain a positive weight estimate. Refresh the source order before restoring it.',
-                409,
-              ),
+              conflictError({
+                code: 'production_order_restore_demand_invalid',
+                message:
+                  'The current source demand does not contain a positive weight estimate. Refresh the source order before restoring it.',
+                safeMessage:
+                  'The current source demand does not contain a positive weight estimate. Refresh the source order before restoring it.',
+              }),
             );
           const derivedStatus =
             deps.policy.deriveProductionOrderOperationalStatus({
@@ -212,11 +241,13 @@ export const makeChangeProductionOrderResolution =
             });
           if (derivedStatus === 'scheduled' || derivedStatus === 'finished')
             return result.err(
-              productionError(
-                'PRODUCTION_ORDER_RESTORE_STATE_INVALID',
-                'The retained order facts do not produce an open operational state.',
-                409,
-              ),
+              conflictError({
+                code: 'production_order_restore_state_invalid',
+                message:
+                  'The retained order facts do not produce an open operational state.',
+                safeMessage:
+                  'The retained order facts do not produce an open operational state.',
+              }),
             );
           restoredSourceProjection = {
             dueAt: order.sourceDueAt,
@@ -242,10 +273,13 @@ export const makeChangeProductionOrderResolution =
         });
         if (changed === null)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_VERSION_CONFLICT',
-              'The order changed before its archive status was updated. Refresh and try again.',
-            ),
+            conflictError({
+              code: 'production_order_version_conflict',
+              message:
+                'The order changed before its archive status was updated. Refresh and try again.',
+              safeMessage:
+                'The order changed before its archive status was updated. Refresh and try again.',
+            }),
           );
 
         await repo.appendWorkEvent({
@@ -283,11 +317,14 @@ export const makeChangeProductionOrderResolution =
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_ORDER_RESOLUTION_CHANGE_FAILED',
-          'The order archive status could not be changed.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_order_resolution_change_failed',
+            message: 'The order archive status could not be changed.',
+            safeMessage: 'The order archive status could not be changed.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

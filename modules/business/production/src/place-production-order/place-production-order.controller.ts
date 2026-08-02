@@ -1,6 +1,5 @@
-import { catchAsync } from '@pressly/http/express';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { RequestHandler } from 'express';
-import { sendProductionResult } from '../http/production-response.ts';
 import type {
   ConfirmProductionOrderOvertime,
   PlaceProductionOrderAutomatically,
@@ -17,7 +16,7 @@ export const makePlaceProductionOrderAutomaticallyController = (
   },
 ): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.place({
         locationId: request.params['locationId'] as string,
@@ -35,7 +34,7 @@ export const makePlaceProductionOrderExactlyController = (
   input: ControllerInput & { place: PlaceProductionOrderExactly },
 ): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.place({
         locationId: request.params['locationId'] as string,
@@ -55,7 +54,7 @@ export const makeConfirmProductionOrderOvertimeController = (
   input: ControllerInput & { confirm: ConfirmProductionOrderOvertime },
 ): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.confirm({
         locationId: request.params['locationId'] as string,

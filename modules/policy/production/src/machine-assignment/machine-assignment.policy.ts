@@ -1,6 +1,4 @@
-import { result, type Result } from '@pressly/kernel';
-
-type Rejection = Readonly<{ code: string; message: string }>;
+import { result, type CodedFailure, type Result } from '@pressly/kernel';
 
 export const evaluateMachineAssignment = (input: {
   stageKind: string;
@@ -12,7 +10,7 @@ export const evaluateMachineAssignment = (input: {
     active: boolean;
     overlaps: boolean;
   }>[];
-}): Result<Readonly<{ machineIds: readonly string[] }>, Rejection> => {
+}): Result<Readonly<{ machineIds: readonly string[] }>, CodedFailure> => {
   if (!['washing', 'drying'].includes(input.stageKind))
     return input.machines.length === 0
       ? result.ok({ machineIds: [] })

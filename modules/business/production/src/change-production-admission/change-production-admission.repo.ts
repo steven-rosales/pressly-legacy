@@ -7,6 +7,7 @@ import {
   type DatabaseExecutor,
 } from '@pressly/db';
 import type { ChangeProductionAdmissionResult } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
@@ -14,6 +15,13 @@ import type {
   ChangeProductionAdmissionRepository,
   LockedProductionAdmission,
 } from './change-production-admission.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 const asSourceAdmissionState = (
   value: string,
@@ -24,7 +32,10 @@ const asSourceAdmissionState = (
     case 'withdrawn':
       return value;
     default:
-      throw new Error(`Unknown fulfillment admission state: ${value}.`);
+      throw productionInvariantViolation(
+        'production_admission_source_state_invalid',
+        `Unknown fulfillment admission state: ${value}.`,
+      );
   }
 };
 
@@ -40,13 +51,19 @@ const asProductionStatus = (
     case 'finished':
       return value;
     default:
-      throw new Error(`Unknown production-order status: ${value}.`);
+      throw productionInvariantViolation(
+        'production_admission_order_status_invalid',
+        `Unknown production-order status: ${value}.`,
+      );
   }
 };
 
 const asAdmissionOverride = (value: string | null): 'released' | null => {
   if (value === null || value === 'released') return value;
-  throw new Error(`Unknown production admission override: ${value}.`);
+  throw productionInvariantViolation(
+    'production_admission_override_invalid',
+    `Unknown production admission override: ${value}.`,
+  );
 };
 
 export const makeChangeProductionAdmissionRepository = (deps: {

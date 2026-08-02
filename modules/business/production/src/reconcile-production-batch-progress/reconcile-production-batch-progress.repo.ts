@@ -7,6 +7,7 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { conflictError, invariantViolationError } from '@pressly/errors';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import { completeProductionBatch } from '../persistence/complete-production-batch.ts';
@@ -18,6 +19,20 @@ import type {
   ReconciliationStage,
 } from './reconcile-production-batch-progress.port.ts';
 
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
+
 const stageKind = (value: string): ReconciliationStage['stage'] => {
   if (
     value === 'sorting' ||
@@ -26,13 +41,19 @@ const stageKind = (value: string): ReconciliationStage['stage'] => {
     value === 'folding_packaging'
   )
     return value;
-  throw new Error(`Unknown production stage kind: ${value}.`);
+  throw productionInvariantViolation(
+    'production_reconciliation_stage_kind_invalid',
+    `Unknown production stage kind: ${value}.`,
+  );
 };
 
 const stageStatus = (value: string): ReconciliationStage['status'] => {
   if (value === 'planned' || value === 'started' || value === 'completed')
     return value;
-  throw new Error(`Unknown production stage status: ${value}.`);
+  throw productionInvariantViolation(
+    'production_reconciliation_stage_status_invalid',
+    `Unknown production stage status: ${value}.`,
+  );
 };
 
 const attemptStatus = (
@@ -40,7 +61,10 @@ const attemptStatus = (
 ): ReconciliationContext['attempts'][number]['status'] => {
   if (value === 'assigned' || value === 'completed' || value === 'released')
     return value;
-  throw new Error(`Unknown order-stage attempt status: ${value}.`);
+  throw productionInvariantViolation(
+    'production_reconciliation_attempt_status_invalid',
+    `Unknown order-stage attempt status: ${value}.`,
+  );
 };
 
 export const makeReconcileProductionBatchProgressRepository = (deps: {
@@ -339,7 +363,10 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
           (stage) => stage.stageRunId === transition.stageRunId,
         );
         if (current === undefined)
-          throw new Error('Reconciliation stage context is incomplete.');
+          throw productionInvariantViolation(
+            'production_reconciliation_stage_context_missing',
+            'Reconciliation stage context is incomplete.',
+          );
 
         const [updated] = await db
           .update(laundryProduction.stageRuns)
@@ -379,7 +406,10 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
             version: laundryProduction.stageRuns.version,
           });
         if (updated === undefined)
-          throw new Error('Production stage changed during reconciliation.');
+          throw productionConcurrencyConflict(
+            'production_reconciliation_stage_version_conflict',
+            'Production stage changed during reconciliation.',
+          );
         nextVersionByStageId.set(updated.id, updated.version);
 
         if (transition.lifecycle.state === 'completed') {
@@ -442,7 +472,10 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
           (stage) => stage.stage === projection.activeStage,
         );
         if (targetStage === undefined)
-          throw new Error('Active reconciliation stage was not found.');
+          throw productionInvariantViolation(
+            'production_reconciliation_active_stage_missing',
+            'Active reconciliation stage was not found.',
+          );
         await db
           .delete(laundryProduction.stageMachineAssignments)
           .where(
@@ -506,7 +539,10 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
         )
         .returning({ version: laundryProduction.productionBatches.version });
       if (updatedBatch === undefined)
-        throw new Error('Production batch changed during reconciliation.');
+        throw productionConcurrencyConflict(
+          'production_reconciliation_batch_version_conflict',
+          'Production batch changed during reconciliation.',
+        );
 
       let queueVersion = context.run.queueVersion;
       if (context.batch.status === 'queued') {
@@ -534,14 +570,20 @@ export const makeReconcileProductionBatchProgressRepository = (deps: {
           )
           .returning({ id: laundryProduction.productionRuns.id });
         if (updatedRun === undefined)
-          throw new Error('Production queue changed during reconciliation.');
+          throw productionConcurrencyConflict(
+            'production_reconciliation_queue_version_conflict',
+            'Production queue changed during reconciliation.',
+          );
       }
 
       const terminalization =
         projection.batchStatus === 'finished'
           ? terminalLifecycle === null
             ? (() => {
-                throw new Error('Terminal lifecycle decisions are missing.');
+                throw productionInvariantViolation(
+                  'production_reconciliation_terminal_lifecycle_missing',
+                  'Terminal lifecycle decisions are missing.',
+                );
               })()
             : await completeProductionBatch(db, {
                 locationId,

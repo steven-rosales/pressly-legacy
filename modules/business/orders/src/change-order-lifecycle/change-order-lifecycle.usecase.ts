@@ -1,3 +1,10 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+  validationError,
+} from '@pressly/errors';
 import { isCommandContextValid, result } from '@pressly/kernel';
 import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
 import type {
@@ -5,8 +12,8 @@ import type {
   OrderMutationResult,
 } from '../command-execution/order-command.port.ts';
 import { isOrderCommandReasonValid } from '../command-execution/order-command-reason.policy.ts';
-import { orderError } from '../failure-mapping/order.error.ts';
-import type { OrderState } from '../order-model/order-model.port.ts';
+import { orderInvariantError } from '../order-model/order-invariant.error.ts';
+import type { OrderState } from '../order-model/order.model.ts';
 import {
   cancelOrderReasonCodes,
   completeOrderReasonCodes,
@@ -46,11 +53,11 @@ const makeOrderLifecycleCommand =
       })
     )
       return result.err(
-        orderError(
-          'ORDER_LIFECYCLE_COMMAND_INVALID',
-          'The order lifecycle command is incomplete.',
-          400,
-        ),
+        validationError({
+          code: 'order_lifecycle_command_invalid',
+          message: 'The order lifecycle command is incomplete.',
+          safeMessage: 'The order lifecycle command is incomplete.',
+        }),
       );
     try {
       const commandHash = hashOrderCommand(command);
@@ -85,7 +92,8 @@ const makeOrderLifecycleCommand =
         if (decision.kind === 'denied')
           return { kind: 'invalid_transition' as const };
         if (decision.to !== input.target)
-          throw new Error(
+          throw orderInvariantError(
+            'ORDER_LIFECYCLE_GRAPH_STATE_INVALID',
             'Order lifecycle graph returned an unexpected state.',
           );
 
@@ -116,35 +124,50 @@ const makeOrderLifecycleCommand =
       if (outcome.kind === 'ok') return result.ok(outcome.value);
       if (outcome.kind === 'not_found')
         return result.err(
-          orderError('ORDER_NOT_FOUND', 'The order was not found.', 404),
+          notFoundError({
+            code: 'order_not_found',
+            message: 'The order was not found.',
+            safeMessage: 'The order was not found.',
+          }),
         );
       if (outcome.kind === 'version_conflict')
         return result.err(
-          orderError(
-            'ORDER_VERSION_CONFLICT',
-            'The order changed after this lifecycle command was prepared. Refresh and try again.',
-          ),
+          conflictError({
+            code: 'order_version_conflict',
+            message:
+              'The order changed after this lifecycle command was prepared. Refresh and try again.',
+            safeMessage:
+              'The order changed after this lifecycle command was prepared. Refresh and try again.',
+          }),
         );
       if (outcome.kind === 'invalid_transition')
         return result.err(
-          orderError(
-            'ORDER_TRANSITION_INVALID',
-            'The requested lifecycle command is not allowed from the current order state.',
-          ),
+          conflictError({
+            code: 'order_transition_invalid',
+            message:
+              'The requested lifecycle command is not allowed from the current order state.',
+            safeMessage:
+              'The requested lifecycle command is not allowed from the current order state.',
+          }),
         );
       return result.err(
-        orderError(
-          'ORDER_IDEMPOTENCY_CONFLICT',
-          'The idempotency key belongs to a different order command.',
-        ),
+        conflictError({
+          code: 'order_idempotency_conflict',
+          message: 'The idempotency key belongs to a different order command.',
+          safeMessage:
+            'The idempotency key belongs to a different order command.',
+        }),
       );
     } catch (error) {
       return result.err(
-        orderError(
-          'ORDER_LIFECYCLE_COMMAND_FAILED',
-          'The order lifecycle command could not be completed.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'order_lifecycle_command_failed',
+            message: 'The order lifecycle command could not be completed.',
+            safeMessage: 'The order lifecycle command could not be completed.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

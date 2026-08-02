@@ -1,9 +1,12 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import type { ScheduleProposal } from '@pressly/contracts';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -15,18 +18,25 @@ import type {
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import type { ProductionSignalsPort } from '../production-signals/production-signals.port.ts';
 import type { ProductionSchedulerPort } from '../scheduling/production-scheduler.port.ts';
-import type { ScheduleSupersessionDecision } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ScheduleSupersessionDecision } from '../production-lifecycle/production-lifecycle.model.ts';
 import type {
   CreateSchedule,
   CreateScheduleRepository,
 } from './create-schedule.port.ts';
 export type { CreateSchedule } from './create-schedule.port.ts';
 
+type CreateSchedulePolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluateShiftPlanningWindow'
+  | 'evaluateScheduleRevisionTransition'
+  | 'initialScheduleRevisionState'
+>;
+
 export const makeCreateSchedule =
   (deps: {
     repo: CreateScheduleRepository;
-    scheduler: ProductionSchedulerPort;
-    policy: ProductionPolicyPort;
+    scheduler: Pick<ProductionSchedulerPort, 'propose'>;
+    policy: CreateSchedulePolicy;
     clock: ClockPort;
     ids: IdPort;
     signals?: ProductionSignalsPort;
@@ -69,46 +79,51 @@ export const makeCreateSchedule =
         );
         if (planningState === 'not_found')
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_NOT_FOUND',
-              'The production shift was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_shift_not_found',
+              message: 'The production shift was not found.',
+              safeMessage: 'The production shift was not found.',
+            }),
           );
         if (planningState === 'run_exists')
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_ALREADY_STARTED',
-              'A production run already exists for this shift.',
-              409,
-            ),
+            conflictError({
+              code: 'production_shift_already_started',
+              message: 'A production run already exists for this shift.',
+              safeMessage: 'A production run already exists for this shift.',
+            }),
           );
 
         const schedulingInput = await repo.loadSchedulingInput(command);
 
         if (schedulingInput === null)
           return result.err(
-            productionError(
-              'SCHEDULING_INPUT_NOT_FOUND',
-              'The shift or scheduler configuration was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'scheduling_input_not_found',
+              message: 'The shift or scheduler configuration was not found.',
+              safeMessage:
+                'The shift or scheduler configuration was not found.',
+            }),
           );
         if (schedulingInput === 'selection_empty')
           return result.err(
-            productionError(
-              'SCHEDULE_SELECTION_EMPTY',
-              'Select at least one ready order before computing the schedule.',
-              409,
-            ),
+            conflictError({
+              code: 'schedule_selection_empty',
+              message:
+                'Select at least one ready order before computing the schedule.',
+              safeMessage:
+                'Select at least one ready order before computing the schedule.',
+            }),
           );
         if (schedulingInput === 'selection_invalid')
           return result.err(
-            productionError(
-              'SCHEDULE_SELECTION_NOT_READY',
-              'One or more selected orders are no longer ready to schedule. Refresh the shift and review the selection.',
-              409,
-            ),
+            conflictError({
+              code: 'schedule_selection_not_ready',
+              message:
+                'One or more selected orders are no longer ready to schedule. Refresh the shift and review the selection.',
+              safeMessage:
+                'One or more selected orders are no longer ready to schedule. Refresh the shift and review the selection.',
+            }),
           );
 
         const now = deps.clock.now();
@@ -120,11 +135,11 @@ export const makeCreateSchedule =
         });
         if (shiftWindow.tag === 'err')
           return result.err(
-            productionError(
-              shiftWindow.error.code,
-              shiftWindow.error.message,
-              409,
-            ),
+            conflictError({
+              code: shiftWindow.error.code.toLowerCase(),
+              message: shiftWindow.error.message,
+              safeMessage: shiftWindow.error.message,
+            }),
           );
 
         const output = deps.scheduler.propose(schedulingInput);
@@ -145,11 +160,12 @@ export const makeCreateSchedule =
             lifecycle.value.state !== 'superseded'
           )
             return result.err(
-              productionError(
-                'SCHEDULE_CURRENT_PLAN_STATE_INVALID',
-                'The current schedule revision cannot be superseded.',
-                409,
-              ),
+              conflictError({
+                code: 'schedule_current_plan_state_invalid',
+                message: 'The current schedule revision cannot be superseded.',
+                safeMessage:
+                  'The current schedule revision cannot be superseded.',
+              }),
             );
           supersede = {
             scheduleRunId: currentPlan.scheduleRunId,
@@ -189,11 +205,14 @@ export const makeCreateSchedule =
       return outcome;
     } catch (error) {
       return result.err(
-        productionError(
-          'SCHEDULE_CREATE_FAILED',
-          'The schedule proposal could not be created.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'schedule_create_failed',
+            message: 'The schedule proposal could not be created.',
+            safeMessage: 'The schedule proposal could not be created.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

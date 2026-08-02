@@ -27,6 +27,47 @@ type RecordedAuthorizeInput = Readonly<{
 }>;
 
 describe('order-management access-control guard', () => {
+  it('reports a missing route location as a validation error', async () => {
+    const calls: RecordedAuthorizeInput[] = [];
+    const authorize: AccessControlAuthorize = <R extends AuthResource>(input: {
+      action: Action;
+      policies: readonly PolicyRule<R>[];
+      readResource: (request: Request, response: Response) => R | Promise<R>;
+    }) => {
+      calls.push(input as RecordedAuthorizeInput);
+      return vi.fn() as unknown as RequestHandler;
+    };
+
+    makeOrderManagementAccessControl({
+      auth: {
+        authenticate: vi.fn() as unknown as RequestHandler,
+        authorize,
+        readPrincipal: vi.fn(() => principal),
+      },
+      locationAncestry: {
+        resolveBusinessId: vi.fn(async () => 'canonical-business'),
+        listLocationIdsForBusinesses: vi.fn(async () => []),
+      },
+    });
+    const orderCall = calls.find(
+      (call) => call.action === 'order-management:order:write',
+    );
+    if (orderCall === undefined)
+      throw new Error('Order-management write guard missing.');
+
+    await expect(
+      orderCall.readResource(
+        { params: {} } as unknown as Request,
+        { locals: {} } as Response,
+      ),
+    ).rejects.toMatchObject({
+      tag: 'AppError',
+      kind: 'ValidationError',
+      code: 'order_location_required',
+      status: 400,
+    });
+  });
+
   it('derives location ancestry canonically from the route, not request data', async () => {
     const calls: RecordedAuthorizeInput[] = [];
     const resolveBusinessId = vi.fn(async () => 'canonical-business');

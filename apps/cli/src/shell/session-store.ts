@@ -2,8 +2,11 @@ import { result, type Result } from '@pressly/kernel';
 import { mkdir, readFile, rm, writeFile, chmod } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
-import type { AuthenticatedLoginResult } from '@pressly/contracts';
-import { makeAppError, type AppError } from '@pressly/errors';
+import {
+  authenticatedLoginResultSchema,
+  type AuthenticatedLoginResult,
+} from '@pressly/contracts';
+import { authError, configError, type AppError } from '@pressly/errors';
 
 export type CliSession = Readonly<AuthenticatedLoginResult>;
 
@@ -17,21 +20,17 @@ export const defaultSessionPath = (): string =>
   join(homedir(), '.config', 'pressly', 'admin-session.json');
 
 export const missingCliSession = (): AppError =>
-  makeAppError({
-    kind: 'PermissionError',
+  authError({
     code: 'missing_cli_session',
     message: 'No CLI session token exists.',
     safeMessage: 'Run auth login before this command.',
-    status: 401,
   });
 
 const sessionStoreError = (cause: unknown): AppError =>
-  makeAppError({
-    kind: 'ConfigError',
+  configError({
     code: 'session_store_failed',
     message: 'Could not access CLI session storage.',
     safeMessage: 'Could not access CLI session storage.',
-    status: 500,
     cause,
   });
 
@@ -54,7 +53,7 @@ export const makeSessionStore = (
 
       if (raw === undefined) return result.ok(undefined);
 
-      return result.ok(JSON.parse(raw) as CliSession);
+      return result.ok(authenticatedLoginResultSchema.parse(JSON.parse(raw)));
     } catch (cause) {
       return result.err(sessionStoreError(cause));
     }

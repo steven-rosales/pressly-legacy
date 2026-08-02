@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import { makeAppError } from '@pressly/errors';
+import { externalServiceError, validationError } from '@pressly/errors';
 import type { WebhookIngestionApplication } from '@pressly/webhook-ingestion';
 import { readCentsWebhookRawBody } from './cents-webhook.verifier.ts';
 import {
@@ -13,8 +13,7 @@ import {
 } from './cents-webhook.quarantine.ts';
 
 const normalizationError = (input: { code: string; message: string }) =>
-  makeAppError({
-    kind: 'ValidationError',
+  validationError({
     code: input.code,
     message: input.message,
     safeMessage: 'The vendor webhook body is invalid.',
@@ -41,8 +40,7 @@ export const makeCentsWebhookNormalizationBoundary =
     const rawBody = readCentsWebhookRawBody(response.locals);
     if (rawBody === null) {
       next(
-        makeAppError({
-          kind: 'ExternalServiceError',
+        externalServiceError({
           code: 'cents_webhook_raw_body_unavailable',
           message: 'Cents webhook raw body was unavailable.',
           safeMessage: 'Vendor webhook receipt is unavailable.',

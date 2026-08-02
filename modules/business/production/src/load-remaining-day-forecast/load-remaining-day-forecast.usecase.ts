@@ -1,3 +1,9 @@
+import {
+  conflictError,
+  invariantViolationError,
+  notFoundError,
+  validationError,
+} from '@pressly/errors';
 import type {
   ProductionForecastExpectedLaterItem,
   ProductionForecastInProductionItem,
@@ -6,7 +12,7 @@ import type {
   ProductionRemainingDayForecast,
 } from '@pressly/contracts';
 import { result } from '@pressly/kernel';
-import { productionError } from '../failure-mapping/production.error.ts';
+import { toProductionDatabaseResult } from '../persistence/production-database-result.error.ts';
 import type { ClockPort } from '../command-execution/production-command.port.ts';
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import type { RemainingDayForecastDecision } from '../scheduling/remaining-day-forecast.port.ts';
@@ -128,7 +134,11 @@ const needsShiftActionability = (
 
 const invalidState = (message: string) =>
   result.err(
-    productionError('PRODUCTION_FORECAST_STATE_INCONSISTENT', message, 409),
+    invariantViolationError({
+      code: 'production_forecast_state_inconsistent',
+      message: message,
+      safeMessage: message,
+    }),
   );
 
 export const makeLoadRemainingDayForecast =
@@ -143,36 +153,46 @@ export const makeLoadRemainingDayForecast =
     project: ProjectRemainingDayForecast;
   }): LoadRemainingDayForecast =>
   async ({ locationId, serviceDay }) => {
-    const readModel = await deps.repo.load({
-      locationId,
-      serviceDay,
-      asOf: deps.clock.now(),
-      rowLimit: FORECAST_ROW_LIMIT,
-    });
+    const loaded = await toProductionDatabaseResult(
+      'PRODUCTION_FORECAST_LOAD_FAILED',
+      'The remaining-day forecast could not be loaded.',
+      () =>
+        deps.repo.load({
+          locationId,
+          serviceDay,
+          asOf: deps.clock.now(),
+          rowLimit: FORECAST_ROW_LIMIT,
+        }),
+    );
+    if (result.isErr(loaded)) return loaded;
+    const readModel = loaded.value;
 
     if (readModel === null)
       return result.err(
-        productionError(
-          'PRODUCTION_LOCATION_NOT_FOUND',
-          'The active production location was not found.',
-          404,
-        ),
+        notFoundError({
+          code: 'production_location_not_found',
+          message: 'The active production location was not found.',
+          safeMessage: 'The active production location was not found.',
+        }),
       );
     if (readModel === 'invalid_service_day')
       return result.err(
-        productionError(
-          'PRODUCTION_FORECAST_SERVICE_DAY_INVALID',
-          'The requested service day is invalid for this location.',
-          400,
-        ),
+        validationError({
+          code: 'production_forecast_service_day_invalid',
+          message: 'The requested service day is invalid for this location.',
+          safeMessage:
+            'The requested service day is invalid for this location.',
+        }),
       );
     if (readModel === 'scope_too_large')
       return result.err(
-        productionError(
-          'PRODUCTION_FORECAST_SCOPE_TOO_LARGE',
-          'The remaining-day forecast exceeds the supported work limit.',
-          409,
-        ),
+        conflictError({
+          code: 'production_forecast_scope_too_large',
+          message:
+            'The remaining-day forecast exceeds the supported work limit.',
+          safeMessage:
+            'The remaining-day forecast exceeds the supported work limit.',
+        }),
       );
 
     const inProduction: ProductionForecastInProductionItem[] = [];
@@ -209,7 +229,11 @@ export const makeLoadRemainingDayForecast =
       });
       if (execution.tag === 'err')
         return result.err(
-          productionError(execution.error.code, execution.error.message, 409),
+          conflictError({
+            code: execution.error.code.toLowerCase(),
+            message: execution.error.message,
+            safeMessage: execution.error.message,
+          }),
         );
 
       if (execution.value === 'finished') continue;

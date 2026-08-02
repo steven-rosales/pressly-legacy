@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { makeAppError } from '@pressly/errors';
+import { configError, invariantViolationError } from '@pressly/errors';
 
 export const CENTS_WEBHOOK_ADAPTER_VERSION = 'cents-webhook-v1';
 
@@ -14,13 +14,11 @@ export type CentsWebhookPayloadCipher = Readonly<{
 }>;
 
 const invalidKey = () =>
-  makeAppError({
-    kind: 'ConfigError',
+  configError({
     code: 'invalid_cents_webhook_quarantine_encryption_key',
     message:
       'CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY must decode to exactly 32 bytes.',
     safeMessage: 'Cents webhook quarantine encryption is misconfigured.',
-    status: 500,
   });
 
 export const makeCentsWebhookPayloadCipher = (
@@ -51,7 +49,10 @@ export const makeCentsWebhookPayloadCipher = (
         encryptedValue === undefined ||
         tagValue === undefined
       )
-        throw new TypeError('Invalid Cents webhook quarantine envelope.');
+        throw invariantViolationError({
+          code: 'invalid_cents_webhook_quarantine_envelope',
+          message: 'Stored Cents webhook quarantine envelope is invalid.',
+        });
 
       const decipher = createDecipheriv(
         'aes-256-gcm',

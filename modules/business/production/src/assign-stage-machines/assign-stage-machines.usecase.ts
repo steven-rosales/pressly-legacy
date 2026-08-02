@@ -1,9 +1,12 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import type { ProductionMutationResult } from '@pressly/contracts';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -19,7 +22,7 @@ export type { AssignStageMachines } from './assign-stage-machines.port.ts';
 export const makeAssignStageMachines =
   (deps: {
     repo: AssignStageMachinesRepository;
-    policy: ProductionPolicyPort;
+    policy: Pick<ProductionPolicyPort, 'evaluateMachineAssignment'>;
     clock: ClockPort;
   }): AssignStageMachines =>
   async (command) => {
@@ -49,21 +52,22 @@ export const makeAssignStageMachines =
         );
         if (context === null)
           return result.err(
-            productionError(
-              'STAGE_RUN_NOT_FOUND',
-              'The production stage was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'stage_run_not_found',
+              message: 'The production stage was not found.',
+              safeMessage: 'The production stage was not found.',
+            }),
           );
         if (
           context.stage.status !== 'planned' ||
           context.stage.version !== command.expectedVersion
         )
           return result.err(
-            productionError(
-              'STAGE_RUN_VERSION_CONFLICT',
-              'The production stage changed before assignment.',
-            ),
+            conflictError({
+              code: 'stage_run_version_conflict',
+              message: 'The production stage changed before assignment.',
+              safeMessage: 'The production stage changed before assignment.',
+            }),
           );
 
         const machines = context.machines.filter((machine) =>
@@ -71,11 +75,11 @@ export const makeAssignStageMachines =
         );
         if (machines.length !== command.machineIds.length)
           return result.err(
-            productionError(
-              'MACHINE_NOT_FOUND',
-              'One or more requested machines are not available.',
-              404,
-            ),
+            notFoundError({
+              code: 'machine_not_found',
+              message: 'One or more requested machines are not available.',
+              safeMessage: 'One or more requested machines are not available.',
+            }),
           );
 
         const decision = deps.policy.evaluateMachineAssignment({
@@ -85,7 +89,11 @@ export const makeAssignStageMachines =
         });
         if (decision.tag === 'err')
           return result.err(
-            productionError(decision.error.code, decision.error.message, 409),
+            conflictError({
+              code: decision.error.code.toLowerCase(),
+              message: decision.error.message,
+              safeMessage: decision.error.message,
+            }),
           );
 
         const mutation = await repo.assignStageMachines({
@@ -97,10 +105,11 @@ export const makeAssignStageMachines =
         });
         if (mutation === null)
           return result.err(
-            productionError(
-              'STAGE_RUN_VERSION_CONFLICT',
-              'The production stage changed before assignment.',
-            ),
+            conflictError({
+              code: 'stage_run_version_conflict',
+              message: 'The production stage changed before assignment.',
+              safeMessage: 'The production stage changed before assignment.',
+            }),
           );
 
         await repo.appendWorkEvent({
@@ -122,11 +131,14 @@ export const makeAssignStageMachines =
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'MACHINE_ASSIGNMENT_FAILED',
-          'Machines could not be assigned to the stage.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'machine_assignment_failed',
+            message: 'Machines could not be assigned to the stage.',
+            safeMessage: 'Machines could not be assigned to the stage.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

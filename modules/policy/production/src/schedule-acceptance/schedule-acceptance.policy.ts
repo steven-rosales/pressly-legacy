@@ -1,6 +1,4 @@
-import { result, type Result } from '@pressly/kernel';
-
-type Rejection = Readonly<{ code: string; message: string }>;
+import { result, type CodedFailure, type Result } from '@pressly/kernel';
 
 export type ScheduleAcceptanceInput = Readonly<{
   expectedOutputPlanHash: string;
@@ -23,7 +21,7 @@ export type ScheduleAcceptanceInput = Readonly<{
 
 export const evaluateScheduleAcceptance = (
   input: ScheduleAcceptanceInput,
-): Result<Readonly<{ accepted: true }>, Rejection> => {
+): Result<Readonly<{ accepted: true }>, CodedFailure> => {
   if (input.expectedOutputPlanHash !== input.actualOutputPlanHash)
     return result.err({
       code: 'SCHEDULE_HASH_MISMATCH',

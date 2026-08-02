@@ -16,7 +16,7 @@ export type {
   WorkforcePage,
   WorkforceRole,
   WorkforceScope,
-} from './workforce/workforce.port.ts';
+} from './workforce/workforce.model.ts';
 export type {
   IssueWorkforceInvitation,
   IssueWorkforceInvitationCommand,

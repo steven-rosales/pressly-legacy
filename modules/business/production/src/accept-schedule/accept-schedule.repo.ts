@@ -7,6 +7,7 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { conflictError } from '@pressly/errors';
 import type {
   AcceptScheduleRepository,
   ScheduleAcceptanceRecord,
@@ -16,6 +17,13 @@ import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts'
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 import { scheduleCoversInputExactly } from '../persistence/schedule-snapshot-validation.ts';
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 export const makeAcceptScheduleRepository = (deps: {
   db: Database;
@@ -169,7 +177,10 @@ export const makeAcceptScheduleRepository = (deps: {
           acceptedAt: laundryProduction.scheduleRuns.acceptedAt,
         });
       if (accepted === undefined)
-        throw new Error('Schedule was already accepted.');
+        throw productionConcurrencyConflict(
+          'production_schedule_already_accepted',
+          'Schedule was already accepted.',
+        );
 
       const acceptedResult = {
         scheduleRunId: accepted.scheduleRunId,

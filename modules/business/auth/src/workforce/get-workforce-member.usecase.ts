@@ -5,7 +5,7 @@ import { requireIdentifier } from './workforce-validation.policy.ts';
 import type {
   WorkforceActorRef,
   WorkforceMemberDetail,
-} from './workforce.port.ts';
+} from './workforce.model.ts';
 import type { WorkforceClock } from './workforce-invitation.port.ts';
 import type { WorkforceMembershipStore } from './workforce-membership.port.ts';
 

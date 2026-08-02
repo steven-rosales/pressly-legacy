@@ -3,16 +3,15 @@ import type {
   ListProductionHistoryPlansQuery,
   ListProductionHistoryRunsQuery,
 } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { RequestHandler } from 'express';
-import { sendProductionResult } from '../http/production-response.ts';
 import type { ProductionHistoryApplication } from './list-production-history.port.ts';
 
 export const makeListProductionHistoryRunsController = (
   history: ProductionHistoryApplication,
 ): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await history.listRuns({
         ...(request.query as unknown as ListProductionHistoryRunsQuery),
@@ -25,7 +24,7 @@ export const makeListProductionHistoryActivityController = (
   history: ProductionHistoryApplication,
 ): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await history.listActivity({
         ...(request.query as unknown as ListProductionHistoryActivityQuery),
@@ -38,7 +37,7 @@ export const makeListProductionHistoryPlansController = (
   history: ProductionHistoryApplication,
 ): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await history.listPlans({
         ...(request.query as unknown as ListProductionHistoryPlansQuery),
@@ -51,7 +50,7 @@ export const makeLoadProductionHistoryRunController = (
   history: ProductionHistoryApplication,
 ): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await history.loadRun({
         locationId: request.params['locationId'] as string,

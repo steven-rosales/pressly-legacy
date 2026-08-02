@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { makeAppError } from '@pressly/errors';
+import { configError, invariantViolationError } from '@pressly/errors';
 
 export type SecretBox = Readonly<{
   encrypt: (plainText: string) => string;
@@ -7,12 +7,10 @@ export type SecretBox = Readonly<{
 }>;
 
 const invalidKey = () =>
-  makeAppError({
-    kind: 'ConfigError',
+  configError({
     code: 'invalid_mfa_encryption_key',
     message: 'AUTH_MFA_ENCRYPTION_KEY must decode to exactly 32 bytes.',
     safeMessage: 'MFA encryption is misconfigured.',
-    status: 500,
   });
 
 export const makeSecretBox = (base64Key: string): SecretBox => {
@@ -44,7 +42,10 @@ export const makeSecretBox = (base64Key: string): SecretBox => {
         encryptedValue === undefined ||
         tagValue === undefined
       )
-        throw new TypeError('Invalid encrypted secret envelope.');
+        throw invariantViolationError({
+          code: 'invalid_encrypted_secret_envelope',
+          message: 'Stored encrypted secret envelope is invalid.',
+        });
 
       const decipher = createDecipheriv(
         'aes-256-gcm',

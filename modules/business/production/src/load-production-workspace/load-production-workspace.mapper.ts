@@ -9,7 +9,15 @@ import type {
   ProductionShift,
   ProductionStation,
 } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import { productionDueBucket } from '../persistence/production-due-bucket.policy.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 export type WorkspaceShiftRow = Readonly<{
   id: string;
@@ -57,7 +65,10 @@ const mapOrder = (
   timezone: string,
 ): ProductionOrderSummary => {
   if (row.bagCount === null)
-    throw new Error('A board order is missing completed bag intake.');
+    throw productionInvariantViolation(
+      'production_workspace_order_bag_intake_missing',
+      'A board order is missing completed bag intake.',
+    );
 
   return {
     id: row.id,
@@ -105,7 +116,10 @@ export const mapWorkspacePendingOrder = (
     row.pendingPlacement,
   );
   if (row.pendingPlacement != null && !parsed.success)
-    throw new Error('An eligible order has invalid pending placement state.');
+    throw productionInvariantViolation(
+      'production_workspace_pending_placement_invalid',
+      'An eligible order has invalid pending placement state.',
+    );
   return {
     ...mapOrder(row, now, timezone),
     placement:
@@ -142,7 +156,10 @@ export const mapWorkspaceShift = (row: WorkspaceShiftRow): ProductionShift => {
     row.status !== 'open' &&
     row.status !== 'closed'
   )
-    throw new Error(`Unknown production shift status: ${row.status}.`);
+    throw productionInvariantViolation(
+      'production_workspace_shift_status_invalid',
+      `Unknown production shift status: ${row.status}.`,
+    );
   return {
     id: row.id,
     locationId: row.locationId,
@@ -169,7 +186,10 @@ export const mapWorkspaceStation = (row: {
     row.kind !== 'drying' &&
     row.kind !== 'folding_packaging'
   )
-    throw new Error(`Unknown production station kind: ${row.kind}.`);
+    throw productionInvariantViolation(
+      'production_workspace_station_kind_invalid',
+      `Unknown production station kind: ${row.kind}.`,
+    );
   return { ...row, kind: row.kind };
 };
 
@@ -181,7 +201,10 @@ export const mapWorkspaceMachine = (row: {
   isActive: boolean;
 }): ProductionMachine => {
   if (row.stationKind !== 'washing' && row.stationKind !== 'drying')
-    throw new Error(`Unknown production machine station: ${row.stationKind}.`);
+    throw productionInvariantViolation(
+      'production_workspace_machine_station_invalid',
+      `Unknown production machine station: ${row.stationKind}.`,
+    );
   return {
     id: row.id,
     stationKind: row.stationKind,
@@ -197,7 +220,10 @@ export const mapWorkspaceRun = (row: WorkspaceRunRow): ProductionRunSummary => {
     row.status !== 'started' &&
     row.status !== 'completed'
   )
-    throw new Error(`Unknown production run status: ${row.status}.`);
+    throw productionInvariantViolation(
+      'production_workspace_run_status_invalid',
+      `Unknown production run status: ${row.status}.`,
+    );
   return {
     id: row.id,
     productionShiftId: row.productionShiftId,

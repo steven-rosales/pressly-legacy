@@ -5,11 +5,19 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { invariantViolationError } from '@pressly/errors';
 import type { IdPort } from '../command-execution/production-command.port.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 import type { RecordOrderIntakeRepository } from './record-order-intake.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 export const makeRecordOrderIntakeRepository = (deps: {
   db: Database;
@@ -56,12 +64,16 @@ export const makeRecordOrderIntakeRepository = (deps: {
         row.demandPhase !== 'post_production' &&
         row.demandPhase !== 'withdrawn'
       )
-        throw new Error(`Unknown order-demand phase: ${row.demandPhase}.`);
+        throw productionInvariantViolation(
+          'production_order_intake_demand_phase_invalid',
+          `Unknown order-demand phase: ${row.demandPhase}.`,
+        );
       if (
         row.order.admissionOverride !== null &&
         row.order.admissionOverride !== 'released'
       )
-        throw new Error(
+        throw productionInvariantViolation(
+          'production_order_intake_admission_override_invalid',
           `Unknown production admission override: ${row.order.admissionOverride}.`,
         );
 

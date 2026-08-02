@@ -402,11 +402,13 @@ const assertValidDefinition = <
 
   if (errors.length === 0) return;
 
-  throw new Error(
-    `Invalid state machine "${definition.name}":\n${errors
+  throw invariantViolationError({
+    code: 'invalid_state_machine_definition',
+    message: `Invalid state machine "${definition.name}":\n${errors
       .map((error) => `- ${error}`)
       .join('\n')}`,
-  );
+    details: { machine: definition.name, errors },
+  });
 };
 
 const compileTransition = <
@@ -647,9 +649,16 @@ export const define = <
     const observedState = getState(nextEntity);
 
     if (observedState !== transition.to) {
-      throw new Error(
-        `State machine "${name}" setState returned state "${observedState}" while transitioning from "${from}" to "${transition.to}".`,
-      );
+      throw invariantViolationError({
+        code: 'state_machine_set_state_mismatch',
+        message: `State machine "${name}" setState returned state "${observedState}" while transitioning from "${from}" to "${transition.to}".`,
+        details: {
+          machine: name,
+          from,
+          expectedState: transition.to,
+          observedState,
+        },
+      });
     }
 
     const afterInvariantError = runInvariants({
@@ -711,3 +720,4 @@ export const define = <
     isTerminal,
   });
 };
+import { invariantViolationError } from '@pressly/errors';

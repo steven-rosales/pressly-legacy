@@ -1,5 +1,6 @@
+import { notFoundError } from '@pressly/errors';
 import { result } from '@pressly/kernel';
-import { productionError } from '../failure-mapping/production.error.ts';
+import { toProductionDatabaseResult } from '../persistence/production-database-result.error.ts';
 import type { ClockPort } from '../command-execution/production-command.port.ts';
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import type {
@@ -13,23 +14,25 @@ export const makeLoadProductionBoard =
   (deps: {
     repo: LoadProductionBoardRepository;
     clock: ClockPort;
-    policy: ProductionPolicyPort;
+    policy: Pick<ProductionPolicyPort, 'evaluateStageNextAction'>;
   }): LoadProductionBoard =>
   async ({ locationId, productionRunId }) => {
     const now = deps.clock.now();
-    const projection = await deps.repo.loadBoardProjection(
-      locationId,
-      productionRunId,
-      now,
+    const loaded = await toProductionDatabaseResult(
+      'PRODUCTION_BOARD_LOAD_FAILED',
+      'The production board could not be loaded.',
+      () => deps.repo.loadBoardProjection(locationId, productionRunId, now),
     );
+    if (result.isErr(loaded)) return loaded;
+    const projection = loaded.value;
 
     if (projection === null)
       return result.err(
-        productionError(
-          'PRODUCTION_BOARD_NOT_FOUND',
-          'The production board was not found.',
-          404,
-        ),
+        notFoundError({
+          code: 'production_board_not_found',
+          message: 'The production board was not found.',
+          safeMessage: 'The production board was not found.',
+        }),
       );
 
     return result.ok(

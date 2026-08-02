@@ -6,12 +6,27 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { conflictError, invariantViolationError } from '@pressly/errors';
 import type { AdvanceProductionStageRepository } from './advance-production-stage.port.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { loadStageTransitionContext } from '../persistence/stage-transition-context.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import { completeProductionBatch } from '../persistence/complete-production-batch.ts';
 import { completeAssignedOrderStageAttempts } from '../persistence/complete-order-stage-attempts.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 export const makeAdvanceProductionStageRepository = (deps: {
   db: Database;
@@ -90,7 +105,10 @@ export const makeAdvanceProductionStageRepository = (deps: {
           (assignment) => assignment.status !== expectedAssignmentStatus,
         )
       )
-        throw new Error('Stage machine assignment state is inconsistent.');
+        throw productionInvariantViolation(
+          'production_stage_machine_assignment_state_invalid',
+          'Stage machine assignment state is inconsistent.',
+        );
 
       const updatedAssignments = await db
         .update(laundryProduction.stageMachineAssignments)
@@ -119,7 +137,10 @@ export const makeAdvanceProductionStageRepository = (deps: {
         )
         .returning({ id: laundryProduction.stageMachineAssignments.id });
       if (updatedAssignments.length !== assignments.length)
-        throw new Error('Stage machine assignments changed concurrently.');
+        throw productionConcurrencyConflict(
+          'production_stage_machine_assignment_version_conflict',
+          'Stage machine assignments changed concurrently.',
+        );
 
       const anchorsMutableQueue =
         stageLifecycle.state === 'started' && batchLifecycle?.from === 'queued';
@@ -155,7 +176,10 @@ export const makeAdvanceProductionStageRepository = (deps: {
         )
         .returning();
       if (updatedBatch === undefined)
-        throw new Error('Production batch changed during stage transition.');
+        throw productionConcurrencyConflict(
+          'production_stage_batch_version_conflict',
+          'Production batch changed during stage transition.',
+        );
 
       if (anchorsMutableQueue) {
         const [updatedRunQueue] = await db
@@ -180,7 +204,10 @@ export const makeAdvanceProductionStageRepository = (deps: {
           )
           .returning({ id: laundryProduction.productionRuns.id });
         if (updatedRunQueue === undefined)
-          throw new Error('Production run changed during stage transition.');
+          throw productionConcurrencyConflict(
+            'production_stage_run_version_conflict',
+            'Production run changed during stage transition.',
+          );
       }
 
       if (stageLifecycle.state === 'completed')
@@ -197,7 +224,10 @@ export const makeAdvanceProductionStageRepository = (deps: {
         stage.stageKind === 'folding_packaging'
       ) {
         if (terminalLifecycle === null)
-          throw new Error('Terminal lifecycle decisions are missing.');
+          throw productionInvariantViolation(
+            'production_stage_terminal_lifecycle_missing',
+            'Terminal lifecycle decisions are missing.',
+          );
         await completeProductionBatch(db, {
           locationId,
           productionBatchId: updatedBatch.id,

@@ -7,9 +7,17 @@ import {
   type DatabaseExecutor,
 } from '@pressly/db';
 import type { ProductionBootstrapManifest } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import type { ManageProductionResourcesRepository } from './manage-production-resources.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 const bootstrapEventType = 'production_resources_bootstrapped';
 
@@ -22,7 +30,10 @@ const mapStageFitAssertion = (
     assertion['washingFits'] !== true ||
     assertion['dryingFits'] !== true
   )
-    throw new Error('Stored scheduler stage-fit assertion is invalid.');
+    throw productionInvariantViolation(
+      'production_resources_stage_fit_assertion_invalid',
+      'Stored scheduler stage-fit assertion is invalid.',
+    );
   return { sortingFits: true, washingFits: true, dryingFits: true };
 };
 
@@ -178,7 +189,10 @@ export const makeManageProductionResourcesRepository = (deps: {
       for (const machine of manifest.machines) {
         const stationId = stationIdByKind.get(machine.stationKind);
         if (stationId === undefined)
-          throw new Error('Bootstrap machine station was not found.');
+          throw productionInvariantViolation(
+            'production_resources_machine_station_missing',
+            'Bootstrap machine station was not found.',
+          );
         await db
           .insert(laundryProduction.machines)
           .values({

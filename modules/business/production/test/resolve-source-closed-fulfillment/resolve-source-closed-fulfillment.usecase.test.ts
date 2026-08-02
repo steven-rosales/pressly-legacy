@@ -1,3 +1,4 @@
+import { conflictError, databaseError } from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import type {
@@ -5,7 +6,6 @@ import type {
   ChangeProductionOrderResolutionRepository,
   ProductionOrderResolutionCandidate,
 } from '../../src/change-production-order-resolution/change-production-order-resolution.port.ts';
-import { productionError } from '../../src/failure-mapping/production.error.ts';
 import { makeResolveSourceClosedFulfillment } from '../../src/change-production-order-resolution/resolve-source-closed-fulfillment.usecase.ts';
 
 const candidate = (
@@ -152,7 +152,14 @@ describe('resolve source-closed fulfillment', () => {
     'conservatively preserves work when the resolution command returns $code',
     async ({ code, reason }) => {
       const changeResolution = vi.fn<ChangeProductionOrderResolution>(
-        async () => result.err(productionError(code, 'Not safe.', 409)),
+        async () =>
+          result.err(
+            conflictError({
+              code: code.toLowerCase(),
+              message: 'Not safe.',
+              safeMessage: 'Not safe.',
+            }),
+          ),
       );
       const resolve = makeResolveSourceClosedFulfillment({
         repo: makeRepository(candidate()).repo,
@@ -167,11 +174,12 @@ describe('resolve source-closed fulfillment', () => {
   );
 
   it('keeps unexpected persistence failures as errors', async () => {
-    const failure = productionError(
-      'PRODUCTION_ORDER_RESOLUTION_CHANGE_FAILED',
-      'The order could not be changed.',
-      500,
-    );
+    const failure = databaseError({
+      code: 'production_order_resolution_change_failed',
+      message: 'The order could not be changed.',
+      safeMessage: 'The order could not be changed.',
+      status: 503,
+    });
     const resolve = makeResolveSourceClosedFulfillment({
       repo: makeRepository(candidate()).repo,
       changeResolution: vi.fn<ChangeProductionOrderResolution>(async () =>

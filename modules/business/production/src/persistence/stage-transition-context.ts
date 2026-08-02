@@ -6,11 +6,19 @@ import {
   laundryProduction,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { invariantViolationError } from '@pressly/errors';
 import type {
   StageTransitionContext,
   StoredStage,
-} from '../production-lifecycle/stage-transition.port.ts';
+} from '../production-lifecycle/stage-transition.model.ts';
 import { iso } from './production-mappers.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 const batchStatus = (
   value: string,
@@ -24,7 +32,10 @@ const batchStatus = (
     value === 'finished'
   )
     return value;
-  throw new Error(`Unknown production batch status: ${value}.`);
+  throw productionInvariantViolation(
+    'production_stage_context_batch_status_invalid',
+    `Unknown production batch status: ${value}.`,
+  );
 };
 
 const attemptStatus = (
@@ -32,7 +43,10 @@ const attemptStatus = (
 ): StageTransitionContext['attempts'][number]['status'] => {
   if (value === 'assigned' || value === 'completed' || value === 'released')
     return value;
-  throw new Error(`Unknown order-stage attempt status: ${value}.`);
+  throw productionInvariantViolation(
+    'production_stage_context_attempt_status_invalid',
+    `Unknown order-stage attempt status: ${value}.`,
+  );
 };
 
 export const loadStageTransitionContext = async (

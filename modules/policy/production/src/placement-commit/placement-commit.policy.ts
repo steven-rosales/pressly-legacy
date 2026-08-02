@@ -1,6 +1,4 @@
-import { result, type Result } from '@pressly/kernel';
-
-type Rejection = Readonly<{ code: string; message: string }>;
+import { result, type CodedFailure, type Result } from '@pressly/kernel';
 
 export type PlacementCommitInput = Readonly<{
   runStatus: string;
@@ -24,7 +22,7 @@ export type PlacementCommitInput = Readonly<{
 
 export const evaluatePlacementCommit = (
   input: PlacementCommitInput,
-): Result<Readonly<{ commit: true }>, Rejection> => {
+): Result<Readonly<{ commit: true }>, CodedFailure> => {
   if (input.runStatus !== 'started')
     return result.err({
       code: 'PRODUCTION_RUN_NOT_STARTED',

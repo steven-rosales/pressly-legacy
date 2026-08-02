@@ -1,6 +1,10 @@
 import { makeAppError } from '@pressly/errors';
 import { nullLogger } from '@pressly/logging';
-import { nullCounterSink, nullErrorReporter } from '@pressly/metrics';
+import {
+  nullCounterSink,
+  nullErrorReporter,
+  type ErrorReporter,
+} from '@pressly/metrics';
 import type { OrdersApplication, OrderOutboxEvent } from '@pressly/orders';
 import type { ProductionApplication } from '@pressly/production';
 import { describe, expect, it, vi } from 'vitest';
@@ -46,6 +50,7 @@ const setup = (input: {
   claimed?: readonly OrderOutboxEvent[];
   project?: ProductionApplication['applyFulfillmentDemand'];
   complete?: OrdersApplication['completeOutbox'];
+  errors?: ErrorReporter;
 }) => {
   const claimOutbox = vi.fn(async () => ({
     tag: 'ok' as const,
@@ -90,7 +95,7 @@ const setup = (input: {
     random: () => 0.5,
     logger: nullLogger,
     counters: nullCounterSink,
-    errors: nullErrorReporter,
+    errors: input.errors ?? nullErrorReporter,
     config: {
       workerId: 'worker-1',
       leaseMs: 30_000,
@@ -196,6 +201,38 @@ describe('order outbox projector', () => {
     });
   });
 
+  it('isolates a thrown projection failure and continues the claimed batch', async () => {
+    const first = event({ id: 'first' });
+    const second = event({ id: 'second' });
+    const apply = vi
+      .fn<ProductionApplication['applyFulfillmentDemand']>()
+      .mockRejectedValueOnce(new Error('projection crashed'))
+      .mockResolvedValueOnce({
+        tag: 'ok',
+        value: {
+          orderDemandId: '00000000-0000-4000-8000-000000000004',
+          productionOrderId: '00000000-0000-4000-8000-000000000005',
+          outcome: 'applied',
+          replayed: false,
+        },
+      });
+    const harness = setup({ claimed: [first, second], project: apply });
+
+    await expect(harness.processor.runOnce()).resolves.toBe(2);
+
+    expect(harness.retryOutbox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'first',
+        errorCode: 'unexpected_error',
+      }),
+    );
+    expect(harness.deadLetterOutbox).not.toHaveBeenCalled();
+    expect(harness.completeOutbox).toHaveBeenCalledWith({
+      eventId: 'second',
+      workerId: 'worker-1',
+    });
+  });
+
   it('dead-letters invalid durable events without retrying them', async () => {
     const invalid: OrderOutboxEvent = {
       ...event(),
@@ -231,6 +268,76 @@ describe('order outbox projector', () => {
     await expect(harness.processor.runOnce()).resolves.toBe(1);
     expect(harness.retryOutbox).not.toHaveBeenCalled();
     expect(harness.deadLetterOutbox).toHaveBeenCalledOnce();
+  });
+
+  it('reports the original structured failure when dead-lettering', async () => {
+    const rejection = makeAppError({
+      kind: 'ConflictError',
+      code: 'fulfillment_demand_diverged',
+      message: 'diagnostic divergence',
+      safeMessage: 'The fulfillment demand conflicts with committed data.',
+      status: 409,
+      cause: new Error('original cause'),
+    });
+    const capture = vi.fn();
+    const harness = setup({
+      project: async () => ({ tag: 'err', error: rejection }),
+      errors: { capture, shutdown: async () => undefined },
+    });
+
+    await expect(harness.processor.runOnce()).resolves.toBe(1);
+
+    expect(capture).toHaveBeenCalledWith(
+      rejection,
+      expect.objectContaining({ operation: 'order_outbox' }),
+    );
+    expect(harness.deadLetterOutbox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: rejection.code,
+        errorMessage: rejection.safeMessage,
+      }),
+    );
+  });
+
+  it('does not let dead-letter reporting strand later outbox work', async () => {
+    const rejection = makeAppError({
+      kind: 'ConflictError',
+      code: 'fulfillment_demand_diverged',
+      message: 'diagnostic divergence',
+      safeMessage: 'The fulfillment demand conflicts with committed data.',
+      status: 409,
+    });
+    const project = vi
+      .fn<ProductionApplication['applyFulfillmentDemand']>()
+      .mockResolvedValueOnce({ tag: 'err', error: rejection })
+      .mockResolvedValueOnce({
+        tag: 'ok',
+        value: {
+          orderDemandId: '00000000-0000-4000-8000-000000000004',
+          productionOrderId: '00000000-0000-4000-8000-000000000005',
+          outcome: 'applied',
+          replayed: false,
+        },
+      });
+    const harness = setup({
+      claimed: [event({ id: 'first' }), event({ id: 'second' })],
+      project,
+      errors: {
+        capture: () => {
+          throw new Error('reporter unavailable');
+        },
+        shutdown: async () => undefined,
+      },
+    });
+
+    await expect(harness.processor.runOnce()).resolves.toBe(2);
+    expect(harness.deadLetterOutbox).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: 'first' }),
+    );
+    expect(harness.completeOutbox).toHaveBeenCalledWith({
+      eventId: 'second',
+      workerId: 'worker-1',
+    });
   });
 
   it('dead-letters a transient failure after the configured final attempt', async () => {

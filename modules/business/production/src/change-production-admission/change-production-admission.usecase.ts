@@ -1,9 +1,12 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import type { ChangeProductionAdmissionResult } from '@pressly/contracts';
 import { result } from '@pressly/kernel';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -16,10 +19,18 @@ import type {
 } from './change-production-admission.port.ts';
 export type { ChangeProductionAdmission } from './change-production-admission.port.ts';
 
+type ChangeProductionAdmissionPolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluateProductionOrderOperationalAccess'
+  | 'evaluateProductionAdmission'
+  | 'resolveProductionOrderExecutionState'
+  | 'deriveProductionOrderOperationalStatus'
+>;
+
 export const makeChangeProductionAdmission =
   (deps: {
     repo: ChangeProductionAdmissionRepository;
-    policy: ProductionPolicyPort;
+    policy: ChangeProductionAdmissionPolicy;
     clock: ClockPort;
   }): ChangeProductionAdmission =>
   async (command) => {
@@ -34,6 +45,7 @@ export const makeChangeProductionAdmission =
           expectedVersion: command.expectedVersion,
           payload: { target: command.target },
         });
+
         const replay = resolveWorkEventReplay<ChangeProductionAdmissionResult>(
           await repo.findWorkEvent(command.idempotencyKey),
           idempotency,
@@ -43,22 +55,26 @@ export const makeChangeProductionAdmission =
         if (replay.tag === 'replay') return result.ok(replay.result);
 
         await repo.lockLocationScheduling(command.locationId);
+
         const order = await repo.lockOrder(command.locationId, command.orderId);
         if (order === null)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_NOT_FOUND',
-              'The production order was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_order_not_found',
+              message: 'The production order was not found.',
+              safeMessage: 'The production order was not found.',
+            }),
           );
 
         if (order.productionVersion !== command.expectedVersion)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_VERSION_CONFLICT',
-              'The order changed before its production admission was updated. Refresh and review the current state.',
-            ),
+            conflictError({
+              code: 'production_order_version_conflict',
+              message:
+                'The order changed before its production admission was updated. Refresh and review the current state.',
+              safeMessage:
+                'The order changed before its production admission was updated. Refresh and review the current state.',
+            }),
           );
 
         const access = deps.policy.evaluateProductionOrderOperationalAccess({
@@ -66,7 +82,11 @@ export const makeChangeProductionAdmission =
         });
         if (access.tag === 'err')
           return result.err(
-            productionError(access.error.code, access.error.message, 409),
+            conflictError({
+              code: access.error.code.toLowerCase(),
+              message: access.error.message,
+              safeMessage: access.error.message,
+            }),
           );
 
         const decision = deps.policy.evaluateProductionAdmission({
@@ -80,7 +100,11 @@ export const makeChangeProductionAdmission =
         });
         if (decision.tag === 'err')
           return result.err(
-            productionError(decision.error.code, decision.error.message, 409),
+            conflictError({
+              code: decision.error.code.toLowerCase(),
+              message: decision.error.message,
+              safeMessage: decision.error.message,
+            }),
           );
 
         const execution = deps.policy.resolveProductionOrderExecutionState({
@@ -89,16 +113,21 @@ export const makeChangeProductionAdmission =
         });
         if (execution.tag === 'err')
           return result.err(
-            productionError(execution.error.code, execution.error.message, 409),
+            conflictError({
+              code: execution.error.code.toLowerCase(),
+              message: execution.error.message,
+              safeMessage: execution.error.message,
+            }),
           );
         if (execution.value !== 'unassigned')
           return result.err(
-            productionError(
-              'PRODUCTION_ADMISSION_ALREADY_COMMITTED',
-              'This order is already committed to production.',
-              409,
-            ),
+            conflictError({
+              code: 'production_admission_already_committed',
+              message: 'This order is already committed to production.',
+              safeMessage: 'This order is already committed to production.',
+            }),
           );
+
         const nextStatus = deps.policy.deriveProductionOrderOperationalStatus({
           executionState: execution.value,
           admission: order.sourceAdmissionState,
@@ -112,11 +141,13 @@ export const makeChangeProductionAdmission =
           nextStatus !== 'eligible'
         )
           return result.err(
-            productionError(
-              'PRODUCTION_ADMISSION_STATE_INVALID',
-              'The production admission facts do not produce a usable readiness state.',
-              409,
-            ),
+            conflictError({
+              code: 'production_admission_state_invalid',
+              message:
+                'The production admission facts do not produce a usable readiness state.',
+              safeMessage:
+                'The production admission facts do not produce a usable readiness state.',
+            }),
           );
 
         const changed = await repo.changeAdmission({
@@ -130,10 +161,13 @@ export const makeChangeProductionAdmission =
         });
         if (changed === null)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_VERSION_CONFLICT',
-              'The order changed before its production admission was updated. Refresh and try again.',
-            ),
+            conflictError({
+              code: 'production_order_version_conflict',
+              message:
+                'The order changed before its production admission was updated. Refresh and try again.',
+              safeMessage:
+                'The order changed before its production admission was updated. Refresh and try again.',
+            }),
           );
 
         await repo.appendWorkEvent({
@@ -158,11 +192,14 @@ export const makeChangeProductionAdmission =
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_ADMISSION_CHANGE_FAILED',
-          'The production admission could not be changed.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_admission_change_failed',
+            message: 'The production admission could not be changed.',
+            safeMessage: 'The production admission could not be changed.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

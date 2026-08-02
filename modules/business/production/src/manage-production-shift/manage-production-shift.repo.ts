@@ -6,11 +6,26 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { conflictError, invariantViolationError } from '@pressly/errors';
 import type { ManageProductionShiftRepository } from './manage-production-shift.port.ts';
 import { asDate, mapShift } from '../persistence/production-mappers.ts';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 export const makeManageProductionShiftRepository = (deps: {
   db: Database;
@@ -64,7 +79,11 @@ export const makeManageProductionShiftRepository = (deps: {
           version: shift.version,
         })
         .returning();
-      if (row === undefined) throw new Error('Production shift insert failed.');
+      if (row === undefined)
+        throw productionInvariantViolation(
+          'production_shift_insert_return_missing',
+          'Production shift insert failed.',
+        );
       return mapShift(row);
     },
     updateShift: async ({
@@ -137,7 +156,10 @@ export const makeManageProductionShiftRepository = (deps: {
         )
         .returning({ id: laundryProduction.scheduleRuns.id });
       if (rows.length !== 1)
-        throw new Error('Current schedule revision changed unexpectedly.');
+        throw productionConcurrencyConflict(
+          'production_shift_schedule_version_conflict',
+          'Current schedule revision changed unexpectedly.',
+        );
       return rows[0]?.id ?? null;
     },
     appendWorkEvent: (event) => appendWorkEvent(db, deps.ids, event),

@@ -3,7 +3,7 @@ import { result, type Result } from '@pressly/kernel';
 import { workforceStoreFailure } from './workforce.error.ts';
 import { requireIdentifier } from './workforce-validation.policy.ts';
 import { decodeWorkforceCursor } from './workforce-pagination.policy.ts';
-import type { WorkforceActorRef, WorkforcePage } from './workforce.port.ts';
+import type { WorkforceActorRef, WorkforcePage } from './workforce.model.ts';
 import type { WorkforceClock } from './workforce-invitation.port.ts';
 import type { WorkforceMembershipStore } from './workforce-membership.port.ts';
 

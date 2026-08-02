@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { result } from '@pressly/kernel';
-import { apiFailure, apiSuccess } from '@pressly/http';
+import { apiSuccess } from '@pressly/http';
 import type { PricingChangeRequest } from '@pressly/contracts';
 import { catchAsync } from '@pressly/http/express';
 import type { PlanPricingChange } from './plan-pricing-change.usecase.ts';
@@ -23,10 +23,7 @@ export const makePlanPricingChangeController = (input: {
       requestedBy,
     });
 
-    if (result.isErr(planResult)) {
-      res.status(planResult.error.status).json(apiFailure(planResult.error));
-      return;
-    }
+    if (result.isErr(planResult)) throw planResult.error;
 
     res.status(200).json(apiSuccess(planResult.value));
   });

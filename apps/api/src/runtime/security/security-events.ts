@@ -1,6 +1,7 @@
-import { makeAppError } from '@pressly/errors';
+import { unexpectedError } from '@pressly/errors';
 import type { SecurityEvent, SecurityEventSink } from '@pressly/logging';
 import {
+  attemptObservation,
   decideObservation,
   type CounterSink,
   type ErrorReporter,
@@ -19,12 +20,10 @@ const captureSecurityAlert = (
   decision: ObservationDecision,
 ): void => {
   alerts.capture(
-    makeAppError({
-      kind: 'UnexpectedError',
+    unexpectedError({
       code: alertCode(event),
       message: `Security alert observed: ${event.name}.`,
       safeMessage: 'Security alert observed.',
-      status: 500,
       details: {
         event: event.name,
         outcome: event.outcome,
@@ -108,14 +107,20 @@ export const makeSecurityEventSink = (input: {
         thresholdReached,
       });
 
-      if (decision.alert) captureSecurityAlert(input.alerts, event, decision);
+      if (decision.alert)
+        attemptObservation(() =>
+          captureSecurityAlert(input.alerts, event, decision),
+        );
 
-      if (decision.counter !== undefined)
-        input.counters.increment(decision.counter, {
-          event: event.name,
-          outcome: event.outcome,
-          reason: decision.reason,
-        });
+      const counter = decision.counter;
+      if (counter !== undefined)
+        attemptObservation(() =>
+          input.counters.increment(counter, {
+            event: event.name,
+            outcome: event.outcome,
+            reason: decision.reason,
+          }),
+        );
     },
   };
 };

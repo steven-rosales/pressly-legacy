@@ -14,8 +14,9 @@ import {
 } from '@pressly/db';
 import {
   conflictError,
-  isAppError,
-  makeAppError,
+  databaseError,
+  invariantViolationError,
+  mapUnknownError,
   notFoundError,
   type AppError,
 } from '@pressly/errors';
@@ -30,22 +31,19 @@ type PricingSet = typeof pricing.pricingSets.$inferSelect;
 type PricingItem = typeof pricing.pricingItems.$inferSelect;
 
 const databaseFailure = (cause: unknown): AppError =>
-  makeAppError({
-    kind: 'DatabaseError',
+  databaseError({
     code: 'pricing_publish_failed',
     message: 'Failed to publish pricing change.',
     safeMessage: 'Pricing change could not be published.',
-    status: 500,
+    status: 503,
     cause,
   });
 
 const missingReturnedRow = (code: string, message: string): AppError =>
-  makeAppError({
-    kind: 'DatabaseError',
+  invariantViolationError({
     code,
     message,
     safeMessage: 'Pricing change could not be published.',
-    status: 500,
   });
 
 const pricingStateChanged = (input: {
@@ -65,7 +63,7 @@ const toDatabaseResult = async <T>(
   try {
     return result.ok(await work());
   } catch (error) {
-    return result.err(isAppError(error) ? error : databaseFailure(error));
+    return result.err(mapUnknownError(error, databaseFailure));
   }
 };
 

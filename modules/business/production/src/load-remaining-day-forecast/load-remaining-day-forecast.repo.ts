@@ -11,6 +11,7 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { invariantViolationError } from '@pressly/errors';
 import {
   calendarDateAt,
   calendarDayDistance,
@@ -27,6 +28,13 @@ import type {
   RemainingDayForecastDemandRow,
   RemainingDayForecastReadModel,
 } from './load-remaining-day-forecast.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 const parseServiceDay = (
   value: string,
@@ -80,7 +88,10 @@ const asBatchStatus = (
     case 'finished':
       return status;
     default:
-      throw new Error(`Unknown production batch status: ${status}`);
+      throw productionInvariantViolation(
+        'production_remaining_day_batch_status_invalid',
+        `Unknown production batch status: ${status}`,
+      );
   }
 };
 
@@ -94,7 +105,10 @@ const asStageKind = (
     case 'folding_packaging':
       return stageKind;
     default:
-      throw new Error(`Unknown production stage kind: ${stageKind}`);
+      throw productionInvariantViolation(
+        'production_remaining_day_stage_kind_invalid',
+        `Unknown production stage kind: ${stageKind}`,
+      );
   }
 };
 
@@ -105,7 +119,10 @@ const asShiftStatus = (status: string): 'draft' | 'open' | 'closed' => {
     case 'closed':
       return status;
     default:
-      throw new Error(`Unknown production shift status: ${status}`);
+      throw productionInvariantViolation(
+        'production_remaining_day_shift_status_invalid',
+        `Unknown production shift status: ${status}`,
+      );
   }
 };
 

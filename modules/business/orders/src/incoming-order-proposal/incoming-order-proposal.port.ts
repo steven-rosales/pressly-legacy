@@ -5,7 +5,7 @@ import type {
   DirectFulfillmentInput,
   OrderCustomer,
   OrderItemInput,
-} from '../order-model/order-model.port.ts';
+} from '../order-model/order.model.ts';
 import type {
   OrderTransactionPort,
   StoredOrderCommandReceipt,

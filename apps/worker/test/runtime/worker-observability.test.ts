@@ -1,14 +1,63 @@
 import type { Logger } from '@pressly/logging';
+import { makeAppError, isAppError } from '@pressly/errors';
 import { describe, expect, it, vi } from 'vitest';
 import {
   initializeWorkerSentry,
   makeWorkerSentryHeartbeat,
   makeWorkerSignalSinks,
   reportWorkerFailure,
+  sanitizeWorkerError,
   workerHeartbeatMonitorSlug,
 } from '../../src/runtime/observability/worker-observability.ts';
 
 describe('worker signal sinks', () => {
+  it('redacts diagnostics while preserving structured identity and cause', () => {
+    const failure = makeAppError({
+      kind: 'DatabaseError',
+      code: 'database_unavailable',
+      message: 'database secret diagnostics',
+      safeMessage: 'Storage is temporarily unavailable.',
+      status: 503,
+      cause: new Error('socket unavailable'),
+    });
+
+    const sanitized = sanitizeWorkerError(failure);
+
+    expect(isAppError(sanitized)).toBe(true);
+    expect(sanitized).toMatchObject({
+      kind: 'DatabaseError',
+      code: 'database_unavailable',
+      message: 'Storage is temporarily unavailable.',
+    });
+    expect(sanitized.cause).toBeInstanceOf(Error);
+  });
+
+  it('preserves every sanitized aggregate member', () => {
+    const aggregate = new AggregateError(
+      [
+        makeAppError({
+          kind: 'DatabaseError',
+          code: 'database_unavailable',
+          message: 'private database diagnostics',
+          safeMessage: 'Storage is temporarily unavailable.',
+          status: 503,
+        }),
+        new Error('second failure'),
+      ],
+      'two jobs failed',
+    );
+
+    const sanitized = sanitizeWorkerError(aggregate);
+
+    expect(sanitized).toBeInstanceOf(AggregateError);
+    expect((sanitized as AggregateError).errors).toHaveLength(2);
+    expect(isAppError((sanitized as AggregateError).errors[0])).toBe(true);
+    expect((sanitized as AggregateError).errors[0]).toMatchObject({
+      code: 'database_unavailable',
+      message: 'Storage is temporarily unavailable.',
+    });
+  });
+
   it('exports low-cardinality Sentry metrics and rate-limits measurements', () => {
     const info = vi.fn();
     const count = vi.fn();
@@ -184,5 +233,21 @@ describe('worker signal sinks', () => {
       }),
     );
     expect(logger.fatal).toHaveBeenCalledOnce();
+  });
+
+  it('does not let failing observation sinks escape runtime reporting', () => {
+    const fail = () => {
+      throw new Error('sink unavailable');
+    };
+
+    expect(() =>
+      reportWorkerFailure({
+        error: new Error('runtime unavailable'),
+        operation: 'worker_runtime',
+        logger: { error: fail } as unknown as Logger,
+        counters: { increment: fail },
+        errors: { capture: fail, shutdown: async () => undefined },
+      }),
+    ).not.toThrow();
   });
 });

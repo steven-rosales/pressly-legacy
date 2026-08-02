@@ -1,5 +1,6 @@
 import type { Request, RequestHandler, Response } from 'express';
 import { isAssignmentActive } from '@pressly/auth/authorization';
+import { validationError } from '@pressly/errors';
 import type { AccessControlAuthPort } from '../http/auth.port.ts';
 import type { LocationAncestryPort } from '../identity/location-ancestry.port.ts';
 import { makeProductionPolicies } from './production.policy.ts';
@@ -31,8 +32,10 @@ const readLocationId = (request: Request): string => {
   const locationId = request.params['locationId'];
 
   if (typeof locationId !== 'string' || locationId.length === 0)
-    throw Object.assign(new Error('Production location is required.'), {
+    throw validationError({
       code: 'production_location_required',
+      message: 'Production location is required.',
+      safeMessage: 'Production location is required.',
     });
 
   return locationId;

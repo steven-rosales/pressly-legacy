@@ -5,7 +5,7 @@ import {
   controlExistingInvitationPasswordRequestSchema,
   controlInvitationPreviewRequestSchema,
 } from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
+import { invariantViolationError, validationError } from '@pressly/errors';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import { Router, type RequestHandler, type Response } from 'express';
@@ -42,12 +42,10 @@ const resultValue = <Value>(
 const existingActor = (response: Response) => {
   const auth = response.locals['auth'] as LoadedControlSession;
   if (auth.principal.sessionId === undefined)
-    throw makeAppError({
-      kind: 'InvariantViolationError',
+    throw invariantViolationError({
       code: 'control_session_id_missing',
       message: 'Authenticated Control principal is missing a session ID.',
       safeMessage: 'Session could not be loaded.',
-      status: 500,
     });
   return {
     authenticatedIdentityId: auth.principal.identityId,
@@ -114,12 +112,10 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
     }
     if (loaded.value.principal.sessionId === undefined) {
       await revokeBootstrapSession(response, command.accessToken);
-      throw makeAppError({
-        kind: 'InvariantViolationError',
+      throw invariantViolationError({
         code: 'invitation_bootstrap_session_id_missing',
         message: 'Invitation bootstrap session has no session identifier.',
         safeMessage: 'Invitation could not be accepted.',
-        status: 500,
       });
     }
 
@@ -206,8 +202,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
     validateRequest({ body: acceptWorkforceInvitationRequestSchema }),
     catchAsync(async (request, response) => {
       if (request.body.identityMode !== 'new_identity')
-        throw makeAppError({
-          kind: 'ValidationError',
+        throw validationError({
           code: 'invitation_identity_mode_invalid',
           message: 'New identity acceptance requires new_identity mode.',
           safeMessage: 'Choose the correct invitation acceptance option.',
@@ -238,8 +233,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
         await input.application.previewInvitation(request.body.acceptanceToken),
       );
       if (!preview.existingIdentity)
-        throw makeAppError({
-          kind: 'ValidationError',
+        throw validationError({
           code: 'invitation_existing_identity_required',
           message:
             'Credential bootstrap was requested for a new invitation identity.',
@@ -330,8 +324,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
     validateRequest({ body: acceptWorkforceInvitationRequestSchema }),
     catchAsync(async (request, response) => {
       if (request.body.identityMode !== 'existing_identity')
-        throw makeAppError({
-          kind: 'ValidationError',
+        throw validationError({
           code: 'invitation_identity_mode_invalid',
           message:
             'Existing identity acceptance requires existing_identity mode.',

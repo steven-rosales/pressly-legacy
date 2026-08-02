@@ -22,18 +22,13 @@ export type ProductionAdmissionInput = Readonly<{
   hasActivePlacement: boolean;
 }>;
 
-export type ProductionAdmissionDecision =
-  | Readonly<{
-      tag: 'ok';
-      value: Readonly<{
-        admissionOverride: ProductionAdmissionOverride;
-        productionStatus: 'release_pending' | 'intake_pending' | 'eligible';
-      }>;
-    }>
-  | Readonly<{
-      tag: 'err';
-      error: Readonly<{ code: string; message: string }>;
-    }>;
+export type ProductionAdmissionDecision = Result<
+  Readonly<{
+    admissionOverride: ProductionAdmissionOverride;
+    productionStatus: 'release_pending' | 'intake_pending' | 'eligible';
+  }>,
+  CodedFailure
+>;
 
 const rejected = (
   code: string,
@@ -135,3 +130,4 @@ export const allowedProductionAdmissionActions = (
     actions.push('return_to_source');
   return actions;
 };
+import type { CodedFailure, Result } from '@pressly/kernel';

@@ -7,7 +7,7 @@ import type {
 import type {
   DirectOrderInput,
   OrderInput,
-} from '../order-model/order-model.port.ts';
+} from '../order-model/order.model.ts';
 import type {
   OrderCommandOperations,
   OrderTransactionPort,

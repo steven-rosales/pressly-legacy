@@ -11,7 +11,7 @@ import type {
   WorkEventInput,
 } from '../command-execution/production-command.port.ts';
 import type { Transactional } from '../persistence/production-transaction.port.ts';
-import type { ScheduleRevisionLifecycleDecision } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ScheduleRevisionLifecycleDecision } from '../production-lifecycle/production-lifecycle.model.ts';
 
 export type CreateProductionShift = (
   command: CreateProductionShiftCommand & {

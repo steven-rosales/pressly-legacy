@@ -2,7 +2,7 @@ import type {
   FulfillmentInput,
   OrderCustomer,
   OrderState,
-} from '../order-model/order-model.port.ts';
+} from '../order-model/order.model.ts';
 
 export type StoredOrderRecord = Readonly<{
   id: string;

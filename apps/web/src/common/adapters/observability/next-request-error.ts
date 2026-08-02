@@ -1,5 +1,6 @@
 import { normalizeUnknownError } from '@pressly/errors';
 import {
+  attemptObservation,
   decideObservation,
   type ErrorReporter,
   type ObservationDecision,
@@ -70,20 +71,22 @@ export const observeNextRequestError = ({
   });
 
   if (decision.report)
-    reporter.capture(appError, {
-      source: 'web',
-      operation: 'next_request_error',
-      route,
-      traceId: appError.traceId,
-      tags: {
-        reason: decision.reason,
-        error_kind: appError.kind,
-        error_code: appError.code,
-        status: String(appError.status),
-        ...(routeType === undefined ? {} : { route_type: routeType }),
-        ...(routerKind === undefined ? {} : { router_kind: routerKind }),
-      },
-    });
+    attemptObservation(() =>
+      reporter.capture(appError, {
+        source: 'web',
+        operation: 'next_request_error',
+        route,
+        traceId: appError.traceId,
+        tags: {
+          reason: decision.reason,
+          error_kind: appError.kind,
+          error_code: appError.code,
+          status: String(appError.status),
+          ...(routeType === undefined ? {} : { route_type: routeType }),
+          ...(routerKind === undefined ? {} : { router_kind: routerKind }),
+        },
+      }),
+    );
 
   return decision;
 };

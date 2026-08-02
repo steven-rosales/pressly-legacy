@@ -13,7 +13,7 @@ import {
   issueWorkforceInvitationRequestSchema,
 } from '@pressly/contracts';
 import { apiSuccess } from '@pressly/http';
-import { makeAppError } from '@pressly/errors';
+import { invariantViolationError, validationError } from '@pressly/errors';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import { Router, type RequestHandler, type Response } from 'express';
 import type {
@@ -34,12 +34,10 @@ type ControlAuthContext = Readonly<{
 const actor = (response: Response) => {
   const auth = response.locals['auth'] as ControlAuthContext;
   if (auth.principal.sessionId === undefined)
-    throw makeAppError({
-      kind: 'InvariantViolationError',
+    throw invariantViolationError({
       code: 'control_session_id_missing',
       message: 'Authenticated Control principal is missing a session ID.',
       safeMessage: 'Session could not be loaded.',
-      status: 500,
     });
   return {
     identityId: auth.principal.identityId,
@@ -80,13 +78,12 @@ const routeParams = <Value>(
   const parsed = schema.safeParse(input);
   if (parsed.success) return parsed.data;
 
-  throw makeAppError({
-    kind: 'ValidationError',
+  throw validationError({
     code: 'control_workforce_path_invalid',
     message: 'Control workforce route parameters are invalid.',
     safeMessage: 'The requested workforce resource identifier is invalid.',
     status: 422,
-    details: {
+    publicDetails: {
       location: 'params',
       issues: parsed.error.issues.map((issue) => ({
         path: issue.path.map(String).join('.'),

@@ -1,9 +1,23 @@
 import { createHash } from 'node:crypto';
 import type { FulfillmentDemandChangedEvent } from '@pressly/contracts';
 import type { Logger } from '@pressly/logging';
-import type { CounterSink, ErrorReporter } from '@pressly/metrics';
+import {
+  attemptObservation,
+  isolateCounterSink,
+  type CounterSink,
+  type ErrorReporter,
+} from '@pressly/metrics';
 import type { OrdersWorkerApplication } from '@pressly/orders';
 import type { ProductionApplication } from '@pressly/production';
+import {
+  invariantViolationError,
+  normalizeUnknownError,
+  type AppError,
+} from '@pressly/errors';
+import {
+  decideFailureDisposition,
+  isRetryableAppError,
+} from '../../runtime/failure-disposition.ts';
 import { retryDelayMs } from '../../runtime/retry.ts';
 
 const projectionHash = (value: FulfillmentDemandChangedEvent): string =>
@@ -53,6 +67,17 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
     retryMaxMs: number;
   }>;
 }) => {
+  const observe = (effect: () => void): void => {
+    attemptObservation(effect);
+  };
+  const { increment } = isolateCounterSink(deps.counters);
+  const capture: ErrorReporter['capture'] = (error, context) =>
+    observe(() => deps.errors.capture(error, context));
+  const logWarn: Logger['warn'] = (message, fields) =>
+    observe(() => deps.logger.warn(message, fields));
+  const logError: Logger['error'] = (message, fields) =>
+    observe(() => deps.logger.error(message, fields));
+
   const retry = async (input: {
     eventId: string;
     attempt: number;
@@ -74,12 +99,12 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
     });
     if (outcome.tag === 'err') throw outcome.error;
     if (!outcome.value.retried)
-      deps.logger.warn('order outbox retry discarded after lease loss', {
+      logWarn('order outbox retry discarded after lease loss', {
         eventId: input.eventId,
         workerId: deps.config.workerId,
       });
     else
-      deps.counters.increment('worker.jobs_retried', {
+      increment('worker.jobs_retried', {
         job: 'order_outbox',
         code: input.code,
       });
@@ -87,41 +112,38 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
 
   const deadLetter = async (input: {
     eventId: string;
-    code: string;
-    message: string;
+    error: AppError;
   }): Promise<void> => {
     const outcome = await deps.orders.deadLetterOutbox({
       eventId: input.eventId,
       workerId: deps.config.workerId,
-      errorCode: input.code,
-      errorMessage: input.message,
+      errorCode: input.error.code,
+      errorMessage: input.error.safeMessage,
     });
     if (outcome.tag === 'err') throw outcome.error;
     if (!outcome.value.deadLettered) {
-      deps.logger.warn('order outbox dead-letter discarded after lease loss', {
+      logWarn('order outbox dead-letter discarded after lease loss', {
         eventId: input.eventId,
         workerId: deps.config.workerId,
       });
       return;
     }
-    const error = new Error(input.message);
-    error.name = input.code;
-    deps.logger.error('order outbox event dead-lettered', {
+    logError('order outbox event dead-lettered', {
       eventId: input.eventId,
-      code: input.code,
+      code: input.error.code,
     });
-    deps.counters.increment('worker.dead_letters', {
+    increment('worker.dead_letters', {
       job: 'order_outbox',
-      code: input.code,
+      code: input.error.code,
     });
-    deps.counters.increment('worker.jobs_failed', {
+    increment('worker.jobs_failed', {
       job: 'order_outbox',
-      code: input.code,
+      code: input.error.code,
     });
-    deps.errors.capture(error, {
+    capture(input.error, {
       source: 'worker',
       operation: 'order_outbox',
-      tags: { code: input.code },
+      tags: { code: input.error.code },
       extra: { eventId: input.eventId },
     });
   };
@@ -129,15 +151,23 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
   const fail = async (input: {
     eventId: string;
     attempt: number;
-    code: string;
-    message: string;
-    retryable: boolean;
+    error: AppError;
   }): Promise<void> => {
-    if (!input.retryable || input.attempt >= deps.config.maxAttempts) {
+    const disposition = decideFailureDisposition({
+      retryable: isRetryableAppError(input.error),
+      attempt: input.attempt,
+      maxAttempts: deps.config.maxAttempts,
+    });
+    if (disposition.action === 'dead_letter') {
       await deadLetter(input);
       return;
     }
-    await retry(input);
+    await retry({
+      eventId: input.eventId,
+      attempt: input.attempt,
+      code: input.error.code,
+      message: input.error.safeMessage,
+    });
   };
 
   const complete = async (eventId: string): Promise<void> => {
@@ -147,12 +177,12 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
     });
     if (outcome.tag === 'err') throw outcome.error;
     if (!outcome.value.completed)
-      deps.logger.warn('order outbox completion discarded after lease loss', {
+      logWarn('order outbox completion discarded after lease loss', {
         eventId,
         workerId: deps.config.workerId,
       });
     else
-      deps.counters.increment('worker.jobs_completed', {
+      increment('worker.jobs_completed', {
         job: 'order_outbox',
       });
   };
@@ -171,9 +201,13 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
           await fail({
             eventId: event.id,
             attempt: event.attempts,
-            code: `order_outbox_${event.validationError}`,
-            message: 'The order outbox event is outside its durable contract.',
-            retryable: false,
+            error: invariantViolationError({
+              code: `order_outbox_${event.validationError}`,
+              message:
+                'The order outbox event is outside its durable contract.',
+              safeMessage:
+                'The order outbox event is outside its durable contract.',
+            }),
           });
           continue;
         }
@@ -183,30 +217,39 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
           continue;
         }
 
-        const projected = await deps.production.applyFulfillmentDemand({
-          fulfillmentId: demand.fulfillmentId,
-          fulfillmentVersion: demand.version,
-          projectionHash: projectionHash(demand),
-          displayReference: demand.displayNumber,
-          locationId: demand.locationId,
-          admissionState: demand.admissionState,
-          commercialState: demand.commercialState,
-          dueAt: demand.dueAt,
-          observedAt: demand.observedAt,
-          estimatedWeightLbs: demand.estimatedWeightLbs,
-          estimatedWeightSource:
-            demand.estimatedWeightLbs === null ? null : 'external_estimate',
-          bagCount: demand.bagCount,
-          idempotencyKey: `order-outbox:${event.id}`,
-        });
+        let projected: Awaited<
+          ReturnType<ProductionApplication['applyFulfillmentDemand']>
+        >;
+        try {
+          projected = await deps.production.applyFulfillmentDemand({
+            fulfillmentId: demand.fulfillmentId,
+            fulfillmentVersion: demand.version,
+            projectionHash: projectionHash(demand),
+            displayReference: demand.displayNumber,
+            locationId: demand.locationId,
+            admissionState: demand.admissionState,
+            commercialState: demand.commercialState,
+            dueAt: demand.dueAt,
+            observedAt: demand.observedAt,
+            estimatedWeightLbs: demand.estimatedWeightLbs,
+            estimatedWeightSource:
+              demand.estimatedWeightLbs === null ? null : 'external_estimate',
+            bagCount: demand.bagCount,
+            idempotencyKey: `order-outbox:${event.id}`,
+          });
+        } catch (error: unknown) {
+          await fail({
+            eventId: event.id,
+            attempt: event.attempts,
+            error: normalizeUnknownError(error),
+          });
+          continue;
+        }
         if (projected.tag === 'err') {
           await fail({
             eventId: event.id,
             attempt: event.attempts,
-            code: projected.error.code,
-            message: projected.error.safeMessage,
-            retryable:
-              projected.error.status === 429 || projected.error.status >= 500,
+            error: projected.error,
           });
           continue;
         }

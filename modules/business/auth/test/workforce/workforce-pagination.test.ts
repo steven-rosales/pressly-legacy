@@ -24,8 +24,11 @@ describe('workforce pagination cursor', () => {
     (cursor) => {
       const decoded = decodeWorkforceCursor(cursor);
       expect(decoded.tag).toBe('err');
-      if (decoded.tag === 'err')
+      if (decoded.tag === 'err') {
         expect(decoded.error.code).toBe('invalid_workforce_cursor');
+        expect(decoded.error.publicDetails).toEqual({ field: 'cursor' });
+        expect(decoded.error.details).toBeUndefined();
+      }
     },
   );
 });

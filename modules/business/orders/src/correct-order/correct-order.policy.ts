@@ -1,4 +1,4 @@
-import type { FulfillmentInput } from '../order-model/order-model.port.ts';
+import type { FulfillmentInput } from '../order-model/order.model.ts';
 import type { StoredOrderAggregate } from '../persistence/order-aggregate.port.ts';
 import {
   areOrderItemsValid,

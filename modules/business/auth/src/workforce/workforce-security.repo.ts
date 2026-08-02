@@ -22,7 +22,7 @@ import {
   strongestWorkforceRole,
 } from './workforce-authority.policy.ts';
 import { encodeWorkforceCursor } from './workforce-pagination.policy.ts';
-import type { WorkforceMemberDetail } from './workforce.port.ts';
+import type { WorkforceMemberDetail } from './workforce.model.ts';
 import {
   databaseFailure,
   toDatabaseResult,

@@ -444,10 +444,17 @@ describe('record order intake', () => {
   it('rolls back intake mutation when the audit append fails', async () => {
     const harness = makeHarness({ appendFails: true });
 
-    await expect(harness.intake(command)).resolves.toMatchObject({
+    const outcome = await harness.intake(command);
+    expect(outcome).toMatchObject({
       tag: 'err',
-      error: { code: 'production_intake_failed', status: 500 },
+      error: {
+        kind: 'DatabaseError',
+        code: 'production_intake_failed',
+        status: 503,
+      },
     });
+    if (outcome.tag === 'err')
+      expect(outcome.error.cause).toBeInstanceOf(Error);
     expect(harness.inspect()).toMatchObject({
       order: {
         productionStatus: 'release_pending',

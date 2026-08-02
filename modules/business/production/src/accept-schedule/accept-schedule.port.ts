@@ -9,7 +9,7 @@ import type {
   FindWorkEvent,
   WorkEventCommandIdentity,
 } from '../command-execution/production-command.port.ts';
-import type { ScheduleRevisionLifecycleDecision } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ScheduleRevisionLifecycleDecision } from '../production-lifecycle/production-lifecycle.model.ts';
 import type { SchedulingInput } from '../scheduling/production-scheduling.port.ts';
 import type { Transactional } from '../persistence/production-transaction.port.ts';
 

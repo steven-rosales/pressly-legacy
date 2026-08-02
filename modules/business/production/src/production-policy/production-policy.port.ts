@@ -4,7 +4,7 @@ import type { ProductionLifecyclePolicyPort } from './production-lifecycle-polic
 import type { ProductionOrderRoutingPolicyPort } from './order-routing-policy.port.ts';
 import type { ProductionPlanningPolicyPort } from './production-planning-policy.port.ts';
 
-export type { PolicyDecision } from './policy-decision.port.ts';
+export type { ProductionPolicyRejection } from './production-policy.model.ts';
 
 export type ProductionPolicyPort = ProductionLifecyclePolicyPort &
   ProductionAdmissionPolicyPort &

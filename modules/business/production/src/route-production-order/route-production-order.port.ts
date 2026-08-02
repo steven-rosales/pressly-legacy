@@ -14,7 +14,7 @@ import type { OrderRoutingStage } from '../production-policy/order-routing-polic
 import type {
   ProductionOrderExecutionState,
   ProductionOrderStageAttemptMutation,
-} from '../production-lifecycle/production-lifecycle.port.ts';
+} from '../production-lifecycle/production-lifecycle.model.ts';
 import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type ProductionOrderRoutingActor = Readonly<{

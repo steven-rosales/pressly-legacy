@@ -18,7 +18,7 @@ import type {
   OnlinePlacementProposal,
   ProductionOrderPlacementContext,
 } from '../scheduling/online-placement.port.ts';
-import type { ProductionOrderSchedulingMutation } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ProductionOrderSchedulingMutation } from '../production-lifecycle/production-lifecycle.model.ts';
 import type { Transactional } from '../persistence/production-transaction.port.ts';
 
 export type PlacementActor = Readonly<{

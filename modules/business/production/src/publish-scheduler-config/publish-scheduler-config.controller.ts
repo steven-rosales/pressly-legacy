@@ -1,7 +1,6 @@
 import type { RequestHandler } from 'express';
 import type { PublishSchedulerConfigCommand } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
-import { sendProductionResult } from '../http/production-response.ts';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { PublishSchedulerConfig } from './publish-scheduler-config.port.ts';
 
 export const makePublishSchedulerConfigController = (input: {
@@ -9,7 +8,7 @@ export const makePublishSchedulerConfigController = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.publish({
         ...(request.body as Omit<PublishSchedulerConfigCommand, 'locationId'>),

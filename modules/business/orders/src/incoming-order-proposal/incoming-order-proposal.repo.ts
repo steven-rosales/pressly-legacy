@@ -11,12 +11,14 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import {
+  conflictError,
+  invariantViolationError,
+  type AppError,
+} from '@pressly/errors';
 import type { CommandContext } from '@pressly/kernel';
 import { isOrderInputValid } from '../order-model/order-input.policy.ts';
-import type {
-  OrderCustomer,
-  OrderInput,
-} from '../order-model/order-model.port.ts';
+import type { OrderCustomer, OrderInput } from '../order-model/order.model.ts';
 import {
   createStoredPresslyOrder,
   loadOrderCommandReceipt,
@@ -96,6 +98,20 @@ const serializeSnapshot = (
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const incomingProposalInvariant = (code: string, message: string): AppError =>
+  invariantViolationError({
+    code: code.toLowerCase(),
+    message,
+    safeMessage: 'Stored incoming order data is inconsistent.',
+  });
+
+const incomingProposalConflict = (code: string, message: string): AppError =>
+  conflictError({
+    code: code.toLowerCase(),
+    message,
+    safeMessage: message,
+  });
+
 const nullableString = (value: unknown): value is string | null =>
   typeof value === 'string' || value === null;
 
@@ -114,7 +130,10 @@ const parseCustomer = (
     !nullableString(value['email']) ||
     !('normalizedPayload' in value)
   )
-    throw new Error('Stored incoming proposal customer is invalid.');
+    throw incomingProposalInvariant(
+      'INCOMING_ORDER_PROPOSAL_CUSTOMER_INVALID',
+      'Stored incoming proposal customer is invalid.',
+    );
   return {
     externalUserId: value['externalUserId'],
     firstName: value['firstName'],
@@ -133,7 +152,10 @@ const parseSnapshot = (
   sourceNormalizedPayload: unknown;
 }> => {
   if (!isObject(value) || !isObject(value['order']) || !('source' in value))
-    throw new Error('Stored incoming proposal snapshot is invalid.');
+    throw incomingProposalInvariant(
+      'INCOMING_ORDER_PROPOSAL_SNAPSHOT_INVALID',
+      'Stored incoming proposal snapshot is invalid.',
+    );
   const raw = value['order'];
   const dueAt = new Date(String(raw['dueAt']));
   if (
@@ -147,7 +169,10 @@ const parseSnapshot = (
     !Array.isArray(raw['items']) ||
     !isObject(raw['fulfillment'])
   )
-    throw new Error('Stored incoming proposal Order is invalid.');
+    throw incomingProposalInvariant(
+      'INCOMING_ORDER_PROPOSAL_ORDER_INVALID',
+      'Stored incoming proposal Order is invalid.',
+    );
   const snapshot: IncomingOrderProposalSnapshot = {
     customer: parseCustomer(raw['customer']),
     displayNumber: raw['displayNumber'],
@@ -181,7 +206,10 @@ const parseSnapshot = (
       },
     })
   )
-    throw new Error('Stored incoming proposal Order is incomplete.');
+    throw incomingProposalInvariant(
+      'INCOMING_ORDER_PROPOSAL_ORDER_INCOMPLETE',
+      'Stored incoming proposal Order is incomplete.',
+    );
   return { snapshot, sourceNormalizedPayload: value['source'] };
 };
 
@@ -202,7 +230,10 @@ const storedResolution = (
     !Number.isInteger(row.proposalVersion) ||
     row.proposalVersion <= 1
   )
-    throw new Error('Stored incoming proposal resolution is invalid.');
+    throw incomingProposalInvariant(
+      'INCOMING_ORDER_PROPOSAL_RESOLUTION_INVALID',
+      'Stored incoming proposal resolution is invalid.',
+    );
   return {
     decision: row.decision,
     proposalVersion: row.proposalVersion,
@@ -229,7 +260,10 @@ const storedProposal = (
     !Number.isInteger(proposal.version) ||
     proposal.version < 1
   )
-    throw new Error('Stored incoming proposal state is invalid.');
+    throw incomingProposalInvariant(
+      'INCOMING_ORDER_PROPOSAL_STATE_INVALID',
+      'Stored incoming proposal state is invalid.',
+    );
   const parsed = parseSnapshot(proposal.proposalSnapshot);
   return {
     id: proposal.id,
@@ -299,7 +333,10 @@ const findExactOrder = async (
       row.releaseState !== 'released' &&
       row.releaseState !== 'withdrawn')
   )
-    throw new Error('Stored canonical fulfillment is incomplete.');
+    throw incomingProposalInvariant(
+      'INCOMING_ORDER_CANONICAL_FULFILLMENT_INVALID',
+      'Stored canonical fulfillment is incomplete.',
+    );
   return {
     orderId: row.orderId,
     fulfillment: {
@@ -314,7 +351,10 @@ const storedTombstone = (
   row: NonNullable<TombstoneRow>,
 ): StoredIncomingOrderSourceTombstone => {
   if (row.terminalCode !== 'completed' && row.terminalCode !== 'canceled')
-    throw new Error('Stored incoming Order tombstone is invalid.');
+    throw incomingProposalInvariant(
+      'INCOMING_ORDER_TOMBSTONE_INVALID',
+      'Stored incoming Order tombstone is invalid.',
+    );
   return {
     source: row.source,
     externalOrderId: row.externalOrderId,
@@ -428,7 +468,10 @@ const proposalOperations = (
       })
       .returning({ proposalId: orderSchema.orderSourceProposals.id });
     if (created === undefined)
-      throw new Error('Incoming proposal insert returned no row.');
+      throw incomingProposalInvariant(
+        'INCOMING_ORDER_PROPOSAL_INSERT_RESULT_MISSING',
+        'Incoming proposal insert returned no row.',
+      );
     return created;
   },
 });
@@ -531,7 +574,8 @@ const businessIdForLocation = async (
     .where(eq(businessSchema.productionLocations.id, locationId))
     .limit(1);
   if (location === undefined)
-    throw new Error(
+    throw incomingProposalInvariant(
+      'INCOMING_ORDER_LOCATION_ANCESTRY_MISSING',
       'Incoming Order proposal location has no authoritative business ancestry.',
     );
   return location.businessId;
@@ -617,7 +661,10 @@ const appendTransition = async (
     )
     .returning({ id: orderSchema.orderSourceProposals.id });
   if (advanced === undefined)
-    throw new Error('Incoming proposal lifecycle changed concurrently.');
+    throw incomingProposalConflict(
+      'INCOMING_ORDER_PROPOSAL_VERSION_CONFLICT',
+      'The incoming order proposal changed before the transition was stored.',
+    );
   await tx.insert(orderSchema.orderSourceProposalTransitions).values({
     proposalId: input.proposalId,
     fromState: input.transition.from,
@@ -656,7 +703,10 @@ const decisionOperations = (
     if (row === undefined) return null;
     const resolution = storedResolution(row);
     if (resolution === null)
-      throw new Error('Stored proposal resolution disappeared.');
+      throw incomingProposalInvariant(
+        'INCOMING_ORDER_PROPOSAL_RESOLUTION_MISSING',
+        'Stored proposal resolution disappeared.',
+      );
     return { proposalId: row.proposalId, ...resolution };
   },
   loadCanonicalOrderCommandReceipt: (idempotencyKey) =>
@@ -740,7 +790,10 @@ const decisionOperations = (
       })
       .returning({ id: orderSchema.orderSourceLinks.id });
     if (sourceLink === undefined)
-      throw new Error('Accepted proposal source link returned no row.');
+      throw incomingProposalInvariant(
+        'INCOMING_ORDER_SOURCE_LINK_INSERT_RESULT_MISSING',
+        'Accepted proposal source link returned no row.',
+      );
     await tx.insert(orderSchema.orderSourceSnapshots).values({
       sourceLinkId: sourceLink.id,
       sourceRevisionAt: input.proposal.sourceRevisionAt,
@@ -881,7 +934,10 @@ const closeSourceOperations = (
       })
       .returning();
     if (created === undefined)
-      throw new Error('Incoming source tombstone insert returned no row.');
+      throw incomingProposalInvariant(
+        'INCOMING_ORDER_TOMBSTONE_INSERT_RESULT_MISSING',
+        'Incoming source tombstone insert returned no row.',
+      );
     return storedTombstone(created);
   },
   closeProposal: async (input) => {
@@ -931,10 +987,10 @@ const decodeCursor = (cursor: string): IncomingCursor | null => {
       typeof parsed[2] !== 'string' ||
       (parsed[0] !== 'needs_review' && parsed[0] !== 'source_closed')
     )
-      throw new Error('shape');
+      return null;
     const observedAt = new Date(parsed[1]);
     if (!Number.isFinite(observedAt.getTime()) || parsed[2].trim() === '')
-      throw new Error('value');
+      return null;
     return { view: parsed[0], observedAt, id: parsed[2] };
   } catch {
     return null;

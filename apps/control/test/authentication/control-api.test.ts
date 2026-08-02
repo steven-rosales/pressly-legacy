@@ -3,6 +3,8 @@ import {
   ControlApiError,
   makeControlAuthenticationApi,
 } from "@/authentication/control-api"
+import { makeControlHttpClient } from "@/api/control-http-client"
+import { z } from "zod"
 
 const session = {
   status: "authenticated" as const,
@@ -53,6 +55,65 @@ describe("Control authentication API", () => {
     )
   })
 
+  it("accepts canonical success metadata", async () => {
+    const api = makeControlAuthenticationApi({
+      fetchImplementation: vi.fn<typeof fetch>().mockResolvedValue(
+        jsonResponse({
+          ok: true,
+          data: session,
+          meta: { source: "session" },
+        }),
+      ),
+    })
+
+    await expect(api.restore()).resolves.toEqual(session)
+  })
+
+  it("rejects success envelopes carried by unsuccessful HTTP statuses", async () => {
+    const response = new Response(JSON.stringify({ ok: true, data: session }), {
+      status: 409,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Request-Id": "mismatched-status-request",
+      },
+    })
+    const api = makeControlAuthenticationApi({
+      fetchImplementation: vi.fn<typeof fetch>().mockResolvedValue(response),
+    })
+
+    await expect(api.restore()).rejects.toMatchObject({
+      status: 502,
+      kind: "unreadable_response",
+      code: "control_status_envelope_mismatch",
+      traceId: "mismatched-status-request",
+    })
+  })
+
+  it("classifies local body encoding failures before transport", async () => {
+    const fetchImplementation = vi.fn<typeof fetch>()
+    const client = makeControlHttpClient({ fetchImplementation })
+
+    await expect(
+      client.request(
+        {
+          method: "POST",
+          path: "/example",
+          body: { value: 1n },
+        },
+        z.unknown(),
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      kind: "invalid_request",
+      code: "control_request_body_not_serializable",
+      cause: expect.objectContaining({
+        kind: "ValidationError",
+        cause: expect.any(TypeError),
+      }),
+    })
+    expect(fetchImplementation).not.toHaveBeenCalled()
+  })
+
   it("rejects malformed envelopes before parsing session data", async () => {
     const api = makeControlAuthenticationApi({
       fetchImplementation: vi
@@ -89,6 +150,55 @@ describe("Control authentication API", () => {
         code: "AUTH_INVALID_CREDENTIALS",
       }),
     )
+  })
+
+  it("rejects incomplete failure envelopes and preserves request references", async () => {
+    const response = new Response(
+      JSON.stringify({ ok: false, error: { code: "INCOMPLETE" } }),
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Request-Id": "request-control-123",
+        },
+      },
+    )
+    const api = makeControlAuthenticationApi({
+      fetchImplementation: vi.fn<typeof fetch>().mockResolvedValue(response),
+    })
+
+    await expect(api.restore()).rejects.toMatchObject({
+      kind: "unreadable_response",
+      traceId: "request-control-123",
+      cause: expect.any(Error),
+    })
+  })
+
+  it("falls back to the response request ID for canonical API failures", async () => {
+    const response = new Response(
+      JSON.stringify({
+        ok: false,
+        error: {
+          code: "AUTH_INVALID_CREDENTIALS",
+          message: "The email or password is incorrect.",
+        },
+      }),
+      {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Request-Id": "request-control-456",
+        },
+      },
+    )
+    const api = makeControlAuthenticationApi({
+      fetchImplementation: vi.fn<typeof fetch>().mockResolvedValue(response),
+    })
+
+    await expect(api.restore()).rejects.toMatchObject({
+      traceId: "request-control-456",
+      cause: expect.objectContaining({ tag: "AppError" }),
+    })
   })
 
   it("sends the in-memory CSRF token when signing out", async () => {

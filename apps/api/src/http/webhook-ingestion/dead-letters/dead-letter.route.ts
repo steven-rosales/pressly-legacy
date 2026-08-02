@@ -5,23 +5,10 @@ import {
   type DeadWebhookEventsQuery,
   type ReplayDeadWebhookEventRequest,
 } from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
-import { apiFailure, apiSuccess } from '@pressly/http';
+import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import type { WebhookIngestionApplication } from '@pressly/webhook-ingestion';
-import { Router, type RequestHandler, type Response } from 'express';
-
-type ApiResult<T> =
-  | Readonly<{ tag: 'ok'; value: T }>
-  | Readonly<{ tag: 'err'; error: AppError }>;
-
-const send = <T>(response: Response, value: ApiResult<T>): void => {
-  if (value.tag === 'err') {
-    response.status(value.error.status).json(apiFailure(value.error));
-    return;
-  }
-  response.json(apiSuccess(value.value));
-};
+import { Router, type RequestHandler } from 'express';
 
 export const makeWebhookIngestionRoutes = (input: {
   application: Pick<
@@ -39,12 +26,11 @@ export const makeWebhookIngestionRoutes = (input: {
     validateRequest({ query: deadWebhookEventsQuerySchema }),
     input.authorize,
     catchAsync(async (request, response) => {
-      send(
-        response,
-        await input.application.listDeadEvents(
-          request.query as unknown as DeadWebhookEventsQuery,
-        ),
+      const result = await input.application.listDeadEvents(
+        request.query as unknown as DeadWebhookEventsQuery,
       );
+      if (result.tag === 'err') throw result.error;
+      response.json(apiSuccess(result.value));
     }),
   );
 
@@ -57,13 +43,12 @@ export const makeWebhookIngestionRoutes = (input: {
     }),
     input.authorize,
     catchAsync(async (request, response) => {
-      send(
-        response,
-        await input.application.replayDeadEvent({
-          eventId: request.params['eventId'] as string,
-          ...(request.body as ReplayDeadWebhookEventRequest),
-        }),
-      );
+      const result = await input.application.replayDeadEvent({
+        eventId: request.params['eventId'] as string,
+        ...(request.body as ReplayDeadWebhookEventRequest),
+      });
+      if (result.tag === 'err') throw result.error;
+      response.json(apiSuccess(result.value));
     }),
   );
   return router;

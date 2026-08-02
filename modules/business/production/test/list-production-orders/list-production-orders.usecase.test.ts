@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import { externalServiceError } from '@pressly/errors';
 import {
   decodeProductionOrderCursor,
   encodeProductionOrderCursor,
-  mapProductionOrderListItem,
-} from '../../src/list-production-orders/list-production-orders.mapper.ts';
+} from '../../src/list-production-orders/production-order-cursor.mapper.ts';
+import { mapProductionOrderListItem } from '../../src/persistence/production-order-list-item.ts';
 import type { ListProductionOrdersRepository } from '../../src/list-production-orders/list-production-orders.port.ts';
 import { makeListProductionOrders } from '../../src/list-production-orders/list-production-orders.usecase.ts';
 
@@ -14,10 +15,46 @@ const command = {
   limit: 50,
 } as const;
 
+const captureThrown = (work: () => unknown): unknown => {
+  try {
+    work();
+  } catch (error) {
+    return error;
+  }
+  throw new Error('Expected work to throw.');
+};
+
 const setup = (repo: ListProductionOrdersRepository) =>
   makeListProductionOrders({ repo, clock: { now: () => fixedNow } });
 
 describe('list production orders', () => {
+  it('classifies repository failures and preserves existing application errors', async () => {
+    const cause = new Error('database unavailable');
+    const failed = setup({ listOrders: vi.fn().mockRejectedValue(cause) });
+
+    const failure = await failed(command);
+    expect(failure).toMatchObject({
+      tag: 'err',
+      error: {
+        kind: 'DatabaseError',
+        code: 'production_order_list_failed',
+        status: 503,
+      },
+    });
+    if (failure.tag === 'err') expect(failure.error.cause).toBe(cause);
+
+    const existing = externalServiceError({
+      code: 'production_read_dependency_unavailable',
+      message: 'Read dependency unavailable.',
+      status: 502,
+    });
+    const preserved = setup({
+      listOrders: vi.fn().mockRejectedValue(existing),
+    });
+    const preservedFailure = await preserved(command);
+    expect(preservedFailure).toEqual({ tag: 'err', error: existing });
+  });
+
   it('returns a location-scoped page without sibling orders', async () => {
     const listOrders = vi.fn(async (received) => ({
       tag: 'found' as const,
@@ -154,14 +191,27 @@ describe('production order read mapping', () => {
   });
 
   it('rejects persistence states that fabricate or lose intake truth', () => {
-    expect(() =>
+    const missingIntake = captureThrown(() =>
       mapProductionOrderListItem(
         { ...row, status: 'eligible' },
         fixedNow,
         'America/New_York',
       ),
-    ).toThrow(/missing bag intake/i);
-    expect(() =>
+    );
+    expect(missingIntake).toMatchObject({
+      tag: 'AppError',
+      kind: 'InvariantViolationError',
+      code: 'production_bag_intake_state_invalid',
+      message: 'A non-pending order is missing bag intake.',
+      safeMessage: 'Stored production order data is inconsistent.',
+      status: 500,
+      details: { status: 'eligible', bagCount: null },
+    });
+    expect((missingIntake as { publicDetails?: unknown }).publicDetails).toBe(
+      undefined,
+    );
+
+    const mismatchedProvenance = captureThrown(() =>
       mapProductionOrderListItem(
         {
           ...row,
@@ -172,7 +222,16 @@ describe('production order read mapping', () => {
         fixedNow,
         'America/New_York',
       ),
-    ).toThrow(/provenance/i);
+    );
+    expect(mismatchedProvenance).toMatchObject({
+      tag: 'AppError',
+      kind: 'InvariantViolationError',
+      code: 'production_bag_count_state_invalid',
+      message: 'Bag count and provenance disagree in persistence.',
+      safeMessage: 'Stored production order data is inconsistent.',
+      status: 500,
+      details: { bagCount: 2, bagCountProvenance: null },
+    });
   });
 
   it('encodes an opaque stable cursor and rejects malformed cursors', () => {

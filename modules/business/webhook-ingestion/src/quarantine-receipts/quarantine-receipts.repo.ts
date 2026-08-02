@@ -6,7 +6,15 @@ import {
   webhookIngestion,
   type Database,
 } from '@pressly/db';
+import { invariantViolationError, type AppError } from '@pressly/errors';
 import type { QuarantineWebhookReceiptsRepository } from './quarantine-receipts.port.ts';
+
+const quarantineInvariant = (code: string, message: string): AppError =>
+  invariantViolationError({
+    code: code.toLowerCase(),
+    message,
+    safeMessage: 'Stored webhook quarantine data is inconsistent.',
+  });
 
 export const makeQuarantineWebhookReceiptsRepository = (
   db: Database,
@@ -65,14 +73,20 @@ export const makeQuarantineWebhookReceiptsRepository = (
       )
       .limit(1);
     if (existing === undefined)
-      throw new Error('Webhook quarantine insert raced and vanished.');
+      throw quarantineInvariant(
+        'WEBHOOK_QUARANTINE_INSERT_RESULT_MISSING',
+        'Webhook quarantine insert raced and vanished.',
+      );
     if (
       existing.eventType !== command.eventType ||
       existing.normalizationOutcome !== command.normalization.outcome ||
       existing.normalizationErrorCode !==
         (rejected ? command.normalization.errorCode : null)
     )
-      throw new Error('Duplicate webhook quarantine receipt diverged.');
+      throw quarantineInvariant(
+        'WEBHOOK_QUARANTINE_DUPLICATE_DIVERGED',
+        'Duplicate webhook quarantine receipt diverged.',
+      );
     return { receiptId: existing.id, duplicate: true };
   },
 

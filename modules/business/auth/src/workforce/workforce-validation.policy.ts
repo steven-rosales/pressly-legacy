@@ -12,7 +12,7 @@ export const invalidWorkforceInput = (
     code: `invalid_workforce_${field}`,
     message,
     safeMessage: 'Review the highlighted workforce information.',
-    details: { field },
+    publicDetails: { field },
   });
 
 export const requireIdentifier = (

@@ -51,6 +51,35 @@ const request = (locationId: string, bodyLocationId = 'spoofed-location') =>
   }) as unknown as Request;
 
 describe('production access-control guard', () => {
+  it('reports a missing route location as a validation error', async () => {
+    const recorder = makeAuthorizeRecorder();
+    makeProductionAccessControl({
+      auth: {
+        authenticate: vi.fn() as unknown as RequestHandler,
+        authorize: recorder.authorize,
+        readPrincipal: vi.fn(() => principal),
+      },
+      locationAncestry: {
+        resolveBusinessId: vi.fn(async () => 'canonical-business'),
+        listLocationIdsForBusinesses: vi.fn(async () => []),
+      },
+    });
+    const readCall = recorder.calls.find(
+      (call) => call.action === 'production:read',
+    );
+    if (readCall === undefined)
+      throw new Error('Production read guard missing.');
+
+    await expect(
+      readCall.readResource(request(''), { locals: {} } as Response),
+    ).rejects.toMatchObject({
+      tag: 'AppError',
+      kind: 'ValidationError',
+      code: 'production_location_required',
+      status: 400,
+    });
+  });
+
   it('awaits canonical ancestry and ignores body-provided location claims', async () => {
     const recorder = makeAuthorizeRecorder();
     let resolveBusiness: ((businessId: string) => void) | undefined;

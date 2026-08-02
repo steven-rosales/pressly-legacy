@@ -1,10 +1,17 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+  validationError,
+} from '@pressly/errors';
 import { isCommandContextValid, result } from '@pressly/kernel';
 import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
 import type { OrderClockPort } from '../command-execution/order-command.port.ts';
 import { isOrderCommandReasonValid } from '../command-execution/order-command-reason.policy.ts';
-import { orderError } from '../failure-mapping/order.error.ts';
+
 import { isOrderInputValid } from '../order-model/order-input.policy.ts';
-import type { OrderInput } from '../order-model/order-model.port.ts';
+import type { OrderInput } from '../order-model/order.model.ts';
 import type { CreateOrder } from './create-order.port.ts';
 import type { CreateOrderRepository } from './create-order.port.ts';
 import { createOrderReasonCodes } from './create-order.policy.ts';
@@ -39,7 +46,11 @@ export const makeCreateOrder =
       !isOrderInputValid(canonicalOrder)
     )
       return result.err(
-        orderError('ORDER_CREATE_INVALID', 'The order is incomplete.', 400),
+        validationError({
+          code: 'order_create_invalid',
+          message: 'The order is incomplete.',
+          safeMessage: 'The order is incomplete.',
+        }),
       );
     try {
       const commandHash = hashOrderCommand(command);
@@ -86,25 +97,32 @@ export const makeCreateOrder =
       if (outcome.kind === 'ok') return result.ok(outcome.value);
       if (outcome.kind === 'reference_not_found')
         return result.err(
-          orderError(
-            'ORDER_REFERENCE_NOT_FOUND',
-            'The selected customer or fulfillment location was not found.',
-            404,
-          ),
+          notFoundError({
+            code: 'order_reference_not_found',
+            message:
+              'The selected customer or fulfillment location was not found.',
+            safeMessage:
+              'The selected customer or fulfillment location was not found.',
+          }),
         );
       return result.err(
-        orderError(
-          'ORDER_IDEMPOTENCY_CONFLICT',
-          'The idempotency key belongs to a different order command.',
-        ),
+        conflictError({
+          code: 'order_idempotency_conflict',
+          message: 'The idempotency key belongs to a different order command.',
+          safeMessage:
+            'The idempotency key belongs to a different order command.',
+        }),
       );
     } catch (error) {
       return result.err(
-        orderError(
-          'ORDER_CREATE_FAILED',
-          'The order could not be created.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'order_create_failed',
+            message: 'The order could not be created.',
+            safeMessage: 'The order could not be created.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

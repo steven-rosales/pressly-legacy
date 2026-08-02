@@ -133,7 +133,7 @@ describe('bootstrap owner', () => {
 
     const error = expectErrCode(actual, 'weak_bootstrap_owner_password');
 
-    expect(error.details).toEqual({
+    expect(error.publicDetails).toEqual({
       violations: expect.arrayContaining([
         'password_too_short',
         'password_requires_uppercase',
@@ -141,6 +141,7 @@ describe('bootstrap owner', () => {
         'password_requires_symbol',
       ]),
     });
+    expect(error.details).toBeUndefined();
     expect(calls.hash).toEqual([]);
     expect(calls.createFirstOwner).toEqual([]);
   });

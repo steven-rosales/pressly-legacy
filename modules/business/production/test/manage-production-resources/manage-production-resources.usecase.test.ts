@@ -168,6 +168,27 @@ describe('production resource bootstrap', () => {
     expect(applyResources).toHaveBeenCalledOnce();
   });
 
+  it('rejects a machine whose station is absent from the manifest', async () => {
+    const desired = manifest();
+    const invalid: ProductionBootstrapManifest = {
+      ...desired,
+      stations: desired.stations.filter(
+        (station) => station.kind !== 'washing',
+      ),
+    };
+    const { manage, applyResources } = setup();
+
+    await expect(manage(command(false, invalid))).resolves.toMatchObject({
+      tag: 'err',
+      error: {
+        kind: 'ValidationError',
+        code: 'production_bootstrap_machine_station_missing',
+        status: 400,
+      },
+    });
+    expect(applyResources).not.toHaveBeenCalled();
+  });
+
   it('rejects removal and deactivation instead of mutating inventory', async () => {
     const desired = manifest();
     const existing: StoredProductionResources = {

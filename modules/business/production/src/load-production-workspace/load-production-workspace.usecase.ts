@@ -1,5 +1,6 @@
+import { conflictError, notFoundError } from '@pressly/errors';
 import { result } from '@pressly/kernel';
-import { productionError } from '../failure-mapping/production.error.ts';
+import { toProductionDatabaseResult } from '../persistence/production-database-result.error.ts';
 import type { ClockPort } from '../command-execution/production-command.port.ts';
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
 import type { ProductionSchedulerPort } from '../scheduling/production-scheduler.port.ts';
@@ -22,27 +23,31 @@ export const makeLoadProductionWorkspace =
     >;
   }): LoadProductionWorkspace =>
   async ({ locationId, shiftId }) => {
-    const workspace = await deps.repo.loadWorkspace(
-      locationId,
-      shiftId,
-      deps.clock.now(),
+    const loaded = await toProductionDatabaseResult(
+      'PRODUCTION_WORKSPACE_LOAD_FAILED',
+      'The production workspace could not be loaded.',
+      () => deps.repo.loadWorkspace(locationId, shiftId, deps.clock.now()),
     );
+    if (result.isErr(loaded)) return loaded;
+    const workspace = loaded.value;
 
     if (workspace === null)
       return result.err(
-        productionError(
-          'PRODUCTION_LOCATION_NOT_FOUND',
-          'The active production location was not found.',
-          404,
-        ),
+        notFoundError({
+          code: 'production_location_not_found',
+          message: 'The active production location was not found.',
+          safeMessage: 'The active production location was not found.',
+        }),
       );
     if (workspace === 'shift_not_found')
       return result.err(
-        productionError(
-          'PRODUCTION_SHIFT_NOT_FOUND',
-          'The requested production shift was not found at this location.',
-          404,
-        ),
+        notFoundError({
+          code: 'production_shift_not_found',
+          message:
+            'The requested production shift was not found at this location.',
+          safeMessage:
+            'The requested production shift was not found at this location.',
+        }),
       );
     if (workspace.livePlacement !== null) {
       const projectedRun = workspace.livePlacement.runContext.input.run;
@@ -62,11 +67,13 @@ export const makeLoadProductionWorkspace =
         );
       if (!identityIsCurrent)
         return result.err(
-          productionError(
-            'PRODUCTION_LIVE_PLACEMENT_RUN_MISMATCH',
-            'The live-placement projection does not match the selected started run.',
-            409,
-          ),
+          conflictError({
+            code: 'production_live_placement_run_mismatch',
+            message:
+              'The live-placement projection does not match the selected started run.',
+            safeMessage:
+              'The live-placement projection does not match the selected started run.',
+          }),
         );
     }
     return result.ok({

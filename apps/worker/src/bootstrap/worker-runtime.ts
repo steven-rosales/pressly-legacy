@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { Logger } from '@pressly/logging';
-import type {
-  CounterSink,
-  ErrorReporter,
-  MeasurementSink,
+import { redactLogFields, type Logger, type LogFields } from '@pressly/logging';
+import {
+  attemptObservation,
+  type CounterSink,
+  type ErrorReporter,
+  type MeasurementSink,
 } from '@pressly/metrics';
 import { makeFileHeartbeat } from '../runtime/heartbeat.js';
 import type { WorkerConfig } from '../runtime/env.js';
@@ -23,18 +24,22 @@ export const runWorker = async (input: {
   errors: ErrorReporter;
 }): Promise<void> => {
   if (!input.config.features.jobsEnabled) {
-    input.logger.warn('worker jobs disabled', {
-      environment: input.config.nodeEnv,
-    });
+    attemptObservation(() =>
+      input.logger.warn('worker jobs disabled', {
+        environment: input.config.nodeEnv,
+      }),
+    );
     return;
   }
 
   const workerId = randomUUID();
-  input.logger.info('worker starting', {
-    workerId,
-    pollIntervalMs: input.config.jobs.pollIntervalMs,
-    batchSize: input.config.jobs.batchSize,
-  });
+  attemptObservation(() =>
+    input.logger.info('worker starting', {
+      workerId,
+      pollIntervalMs: input.config.jobs.pollIntervalMs,
+      batchSize: input.config.jobs.batchSize,
+    }),
+  );
 
   const jobs = composeWorkerJobs({
     databaseUrl: input.config.databaseUrl,
@@ -47,6 +52,8 @@ export const runWorker = async (input: {
   });
   const lifecycle = startWorkerLifecycle(input.logger);
 
+  let failed = false;
+  let primaryError: unknown;
   try {
     await runWorkerLoop({
       job: jobs.job,
@@ -72,21 +79,42 @@ export const runWorker = async (input: {
             extra: { consecutiveFailures, retryDelayMs },
           });
         else {
-          input.counters.increment('worker.loop_failures', {
-            operation: 'worker_loop',
-          });
+          attemptObservation(() =>
+            input.counters.increment('worker.loop_failures', {
+              operation: 'worker_loop',
+            }),
+          );
           if ((consecutiveFailures & (consecutiveFailures - 1)) === 0)
-            input.logger.warn('worker loop remains unavailable', {
-              consecutiveFailures,
-              retryDelayMs,
-            });
+            attemptObservation(() =>
+              input.logger.warn('worker loop remains unavailable', {
+                consecutiveFailures,
+                retryDelayMs,
+              }),
+            );
         }
       },
     });
-  } finally {
-    lifecycle.dispose();
-    await jobs.close();
+  } catch (error: unknown) {
+    failed = true;
+    primaryError = error;
   }
 
-  input.logger.info('worker stopped', { reason: 'shutdown_requested' });
+  lifecycle.dispose();
+  try {
+    await jobs.close();
+  } catch (error: unknown) {
+    if (!failed) throw error;
+    attemptObservation(() =>
+      input.logger.error(
+        'worker cleanup failed after runtime failure',
+        redactLogFields({ error }) as LogFields,
+      ),
+    );
+  }
+
+  if (failed) throw primaryError;
+
+  attemptObservation(() =>
+    input.logger.info('worker stopped', { reason: 'shutdown_requested' }),
+  );
 };

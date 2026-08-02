@@ -1,13 +1,25 @@
 export {
+  errorKinds,
+  httpStatusCodes,
   isAppError,
+  isErrorKind,
+  isHttpStatusCode,
+  mapUnknownError,
   makeAppError,
   normalizeUnknownError,
 } from './app-error.js';
 
 export {
+  authError,
+  configError,
   conflictError,
+  databaseError,
+  externalServiceError,
+  invariantViolationError,
   notFoundError,
   permissionError,
+  rateLimitError,
+  unexpectedError,
   validationError,
 } from './factories.js';
 
@@ -20,3 +32,12 @@ export type {
   HttpStatusCode,
   MakeAppErrorInput,
 } from './app-error.js';
+
+export type {
+  AppErrorFactoryInput,
+  DatabaseErrorStatus,
+  ExternalServiceErrorStatus,
+  ValidationErrorStatus,
+} from './factories.js';
+
+export type { PresentAppErrorOptions } from './presentation.js';

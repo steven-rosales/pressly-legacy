@@ -3,7 +3,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 import { revealSecret } from '@pressly/config';
-import { nullMeasurementSink } from '@pressly/metrics';
+import { attemptObservation, nullMeasurementSink } from '@pressly/metrics';
 import { makeErrorHandler } from '../http/middleware/error.middleware.ts';
 import { makeNotFoundHandler } from '../http/middleware/not-found.middleware.ts';
 import { makeRequestContext } from '../http/middleware/request-context.middleware.ts';
@@ -116,9 +116,11 @@ export const makeApiApp = (
     overrides.centsWebhookVerifier === undefined &&
     runtime.env.centsWebhook.authMode === 'unsigned'
   )
-    runtime.logger.warn(
-      'Cents webhook authentication is disabled by configuration.',
-      { route: '/webhooks/cents', authMode: 'unsigned' },
+    attemptObservation(() =>
+      runtime.logger.warn(
+        'Cents webhook authentication is disabled by configuration.',
+        { route: '/webhooks/cents', authMode: 'unsigned' },
+      ),
     );
 
   app.disable('x-powered-by');
@@ -126,7 +128,7 @@ export const makeApiApp = (
 
   app.use(helmet());
   app.use(cors(makeCorsOptions(runtime.env.corsOrigin, runtime.env.nodeEnv)));
-  app.use(makeRequestContext(runtime.logger));
+  app.use(makeRequestContext());
   app.use(
     makeApiRequestMetrics({
       counters: runtime.observability.counters,

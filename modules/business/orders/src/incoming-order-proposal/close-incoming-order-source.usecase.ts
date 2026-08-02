@@ -1,7 +1,12 @@
+import {
+  databaseError,
+  mapUnknownError,
+  validationError,
+} from '@pressly/errors';
 import { isCommandContextValid, result } from '@pressly/kernel';
 import { hashOrderCommand } from '../command-execution/order-command-idempotency.policy.ts';
 import type { OrderClockPort } from '../command-execution/order-command.port.ts';
-import { orderError } from '../failure-mapping/order.error.ts';
+import { orderInvariantError } from '../order-model/order-invariant.error.ts';
 import { decideIncomingOrderProposal } from './incoming-order-proposal.policy.ts';
 import type { CloseIncomingOrderSource } from './incoming-order-proposal.port.ts';
 import type { CloseIncomingOrderSourceRepository } from './incoming-order-proposal.port.ts';
@@ -29,11 +34,11 @@ export const makeCloseIncomingOrderSource = (deps: {
   return async (command) => {
     if (!commandValid(command))
       return result.err(
-        orderError(
-          'INCOMING_ORDER_SOURCE_CLOSE_INVALID',
-          'The incoming source-terminal observation is invalid.',
-          400,
-        ),
+        validationError({
+          code: 'incoming_order_source_close_invalid',
+          message: 'The incoming source-terminal observation is invalid.',
+          safeMessage: 'The incoming source-terminal observation is invalid.',
+        }),
       );
 
     try {
@@ -116,7 +121,8 @@ export const makeCloseIncomingOrderSource = (deps: {
           decision.from !== 'pending' ||
           decision.to !== 'source_closed'
         )
-          throw new Error(
+          throw orderInvariantError(
+            'INCOMING_ORDER_SOURCE_CLOSE_GRAPH_STATE_INVALID',
             'Incoming candidate graph denied a valid source-close transition.',
           );
         return operations.closeProposal({
@@ -136,11 +142,15 @@ export const makeCloseIncomingOrderSource = (deps: {
       return result.ok(value);
     } catch (error) {
       return result.err(
-        orderError(
-          'INCOMING_ORDER_SOURCE_CLOSE_FAILED',
-          'The source-terminal observation could not be recorded.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'incoming_order_source_close_failed',
+            message: 'The source-terminal observation could not be recorded.',
+            safeMessage:
+              'The source-terminal observation could not be recorded.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

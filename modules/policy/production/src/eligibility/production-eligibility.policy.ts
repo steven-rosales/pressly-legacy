@@ -1,4 +1,4 @@
-import { result, type Result } from '@pressly/kernel';
+import { result, type CodedFailure, type Result } from '@pressly/kernel';
 
 type EligibilityDemandPhase =
   | 'expected'
@@ -7,10 +7,7 @@ type EligibilityDemandPhase =
   | 'post_production'
   | 'withdrawn';
 
-export type ProductionPolicyRejection = Readonly<{
-  code: string;
-  message: string;
-}>;
+export type ProductionPolicyRejection = CodedFailure;
 
 export type EligibilityInput = Readonly<{
   phase: EligibilityDemandPhase;

@@ -1,12 +1,16 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+  validationError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import type {
   ProductionShift,
   UpdateProductionShiftResult,
 } from '@pressly/contracts';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -32,16 +36,17 @@ export const makeCreateProductionShift =
     repo: ManageProductionShiftRepository;
     clock: ClockPort;
     ids: IdPort;
-    policy: ProductionPolicyPort;
+    policy: Pick<ProductionPolicyPort, 'initialProductionShiftState'>;
   }): CreateProductionShift =>
   async (command) => {
     if (Date.parse(command.endsAt) <= Date.parse(command.startsAt))
       return result.err(
-        productionError(
-          'PRODUCTION_SHIFT_WINDOW_INVALID',
-          'Shift end must be after shift start.',
-          422,
-        ),
+        validationError({
+          code: 'production_shift_window_invalid',
+          message: 'Shift end must be after shift start.',
+          safeMessage: 'Shift end must be after shift start.',
+          status: 422,
+        }),
       );
 
     try {
@@ -93,11 +98,14 @@ export const makeCreateProductionShift =
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_SHIFT_CREATE_FAILED',
-          'The production shift could not be created.',
-          409,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_shift_create_failed',
+            message: 'The production shift could not be created.',
+            safeMessage: 'The production shift could not be created.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }
@@ -125,17 +133,18 @@ const changedShiftFields = (
 export const makeUpdateProductionShift = (deps: {
   repo: ManageProductionShiftRepository;
   clock: ClockPort;
-  policy: ProductionPolicyPort;
+  policy: Pick<ProductionPolicyPort, 'evaluateScheduleRevisionTransition'>;
   signals?: ProductionSignalsPort;
 }): UpdateProductionShift =>
   async function updateProductionShift(command) {
     if (Date.parse(command.endsAt) <= Date.parse(command.startsAt))
       return result.err(
-        productionError(
-          'PRODUCTION_SHIFT_WINDOW_INVALID',
-          'Shift end must be after shift start.',
-          422,
-        ),
+        validationError({
+          code: 'production_shift_window_invalid',
+          message: 'Shift end must be after shift start.',
+          safeMessage: 'Shift end must be after shift start.',
+          status: 422,
+        }),
       );
 
     try {
@@ -178,25 +187,29 @@ export const makeUpdateProductionShift = (deps: {
         );
         if (current === null)
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_NOT_FOUND',
-              'The production shift was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_shift_not_found',
+              message: 'The production shift was not found.',
+              safeMessage: 'The production shift was not found.',
+            }),
           );
         if (current.version !== command.expectedVersion)
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_VERSION_CONFLICT',
-              'The production shift changed before it could be updated.',
-            ),
+            conflictError({
+              code: 'production_shift_version_conflict',
+              message:
+                'The production shift changed before it could be updated.',
+              safeMessage:
+                'The production shift changed before it could be updated.',
+            }),
           );
         if (current.status === 'closed')
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_CLOSED',
-              'A closed production shift cannot be updated.',
-            ),
+            conflictError({
+              code: 'production_shift_closed',
+              message: 'A closed production shift cannot be updated.',
+              safeMessage: 'A closed production shift cannot be updated.',
+            }),
           );
         if (
           await repo.productionRunExists(
@@ -205,10 +218,11 @@ export const makeUpdateProductionShift = (deps: {
           )
         )
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_ALREADY_STARTED',
-              'A production run already exists for this shift.',
-            ),
+            conflictError({
+              code: 'production_shift_already_started',
+              message: 'A production run already exists for this shift.',
+              safeMessage: 'A production run already exists for this shift.',
+            }),
           );
 
         const changedFields = changedShiftFields(current, command);
@@ -227,7 +241,11 @@ export const makeUpdateProductionShift = (deps: {
             now,
           });
           if (updated === null)
-            throw new Error('Locked production shift changed unexpectedly.');
+            throw conflictError({
+              code: 'production_shift_version_conflict',
+              message: 'Locked production shift changed unexpectedly.',
+              safeMessage: 'Locked production shift changed unexpectedly.',
+            });
           productionShift = updated;
           const currentSchedule = await repo.lockCurrentSchedule(
             command.locationId,
@@ -245,11 +263,13 @@ export const makeUpdateProductionShift = (deps: {
               lifecycle.value.state !== 'superseded'
             )
               return result.err(
-                productionError(
-                  'SCHEDULE_CURRENT_PLAN_STATE_INVALID',
-                  'The current schedule revision cannot be superseded.',
-                  409,
-                ),
+                conflictError({
+                  code: 'schedule_current_plan_state_invalid',
+                  message:
+                    'The current schedule revision cannot be superseded.',
+                  safeMessage:
+                    'The current schedule revision cannot be superseded.',
+                }),
               );
             supersededScheduleRunId = await repo.supersedeCurrentSchedule({
               locationId: command.locationId,
@@ -303,11 +323,14 @@ export const makeUpdateProductionShift = (deps: {
       return outcome;
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_SHIFT_UPDATE_FAILED',
-          'The production shift could not be updated.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_shift_update_failed',
+            message: 'The production shift could not be updated.',
+            safeMessage: 'The production shift could not be updated.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

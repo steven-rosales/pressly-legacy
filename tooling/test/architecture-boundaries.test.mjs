@@ -12,7 +12,7 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const eslint = new ESLint({ cwd: repoRoot });
 
 const businessCapabilityRolePattern =
-  /\.(?:command|controller|error|mapper|middleware|policy|port|repo|route|usecase)\.ts$/;
+  /\.(?:command|controller|error|mapper|middleware|model|policy|port|repo|route|usecase)\.ts$/;
 
 const moduleGroups = ['business', 'policy', 'computation'];
 
@@ -66,6 +66,23 @@ const businessSourceRoots = (() => {
     .map((entry) => path.join(groupRoot, entry.name, 'src'))
     .filter(existsSync);
 })();
+
+const applicationAndPackageSourceRoots = ['apps', 'packages'].flatMap(
+  (group) => {
+    const groupRoot = path.join(repoRoot, group);
+    return readdirSync(groupRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(groupRoot, entry.name, 'src'))
+      .filter(existsSync);
+  },
+);
+
+const runtimeSourceFiles = [
+  ...applicationAndPackageSourceRoots,
+  ...moduleSourceRoots,
+]
+  .flatMap(readFiles)
+  .filter((filePath) => /\.tsx?$/.test(filePath));
 
 const lint = async (filePath, source) => {
   const [result] = await eslint.lintText(source, {
@@ -211,7 +228,7 @@ describe('module architecture boundaries', () => {
     await expectAllowed(
       'modules/business/users/src/create-user/create-user.usecase.ts',
       `
-        import type { UserProfile } from '../user-profile/user-profile.port.ts';
+        import type { UserProfile } from '../user-profile/user-profile.model.ts';
         export type Profile = UserProfile;
       `,
     );
@@ -221,7 +238,7 @@ describe('module architecture boundaries', () => {
     await expectAllowed(
       'modules/business/production/src/persistence/example.ts',
       `
-        import type { ProductionOrderStage } from '../production-lifecycle/production-lifecycle.port.ts';
+        import type { ProductionOrderStage } from '../production-lifecycle/production-lifecycle.model.ts';
         export type StoredStage = ProductionOrderStage;
       `,
     );
@@ -251,6 +268,24 @@ describe('module architecture boundaries', () => {
     await expectAllowed(
       'modules/business/auth/src/login/internal/login.policy.ts',
       'export const canLogin = true;',
+    );
+  });
+
+  it('allows business models to describe data without pretending to be ports', async () => {
+    await expectAllowed(
+      'modules/business/auth/src/workforce/workforce.model.ts',
+      'export type WorkforceRole = "owner" | "manager";',
+    );
+  });
+
+  it('keeps business models mechanism-free', async () => {
+    await expectRejectedBy(
+      'modules/business/auth/src/workforce/workforce.model.ts',
+      `
+        import type { Database } from '@pressly/db';
+        export type WorkforceModel = Database;
+      `,
+      '@typescript-eslint/no-restricted-imports',
     );
   });
 
@@ -498,6 +533,62 @@ describe('module architecture boundaries', () => {
     );
     expect(routes).toContain("locationId: request.params['locationId']");
     expect(routes.match(/apiSuccess\(/g)?.length).toBe(10);
+  });
+
+  it('keeps ordinary HTTP error presentation at the API boundary', () => {
+    const apiHttpRoot = path.join(repoRoot, 'apps', 'api', 'src', 'http');
+    const allowedPresenters = new Set([
+      'apps/api/src/http/middleware/error.middleware.ts',
+      'apps/api/src/http/system/health/health.route.ts',
+    ]);
+    const candidates = [
+      ...readFiles(apiHttpRoot),
+      ...businessSourceRoots.flatMap(readFiles),
+    ].filter((filePath) => filePath.endsWith('.ts'));
+
+    const violations = candidates.flatMap((filePath) => {
+      const relativePath = path.relative(repoRoot, filePath);
+      if (allowedPresenters.has(relativePath)) return [];
+      return /\bapiFailure\s*\(/.test(readFileSync(filePath, 'utf8'))
+        ? [relativePath]
+        : [];
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps runtime source failures inside the shared error contract', () => {
+    const violations = runtimeSourceFiles.flatMap((filePath) => {
+      const relativePath = path.relative(repoRoot, filePath);
+      if (/^apps\/(?:processor|web)\/src\/components\/ui\//.test(relativePath))
+        return [];
+      return /\bthrow\s+new\s+(?:Error|TypeError|RangeError|AggregateError)\s*\(/.test(
+        readFileSync(filePath, 'utf8'),
+      )
+        ? [relativePath]
+        : [];
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it('uses semantic constructors outside structural error boundaries', () => {
+    const structuralConstructors = new Set([
+      'apps/api/src/http/middleware/error.middleware.ts',
+      'apps/worker/src/runtime/observability/worker-observability.ts',
+      'packages/errors/src/app-error.ts',
+      'packages/errors/src/factories.ts',
+    ]);
+
+    const violations = runtimeSourceFiles.flatMap((filePath) => {
+      const relativePath = path.relative(repoRoot, filePath);
+      if (structuralConstructors.has(relativePath)) return [];
+      return /\bmakeAppError\s*\(/.test(readFileSync(filePath, 'utf8'))
+        ? [relativePath]
+        : [];
+    });
+
+    expect(violations).toEqual([]);
   });
 
   it('keeps submitted candidates outside canonical lifecycle and guards source closure through Production', () => {

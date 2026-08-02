@@ -9,7 +9,7 @@ import type {
   UserFieldName,
   UserProfile,
   UserRecord,
-} from '../user-profile/user-profile.port.ts';
+} from '../user-profile/user-profile.model.ts';
 
 export type UpdateUserCommand = Readonly<{
   businessId: string;

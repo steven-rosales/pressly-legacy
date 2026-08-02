@@ -1,6 +1,4 @@
-import { result, type Result } from '@pressly/kernel';
-
-type Rejection = Readonly<{ code: string; message: string }>;
+import { result, type CodedFailure, type Result } from '@pressly/kernel';
 
 export type CurrentPlanAcceptanceInput = Readonly<{
   scheduleRunId: string;
@@ -10,7 +8,7 @@ export type CurrentPlanAcceptanceInput = Readonly<{
 
 export const evaluateCurrentPlanAcceptance = (
   input: CurrentPlanAcceptanceInput,
-): Result<Readonly<{ current: true }>, Rejection> => {
+): Result<Readonly<{ current: true }>, CodedFailure> => {
   if (input.currentScheduleRunId !== input.scheduleRunId)
     return result.err({
       code: 'SCHEDULE_NOT_CURRENT',

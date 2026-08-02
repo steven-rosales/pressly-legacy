@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { catchAsync } from './catch-async.js';
-import { makeAppError } from '@pressly/errors';
+import { validationError } from '@pressly/errors';
 
 type ParseIssue = {
   path: PropertyKey[];
@@ -51,12 +51,10 @@ export const validateRequest = (schema: SchemaConfig): RequestHandler => {
           issues: mapParseIssues(bodyResult.error.issues),
         };
 
-        throw makeAppError({
-          kind: 'ValidationError',
+        throw validationError({
           code: 'invalid_body_type',
           message: 'Validation body failed.',
-          status: 400,
-          details,
+          publicDetails: details,
         });
       }
 
@@ -72,12 +70,10 @@ export const validateRequest = (schema: SchemaConfig): RequestHandler => {
           issues: mapParseIssues(queryResult.error.issues),
         };
 
-        throw makeAppError({
-          kind: 'ValidationError',
+        throw validationError({
           code: 'invalid_query_type',
           message: 'Validation query failed.',
-          status: 400,
-          details,
+          publicDetails: details,
         });
       }
 
@@ -98,12 +94,10 @@ export const validateRequest = (schema: SchemaConfig): RequestHandler => {
           issues: mapParseIssues(paramsResult.error.issues),
         };
 
-        throw makeAppError({
-          kind: 'ValidationError',
+        throw validationError({
           code: 'invalid_params_type',
           message: 'Validation params failed.',
-          status: 400,
-          details,
+          publicDetails: details,
         });
       }
 

@@ -3,8 +3,7 @@ import type {
   CreateProductionShiftCommand,
   UpdateProductionShiftCommand,
 } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
-import { sendProductionResult } from '../http/production-response.ts';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { CreateProductionShift } from './manage-production-shift.port.ts';
 import type { UpdateProductionShift } from './manage-production-shift.port.ts';
 
@@ -13,7 +12,7 @@ export const makeCreateProductionShiftController = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.create({
         ...(request.body as Omit<CreateProductionShiftCommand, 'locationId'>),
@@ -29,7 +28,7 @@ export const makeUpdateProductionShiftController = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.update({
         ...(request.body as Omit<

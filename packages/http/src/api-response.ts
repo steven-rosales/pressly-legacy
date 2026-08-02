@@ -3,7 +3,7 @@ import type { AppError } from '@pressly/errors';
 export type ApiSuccess<T> = Readonly<{
   ok: true;
   data: T;
-  meta?: Record<string, unknown>;
+  meta?: Record<string, unknown> | undefined;
 }>;
 
 export type ApiFailure = Readonly<{
@@ -11,7 +11,7 @@ export type ApiFailure = Readonly<{
   error: Readonly<{
     code: string;
     message: string;
-    traceId?: string;
+    traceId?: string | undefined;
     details?: unknown;
   }>;
 }>;
@@ -33,6 +33,8 @@ export const apiFailure = (error: AppError): ApiFailure => ({
     code: error.code,
     message: error.safeMessage,
     ...(error.traceId === undefined ? {} : { traceId: error.traceId }),
-    ...(error.details === undefined ? {} : { details: error.details }),
+    ...(error.publicDetails === undefined
+      ? {}
+      : { details: error.publicDetails }),
   },
 });

@@ -28,7 +28,7 @@ describe('database results', () => {
         kind: 'DatabaseError',
         code: 'auth_database_failed',
         safeMessage: 'Authentication could not be completed.',
-        status: 500,
+        status: 503,
       }),
     });
     if (result.isErr(actual)) expect(actual.error.cause).toBe(cause);
@@ -53,7 +53,7 @@ describe('database results', () => {
       kind: 'DatabaseError',
       code: 'auth_database_failed',
       safeMessage: 'Authentication could not be completed.',
-      status: 500,
+      status: 503,
     });
   });
 });

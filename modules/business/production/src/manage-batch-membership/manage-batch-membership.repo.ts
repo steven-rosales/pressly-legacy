@@ -5,9 +5,17 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { conflictError } from '@pressly/errors';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
 import type { ManageBatchMembershipRepository } from './manage-batch-membership.port.ts';
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 export const makeManageBatchMembershipRepository = (deps: {
   db: Database;
@@ -102,7 +110,10 @@ export const makeManageBatchMembershipRepository = (deps: {
           version: laundryProduction.productionBatches.version,
         });
       if (productionBatch === undefined)
-        throw new Error('Locked production batch changed unexpectedly.');
+        throw productionConcurrencyConflict(
+          'production_batch_membership_batch_version_conflict',
+          'Locked production batch changed unexpectedly.',
+        );
 
       const [productionRun] = await db
         .update(laundryProduction.productionRuns)
@@ -130,7 +141,10 @@ export const makeManageBatchMembershipRepository = (deps: {
           queueVersion: laundryProduction.productionRuns.queueVersion,
         });
       if (productionRun === undefined)
-        throw new Error('Locked production run changed unexpectedly.');
+        throw productionConcurrencyConflict(
+          'production_batch_membership_run_version_conflict',
+          'Locked production run changed unexpectedly.',
+        );
 
       return {
         productionRunId: productionRun.id,

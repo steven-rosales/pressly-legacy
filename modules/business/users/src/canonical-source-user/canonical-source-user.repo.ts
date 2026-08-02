@@ -1,4 +1,9 @@
 import { and, eq, users as schema, type DatabaseExecutor } from '@pressly/db';
+import {
+  conflictError,
+  invariantViolationError,
+  type AppError,
+} from '@pressly/errors';
 import type { CommandContext } from '@pressly/kernel';
 import {
   insertStoredUser,
@@ -9,7 +14,7 @@ import {
 } from '../persistence/postgres-user.shared.ts';
 import { hashUserCommand } from '../command-execution/user-command-idempotency.policy.ts';
 import { userProfileFields } from '../user-profile/user-profile.policy.ts';
-import type { UserProfile } from '../user-profile/user-profile.port.ts';
+import type { UserProfile } from '../user-profile/user-profile.model.ts';
 
 export type CanonicalSourceUserAcceptanceInput = Readonly<{
   businessId: string;
@@ -40,6 +45,23 @@ export type CanonicalSourceUserAcceptanceAdapter = Readonly<{
   ) => Promise<CanonicalSourceUserAcceptanceResult>;
 }>;
 
+const canonicalSourceUserInvariant = (
+  code: string,
+  message: string,
+): AppError =>
+  invariantViolationError({
+    code: code.toLowerCase(),
+    message,
+    safeMessage: 'Stored user data is inconsistent.',
+  });
+
+const canonicalSourceUserConflict = (code: string, message: string): AppError =>
+  conflictError({
+    code: code.toLowerCase(),
+    message,
+    safeMessage: message,
+  });
+
 const resolveOrCreateCanonicalSourceUser = async (
   db: DatabaseExecutor,
   input: CanonicalSourceUserAcceptanceInput,
@@ -62,8 +84,9 @@ const resolveOrCreateCanonicalSourceUser = async (
     .limit(1);
 
   if (existing !== undefined && existing.businessId !== input.businessId)
-    throw new Error(
-      'Canonical source User belongs to a different business boundary.',
+    throw canonicalSourceUserConflict(
+      'CANONICAL_SOURCE_USER_BUSINESS_CONFLICT',
+      'The source user is already associated with another business.',
     );
   if (existing !== undefined)
     return { userId: existing.userId, created: false };
@@ -79,12 +102,17 @@ const resolveOrCreateCanonicalSourceUser = async (
   const commandHash = hashUserCommand(createCommand);
 
   const receipt = await loadUserCommandReceipt(db, input.idempotencyKey);
-  if (receipt !== null)
-    throw new Error(
-      receipt.commandHash === commandHash
-        ? 'Canonical User receipt exists without its source identity.'
-        : 'Canonical User idempotency key belongs to another command.',
+  if (receipt !== null) {
+    if (receipt.commandHash !== commandHash)
+      throw canonicalSourceUserConflict(
+        'USER_IDEMPOTENCY_CONFLICT',
+        'The idempotency key belongs to another user command.',
+      );
+    throw canonicalSourceUserInvariant(
+      'CANONICAL_SOURCE_USER_LINK_MISSING',
+      'Canonical User receipt exists without its source identity.',
     );
+  }
 
   const created = await insertStoredUser(db, {
     businessId: input.businessId,
@@ -114,7 +142,10 @@ const resolveOrCreateCanonicalSourceUser = async (
     .returning({ id: schema.userSourceLinks.id });
 
   if (link === undefined)
-    throw new Error('Canonical User source link insert returned no row.');
+    throw canonicalSourceUserInvariant(
+      'CANONICAL_SOURCE_USER_LINK_INSERT_RESULT_MISSING',
+      'Canonical User source link insert returned no row.',
+    );
 
   await db.insert(schema.userSourceSnapshots).values({
     sourceLinkId: link.id,

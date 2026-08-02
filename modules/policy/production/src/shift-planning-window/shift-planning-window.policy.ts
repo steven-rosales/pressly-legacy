@@ -1,4 +1,4 @@
-import { result, type Result } from '@pressly/kernel';
+import { result, type CodedFailure, type Result } from '@pressly/kernel';
 
 type ShiftPlanningAction = 'compute' | 'accept' | 'start';
 
@@ -9,11 +9,9 @@ export type ShiftPlanningWindowInput = Readonly<{
   endsAt: Date;
 }>;
 
-type Rejection = Readonly<{ code: string; message: string }>;
-
 export const evaluateShiftPlanningWindow = (
   input: ShiftPlanningWindowInput,
-): Result<Readonly<{ allowed: true }>, Rejection> => {
+): Result<Readonly<{ allowed: true }>, CodedFailure> => {
   const now = input.now.getTime();
   const startsAt = input.startsAt.getTime();
   const endsAt = input.endsAt.getTime();

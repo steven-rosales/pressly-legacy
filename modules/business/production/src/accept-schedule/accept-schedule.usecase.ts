@@ -1,9 +1,12 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import type { AcceptScheduleResult } from '@pressly/contracts';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -16,10 +19,18 @@ import type {
 } from './accept-schedule.port.ts';
 export type { AcceptSchedule } from './accept-schedule.port.ts';
 
+type AcceptSchedulePolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluateShiftPlanningWindow'
+  | 'evaluateScheduleRevisionTransition'
+  | 'evaluateScheduleAcceptance'
+  | 'evaluateCurrentPlanAcceptance'
+>;
+
 export const makeAcceptSchedule =
   (deps: {
     repo: AcceptScheduleRepository;
-    policy: ProductionPolicyPort;
+    policy: AcceptSchedulePolicy;
     clock: ClockPort;
   }): AcceptSchedule =>
   async (command) => {
@@ -61,11 +72,11 @@ export const makeAcceptSchedule =
 
         if (acceptanceRecord === null)
           return result.err(
-            productionError(
-              'SCHEDULE_NOT_FOUND',
-              'The schedule proposal was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'schedule_not_found',
+              message: 'The schedule proposal was not found.',
+              safeMessage: 'The schedule proposal was not found.',
+            }),
           );
         const schedule = acceptanceRecord.schedule;
 
@@ -78,11 +89,11 @@ export const makeAcceptSchedule =
         });
         if (shiftWindow.tag === 'err')
           return result.err(
-            productionError(
-              shiftWindow.error.code,
-              shiftWindow.error.message,
-              409,
-            ),
+            conflictError({
+              code: shiftWindow.error.code.toLowerCase(),
+              message: shiftWindow.error.message,
+              safeMessage: shiftWindow.error.message,
+            }),
           );
 
         if (
@@ -92,11 +103,11 @@ export const makeAcceptSchedule =
           )
         )
           return result.err(
-            productionError(
-              'PRODUCTION_SHIFT_ALREADY_STARTED',
-              'A production run already exists for this shift.',
-              409,
-            ),
+            conflictError({
+              code: 'production_shift_already_started',
+              message: 'A production run already exists for this shift.',
+              safeMessage: 'A production run already exists for this shift.',
+            }),
           );
 
         const lifecycle = deps.policy.evaluateScheduleRevisionTransition({
@@ -109,11 +120,11 @@ export const makeAcceptSchedule =
           lifecycle.value.state !== 'accepted'
         )
           return result.err(
-            productionError(
-              'SCHEDULE_NOT_DRAFT',
-              'Only a draft schedule may be accepted.',
-              409,
-            ),
+            conflictError({
+              code: 'schedule_not_draft',
+              message: 'Only a draft schedule may be accepted.',
+              safeMessage: 'Only a draft schedule may be accepted.',
+            }),
           );
 
         const decision = deps.policy.evaluateScheduleAcceptance({
@@ -139,7 +150,11 @@ export const makeAcceptSchedule =
 
         if (decision.tag === 'err')
           return result.err(
-            productionError(decision.error.code, decision.error.message, 409),
+            conflictError({
+              code: decision.error.code.toLowerCase(),
+              message: decision.error.message,
+              safeMessage: decision.error.message,
+            }),
           );
 
         const eligibleOrderSnapshotMatches =
@@ -154,11 +169,11 @@ export const makeAcceptSchedule =
         });
         if (currentPlanDecision.tag === 'err')
           return result.err(
-            productionError(
-              currentPlanDecision.error.code,
-              currentPlanDecision.error.message,
-              409,
-            ),
+            conflictError({
+              code: currentPlanDecision.error.code.toLowerCase(),
+              message: currentPlanDecision.error.message,
+              safeMessage: currentPlanDecision.error.message,
+            }),
           );
 
         return result.ok(
@@ -176,11 +191,14 @@ export const makeAcceptSchedule =
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'SCHEDULE_ACCEPT_FAILED',
-          'The schedule proposal could not be accepted.',
-          409,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'schedule_accept_failed',
+            message: 'The schedule proposal could not be accepted.',
+            safeMessage: 'The schedule proposal could not be accepted.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

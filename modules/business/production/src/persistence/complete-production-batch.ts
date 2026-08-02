@@ -6,7 +6,22 @@ import {
   sql,
   type DatabaseExecutor,
 } from '@pressly/db';
-import type { ProductionTerminalLifecycleDecisions } from '../production-lifecycle/production-lifecycle.port.ts';
+import { conflictError, invariantViolationError } from '@pressly/errors';
+import type { ProductionTerminalLifecycleDecisions } from '../production-lifecycle/production-lifecycle.model.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
 
 export type ProductionBatchTerminalization = Readonly<{
   finishedOrderCount: number;
@@ -46,7 +61,10 @@ export const completeProductionBatch = async (
     );
   const orderIds = activeOrderLinks.map((link) => link.productionOrderId);
   if (orderIds.length === 0)
-    throw new Error('Finished batch has no active production orders.');
+    throw productionInvariantViolation(
+      'production_batch_completion_active_orders_missing',
+      'Finished batch has no active production orders.',
+    );
 
   const lifecycleByOrderId = new Map(
     input.lifecycle.orders.map((order) => [order.productionOrderId, order]),
@@ -60,7 +78,10 @@ export const completeProductionBatch = async (
         order.lifecycle.state !== 'finished',
     )
   )
-    throw new Error('Production-order lifecycle decisions are incomplete.');
+    throw productionInvariantViolation(
+      'production_batch_completion_lifecycle_incomplete',
+      'Production-order lifecycle decisions are incomplete.',
+    );
 
   const finishedOrders: { id: string; bagCount: number | null }[] = [];
   for (const orderId of orderIds) {
@@ -98,14 +119,18 @@ export const completeProductionBatch = async (
         bagCount: laundryProduction.productionOrders.bagCount,
       });
     if (finishedOrder === undefined)
-      throw new Error(
+      throw productionConcurrencyConflict(
+        'production_batch_completion_order_version_conflict',
         'Finished batch contains an order outside scheduled production.',
       );
     finishedOrders.push(finishedOrder);
   }
 
   if (finishedOrders.some((order) => order.bagCount === null))
-    throw new Error('Finished production order is missing bag intake.');
+    throw productionInvariantViolation(
+      'production_batch_completion_bag_intake_missing',
+      'Finished production order is missing bag intake.',
+    );
   const expectedBagCount = finishedOrders.reduce(
     (total, order) => total + order.bagCount!,
     0,
@@ -116,7 +141,10 @@ export const completeProductionBatch = async (
     .where(inArray(laundryProduction.bags.productionOrderId, orderIds))
     .returning({ id: laundryProduction.bags.id });
   if (finishedBags.length !== expectedBagCount)
-    throw new Error('Finished production order bag count is inconsistent.');
+    throw productionInvariantViolation(
+      'production_batch_completion_bag_count_invalid',
+      'Finished production order bag count is inconsistent.',
+    );
 
   const deactivatedOrderLinks = await db
     .update(laundryProduction.productionBatchOrders)
@@ -139,7 +167,10 @@ export const completeProductionBatch = async (
         laundryProduction.productionBatchOrders.productionOrderId,
     });
   if (deactivatedOrderLinks.length !== orderIds.length)
-    throw new Error('Production batch order links changed concurrently.');
+    throw productionConcurrencyConflict(
+      'production_batch_completion_membership_version_conflict',
+      'Production batch order links changed concurrently.',
+    );
 
   const runBatches = await db
     .select({ status: laundryProduction.productionBatches.status })
@@ -171,7 +202,11 @@ export const completeProductionBatch = async (
       ),
     )
     .limit(1);
-  if (run === undefined) throw new Error('Production run not found.');
+  if (run === undefined)
+    throw productionInvariantViolation(
+      'production_batch_completion_run_missing',
+      'Production run not found.',
+    );
   const [completedRun] = await db
     .update(laundryProduction.productionRuns)
     .set({
@@ -190,7 +225,10 @@ export const completeProductionBatch = async (
     )
     .returning({ id: laundryProduction.productionRuns.id });
   if (completedRun === undefined)
-    throw new Error('Production run changed during completion.');
+    throw productionConcurrencyConflict(
+      'production_batch_completion_run_version_conflict',
+      'Production run changed during completion.',
+    );
 
   const siblingRuns = await db
     .select({ status: laundryProduction.productionRuns.status })
@@ -231,7 +269,10 @@ export const completeProductionBatch = async (
     )
     .returning({ id: laundryProduction.productionShifts.id });
   if (closedShift === undefined)
-    throw new Error('Production shift changed during completion.');
+    throw productionConcurrencyConflict(
+      'production_batch_completion_shift_version_conflict',
+      'Production shift changed during completion.',
+    );
 
   return {
     finishedOrderCount: finishedOrders.length,

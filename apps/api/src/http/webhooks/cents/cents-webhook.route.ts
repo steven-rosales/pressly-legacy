@@ -1,6 +1,5 @@
 import { ingestWebhookEventCommandSchema } from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
-import { apiFailure, apiSuccess } from '@pressly/http';
+import { apiSuccess } from '@pressly/http';
 import {
   catchAsync,
   requireJsonContentType,
@@ -17,18 +16,6 @@ import {
   readCentsWebhookQuarantineReceiptId,
 } from './cents-webhook-normalization.middleware.ts';
 import type { CentsWebhookPayloadCipher } from './cents-webhook.quarantine.ts';
-
-type ApiResult<T> =
-  | Readonly<{ tag: 'ok'; value: T }>
-  | Readonly<{ tag: 'err'; error: AppError }>;
-
-const send = <T>(response: express.Response, value: ApiResult<T>): void => {
-  if (value.tag === 'err') {
-    response.status(value.error.status).json(apiFailure(value.error));
-    return;
-  }
-  response.status(202).json(apiSuccess(value.value));
-};
 
 export const makeCentsWebhookRoute = (input: {
   verifier: CentsWebhookVerifier;
@@ -53,10 +40,7 @@ export const makeCentsWebhookRoute = (input: {
     validateRequest({ body: ingestWebhookEventCommandSchema }),
     catchAsync(async (request, response) => {
       const ingested = await input.ingestEvent(request.body);
-      if (ingested.tag === 'err') {
-        send(response, ingested);
-        return;
-      }
+      if (ingested.tag === 'err') throw ingested.error;
 
       const receiptId = readCentsWebhookQuarantineReceiptId(response.locals);
       if (input.quarantine !== undefined && receiptId !== null) {
@@ -64,13 +48,10 @@ export const makeCentsWebhookRoute = (input: {
           receiptId,
           eventId: ingested.value.eventId,
         });
-        if (linked.tag === 'err') {
-          send(response, linked);
-          return;
-        }
+        if (linked.tag === 'err') throw linked.error;
       }
 
-      send(response, ingested);
+      response.status(202).json(apiSuccess(ingested.value));
     }),
   );
   return router;

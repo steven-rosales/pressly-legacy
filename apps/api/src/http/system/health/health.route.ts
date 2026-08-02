@@ -1,7 +1,8 @@
 import { checkDatabaseHealth } from '@pressly/db';
 import { apiFailure, apiSuccess } from '@pressly/http';
-import { makeAppError } from '@pressly/errors';
+import { databaseError } from '@pressly/errors';
 import { redactLogFields, type LogFields } from '@pressly/logging';
+import { attemptObservation } from '@pressly/metrics';
 import { Router } from 'express';
 import type { ApiRuntime } from '../../../runtime/api-runtime.ts';
 
@@ -15,14 +16,16 @@ export const makeHealthRoutes = (runtime: ApiRuntime): Router => {
   router.get('/ready', async (_req, res) => {
     const dbReady = await checkDatabaseHealth(runtime.database.db).catch(
       (error: unknown) => {
-        runtime.logger.error(
-          'database readiness check failed',
-          redactLogFields({
-            error:
-              error instanceof Error
-                ? { name: error.name, message: error.message }
-                : String(error),
-          }) as LogFields,
+        attemptObservation(() =>
+          runtime.logger.error(
+            'database readiness check failed',
+            redactLogFields({
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message }
+                  : String(error),
+            }) as LogFields,
+          ),
         );
         return false;
       },
@@ -31,8 +34,7 @@ export const makeHealthRoutes = (runtime: ApiRuntime): Router => {
     if (!dbReady) {
       res.status(503).json(
         apiFailure(
-          makeAppError({
-            kind: 'DatabaseError',
+          databaseError({
             code: 'database_not_ready',
             message: 'Database readiness check failed.',
             safeMessage: 'Service is not ready.',

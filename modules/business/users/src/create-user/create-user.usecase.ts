@@ -1,9 +1,40 @@
 import { isCommandContextValid, result } from '@pressly/kernel';
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  validationError,
+  type AppError,
+} from '@pressly/errors';
 import { hashUserCommand } from '../command-execution/user-command-idempotency.policy.ts';
-import { userError } from '../failure-mapping/user.error.ts';
 import type { UserClockPort } from '../command-execution/user-command.port.ts';
 import { userProfileFields } from '../user-profile/user-profile.policy.ts';
 import type { CreateUser, CreateUserRepository } from './create-user.port.ts';
+
+const invalidCreateUserCommand = (): AppError =>
+  validationError({
+    code: 'user_idempotency_key_required',
+    message: 'An idempotency key is required to create a user.',
+    safeMessage: 'An idempotency key is required to create a user.',
+  });
+
+const userIdempotencyConflict = (): AppError =>
+  conflictError({
+    code: 'user_idempotency_conflict',
+    message: 'The idempotency key belongs to a different user command.',
+    safeMessage: 'The idempotency key belongs to a different user command.',
+  });
+
+const userCreateFailed = (cause: unknown): AppError =>
+  mapUnknownError(cause, (unknownCause) =>
+    databaseError({
+      code: 'user_create_failed',
+      message: 'The user could not be created.',
+      safeMessage: 'The user could not be created.',
+      status: 503,
+      cause: unknownCause,
+    }),
+  );
 
 export const makeCreateUser =
   (deps: { repo: CreateUserRepository; clock: UserClockPort }): CreateUser =>
@@ -13,13 +44,7 @@ export const makeCreateUser =
       command.idempotencyKey.trim() === '' ||
       !isCommandContextValid(command.context)
     )
-      return result.err(
-        userError(
-          'USER_IDEMPOTENCY_KEY_REQUIRED',
-          'An idempotency key is required to create a user.',
-          400,
-        ),
-      );
+      return result.err(invalidCreateUserCommand());
     try {
       const commandHash = hashUserCommand(command);
       const now = deps.clock.now();
@@ -64,20 +89,8 @@ export const makeCreateUser =
         return { kind: 'ok' as const, value };
       });
       if (outcome.kind === 'ok') return result.ok(outcome.value);
-      return result.err(
-        userError(
-          'USER_IDEMPOTENCY_CONFLICT',
-          'The idempotency key belongs to a different user command.',
-        ),
-      );
+      return result.err(userIdempotencyConflict());
     } catch (error) {
-      return result.err(
-        userError(
-          'USER_CREATE_FAILED',
-          'The user could not be created.',
-          503,
-          error,
-        ),
-      );
+      return result.err(userCreateFailed(error));
     }
   };

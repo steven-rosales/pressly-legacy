@@ -1,7 +1,6 @@
 import type { ChangeProductionOrderResolutionCommand } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { RequestHandler } from 'express';
-import { sendProductionResult } from '../http/production-response.ts';
 import type { ChangeProductionOrderResolution } from './change-production-order-resolution.port.ts';
 
 type ResolutionRequest =
@@ -28,7 +27,7 @@ export const makeChangeProductionOrderResolutionController = (input: {
       orderId: request.params['productionOrderId'] as string,
       actorId: input.readActorId(response),
     };
-    sendProductionResult(
+    sendApiResult(
       response,
       await (body.action === 'resolve_without_production'
         ? input.changeResolution({ ...body, ...scope })

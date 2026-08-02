@@ -8,7 +8,7 @@ import type {
   SchedulingInput,
   SchedulingOutput,
 } from '../scheduling/production-scheduling.port.ts';
-import type { ScheduleSupersessionDecision } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ScheduleSupersessionDecision } from '../production-lifecycle/production-lifecycle.model.ts';
 import type {
   FindWorkEvent,
   WorkEventInput,

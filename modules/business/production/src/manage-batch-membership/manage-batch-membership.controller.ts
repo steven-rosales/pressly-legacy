@@ -2,9 +2,8 @@ import type {
   FreezeProductionBatchCommand,
   UnfreezeProductionBatchCommand,
 } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { RequestHandler } from 'express';
-import { sendProductionResult } from '../http/production-response.ts';
 import type {
   BatchMembershipAction,
   ManageBatchMembership,
@@ -21,7 +20,7 @@ export const makeManageBatchMembershipController = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.manage({
         ...(request.body as Omit<

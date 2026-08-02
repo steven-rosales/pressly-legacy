@@ -1,4 +1,4 @@
-import { makeAppError } from '@pressly/errors';
+import { invariantViolationError, notFoundError } from '@pressly/errors';
 import type { Response } from 'express';
 import type {
   ControlAccess,
@@ -13,12 +13,10 @@ export const controlCommandContext = (response: Response) => {
     | Readonly<{ principal: LoadedControlSession['principal'] }>
     | undefined;
   if (auth?.principal === undefined)
-    throw makeAppError({
-      kind: 'InvariantViolationError',
+    throw invariantViolationError({
       code: 'control_actor_missing',
       message: 'Control command has no authenticated actor.',
       safeMessage: 'Session could not be loaded.',
-      status: 500,
     });
   return {
     origin: 'pressly_control',
@@ -38,11 +36,9 @@ export const controlLocationIds = (
   );
   if (requestedLocationId === undefined) return allowed;
   if (allowed.includes(requestedLocationId)) return [requestedLocationId];
-  throw makeAppError({
-    kind: 'NotFoundError',
+  throw notFoundError({
     code: 'control_location_not_found',
     message: 'Requested location is outside the Control access boundary.',
     safeMessage: 'The production location was not found.',
-    status: 404,
   });
 };

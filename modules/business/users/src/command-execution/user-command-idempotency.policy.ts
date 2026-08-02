@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto';
-import { canonicalJson } from '@pressly/kernel';
+import { canonicalSha256 } from '@pressly/kernel/node';
 
 export const hashUserCommand = (command: unknown): string =>
-  createHash('sha256').update(canonicalJson(command)).digest('hex');
+  canonicalSha256(command);

@@ -145,10 +145,11 @@ describe('load session http controller', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('returns a failure envelope from load session errors', async () => {
+  it('forwards load-session application errors to express', async () => {
+    const error = invalidSessionError();
     const loadSession = vi
       .fn<LoadSession>()
-      .mockResolvedValue(result.err(invalidSessionError()));
+      .mockResolvedValue(result.err(error));
     const loadSessionController = makeLoadSessionController(loadSession);
     const { req } = makeLoadSessionRequest();
     const res = makeHttpResponse();
@@ -157,15 +158,9 @@ describe('load session http controller', () => {
     await runHandler({ handler: loadSessionController, req, res, next });
 
     expect(loadSession).toHaveBeenCalledWith({ bearerToken });
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({
-      ok: false,
-      error: {
-        code: 'invalid_session',
-        message: 'Authentication is required.',
-      },
-    });
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(error);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
   });
 
   it('forwards missing bearer headers to express', async () => {

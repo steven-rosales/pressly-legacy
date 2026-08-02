@@ -1,13 +1,15 @@
+import {
+  databaseError,
+  mapUnknownError,
+  validationError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import type { SchedulerConfig } from '@pressly/contracts';
 import type {
   ClockPort,
   IdPort,
 } from '../command-execution/production-command.port.ts';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -27,11 +29,12 @@ export const makePublishSchedulerConfig =
   async (command) => {
     if (command.pulseMinutes <= 0 || command.foldLbsPerFolderMinute <= 0)
       return result.err(
-        productionError(
-          'SCHEDULER_CONFIG_INVALID',
-          'Scheduler values must be positive.',
-          422,
-        ),
+        validationError({
+          code: 'scheduler_config_invalid',
+          message: 'Scheduler values must be positive.',
+          safeMessage: 'Scheduler values must be positive.',
+          status: 422,
+        }),
       );
 
     try {
@@ -86,11 +89,14 @@ export const makePublishSchedulerConfig =
       });
     } catch (error) {
       return result.err(
-        productionError(
-          'SCHEDULER_CONFIG_PUBLISH_FAILED',
-          'The scheduler configuration could not be published.',
-          409,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'scheduler_config_publish_failed',
+            message: 'The scheduler configuration could not be published.',
+            safeMessage: 'The scheduler configuration could not be published.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

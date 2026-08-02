@@ -25,7 +25,9 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@pressly/errors": "workspace:*"
+    "@pressly/errors": "workspace:*",
+    "@pressly/kernel": "workspace:*",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",

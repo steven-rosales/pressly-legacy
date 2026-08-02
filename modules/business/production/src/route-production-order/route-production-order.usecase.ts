@@ -5,11 +5,17 @@ import type {
   ProductionOrderRouteProposal,
 } from '@pressly/contracts';
 import { result, type Result } from '@pressly/kernel';
-import type { AppError } from '@pressly/errors';
 import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+  conflictError,
+  databaseError,
+  invariantViolationError,
+  mapUnknownError,
+  notFoundError,
+  validationError,
+  type AppError,
+} from '@pressly/errors';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
+import { toProductionDatabaseResult } from '../persistence/production-database-result.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -20,7 +26,7 @@ import type {
   OrderRoutingStage,
 } from '../production-policy/order-routing-policy.port.ts';
 import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
-import type { ProductionOrderStageAttemptMutation } from '../production-lifecycle/production-lifecycle.port.ts';
+import type { ProductionOrderStageAttemptMutation } from '../production-lifecycle/production-lifecycle.model.ts';
 import type { ProductionSignalsPort } from '../production-signals/production-signals.port.ts';
 import type {
   CommitProductionOrderRoute,
@@ -51,7 +57,11 @@ const asBatchStatus = (
     case 'finished':
       return value;
     default:
-      throw new Error(`Unknown production batch status: ${value}.`);
+      throw invariantViolationError({
+        code: 'production_batch_status_invalid',
+        message: 'Stored production routing data is inconsistent.',
+        safeMessage: 'Stored production routing data is inconsistent.',
+      });
   }
 };
 
@@ -72,10 +82,19 @@ const proposalHash = (
 
 type ProposalEvaluation = Result<ProductionOrderRouteProposal, AppError>;
 
+type RouteProductionOrderPolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluateProductionOrderOperationalAccess'
+  | 'resolveProductionOrderExecutionState'
+  | 'evaluateOrderRouting'
+  | 'evaluateProductionOrderStageAttemptTransition'
+  | 'initialProductionOrderStageAttemptState'
+>;
+
 const failedRouteStatus = (
   error: AppError,
 ): 'rejected' | 'conflict' | 'failed' => {
-  if (error.code === 'production_order_route_failed') return 'failed';
+  if (error.status >= 500) return 'failed';
   return error.status === 409 ? 'conflict' : 'rejected';
 };
 
@@ -111,22 +130,27 @@ const reportQueueConflict = (
 const evaluateProposal = (input: {
   command: PreviewProductionOrderRouteCommand;
   context: ProductionOrderRoutingContext;
-  policy: ProductionPolicyPort;
+  policy: RouteProductionOrderPolicy;
 }): ProposalEvaluation => {
   const { command, context } = input;
   if (context.run.status !== 'started')
     return result.err(
-      productionError(
-        'PRODUCTION_RUN_NOT_STARTED',
-        'Orders can only move within a started production run.',
-      ),
+      conflictError({
+        code: 'production_run_not_started',
+        message: 'Orders can only move within a started production run.',
+        safeMessage: 'Orders can only move within a started production run.',
+      }),
     );
   const access = input.policy.evaluateProductionOrderOperationalAccess({
     resolutionState: context.order.resolutionState,
   });
   if (access.tag === 'err')
     return result.err(
-      productionError(access.error.code, access.error.message, 409),
+      conflictError({
+        code: access.error.code.toLowerCase(),
+        message: access.error.message,
+        safeMessage: access.error.message,
+      }),
     );
   const execution = input.policy.resolveProductionOrderExecutionState({
     executionState: context.order.executionStatus,
@@ -134,42 +158,54 @@ const evaluateProposal = (input: {
   });
   if (execution.tag === 'err')
     return result.err(
-      productionError(execution.error.code, execution.error.message, 409),
+      conflictError({
+        code: execution.error.code.toLowerCase(),
+        message: execution.error.message,
+        safeMessage: execution.error.message,
+      }),
     );
   if (execution.value !== 'scheduled')
     return result.err(
-      productionError(
-        'PRODUCTION_ORDER_NOT_SCHEDULED',
-        'Only a scheduled production order can move between batches.',
-      ),
+      conflictError({
+        code: 'production_order_not_scheduled',
+        message: 'Only a scheduled production order can move between batches.',
+        safeMessage:
+          'Only a scheduled production order can move between batches.',
+      }),
     );
   if (context.run.queueVersion !== command.expectedQueueVersion)
     return result.err(
-      productionError(
-        'PRODUCTION_QUEUE_VERSION_CONFLICT',
-        'The production queue changed before the order move.',
-      ),
+      conflictError({
+        code: 'production_queue_version_conflict',
+        message: 'The production queue changed before the order move.',
+        safeMessage: 'The production queue changed before the order move.',
+      }),
     );
   if (context.order.version !== command.expectedOrderVersion)
     return result.err(
-      productionError(
-        'PRODUCTION_ORDER_VERSION_CONFLICT',
-        'The production order changed before the order move.',
-      ),
+      conflictError({
+        code: 'production_order_version_conflict',
+        message: 'The production order changed before the order move.',
+        safeMessage: 'The production order changed before the order move.',
+      }),
     );
   if (context.source.version !== command.expectedSourceBatchVersion)
     return result.err(
-      productionError(
-        'PRODUCTION_BATCH_VERSION_CONFLICT',
-        'The source batch changed before the order move.',
-      ),
+      conflictError({
+        code: 'production_batch_version_conflict',
+        message: 'The source batch changed before the order move.',
+        safeMessage: 'The source batch changed before the order move.',
+      }),
     );
   if (context.source.activeOrderCount <= 1)
     return result.err(
-      productionError(
-        'SOURCE_BATCH_WOULD_BE_EMPTY',
-        'This is the source batch only order. Empty-batch handling requires an explicit floor decision.',
-      ),
+      conflictError({
+        code: 'source_batch_would_be_empty',
+        message:
+          'This is the source batch only order. Empty-batch handling requires an explicit floor decision.',
+        safeMessage:
+          'This is the source batch only order. Empty-batch handling requires an explicit floor decision.',
+      }),
     );
 
   const candidates =
@@ -205,11 +241,18 @@ const evaluateProposal = (input: {
     });
   if (decision.decision === 'rejected')
     return result.err(
-      productionError(
-        decision.reason.code,
-        decision.reason.message,
-        decision.reason.code === 'NO_LATER_TARGET' ? 409 : 422,
-      ),
+      decision.reason.code === 'NO_LATER_TARGET'
+        ? conflictError({
+            code: decision.reason.code.toLowerCase(),
+            message: decision.reason.message,
+            safeMessage: decision.reason.message,
+          })
+        : validationError({
+            code: decision.reason.code.toLowerCase(),
+            message: decision.reason.message,
+            safeMessage: decision.reason.message,
+            status: 422,
+          }),
     );
 
   const target = context.candidates.find(
@@ -217,7 +260,11 @@ const evaluateProposal = (input: {
       candidate.productionBatchId === decision.route.targetProductionBatchId,
   );
   if (target === undefined)
-    throw new Error('Accepted order route target is missing from context.');
+    throw invariantViolationError({
+      code: 'production_order_route_target_missing',
+      message: 'Stored production routing data is inconsistent.',
+      safeMessage: 'Stored production routing data is inconsistent.',
+    });
   const targetWeights = decision.route.targetAssignments.map(
     (assignment) => assignment.assignedWeightAfterLbs,
   );
@@ -280,7 +327,7 @@ const asPreviewCommand = (
 
 export const makeRouteProductionOrder = (deps: {
   repo: RouteProductionOrderRepository;
-  policy: ProductionPolicyPort;
+  policy: RouteProductionOrderPolicy;
   clock: ClockPort;
   signals?: ProductionSignalsPort;
 }): Readonly<{
@@ -288,38 +335,75 @@ export const makeRouteProductionOrder = (deps: {
   commit: CommitProductionOrderRoute;
 }> => ({
   preview: async (command) => {
-    try {
-      const context = await deps.repo.transaction((repo) =>
-        repo.loadContext(
-          command.locationId,
-          command.productionRunId,
-          command.productionOrderId,
-          false,
+    const loaded = await toProductionDatabaseResult(
+      'PRODUCTION_ORDER_ROUTE_PREVIEW_FAILED',
+      'The production order route could not be previewed.',
+      () =>
+        deps.repo.transaction((repo) =>
+          repo.loadContext(
+            command.locationId,
+            command.productionRunId,
+            command.productionOrderId,
+            false,
+          ),
         ),
-      );
-      const outcome =
-        context === null
-          ? result.err(
-              productionError(
-                'PRODUCTION_ORDER_ROUTE_NOT_FOUND',
-                'The production run, order, or current batch was not found.',
-                404,
-              ),
-            )
-          : evaluateProposal({ command, context, policy: deps.policy });
+    );
+    if (result.isErr(loaded)) {
       reportRouteOutcome(
         deps.signals,
         command,
         'preview',
-        outcome.tag === 'ok' ? 'proposed' : failedRouteStatus(outcome.error),
+        failedRouteStatus(loaded.error),
       );
-      if (outcome.tag === 'err')
-        reportQueueConflict(deps.signals, 'preview', outcome.error);
-      return outcome;
-    } catch (error) {
-      reportRouteOutcome(deps.signals, command, 'preview', 'failed');
-      throw error;
+      return loaded;
     }
+
+    let outcome: ProposalEvaluation;
+    try {
+      outcome =
+        loaded.value === null
+          ? result.err(
+              notFoundError({
+                code: 'production_order_route_not_found',
+                message:
+                  'The production run, order, or current batch was not found.',
+                safeMessage:
+                  'The production run, order, or current batch was not found.',
+              }),
+            )
+          : evaluateProposal({
+              command,
+              context: loaded.value,
+              policy: deps.policy,
+            });
+    } catch (error) {
+      const failure = mapUnknownError(error, (unknownCause) =>
+        invariantViolationError({
+          code: 'production_order_route_evaluation_failed',
+          message: 'The production order route could not be evaluated safely.',
+          safeMessage:
+            'The production order route could not be evaluated safely.',
+          cause: unknownCause,
+        }),
+      );
+      reportRouteOutcome(
+        deps.signals,
+        command,
+        'preview',
+        failedRouteStatus(failure),
+      );
+      return result.err(failure);
+    }
+
+    reportRouteOutcome(
+      deps.signals,
+      command,
+      'preview',
+      outcome.tag === 'ok' ? 'proposed' : failedRouteStatus(outcome.error),
+    );
+    if (outcome.tag === 'err')
+      reportQueueConflict(deps.signals, 'preview', outcome.error);
+    return outcome;
   },
 
   commit: async (command) => {
@@ -367,11 +451,13 @@ export const makeRouteProductionOrder = (deps: {
         );
         if (context === null)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_ROUTE_NOT_FOUND',
-              'The production run, order, or current batch was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_order_route_not_found',
+              message:
+                'The production run, order, or current batch was not found.',
+              safeMessage:
+                'The production run, order, or current batch was not found.',
+            }),
           );
         const evaluated = evaluateProposal({
           command: asPreviewCommand(command),
@@ -381,11 +467,12 @@ export const makeRouteProductionOrder = (deps: {
         if (evaluated.tag === 'err') return evaluated;
         if (evaluated.value.proposalHash !== command.proposalHash)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_ROUTE_PROPOSAL_STALE',
-              'The proposed order route no longer matches production.',
-              409,
-            ),
+            conflictError({
+              code: 'production_order_route_proposal_stale',
+              message: 'The proposed order route no longer matches production.',
+              safeMessage:
+                'The proposed order route no longer matches production.',
+            }),
           );
 
         const attemptLifecycles: ProductionOrderStageAttemptMutation[] = [];
@@ -399,11 +486,13 @@ export const makeRouteProductionOrder = (deps: {
           );
           if (attempt === undefined)
             return result.err(
-              productionError(
-                'PRODUCTION_ORDER_STAGE_ATTEMPT_NOT_ASSIGNED',
-                'The unfinished source route no longer matches production.',
-                409,
-              ),
+              conflictError({
+                code: 'production_order_stage_attempt_not_assigned',
+                message:
+                  'The unfinished source route no longer matches production.',
+                safeMessage:
+                  'The unfinished source route no longer matches production.',
+              }),
             );
           const attemptDecision =
             deps.policy.evaluateProductionOrderStageAttemptTransition({
@@ -412,11 +501,11 @@ export const makeRouteProductionOrder = (deps: {
             });
           if (attemptDecision.tag === 'err')
             return result.err(
-              productionError(
-                attemptDecision.error.code,
-                attemptDecision.error.message,
-                409,
-              ),
+              conflictError({
+                code: attemptDecision.error.code.toLowerCase(),
+                message: attemptDecision.error.message,
+                safeMessage: attemptDecision.error.message,
+              }),
             );
           attemptLifecycles.push({
             attemptId: attempt.id,
@@ -447,11 +536,14 @@ export const makeRouteProductionOrder = (deps: {
       });
     } catch (error) {
       outcome = result.err(
-        productionError(
-          'PRODUCTION_ORDER_ROUTE_FAILED',
-          'The production order could not be moved safely.',
-          409,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_order_route_failed',
+            message: 'The production order could not be moved safely.',
+            safeMessage: 'The production order could not be moved safely.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

@@ -1,5 +1,11 @@
+import {
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+  validationError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
-import { orderError } from '../failure-mapping/order.error.ts';
+
 import type {
   GetCanonicalOrder,
   ListCanonicalOrders,
@@ -17,7 +23,11 @@ export const makeListCanonicalOrders =
       (query.query !== null && query.query.trim().length > 120)
     )
       return result.err(
-        orderError('ORDER_LIST_INVALID', 'The Order query is invalid.', 400),
+        validationError({
+          code: 'order_list_invalid',
+          message: 'The Order query is invalid.',
+          safeMessage: 'The Order query is invalid.',
+        }),
       );
     try {
       const outcome = await repo.list({
@@ -30,19 +40,22 @@ export const makeListCanonicalOrders =
       return outcome.kind === 'ok'
         ? result.ok(outcome.value)
         : result.err(
-            orderError(
-              'ORDER_CURSOR_INVALID',
-              'The Order page cursor is invalid.',
-              400,
-            ),
+            validationError({
+              code: 'order_cursor_invalid',
+              message: 'The Order page cursor is invalid.',
+              safeMessage: 'The Order page cursor is invalid.',
+            }),
           );
     } catch (error) {
       return result.err(
-        orderError(
-          'ORDER_LIST_FAILED',
-          'Orders could not be loaded.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'order_list_failed',
+            message: 'Orders could not be loaded.',
+            safeMessage: 'Orders could not be loaded.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }
@@ -57,22 +70,33 @@ export const makeGetCanonicalOrder =
       query.locationIds.some((id) => id.trim() === '')
     )
       return result.err(
-        orderError('ORDER_GET_INVALID', 'The Order query is invalid.', 400),
+        validationError({
+          code: 'order_get_invalid',
+          message: 'The Order query is invalid.',
+          safeMessage: 'The Order query is invalid.',
+        }),
       );
     try {
       const order = await repo.get(query);
       return order === null
         ? result.err(
-            orderError('ORDER_NOT_FOUND', 'The Order was not found.', 404),
+            notFoundError({
+              code: 'order_not_found',
+              message: 'The Order was not found.',
+              safeMessage: 'The Order was not found.',
+            }),
           )
         : result.ok(order);
     } catch (error) {
       return result.err(
-        orderError(
-          'ORDER_GET_FAILED',
-          'The Order could not be loaded.',
-          503,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'order_get_failed',
+            message: 'The Order could not be loaded.',
+            safeMessage: 'The Order could not be loaded.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

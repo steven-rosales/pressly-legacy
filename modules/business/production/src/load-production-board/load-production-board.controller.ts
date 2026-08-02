@@ -1,13 +1,12 @@
 import type { RequestHandler } from 'express';
-import { catchAsync } from '@pressly/http/express';
-import { sendProductionResult } from '../http/production-response.ts';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { LoadProductionBoard } from './load-production-board.port.ts';
 
 export const makeLoadProductionBoardController = (
   loadBoard: LoadProductionBoard,
 ): RequestHandler =>
   catchAsync(async (request, response) => {
-    sendProductionResult(
+    sendApiResult(
       response,
       await loadBoard({
         locationId: request.params['locationId'] as string,

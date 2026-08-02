@@ -6,6 +6,7 @@ import {
   type Database,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { conflictError, invariantViolationError } from '@pressly/errors';
 import { makePostgresUnitOfWork } from '../persistence/postgres-unit-of-work.ts';
 import { lockLocationScheduling } from '../persistence/scheduling-locks.ts';
 import { appendWorkEvent, findWorkEvent } from '../persistence/work-events.ts';
@@ -16,6 +17,20 @@ import type {
   StoredFulfillmentDemand,
 } from './apply-fulfillment-demand.port.ts';
 
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
+
+const productionConcurrencyConflict = (code: string, message: string) =>
+  conflictError({
+    code,
+    message,
+    safeMessage: 'Production state changed. Refresh and try again.',
+  });
+
 const mapAdmissionState = (value: string): FulfillmentAdmissionState => {
   switch (value) {
     case 'unreleased':
@@ -23,7 +38,10 @@ const mapAdmissionState = (value: string): FulfillmentAdmissionState => {
     case 'withdrawn':
       return value;
     default:
-      throw new Error(`Unknown fulfillment admission state: ${value}.`);
+      throw productionInvariantViolation(
+        'production_fulfillment_demand_admission_state_invalid',
+        `Unknown fulfillment admission state: ${value}.`,
+      );
   }
 };
 
@@ -36,7 +54,10 @@ const mapCommercialState = (
     case 'canceled':
       return value;
     default:
-      throw new Error(`Unknown commercial order state: ${value}.`);
+      throw productionInvariantViolation(
+        'production_fulfillment_demand_commercial_state_invalid',
+        `Unknown commercial order state: ${value}.`,
+      );
   }
 };
 
@@ -53,7 +74,10 @@ const mapProductionStatus = (
     case 'finished':
       return value;
     default:
-      throw new Error(`Unknown production-order status: ${value}.`);
+      throw productionInvariantViolation(
+        'production_fulfillment_demand_order_status_invalid',
+        `Unknown production-order status: ${value}.`,
+      );
   }
 };
 
@@ -61,19 +85,28 @@ const asResolutionState = (
   value: string,
 ): 'open' | 'resolved_without_production' => {
   if (value === 'open' || value === 'resolved_without_production') return value;
-  throw new Error(`Unknown production-order resolution state: ${value}.`);
+  throw productionInvariantViolation(
+    'production_fulfillment_demand_resolution_state_invalid',
+    `Unknown production-order resolution state: ${value}.`,
+  );
 };
 
 const asAdmissionOverride = (value: string | null): 'released' | null => {
   if (value === null || value === 'released') return value;
-  throw new Error(`Unknown production admission override: ${value}.`);
+  throw productionInvariantViolation(
+    'production_fulfillment_demand_admission_override_invalid',
+    `Unknown production admission override: ${value}.`,
+  );
 };
 
 const mapEstimatedWeightSource = (
   value: string | null,
 ): StoredFulfillmentDemand['estimatedWeightSource'] => {
   if (value === null || value === 'external_estimate') return value;
-  throw new Error(`Unknown demand weight provenance: ${value}.`);
+  throw productionInvariantViolation(
+    'production_fulfillment_demand_weight_source_invalid',
+    `Unknown demand weight provenance: ${value}.`,
+  );
 };
 
 const phaseFor = (
@@ -262,13 +295,19 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
 
       if (production.action === 'none') {
         if (existing !== undefined)
-          throw new Error('A no-op demand projection found production work.');
+          throw productionInvariantViolation(
+            'production_fulfillment_demand_noop_work_present',
+            'A no-op demand projection found production work.',
+          );
         return stored(null, null, null, null, null, null);
       }
 
       if (production.action === 'preserve') {
         if (existing === undefined)
-          throw new Error('A preserved demand is missing production work.');
+          throw productionInvariantViolation(
+            'production_fulfillment_demand_preserved_work_missing',
+            'A preserved demand is missing production work.',
+          );
         return stored(
           existing.id,
           existing.bagCount,
@@ -281,14 +320,21 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
 
       if (production.action === 'create') {
         if (existing !== undefined)
-          throw new Error('A new demand projection found production work.');
+          throw productionInvariantViolation(
+            'production_fulfillment_demand_new_work_present',
+            'A new demand projection found production work.',
+          );
         if (
           command.estimatedWeightLbs === null ||
           command.estimatedWeightSource === null
         )
-          throw new Error('Production work requires a positive estimate.');
+          throw productionInvariantViolation(
+            'production_fulfillment_demand_estimate_missing',
+            'Production work requires a positive estimate.',
+          );
         if (production.status === 'eligible')
-          throw new Error(
+          throw productionInvariantViolation(
+            'production_fulfillment_demand_physical_admission_invalid',
             'Demand projection cannot create physically admitted work.',
           );
 
@@ -324,7 +370,10 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
       }
 
       if (existing === undefined)
-        throw new Error('An updated demand is missing production work.');
+        throw productionInvariantViolation(
+          'production_fulfillment_demand_updated_work_missing',
+          'An updated demand is missing production work.',
+        );
 
       const derivedWeightLbs =
         command.estimatedWeightLbs ?? Number(existing.derivedWeightLbs);
@@ -332,7 +381,8 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
         command.estimatedWeightSource ??
         mapEstimatedWeightSource(existing.derivedWeightSource);
       if (derivedWeightSource === null)
-        throw new Error(
+        throw productionInvariantViolation(
+          'production_fulfillment_demand_weight_source_missing',
           'Existing production work is missing weight provenance.',
         );
       const [updated] = await db
@@ -373,7 +423,10 @@ export const makeApplyFulfillmentDemandRepository = (deps: {
           resolutionState: laundryProduction.productionOrders.resolutionState,
         });
       if (updated === undefined)
-        throw new Error('Production order changed during demand application.');
+        throw productionConcurrencyConflict(
+          'production_fulfillment_demand_order_version_conflict',
+          'Production order changed during demand application.',
+        );
       return stored(
         updated.id,
         updated.bagCount,

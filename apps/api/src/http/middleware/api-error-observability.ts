@@ -1,6 +1,7 @@
 import type { AppError } from '@pressly/errors';
 import { redactLogFields } from '@pressly/logging';
 import {
+  attemptObservation,
   decideObservation,
   type ErrorReportContext,
   type ObservationDecision,
@@ -58,39 +59,47 @@ export const observeApiError = (
     },
   });
 
-  if (decision.logLevel !== undefined)
-    logObservation(
-      runtime.logger,
-      decision.logLevel,
-      'api.error.observed',
-      toObservationLogFields({
-        kind: input.appError.kind,
-        code: input.appError.code,
-        status: input.appError.status,
+  const logLevel = decision.logLevel;
+  if (logLevel !== undefined)
+    attemptObservation(() =>
+      logObservation(
+        runtime.logger,
+        logLevel,
+        'api.error.observed',
+        toObservationLogFields({
+          kind: input.appError.kind,
+          code: input.appError.code,
+          status: input.appError.status,
+          reason: decision.reason,
+          requestId: input.requestId,
+          method: input.request.method,
+          route,
+          details: input.appError.details,
+        }),
+      ),
+    );
+
+  const counter = decision.counter;
+  if (counter !== undefined)
+    attemptObservation(() =>
+      runtime.observability.counters.increment(counter, {
         reason: decision.reason,
-        requestId: input.requestId,
-        method: input.request.method,
+        status: String(input.appError.status),
         route,
-        details: input.appError.details,
       }),
     );
 
-  if (decision.counter !== undefined)
-    runtime.observability.counters.increment(decision.counter, {
-      reason: decision.reason,
-      status: String(input.appError.status),
-      route,
-    });
-
   if (decision.report)
-    runtime.observability.errors.capture(
-      input.appError,
-      reportContext({
-        appError: input.appError,
-        decision,
-        request: input.request,
-        requestId: input.requestId,
-      }),
+    attemptObservation(() =>
+      runtime.observability.errors.capture(
+        input.appError,
+        reportContext({
+          appError: input.appError,
+          decision,
+          request: input.request,
+          requestId: input.requestId,
+        }),
+      ),
     );
 
   return decision;

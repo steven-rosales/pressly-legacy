@@ -5,7 +5,7 @@ import {
   orderMutationResultSchema,
   productionLocationParamsSchema,
 } from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
+import { validationError } from '@pressly/errors';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import type { OrderCustomer, OrdersApplication } from '@pressly/orders';
@@ -53,8 +53,7 @@ export const makeOrderCommandRoutes = (input: {
     validateRequest({ body: createOrderRequestSchema }),
     catchAsync(async (request, response) => {
       if (request.body.fulfillment.locationId !== request.params['locationId'])
-        throw makeAppError({
-          kind: 'ValidationError',
+        throw validationError({
           code: 'order_location_mismatch',
           message: 'The Order fulfillment location does not match the route.',
           safeMessage: 'The order location does not match this location.',

@@ -10,7 +10,7 @@ import {
   type PolicyRule,
 } from '@pressly/auth/authorization';
 import { catchAsync } from '@pressly/http/express';
-import { makeAppError } from '@pressly/errors';
+import { permissionError } from '@pressly/errors';
 import {
   nullSecurityEventSink,
   type SecurityEventSink,
@@ -88,12 +88,10 @@ export const makeAuthorizeMiddleware =
           reason: decision.reason,
         });
 
-        throw makeAppError({
-          kind: 'PermissionError',
+        throw permissionError({
           code: decision.reason,
           message: decision.safeMessage,
           safeMessage: decision.safeMessage,
-          status: 403,
           details: {
             ...(decision.details ?? ({} as Record<string, unknown>)),
             action: input.action,

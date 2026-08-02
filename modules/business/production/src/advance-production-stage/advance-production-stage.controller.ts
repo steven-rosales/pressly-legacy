@@ -3,8 +3,7 @@ import type {
   CompleteStageCommand,
   StartStageCommand,
 } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
-import { sendProductionResult } from '../http/production-response.ts';
+import { catchAsync, sendApiResult } from '@pressly/http/express';
 import type { AdvanceProductionStage } from './advance-production-stage.port.ts';
 
 export const makeAdvanceProductionStageController = (input: {
@@ -19,7 +18,7 @@ export const makeAdvanceProductionStageController = (input: {
       actorId: input.readActorId(response),
     };
     if (input.transition === 'start') {
-      sendProductionResult(
+      sendApiResult(
         response,
         await input.advance({
           ...(request.body as Omit<
@@ -33,7 +32,7 @@ export const makeAdvanceProductionStageController = (input: {
       return;
     }
 
-    sendProductionResult(
+    sendApiResult(
       response,
       await input.advance({
         ...(request.body as Omit<

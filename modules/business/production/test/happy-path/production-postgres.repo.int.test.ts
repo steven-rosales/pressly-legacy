@@ -598,7 +598,11 @@ describe('production Postgres repositories', () => {
           application.advanceProductionStage(completionCommand),
         ).resolves.toMatchObject({
           tag: 'err',
-          error: { code: 'stage_transition_failed', status: 500 },
+          error: {
+            code: 'production_batch_completion_bag_count_invalid',
+            kind: 'InvariantViolationError',
+            status: 500,
+          },
         });
         const [rolledBackStage] = await testDb.db
           .select()

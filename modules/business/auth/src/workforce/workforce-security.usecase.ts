@@ -7,7 +7,7 @@ import {
 } from './workforce-validation.policy.ts';
 import { workforceStoreFailure } from './workforce.error.ts';
 import { decodeWorkforceCursor } from './workforce-pagination.policy.ts';
-import type { WorkforceActorRef } from './workforce.port.ts';
+import type { WorkforceActorRef } from './workforce.model.ts';
 import type { WorkforceClock } from './workforce-invitation.port.ts';
 import type { WorkforceSecurityStore } from './workforce-security.port.ts';
 

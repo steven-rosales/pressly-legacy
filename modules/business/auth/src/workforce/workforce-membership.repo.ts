@@ -21,7 +21,10 @@ import {
   recordReceipt,
   recordTransition,
 } from './workforce-store.repo.ts';
-import type { WorkforceMemberDetail, WorkforceRole } from './workforce.port.ts';
+import type {
+  WorkforceMemberDetail,
+  WorkforceRole,
+} from './workforce.model.ts';
 import { encodeWorkforceCursor } from './workforce-pagination.policy.ts';
 import {
   databaseFailure,

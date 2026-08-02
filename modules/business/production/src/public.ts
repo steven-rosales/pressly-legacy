@@ -17,10 +17,10 @@ export type {
   SchedulingInput,
   SchedulingOutput,
 } from './scheduling/production-scheduling.port.ts';
-export type { OrderDemandPhase } from './production-lifecycle/order-demand.port.ts';
+export type { OrderDemandPhase } from './production-lifecycle/order-demand.model.ts';
 export type {
-  PolicyDecision,
   ProductionPolicyPort,
+  ProductionPolicyRejection,
 } from './production-policy/production-policy.port.ts';
 export type { ProductionSignalsPort } from './production-signals/production-signals.port.ts';
 export type { ProductionSchedulerPort } from './scheduling/production-scheduler.port.ts';

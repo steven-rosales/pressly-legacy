@@ -9,8 +9,7 @@ import {
   principalAttributesFromSession,
   type PrincipalAttributes,
 } from '@pressly/auth/authorization';
-import { type AppError } from '@pressly/errors';
-import { expiredSession, invalidSession } from './load-session.error.ts';
+import { authError, type AppError } from '@pressly/errors';
 import type {
   Clock,
   LoadSessionStore,
@@ -32,6 +31,20 @@ type MakeLoadSessionDeps = {
 export type LoadSession = (
   command: Readonly<{ bearerToken: string }>,
 ) => Promise<Result<LoadedSession, AppError>>;
+
+const invalidSession = (): AppError =>
+  authError({
+    code: 'invalid_session',
+    message: 'Session is invalid.',
+    safeMessage: 'Authentication is required.',
+  });
+
+const expiredSession = (): AppError =>
+  authError({
+    code: 'session_expired',
+    message: 'Session is expired.',
+    safeMessage: 'Please log in again.',
+  });
 
 /**
  * Loads session by finding the token hash.

@@ -1,4 +1,5 @@
 import type { CommitProductionOrderRouteResult } from '@pressly/contracts';
+import { makeAppError } from '@pressly/errors';
 import { describe, expect, it, vi } from 'vitest';
 import { nullProductionSignals } from '../../src/production-signals/production-signals.port.ts';
 import type { StoredWorkEvent } from '../../src/command-execution/production-command.port.ts';
@@ -99,7 +100,11 @@ const command = {
   expectedSourceBatchVersion: 2,
 };
 
-const setup = (storedEvent: StoredWorkEvent | null = null) => {
+const setup = (
+  storedEvent: StoredWorkEvent | null = null,
+  transactionFailure?: unknown,
+  policy = allowPolicy,
+) => {
   const loadContext = vi.fn(async () => context());
   let appliedWorkEvent = storedEvent;
   const findWorkEvent = vi.fn(async () => appliedWorkEvent);
@@ -122,7 +127,10 @@ const setup = (storedEvent: StoredWorkEvent | null = null) => {
     return output;
   });
   const repo: RouteProductionOrderRepository = {
-    transaction: async (work) => work({ loadContext, findWorkEvent, commit }),
+    transaction: async (work) => {
+      if (transactionFailure !== undefined) throw transactionFailure;
+      return work({ loadContext, findWorkEvent, commit });
+    },
   };
   const orderRouteOutcome = vi.fn();
   const queueConflict = vi.fn();
@@ -133,7 +141,7 @@ const setup = (storedEvent: StoredWorkEvent | null = null) => {
   };
   const route = makeRouteProductionOrder({
     repo,
-    policy: allowPolicy,
+    policy,
     clock: makeClock('2026-07-15T16:00:00.000Z').clock,
     signals,
   });
@@ -251,7 +259,11 @@ describe('route production order', () => {
 
     expect(outcome).toMatchObject({
       tag: 'err',
-      error: { code: 'production_order_route_failed' },
+      error: {
+        kind: 'DatabaseError',
+        code: 'production_order_route_failed',
+        status: 503,
+      },
     });
     expect(orderRouteOutcome).toHaveBeenLastCalledWith({
       operation: 'commit',
@@ -259,6 +271,73 @@ describe('route production order', () => {
       kind: 'queued_move',
       reason: 'manual_rebatch',
     });
+  });
+
+  it('returns a database failure when preview persistence is unavailable', async () => {
+    const { route, orderRouteOutcome } = setup(
+      null,
+      new Error('database unavailable'),
+    );
+
+    await expect(route.preview(command)).resolves.toMatchObject({
+      tag: 'err',
+      error: {
+        kind: 'DatabaseError',
+        code: 'production_order_route_preview_failed',
+        status: 503,
+      },
+    });
+    expect(orderRouteOutcome).toHaveBeenLastCalledWith({
+      operation: 'preview',
+      status: 'failed',
+      kind: 'queued_move',
+      reason: 'manual_rebatch',
+    });
+  });
+
+  it('does not misclassify a policy failure as a database failure', async () => {
+    const cause = new Error('policy implementation failed');
+    const policy = {
+      ...allowPolicy,
+      evaluateProductionOrderOperationalAccess: vi.fn(() => {
+        throw cause;
+      }),
+    };
+    const { route } = setup(null, undefined, policy);
+
+    const outcome = await route.preview(command);
+    expect(outcome).toMatchObject({
+      tag: 'err',
+      error: {
+        kind: 'InvariantViolationError',
+        code: 'production_order_route_evaluation_failed',
+        status: 500,
+      },
+    });
+    if (outcome.tag === 'err') expect(outcome.error.cause).toBe(cause);
+  });
+
+  it('preserves an existing application error from route persistence', async () => {
+    const existing = makeAppError({
+      kind: 'ExternalServiceError',
+      code: 'routing_dependency_unavailable',
+      message: 'Routing dependency unavailable.',
+      safeMessage: 'Routing is temporarily unavailable.',
+      status: 502,
+    });
+    const { route, commit } = setup();
+    const preview = await route.preview(command);
+    if (preview.tag !== 'ok') throw new Error('Expected a preview.');
+    commit.mockRejectedValueOnce(existing);
+
+    const outcome = await route.commit({
+      ...command,
+      proposalHash: preview.value.proposalHash,
+      idempotencyKey: 'route-production-order-existing-error-1',
+    });
+
+    expect(outcome.tag).toBe('err');
+    if (outcome.tag === 'err') expect(outcome.error).toBe(existing);
   });
 
   it('distinguishes an idempotent replay from a newly committed route', async () => {

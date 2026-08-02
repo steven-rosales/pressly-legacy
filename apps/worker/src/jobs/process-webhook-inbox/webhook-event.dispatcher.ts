@@ -1,4 +1,4 @@
-import { makeAppError } from '@pressly/errors';
+import { validationError } from '@pressly/errors';
 import type { ClaimedWebhookEvent } from '@pressly/webhook-ingestion';
 import type {
   EventConsumerOutcome,
@@ -19,13 +19,12 @@ export const makeWebhookEventDispatcher =
     if (consumer !== undefined) return consumer(event);
     return {
       tag: 'err',
-      retryable: false,
-      error: makeAppError({
-        kind: 'ValidationError',
+      error: validationError({
         code: 'webhook_event_consumer_missing',
         message: `No consumer is registered for ${webhookConsumerKey(event)}.`,
         safeMessage: 'No consumer is registered for this webhook event.',
         status: 422,
       }),
+      retryable: false,
     };
   };

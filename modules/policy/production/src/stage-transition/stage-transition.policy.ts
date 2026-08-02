@@ -1,4 +1,9 @@
-import { result, stateMachine, type Result } from '@pressly/kernel';
+import {
+  result,
+  stateMachine,
+  type CodedFailure,
+  type Result,
+} from '@pressly/kernel';
 
 export type StageState = 'planned' | 'started' | 'completed';
 export type StageEvent =
@@ -93,8 +98,6 @@ export type StageNextAction =
     }>
   | Readonly<{ state: 'terminal'; reason: 'stage_completed' }>;
 
-type StageRejection = Readonly<{ code: string; message: string }>;
-
 const rejection = (code: string, message: string) => ({ code, message });
 
 const completionBoundary = (entity: StageEntity): Date | null => {
@@ -146,7 +149,7 @@ const completionTiming = (
 const validateEvaluationClock = (
   entity: StageEntity,
   context: StageContext,
-): StageRejection | null => {
+): CodedFailure | null => {
   if (!Number.isFinite(context.now.getTime()))
     return rejection('STAGE_CLOCK_INVALID', 'Clock is invalid.');
   if (
@@ -294,10 +297,7 @@ export const evaluateStageTransition = (
   entity: StageEntity,
   event: StageEvent,
   context: StageContext,
-): Result<
-  StageTransitionDecision,
-  Readonly<{ code: string; message: string }>
-> => {
+): Result<StageTransitionDecision, CodedFailure> => {
   const invalidClock = validateEvaluationClock(entity, context);
   if (invalidClock !== null) return result.err(invalidClock);
 
@@ -354,7 +354,7 @@ const isStageActionBlockCode = (value: string): value is StageActionBlockCode =>
 export const evaluateStageNextAction = (
   entity: StageEntity,
   context: StageContext,
-): Result<StageNextAction, StageRejection> => {
+): Result<StageNextAction, CodedFailure> => {
   const invalidClock = validateEvaluationClock(entity, context);
   if (invalidClock !== null) return result.err(invalidClock);
 

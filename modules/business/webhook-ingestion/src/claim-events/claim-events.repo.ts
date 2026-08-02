@@ -9,10 +9,18 @@ import {
   webhookIngestion,
   type Database,
 } from '@pressly/db';
+import { invariantViolationError, type AppError } from '@pressly/errors';
 import type {
   ClaimedWebhookEvent,
   ClaimWebhookEventsRepository,
 } from './claim-events.port.ts';
+
+const claimableEventInvariant = (code: string, message: string): AppError =>
+  invariantViolationError({
+    code: code.toLowerCase(),
+    message,
+    safeMessage: 'Stored webhook event data is inconsistent.',
+  });
 
 export const makeClaimWebhookEventsRepository = (
   db: Database,
@@ -64,7 +72,10 @@ export const makeClaimWebhookEventsRepository = (
 
       for (const event of claimable) {
         if (event.payload === null || event.payloadHash === null)
-          throw new Error('A claimable webhook event has no payload.');
+          throw claimableEventInvariant(
+            'WEBHOOK_CLAIMABLE_EVENT_PAYLOAD_MISSING',
+            'A claimable webhook event has no payload.',
+          );
         const attempt = event.attempts + 1;
         const recoveredLease = event.status === 'processing';
         await transaction

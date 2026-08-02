@@ -1,6 +1,7 @@
-import type { OrderDemandPhase } from '../production-lifecycle/order-demand.port.ts';
-import type { ProductionOrderExecutionState } from '../production-lifecycle/production-lifecycle.port.ts';
-import type { PolicyDecision } from './policy-decision.port.ts';
+import type { Result } from '@pressly/kernel';
+import type { OrderDemandPhase } from '../production-lifecycle/order-demand.model.ts';
+import type { ProductionOrderExecutionState } from '../production-lifecycle/production-lifecycle.model.ts';
+import type { ProductionPolicyRejection } from './production-policy.model.ts';
 
 type ProductionOperationalStatus =
   | 'release_pending'
@@ -26,18 +27,13 @@ export type ProductionAdmissionPolicyPort = Readonly<{
     bagCount: number | null;
     selectedForShift: boolean;
     hasActivePlacement: boolean;
-  }) =>
-    | Readonly<{
-        tag: 'ok';
-        value: Readonly<{
-          admissionOverride: 'released' | null;
-          productionStatus: 'release_pending' | 'intake_pending' | 'eligible';
-        }>;
-      }>
-    | Readonly<{
-        tag: 'err';
-        error: Readonly<{ code: string; message: string }>;
-      }>;
+  }) => Result<
+    Readonly<{
+      admissionOverride: 'released' | null;
+      productionStatus: 'release_pending' | 'intake_pending' | 'eligible';
+    }>,
+    ProductionPolicyRejection
+  >;
   allowedProductionAdmissionActions: (input: {
     sourceAdmissionState: 'unreleased' | 'released' | 'withdrawn';
     productionStatus: ProductionOperationalStatus;
@@ -69,5 +65,8 @@ export type ProductionAdmissionPolicyPort = Readonly<{
     phase: OrderDemandPhase;
     derivedWeightLbs: number;
     bagCount: number | null;
-  }) => PolicyDecision<Readonly<{ status: 'release_pending' | 'eligible' }>>;
+  }) => Result<
+    Readonly<{ status: 'release_pending' | 'eligible' }>,
+    ProductionPolicyRejection
+  >;
 }>;

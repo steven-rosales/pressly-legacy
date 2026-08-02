@@ -3,7 +3,7 @@ import type {
   PricingItemResult,
   PricingServiceSlug,
 } from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
+import { invariantViolationError } from '@pressly/errors';
 
 export const PRICING = {
   washFoldPerLbCents: 167,
@@ -86,12 +86,10 @@ const parseDisplayPriceCents = (price: string): number => {
   const match = price.match(/^\$(\d+)\.(\d{2})(?:\s*\/\s*sqft)?$/);
 
   if (match === null) {
-    throw makeAppError({
-      kind: 'InvariantViolationError',
+    throw invariantViolationError({
       code: 'invalid_static_pricing_display',
       message: `Invalid pricing display value: ${price}`,
       safeMessage: 'Pricing configuration is invalid.',
-      status: 500,
       details: { price },
     });
   }

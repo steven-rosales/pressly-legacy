@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mapProductionLocation } from '../../src/list-production-locations/list-production-locations.mapper.ts';
 import type { ListProductionLocationsRepository } from '../../src/list-production-locations/list-production-locations.port.ts';
 import { makeListProductionLocations } from '../../src/list-production-locations/list-production-locations.usecase.ts';
 
@@ -68,14 +67,5 @@ describe('list production locations', () => {
     await expect(
       list({ includeInactive: true, allowedLocationIds: [] }),
     ).resolves.toMatchObject({ tag: 'ok', value: { items: [] } });
-  });
-
-  it('maps only the public location fields', () => {
-    expect(
-      mapProductionLocation({
-        ...locations[0],
-        updatedAt: 'not part of the row type',
-      } as (typeof locations)[0]),
-    ).toEqual(locations[0]);
   });
 });

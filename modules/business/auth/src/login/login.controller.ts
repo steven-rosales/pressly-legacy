@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { result } from '@pressly/kernel';
-import { apiFailure, apiSuccess } from '@pressly/http';
+import { apiSuccess } from '@pressly/http';
 import { catchAsync } from '@pressly/http/express';
 import type { LoginRequest } from '@pressly/contracts';
 import type { Login } from './login.usecase.ts';
@@ -21,10 +21,7 @@ export const makeLoginController = (login: Login): RequestHandler =>
         : { requestId: res.locals?.['requestId'] as string }),
     });
 
-    if (result.isErr(loginResult)) {
-      res.status(loginResult.error.status).json(apiFailure(loginResult.error));
-      return;
-    }
+    if (result.isErr(loginResult)) throw loginResult.error;
 
     res.status(200).json(apiSuccess(loginResult.value));
   });

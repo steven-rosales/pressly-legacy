@@ -28,12 +28,12 @@ import type {
   ProductionOrderExecutionState,
   ProductionOrderSchedulingMutation,
   ProductionOrderStageAttemptState,
-} from '../../src/production-lifecycle/production-lifecycle.port.ts';
+} from '../../src/production-lifecycle/production-lifecycle.model.ts';
 import type { SchedulingInput } from '../../src/scheduling/production-scheduling.port.ts';
 import type {
   StageTransitionContext,
   StoredStage,
-} from '../../src/production-lifecycle/stage-transition.port.ts';
+} from '../../src/production-lifecycle/stage-transition.model.ts';
 import type { Transactional } from '../../src/persistence/production-transaction.port.ts';
 import type {
   ApplyFulfillmentDemandCommand,

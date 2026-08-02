@@ -61,7 +61,7 @@ describe('load pricing catalog http controller', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('returns a failure envelope from usecase errors', async () => {
+  it('forwards catalog application errors to express', async () => {
     const error = makeAppError({
       kind: 'NotFoundError',
       code: 'pricing_not_found',
@@ -84,15 +84,9 @@ describe('load pricing catalog http controller', () => {
     controller(req, res as unknown as Response, next);
     await waitForController();
 
-    expect(res.status).toHaveBeenCalledWith(404);
-    expect(res.json).toHaveBeenCalledWith({
-      ok: false,
-      error: {
-        code: 'pricing_not_found',
-        message: 'Pricing is not available.',
-      },
-    });
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(error);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
   });
 });
 

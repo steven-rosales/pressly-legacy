@@ -1,9 +1,12 @@
+import {
+  conflictError,
+  databaseError,
+  mapUnknownError,
+  notFoundError,
+} from '@pressly/errors';
 import { result } from '@pressly/kernel';
 import type { RecordOrderIntakeResult } from '@pressly/contracts';
-import {
-  productionError,
-  productionIdempotencyConflict,
-} from '../failure-mapping/production.error.ts';
+import { productionIdempotencyConflict } from '../command-execution/production-command.error.ts';
 import {
   defineWorkEventCommand,
   resolveWorkEventReplay,
@@ -16,10 +19,18 @@ import type {
 } from './record-order-intake.port.ts';
 export type { RecordOrderIntake } from './record-order-intake.port.ts';
 
+type RecordOrderIntakePolicy = Pick<
+  ProductionPolicyPort,
+  | 'evaluateProductionOrderOperationalAccess'
+  | 'evaluateIntakeAdmission'
+  | 'resolveProductionOrderExecutionState'
+  | 'deriveProductionOrderOperationalStatus'
+>;
+
 export const makeRecordOrderIntake =
   (deps: {
     repo: RecordOrderIntakeRepository;
-    policy: ProductionPolicyPort;
+    policy: RecordOrderIntakePolicy;
     clock: ClockPort;
   }): RecordOrderIntake =>
   async (command) => {
@@ -46,19 +57,22 @@ export const makeRecordOrderIntake =
         const order = await repo.lockOrder(command.locationId, command.orderId);
         if (order === null)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_NOT_FOUND',
-              'The production order was not found.',
-              404,
-            ),
+            notFoundError({
+              code: 'production_order_not_found',
+              message: 'The production order was not found.',
+              safeMessage: 'The production order was not found.',
+            }),
           );
 
         if (order.productionVersion !== command.expectedVersion)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_VERSION_CONFLICT',
-              'The production order changed before intake was recorded.',
-            ),
+            conflictError({
+              code: 'production_order_version_conflict',
+              message:
+                'The production order changed before intake was recorded.',
+              safeMessage:
+                'The production order changed before intake was recorded.',
+            }),
           );
 
         const access = deps.policy.evaluateProductionOrderOperationalAccess({
@@ -66,7 +80,11 @@ export const makeRecordOrderIntake =
         });
         if (access.tag === 'err')
           return result.err(
-            productionError(access.error.code, access.error.message, 409),
+            conflictError({
+              code: access.error.code.toLowerCase(),
+              message: access.error.message,
+              safeMessage: access.error.message,
+            }),
           );
 
         if (
@@ -75,10 +93,13 @@ export const makeRecordOrderIntake =
           )
         )
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_INTAKE_STATE_INVALID',
-              'Bag intake cannot change after an order enters production.',
-            ),
+            conflictError({
+              code: 'production_order_intake_state_invalid',
+              message:
+                'Bag intake cannot change after an order enters production.',
+              safeMessage:
+                'Bag intake cannot change after an order enters production.',
+            }),
           );
 
         const admission = deps.policy.evaluateIntakeAdmission({
@@ -88,7 +109,11 @@ export const makeRecordOrderIntake =
         });
         if (admission.tag === 'err')
           return result.err(
-            productionError(admission.error.code, admission.error.message, 409),
+            conflictError({
+              code: admission.error.code.toLowerCase(),
+              message: admission.error.message,
+              safeMessage: admission.error.message,
+            }),
           );
 
         const execution = deps.policy.resolveProductionOrderExecutionState({
@@ -97,15 +122,21 @@ export const makeRecordOrderIntake =
         });
         if (execution.tag === 'err')
           return result.err(
-            productionError(execution.error.code, execution.error.message, 409),
+            conflictError({
+              code: execution.error.code.toLowerCase(),
+              message: execution.error.message,
+              safeMessage: execution.error.message,
+            }),
           );
         if (execution.value !== 'unassigned')
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_INTAKE_STATE_INVALID',
-              'Bag intake cannot change after an order enters production.',
-              409,
-            ),
+            conflictError({
+              code: 'production_order_intake_state_invalid',
+              message:
+                'Bag intake cannot change after an order enters production.',
+              safeMessage:
+                'Bag intake cannot change after an order enters production.',
+            }),
           );
         const nextStatus = deps.policy.deriveProductionOrderOperationalStatus({
           executionState: execution.value,
@@ -123,11 +154,13 @@ export const makeRecordOrderIntake =
         });
         if (nextStatus !== 'release_pending' && nextStatus !== 'eligible')
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_INTAKE_STATE_INVALID',
-              'Bag intake does not produce an admissible production state.',
-              409,
-            ),
+            conflictError({
+              code: 'production_order_intake_state_invalid',
+              message:
+                'Bag intake does not produce an admissible production state.',
+              safeMessage:
+                'Bag intake does not produce an admissible production state.',
+            }),
           );
 
         const recorded = await repo.recordIntake({
@@ -141,10 +174,13 @@ export const makeRecordOrderIntake =
         });
         if (recorded === null)
           return result.err(
-            productionError(
-              'PRODUCTION_ORDER_VERSION_CONFLICT',
-              'The production order changed before intake was recorded.',
-            ),
+            conflictError({
+              code: 'production_order_version_conflict',
+              message:
+                'The production order changed before intake was recorded.',
+              safeMessage:
+                'The production order changed before intake was recorded.',
+            }),
           );
 
         await repo.appendWorkEvent({
@@ -169,11 +205,14 @@ export const makeRecordOrderIntake =
       return outcome;
     } catch (error) {
       return result.err(
-        productionError(
-          'PRODUCTION_INTAKE_FAILED',
-          'Bag intake could not be recorded.',
-          500,
-          error,
+        mapUnknownError(error, (unknownCause) =>
+          databaseError({
+            code: 'production_intake_failed',
+            message: 'Bag intake could not be recorded.',
+            safeMessage: 'Bag intake could not be recorded.',
+            status: 503,
+            cause: unknownCause,
+          }),
         ),
       );
     }

@@ -1,5 +1,6 @@
-import { makeAppError } from '@pressly/errors';
+import { authError, rateLimitError } from '@pressly/errors';
 import type { Logger, SecurityEventSink } from '@pressly/logging';
+import { attemptObservation } from '@pressly/metrics';
 import type { RequestHandler } from 'express';
 
 type Clock = Readonly<{ nowMs: () => number }>;
@@ -118,13 +119,11 @@ export const makeIpRateLimiter =
     });
 
     next(
-      makeAppError({
-        kind: 'RateLimitError',
+      rateLimitError({
         code: 'rate_limit_exceeded',
         message: `Rate limit exceeded for ${input.name}.`,
         safeMessage: 'Too many requests. Please try again later.',
-        status: 429,
-        details: { retryAfterSeconds: decision.retryAfterSeconds },
+        publicDetails: { retryAfterSeconds: decision.retryAfterSeconds },
       }),
     );
   };
@@ -148,17 +147,17 @@ export const makeIdentityRateLimiter =
     )?.principal?.identityId;
 
     if (identityId === undefined) {
-      input.logger.warn('identity rate limiter missing auth context', {
-        limiter: input.name,
-        path: req.path,
-      });
+      attemptObservation(() =>
+        input.logger.warn('identity rate limiter missing auth context', {
+          limiter: input.name,
+          path: req.path,
+        }),
+      );
       next(
-        makeAppError({
-          kind: 'PermissionError',
+        authError({
           code: 'identity_rate_limit_auth_missing',
           message: `Identity rate limiter ${input.name} ran without authentication.`,
           safeMessage: 'Authentication is required.',
-          status: 401,
         }),
       );
       return;
@@ -190,13 +189,11 @@ export const makeIdentityRateLimiter =
       reason: input.name,
     });
     next(
-      makeAppError({
-        kind: 'RateLimitError',
+      rateLimitError({
         code: 'rate_limit_exceeded',
         message: `Rate limit exceeded for ${input.name}.`,
         safeMessage: 'Too many requests. Please try again later.',
-        status: 429,
-        details: { retryAfterSeconds: decision.retryAfterSeconds },
+        publicDetails: { retryAfterSeconds: decision.retryAfterSeconds },
       }),
     );
   };

@@ -1,12 +1,10 @@
-import { makeAppError } from '@pressly/errors';
+import { authError } from '@pressly/errors';
 
 const missingBearerToken = () =>
-  makeAppError({
-    kind: 'PermissionError',
+  authError({
     code: 'missing_bearer_token',
     message: 'Bearer token is required.',
     safeMessage: 'Authentication is required.',
-    status: 401,
   });
 
 export const readBearerToken = (authorization: string | undefined): string => {

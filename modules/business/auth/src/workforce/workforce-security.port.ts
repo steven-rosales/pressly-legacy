@@ -5,7 +5,7 @@ import type {
   StoreFailureReason,
   StoreMutationResult,
   WorkforceActorRef,
-} from './workforce.port.ts';
+} from './workforce.model.ts';
 
 export type WorkforceSessionSummary = Readonly<{
   id: string;

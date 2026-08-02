@@ -1,4 +1,4 @@
-import { makeAppError } from '@pressly/errors';
+import { configError } from '@pressly/errors';
 import type { CorsOptions } from 'cors';
 
 const allowedMethods = 'GET,HEAD,POST,PUT,PATCH,OPTIONS';
@@ -14,13 +14,11 @@ const allowedHeaders = [
 const invalidCorsConfiguration = (
   message: string,
   cause?: unknown,
-): ReturnType<typeof makeAppError> =>
-  makeAppError({
-    kind: 'ConfigError',
+): ReturnType<typeof configError> =>
+  configError({
     code: 'invalid_cors_origin',
     message,
     safeMessage: 'The API CORS policy is misconfigured.',
-    status: 500,
     ...(cause === undefined ? {} : { cause }),
   });
 

@@ -1,14 +1,16 @@
 import * as Sentry from '@sentry/node';
+import { isAppError, makeAppError } from '@pressly/errors';
 import { redactLogFields, type Logger, type LogFields } from '@pressly/logging';
-import type {
-  CounterLabels,
-  CounterName,
-  CounterSink,
-  ErrorReportContext,
-  ErrorReporter,
-  MeasurementLabels,
-  MeasurementName,
-  MeasurementSink,
+import {
+  attemptObservation,
+  type CounterLabels,
+  type CounterName,
+  type CounterSink,
+  type ErrorReportContext,
+  type ErrorReporter,
+  type MeasurementLabels,
+  type MeasurementName,
+  type MeasurementSink,
 } from '@pressly/metrics';
 import type { WorkerHeartbeat } from '../heartbeat.ts';
 
@@ -39,11 +41,51 @@ export const initializeWorkerSentry = (
   });
 };
 
-const sanitizedError = (error: unknown): Error => {
+export const sanitizeWorkerError = (
+  error: unknown,
+  seen: WeakSet<object> = new WeakSet(),
+): Error => {
+  if (typeof error === 'object' && error !== null) {
+    if (seen.has(error)) return new Error('Circular error cause.');
+    seen.add(error);
+  }
+
   const redacted = redactLogFields(
     error instanceof Error ? error : new Error(String(error)),
   ) as { name?: string; message?: string; stack?: string };
-  const safe = new Error(redacted.message ?? 'Unknown worker failure.');
+  const cause =
+    error instanceof Error && error.cause !== undefined
+      ? sanitizeWorkerError(error.cause, seen)
+      : undefined;
+  const aggregateErrors =
+    error instanceof AggregateError
+      ? error.errors.map((member) => sanitizeWorkerError(member, seen))
+      : undefined;
+
+  const safe = isAppError(error)
+    ? makeAppError({
+        kind: error.kind,
+        code: error.code,
+        message: error.safeMessage,
+        safeMessage: error.safeMessage,
+        status: error.status,
+        ...(cause === undefined ? {} : { cause }),
+        ...(error.traceId === undefined ? {} : { traceId: error.traceId }),
+      })
+    : aggregateErrors !== undefined
+      ? cause === undefined
+        ? new AggregateError(
+            aggregateErrors,
+            redacted.message ?? 'Unknown worker failures.',
+          )
+        : new AggregateError(
+            aggregateErrors,
+            redacted.message ?? 'Unknown worker failures.',
+            { cause },
+          )
+      : cause === undefined
+        ? new Error(redacted.message ?? 'Unknown worker failure.')
+        : new Error(redacted.message ?? 'Unknown worker failure.', { cause });
   safe.name = redacted.name ?? 'Error';
   if (redacted.stack !== undefined) safe.stack = redacted.stack;
   return safe;
@@ -53,20 +95,22 @@ export const makeWorkerSentryReporter = (enabled: boolean): ErrorReporter => ({
   capture: (error, context) => {
     if (!enabled) return;
 
-    Sentry.withScope((scope) => {
-      scope.setTag('runtime', 'worker');
-      scope.setTag('source', context.source);
-      if (context.operation !== undefined)
-        scope.setTag('operation', context.operation);
-      for (const [key, value] of Object.entries(context.tags ?? {}))
-        scope.setTag(key, value);
-      if (context.extra !== undefined)
-        scope.setContext(
-          'worker',
-          redactLogFields(context.extra) as Record<string, unknown>,
-        );
-      Sentry.captureException(sanitizedError(error));
-    });
+    attemptObservation(() =>
+      Sentry.withScope((scope) => {
+        scope.setTag('runtime', 'worker');
+        scope.setTag('source', context.source);
+        if (context.operation !== undefined)
+          scope.setTag('operation', context.operation);
+        for (const [key, value] of Object.entries(context.tags ?? {}))
+          scope.setTag(key, value);
+        if (context.extra !== undefined)
+          scope.setContext(
+            'worker',
+            redactLogFields(context.extra) as Record<string, unknown>,
+          );
+        Sentry.captureException(sanitizeWorkerError(error));
+      }),
+    );
   },
   shutdown: async () => {
     if (enabled) await Sentry.flush(2_000);
@@ -165,9 +209,11 @@ export const makeWorkerSentryHeartbeat = (input: {
           },
         );
       } catch (error: unknown) {
-        input.logger.warn(
-          'worker heartbeat check-in failed',
-          redactLogFields({ error }) as LogFields,
+        attemptObservation(() =>
+          input.logger.warn(
+            'worker heartbeat check-in failed',
+            redactLogFields({ error }) as LogFields,
+          ),
         );
       }
     },
@@ -196,9 +242,11 @@ export const makeWorkerSignalSinks = (input: {
       if (lastAt !== undefined && now - lastAt < input.measurementLogIntervalMs)
         return;
       lastExportFailureAt.set(name, now);
-      input.logger.warn(
-        'worker metric export failed',
-        redactLogFields({ metric: name, error }) as LogFields,
+      attemptObservation(() =>
+        input.logger.warn(
+          'worker metric export failed',
+          redactLogFields({ metric: name, error }) as LogFields,
+        ),
       );
     }
   };
@@ -206,11 +254,13 @@ export const makeWorkerSignalSinks = (input: {
   return {
     counters: {
       increment: (name: CounterName, labels?: CounterLabels) => {
-        input.logger.info('worker counter incremented', {
-          metric: name,
-          labels,
-          value: 1,
-        });
+        attemptObservation(() =>
+          input.logger.info('worker counter incremented', {
+            metric: name,
+            labels,
+            value: 1,
+          }),
+        );
         exportMetric(name, () =>
           sentryMetrics.count(name, 1, {
             attributes: metricAttributes(labels),
@@ -234,11 +284,13 @@ export const makeWorkerSignalSinks = (input: {
           return;
 
         lastMeasurementAt.set(key, now);
-        input.logger.info('worker measurement observed', {
-          metric: name,
-          labels,
-          value,
-        });
+        attemptObservation(() =>
+          input.logger.info('worker measurement observed', {
+            metric: name,
+            labels,
+            value,
+          }),
+        );
         const options = {
           attributes: metricAttributes(labels),
           ...(secondsMeasurements.has(name) ? { unit: 'second' } : {}),
@@ -268,20 +320,26 @@ export const reportWorkerFailure = (input: {
     error: input.error,
     ...input.extra,
   }) as LogFields;
-  if (input.level === 'fatal')
-    input.logger.fatal('worker runtime failure', fields);
-  else input.logger.error('worker runtime failure', fields);
-
-  input.counters.increment('worker.loop_failures', {
-    operation: input.operation,
+  attemptObservation(() => {
+    if (input.level === 'fatal')
+      input.logger.fatal('worker runtime failure', fields);
+    else input.logger.error('worker runtime failure', fields);
   });
-  input.errors.capture(input.error, {
-    source: 'worker',
-    operation: input.operation,
-    tags: input.tags,
-    extra: {
-      ...input.extra,
-      error: redactLogFields(input.error),
-    },
-  } satisfies ErrorReportContext);
+
+  attemptObservation(() =>
+    input.counters.increment('worker.loop_failures', {
+      operation: input.operation,
+    }),
+  );
+  attemptObservation(() =>
+    input.errors.capture(input.error, {
+      source: 'worker',
+      operation: input.operation,
+      tags: input.tags,
+      extra: {
+        ...input.extra,
+        error: redactLogFields(input.error),
+      },
+    } satisfies ErrorReportContext),
+  );
 };

@@ -1,8 +1,10 @@
+import { invariantViolationError } from '@pressly/errors';
 import type { Logger } from '@pressly/logging';
 import type { AnalyticsTracker, ErrorReporter } from '@pressly/metrics';
 import { createWebCore, type WebCore } from '../core/runtime/core';
 import type { RequestClient } from '../core/requests/request-client';
-import type { WebContext } from '../core/runtime/context';
+import type { Clock } from '../core/runtime/clock';
+import type { ContextProvider, WebContext } from '../core/runtime/context';
 
 export type TestWebCore = WebCore & {
   calls: {
@@ -14,6 +16,9 @@ export type TestWebCore = WebCore & {
 };
 
 export type MakeTestWebCoreOptions = Readonly<{
+  clock?: Clock;
+  contextProvider?: ContextProvider<WebContext>;
+  logger?: Logger;
   request?: RequestClient;
 }>;
 
@@ -59,24 +64,29 @@ export const makeTestWebCore = (
   const request: RequestClient = {
     send: async (input) => {
       calls.requests.push(input);
-      throw new Error('Request client fake was not configured for this test.');
+      throw invariantViolationError({
+        code: 'web_test_request_client_unconfigured',
+        message: 'Request client fake was not configured for this test.',
+      });
     },
   };
 
   const core = createWebCore({
-    clock: {
-      now: () => new Date('2026-01-01T00:00:00.000Z'),
-    },
-    context: {
-      get: () => ({
-        source: 'web',
-        route: '/test',
-        sessionId: 'session_test',
-        distinctId: 'distinct_test',
-        ...context,
-      }),
-    },
-    logger,
+    clock:
+      options.clock ??
+      ({ now: () => new Date('2026-01-01T00:00:00.000Z') } as const),
+    context:
+      options.contextProvider ??
+      ({
+        get: () => ({
+          source: 'web',
+          route: '/test',
+          sessionId: 'session_test',
+          distinctId: 'distinct_test',
+          ...context,
+        }),
+      } as const),
+    logger: options.logger ?? logger,
     analytics,
     errors,
     request: options.request ?? request,

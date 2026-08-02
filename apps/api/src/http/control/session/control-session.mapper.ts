@@ -1,5 +1,5 @@
 import type { ControlAuthenticatedSession } from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
+import { invariantViolationError } from '@pressly/errors';
 import type { Request, Response } from 'express';
 import { deriveControlCsrfToken } from './control-csrf.policy.ts';
 import type {
@@ -15,12 +15,10 @@ export const controlBrowserSession = (
   options: ControlSessionOptions,
 ): ControlAuthenticatedSession => {
   if (loaded.principal.sessionExpiresAt === undefined)
-    throw makeAppError({
-      kind: 'InvariantViolationError',
+    throw invariantViolationError({
       code: 'loaded_control_session_missing_expiry',
       message: 'Loaded Control session is missing its expiry.',
       safeMessage: 'Session could not be loaded.',
-      status: 500,
     });
 
   return {

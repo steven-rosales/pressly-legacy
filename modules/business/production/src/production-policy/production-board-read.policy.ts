@@ -4,7 +4,15 @@ import type {
   ProductionOrderListItem,
   StageRun,
 } from '@pressly/contracts';
+import { invariantViolationError } from '@pressly/errors';
 import type { ProductionPolicyPort } from './production-policy.port.ts';
+
+const productionInvariantViolation = (code: string, message: string) =>
+  invariantViolationError({
+    code,
+    message,
+    safeMessage: 'Production state is inconsistent.',
+  });
 
 export type StageNextActionReadContext = Readonly<{
   stageRunId: string;
@@ -57,13 +65,17 @@ export const evaluateProductionBoardProjection = (
       stages: batch.stages.map((stage): StageRun => {
         const evaluation = contextByStageId.get(stage.id);
         if (evaluation === undefined)
-          throw new Error(`Stage ${stage.id} is missing next-action context.`);
+          throw productionInvariantViolation(
+            'production_board_stage_context_missing',
+            `Stage ${stage.id} is missing next-action context.`,
+          );
         const decision = policy.evaluateStageNextAction(
           evaluation.entity,
           evaluation.context,
         );
         if (decision.tag === 'err')
-          throw new Error(
+          throw productionInvariantViolation(
+            'production_board_stage_next_action_invalid',
             `Stage ${stage.id} next action could not be evaluated: ${decision.error.code}.`,
           );
         return {

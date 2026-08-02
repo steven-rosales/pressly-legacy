@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { makeAppError } from '@pressly/errors';
 import { isSensitiveKey, redactLogFields } from '../src/redact.js';
 
 describe('redactLogFields', () => {
@@ -34,6 +35,31 @@ describe('redactLogFields', () => {
 
     expect(typeof result).toBe('object');
     expect((result as { message: string }).message).toBe('boom');
+  });
+
+  it('retains structured AppError identity and redacts its diagnostics', () => {
+    const result = redactLogFields(
+      makeAppError({
+        kind: 'DatabaseError',
+        code: 'database_unavailable',
+        message: 'failed postgres://user:password@database/pressly',
+        safeMessage: 'Storage is unavailable.',
+        status: 503,
+        details: { token: 'private-token', query: 'select 1' },
+        cause: new Error('socket failed'),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      tag: 'AppError',
+      kind: 'DatabaseError',
+      code: 'database_unavailable',
+      status: 503,
+      details: { token: '[REDACTED]', query: 'select 1' },
+      cause: { name: 'Error', message: 'socket failed' },
+    });
+    expect(JSON.stringify(result)).not.toContain('password');
+    expect(JSON.stringify(result)).not.toContain('private-token');
   });
 
   it('redacts nested credentials, bearer values, and URL passwords', () => {

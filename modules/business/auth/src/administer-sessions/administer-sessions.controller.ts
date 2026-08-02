@@ -2,7 +2,7 @@ import type {
   IdentitySessionParams,
   IdentitySessionsParams,
 } from '@pressly/contracts';
-import { apiFailure, apiSuccess } from '@pressly/http';
+import { apiSuccess } from '@pressly/http';
 import { catchAsync } from '@pressly/http/express';
 import { result } from '@pressly/kernel';
 import type { RequestHandler, Response } from 'express';
@@ -18,10 +18,7 @@ export const makeListIdentitySessionsController = (
     const params = req.params as IdentitySessionsParams;
     const found = await listIdentitySessions(params.identityId);
 
-    if (result.isErr(found)) {
-      res.status(found.error.status).json(apiFailure(found.error));
-      return;
-    }
+    if (result.isErr(found)) throw found.error;
 
     res.status(200).json(apiSuccess(found.value));
   });
@@ -42,10 +39,7 @@ export const makeRevokeIdentitySessionsController = (input: {
         : { requestId: res.locals?.['requestId'] as string }),
     });
 
-    if (result.isErr(revoked)) {
-      res.status(revoked.error.status).json(apiFailure(revoked.error));
-      return;
-    }
+    if (result.isErr(revoked)) throw revoked.error;
 
     res.status(200).json(apiSuccess(revoked.value));
   });

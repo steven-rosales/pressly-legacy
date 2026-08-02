@@ -7,7 +7,7 @@ import type {
   WorkforceInvitationPreview,
   WorkforceInvitationSummary,
   WorkforceRole,
-} from './workforce.port.ts';
+} from './workforce.model.ts';
 import type { WorkforceCursor } from './workforce-pagination.policy.ts';
 
 export type InvitationTokenService = Readonly<{

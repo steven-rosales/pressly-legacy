@@ -9,7 +9,7 @@ import {
 import type {
   WorkforceActorRef,
   WorkforceInvitationSummary,
-} from './workforce.port.ts';
+} from './workforce.model.ts';
 import type {
   WorkforceClock,
   WorkforceInvitationStore,

@@ -4,7 +4,7 @@ export { canonicalJson } from './canonical-json.ts';
 export { isCommandContextValid } from './command-context.ts';
 export type { CommandContext, CommandPrincipal } from './command-context.ts';
 export type { None, Option, Some } from './option.ts';
-export type { Err, Ok, Result } from './result.ts';
+export type { CodedFailure, Err, Ok, Result } from './result.ts';
 export type { Spec } from './spec.ts';
 export type {
   StateMachine,

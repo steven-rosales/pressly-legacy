@@ -1,6 +1,6 @@
 import { result, type Result } from '@pressly/kernel';
 import { hash as argonHash } from 'argon2';
-import { makeAppError, type AppError } from '@pressly/errors';
+import { unexpectedError, type AppError } from '@pressly/errors';
 
 export type PasswordHasher = Readonly<{
   hash: (plainTextPassword: string) => Promise<Result<string, AppError>>;
@@ -20,12 +20,10 @@ export const makePasswordHasher = (
       );
     } catch (error) {
       return result.err(
-        makeAppError({
-          kind: 'UnexpectedError',
+        unexpectedError({
           code: 'password_hashing_failed',
           message: 'Password hashing failed.',
           safeMessage: 'Password could not be saved.',
-          status: 500,
           cause: error,
         }),
       );

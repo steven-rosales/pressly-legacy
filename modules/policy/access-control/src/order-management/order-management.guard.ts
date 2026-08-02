@@ -1,4 +1,5 @@
 import type { Request, RequestHandler } from 'express';
+import { validationError } from '@pressly/errors';
 import type { AccessControlAuthPort } from '../http/auth.port.ts';
 import type { LocationAncestryPort } from '../identity/location-ancestry.port.ts';
 import { makeOrderManagementPolicies } from './order-management.policy.ts';
@@ -15,8 +16,10 @@ export type OrderManagementAccessControl = Readonly<{
 const readLocationId = (request: Request): string => {
   const locationId = request.params['locationId'];
   if (typeof locationId !== 'string' || locationId.length === 0)
-    throw Object.assign(new Error('Order location is required.'), {
+    throw validationError({
       code: 'order_location_required',
+      message: 'Order location is required.',
+      safeMessage: 'Order location is required.',
     });
   return locationId;
 };

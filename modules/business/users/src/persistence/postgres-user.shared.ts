@@ -6,14 +6,22 @@ import {
   users as schema,
   type DatabaseExecutor,
 } from '@pressly/db';
+import { invariantViolationError, type AppError } from '@pressly/errors';
 import type { CommandContext } from '@pressly/kernel';
 import type { UserCommandResult } from '../command-execution/user-command.port.ts';
 import type {
   UserFieldName,
   UserProfile,
   UserRecord,
-} from '../user-profile/user-profile.port.ts';
+} from '../user-profile/user-profile.model.ts';
 import type { StoredUserCommandReceipt } from './user-transaction.port.ts';
+
+const userPersistenceInvariant = (code: string, message: string): AppError =>
+  invariantViolationError({
+    code: code.toLowerCase(),
+    message,
+    safeMessage: 'Stored user data is inconsistent.',
+  });
 
 export const lockUserKey = async (
   db: DatabaseExecutor,
@@ -24,17 +32,18 @@ export const lockUserKey = async (
   );
 };
 
-export const commandContextColumns = (context: CommandContext) => ({
+const commandContextColumns = (context: CommandContext) => ({
   origin: context.origin,
   actorKind: context.principal.kind,
   actorId: context.principal.id,
 });
 
-export const parseUserCommandReceipt = (row: {
+const parseUserCommandReceipt = (row: {
   commandHash: string;
   result: unknown;
 }): StoredUserCommandReceipt => {
   const stored = row.result;
+
   if (
     stored === null ||
     typeof stored !== 'object' ||
@@ -43,7 +52,11 @@ export const parseUserCommandReceipt = (row: {
     typeof stored.userId !== 'string' ||
     typeof stored.version !== 'number'
   )
-    throw new Error('Stored user command result is invalid.');
+    throw userPersistenceInvariant(
+      'USER_COMMAND_RECEIPT_INVALID',
+      'Stored user command result is invalid.',
+    );
+
   return {
     commandHash: row.commandHash,
     result: { userId: stored.userId, version: stored.version, replayed: false },
@@ -171,21 +184,6 @@ export const saveUserCommandReceipt = async (
   });
 };
 
-export const loadStoredUser = async (
-  db: DatabaseExecutor,
-  businessId: string,
-  userId: string,
-): Promise<UserRecord | null> => {
-  const [row] = await db
-    .select()
-    .from(schema.users)
-    .where(
-      and(eq(schema.users.businessId, businessId), eq(schema.users.id, userId)),
-    )
-    .limit(1);
-  return row === undefined ? null : userFromRow(row);
-};
-
 export const insertStoredUser = async (
   db: DatabaseExecutor,
   input: {
@@ -205,7 +203,11 @@ export const insertStoredUser = async (
       updatedAt: input.now,
     })
     .returning();
-  if (created === undefined) throw new Error('User insert returned no row.');
+  if (created === undefined)
+    throw userPersistenceInvariant(
+      'USER_INSERT_RESULT_MISSING',
+      'User insert returned no row.',
+    );
   await db.insert(schema.userFieldAuthorities).values(
     input.authorityFields.map((fieldName) => ({
       userId: created.id,
@@ -216,47 +218,4 @@ export const insertStoredUser = async (
     })),
   );
   return userFromRow(created);
-};
-
-export const updateStoredUser = async (
-  db: DatabaseExecutor,
-  input: {
-    businessId: string;
-    userId: string;
-    changes: Partial<UserProfile> & Readonly<{ active?: boolean }>;
-    authorityFields: readonly UserFieldName[];
-    nextVersion: number;
-    now: Date;
-  },
-): Promise<void> => {
-  await db
-    .update(schema.users)
-    .set({
-      ...input.changes,
-      version: input.nextVersion,
-      updatedAt: input.now,
-    })
-    .where(
-      and(
-        eq(schema.users.businessId, input.businessId),
-        eq(schema.users.id, input.userId),
-      ),
-    );
-  for (const fieldName of input.authorityFields)
-    await db
-      .insert(schema.userFieldAuthorities)
-      .values({
-        userId: input.userId,
-        fieldName,
-        authority: 'pressly',
-        source: null,
-        updatedAt: input.now,
-      })
-      .onConflictDoUpdate({
-        target: [
-          schema.userFieldAuthorities.userId,
-          schema.userFieldAuthorities.fieldName,
-        ],
-        set: { authority: 'pressly', source: null, updatedAt: input.now },
-      });
 };

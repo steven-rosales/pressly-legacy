@@ -6,7 +6,6 @@ import {
   laundryProduction,
   type Database,
 } from '@pressly/db';
-import { mapProductionLocation } from './list-production-locations.mapper.ts';
 import type { ListProductionLocationsRepository } from './list-production-locations.port.ts';
 
 export const makeListProductionLocationsRepository = (
@@ -41,6 +40,6 @@ export const makeListProductionLocationsRepository = (
         asc(laundryProduction.productionLocations.id),
       );
 
-    return rows.map(mapProductionLocation);
+    return rows;
   },
 });

@@ -21,7 +21,7 @@ import type {
   FulfillmentReleaseState,
   OrderInput,
   OrderState,
-} from '../src/order-model/order-model.port.ts';
+} from '../src/order-model/order.model.ts';
 import { fulfillmentDemandEvent } from '../src/order-outbox/order-outbox.policy.ts';
 
 const input = (): OrderInput => ({

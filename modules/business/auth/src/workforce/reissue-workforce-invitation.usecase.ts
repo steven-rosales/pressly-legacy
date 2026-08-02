@@ -9,12 +9,13 @@ import {
 import type {
   WorkforceActorRef,
   WorkforceInvitationSummary,
-} from './workforce.port.ts';
+} from './workforce.model.ts';
 import type {
   InvitationTokenService,
   WorkforceClock,
   WorkforceInvitationStore,
 } from './workforce-invitation.port.ts';
+import { requireWorkforceInvitationTtlMinutes } from './workforce-invitation-config.policy.ts';
 
 export type ReissueWorkforceInvitationCommand = Readonly<{
   actor: WorkforceActorRef;
@@ -39,14 +40,17 @@ export type ReissueWorkforceInvitation = (
   command: ReissueWorkforceInvitationCommand,
 ) => Promise<Result<ReissueWorkforceInvitationResult, AppError>>;
 
-export const makeReissueWorkforceInvitation =
-  (deps: {
-    store: WorkforceInvitationStore;
-    tokenService: InvitationTokenService;
-    clock: WorkforceClock;
-    invitationTtlMinutes: number;
-  }): ReissueWorkforceInvitation =>
-  async (command) => {
+export const makeReissueWorkforceInvitation = (deps: {
+  store: WorkforceInvitationStore;
+  tokenService: InvitationTokenService;
+  clock: WorkforceClock;
+  invitationTtlMinutes: number;
+}): ReissueWorkforceInvitation => {
+  const invitationTtlMinutes = requireWorkforceInvitationTtlMinutes(
+    deps.invitationTtlMinutes,
+  );
+
+  return async (command) => {
     const invitationId = requireIdentifier(
       command.invitationId,
       'invitation_id',
@@ -73,9 +77,7 @@ export const makeReissueWorkforceInvitation =
     if (result.isErr(idempotencyKey)) return idempotencyKey;
 
     const now = deps.clock.now();
-    const expiresAt = new Date(
-      now.getTime() + deps.invitationTtlMinutes * 60_000,
-    );
+    const expiresAt = new Date(now.getTime() + invitationTtlMinutes * 60_000);
     const token = deps.tokenService.issue();
     const stored = await deps.store.reissue({
       actor: {
@@ -113,3 +115,4 @@ export const makeReissueWorkforceInvitation =
       token,
     });
   };
+};

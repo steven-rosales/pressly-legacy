@@ -3,8 +3,7 @@ import {
   processorCompleteMfaChallengeRequestSchema,
   type ProcessorCompleteMfaChallengeRequest,
 } from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
-import { apiFailure, apiSuccess } from '@pressly/http';
+import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import { Router, type Response } from 'express';
 import {
@@ -31,10 +30,6 @@ import {
   type ProcessorSessionOptions,
 } from './processor-session.port.ts';
 
-const sendFailure = (response: Response, error: AppError): void => {
-  response.status(error.status).json(apiFailure(error));
-};
-
 export const makeProcessorSessionRoutes = (input: {
   application: ProcessorAuthApplication;
   loadCookieSession: LoadProcessorCookieSession;
@@ -58,10 +53,7 @@ export const makeProcessorSessionRoutes = (input: {
     const loaded = await input.application.loadSession({
       bearerToken: accessToken,
     });
-    if (isResultError(loaded)) {
-      sendFailure(response, loaded.error);
-      return;
-    }
+    if (isResultError(loaded)) throw loaded.error;
     const access = await input.resolveAccess(loaded.value);
     if (access === null) {
       await input.application.revokeSession({
@@ -116,10 +108,7 @@ export const makeProcessorSessionRoutes = (input: {
         ...(request.body as { email: string; password: string }),
         ...processorRequestMetadata(request, response),
       });
-      if (isResultError(authenticated)) {
-        sendFailure(response, authenticated.error);
-        return;
-      }
+      if (isResultError(authenticated)) throw authenticated.error;
 
       if ('challengeToken' in authenticated.value) {
         clearProcessorCookie(response, input.names.session, input.options);
@@ -178,10 +167,7 @@ export const makeProcessorSessionRoutes = (input: {
           ? {}
           : { requestId: processorRequestId(response)! }),
       });
-      if (isResultError(completed)) {
-        sendFailure(response, completed.error);
-        return;
-      }
+      if (isResultError(completed)) throw completed.error;
 
       clearProcessorCookie(response, input.names.mfa, input.options);
       await establishBrowserSession(
@@ -221,10 +207,7 @@ export const makeProcessorSessionRoutes = (input: {
           ? {}
           : { requestId: processorRequestId(response)! }),
       });
-      if (isResultError(revoked)) {
-        sendFailure(response, revoked.error);
-        return;
-      }
+      if (isResultError(revoked)) throw revoked.error;
 
       clearProcessorCookie(response, input.names.session, input.options);
       clearProcessorCookie(response, input.names.mfa, input.options);

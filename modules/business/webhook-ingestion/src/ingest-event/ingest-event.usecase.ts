@@ -1,29 +1,25 @@
-import { createHash } from 'node:crypto';
+import { databaseError, mapUnknownError, type AppError } from '@pressly/errors';
 import { result } from '@pressly/kernel';
-import { webhookIngestionError } from '../ingestion/webhook-ingestion.error.ts';
+import { canonicalSha256 } from '@pressly/kernel/node';
 import type { WebhookIngestionClockPort } from '../ingestion/webhook-ingestion.port.ts';
 import type {
   IngestWebhookEvent,
   IngestWebhookEventRepository,
 } from './ingest-event.port.ts';
 
-const canonicalize = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value !== null && typeof value === 'object')
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, child]) => [key, canonicalize(child)]),
-    );
-  return value;
-};
+const webhookIngestionFailed = (cause: unknown): AppError =>
+  mapUnknownError(cause, (unknownCause) =>
+    databaseError({
+      code: 'webhook_event_ingestion_failed',
+      message: 'The webhook event could not be stored durably.',
+      safeMessage: 'The webhook event could not be stored durably.',
+      status: 503,
+      cause: unknownCause,
+    }),
+  );
 
 export const hashWebhookPayload = (payload: unknown): string | null =>
-  payload === null
-    ? null
-    : createHash('sha256')
-        .update(JSON.stringify(canonicalize(payload)))
-        .digest('hex');
+  payload === null ? null : canonicalSha256(payload);
 
 export const makeIngestWebhookEvent =
   (deps: {
@@ -43,13 +39,6 @@ export const makeIngestWebhookEvent =
         status: command.disposition === 'ignore' ? 'ignored' : 'pending',
       });
     } catch (error) {
-      return result.err(
-        webhookIngestionError(
-          'WEBHOOK_EVENT_INGESTION_FAILED',
-          'The webhook event could not be stored durably.',
-          503,
-          error,
-        ),
-      );
+      return result.err(webhookIngestionFailed(error));
     }
   };
