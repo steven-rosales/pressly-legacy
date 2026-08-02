@@ -1,14 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { buildContentSecurityPolicy } from '@/common/security/content-security-policy';
 
+const policyValue = (
+  result: ReturnType<typeof buildContentSecurityPolicy>,
+): string => {
+  expect(result.tag).toBe('ok');
+  if (result.tag === 'err') throw new Error(result.error.message);
+  return result.value;
+};
+
 describe('buildContentSecurityPolicy', () => {
   it('builds an enforced production policy for current browser dependencies', () => {
-    const policy = buildContentSecurityPolicy({
-      apiBaseUrl: 'https://api.trypressly.com/v1',
-      isDevelopment: false,
-      posthogHost: 'https://us.i.posthog.com',
-      sentryDsn: 'https://public-key@o1.ingest.us.sentry.io/123',
-    });
+    const policy = policyValue(
+      buildContentSecurityPolicy({
+        apiBaseUrl: 'https://api.trypressly.com/v1',
+        isDevelopment: false,
+        posthogHost: 'https://us.i.posthog.com',
+        sentryDsn: 'https://public-key@o1.ingest.us.sentry.io/123',
+      }),
+    );
 
     expect(policy).toContain(
       "connect-src 'self' https://api.trypressly.com https://us.i.posthog.com https://us-assets.i.posthog.com https://o1.ingest.us.sentry.io",
@@ -25,11 +35,13 @@ describe('buildContentSecurityPolicy', () => {
   });
 
   it('allows the Next.js development runtime without weakening production', () => {
-    const policy = buildContentSecurityPolicy({
-      apiBaseUrl: 'http://localhost:4000',
-      isDevelopment: true,
-      posthogHost: 'https://us.i.posthog.com',
-    });
+    const policy = policyValue(
+      buildContentSecurityPolicy({
+        apiBaseUrl: 'http://localhost:4000',
+        isDevelopment: true,
+        posthogHost: 'https://us.i.posthog.com',
+      }),
+    );
 
     expect(policy).toContain(
       "script-src 'self' 'unsafe-inline' https://us-assets.i.posthog.com 'unsafe-eval'",
@@ -40,21 +52,33 @@ describe('buildContentSecurityPolicy', () => {
   });
 
   it('rejects non-HTTP browser destinations', () => {
-    expect(() =>
+    expect(
       buildContentSecurityPolicy({
         apiBaseUrl: 'file:///tmp/pressly',
         isDevelopment: false,
         posthogHost: 'https://us.i.posthog.com',
       }),
-    ).toThrow('NEXT_PUBLIC_API_BASE_URL must use HTTP or HTTPS.');
+    ).toMatchObject({
+      tag: 'err',
+      error: {
+        code: 'invalid_content_security_policy_origin',
+        message: 'NEXT_PUBLIC_API_BASE_URL must use HTTP or HTTPS.',
+        details: {
+          name: 'NEXT_PUBLIC_API_BASE_URL',
+          protocol: 'file:',
+        },
+      },
+    });
   });
 
   it('uses a custom PostHog host for both ingestion and lazy assets', () => {
-    const policy = buildContentSecurityPolicy({
-      apiBaseUrl: 'https://api.trypressly.com',
-      isDevelopment: false,
-      posthogHost: 'https://analytics.trypressly.com/ingest',
-    });
+    const policy = policyValue(
+      buildContentSecurityPolicy({
+        apiBaseUrl: 'https://api.trypressly.com',
+        isDevelopment: false,
+        posthogHost: 'https://analytics.trypressly.com/ingest',
+      }),
+    );
 
     expect(policy).toContain(
       "script-src 'self' 'unsafe-inline' https://analytics.trypressly.com",

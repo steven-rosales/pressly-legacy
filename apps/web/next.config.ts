@@ -1,5 +1,6 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { configError } from '@pressly/errors';
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 import { buildContentSecurityPolicy } from './src/common/security/content-security-policy';
@@ -9,7 +10,7 @@ const repoRoot = join(webRoot, '../..');
 const isDockerBuild = process.env['PRESSLY_DOCKER_BUILD'] === 'true';
 const isDevelopment = process.env['NODE_ENV'] === 'development';
 
-const contentSecurityPolicy = buildContentSecurityPolicy({
+const contentSecurityPolicyResult = buildContentSecurityPolicy({
   apiBaseUrl:
     process.env['NEXT_PUBLIC_API_BASE_URL'] ??
     (isDevelopment ? 'http://localhost:4000' : 'https://api.trypressly.com'),
@@ -20,6 +21,12 @@ const contentSecurityPolicy = buildContentSecurityPolicy({
     ? { sentryDsn: process.env['NEXT_PUBLIC_SENTRY_DSN'] }
     : {}),
 });
+
+if (contentSecurityPolicyResult.tag === 'err') {
+  throw configError(contentSecurityPolicyResult.error);
+}
+
+const contentSecurityPolicy = contentSecurityPolicyResult.value;
 
 const canonicalUrl = 'https://trypressly.com';
 const canonicalRedirectHosts = [
