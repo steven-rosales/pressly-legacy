@@ -12,6 +12,7 @@
       "@pressly/errors": ["../../packages/errors/src/index.ts"],
       "@pressly/http": ["../../packages/http/src/index.ts"],
       "@pressly/kernel": ["../../packages/kernel/src/index.ts"],
+      "@pressly/kernel/node": ["../../packages/kernel/src/node.ts"],
       "@pressly/money": ["../../packages/money/src/index.ts"],
       "@pressly/production": [
         "../../modules/business/production/src/public.ts"

@@ -10,6 +10,9 @@ const errorsSource = fileURLToPath(
 const kernelSource = fileURLToPath(
   new URL('../../packages/kernel/src/index.ts', import.meta.url),
 );
+const kernelNodeSource = fileURLToPath(
+  new URL('../../packages/kernel/src/node.ts', import.meta.url),
+);
 const moneySource = fileURLToPath(
   new URL('../../packages/money/src/index.ts', import.meta.url),
 );
@@ -29,7 +32,11 @@ export default defineConfig({
         replacement: errorsSource,
       },
       {
-        find: '@pressly/kernel',
+        find: /^@pressly\/kernel\/node$/,
+        replacement: kernelNodeSource,
+      },
+      {
+        find: /^@pressly\/kernel$/,
         replacement: kernelSource,
       },
       {
