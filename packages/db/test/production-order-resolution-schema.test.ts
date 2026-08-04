@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { getTableConfig, laundryProduction } from '../src/index.ts';
+import { getTableConfig } from '../src/query.ts';
+import * as laundryProduction from '../src/schema/laundry-production.schema.ts';
 
 describe('production order resolution schema', () => {
   it('persists resolution separately from execution and operational status', () => {

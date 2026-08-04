@@ -11,21 +11,36 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: /^@pressly\/codec\/node$/,
+        replacement: source('codec/src/node.ts'),
+      },
+      {
+        find: /^@pressly\/codec$/,
+        replacement: source('codec/src/index.ts'),
+      },
+      {
         find: /^@pressly\/testkit\/(.+)$/,
         replacement: `${testkitSource}/$1.ts`,
       },
       {
-        find: /^@pressly\/contracts$/,
-        replacement: source('contracts/src/index.ts'),
+        find: /^@pressly\/contracts\/utc-iso$/,
+        replacement: source('contracts/src/utc-iso.contracts.ts'),
       },
       {
-        find: /^@pressly\/db\/testing$/,
-        replacement: source('db/src/testing.ts'),
+        find: /^@pressly\/contracts\/(auth|cents|lpms|orders|pricing|processor|production|users|webhook-ingestion)$/,
+        replacement: `${source('contracts/src')}/$1/index.ts`,
       },
-      { find: /^@pressly\/db$/, replacement: source('db/src/index.ts') },
       {
-        find: /^@pressly\/errors$/,
-        replacement: source('errors/src/index.ts'),
+        find: /^@pressly\/db\/schema\/(.+)$/,
+        replacement: `${source('db/src')}/schema/$1.schema.ts`,
+      },
+      {
+        find: /^@pressly\/db\/(client|health|query|testing|unit-of-work)$/,
+        replacement: `${source('db/src')}/$1.ts`,
+      },
+      {
+        find: /^@pressly\/errors\/(app-error|factories|presentation)$/,
+        replacement: `${source('errors/src')}/$1.ts`,
       },
       {
         find: /^@pressly\/http\/express$/,

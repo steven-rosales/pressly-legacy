@@ -1,11 +1,17 @@
-import type { WorkforceApplication } from '@pressly/auth-module';
+import type {
+  ControlExperience,
+  ControlInvitationAcceptance,
+} from '@pressly/control-experience';
 import {
   acceptWorkforceInvitationRequestSchema,
   controlExistingInvitationMfaRequestSchema,
   controlExistingInvitationPasswordRequestSchema,
   controlInvitationPreviewRequestSchema,
-} from '@pressly/contracts';
-import { invariantViolationError, validationError } from '@pressly/errors';
+} from '@pressly/contracts/auth';
+import {
+  invariantViolationError,
+  validationError,
+} from '@pressly/errors/factories';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import { Router, type RequestHandler, type Response } from 'express';
@@ -15,53 +21,35 @@ import {
   setControlCookie,
   type ControlCookieNames,
 } from '../session/control-cookie.adapter.ts';
+import { deriveControlCsrfToken } from '../session/control-csrf.adapter.ts';
 import { controlUnauthorized } from '../session/control-session.error.ts';
 import {
-  controlBrowserSession,
   controlRequestId,
   controlRequestMetadata,
-} from '../session/control-session.mapper.ts';
+} from '../session/control-request-metadata.adapter.ts';
+import { controlBrowserSession } from '../session/control-session.contract.mapper.ts';
 import {
   isControlResultError,
   type ControlAuthApplication,
   type ControlSessionOptions,
-  type LoadedControlSession,
   type ResolveControlAccess,
 } from '../session/control-session.port.ts';
-import { controlInvitationPreview } from './control-workforce.mapper.ts';
-
-const resultValue = <Value>(
-  outcome:
-    | Readonly<{ tag: 'ok'; value: Value }>
-    | Readonly<{ tag: 'err'; error: unknown }>,
-): Value => {
-  if (outcome.tag === 'err') throw outcome.error;
-  return outcome.value;
-};
+import {
+  controlFailureToAppError,
+  controlResultValue,
+} from '../control-experience.error.ts';
+import { readControlRequestContext } from '../control-request-context.adapter.ts';
 
 const existingActor = (response: Response) => {
-  const auth = response.locals['auth'] as LoadedControlSession;
-  if (auth.principal.sessionId === undefined)
-    throw invariantViolationError({
-      code: 'control_session_id_missing',
-      message: 'Authenticated Control principal is missing a session ID.',
-      safeMessage: 'Session could not be loaded.',
-    });
+  const actor = readControlRequestContext(response).actor;
   return {
-    authenticatedIdentityId: auth.principal.identityId,
-    authenticatedSessionId: auth.principal.sessionId,
+    authenticatedIdentityId: actor.identityId,
+    authenticatedSessionId: actor.sessionId,
   };
 };
 
-const acceptanceSummary = (accepted: {
-  invitation: Readonly<{ id: string }>;
-  membershipId: string;
-  identityId: string;
-  identityCreated: boolean;
-  privilegedAccessEffective: boolean;
-  replayed: boolean;
-}) => ({
-  invitationId: accepted.invitation.id,
+const acceptanceSummary = (accepted: ControlInvitationAcceptance) => ({
+  invitationId: accepted.invitationId,
   membershipId: accepted.membershipId,
   identityId: accepted.identityId,
   identityCreated: accepted.identityCreated,
@@ -70,7 +58,7 @@ const acceptanceSummary = (accepted: {
 });
 
 export const makeControlInvitationAcceptanceRoutes = (input: {
-  application: WorkforceApplication;
+  application: ControlExperience['invitations'];
   authApplication: ControlAuthApplication;
   authenticateExisting: RequestHandler;
   limitExistingIdentity: RequestHandler;
@@ -91,6 +79,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
         ? {}
         : { requestId: controlRequestId(response)! }),
     });
+
     clearControlCookie(response, input.names.session, input.sessionOptions);
   };
 
@@ -100,7 +89,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       acceptanceToken: string;
       idempotencyKey: string;
       accessToken: string;
-      expiresAt: string;
+      expiresAt: Date;
     },
   ) => {
     const loaded = await input.authApplication.loadSession({
@@ -119,8 +108,8 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       });
     }
 
-    const accepted = await input.application.acceptInvitation({
-      rawToken: command.acceptanceToken,
+    const accepted = await input.application.accept({
+      acceptanceToken: command.acceptanceToken,
       idempotencyKey: command.idempotencyKey,
       acceptance: {
         kind: 'existing_identity',
@@ -130,12 +119,12 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
     });
     if (isControlResultError(accepted)) {
       await revokeBootstrapSession(response, command.accessToken);
-      throw accepted.error;
+      throw controlFailureToAppError(accepted.error);
     }
 
     const postAcceptanceAccess = await input.resolveAccess(loaded.value);
     const destination =
-      accepted.value.invitation.intendedRole === 'operator'
+      accepted.value.destination === 'processor'
         ? {
             id: 'processor' as const,
             label: 'Pressly Processor',
@@ -171,8 +160,10 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
     const session = controlBrowserSession(
       loaded.value,
       postAcceptanceAccess,
-      command.accessToken,
-      input.sessionOptions,
+      deriveControlCsrfToken(
+        command.accessToken,
+        input.sessionOptions.csrfSecret,
+      ),
     );
     clearControlCookie(response, input.names.mfa, input.sessionOptions);
 
@@ -189,10 +180,10 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
     input.requireOrigin,
     validateRequest({ body: controlInvitationPreviewRequestSchema }),
     catchAsync(async (request, response) => {
-      const preview = resultValue(
-        await input.application.previewInvitation(request.body.acceptanceToken),
+      const preview = controlResultValue(
+        await input.application.preview(request.body.acceptanceToken),
       );
-      response.json(apiSuccess(controlInvitationPreview(preview)));
+      response.json(apiSuccess(preview));
     }),
   );
 
@@ -208,9 +199,10 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
           safeMessage: 'Choose the correct invitation acceptance option.',
           status: 422,
         });
-      const accepted = resultValue(
-        await input.application.acceptInvitation({
-          rawToken: request.body.acceptanceToken,
+
+      const accepted = controlResultValue(
+        await input.application.accept({
+          acceptanceToken: request.body.acceptanceToken,
           idempotencyKey: request.body.idempotencyKey,
           acceptance: {
             kind: 'new_identity',
@@ -218,6 +210,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
           },
         }),
       );
+
       response.status(201).json(apiSuccess(acceptanceSummary(accepted)));
     }),
   );
@@ -229,8 +222,8 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       body: controlExistingInvitationPasswordRequestSchema,
     }),
     catchAsync(async (request, response) => {
-      const preview = resultValue(
-        await input.application.previewInvitation(request.body.acceptanceToken),
+      const preview = controlResultValue(
+        await input.application.preview(request.body.acceptanceToken),
       );
       if (!preview.existingIdentity)
         throw validationError({
@@ -242,7 +235,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
         });
 
       const authenticated = await input.authApplication.login({
-        email: preview.emailNormalized,
+        email: preview.email,
         password: request.body.password,
         ...controlRequestMetadata(request, response),
       });
@@ -331,9 +324,10 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
           safeMessage: 'Choose the correct invitation acceptance option.',
           status: 422,
         });
-      const accepted = resultValue(
-        await input.application.acceptInvitation({
-          rawToken: request.body.acceptanceToken,
+
+      const accepted = controlResultValue(
+        await input.application.accept({
+          acceptanceToken: request.body.acceptanceToken,
           idempotencyKey: request.body.idempotencyKey,
           acceptance: {
             kind: 'existing_identity',
@@ -341,6 +335,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
           },
         }),
       );
+
       response.json(apiSuccess(acceptanceSummary(accepted)));
     }),
   );

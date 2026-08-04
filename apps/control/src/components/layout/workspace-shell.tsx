@@ -5,10 +5,10 @@ import {
   IconMenu2,
   IconSparkles,
   type Icon,
-} from "@tabler/icons-react"
-import { useState, type ReactNode } from "react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
+} from '@tabler/icons-react';
+import { useState, type ReactNode } from 'react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,8 +16,8 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Separator } from "@/components/ui/separator"
+} from '@/components/ui/dropdown-menu';
+import { Separator } from '@/components/ui/separator';
 import {
   Sheet,
   SheetContent,
@@ -25,33 +25,33 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "@/components/ui/sheet"
+} from '@/components/ui/sheet';
 
 export type WorkspaceApplicationDestination = Readonly<{
-  id: string
-  label: string
-  description: string
-  href: string
-}>
+  id: string;
+  label: string;
+  description: string;
+  href: string;
+}>;
 
 export type WorkspaceNavigationItem<View extends string> = Readonly<{
-  id: View
-  label: string
-  icon: Icon
-}>
+  id: View;
+  label: string;
+  icon: Icon;
+}>;
 
 export type WorkspaceNavigationSection<View extends string> = Readonly<{
-  id: string
-  label: string
-  items: readonly WorkspaceNavigationItem<View>[]
-}>
+  id: string;
+  label: string;
+  items: readonly WorkspaceNavigationItem<View>[];
+}>;
 
 function BrandMark() {
   return (
     <span className="bg-foreground text-background grid size-7 shrink-0 place-items-center rounded-lg">
       <IconSparkles aria-hidden="true" />
     </span>
-  )
+  );
 }
 
 function ApplicationSwitcher({
@@ -61,15 +61,15 @@ function ApplicationSwitcher({
   applicationsLabel,
   switchApplicationLabel,
 }: {
-  currentApplicationId: string
-  applicationName: string
-  applications: readonly WorkspaceApplicationDestination[]
-  applicationsLabel: string
-  switchApplicationLabel: string
+  currentApplicationId: string;
+  applicationName: string;
+  applications: readonly WorkspaceApplicationDestination[];
+  applicationsLabel: string;
+  switchApplicationLabel: string;
 }) {
   const availableApplications = applications.filter(
     (application) => application.id !== currentApplicationId,
-  )
+  );
 
   if (availableApplications.length === 0) {
     return (
@@ -79,7 +79,7 @@ function ApplicationSwitcher({
           {applicationName}
         </span>
       </div>
-    )
+    );
   }
 
   return (
@@ -119,7 +119,7 @@ function ApplicationSwitcher({
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }
 
 function WorkspaceNavigation<View extends string>({
@@ -129,21 +129,21 @@ function WorkspaceNavigation<View extends string>({
   navigationLabel,
   onNavigate,
 }: {
-  current: View | null
-  home: WorkspaceNavigationItem<View>
-  sections: readonly WorkspaceNavigationSection<View>[]
-  navigationLabel: string
-  onNavigate: (view: View) => void
+  current: View | null;
+  home: WorkspaceNavigationItem<View>;
+  sections: readonly WorkspaceNavigationSection<View>[];
+  navigationLabel: string;
+  onNavigate: (view: View) => void;
 }) {
-  const HomeIcon = home.icon
+  const HomeIcon = home.icon;
 
   return (
     <nav aria-label={navigationLabel} className="flex flex-col gap-4">
       <Button
         type="button"
-        variant={current === home.id ? "secondary" : "ghost"}
+        variant={current === home.id ? 'secondary' : 'ghost'}
         className="w-full justify-start"
-        aria-current={current === home.id ? "page" : undefined}
+        aria-current={current === home.id ? 'page' : undefined}
         onClick={() => onNavigate(home.id)}
       >
         <HomeIcon data-icon="inline-start" />
@@ -159,9 +159,9 @@ function WorkspaceNavigation<View extends string>({
               <Button
                 key={id}
                 type="button"
-                variant={current === id ? "secondary" : "ghost"}
+                variant={current === id ? 'secondary' : 'ghost'}
                 className="w-full justify-start"
-                aria-current={current === id ? "page" : undefined}
+                aria-current={current === id ? 'page' : undefined}
                 onClick={() => onNavigate(id)}
               >
                 <IconComponent data-icon="inline-start" />
@@ -172,7 +172,7 @@ function WorkspaceNavigation<View extends string>({
         </div>
       ))}
     </nav>
-  )
+  );
 }
 
 export function WorkspaceShell<View extends string>({
@@ -184,7 +184,7 @@ export function WorkspaceShell<View extends string>({
   currentApplicationId,
   applicationName,
   applications,
-  applicationsLabel = "Pressly applications",
+  applicationsLabel = 'Pressly applications',
   switchApplicationLabel,
   home,
   sections,
@@ -192,7 +192,7 @@ export function WorkspaceShell<View extends string>({
   navigationDialogTitle,
   navigationDialogDescription,
   openNavigationLabel,
-  skipToContentLabel = "Skip to main content",
+  skipToContentLabel = 'Skip to main content',
   closeLabel,
   signedInLabel,
   signOutLabel,
@@ -202,42 +202,42 @@ export function WorkspaceShell<View extends string>({
   footer,
   children,
 }: {
-  current: View | null
-  onNavigate: (view: View) => void
-  title: string
-  description: string
-  actions?: ReactNode
-  currentApplicationId: string
-  applicationName: string
-  applications: readonly WorkspaceApplicationDestination[]
-  applicationsLabel?: string
-  switchApplicationLabel?: string
-  home: WorkspaceNavigationItem<View>
-  sections: readonly WorkspaceNavigationSection<View>[]
-  navigationLabel: string
-  navigationDialogTitle: string
-  navigationDialogDescription: string
-  openNavigationLabel: string
-  skipToContentLabel?: string
-  closeLabel: string
-  signedInLabel: string
-  signOutLabel: string
-  principalName: string
-  logoutBusy: boolean
-  onLogout: () => void
-  footer?: ReactNode
-  children: ReactNode
+  current: View | null;
+  onNavigate: (view: View) => void;
+  title: string;
+  description: string;
+  actions?: ReactNode;
+  currentApplicationId: string;
+  applicationName: string;
+  applications: readonly WorkspaceApplicationDestination[];
+  applicationsLabel?: string;
+  switchApplicationLabel?: string;
+  home: WorkspaceNavigationItem<View>;
+  sections: readonly WorkspaceNavigationSection<View>[];
+  navigationLabel: string;
+  navigationDialogTitle: string;
+  navigationDialogDescription: string;
+  openNavigationLabel: string;
+  skipToContentLabel?: string;
+  closeLabel: string;
+  signedInLabel: string;
+  signOutLabel: string;
+  principalName: string;
+  logoutBusy: boolean;
+  onLogout: () => void;
+  footer?: ReactNode;
+  children: ReactNode;
 }) {
-  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const principalInitials =
     principalName
       .split(/\s+/)
       .slice(0, 2)
       .map((part) => part[0])
-      .join("")
-      .toUpperCase() || "OP"
+      .join('')
+      .toUpperCase() || 'OP';
   const resolvedSwitchApplicationLabel =
-    switchApplicationLabel ?? `Switch from ${applicationName}`
+    switchApplicationLabel ?? `Switch from ${applicationName}`;
 
   const navigation = (
     <WorkspaceNavigation
@@ -247,7 +247,7 @@ export function WorkspaceShell<View extends string>({
       navigationLabel={navigationLabel}
       onNavigate={onNavigate}
     />
-  )
+  );
 
   return (
     <div className="bg-background text-foreground h-dvh min-h-0 overflow-hidden">
@@ -317,8 +317,8 @@ export function WorkspaceShell<View extends string>({
                 sections={sections}
                 navigationLabel={navigationLabel}
                 onNavigate={(view) => {
-                  setMobileNavigationOpen(false)
-                  onNavigate(view)
+                  setMobileNavigationOpen(false);
+                  onNavigate(view);
                 }}
               />
             </SheetContent>
@@ -366,5 +366,5 @@ export function WorkspaceShell<View extends string>({
         </div>
       </div>
     </div>
-  )
+  );
 }

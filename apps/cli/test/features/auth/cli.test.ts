@@ -1,6 +1,6 @@
 import { result } from '@pressly/kernel';
 import { describe, expect, it } from 'vitest';
-import type { AuthPrincipalResult } from '@pressly/contracts';
+import type { AuthPrincipalResult } from '@pressly/contracts/auth';
 
 import {
   makeAuthCli,

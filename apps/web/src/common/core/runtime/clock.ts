@@ -1,3 +1,2 @@
-export type Clock = Readonly<{ now: () => Date }>;
-
-export const systemClock: Clock = { now: () => new Date() };
+export { systemClock } from '@pressly/time';
+export type { Clock } from '@pressly/time';

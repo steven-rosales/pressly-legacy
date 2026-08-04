@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next"
-import { RequestFailure } from "@/ports/request.error"
+import { isRequestFailure } from "@/ports/request.error"
 
 export type SchedulingErrorOperation =
   | "compute"
@@ -24,7 +24,7 @@ export const presentSchedulingError = (
   operation: SchedulingErrorOperation,
   t: TFunction
 ): string => {
-  if (!(cause instanceof RequestFailure)) return fallbackMessage(operation, t)
+  if (!isRequestFailure(cause)) return fallbackMessage(operation, t)
 
   switch (cause.code.toLowerCase()) {
     case "production_shift_selection_version_conflict":
@@ -73,12 +73,14 @@ export const presentSchedulingError = (
       return t("scheduling.errors.notFound")
   }
 
-  if (cause.kind === "unauthorized") return t("scheduling.errors.unauthorized")
-  if (cause.kind === "forbidden") return t("scheduling.errors.forbidden")
-  if (cause.kind === "unavailable") return t("scheduling.errors.unavailable")
-  if (cause.kind === "invalid_response")
+  if (cause.requestKind === "unauthorized")
+    return t("scheduling.errors.unauthorized")
+  if (cause.requestKind === "forbidden") return t("scheduling.errors.forbidden")
+  if (cause.requestKind === "unavailable")
+    return t("scheduling.errors.unavailable")
+  if (cause.requestKind === "invalid_response")
     return t("scheduling.errors.invalidResponse")
-  if (cause.kind === "conflict")
+  if (cause.requestKind === "conflict")
     return operation === "priority"
       ? t("scheduling.errors.priorityChanged")
       : operation === "selection"

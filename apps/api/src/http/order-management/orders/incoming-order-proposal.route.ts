@@ -7,7 +7,7 @@ import {
   rejectIncomingOrderProposalRequestSchema,
   restoreIncomingOrderProposalRequestSchema,
   restoreIncomingOrderProposalResultSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/orders';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import type {
@@ -18,7 +18,8 @@ import { Router, type RequestHandler } from 'express';
 import {
   orderManagementCommandContext,
   type ReadOrderManagementPrincipal,
-} from '../command-context.mapper.ts';
+} from '../command-context.adapter.ts';
+import { orderManagementResultValue } from './order-management.error.ts';
 
 type IncomingOrderProposalApplication = Pick<
   OrdersApplication,
@@ -68,12 +69,10 @@ export const makeIncomingOrderProposalRoutes = (input: {
         cursor: (request.query['cursor'] as string | undefined) ?? null,
         view: request.query['view'] as 'needs_review' | 'source_closed',
       });
-      if (outcome.tag === 'err') throw outcome.error;
+      const value = orderManagementResultValue(outcome);
       response.json(
         apiSuccess(
-          incomingOrderProposalListSchema.parse(
-            serializeProposalPage(outcome.value),
-          ),
+          incomingOrderProposalListSchema.parse(serializeProposalPage(value)),
         ),
       );
     }),
@@ -96,11 +95,9 @@ export const makeIncomingOrderProposalRoutes = (input: {
         locationId: request.params['locationId'] as string,
         context: orderManagementCommandContext(response, input.readPrincipal),
       });
-      if (outcome.tag === 'err') throw outcome.error;
+      const value = orderManagementResultValue(outcome);
       response.json(
-        apiSuccess(
-          incomingOrderProposalDecisionResultSchema.parse(outcome.value),
-        ),
+        apiSuccess(incomingOrderProposalDecisionResultSchema.parse(value)),
       );
     }),
   );
@@ -116,11 +113,9 @@ export const makeIncomingOrderProposalRoutes = (input: {
         locationId: request.params['locationId'] as string,
         context: orderManagementCommandContext(response, input.readPrincipal),
       });
-      if (outcome.tag === 'err') throw outcome.error;
+      const value = orderManagementResultValue(outcome);
       response.json(
-        apiSuccess(
-          incomingOrderProposalDecisionResultSchema.parse(outcome.value),
-        ),
+        apiSuccess(incomingOrderProposalDecisionResultSchema.parse(value)),
       );
     }),
   );
@@ -136,11 +131,9 @@ export const makeIncomingOrderProposalRoutes = (input: {
         locationId: request.params['locationId'] as string,
         context: orderManagementCommandContext(response, input.readPrincipal),
       });
-      if (outcome.tag === 'err') throw outcome.error;
+      const value = orderManagementResultValue(outcome);
       response.json(
-        apiSuccess(
-          restoreIncomingOrderProposalResultSchema.parse(outcome.value),
-        ),
+        apiSuccess(restoreIncomingOrderProposalResultSchema.parse(value)),
       );
     }),
   );

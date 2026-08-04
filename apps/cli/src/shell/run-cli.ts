@@ -1,7 +1,8 @@
 import { render } from 'ink';
 import { result } from '@pressly/kernel';
-import { normalizeUnknownError, validationError } from '@pressly/errors';
-import type { AppError } from '@pressly/errors';
+import { normalizeUnknownError } from '@pressly/errors/app-error';
+import { validationError } from '@pressly/errors/factories';
+import type { AppError } from '@pressly/errors/app-error';
 import type { CliCommand, CliFeature, CliClient } from './feature.ts';
 import type { CliIO } from './io.ts';
 import { isTty } from './io.ts';

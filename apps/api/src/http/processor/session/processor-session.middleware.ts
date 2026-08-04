@@ -8,7 +8,7 @@ import {
 import {
   processorRequestNeedsCsrf,
   requireProcessorCsrf,
-} from './processor-csrf.policy.ts';
+} from './processor-csrf.adapter.ts';
 import {
   processorForbidden,
   processorUnauthorized,

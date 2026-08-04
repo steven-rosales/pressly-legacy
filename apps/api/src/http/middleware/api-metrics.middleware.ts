@@ -2,7 +2,7 @@ import {
   attemptObservation,
   type CounterSink,
   type MeasurementSink,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import type { RequestHandler } from 'express';
 import { normalizedApiRoute } from './api-route.ts';
 
@@ -12,20 +12,26 @@ export const makeApiRequestMetrics = (input: {
   now?: () => bigint;
 }): RequestHandler => {
   const now = input.now ?? process.hrtime.bigint;
-  return (request, response, next) => {
+
+  return (req, res, next) => {
     const startedAt = now();
     let recorded = false;
+
     const record = (outcome: 'completed' | 'aborted') => {
       if (recorded) return;
+
       recorded = true;
-      const route = normalizedApiRoute(request);
-      const statusClass = `${Math.floor(response.statusCode / 100)}xx`;
+
+      const route = normalizedApiRoute(req);
+      const statusClass = `${Math.floor(res.statusCode / 100)}xx`;
+
       const labels = {
-        method: request.method,
+        method: req.method,
         route,
         status: statusClass,
         outcome,
       };
+
       attemptObservation(() =>
         input.counters.increment('api.http_requests', labels),
       );
@@ -37,8 +43,10 @@ export const makeApiRequestMetrics = (input: {
         ),
       );
     };
-    response.once('finish', () => record('completed'));
-    response.once('close', () => record('aborted'));
+
+    res.once('finish', () => record('completed'));
+    res.once('close', () => record('aborted'));
+
     next();
   };
 };

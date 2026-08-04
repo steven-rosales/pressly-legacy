@@ -1,17 +1,17 @@
-export { WorkspaceSectionHeading as SectionHeading } from "./workspace-section-heading"
+export { WorkspaceSectionHeading as SectionHeading } from './workspace-section-heading';
 
 export type MetricStripItem = Readonly<{
-  label: string
-  value: string
-  detail: string
-}>
+  label: string;
+  value: string;
+  detail: string;
+}>;
 
 export function MetricStrip({
   label,
   metrics,
 }: Readonly<{
-  label: string
-  metrics: readonly MetricStripItem[]
+  label: string;
+  metrics: readonly MetricStripItem[];
 }>) {
   return (
     <section aria-label={label} data-slot="metric-strip">
@@ -35,5 +35,5 @@ export function MetricStrip({
         ))}
       </dl>
     </section>
-  )
+  );
 }

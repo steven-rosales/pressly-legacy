@@ -1,11 +1,12 @@
 import {
   makeAppError,
   normalizeUnknownError,
-  validationError,
   type AppError,
-} from '@pressly/errors';
+} from '@pressly/errors/app-error';
+import { validationError } from '@pressly/errors/factories';
 import { apiFailure } from '@pressly/http';
-import { attemptObservation } from '@pressly/metrics';
+import { attemptObservation } from '@pressly/observability';
+import { systemClock } from '@pressly/time';
 import type { ErrorRequestHandler } from 'express';
 import type { ApiRuntime } from '../../runtime/api-runtime.ts';
 import { observeApiError } from './api-error-observability.ts';
@@ -91,7 +92,7 @@ export const makeErrorHandler = (runtime: ApiRuntime): ErrorRequestHandler => {
       attemptObservation(() =>
         runtime.securityEvents.emit({
           name: 'vendor.webhook_authentication_failed',
-          occurredAt: new Date().toISOString(),
+          occurredAt: systemClock.now().toISOString(),
           outcome: 'denied',
           ...(requestId === undefined ? {} : { requestId }),
           resourceType: 'http.route',
@@ -109,7 +110,7 @@ export const makeErrorHandler = (runtime: ApiRuntime): ErrorRequestHandler => {
       attemptObservation(() =>
         runtime.securityEvents.emit({
           name: 'request.validation_rejected',
-          occurredAt: new Date().toISOString(),
+          occurredAt: systemClock.now().toISOString(),
           outcome: 'denied',
           ...(requestId === undefined ? {} : { requestId }),
           resourceType: 'http.route',

@@ -1,4 +1,4 @@
-import type { Database } from '@pressly/db';
+import type { Database } from '@pressly/db/client';
 import {
   createTestDatabaseRuntime,
   getTestDatabaseUrl,

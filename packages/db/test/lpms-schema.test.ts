@@ -1,11 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import {
-  getTableConfig,
-  getTableName,
-  laundryProduction,
-  webhookIngestion,
-} from '../src/index.ts';
+import { getTableConfig, getTableName } from '../src/query.ts';
+import * as laundryProduction from '../src/schema/laundry-production.schema.ts';
+import * as webhookIngestion from '../src/schema/webhook-ingestion.schema.ts';
 
 describe('LPMS schema', () => {
   it('keeps proposal, execution, and ledger truth separate', () => {

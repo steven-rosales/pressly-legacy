@@ -1,11 +1,11 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { AuthModule } from '@pressly/auth-module';
-import { isAppError } from '@pressly/errors';
+import type { IdentityModule } from '@pressly/identity';
+import { isAppError } from '@pressly/errors/app-error';
 import express, { type ErrorRequestHandler } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { controlCookieNames } from '../../src/http/control/session/control-cookie.adapter.ts';
-import { deriveControlCsrfToken } from '../../src/http/control/session/control-csrf.policy.ts';
+import { deriveControlCsrfToken } from '../../src/http/control/session/control-csrf.adapter.ts';
 import { makeControlSessionAuthentication } from '../../src/http/control/session/control-session.middleware.ts';
 import { makeControlSessionRoutes } from '../../src/http/control/session/control-session.route.ts';
 import type {
@@ -20,6 +20,7 @@ const csrfSecret = 'test-control-csrf-secret-at-least-32-bytes';
 const sessionToken = 'opaque-session-token-at-least-32-characters';
 const challengeToken = 'opaque-challenge-token-at-least-32-characters';
 const expiresAt = '2026-08-01T20:00:00.000Z';
+const expiresAtDate = new Date(expiresAt);
 const options: ControlSessionOptions = {
   origin,
   csrfSecret,
@@ -119,7 +120,7 @@ const makeApplication = (
     loginValue?:
       | {
           accessToken: string;
-          expiresAt: string;
+          expiresAt: Date;
           principal: {
             identityId: string;
             displayName: string;
@@ -127,7 +128,7 @@ const makeApplication = (
             roles: ['manager'];
           };
         }
-      | { status: 'mfa_required'; challengeToken: string; expiresAt: string };
+      | { status: 'mfa_required'; challengeToken: string; expiresAt: Date };
   } = {},
 ): ControlAuthApplication =>
   ({
@@ -137,7 +138,7 @@ const makeApplication = (
         input.loginValue ??
         ({
           accessToken: sessionToken,
-          expiresAt,
+          expiresAt: expiresAtDate,
           principal: {
             identityId: loadedSession.principal.identityId,
             displayName: loadedSession.principal.displayName,
@@ -158,7 +159,7 @@ const makeApplication = (
       tag: 'ok' as const,
       value: {
         accessToken: sessionToken,
-        expiresAt,
+        expiresAt: expiresAtDate,
         principal: {
           identityId: loadedSession.principal.identityId,
           displayName: loadedSession.principal.displayName,
@@ -167,7 +168,7 @@ const makeApplication = (
         },
       },
     })),
-  }) as unknown as AuthModule['application'];
+  }) as unknown as IdentityModule['application'];
 
 const makeTestApp = (input: {
   application: ControlAuthApplication;
@@ -291,7 +292,11 @@ describe('Control browser session boundary', () => {
 
   it('stores MFA challenges only in a separate HttpOnly cookie', async () => {
     const application = makeApplication({
-      loginValue: { status: 'mfa_required', challengeToken, expiresAt },
+      loginValue: {
+        status: 'mfa_required',
+        challengeToken,
+        expiresAt: expiresAtDate,
+      },
     });
     const app = makeTestApp({ application });
     const baseUrl = await start(app);

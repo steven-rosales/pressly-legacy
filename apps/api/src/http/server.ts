@@ -1,11 +1,7 @@
-/**
- * `server.ts` creates the http server.
- */
-
 import http, { type Server } from 'node:http';
 import type express from 'express';
 import type { Logger } from '@pressly/logging';
-import { attemptObservation } from '@pressly/metrics';
+import { attemptObservation } from '@pressly/observability';
 
 export type StartedServer = Readonly<{
   server: Server;
@@ -41,6 +37,7 @@ export const startServer = (input: {
 
     server.listen(input.port, input.host, () => {
       server.off('error', reject);
+
       if (input.onServerError !== undefined)
         server.on('error', input.onServerError);
 

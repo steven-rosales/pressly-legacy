@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from "react"
-import { useTranslation } from "react-i18next"
-import { IconLock, IconShieldCheck } from "@tabler/icons-react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
+import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import { IconLock, IconShieldCheck } from '@tabler/icons-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -10,19 +10,19 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from '@/components/ui/card';
 import {
   Field,
   FieldError,
   FieldGroup,
   FieldLabel,
-} from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
-} from "@/components/ui/input-otp"
+} from '@/components/ui/input-otp';
 import {
   Select,
   SelectContent,
@@ -30,8 +30,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Spinner } from "@/components/ui/spinner"
+} from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 
 export function AuthenticationView({
   mode,
@@ -41,48 +41,48 @@ export function AuthenticationView({
   onCompleteMfa,
   onRestart,
 }: {
-  mode: "login" | "mfa"
-  busy: boolean
-  error: string | null
-  onLogin: (input: { email: string; password: string }) => Promise<void>
+  mode: 'login' | 'mfa';
+  busy: boolean;
+  error: string | null;
+  onLogin: (input: { email: string; password: string }) => Promise<void>;
   onCompleteMfa: (input: {
-    method: "totp" | "recovery"
-    code: string
-  }) => Promise<void>
-  onRestart: () => void
+    method: 'totp' | 'recovery';
+    code: string;
+  }) => Promise<void>;
+  onRestart: () => void;
 }) {
-  const { t } = useTranslation()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [method, setMethod] = useState<"totp" | "recovery">("totp")
-  const [code, setCode] = useState("")
+  const { t } = useTranslation();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [method, setMethod] = useState<'totp' | 'recovery'>('totp');
+  const [code, setCode] = useState('');
 
   const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (mode === "login") void onLogin({ email, password })
-    else void onCompleteMfa({ method, code })
-  }
+    event.preventDefault();
+    if (mode === 'login') void onLogin({ email, password });
+    else void onCompleteMfa({ method, code });
+  };
 
   const invalidCode =
     code.length > 0 &&
-    (method === "totp" ? !/^\d{6}$/.test(code) : code.length < 16)
+    (method === 'totp' ? !/^\d{6}$/.test(code) : code.length < 16);
 
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 px-4 py-10">
       <Card className="w-full max-w-md bg-background">
         <CardHeader>
           <div className="mb-3 grid size-10 place-items-center rounded-lg bg-foreground text-background">
-            {mode === "login" ? <IconLock /> : <IconShieldCheck />}
+            {mode === 'login' ? <IconLock /> : <IconShieldCheck />}
           </div>
           <CardTitle role="heading" aria-level={1}>
-            {mode === "login"
-              ? t("authentication.signInTitle")
-              : t("authentication.verifyTitle")}
+            {mode === 'login'
+              ? t('authentication.signInTitle')
+              : t('authentication.verifyTitle')}
           </CardTitle>
           <CardDescription>
-            {mode === "login"
-              ? t("authentication.signInDescription")
-              : t("authentication.verifyDescription")}
+            {mode === 'login'
+              ? t('authentication.signInDescription')
+              : t('authentication.verifyDescription')}
           </CardDescription>
         </CardHeader>
         <form onSubmit={submit}>
@@ -90,15 +90,15 @@ export function AuthenticationView({
             <FieldGroup>
               {error !== null && (
                 <Alert variant="destructive" role="alert">
-                  <AlertTitle>{t("authentication.failed")}</AlertTitle>
+                  <AlertTitle>{t('authentication.failed')}</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              {mode === "login" ? (
+              {mode === 'login' ? (
                 <>
                   <Field>
                     <FieldLabel htmlFor="processor-email">
-                      {t("authentication.email")}
+                      {t('authentication.email')}
                     </FieldLabel>
                     <Input
                       id="processor-email"
@@ -111,7 +111,7 @@ export function AuthenticationView({
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="processor-password">
-                      {t("authentication.password")}
+                      {t('authentication.password')}
                     </FieldLabel>
                     <Input
                       id="processor-password"
@@ -128,13 +128,13 @@ export function AuthenticationView({
                 <>
                   <Field>
                     <FieldLabel htmlFor="mfa-method">
-                      {t("authentication.verificationMethod")}
+                      {t('authentication.verificationMethod')}
                     </FieldLabel>
                     <Select
                       value={method}
                       onValueChange={(value) => {
-                        setMethod(value as "totp" | "recovery")
-                        setCode("")
+                        setMethod(value as 'totp' | 'recovery');
+                        setCode('');
                       }}
                     >
                       <SelectTrigger id="mfa-method">
@@ -143,10 +143,10 @@ export function AuthenticationView({
                       <SelectContent>
                         <SelectGroup>
                           <SelectItem value="totp">
-                            {t("authentication.authenticatorCode")}
+                            {t('authentication.authenticatorCode')}
                           </SelectItem>
                           <SelectItem value="recovery">
-                            {t("authentication.recoveryCode")}
+                            {t('authentication.recoveryCode')}
                           </SelectItem>
                         </SelectGroup>
                       </SelectContent>
@@ -154,11 +154,11 @@ export function AuthenticationView({
                   </Field>
                   <Field data-invalid={invalidCode}>
                     <FieldLabel htmlFor="processor-mfa-code">
-                      {method === "totp"
-                        ? t("authentication.sixDigitCode")
-                        : t("authentication.recoveryCode")}
+                      {method === 'totp'
+                        ? t('authentication.sixDigitCode')
+                        : t('authentication.recoveryCode')}
                     </FieldLabel>
-                    {method === "totp" ? (
+                    {method === 'totp' ? (
                       <InputOTP
                         id="processor-mfa-code"
                         maxLength={6}
@@ -183,11 +183,11 @@ export function AuthenticationView({
                     )}
                     {invalidCode && (
                       <FieldError>
-                        {t("authentication.invalidCode", {
+                        {t('authentication.invalidCode', {
                           kind:
-                            method === "totp"
-                              ? t("authentication.sixDigit")
-                              : t("authentication.recovery"),
+                            method === 'totp'
+                              ? t('authentication.sixDigit')
+                              : t('authentication.recovery'),
                         })}
                       </FieldError>
                     )}
@@ -202,17 +202,17 @@ export function AuthenticationView({
               className="w-full"
               disabled={
                 busy ||
-                (mode === "login"
+                (mode === 'login'
                   ? email.length === 0 || password.length < 8
                   : code.length === 0 || invalidCode)
               }
             >
               {busy && <Spinner data-icon="inline-start" />}
-              {mode === "login"
-                ? t("authentication.signIn")
-                : t("authentication.verifyAndContinue")}
+              {mode === 'login'
+                ? t('authentication.signIn')
+                : t('authentication.verifyAndContinue')}
             </Button>
-            {mode === "mfa" && (
+            {mode === 'mfa' && (
               <Button
                 type="button"
                 variant="ghost"
@@ -220,12 +220,12 @@ export function AuthenticationView({
                 disabled={busy}
                 onClick={onRestart}
               >
-                {t("authentication.backToSignIn")}
+                {t('authentication.backToSignIn')}
               </Button>
             )}
           </CardFooter>
         </form>
       </Card>
     </main>
-  )
+  );
 }

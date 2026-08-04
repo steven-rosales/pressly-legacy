@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 import { IncomingOrdersWorkspace } from "@/features/order-control/incoming-orders.view"
-import { RequestFailure } from "@/ports/request.error"
+import { requestFailure } from "@/ports/request.error"
 import {
   makeTestOrderManagementPort,
   testIncomingOrderProposal,
@@ -277,11 +277,11 @@ describe("incoming orders workspace", () => {
     renderIncoming({
       listIncomingOrders,
       acceptIncomingOrder: async () => {
-        throw new RequestFailure({
-          kind: "conflict",
+        throw requestFailure({
+          requestKind: "conflict",
           code: "INCOMING_ORDER_PROPOSAL_VERSION_CONFLICT",
           message: "changed",
-          status: 409,
+          responseStatus: 409,
         })
       },
     })
@@ -311,8 +311,8 @@ describe("incoming orders workspace", () => {
     const listIncomingOrders = vi
       .fn()
       .mockRejectedValueOnce(
-        new RequestFailure({
-          kind: "unavailable",
+        requestFailure({
+          requestKind: "unavailable",
           code: "NETWORK_UNAVAILABLE",
           message: "offline",
         })
@@ -416,11 +416,11 @@ describe("incoming orders workspace", () => {
     const user = userEvent.setup()
     renderIncoming({
       acceptIncomingOrder: async () => {
-        throw new RequestFailure({
-          kind: "conflict",
+        throw requestFailure({
+          requestKind: "conflict",
           code,
           message: "conflict",
-          status: 409,
+          responseStatus: 409,
         })
       },
     })
@@ -445,11 +445,11 @@ describe("incoming orders workspace", () => {
     const user = userEvent.setup()
     renderIncoming({
       rejectIncomingOrder: async () => {
-        throw new RequestFailure({
-          kind: "forbidden",
+        throw requestFailure({
+          requestKind: "forbidden",
           code: "FORBIDDEN",
           message: "forbidden",
-          status: 403,
+          responseStatus: 403,
         })
       },
     })

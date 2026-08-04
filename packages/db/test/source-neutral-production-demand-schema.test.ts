@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { getTableConfig, laundryProduction, orders } from '../src/index.ts';
+import { getTableConfig } from '../src/query.ts';
+import * as laundryProduction from '../src/schema/laundry-production.schema.ts';
+import * as orders from '../src/schema/orders.schema.ts';
 
 describe('source-neutral Production demand schema', () => {
   it('links exactly one Production demand to one canonical fulfillment', () => {

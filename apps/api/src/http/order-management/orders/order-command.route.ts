@@ -3,18 +3,19 @@ import {
   correctOrderRequestSchema,
   createOrderRequestSchema,
   orderMutationResultSchema,
-  productionLocationParamsSchema,
-} from '@pressly/contracts';
-import { validationError } from '@pressly/errors';
+} from '@pressly/contracts/orders';
+import { productionLocationParamsSchema } from '@pressly/contracts/production';
+import { validationError } from '@pressly/errors/factories';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import type { OrderCustomer, OrdersApplication } from '@pressly/orders';
-import type { LocationAncestryPort } from '@pressly/access-control';
+import type { LocationAncestryPort } from '@pressly/authorization';
 import { Router, type RequestHandler } from 'express';
 import {
   orderManagementCommandContext,
   type ReadOrderManagementPrincipal,
-} from '../command-context.mapper.ts';
+} from '../command-context.adapter.ts';
+import { orderManagementResultValue } from './order-management.error.ts';
 
 const directCustomer = (
   input:
@@ -68,10 +69,10 @@ export const makeOrderCommandRoutes = (input: {
         customer: directCustomer(request.body.customer),
         dueAt: new Date(request.body.dueAt),
       });
-      if (outcome.tag === 'err') throw outcome.error;
+      const value = orderManagementResultValue(outcome);
       response
         .status(201)
-        .json(apiSuccess(orderMutationResultSchema.parse(outcome.value)));
+        .json(apiSuccess(orderMutationResultSchema.parse(value)));
     }),
   );
   routes.patch(
@@ -104,8 +105,8 @@ export const makeOrderCommandRoutes = (input: {
             : { dueAt: new Date(body.changes.dueAt) }),
         },
       });
-      if (outcome.tag === 'err') throw outcome.error;
-      response.json(apiSuccess(orderMutationResultSchema.parse(outcome.value)));
+      const value = orderManagementResultValue(outcome);
+      response.json(apiSuccess(orderMutationResultSchema.parse(value)));
     }),
   );
 

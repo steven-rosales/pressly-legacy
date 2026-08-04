@@ -1,9 +1,13 @@
 import { dirname, resolve } from 'node:path';
+import { toolingError } from '@pressly/errors/tooling-error';
 
 const required = (name: string): string => {
   const value = process.env[name];
   if (value === undefined || value.length === 0) {
-    throw new Error(`${name} is required by the disposable browser topology.`);
+    throw toolingError({
+      code: 'missing_browser_e2e_environment',
+      message: `${name} is required by the disposable browser topology.`,
+    });
   }
   return value;
 };
@@ -20,24 +24,30 @@ const localOrigin = (name: string, hostname: string): string => {
     url.search.length > 0 ||
     url.hash.length > 0
   ) {
-    throw new Error(
-      `${name} must be the local https://${hostname}:<port> origin.`,
-    );
+    throw toolingError({
+      code: 'invalid_browser_e2e_origin',
+      message: `${name} must be the local https://${hostname}:<port> origin.`,
+    });
   }
   return url.origin;
 };
 
 const runtimeDir = resolve(required('PRESSLY_BROWSER_E2E_RUNTIME_DIR'));
 if (!runtimeDir.startsWith('/tmp/pressly-browser-e2e.')) {
-  throw new Error(
-    'Browser credentials and session state must remain in a disposable /tmp directory.',
-  );
+  throw toolingError({
+    code: 'invalid_browser_e2e_runtime_directory',
+    message:
+      'Browser credentials and session state must remain in a disposable /tmp directory.',
+  });
 }
 
 const runtimeFile = (name: string, fileName: string): string => {
   const file = resolve(required(name));
   if (dirname(file) !== runtimeDir || file !== resolve(runtimeDir, fileName)) {
-    throw new Error(`${name} must be ${fileName} directly inside runtimeDir.`);
+    throw toolingError({
+      code: 'invalid_browser_e2e_runtime_file',
+      message: `${name} must be ${fileName} directly inside runtimeDir.`,
+    });
   }
   return file;
 };

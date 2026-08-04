@@ -1,12 +1,13 @@
-import { productionLocationParamsSchema } from '@pressly/contracts';
-import { notFoundError } from '@pressly/errors';
+import { productionLocationParamsSchema } from '@pressly/contracts/production';
+import { notFoundError } from '@pressly/errors/factories';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import {
   isolateCounterSink,
   isolateMeasurementSink,
   type CounterSink,
   type MeasurementSink,
-} from '@pressly/metrics';
+} from '@pressly/observability';
+import { systemClock } from '@pressly/time';
 import { Router, type RequestHandler, type Response } from 'express';
 import type {
   ProductionChange,
@@ -177,7 +178,7 @@ export const makeProductionChangeRoutes = (input: {
       const untilExpiry =
         absoluteExpiry === null
           ? reauthorizeIntervalMs
-          : Math.max(1, absoluteExpiry - Date.now());
+          : Math.max(1, absoluteExpiry - systemClock.now().getTime());
       reauthorize = setTimeout(
         () => {
           if (!closed) response.end();

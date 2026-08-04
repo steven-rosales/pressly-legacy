@@ -2,36 +2,39 @@ import {
   IconAlertTriangle,
   IconArrowRight,
   IconCalendarStats,
-} from "@tabler/icons-react"
-import { useTranslation } from "react-i18next"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import type { RemainingDayForecastModel } from "./forecast.model"
-import { formatForecastDateTime, localeForLanguage } from "./forecast.presenter"
+} from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { RemainingDayForecastModel } from './forecast.model';
+import {
+  formatForecastDateTime,
+  localeForLanguage,
+} from './forecast.presenter';
 
 export function ForecastSummaryView({
   model,
   variant,
   onOpenForecast,
 }: Readonly<{
-  model: RemainingDayForecastModel
-  variant: "home" | "schedule"
-  onOpenForecast: () => void
+  model: RemainingDayForecastModel;
+  variant: 'home' | 'schedule';
+  onOpenForecast: () => void;
 }>) {
-  const { t, i18n } = useTranslation()
-  const forecast = model.forecast
-  const locale = localeForLanguage(i18n.resolvedLanguage)
+  const { t, i18n } = useTranslation();
+  const forecast = model.forecast;
+  const locale = localeForLanguage(i18n.resolvedLanguage);
 
   if (model.loading)
     return (
       <Skeleton
-        className={variant === "home" ? "h-24 w-full" : "h-16 w-full"}
+        className={variant === 'home' ? 'h-24 w-full' : 'h-16 w-full'}
         role="status"
-        aria-label={t("forecast.loadingSummary")}
+        aria-label={t('forecast.loadingSummary')}
       />
-    )
+    );
 
   if (forecast === null)
     return (
@@ -44,9 +47,9 @@ export function ForecastSummaryView({
           <div className="flex min-w-0 items-start gap-2">
             <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <div>
-              <p className="font-medium">{t("forecast.summaryUnavailable")}</p>
+              <p className="font-medium">{t('forecast.summaryUnavailable')}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {model.error ?? t("forecast.errors.loadFailed")}
+                {model.error ?? t('forecast.errors.loadFailed')}
               </p>
             </div>
           </div>
@@ -56,11 +59,11 @@ export function ForecastSummaryView({
             className="h-11 shrink-0"
             onClick={() => void model.refresh()}
           >
-            {t("common.retry")}
+            {t('common.retry')}
           </Button>
         </CardContent>
       </Card>
-    )
+    );
 
   return (
     <Card
@@ -70,9 +73,9 @@ export function ForecastSummaryView({
     >
       <CardContent
         className={
-          variant === "home"
-            ? "flex flex-col gap-4 lg:flex-row lg:items-center"
-            : "flex flex-col gap-3 sm:flex-row sm:items-center"
+          variant === 'home'
+            ? 'flex flex-col gap-4 lg:flex-row lg:items-center'
+            : 'flex flex-col gap-3 sm:flex-row sm:items-center'
         }
       >
         <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -84,33 +87,33 @@ export function ForecastSummaryView({
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-medium">{t("forecast.summaryTitle")}</p>
+              <p className="font-medium">{t('forecast.summaryTitle')}</p>
               <Badge
                 variant={
-                  forecast.capacityRisk.level === "attention"
-                    ? "secondary"
-                    : "outline"
+                  forecast.capacityRisk.level === 'attention'
+                    ? 'secondary'
+                    : 'outline'
                 }
               >
                 {t(`forecast.capacity.level.${forecast.capacityRisk.level}`)}
               </Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {variant === "home"
+              {variant === 'home'
                 ? [
-                    t("forecast.homeSummary", {
+                    t('forecast.homeSummary', {
                       orders: forecast.totals.all.orderCount,
                       weight: forecast.totals.all.knownWeightLbs,
                     }),
                     forecast.totals.all.missingEstimateOrderCount > 0
-                      ? t("forecast.missingEstimateSummary", {
+                      ? t('forecast.missingEstimateSummary', {
                           count: forecast.totals.all.missingEstimateOrderCount,
                         })
                       : null,
                   ]
                     .filter((value) => value !== null)
-                    .join(" · ")
-                : t("forecast.scheduleSummary", {
+                    .join(' · ')
+                : t('forecast.scheduleSummary', {
                     ready: forecast.totals.readyToPlace.orderCount,
                     needsShift: forecast.totals.needsShift.orderCount,
                   })}
@@ -124,11 +127,11 @@ export function ForecastSummaryView({
                   className="mt-0.5 size-3 shrink-0"
                   aria-hidden="true"
                 />
-                {t("forecast.staleSummary", {
+                {t('forecast.staleSummary', {
                   date: formatForecastDateTime(
                     forecast.asOf,
                     forecast.timezone,
-                    locale
+                    locale,
                   ),
                 })}
               </p>
@@ -136,11 +139,11 @@ export function ForecastSummaryView({
           </div>
         </div>
 
-        {variant === "home" && (
+        {variant === 'home' && (
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
             <div>
               <dt className="text-xs text-muted-foreground">
-                {t("forecast.groups.inProduction.title")}
+                {t('forecast.groups.inProduction.title')}
               </dt>
               <dd className="font-medium tabular-nums">
                 {forecast.totals.inProduction.orderCount}
@@ -148,7 +151,7 @@ export function ForecastSummaryView({
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">
-                {t("forecast.groups.readyToPlace.title")}
+                {t('forecast.groups.readyToPlace.title')}
               </dt>
               <dd className="font-medium tabular-nums">
                 {forecast.totals.readyToPlace.orderCount}
@@ -156,7 +159,7 @@ export function ForecastSummaryView({
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">
-                {t("forecast.groups.expectedLater.title")}
+                {t('forecast.groups.expectedLater.title')}
               </dt>
               <dd className="font-medium tabular-nums">
                 {forecast.totals.expectedLater.orderCount}
@@ -164,7 +167,7 @@ export function ForecastSummaryView({
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">
-                {t("forecast.groups.needsShift.title")}
+                {t('forecast.groups.needsShift.title')}
               </dt>
               <dd className="font-medium tabular-nums">
                 {forecast.totals.needsShift.orderCount}
@@ -179,10 +182,10 @@ export function ForecastSummaryView({
           className="h-11 shrink-0"
           onClick={onOpenForecast}
         >
-          {t("forecast.openForecast")}
+          {t('forecast.openForecast')}
           <IconArrowRight data-icon="inline-end" />
         </Button>
       </CardContent>
     </Card>
-  )
+  );
 }

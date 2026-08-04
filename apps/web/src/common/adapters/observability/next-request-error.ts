@@ -1,10 +1,10 @@
-import { normalizeUnknownError } from '@pressly/errors';
+import { normalizeUnknownError } from '@pressly/errors/app-error';
 import {
   attemptObservation,
   decideObservation,
   type ErrorReporter,
   type ObservationDecision,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import { makeSentryErrorReporter } from './sentry-reporter';
 
 type UnknownRecord = Readonly<Record<string, unknown>>;

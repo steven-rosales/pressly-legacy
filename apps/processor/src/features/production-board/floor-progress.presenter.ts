@@ -3,7 +3,7 @@ import type {
   ProductionFloorMilestone,
   ProductionFloorProgressReason,
   ProductionFloorProgressTarget,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import type { TFunction } from "i18next"
 import {
   productionStageLabels,

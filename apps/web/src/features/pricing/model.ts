@@ -2,7 +2,7 @@ import type {
   PricingCatalogResult,
   PricingItemResult,
   PricingParamsRequestSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/pricing';
 
 export type PricingSource = 'api' | 'static-fallback';
 

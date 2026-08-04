@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { isSensitiveKey, redactLogFields } from '../src/redact.js';
 
 describe('redactLogFields', () => {

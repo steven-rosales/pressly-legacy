@@ -1,15 +1,16 @@
-import type {
-  ClockPort,
-  IdPort,
-} from '../../src/command-execution/production-command.port.ts';
-import type { ProductionApplicationSchedulerPort } from '../../src/scheduling/production-scheduler.port.ts';
-import type { ProductionPolicyPort } from '../../src/production-policy/production-policy.port.ts';
+import type { IdSource } from '@pressly/kernel';
+import type { Clock } from '@pressly/time';
+import type { ProductionAlgorithmRegistry } from '../../src/foundations/algorithms/approved-production/production-algorithm-registry.factory.ts';
+import {
+  productionRules,
+  type ProductionRules,
+} from '../../src/foundations/language/rules/production-rules.factory.ts';
 import type {
   SchedulingInput,
   SchedulingOutput,
-} from '../../src/scheduling/production-scheduling.port.ts';
+} from '../../src/foundations/language/scheduling/production-scheduling.model.ts';
 
-export const makeIds = (): IdPort => {
+export const makeIds = (): IdSource => {
   let value = 1;
   return {
     next: () =>
@@ -19,7 +20,7 @@ export const makeIds = (): IdPort => {
 
 export const makeClock = (initial: string) => {
   let now = new Date(initial);
-  const clock: ClockPort = { now: () => new Date(now) };
+  const clock: Clock = { now: () => new Date(now) };
 
   return {
     clock,
@@ -29,7 +30,8 @@ export const makeClock = (initial: string) => {
   };
 };
 
-export const allowPolicy: ProductionPolicyPort = {
+export const allowPolicy: ProductionRules = {
+  ...productionRules,
   initialProductionShiftState: 'open',
   evaluateProductionShiftTransition: ({ state }) =>
     state === 'open'
@@ -780,7 +782,13 @@ export const allowPolicy: ProductionPolicyPort = {
 const addMinutes = (instant: string, minutes: number) =>
   new Date(Date.parse(instant) + minutes * 60_000).toISOString();
 
-export const simpleScheduler: ProductionApplicationSchedulerPort = {
+export const simpleScheduler: Pick<
+  ProductionAlgorithmRegistry,
+  | 'forecastDemand'
+  | 'propose'
+  | 'proposeOnlinePlacement'
+  | 'projectRemainingDayForecast'
+> = {
   forecastDemand: (input) => ({
     algorithmVersion: 'fixed-pulse-demand-outlook-v1',
     startsAt: input.shift.startsAt,

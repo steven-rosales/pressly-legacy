@@ -1,7 +1,10 @@
 import { IconClock } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
-import type { ProductionStageStartTiming, StageRun } from "@pressly/contracts"
+import type {
+  ProductionStageStartTiming,
+  StageRun,
+} from "@pressly/contracts/production"
 import {
   AlertDialog,
   AlertDialogAction,

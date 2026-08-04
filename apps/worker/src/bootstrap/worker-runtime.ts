@@ -1,11 +1,11 @@
-import { randomUUID } from 'node:crypto';
+import { uuidIdSource } from '@pressly/kernel/node';
 import { redactLogFields, type Logger, type LogFields } from '@pressly/logging';
 import {
   attemptObservation,
   type CounterSink,
   type ErrorReporter,
   type MeasurementSink,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import { makeFileHeartbeat } from '../runtime/heartbeat.js';
 import type { WorkerConfig } from '../runtime/env.js';
 import {
@@ -32,7 +32,7 @@ export const runWorker = async (input: {
     return;
   }
 
-  const workerId = randomUUID();
+  const workerId = uuidIdSource.next();
   attemptObservation(() =>
     input.logger.info('worker starting', {
       workerId,

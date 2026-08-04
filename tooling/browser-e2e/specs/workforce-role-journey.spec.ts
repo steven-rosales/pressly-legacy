@@ -2,7 +2,7 @@ import type { Browser, Page } from '@playwright/test';
 import {
   controlAuthenticatedSessionSchema,
   processorAuthenticatedSessionSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/auth';
 import { enableMfa, signIn } from '../support/authentication';
 import {
   expect,

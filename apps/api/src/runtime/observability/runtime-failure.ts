@@ -3,7 +3,7 @@ import {
   attemptObservation,
   decideObservation,
   type ObservationDecision,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import type { ApiRuntime } from '../api-runtime.ts';
 import { logObservation, toObservationLogFields } from './observation-log.ts';
 

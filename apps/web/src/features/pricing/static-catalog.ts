@@ -2,8 +2,8 @@ import type {
   PricingCatalogResult,
   PricingItemResult,
   PricingServiceSlug,
-} from '@pressly/contracts';
-import { invariantViolationError } from '@pressly/errors';
+} from '@pressly/contracts/pricing';
+import { invariantViolationError } from '@pressly/errors/factories';
 
 export const PRICING = {
   washFoldPerLbCents: 167,
@@ -204,11 +204,10 @@ export const buildStaticCatalog = (
     : buildDryCleaningStaticCatalog();
 
 export const hasRequiredPricing = (catalog: PricingCatalogResult): boolean => {
-  if (catalog.serviceSlug === 'wash-fold') {
+  if (catalog.serviceSlug === 'wash-fold')
     return catalog.items.some(
       (item) => item.service === 'wash_fold' && item.category === 'Base',
     );
-  }
 
   return catalog.items.some(
     (item) =>

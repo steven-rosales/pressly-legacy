@@ -1,16 +1,15 @@
-import { randomUUID } from 'node:crypto';
-import { createDatabaseRuntime } from '@pressly/db';
+import { createDatabaseRuntime } from '@pressly/db/client';
+import { uuidIdSource } from '@pressly/kernel/node';
 import type { Logger } from '@pressly/logging';
 import type {
   CounterSink,
   ErrorReporter,
   MeasurementSink,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import { makePostgresOrdersWorkerApplication } from '@pressly/orders';
 import { makePostgresProductionApplication } from '@pressly/production';
-import { makeProductionPolicy } from '@pressly/production-policy';
-import { makeProductionScheduler } from '@pressly/production-scheduling';
 import { makePostgresWebhookIngestionApplication } from '@pressly/webhook-ingestion';
+import { systemClock } from '@pressly/time';
 import { makeIgnoredCentsEventHandler } from '../jobs/process-webhook-inbox/cents/cents-ignored.handler.js';
 import { makeCentsOrderHandler } from '../jobs/process-webhook-inbox/cents/cents-order.handler.js';
 import { makeWebhookEventDispatcher } from '../jobs/process-webhook-inbox/webhook-event.dispatcher.js';
@@ -38,19 +37,17 @@ export const composeWorkerJobs = (input: {
     databaseUrl: input.databaseUrl,
     maxConnections: 5,
   });
-  const clock = { now: () => new Date() };
+  const clock = systemClock;
   const production = makePostgresProductionApplication({
     db: database.db,
-    policy: makeProductionPolicy(),
-    scheduler: makeProductionScheduler(),
     clock,
-    ids: { next: () => randomUUID() },
+    ids: uuidIdSource,
     signals: makeProductionDomainSignals(input.counters),
   });
   const ingestion = makePostgresWebhookIngestionApplication({
     db: database.db,
     clock,
-    ids: { next: () => randomUUID() },
+    ids: uuidIdSource,
   });
   const orders = makePostgresOrdersWorkerApplication({
     db: database.db,

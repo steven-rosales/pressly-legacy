@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { AuthModule } from '@pressly/auth-module';
-import { isAppError } from '@pressly/errors';
+import type { IdentityModule } from '@pressly/identity';
+import { isAppError } from '@pressly/errors/app-error';
 import express, {
   type ErrorRequestHandler,
   type RequestHandler,
@@ -11,13 +11,14 @@ import {
   deriveProcessorCsrfToken,
   makeProcessorBrowserBoundary,
   processorCookieNames,
-} from '../../src/http/processor/session/processor-session.boundary.ts';
+} from '../../src/http/processor/session/processor-session.composition.ts';
 
 const origin = 'http://processor.test';
 const csrfSecret = 'test-processor-csrf-secret-at-least-32-bytes';
 const sessionToken = 'opaque-session-token-at-least-32-characters';
 const challengeToken = 'opaque-challenge-token-at-least-32-characters';
 const expiresAt = '2026-08-01T20:00:00.000Z';
+const expiresAtDate = new Date(expiresAt);
 const principal = {
   identityId: '00000000-0000-4000-8000-000000000001',
   displayName: 'Operator One',
@@ -124,10 +125,10 @@ const makeApplication = (
     loginValue?:
       | {
           accessToken: string;
-          expiresAt: string;
+          expiresAt: Date;
           principal: typeof principal;
         }
-      | { status: 'mfa_required'; challengeToken: string; expiresAt: string };
+      | { status: 'mfa_required'; challengeToken: string; expiresAt: Date };
   } = {},
 ) => {
   const application = {
@@ -135,7 +136,11 @@ const makeApplication = (
       tag: 'ok' as const,
       value:
         input.loginValue ??
-        ({ accessToken: sessionToken, expiresAt, principal } as const),
+        ({
+          accessToken: sessionToken,
+          expiresAt: expiresAtDate,
+          principal,
+        } as const),
     })),
     loadSession: vi.fn(async () => ({
       tag: 'ok' as const,
@@ -147,14 +152,14 @@ const makeApplication = (
     })),
     completeMfaChallenge: vi.fn(async () => ({
       tag: 'ok' as const,
-      value: { accessToken: sessionToken, expiresAt, principal },
+      value: { accessToken: sessionToken, expiresAt: expiresAtDate, principal },
     })),
-  } as unknown as AuthModule['application'];
+  } as unknown as IdentityModule['application'];
   return application;
 };
 
 const makeTestApp = (input: {
-  application: AuthModule['application'];
+  application: IdentityModule['application'];
   resolvedAccess?: typeof access | null;
   secureCookies?: boolean;
 }) => {
@@ -318,7 +323,11 @@ describe('processor browser session boundary', () => {
 
   it('keeps the MFA challenge in its own HttpOnly cookie and never returns it to JavaScript', async () => {
     const application = makeApplication({
-      loginValue: { status: 'mfa_required', challengeToken, expiresAt },
+      loginValue: {
+        status: 'mfa_required',
+        challengeToken,
+        expiresAt: expiresAtDate,
+      },
     });
     const { app } = makeTestApp({ application });
     const baseUrl = await start(app);

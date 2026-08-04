@@ -1,12 +1,10 @@
-import type { ProductionOrderPlacementResult } from '@pressly/contracts';
 import type { OrdersApplication } from '@pressly/orders';
 import {
   makeProductionApplication,
+  type ProductionOrderPlacedResult,
   type ProductionRepositories,
 } from '@pressly/production';
 import { makeMemoryProductionRepositories } from '@pressly/production/testing';
-import { makeProductionPolicy } from '@pressly/production-policy';
-import { makeProductionScheduler } from '@pressly/production-scheduling';
 import { describe, expect, it, vi } from 'vitest';
 import { normalizeCentsWebhook } from '../../src/http/webhooks/cents/cents-webhook.normalizer.ts';
 
@@ -75,7 +73,7 @@ describe('LPMS run-centered app-composed happy path', () => {
         active: true,
       })),
     ]);
-    const placementCommits: ProductionOrderPlacementResult[] = [];
+    const placementCommits: ProductionOrderPlacedResult[] = [];
     const placeProductionOrder: ProductionRepositories['placeProductionOrder'] =
       {
         transaction: async (work) =>
@@ -212,8 +210,6 @@ describe('LPMS run-centered app-composed happy path', () => {
       };
     const application = makeProductionApplication({
       repositories: { ...memory.repositories, placeProductionOrder },
-      policy: makeProductionPolicy(),
-      scheduler: makeProductionScheduler(),
       clock,
       ids,
     });
@@ -683,7 +679,8 @@ describe('LPMS run-centered app-composed happy path', () => {
         .flatMap((batch) => batch.stages)
         .filter(
           (stage) =>
-            stage.status === 'started' && stage.plannedEndAt === boundary,
+            stage.status === 'started' &&
+            stage.plannedEndAt.getTime() === Date.parse(boundary),
         )) {
         if (!provedEarlyBoundary) {
           now = new Date(Date.parse(boundary) - 1);
@@ -736,7 +733,8 @@ describe('LPMS run-centered app-composed happy path', () => {
         .flatMap((batch) => batch.stages)
         .filter(
           (stage) =>
-            stage.status === 'planned' && stage.plannedStartAt === boundary,
+            stage.status === 'planned' &&
+            stage.plannedStartAt.getTime() === Date.parse(boundary),
         );
       if (boundary === '2026-07-10T14:56:00.000Z') {
         const sorting = stagesStartingNow.find(

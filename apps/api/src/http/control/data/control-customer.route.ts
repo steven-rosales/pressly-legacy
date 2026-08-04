@@ -6,31 +6,16 @@ import {
   createUserRequestSchema,
   updateUserRequestSchema,
   userMutationResultSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/users';
+import type { ControlExperience } from '@pressly/control-experience';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
-import type { UsersApplication } from '@pressly/users';
 import { Router, type RequestHandler } from 'express';
-import {
-  controlAccess,
-  controlCommandContext,
-} from './control-data.context.ts';
-import { controlCustomer } from './control-data.mapper.ts';
-
-const value = <Value>(
-  outcome:
-    | Readonly<{ tag: 'ok'; value: Value }>
-    | Readonly<{ tag: 'err'; error: unknown }>,
-): Value => {
-  if (outcome.tag === 'err') throw outcome.error;
-  return outcome.value;
-};
+import { controlResultValue } from '../control-experience.error.ts';
+import { readControlRequestContext } from '../control-request-context.adapter.ts';
 
 export const makeControlCustomerRoutes = (input: {
-  users: Pick<
-    UsersApplication,
-    'listUsers' | 'getUser' | 'createUser' | 'updateUser'
-  >;
+  application: ControlExperience['customers'];
   authenticate: RequestHandler;
   limitIdentity: RequestHandler;
   requireRead: RequestHandler;
@@ -59,19 +44,19 @@ export const makeControlCustomerRoutes = (input: {
         cursor?: string;
         limit: number;
       };
-      const page = value(
-        await input.users.listUsers({
-          businessId: controlAccess(response).business.id,
-          query: query.query ?? null,
-          active: query.active ?? null,
+      const page = controlResultValue(
+        await input.application.list({
+          context: readControlRequestContext(response),
+          ...(query.query === undefined ? {} : { query: query.query }),
+          ...(query.active === undefined ? {} : { active: query.active }),
           limit: query.limit,
-          cursor: query.cursor ?? null,
+          ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
         }),
       );
       response.json(
         apiSuccess(
           controlCustomerListSchema.parse({
-            items: page.items.map(controlCustomer),
+            items: page.items,
             nextCursor: page.nextCursor,
           }),
         ),
@@ -84,15 +69,13 @@ export const makeControlCustomerRoutes = (input: {
     ...read,
     validateRequest({ params: canonicalUserParamsSchema }),
     catchAsync(async (request, response) => {
-      const customer = value(
-        await input.users.getUser({
-          businessId: controlAccess(response).business.id,
+      const customer = controlResultValue(
+        await input.application.get({
+          context: readControlRequestContext(response),
           userId: request.params['userId'] as string,
         }),
       );
-      response.json(
-        apiSuccess(controlCustomerSchema.parse(controlCustomer(customer))),
-      );
+      response.json(apiSuccess(controlCustomerSchema.parse(customer)));
     }),
   );
 
@@ -101,11 +84,10 @@ export const makeControlCustomerRoutes = (input: {
     ...write,
     validateRequest({ body: createUserRequestSchema }),
     catchAsync(async (request, response) => {
-      const outcome = value(
-        await input.users.createUser({
+      const outcome = controlResultValue(
+        await input.application.create({
           ...request.body,
-          businessId: controlAccess(response).business.id,
-          context: controlCommandContext(response),
+          context: readControlRequestContext(response),
         }),
       );
       response
@@ -120,12 +102,11 @@ export const makeControlCustomerRoutes = (input: {
     validateRequest({ params: canonicalUserParamsSchema }),
     validateRequest({ body: updateUserRequestSchema }),
     catchAsync(async (request, response) => {
-      const outcome = value(
-        await input.users.updateUser({
+      const outcome = controlResultValue(
+        await input.application.update({
           ...request.body,
-          businessId: controlAccess(response).business.id,
           userId: request.params['userId'] as string,
-          context: controlCommandContext(response),
+          context: readControlRequestContext(response),
         }),
       );
       response.json(apiSuccess(userMutationResultSchema.parse(outcome)));

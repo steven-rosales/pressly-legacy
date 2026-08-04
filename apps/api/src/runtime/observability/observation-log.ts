@@ -1,5 +1,5 @@
 import { redactLogFields, type Logger, type LogFields } from '@pressly/logging';
-import type { ObservationLogLevel } from '@pressly/metrics';
+import type { ObservationLogLevel } from '@pressly/observability';
 
 export const toObservationLogFields = (
   fields: Readonly<Record<string, unknown>>,

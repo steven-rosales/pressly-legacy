@@ -1,3 +1,4 @@
+import { invariantViolationError } from '@pressly/errors/factories';
 import { err, isErr, isOk, ok, type Result } from './result.ts';
 import type { Spec } from './spec.ts';
 
@@ -283,36 +284,28 @@ const validateDefinition = <
   const errors: string[] = [];
   const stateSet = new Set<string>();
 
-  if (definition.name.trim().length === 0) {
+  if (definition.name.trim().length === 0)
     errors.push('Machine name cannot be empty.');
-  }
 
   for (const state of definition.states) {
-    if (state.trim().length === 0) {
-      errors.push('State names cannot be empty.');
-    }
+    if (state.trim().length === 0) errors.push('State names cannot be empty.');
 
-    if (stateSet.has(state)) {
-      errors.push(`Duplicate state "${state}".`);
-    }
+    if (stateSet.has(state)) errors.push(`Duplicate state "${state}".`);
 
     stateSet.add(state);
   }
 
-  if (!stateSet.has(definition.initial)) {
+  if (!stateSet.has(definition.initial))
     errors.push(`Initial state "${definition.initial}" is not declared.`);
-  }
 
   const terminalSet = new Set<string>();
 
   for (const terminal of definition.terminal ?? []) {
-    if (!stateSet.has(terminal)) {
+    if (!stateSet.has(terminal))
       errors.push(`Terminal state "${terminal}" is not declared.`);
-    }
 
-    if (terminalSet.has(terminal)) {
+    if (terminalSet.has(terminal))
       errors.push(`Duplicate terminal state "${terminal}".`);
-    }
 
     terminalSet.add(terminal);
   }
@@ -322,50 +315,42 @@ const validateDefinition = <
   for (const transition of definition.transitions) {
     const fromStates = normalize(transition.from);
 
-    if (fromStates.length === 0) {
+    if (fromStates.length === 0)
       errors.push(`Transition on "${transition.on}" has no from-state.`);
-    }
 
-    if (transition.on.trim().length === 0) {
+    if (transition.on.trim().length === 0)
       errors.push('Transition event names cannot be empty.');
-    }
 
-    if (!stateSet.has(transition.to)) {
+    if (!stateSet.has(transition.to))
       errors.push(`Transition target "${transition.to}" is not declared.`);
-    }
 
     const guardNames = new Set<string>();
 
     for (const guard of transition.guards ?? []) {
-      if (guard.name.trim().length === 0) {
+      if (guard.name.trim().length === 0)
         errors.push(`Guard on "${transition.on}" must have a name.`);
-      }
 
-      if (guardNames.has(guard.name)) {
+      if (guardNames.has(guard.name))
         errors.push(
           `Duplicate guard "${guard.name}" on transition "${transition.on}".`,
         );
-      }
 
       guardNames.add(guard.name);
     }
 
     for (const from of fromStates) {
-      if (!stateSet.has(from)) {
+      if (!stateSet.has(from))
         errors.push(`Transition source "${from}" is not declared.`);
-      }
 
-      if (terminalSet.has(from)) {
+      if (terminalSet.has(from))
         errors.push(`Terminal state "${from}" cannot have transitions.`);
-      }
 
       const events = seenTransitions.get(from) ?? new Set<string>();
 
-      if (events.has(transition.on)) {
+      if (events.has(transition.on))
         errors.push(
           `Duplicate transition from "${from}" on "${transition.on}".`,
         );
-      }
 
       events.add(transition.on);
       seenTransitions.set(from, events);
@@ -375,13 +360,11 @@ const validateDefinition = <
   const invariantNames = new Set<string>();
 
   for (const invariant of definition.invariants ?? []) {
-    if (invariant.name.trim().length === 0) {
+    if (invariant.name.trim().length === 0)
       errors.push('Invariants must have a name.');
-    }
 
-    if (invariantNames.has(invariant.name)) {
+    if (invariantNames.has(invariant.name))
       errors.push(`Duplicate invariant "${invariant.name}".`);
-    }
 
     invariantNames.add(invariant.name);
   }
@@ -501,9 +484,8 @@ export const define = <
   }
 
   for (const transition of transitions) {
-    for (const from of transition.from) {
+    for (const from of transition.from)
       transitionIndex.get(from)?.set(transition.on, transition);
-    }
   }
 
   const eventIndex = new Map<State, readonly Event['type'][]>();
@@ -554,7 +536,7 @@ export const define = <
         ctx: args.ctx,
       });
 
-      if (isErr(checked)) {
+      if (isErr(checked))
         return {
           kind: 'invariant_failed',
           machine: name,
@@ -566,7 +548,6 @@ export const define = <
           code: checked.error.code,
           ...optionalMessage(checked.error),
         };
-      }
     }
 
     return undefined;
@@ -580,19 +561,18 @@ export const define = <
   ): StateMachineTransitionResult<State, Event, Entity, Effect> => {
     const currentState = getState(entity);
 
-    if (!isState(currentState)) {
+    if (!isState(currentState))
       return err({
         kind: 'unknown_state',
         machine: name,
         state: currentState,
         event,
       });
-    }
 
     const from = currentState;
     const transition = transitionIndex.get(from)?.get(event.type);
 
-    if (transition === undefined) {
+    if (transition === undefined)
       return err({
         kind: 'invalid_transition',
         machine: name,
@@ -600,7 +580,6 @@ export const define = <
         event,
         allowedEvents: allowedEvents(from),
       });
-    }
 
     const beforeInvariantError = runInvariants({
       entity,
@@ -611,9 +590,7 @@ export const define = <
       phase: 'before',
     });
 
-    if (beforeInvariantError !== undefined) {
-      return err(beforeInvariantError);
-    }
+    if (beforeInvariantError !== undefined) return err(beforeInvariantError);
 
     for (const guard of transition.guards) {
       const checked = guard.check({
@@ -624,7 +601,7 @@ export const define = <
         ctx,
       });
 
-      if (isErr(checked)) {
+      if (isErr(checked))
         return err({
           kind: 'guard_rejected',
           machine: name,
@@ -634,7 +611,6 @@ export const define = <
           code: checked.error.code,
           ...optionalMessage(checked.error),
         });
-      }
     }
 
     const transitionArgs = {
@@ -648,7 +624,7 @@ export const define = <
     const nextEntity = setState(evolvedEntity, transition.to);
     const observedState = getState(nextEntity);
 
-    if (observedState !== transition.to) {
+    if (observedState !== transition.to)
       throw invariantViolationError({
         code: 'state_machine_set_state_mismatch',
         message: `State machine "${name}" setState returned state "${observedState}" while transitioning from "${from}" to "${transition.to}".`,
@@ -659,7 +635,6 @@ export const define = <
           observedState,
         },
       });
-    }
 
     const afterInvariantError = runInvariants({
       entity: nextEntity,
@@ -670,9 +645,7 @@ export const define = <
       phase: 'after',
     });
 
-    if (afterInvariantError !== undefined) {
-      return err(afterInvariantError);
-    }
+    if (afterInvariantError !== undefined) return err(afterInvariantError);
 
     const effects: readonly Effect[] =
       includeEffects && transition.deriveEffects !== undefined
@@ -720,4 +693,3 @@ export const define = <
     isTerminal,
   });
 };
-import { invariantViolationError } from '@pressly/errors';

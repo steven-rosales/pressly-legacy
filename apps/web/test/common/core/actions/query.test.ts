@@ -1,5 +1,5 @@
 import { result } from '@pressly/kernel';
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { nullLogger } from '@pressly/logging';
 import { z } from 'zod';
 import { makeTestWebCore } from '@/common/testing/make-test-web-core';

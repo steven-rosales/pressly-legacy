@@ -1,4 +1,4 @@
-import { validationError } from '@pressly/errors';
+import { validationError } from '@pressly/errors/factories';
 import { sql } from 'drizzle-orm';
 import type { DatabaseExecutor } from './client.ts';
 

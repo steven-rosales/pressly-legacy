@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
+import { invariantViolationError } from '@pressly/errors/factories';
 import {
   Controller,
   FormProvider,
@@ -46,7 +47,10 @@ const useFormField = () => {
   const itemContext = React.useContext(FormItemContext);
 
   if (fieldContext === null) {
-    throw new Error('useFormField should be used within <FormField>');
+    throw invariantViolationError({
+      code: 'form_field_context_missing',
+      message: 'useFormField should be used within <FormField>.',
+    });
   }
 
   const { getFieldState } = useFormContext();

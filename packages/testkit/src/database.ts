@@ -1,6 +1,9 @@
-import { createDatabaseRuntime, type Database } from '@pressly/db';
+import { createDatabaseRuntime, type Database } from '@pressly/db/client';
 import { truncateTestTables } from '@pressly/db/testing';
-import { configError, invariantViolationError } from '@pressly/errors';
+import {
+  configError,
+  invariantViolationError,
+} from '@pressly/errors/factories';
 
 export type TestDatabaseRuntime = Readonly<{
   db: Database;

@@ -1,7 +1,7 @@
 'use client';
 
-import { normalizeUnknownError } from '@pressly/errors';
-import { attemptObservation, decideObservation } from '@pressly/metrics';
+import { normalizeUnknownError } from '@pressly/errors/app-error';
+import { attemptObservation, decideObservation } from '@pressly/observability';
 import { useEffect } from 'react';
 import { makeSentryErrorReporter } from '@/common/adapters/observability/sentry-reporter';
 

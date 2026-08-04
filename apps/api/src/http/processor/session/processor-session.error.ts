@@ -1,4 +1,5 @@
-import { authError, permissionError, type AppError } from '@pressly/errors';
+import type { AppError } from '@pressly/errors/app-error';
+import { authError, permissionError } from '@pressly/errors/factories';
 
 export const processorUnauthorized = (input: {
   code: string;

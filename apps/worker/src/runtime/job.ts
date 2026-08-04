@@ -1,4 +1,5 @@
-import { unexpectedError } from '@pressly/errors';
+import { makeAggregateError } from '@pressly/errors/app-error';
+import { unexpectedError } from '@pressly/errors/factories';
 
 export type WorkerJob = Readonly<{ runOnce: () => Promise<number> }>;
 
@@ -21,8 +22,12 @@ export const makeSequentialJob = (jobs: readonly WorkerJob[]): WorkerJob => ({
         code: 'worker_peer_jobs_failed',
         message: `${failures.length} independent worker jobs failed in one pass.`,
         details: { failureCount: failures.length },
-        cause: new AggregateError(failures, 'Independent worker jobs failed.'),
+        cause: makeAggregateError({
+          errors: failures,
+          message: 'Independent worker jobs failed.',
+        }),
       });
+
     return processed;
   },
 });

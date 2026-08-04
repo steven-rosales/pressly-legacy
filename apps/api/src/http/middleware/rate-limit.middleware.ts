@@ -1,9 +1,8 @@
-import { authError, rateLimitError } from '@pressly/errors';
+import { authError, rateLimitError } from '@pressly/errors/factories';
 import type { Logger, SecurityEventSink } from '@pressly/logging';
-import { attemptObservation } from '@pressly/metrics';
+import { attemptObservation } from '@pressly/observability';
+import { systemClock, type Clock } from '@pressly/time';
 import type { RequestHandler } from 'express';
-
-type Clock = Readonly<{ nowMs: () => number }>;
 
 type RateLimitEntry = {
   count: number;
@@ -22,8 +21,6 @@ export type RateLimitStore = Readonly<{
   consume: (key: string, limit: number, windowMs: number) => RateLimitDecision;
 }>;
 
-const systemClock: Clock = { nowMs: () => Date.now() };
-
 export const makeMemoryRateLimitStore = (input?: {
   clock?: Clock;
   maxEntries?: number;
@@ -39,7 +36,7 @@ export const makeMemoryRateLimitStore = (input?: {
 
   return {
     consume(key, limit, windowMs) {
-      const nowMs = clock.nowMs();
+      const nowMs = clock.now().getTime();
       const current = entries.get(key);
       const entry =
         current === undefined || current.resetAtMs <= nowMs
@@ -108,7 +105,7 @@ export const makeIpRateLimiter =
     res.setHeader('Retry-After', String(decision.retryAfterSeconds));
     input.securityEvents.emit({
       name: 'request.rate_limited',
-      occurredAt: new Date().toISOString(),
+      occurredAt: systemClock.now().toISOString(),
       outcome: 'denied',
       ...((res.locals['requestId'] as string | undefined) === undefined
         ? {}
@@ -178,7 +175,7 @@ export const makeIdentityRateLimiter =
     res.setHeader('Retry-After', String(decision.retryAfterSeconds));
     input.securityEvents.emit({
       name: 'request.rate_limited',
-      occurredAt: new Date().toISOString(),
+      occurredAt: systemClock.now().toISOString(),
       outcome: 'denied',
       ...((res.locals['requestId'] as string | undefined) === undefined
         ? {}

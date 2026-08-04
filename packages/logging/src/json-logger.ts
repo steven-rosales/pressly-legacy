@@ -1,3 +1,4 @@
+import { systemClock, type Clock } from '@pressly/time';
 import type { Logger, LogFields, LogLevel } from './logger.js';
 import { redactLogFields } from './redact.js';
 
@@ -16,10 +17,10 @@ export const makeJsonLogger = (input: {
   service: string;
   environment: string;
   release?: string;
-  clock?: Readonly<{ now: () => Date }>;
+  clock?: Clock;
   write?: JsonLogWriter;
 }): Logger => {
-  const clock = input.clock ?? { now: () => new Date() };
+  const clock = input.clock ?? systemClock;
   const write = input.write ?? defaultWriter;
   const rootFields: LogFields = {
     service: input.service,

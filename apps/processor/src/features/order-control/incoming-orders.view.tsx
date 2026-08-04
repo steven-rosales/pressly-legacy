@@ -82,6 +82,7 @@ function IncomingOrderIdentity({
   const detail = [proposal.customer?.phone, proposal.customer?.email]
     .filter((value): value is string => value !== null && value !== undefined)
     .join(" · ")
+
   return (
     <div className="min-w-0">
       <p className="truncate font-medium">

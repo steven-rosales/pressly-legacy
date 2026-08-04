@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { apiFailure, apiSuccess } from '../src/api-response.js';
 
 describe('api response', () => {

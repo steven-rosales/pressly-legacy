@@ -1,10 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
-import type {
-  ProcessorProductionHistoryActivityEntry,
-  ProductionHistoryRunSummary,
-} from "@pressly/contracts"
+import type { ProcessorProductionHistoryActivityEntry } from "@pressly/contracts/processor"
+import type { ProductionHistoryRunSummary } from "@pressly/contracts/production"
 import { HistoryWorkspaceContainer } from "@/features/history/history-workspace.view"
 import {
   makeTestProductionPort,

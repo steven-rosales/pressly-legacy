@@ -1,5 +1,5 @@
 import { result } from '@pressly/kernel';
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { createElement } from 'react';
 import { Text } from 'ink';
 import { describe, expect, it, vi } from 'vitest';

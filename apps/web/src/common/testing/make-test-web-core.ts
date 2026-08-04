@@ -1,6 +1,6 @@
-import { invariantViolationError } from '@pressly/errors';
+import { invariantViolationError } from '@pressly/errors/factories';
 import type { Logger } from '@pressly/logging';
-import type { AnalyticsTracker, ErrorReporter } from '@pressly/metrics';
+import type { AnalyticsTracker, ErrorReporter } from '@pressly/observability';
 import { createWebCore, type WebCore } from '../core/runtime/core';
 import type { RequestClient } from '../core/requests/request-client';
 import type { Clock } from '../core/runtime/clock';

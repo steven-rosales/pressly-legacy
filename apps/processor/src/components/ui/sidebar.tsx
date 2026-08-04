@@ -1,4 +1,5 @@
 import * as React from "react"
+import { invariantViolationError } from "@pressly/errors/factories"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
@@ -44,7 +45,10 @@ const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 function useSidebar() {
   const context = React.useContext(SidebarContext)
   if (!context) {
-    throw new Error("useSidebar must be used within a SidebarProvider.")
+    throw invariantViolationError({
+      code: "processor_sidebar_context_missing",
+      message: "useSidebar must be used within a SidebarProvider.",
+    })
   }
 
   return context

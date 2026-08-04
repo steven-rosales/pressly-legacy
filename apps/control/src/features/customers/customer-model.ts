@@ -3,10 +3,10 @@ export {
   controlCustomerSchema,
   userMutationResultSchema as customerMutationResultSchema,
   userProfileSchema as customerProfileSchema,
-} from "@pressly/contracts"
+} from '@pressly/contracts/users';
 export type {
   ControlCustomer,
   ControlCustomerList as ControlCustomerPage,
   UserMutationResult as CustomerMutationResult,
   UserProfile as CustomerProfile,
-} from "@pressly/contracts"
+} from '@pressly/contracts/users';

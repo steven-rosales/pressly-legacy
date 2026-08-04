@@ -128,7 +128,7 @@ describe("Control customer API", () => {
     await expect(
       api.list({ query: "", active: null, cursor: null }),
     ).rejects.toMatchObject({
-      kind: "unreadable_response",
+      controlKind: "unreadable_response",
     })
   })
 })

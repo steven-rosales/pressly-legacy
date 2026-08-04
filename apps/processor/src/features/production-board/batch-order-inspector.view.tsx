@@ -1,4 +1,4 @@
-import type { ProcessorProductionBatch } from "@pressly/contracts"
+import type { ProcessorProductionBatch } from "@pressly/contracts/processor"
 import type { TFunction } from "i18next"
 import { useEffect, type RefObject } from "react"
 import { useTranslation } from "react-i18next"

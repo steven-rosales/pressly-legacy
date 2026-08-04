@@ -1,4 +1,4 @@
-import { configError } from '@pressly/errors';
+import { configError } from '@pressly/errors/factories';
 import type { CorsOptions } from 'cors';
 
 const allowedMethods = 'GET,HEAD,POST,PUT,PATCH,OPTIONS';

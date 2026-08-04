@@ -1,10 +1,15 @@
+import { toolingError } from '../../packages/errors/src/tooling-error.mjs';
+
 const commitShaPattern = /^[0-9a-f]{40}$/i;
 
 const normalizeCommitSha = (value, source) => {
   const sha = value.trim().toLowerCase();
 
   if (!commitShaPattern.test(sha))
-    throw new Error(`${source} must be a full 40-character commit SHA.`);
+    throw toolingError({
+      code: 'invalid_deployment_commit_sha',
+      message: `${source} must be a full 40-character commit SHA.`,
+    });
 
   return sha;
 };
@@ -20,7 +25,10 @@ export const selectDeploySha = ({
   if (eventName === 'workflow_dispatch')
     return normalizeCommitSha(manualSha, 'Manual deployment input');
 
-  throw new Error(`Unsupported deployment event: ${eventName}`);
+  throw toolingError({
+    code: 'unsupported_deployment_event',
+    message: `Unsupported deployment event: ${eventName}`,
+  });
 };
 
 const isMain = import.meta.url === `file://${process.argv[1]}`;

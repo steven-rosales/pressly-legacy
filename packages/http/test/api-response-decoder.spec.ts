@@ -84,6 +84,32 @@ describe('API response decoder', () => {
       data: value,
     });
   });
+
+  it('rejects non-JSON metadata at the transport boundary', () => {
+    expect(
+      decodeApiResponse(
+        {
+          ok: false,
+          error: {
+            code: 'request_failed',
+            message: 'Request failed.',
+            details: { generatedAt: new Date() },
+          },
+        },
+        dataSchema,
+      ).success,
+    ).toBe(false);
+    expect(
+      decodeApiResponse(
+        {
+          ok: true,
+          data: { status: 'ok' },
+          meta: { cursor: undefined },
+        },
+        dataSchema,
+      ).success,
+    ).toBe(false);
+  });
 });
 
 describe('API failure correlation', () => {

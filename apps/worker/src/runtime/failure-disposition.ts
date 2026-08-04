@@ -1,4 +1,4 @@
-import type { AppError } from '@pressly/errors';
+import type { AppError } from '@pressly/errors/app-error';
 
 const transientKinds = new Set<AppError['kind']>([
   'RateLimitError',
@@ -30,7 +30,9 @@ export const decideFailureDisposition = (input: {
 }): FailureDisposition => {
   if (!input.retryable)
     return { action: 'dead_letter', reason: 'permanent_failure' };
+
   if (input.attempt >= input.maxAttempts)
     return { action: 'dead_letter', reason: 'attempts_exhausted' };
+
   return { action: 'retry', reason: 'transient_failure' };
 };

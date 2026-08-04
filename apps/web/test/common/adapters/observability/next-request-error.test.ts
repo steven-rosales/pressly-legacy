@@ -1,4 +1,4 @@
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { observeNextRequestError } from '@/common/adapters/observability/next-request-error';
 
 describe('observeNextRequestError', () => {

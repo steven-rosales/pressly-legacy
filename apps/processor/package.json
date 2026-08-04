@@ -10,11 +10,12 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "VITEST_MAX_WORKERS=2 vitest run"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "@fontsource-variable/inter": "^5.2.8",
+    "@pressly/codec": "workspace:*",
     "@pressly/contracts": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/http": "workspace:*",

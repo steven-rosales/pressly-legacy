@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { toolingError } from '../../packages/errors/src/tooling-error.mjs';
 
 export const PILOT_MEMORY_FLOOR_BYTES = 4 * 1024 ** 3;
 export const REQUIRED_RESERVE_PERCENT = 30;
@@ -23,7 +24,10 @@ const maximumSafeMeasuredBytes = Math.floor(
 );
 
 const invalidMemoryValue = (value) =>
-  new Error(`Invalid Docker memory value: ${JSON.stringify(value)}.`);
+  toolingError({
+    code: 'invalid_docker_memory_value',
+    message: `Invalid Docker memory value: ${JSON.stringify(value)}.`,
+  });
 
 export const parseMemoryBytes = (value) => {
   if (typeof value !== 'string') throw invalidMemoryValue(value);
@@ -40,11 +44,17 @@ export const parseMemoryBytes = (value) => {
 
 export const parseDockerMemUsage = (value) => {
   if (typeof value !== 'string')
-    throw new Error('Docker MemUsage must be a string.');
+    throw toolingError({
+      code: 'invalid_docker_memory_usage_type',
+      message: 'Docker MemUsage must be a string.',
+    });
 
   const parts = value.split('/');
   if (parts.length !== 2)
-    throw new Error(`Invalid Docker MemUsage: ${JSON.stringify(value)}.`);
+    throw toolingError({
+      code: 'invalid_docker_memory_usage',
+      message: `Invalid Docker MemUsage: ${JSON.stringify(value)}.`,
+    });
 
   const measuredBytes = parseMemoryBytes(parts[0]);
   parseMemoryBytes(parts[1]);
@@ -54,7 +64,10 @@ export const parseDockerMemUsage = (value) => {
 
 export const parseDockerStatsJsonl = (jsonl) => {
   if (typeof jsonl !== 'string')
-    throw new Error('Docker stats JSONL must be a string.');
+    throw toolingError({
+      code: 'invalid_docker_stats_jsonl_type',
+      message: 'Docker stats JSONL must be a string.',
+    });
 
   const records = [];
 
@@ -66,14 +79,23 @@ export const parseDockerStatsJsonl = (jsonl) => {
     try {
       value = JSON.parse(line);
     } catch {
-      throw new Error(`Invalid Docker stats JSON on line ${index + 1}.`);
+      throw toolingError({
+        code: 'invalid_docker_stats_json',
+        message: `Invalid Docker stats JSON on line ${index + 1}.`,
+      });
     }
 
     if (typeof value !== 'object' || value === null || Array.isArray(value))
-      throw new Error(`Docker stats line ${index + 1} must be an object.`);
+      throw toolingError({
+        code: 'invalid_docker_stats_record_type',
+        message: `Docker stats line ${index + 1} must be an object.`,
+      });
 
     if (!Object.hasOwn(value, 'MemUsage'))
-      throw new Error(`Docker stats line ${index + 1} is missing MemUsage.`);
+      throw toolingError({
+        code: 'missing_docker_memory_usage',
+        message: `Docker stats line ${index + 1} is missing MemUsage.`,
+      });
 
     try {
       records.push({
@@ -81,14 +103,19 @@ export const parseDockerStatsJsonl = (jsonl) => {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Docker stats line ${index + 1}: ${message}`, {
+      throw toolingError({
+        code: 'invalid_docker_stats_memory_usage',
+        message: `Docker stats line ${index + 1}: ${message}`,
         cause: error,
       });
     }
   }
 
   if (records.length === 0)
-    throw new Error('Docker stats JSONL contains no records.');
+    throw toolingError({
+      code: 'empty_docker_stats_jsonl',
+      message: 'Docker stats JSONL contains no records.',
+    });
 
   return records;
 };
@@ -100,7 +127,10 @@ const roundPercent = (value) => {
 
 export const summarizeDockerStats = (records) => {
   if (!Array.isArray(records) || records.length === 0)
-    throw new Error('At least one Docker stats record is required.');
+    throw toolingError({
+      code: 'missing_docker_stats_records',
+      message: 'At least one Docker stats record is required.',
+    });
 
   let measuredBytes = 0;
 
@@ -111,12 +141,18 @@ export const summarizeDockerStats = (records) => {
       !Number.isSafeInteger(record.memoryUsageBytes) ||
       record.memoryUsageBytes < 0
     ) {
-      throw new Error(`Docker stats record ${index + 1} is invalid.`);
+      throw toolingError({
+        code: 'invalid_docker_stats_record',
+        message: `Docker stats record ${index + 1} is invalid.`,
+      });
     }
 
     measuredBytes += record.memoryUsageBytes;
     if (!Number.isSafeInteger(measuredBytes))
-      throw new Error('Total Docker memory usage exceeds the safe range.');
+      throw toolingError({
+        code: 'unsafe_docker_memory_total',
+        message: 'Total Docker memory usage exceeds the safe range.',
+      });
   }
 
   const headroomBytes = PILOT_MEMORY_FLOOR_BYTES - measuredBytes;
@@ -146,7 +182,10 @@ export const summarizeDockerStats = (records) => {
 const main = async () => {
   const [path, ...unexpectedArguments] = process.argv.slice(2);
   if (path === undefined || unexpectedArguments.length > 0)
-    throw new Error('Usage: docker-stats-report.mjs <docker-stats.jsonl>');
+    throw toolingError({
+      code: 'invalid_docker_stats_report_arguments',
+      message: 'Usage: docker-stats-report.mjs <docker-stats.jsonl>',
+    });
 
   const records = parseDockerStatsJsonl(await readFile(path, 'utf8'));
   process.stdout.write(

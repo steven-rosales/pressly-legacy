@@ -1,6 +1,12 @@
 import * as Sentry from '@sentry/node';
-import { isAppError, makeAppError } from '@pressly/errors';
+import {
+  isAppError,
+  makeAggregateError,
+  makeAppError,
+} from '@pressly/errors/app-error';
+import { unexpectedError } from '@pressly/errors/factories';
 import { redactLogFields, type Logger, type LogFields } from '@pressly/logging';
+import { systemClock, type Clock } from '@pressly/time';
 import {
   attemptObservation,
   type CounterLabels,
@@ -11,7 +17,7 @@ import {
   type MeasurementLabels,
   type MeasurementName,
   type MeasurementSink,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import type { WorkerHeartbeat } from '../heartbeat.ts';
 
 type WorkerSentryConfig = Readonly<{
@@ -46,17 +52,34 @@ export const sanitizeWorkerError = (
   seen: WeakSet<object> = new WeakSet(),
 ): Error => {
   if (typeof error === 'object' && error !== null) {
-    if (seen.has(error)) return new Error('Circular error cause.');
+    if (seen.has(error))
+      return unexpectedError({
+        code: 'circular_error_cause',
+        message: 'Circular error cause.',
+      });
+
     seen.add(error);
   }
 
-  const redacted = redactLogFields(
-    error instanceof Error ? error : new Error(String(error)),
-  ) as { name?: string; message?: string; stack?: string };
+  const throwable =
+    error instanceof Error
+      ? error
+      : unexpectedError({
+          code: 'non_error_worker_failure',
+          message: String(error),
+        });
+
+  const redacted = redactLogFields(throwable) as {
+    name?: string;
+    message?: string;
+    stack?: string;
+  };
+
   const cause =
     error instanceof Error && error.cause !== undefined
       ? sanitizeWorkerError(error.cause, seen)
       : undefined;
+
   const aggregateErrors =
     error instanceof AggregateError
       ? error.errors.map((member) => sanitizeWorkerError(member, seen))
@@ -74,19 +97,28 @@ export const sanitizeWorkerError = (
       })
     : aggregateErrors !== undefined
       ? cause === undefined
-        ? new AggregateError(
-            aggregateErrors,
-            redacted.message ?? 'Unknown worker failures.',
-          )
-        : new AggregateError(
-            aggregateErrors,
-            redacted.message ?? 'Unknown worker failures.',
-            { cause },
-          )
+        ? makeAggregateError({
+            errors: aggregateErrors,
+            message: redacted.message ?? 'Unknown worker failures.',
+          })
+        : makeAggregateError({
+            errors: aggregateErrors,
+            message: redacted.message ?? 'Unknown worker failures.',
+            cause,
+          })
       : cause === undefined
-        ? new Error(redacted.message ?? 'Unknown worker failure.')
-        : new Error(redacted.message ?? 'Unknown worker failure.', { cause });
+        ? unexpectedError({
+            code: 'sanitized_worker_failure',
+            message: redacted.message ?? 'Unknown worker failure.',
+          })
+        : unexpectedError({
+            code: 'sanitized_worker_failure',
+            message: redacted.message ?? 'Unknown worker failure.',
+            cause,
+          });
+
   safe.name = redacted.name ?? 'Error';
+
   if (redacted.stack !== undefined) safe.stack = redacted.stack;
   return safe;
 };
@@ -169,11 +201,11 @@ export const makeWorkerSentryHeartbeat = (input: {
   heartbeat: WorkerHeartbeat;
   logger: Logger;
   sentryEnabled: boolean;
-  clock?: Readonly<{ now: () => Date }>;
+  clock?: Clock;
   checkInIntervalMs?: number;
   captureCheckIn?: typeof Sentry.captureCheckIn;
 }): WorkerHeartbeat => {
-  const clock = input.clock ?? { now: () => new Date() };
+  const clock = input.clock ?? systemClock;
   const checkInIntervalMs =
     input.checkInIntervalMs ?? workerHeartbeatCheckInIntervalMs;
   const captureCheckIn = input.captureCheckIn ?? Sentry.captureCheckIn;
@@ -222,26 +254,30 @@ export const makeWorkerSentryHeartbeat = (input: {
 
 export const makeWorkerSignalSinks = (input: {
   logger: Logger;
-  clock?: Readonly<{ now: () => Date }>;
+  clock?: Clock;
   measurementLogIntervalMs: number;
   sentryEnabled?: boolean;
   sentryMetrics?: WorkerSentryMetrics;
 }): Readonly<{ counters: CounterSink; measurements: MeasurementSink }> => {
-  const clock = input.clock ?? { now: () => new Date() };
+  const clock = input.clock ?? systemClock;
   const sentryMetrics = input.sentryMetrics ?? Sentry.metrics;
   const lastMeasurementAt = new Map<string, number>();
   const lastExportFailureAt = new Map<string, number>();
 
   const exportMetric = (name: string, capture: () => void): void => {
     if (input.sentryEnabled !== true) return;
+
     try {
       capture();
     } catch (error: unknown) {
       const now = clock.now().getTime();
+
       const lastAt = lastExportFailureAt.get(name);
       if (lastAt !== undefined && now - lastAt < input.measurementLogIntervalMs)
         return;
+
       lastExportFailureAt.set(name, now);
+
       attemptObservation(() =>
         input.logger.warn(
           'worker metric export failed',
@@ -261,6 +297,7 @@ export const makeWorkerSignalSinks = (input: {
             value: 1,
           }),
         );
+
         exportMetric(name, () =>
           sentryMetrics.count(name, 1, {
             attributes: metricAttributes(labels),
@@ -277,6 +314,7 @@ export const makeWorkerSignalSinks = (input: {
         const now = clock.now().getTime();
         const key = metricKey(name, labels);
         const lastAt = lastMeasurementAt.get(key);
+
         if (
           lastAt !== undefined &&
           now - lastAt < input.measurementLogIntervalMs
@@ -291,6 +329,7 @@ export const makeWorkerSignalSinks = (input: {
             value,
           }),
         );
+
         const options = {
           attributes: metricAttributes(labels),
           ...(secondsMeasurements.has(name) ? { unit: 'second' } : {}),

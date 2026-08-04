@@ -1,7 +1,7 @@
-import type { ProcessorOperationalOrderIdentity } from "@pressly/contracts"
-import { useTranslation } from "react-i18next"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/components/ui/class-names"
+import type { ProcessorOperationalOrderIdentity } from '@pressly/contracts/processor';
+import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/components/ui/class-names';
 
 export function OperationalOrderIdentity({
   identity,
@@ -10,23 +10,23 @@ export function OperationalOrderIdentity({
   secondaryClassName,
   onPrimaryClick,
 }: Readonly<{
-  identity: ProcessorOperationalOrderIdentity
-  className?: string
-  primaryClassName?: string
-  secondaryClassName?: string
-  onPrimaryClick?: () => void
+  identity: ProcessorOperationalOrderIdentity;
+  className?: string;
+  primaryClassName?: string;
+  secondaryClassName?: string;
+  onPrimaryClick?: () => void;
 }>) {
-  const { t } = useTranslation()
-  const orderLabel = t("common.orderNumber", {
+  const { t } = useTranslation();
+  const orderLabel = t('common.orderNumber', {
     orderNumber: identity.displayNumber,
-  })
+  });
   const customerLabel =
-    identity.customerDisplayName ?? t("common.customerUnavailable")
+    identity.customerDisplayName ?? t('common.customerUnavailable');
 
   return (
     <span
-      className={cn("block min-w-0 text-start", className)}
-      title={t("common.orderIdentityLabel", {
+      className={cn('block min-w-0 text-start', className)}
+      title={t('common.orderIdentityLabel', {
         orderNumber: identity.displayNumber,
         customer: customerLabel,
       })}
@@ -34,7 +34,7 @@ export function OperationalOrderIdentity({
     >
       {onPrimaryClick === undefined ? (
         <span
-          className={cn("block truncate font-medium", primaryClassName)}
+          className={cn('block truncate font-medium', primaryClassName)}
           title={orderLabel}
         >
           {orderLabel}
@@ -44,8 +44,8 @@ export function OperationalOrderIdentity({
           type="button"
           variant="link"
           className={cn(
-            "h-auto max-w-full justify-start truncate p-0 text-foreground",
-            primaryClassName
+            'h-auto max-w-full justify-start truncate p-0 text-foreground',
+            primaryClassName,
           )}
           title={orderLabel}
           onClick={onPrimaryClick}
@@ -55,13 +55,13 @@ export function OperationalOrderIdentity({
       )}
       <span
         className={cn(
-          "mt-0.5 block truncate text-xs text-muted-foreground",
-          secondaryClassName
+          'mt-0.5 block truncate text-xs text-muted-foreground',
+          secondaryClassName,
         )}
         title={customerLabel}
       >
         {customerLabel}
       </span>
     </span>
-  )
+  );
 }

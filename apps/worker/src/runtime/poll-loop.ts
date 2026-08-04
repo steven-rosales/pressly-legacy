@@ -11,7 +11,9 @@ const wait: WorkerLoopSleep = (milliseconds, signal) =>
       resolve();
       return;
     }
+
     const timeout = setTimeout(resolve, milliseconds);
+
     signal.addEventListener(
       'abort',
       () => {
@@ -53,11 +55,13 @@ export const runWorkerLoop = async (input: {
     try {
       const processed = await input.job.runOnce();
       await input.heartbeat.beat();
+
       consecutiveFailures = 0;
       if (processed === 0 && !input.signal.aborted)
         await sleep(input.pollIntervalMs, input.signal);
     } catch (error: unknown) {
       if (input.signal.aborted) break;
+
       consecutiveFailures += 1;
       const retryDelayMs = loopRetryDelayMs({
         consecutiveFailures,
@@ -65,6 +69,7 @@ export const runWorkerLoop = async (input: {
         maxMs: input.retryMaxMs,
       });
       input.onError({ error, consecutiveFailures, retryDelayMs });
+
       await sleep(retryDelayMs, input.signal);
     }
   }

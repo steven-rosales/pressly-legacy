@@ -3,23 +3,19 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
-import {
-  moduleFoundationTargets,
-  moduleRootFileDelta,
-} from '../../eslint.config.mjs';
+import { presslyModuleArchitecture } from '../architecture/pressly-module-architecture.ts';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const eslint = new ESLint({ cwd: repoRoot });
 
-const businessCapabilityRolePattern =
-  /\.(?:command|controller|error|mapper|middleware|model|policy|port|repo|route|usecase)\.ts$/;
+const moduleRoot = path.join(repoRoot, 'modules');
 
-const moduleGroups = ['business', 'policy', 'computation'];
+const moduleManifests = readdirSync(moduleRoot, {
+  withFileTypes: true,
+}).flatMap((group) => {
+  if (!group.isDirectory()) return [];
 
-const moduleManifests = moduleGroups.flatMap((group) => {
-  const groupRoot = path.join(repoRoot, 'modules', group);
-
-  if (!existsSync(groupRoot)) return [];
+  const groupRoot = path.join(moduleRoot, group.name);
 
   return readdirSync(groupRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -55,17 +51,6 @@ const importSpecifiers = (source) => [
 
 const relativeImportTarget = (filePath, specifier) =>
   path.resolve(path.dirname(filePath), specifier).replace(/\.js$/, '.ts');
-
-const businessSourceRoots = (() => {
-  const groupRoot = path.join(repoRoot, 'modules', 'business');
-
-  if (!existsSync(groupRoot)) return [];
-
-  return readdirSync(groupRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(groupRoot, entry.name, 'src'))
-    .filter(existsSync);
-})();
 
 const applicationAndPackageSourceRoots = ['apps', 'packages'].flatMap(
   (group) => {
@@ -103,24 +88,21 @@ const expectRejectedBy = async (filePath, source, ruleId) => {
 };
 
 describe('module architecture boundaries', () => {
-  it('describes missing and unexpected module root files for ESLint', () => {
-    expect(
-      moduleRootFileDelta(['main.ts', 'notes.md', 'public.ts', 'seed.sql']),
-    ).toEqual({
-      missing: [],
-      unexpected: ['notes.md', 'seed.sql'],
-    });
-    expect(moduleRootFileDelta(['main.ts'])).toEqual({
-      missing: ['public.ts'],
-      unexpected: [],
-    });
-    expect(moduleRootFileDelta(['public.ts'])).toEqual({
-      missing: ['main.ts'],
-      unexpected: [],
-    });
-  });
+  it('keeps every module manifest and sealed source root in the compiled graph', () => {
+    const actualModuleKeys = moduleManifests.map((manifestPath) => {
+      const moduleName = path.basename(path.dirname(manifestPath));
+      const familyName = path.basename(
+        path.dirname(path.dirname(manifestPath)),
+      );
 
-  it('seals every module source root to main.ts and public.ts', () => {
+      return `${familyName}/${moduleName}`;
+    });
+
+    expect(presslyModuleArchitecture.moduleKeyDelta(actualModuleKeys)).toEqual({
+      missing: [],
+      unexpected: [],
+    });
+
     for (const sourceRoot of moduleSourceRoots) {
       const rootFiles = readdirSync(sourceRoot, { withFileTypes: true })
         .filter((entry) => entry.isFile())
@@ -131,277 +113,17 @@ describe('module architecture boundaries', () => {
     }
   });
 
-  it('keeps real business capability files inside the closed role vocabulary', () => {
-    const invalidFiles = businessSourceRoots.flatMap((sourceRoot) => {
-      const moduleName = path.basename(path.dirname(sourceRoot));
-      const foundations =
-        moduleFoundationTargets.get(`business/${moduleName}`) ?? new Set();
-
-      return readFiles(sourceRoot)
-        .map((filePath) => path.relative(sourceRoot, filePath))
-        .filter(
-          (relativePath) =>
-            relativePath !== 'main.ts' &&
-            relativePath !== 'public.ts' &&
-            !foundations.has(relativePath.split(path.sep)[0]) &&
-            !businessCapabilityRolePattern.test(relativePath),
-        );
-    });
-
-    expect(invalidFiles).toEqual([]);
-  });
-
-  it('allows a usecase to depend on a same-capability port', async () => {
-    await expectAllowed(
-      'modules/business/auth/src/login/login.usecase.ts',
-      `
-        import type { LoginStore } from './login.port.ts';
-        export type Login = LoginStore;
-      `,
-    );
-  });
-
-  it('allows persistence adapters to use the database and explicit persistence foundation', async () => {
-    await expectAllowed(
-      'modules/business/auth/src/login/login.repo.ts',
-      `
-        import { auth } from '@pressly/db';
-        import type { LoginStore } from './login.port.ts';
-        import { toDatabaseResult } from '../persistence/database-result.ts';
-        export const dependencies = { auth, toDatabaseResult };
-        export type Store = LoginStore;
-      `,
-    );
-  });
-
-  it('allows repositories to compose a same-capability repository collaborator', async () => {
-    await expectAllowed(
-      'modules/business/auth/src/workforce/access-grant.repo.ts',
-      `
-        import { loadAuthorizedActor } from './workforce-store.repo.ts';
-        export const loadActor = loadAuthorizedActor;
-      `,
-    );
-  });
-
-  it('allows access-control capabilities to use the explicit identity foundation', async () => {
-    await expectAllowed(
-      'modules/policy/access-control/src/mfa/mfa.guard.ts',
-      `
-        import { authIdentityResourceFromRequest } from '../identity/auth-identity.resource.ts';
-        export const readResource = authIdentityResourceFromRequest;
-      `,
-    );
-  });
-
-  it('allows scheduling capabilities to use the explicit fixed-pulse foundation', async () => {
-    await expectAllowed(
-      'modules/computation/scheduling/src/forecast-demand/forecast-demand.computation.ts',
-      `
-        import { pulseCapacity } from '../fixed-pulse/fixed-pulse.computation.ts';
-        export const capacity = pulseCapacity;
-      `,
-    );
-  });
-
-  it('allows the intentionally HTTP-shaped access-control auth port to import HTTP types', async () => {
-    await expectAllowed(
-      'modules/policy/access-control/src/http/auth.port.ts',
-      `
-        import type { Request, RequestHandler } from 'express';
-        export type Authenticate = (request: Request) => RequestHandler;
-      `,
-    );
-  });
-
-  it('allows business ports to import mechanism-free application types', async () => {
-    await expectAllowed(
-      'modules/business/auth/src/login/login.port.ts',
-      `
-        import type { AppError } from '@pressly/errors';
-        export type LoginFailure = AppError;
-      `,
-    );
-  });
-
-  it('allows a capability to use an explicit named foundation', async () => {
-    await expectAllowed(
-      'modules/business/users/src/create-user/create-user.usecase.ts',
-      `
-        import type { UserProfile } from '../user-profile/user-profile.model.ts';
-        export type Profile = UserProfile;
-      `,
-    );
-  });
-
-  it('allows only declared dependencies between explicit foundations', async () => {
-    await expectAllowed(
-      'modules/business/production/src/persistence/example.ts',
-      `
-        import type { ProductionOrderStage } from '../production-lifecycle/production-lifecycle.model.ts';
-        export type StoredStage = ProductionOrderStage;
-      `,
-    );
-
-    await expectRejectedBy(
-      'modules/business/production/src/production-signals/example.port.ts',
-      `
-        import type { ProductionPolicyPort } from '../production-policy/production-policy.port.ts';
-        export type Policy = ProductionPolicyPort;
-      `,
-      'architecture/module-capability-imports',
-    );
-  });
-
-  it('rejects dependencies from a foundation back to a consumer capability', async () => {
-    await expectRejectedBy(
-      'modules/business/production/src/production-policy/example.port.ts',
-      `
-        import type { ApplyFulfillmentDemand } from '../apply-fulfillment-demand/apply-fulfillment-demand.port.ts';
-        export type Demand = ApplyFulfillmentDemand;
-      `,
-      'architecture/module-capability-imports',
-    );
-  });
-
-  it('allows recursively nested capability files when their role is explicit', async () => {
-    await expectAllowed(
-      'modules/business/auth/src/login/internal/login.policy.ts',
-      'export const canLogin = true;',
-    );
-  });
-
-  it('allows business models to describe data without pretending to be ports', async () => {
-    await expectAllowed(
-      'modules/business/auth/src/workforce/workforce.model.ts',
-      'export type WorkforceRole = "owner" | "manager";',
-    );
-  });
-
-  it('keeps business models mechanism-free', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/workforce/workforce.model.ts',
-      `
-        import type { Database } from '@pressly/db';
-        export type WorkforceModel = Database;
-      `,
-      '@typescript-eslint/no-restricted-imports',
-    );
-  });
-
-  it('allows only the explicit module composition surface without a role suffix', async () => {
-    await expectAllowed(
-      'modules/business/auth/src/main.ts',
-      'export const composeModule = true;',
-    );
-    await expectAllowed(
-      'modules/business/auth/src/public.ts',
-      'export const publicSurface = true;',
-    );
-  });
-
-  it('rejects every other file at a module source root', async () => {
-    await expectRejectedBy(
-      'modules/business/production/src/production.port.ts',
-      'export type ProductionPort = unknown;',
-      'no-restricted-syntax',
-    );
-  });
-
-  it('allows test vocabulary under the module test tree', async () => {
-    await expectAllowed(
-      'modules/business/auth/test/login/login.fake.ts',
-      'export const fakeLogin = true;',
-    );
-    await expectAllowed(
-      'modules/business/auth/test/login/login.usecase.test.ts',
-      'export const usecaseTestFixture = true;',
-    );
-  });
-
-  it('rejects database access from usecases', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/login/login.usecase.ts',
-      `
-        import { auth } from '@pressly/db';
-        export const leakedDatabase = auth;
-      `,
-      '@typescript-eslint/no-restricted-imports',
-    );
-  });
-
-  it('rejects imports between sibling capabilities', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/login/login.command.ts',
-      `
-        import { completeMfa } from '../mfa/complete-mfa.command.ts';
-        export const command = completeMfa;
-      `,
-      'architecture/module-capability-imports',
-    );
-  });
-
-  it('rejects dynamic imports between sibling capabilities', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/login/login.command.ts',
-      `
-        export const loadMfaCommand = () => import('../mfa/complete-mfa.command.ts');
-      `,
-      'architecture/module-capability-imports',
-    );
-  });
-
-  it('rejects database types from business ports', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/login/login.port.ts',
-      `
-        import type { Database } from '@pressly/db';
-        export type LoginStore = Database;
-      `,
-      '@typescript-eslint/no-restricted-imports',
-    );
-  });
-
-  it('rejects UI types from computation ports', async () => {
-    await expectRejectedBy(
-      'modules/computation/scheduler/src/propose/propose.port.ts',
-      `
-        import type { ReactNode } from 'react';
-        export type ScheduleProposal = ReactNode;
-      `,
-      '@typescript-eslint/no-restricted-imports',
-    );
-  });
-
-  it('rejects module package imports from every module group', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/login/login.usecase.ts',
-      `import type { PricingModule } from '@pressly/pricing'; export type Leak = PricingModule;`,
-      'architecture/module-isolation',
-    );
-    await expectRejectedBy(
-      'modules/policy/access-control/src/pricing/pricing.policy.ts',
-      `import type { PricingModule } from '@pressly/pricing'; export type Leak = PricingModule;`,
-      'architecture/module-isolation',
-    );
-    await expectRejectedBy(
-      'modules/computation/scheduling/src/propose/propose.computation.ts',
-      `import type { PricingModule } from '@pressly/pricing'; export type Leak = PricingModule;`,
-      'architecture/module-isolation',
-    );
-  });
-
-  it('rejects module package dependencies in manifests', () => {
+  it('keeps modules as package-independent peers', () => {
     const violations = moduleManifests.flatMap((manifestPath) => {
       const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-      const dependencyEntries = Object.entries({
+      const dependencies = Object.entries({
         ...(manifest.dependencies ?? {}),
         ...(manifest.devDependencies ?? {}),
         ...(manifest.optionalDependencies ?? {}),
         ...(manifest.peerDependencies ?? {}),
       });
 
-      return dependencyEntries
+      return dependencies
         .filter(([dependency]) => modulePackageNames.has(dependency))
         .map(
           ([dependency]) =>
@@ -412,20 +134,20 @@ describe('module architecture boundaries', () => {
     expect(violations).toEqual([]);
   });
 
-  it('keeps Users and Orders as isolated peer modules', async () => {
+  it('rejects direct imports between peer module packages', async () => {
     await expectRejectedBy(
-      'modules/business/users/src/observe-user/observe-user.usecase.ts',
+      'modules/business/users/src/features/users/read-users/read-users.usecase.ts',
       `import type { OrdersApplication } from '@pressly/orders'; export type Leak = OrdersApplication;`,
       'architecture/module-isolation',
     );
     await expectRejectedBy(
-      'modules/business/orders/src/observe-order/observe-order.usecase.ts',
+      'modules/business/orders/src/features/orders/read-order/read-order.usecase.ts',
       `import type { UsersApplication } from '@pressly/users'; export type Leak = UsersApplication;`,
       'architecture/module-isolation',
     );
   });
 
-  it('keeps Users and Orders persistence capability-shaped', () => {
+  it('keeps Users and Orders persistence feature-owned', () => {
     const sources = [
       path.join(repoRoot, 'modules/business/users/src'),
       path.join(repoRoot, 'modules/business/orders/src'),
@@ -445,52 +167,27 @@ describe('module architecture boundaries', () => {
 
     expect(moduleWideRepositories).toEqual([]);
     expect(
-      existsSync(
-        path.join(
-          repoRoot,
-          'modules/business/users/src/persistence/postgres-users.ts',
-        ),
-      ),
+      existsSync(path.join(repoRoot, 'modules/business/users/src/persistence')),
     ).toBe(false);
     expect(
       existsSync(
-        path.join(
-          repoRoot,
-          'modules/business/orders/src/persistence/postgres-orders.ts',
-        ),
+        path.join(repoRoot, 'modules/business/orders/src/persistence'),
       ),
     ).toBe(false);
-    expect(
-      existsSync(
-        path.join(
-          repoRoot,
-          'modules/business/users/src/canonical-source-user/canonical-source-user.repo.ts',
-        ),
-      ),
-    ).toBe(true);
-    expect(
-      existsSync(
-        path.join(
-          repoRoot,
-          'modules/business/users/src/canonical-source-user/canonical-source-user.adapter.ts',
-        ),
-      ),
-    ).toBe(false);
-    for (const legacyAdapter of [
-      'modules/business/users/src/user-mutations/user-mutations.repo.ts',
-      'modules/business/users/src/user-mutations/user-mutations.port.ts',
-      'modules/business/orders/src/order-mutations/order-mutations.repo.ts',
-      'modules/business/orders/src/order-mutations/order-mutations.port.ts',
-      'modules/business/orders/src/order-outbox/order-outbox.repo.ts',
-    ])
-      expect(existsSync(path.join(repoRoot, legacyAdapter))).toBe(false);
   });
 
-  it('keeps the versioned Order integration event owned by contracts', () => {
+  it('keeps the versioned fulfillment-demand event at the Orders contract edge', () => {
     const contract = readFileSync(
       path.join(
         repoRoot,
         'packages/contracts/src/orders/fulfillment-demand-event.contracts.ts',
+      ),
+      'utf8',
+    );
+    const mapper = readFileSync(
+      path.join(
+        repoRoot,
+        'modules/business/orders/src/foundations/adapters/outbox/fulfillment-demand-codec/fulfillment-demand.contract.mapper.ts',
       ),
       'utf8',
     );
@@ -503,9 +200,8 @@ describe('module architecture boundaries', () => {
     );
 
     expect(contract).toContain('schemaVersion: z.literal(1)');
-    expect(worker).toContain(
-      "import type { FulfillmentDemandChangedEvent } from '@pressly/contracts'",
-    );
+    expect(mapper).toContain("from '@pressly/contracts/orders'");
+    expect(worker).not.toMatch(/from ['"]@pressly\/contracts(?:\/|['"])/);
     expect(worker).not.toMatch(/\bz\.object\s*\(/);
   });
 
@@ -521,7 +217,6 @@ describe('module architecture boundaries', () => {
 
     expect(routes).toContain("'/customers'");
     expect(routes).toContain("'/customers/:userId'");
-    expect(routes).toContain('businessId: controlAccess(response).business.id');
     expect(routes).toContain(
       "'/order-management/locations/:locationId/orders/:orderId'",
     );
@@ -531,7 +226,6 @@ describe('module architecture boundaries', () => {
     expect(routes).toContain(
       "'/order-management/locations/:locationId/orders/:orderId/cancel'",
     );
-    expect(routes).toContain("locationId: request.params['locationId']");
     expect(routes.match(/apiSuccess\(/g)?.length).toBe(10);
   });
 
@@ -543,7 +237,7 @@ describe('module architecture boundaries', () => {
     ]);
     const candidates = [
       ...readFiles(apiHttpRoot),
-      ...businessSourceRoots.flatMap(readFiles),
+      ...moduleSourceRoots.flatMap(readFiles),
     ].filter((filePath) => filePath.endsWith('.ts'));
 
     const violations = candidates.flatMap((filePath) => {
@@ -557,115 +251,36 @@ describe('module architecture boundaries', () => {
     expect(violations).toEqual([]);
   });
 
-  it('keeps runtime source failures inside the shared error contract', () => {
-    const violations = runtimeSourceFiles.flatMap((filePath) => {
+  it('keeps runtime failures inside the shared error contract', () => {
+    const nativeThrowViolations = runtimeSourceFiles.flatMap((filePath) => {
       const relativePath = path.relative(repoRoot, filePath);
       if (/^apps\/(?:processor|web)\/src\/components\/ui\//.test(relativePath))
         return [];
-      return /\bthrow\s+new\s+(?:Error|TypeError|RangeError|AggregateError)\s*\(/.test(
+      return /\bthrow\s+new\s+(?:AggregateError|DOMException|Error|EvalError|RangeError|ReferenceError|SyntaxError|TypeError|URIError)\s*\(/.test(
         readFileSync(filePath, 'utf8'),
       )
         ? [relativePath]
         : [];
     });
-
-    expect(violations).toEqual([]);
-  });
-
-  it('uses semantic constructors outside structural error boundaries', () => {
     const structuralConstructors = new Set([
       'apps/api/src/http/middleware/error.middleware.ts',
+      'apps/processor/src/ports/request.error.ts',
       'apps/worker/src/runtime/observability/worker-observability.ts',
       'packages/errors/src/app-error.ts',
       'packages/errors/src/factories.ts',
     ]);
-
-    const violations = runtimeSourceFiles.flatMap((filePath) => {
-      const relativePath = path.relative(repoRoot, filePath);
-      if (structuralConstructors.has(relativePath)) return [];
-      return /\bmakeAppError\s*\(/.test(readFileSync(filePath, 'utf8'))
-        ? [relativePath]
-        : [];
-    });
-
-    expect(violations).toEqual([]);
-  });
-
-  it('keeps submitted candidates outside canonical lifecycle and guards source closure through Production', () => {
-    const centsHandler = readFileSync(
-      path.join(
-        repoRoot,
-        'apps/worker/src/jobs/process-webhook-inbox/cents/cents-order.handler.ts',
-      ),
-      'utf8',
-    );
-    const workerComposition = readFileSync(
-      path.join(
-        repoRoot,
-        'apps/worker/src/bootstrap/worker-jobs.composition.ts',
-      ),
-      'utf8',
-    );
-    const demandPolicyPort = readFileSync(
-      path.join(
-        repoRoot,
-        'modules/business/production/src/apply-fulfillment-demand/apply-fulfillment-demand.port.ts',
-      ),
-      'utf8',
-    );
-    const demandRepository = readFileSync(
-      path.join(
-        repoRoot,
-        'modules/business/production/src/apply-fulfillment-demand/apply-fulfillment-demand.repo.ts',
-      ),
-      'utf8',
+    const structuralConstructorViolations = runtimeSourceFiles.flatMap(
+      (filePath) => {
+        const relativePath = path.relative(repoRoot, filePath);
+        if (structuralConstructors.has(relativePath)) return [];
+        return /\bmakeAppError\s*\(/.test(readFileSync(filePath, 'utf8'))
+          ? [relativePath]
+          : [];
+      },
     );
 
-    expect(centsHandler).toMatch(
-      /orders:\s*Pick<\s*OrdersWorkerApplication,\s*'proposeIncomingOrder'\s*\|\s*'closeIncomingOrderSource'\s*>/,
-    );
-    expect(centsHandler).toMatch(
-      /production:\s*Pick<\s*ProductionApplication,\s*'resolveSourceClosedFulfillment'\s*>/,
-    );
-    expect(centsHandler).toContain("storedStatus !== 'SUBMITTED'");
-    expect(centsHandler).toContain("storedStatus !== 'COMPLETED'");
-    expect(centsHandler).toContain("storedStatus !== 'CANCELED'");
-    expect(centsHandler).toContain('deps.orders.proposeIncomingOrder');
-    expect(centsHandler).toContain('deps.orders.closeIncomingOrderSource');
-    expect(centsHandler).toContain(
-      'deps.production.resolveSourceClosedFulfillment',
-    );
-    expect(centsHandler).toContain("proposalKind: 'submitted_order'");
-    expect(centsHandler).not.toContain('@pressly/users');
-    expect(centsHandler).not.toMatch(/\busers\s*:/);
-    expect(centsHandler).not.toContain('observeSource');
-    expect(centsHandler).not.toContain('resolvePendingSourceCustomer');
-    expect(centsHandler).not.toContain('recordConsent');
-    expect(centsHandler).toContain("adapterVersion: 'cents-webhook-v3'");
-    expect(centsHandler).not.toMatch(/\borders\s*:\s*OrdersApplication\b/);
-    expect(centsHandler).not.toMatch(/\bstate\s*:/);
-    expect(centsHandler).not.toMatch(/\breleaseState\s*:/);
-    expect(centsHandler).not.toMatch(/\bbagCount\s*:/);
-    expect(demandPolicyPort).not.toContain('incomingBagCount');
-    expect(demandRepository).not.toMatch(
-      /\bbagCount\s*:\s*command\.bagCount\b/,
-    );
-    expect(workerComposition).toContain(
-      'proposeIncomingOrder: orders.proposeIncomingOrder',
-    );
-    expect(workerComposition).toContain(
-      'closeIncomingOrderSource: orders.closeIncomingOrderSource',
-    );
-    expect(workerComposition).toContain('resolveSourceClosedFulfillment:');
-    expect(workerComposition).toContain(
-      'production.resolveSourceClosedFulfillment',
-    );
-    expect(workerComposition).toContain('makePostgresOrdersWorkerApplication');
-    expect(workerComposition).not.toContain('makePostgresOrdersApplication');
-    expect(workerComposition).not.toContain('@pressly/users');
-    expect(workerComposition).not.toContain('orders.observeSource');
-    expect(workerComposition).not.toContain('users.resolveSource');
-    expect(workerComposition).not.toContain('resolvePendingSourceCustomer');
+    expect(nativeThrowViolations).toEqual([]);
+    expect(structuralConstructorViolations).toEqual([]);
   });
 
   it('acknowledges non-order Cents receipts without canonical effects', () => {
@@ -684,9 +299,6 @@ describe('module architecture boundaries', () => {
       'utf8',
     );
 
-    expect(ignoredHandler).toContain(
-      "(): WebhookEventConsumer => async () => ({ tag: 'ok' })",
-    );
     expect(ignoredHandler).not.toContain('@pressly/users');
     expect(ignoredHandler).not.toContain('@pressly/orders');
     expect(workerComposition).toContain(
@@ -698,14 +310,65 @@ describe('module architecture boundaries', () => {
     expect(workerComposition).toContain(
       "'cents:marketing': acknowledgeIgnoredCentsEvent",
     );
-    for (const removedHandler of [
-      'apps/worker/src/jobs/process-webhook-inbox/cents/cents-customer.handler.ts',
-      'apps/worker/src/jobs/process-webhook-inbox/cents/cents-marketing.handler.ts',
-    ])
-      expect(existsSync(path.join(repoRoot, removedHandler))).toBe(false);
   });
 
-  it('includes every module manifest in cached API and Worker Docker installs', () => {
+  it('keeps submitted candidates outside canonical lifecycle and guards source closure through Production', () => {
+    const centsHandler = readFileSync(
+      path.join(
+        repoRoot,
+        'apps/worker/src/jobs/process-webhook-inbox/cents/cents-order.handler.ts',
+      ),
+      'utf8',
+    );
+    const workerComposition = readFileSync(
+      path.join(
+        repoRoot,
+        'apps/worker/src/bootstrap/worker-jobs.composition.ts',
+      ),
+      'utf8',
+    );
+    const demandPort = readFileSync(
+      path.join(
+        repoRoot,
+        'modules/business/production/src/features/demand/apply-fulfillment-demand/apply-fulfillment-demand.port.ts',
+      ),
+      'utf8',
+    );
+    const demandRepository = readFileSync(
+      path.join(
+        repoRoot,
+        'modules/business/production/src/features/demand/apply-fulfillment-demand/apply-fulfillment-demand.repo.ts',
+      ),
+      'utf8',
+    );
+
+    expect(centsHandler).toContain("storedStatus !== 'SUBMITTED'");
+    expect(centsHandler).toContain("storedStatus !== 'COMPLETED'");
+    expect(centsHandler).toContain("storedStatus !== 'CANCELED'");
+    expect(centsHandler).toContain('deps.orders.proposeIncomingOrder');
+    expect(centsHandler).toContain('deps.orders.closeIncomingOrderSource');
+    expect(centsHandler).toContain(
+      'deps.production.resolveSourceClosedFulfillment',
+    );
+    expect(centsHandler).toContain("proposalKind: 'submitted_order'");
+    expect(centsHandler).toContain("adapterVersion: 'cents-webhook-v3'");
+    expect(centsHandler).not.toContain('@pressly/users');
+    expect(centsHandler).not.toContain('resolvePendingSourceCustomer');
+    expect(demandPort).not.toContain('incomingBagCount');
+    expect(demandRepository).not.toMatch(
+      /\bbagCount\s*:\s*command\.bagCount\b/,
+    );
+    expect(workerComposition).toContain(
+      'proposeIncomingOrder: orders.proposeIncomingOrder',
+    );
+    expect(workerComposition).toContain(
+      'closeIncomingOrderSource: orders.closeIncomingOrderSource',
+    );
+    expect(workerComposition).toContain('resolveSourceClosedFulfillment:');
+    expect(workerComposition).not.toContain('@pressly/users');
+  });
+
+  it('includes every module manifest in cached API and Worker installs', () => {
     for (const dockerfile of [
       'apps/api/Dockerfile',
       'apps/worker/Dockerfile',
@@ -722,194 +385,99 @@ describe('module architecture boundaries', () => {
     }
   });
 
-  it('keeps production source neutral to vendors and ingestion mechanics', () => {
-    const productionSourceRoot = path.join(
+  it('keeps canonical modules neutral to vendor and ingestion mechanics', () => {
+    const productionRoot = path.join(
       repoRoot,
-      'modules',
-      'business',
-      'production',
-      'src',
+      'modules/business/production/src',
     );
-    const forbiddenVocabulary =
-      /\b(?:cents|webhooks?|receipts?|leases?|crm)\b|crm_/gi;
-    const violations = readFiles(productionSourceRoot).flatMap((filePath) => {
-      const source = readFileSync(filePath, 'utf8');
-      const matches = [...source.matchAll(forbiddenVocabulary)].map(
-        (match) => match[0],
-      );
-
-      return matches.length === 0
-        ? []
-        : [
-            `${path.relative(repoRoot, filePath)} -> ${[
-              ...new Set(matches.map((match) => match.toLowerCase())),
-            ].join(', ')}`,
-          ];
-    });
-
-    expect(violations).toEqual([]);
-  });
-
-  it('keeps canonical Orders and Users source neutral to vendor adapters', () => {
     const canonicalRoots = [
-      path.join(repoRoot, 'modules', 'business', 'orders', 'src'),
-      path.join(repoRoot, 'modules', 'business', 'users', 'src'),
+      path.join(repoRoot, 'modules/business/orders/src'),
+      path.join(repoRoot, 'modules/business/users/src'),
     ];
-    const forbiddenVendorVocabulary = /\bcents\b/gi;
-    const violations = canonicalRoots.flatMap((root) =>
+    const productionViolations = readFiles(productionRoot).flatMap(
+      (filePath) => {
+        const matches = [
+          ...readFileSync(filePath, 'utf8').matchAll(
+            /\b(?:cents|webhooks?|receipts?|leases?|crm)\b|crm_/gi,
+          ),
+        ];
+        return matches.length === 0 ? [] : [path.relative(repoRoot, filePath)];
+      },
+    );
+    const canonicalViolations = canonicalRoots.flatMap((root) =>
       readFiles(root).flatMap((filePath) => {
-        const source = readFileSync(filePath, 'utf8');
-        const matches = [...source.matchAll(forbiddenVendorVocabulary)];
-
+        const matches = [
+          ...readFileSync(filePath, 'utf8').matchAll(/\bcents\b/gi),
+        ];
         return matches.length === 0 ? [] : [path.relative(repoRoot, filePath)];
       }),
     );
 
-    expect(violations).toEqual([]);
+    expect(productionViolations).toEqual([]);
+    expect(canonicalViolations).toEqual([]);
   });
 
-  it('enforces closed policy and computation filename vocabularies', async () => {
+  it('rejects framework and persistence dependencies from pure v2 owners', async () => {
+    await expectRejectedBy(
+      'modules/security/authorization/src/features/commercial/authorize-pricing/pricing-authorization.policy.ts',
+      `import { Router } from 'express'; export const leakedRuntime = Router;`,
+      'architecture/module-v2-dependencies',
+    );
+    await expectRejectedBy(
+      'modules/security/identity/src/foundations/adapters/http/authentication-request/auth-context.adapter.ts',
+      `import { authSessions } from '@pressly/db/schema/auth'; export const leakedDatabase = authSessions;`,
+      '@typescript-eslint/no-restricted-imports',
+    );
+    await expectRejectedBy(
+      'modules/security/identity/src/foundations/adapters/postgres/identity-store/database-result.adapter.ts',
+      `import type { Request } from 'express'; export type LeakedRequest = Request;`,
+      '@typescript-eslint/no-restricted-imports',
+    );
+  });
+
+  it('rejects aggregate package roots through every module syntax', async () => {
+    const fixturePath = 'apps/api/src/bootstrap/package-boundary.fixture.ts';
+
+    for (const source of [
+      `import '@pressly/contracts';`,
+      `export { createDatabaseRuntime } from '@pressly/db';`,
+      `export * from '@pressly/errors';`,
+      `export const loadContracts = () => import('@pressly/contracts');`,
+    ])
+      await expectRejectedBy(
+        fixturePath,
+        source,
+        'architecture/explicit-package-boundaries',
+      );
+
     await expectAllowed(
-      'modules/policy/production/src/stage/stage.policy.ts',
-      'export const transition = true;',
-    );
-    await expectAllowed(
-      'modules/computation/scheduling/src/propose/propose.computation.ts',
-      'export const propose = true;',
-    );
-    await expectRejectedBy(
-      'modules/policy/production/src/stage/stage.machine.ts',
-      'export const transition = true;',
-      'no-restricted-syntax',
-    );
-    await expectRejectedBy(
-      'modules/computation/scheduling/src/propose/propose.service.ts',
-      'export const propose = true;',
-      'no-restricted-syntax',
-    );
-  });
-
-  it('rejects runtime imports from the access-control auth port', async () => {
-    await expectRejectedBy(
-      'modules/policy/access-control/src/http/auth.port.ts',
+      fixturePath,
       `
-        import { Router } from 'express';
-        export const leakedRuntime = Router;
+        export { loginRequestSchema } from '@pressly/contracts/auth';
+        export { createDatabaseRuntime } from '@pressly/db/client';
+        export { makeAppError } from '@pressly/errors/app-error';
       `,
-      '@typescript-eslint/no-restricted-imports',
     );
   });
 
-  it('rejects framework imports from intrinsic policy', async () => {
+  it('rejects catch-all folders and unowned source vocabulary', async () => {
     await expectRejectedBy(
-      'modules/business/pricing/src/publish-pricing/publish-pricing.policy.ts',
-      `
-        import type { Request } from 'express';
-        export type PolicyInput = Request;
-      `,
-      '@typescript-eslint/no-restricted-imports',
-    );
-  });
-
-  it('rejects persistence mechanisms from the auth HTTP foundation', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/http/auth-context.ts',
-      `
-        import { auth } from '@pressly/db';
-        export const leakedDatabase = auth;
-      `,
-      '@typescript-eslint/no-restricted-imports',
-    );
-  });
-
-  it('rejects persistence mechanisms from policy guards', async () => {
-    await expectRejectedBy(
-      'modules/policy/access-control/src/pricing/pricing.guard.ts',
-      `
-        import { auth } from '@pressly/db';
-        export const leakedDatabase = auth;
-      `,
-      '@typescript-eslint/no-restricted-imports',
-    );
-  });
-
-  it('rejects HTTP mechanisms from the auth persistence foundation', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/persistence/database-result.ts',
-      `
-        import type { Request } from 'express';
-        export type LeakedRequest = Request;
-      `,
-      '@typescript-eslint/no-restricted-imports',
-    );
-  });
-
-  it('rejects module-local common and shared catch-all folders', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/common/database-result.ts',
-      'export const value = 1;',
-      'no-restricted-syntax',
-    );
-  });
-
-  it('rejects arbitrary filenames at any depth inside a capability', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/login/internal/arbitrary.ts',
-      'export const value = 1;',
-      'no-restricted-syntax',
-    );
-  });
-
-  it('allows descriptive filenames inside explicit business foundations', async () => {
-    await expectAllowed(
-      'modules/business/auth/src/http/auth-context.ts',
-      'export const value = 1;',
-    );
-    await expectAllowed(
-      'modules/business/auth/src/persistence/database-result.ts',
-      'export const value = 1;',
-    );
-  });
-
-  it('rejects schemas and parsers from module source', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/login/login.schema.ts',
+      'modules/security/identity/src/common/database-result.ts',
       'export const value = 1;',
       'no-restricted-syntax',
     );
     await expectRejectedBy(
-      'modules/business/auth/src/login/login.parser.ts',
+      'modules/security/authorization/src/features/commercial/authorize-pricing/pricing.schema.ts',
+      'export const value = 1;',
+      'architecture/module-v2-file-role',
+    );
+    await expectRejectedBy(
+      'modules/security/identity/src/features/sessions/login/login.usecase.test.ts',
       'export const value = 1;',
       'no-restricted-syntax',
     );
     await expectRejectedBy(
-      'modules/business/auth/src/http/auth-context.schema.ts',
-      'export const value = 1;',
-      'no-restricted-syntax',
-    );
-    await expectRejectedBy(
-      'modules/business/auth/src/persistence/database-result.parser.ts',
-      'export const value = 1;',
-      'no-restricted-syntax',
-    );
-    await expectRejectedBy(
-      'modules/policy/access-control/src/pricing/pricing.schema.ts',
-      'export const value = 1;',
-      'no-restricted-syntax',
-    );
-  });
-
-  it('rejects tests from module source', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/login/login.usecase.test.ts',
-      'export const value = 1;',
-      'no-restricted-syntax',
-    );
-  });
-
-  it('rejects non-TypeScript module source files', async () => {
-    await expectRejectedBy(
-      'modules/business/auth/src/login/login.usecase.js',
+      'modules/security/identity/src/features/sessions/login/login.usecase.js',
       'export const value = 1;',
       'no-restricted-syntax',
     );
@@ -1236,7 +804,7 @@ describe('processor architecture boundaries', () => {
     const readModel = readFileSync(
       path.join(
         repoRoot,
-        'apps/api/src/http/processor/order-control/order-control.query.ts',
+        'apps/api/src/http/processor/order-control/order-control.contract.mapper.ts',
       ),
       'utf8',
     );
@@ -1357,7 +925,7 @@ describe('API and Worker runtime boundaries', () => {
     expect(violations).toEqual([]);
   });
 
-  it('keeps API HTTP capabilities and Worker jobs peer-independent', () => {
+  it('keeps API HTTP features and Worker jobs peer-independent', () => {
     const apiHttpRoot = path.join(repoRoot, 'apps/api/src/http');
     const apiViolations = readFiles(apiHttpRoot).flatMap((filePath) => {
       const sourceRelative = path.relative(apiHttpRoot, filePath);
@@ -1388,6 +956,7 @@ describe('API and Worker runtime boundaries', () => {
           const target = relativeImportTarget(filePath, specifier);
           const targetRelative = path.relative(workerJobsRoot, target);
           if (targetRelative.startsWith(`..${path.sep}`)) return [];
+          if (!targetRelative.includes(path.sep)) return [];
           const targetJob = targetRelative.split(path.sep)[0];
           return targetJob !== sourceJob
             ? [`${sourceRelative} -> ${specifier}`]

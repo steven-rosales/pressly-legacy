@@ -6,8 +6,8 @@ import type {
   MfaMutationResult,
   MfaRecoveryCodesResult,
   SessionResult,
-} from '@pressly/contracts';
-import { type AppError } from '@pressly/errors';
+} from '@pressly/contracts/auth';
+import { type AppError } from '@pressly/errors/app-error';
 import { commandError } from '../../../shell/command-error.ts';
 import type { AuthCliClient } from './ports.ts';
 

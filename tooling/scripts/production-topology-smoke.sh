@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export PRESSLY_TOOLING_ERROR_FACTORY_PATH="$ROOT_DIR/packages/errors/src/tooling-error.mjs"
 PRODUCTION_COMPOSE="$ROOT_DIR/infra/aws/lightsail/docker-compose.production.yml"
 SMOKE_FIXTURE_DIR="$ROOT_DIR/tooling/fixtures/production-topology"
 SMOKE_COMPOSE="$SMOKE_FIXTURE_DIR/docker-compose.smoke.yml"
@@ -221,25 +222,28 @@ compose config --format json > "$RENDERED_CONFIG"
 node --input-type=module - "$RENDERED_CONFIG" "$PROJECT_NAME" <<'NODE'
 import { readFileSync } from 'node:fs';
 
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
+
 const [path, project] = process.argv.slice(2);
 const config = JSON.parse(readFileSync(path, 'utf8'));
 if (config.name !== project)
-  throw new Error(`Unexpected Compose project: ${config.name}`);
+  throw smokeFailure(`Unexpected Compose project: ${config.name}`);
 
 const published = Object.entries(config.services).flatMap(([name, service]) =>
   (service.ports ?? []).map((port) => ({ name, port })),
 );
 if (published.length !== 1 || published[0].name !== 'caddy')
-  throw new Error(`Only Caddy may publish a smoke port: ${JSON.stringify(published)}`);
+  throw smokeFailure(`Only Caddy may publish a smoke port: ${JSON.stringify(published)}`);
 if (published[0].port.host_ip !== '127.0.0.1')
-  throw new Error('The smoke Caddy port must bind only to 127.0.0.1.');
+  throw smokeFailure('The smoke Caddy port must bind only to 127.0.0.1.');
 if (published[0].port.target !== 443)
-  throw new Error('The smoke Caddy port must terminate local HTTPS on container port 443.');
+  throw smokeFailure('The smoke Caddy port must terminate local HTTPS on container port 443.');
 if (config.services.worker.ports !== undefined || config.services.worker.expose !== undefined)
-  throw new Error('Worker must have no published or exposed port.');
+  throw smokeFailure('Worker must have no published or exposed port.');
 for (const service of ['api', 'web', 'worker', 'processor', 'control']) {
   if (config.services[service].read_only !== true)
-    throw new Error(`${service} must have a read-only filesystem.`);
+    throw smokeFailure(`${service} must have a read-only filesystem.`);
 }
 NODE
 
@@ -355,16 +359,19 @@ assert_metadata() {
     "$PROJECT_NAME" <<'NODE'
 import { readFileSync } from 'node:fs';
 
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
+
 const [currentPath, previousPath, currentSource, currentRelease, previousSource, previousRelease, project] = process.argv.slice(2);
 const verify = (path, source, release) => {
   const value = JSON.parse(readFileSync(path, 'utf8'));
   if (value.sourceSha !== source || value.kind !== 'local-synthetic')
-    throw new Error(`Unexpected release metadata in ${path}`);
+    throw smokeFailure(`Unexpected release metadata in ${path}`);
   for (const service of ['api', 'web', 'worker', 'processor', 'control']) {
     const field = `${service}Image`;
     const expected = `${project}-${service}:${release}`;
     if (value[field] !== expected)
-      throw new Error(`${field} is ${value[field]}; expected ${expected}`);
+      throw smokeFailure(`${field} is ${value[field]}; expected ${expected}`);
   }
 };
 verify(currentPath, currentSource, currentRelease);
@@ -412,9 +419,12 @@ probe_routes() {
   [[ "$auth_status" == 401 ]] || fail "processor auth route returned $auth_status; expected 401."
   node --input-type=module - "$auth_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response?.error?.code !== 'processor_session_missing')
-  throw new Error('Processor auth route did not return its expected unauthenticated boundary.');
+  throw smokeFailure('Processor auth route did not return its expected unauthenticated boundary.');
 NODE
 }
 
@@ -464,14 +474,17 @@ prove_processor_cookie_auth() {
   local csrf_token
   csrf_token="$(node --input-type=module - "$login_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response?.ok !== true || response?.data?.status !== 'authenticated')
-  throw new Error('Processor login did not establish an authenticated session.');
+  throw smokeFailure('Processor login did not establish an authenticated session.');
 if (typeof response.data.csrfToken !== 'string' || response.data.csrfToken.length !== 43)
-  throw new Error('Processor login did not return a CSRF proof.');
+  throw smokeFailure('Processor login did not return a CSRF proof.');
 const serialized = JSON.stringify(response);
 if (serialized.includes('accessToken') || serialized.includes('challengeToken'))
-  throw new Error('Processor login exposed an opaque credential in JSON.');
+  throw smokeFailure('Processor login exposed an opaque credential in JSON.');
 process.stdout.write(response.data.csrfToken);
 NODE
   )"
@@ -490,15 +503,18 @@ NODE
   EXPECTED_CSRF_TOKEN="$csrf_token" \
     node --input-type=module - "$WORK_DIR/processor-session.json" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (
   response?.ok !== true ||
   response?.data?.status !== 'authenticated' ||
   response.data.csrfToken !== process.env.EXPECTED_CSRF_TOKEN
 )
-  throw new Error('Processor session restoration did not return the authenticated session.');
+  throw smokeFailure('Processor session restoration did not return the authenticated session.');
 if (JSON.stringify(response).includes('accessToken') || JSON.stringify(response).includes('challengeToken'))
-  throw new Error('Processor session restoration exposed an opaque credential in JSON.');
+  throw smokeFailure('Processor session restoration exposed an opaque credential in JSON.');
 NODE
 
   status="$(curl \
@@ -516,9 +532,12 @@ NODE
   [[ "$status" == 403 ]] || fail "processor logout without CSRF returned $status; expected 403."
   node --input-type=module - "$WORK_DIR/processor-logout-missing-csrf.json" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response?.ok !== false || response?.error?.code !== 'processor_csrf_rejected')
-  throw new Error('Processor logout without CSRF was not rejected by the CSRF boundary.');
+  throw smokeFailure('Processor logout without CSRF was not rejected by the CSRF boundary.');
 NODE
 
   local pre_logout_cookie_jar="$WORK_DIR/processor-cookies-before-logout.txt"
@@ -542,9 +561,12 @@ NODE
   [[ "$status" == 200 ]] || fail "processor logout with CSRF returned $status; expected 200."
   node --input-type=module - "$WORK_DIR/processor-logout.json" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response?.ok !== true || response?.data?.revoked !== true)
-  throw new Error('Processor logout did not confirm session revocation.');
+  throw smokeFailure('Processor logout did not confirm session revocation.');
 NODE
 
   local cleared_session_cookie
@@ -568,9 +590,12 @@ NODE
   [[ "$status" == 401 ]] || fail "revoked processor session returned $status; expected 401."
   node --input-type=module - "$WORK_DIR/processor-revoked-session.json" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response?.ok !== false || response?.error?.code !== 'invalid_session')
-  throw new Error('Processor session remained valid after logout.');
+  throw smokeFailure('Processor session remained valid after logout.');
 NODE
 }
 
@@ -626,11 +651,14 @@ login_lpms_processor_session() {
 
   LPMS_CSRF_TOKEN="$(node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response?.ok !== true || response?.data?.status !== 'authenticated')
-  throw new Error('LPMS Processor login did not establish an authenticated session.');
+  throw smokeFailure('LPMS Processor login did not establish an authenticated session.');
 if (typeof response.data.csrfToken !== 'string' || response.data.csrfToken.length !== 43)
-  throw new Error('LPMS Processor login did not return a CSRF proof.');
+  throw smokeFailure('LPMS Processor login did not return a CSRF proof.');
 process.stdout.write(response.data.csrfToken);
 NODE
   )"
@@ -687,9 +715,12 @@ NODE
   fi
   node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response?.ok !== true)
-  throw new Error('Authenticated Processor command did not return an API success envelope.');
+  throw smokeFailure('Authenticated Processor command did not return an API success envelope.');
 NODE
 }
 
@@ -778,12 +809,15 @@ post_signed_cents_body() {
   EXPECTED_INGRESS_STATUS="$expected_ingress_status" \
     node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (
   response?.ok !== true ||
   response?.data?.status !== process.env.EXPECTED_INGRESS_STATUS ||
   response?.data?.duplicate !== false
-) throw new Error(`Signed Cents webhook did not create one new ${process.env.EXPECTED_INGRESS_STATUS} receipt.`);
+) throw smokeFailure(`Signed Cents webhook did not create one new ${process.env.EXPECTED_INGRESS_STATUS} receipt.`);
 NODE
 }
 
@@ -841,6 +875,9 @@ wait_for_incoming_proposal() {
       EXPECTED_EXTERNAL_ORDER_ID="$external_order_id" \
         node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const matches = response.data.items.filter(
   (proposal) =>
@@ -848,7 +885,7 @@ const matches = response.data.items.filter(
     proposal.externalOrderId === process.env.EXPECTED_EXTERNAL_ORDER_ID,
 );
 if (matches.length > 1)
-  throw new Error('The exact Cents identity produced duplicate incoming proposals.');
+  throw smokeFailure('The exact Cents identity produced duplicate incoming proposals.');
 if (matches.length === 1)
   process.stdout.write(`${matches[0].id}|${matches[0].version}`);
 NODE
@@ -879,6 +916,9 @@ accept_incoming_proposal() {
     200
   EXPECTED_PROPOSAL_ID="$proposal_id" node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (
   response.data.proposalId !== process.env.EXPECTED_PROPOSAL_ID ||
@@ -887,7 +927,7 @@ if (
   response.data.replayed !== false ||
   typeof response.data.orderId !== 'string' ||
   typeof response.data.fulfillmentId !== 'string'
-) throw new Error('Incoming proposal acceptance did not create one new canonical Order and fulfillment.');
+) throw smokeFailure('Incoming proposal acceptance did not create one new canonical Order and fulfillment.');
 NODE
 }
 
@@ -900,11 +940,14 @@ release_accepted_fulfillment() {
   accepted_identity="$(
     node --input-type=module - "$acceptance_response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (
   typeof response.data.orderId !== 'string' ||
   typeof response.data.fulfillmentId !== 'string'
-) throw new Error('Accepted incoming Order is missing its canonical identity.');
+) throw smokeFailure('Accepted incoming Order is missing its canonical identity.');
 process.stdout.write(`${response.data.orderId}|${response.data.fulfillmentId}`);
 NODE
   )"
@@ -921,13 +964,16 @@ NODE
   EXPECTED_ORDER_ID="$order_id" EXPECTED_FULFILLMENT_ID="$fulfillment_id" \
     node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (
   response.data.orderId !== process.env.EXPECTED_ORDER_ID ||
   response.data.fulfillmentId !== process.env.EXPECTED_FULFILLMENT_ID ||
   response.data.version !== 2 ||
   response.data.replayed !== false
-) throw new Error('Canonical fulfillment release did not advance the accepted Order exactly once.');
+) throw smokeFailure('Canonical fulfillment release did not advance the accepted Order exactly once.');
 NODE
 }
 
@@ -971,12 +1017,14 @@ prove_ignored_cents_events() {
     );
   ")"
   BEFORE_COUNTS="$before" AFTER_COUNTS="$after" node --input-type=module <<'NODE'
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const before = process.env.BEFORE_COUNTS.split('|').map(Number);
 const after = process.env.AFTER_COUNTS.split('|').map(Number);
 if (
   after[0] !== before[0] + 3 ||
   after.slice(1).some((value, index) => value !== before[index + 1])
-) throw new Error(`Ignored Cents receipts changed canonical work: ${process.env.BEFORE_COUNTS} -> ${process.env.AFTER_COUNTS}`);
+) throw smokeFailure(`Ignored Cents receipts changed canonical work: ${process.env.BEFORE_COUNTS} -> ${process.env.AFTER_COUNTS}`);
 NODE
   local ignored_receipts
   ignored_receipts="$(database_scalar "
@@ -1006,12 +1054,15 @@ load_order_identity() {
   EXPECTED_DISPLAY_REFERENCE="$display_reference" EXPECTED_STATUS="$expected_status" \
     node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const matches = response.data.items.filter(
   (order) => order.externalOrderId === process.env.EXPECTED_DISPLAY_REFERENCE,
 );
 if (matches.length !== 1 || matches[0].status !== process.env.EXPECTED_STATUS)
-  throw new Error('The expected synthetic production order was not uniquely visible.');
+  throw smokeFailure('The expected synthetic production order was not uniquely visible.');
 process.stdout.write(`${matches[0].id}|${matches[0].version}`);
 NODE
 }
@@ -1081,8 +1132,11 @@ NODE
     200
   order_version="$(node --input-type=module - "$priority_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
-if (response.data.replayed !== false) throw new Error('Pre-Start priority unexpectedly replayed.');
+if (response.data.replayed !== false) throw smokeFailure('Pre-Start priority unexpectedly replayed.');
 process.stdout.write(String(response.data.version));
 NODE
   )"
@@ -1108,15 +1162,18 @@ NODE
   local scheduler_config_id
   scheduler_config_id="$(EXPECTED_ORDER_ID="$LPMS_FIRST_ORDER_ID" node --input-type=module - "$initial_workspace" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const config = response.data.currentSchedulerConfig;
 if (config?.algorithmVersion !== 'fixed-pulse-ffd-v2')
-  throw new Error('The current scheduler configuration is not fixed-pulse-ffd-v2.');
+  throw smokeFailure('The current scheduler configuration is not fixed-pulse-ffd-v2.');
 const order = response.data.pendingEligibleOrders.find(
   (candidate) => candidate.id === process.env.EXPECTED_ORDER_ID,
 );
 if (order?.priority !== true || order?.placement?.status !== 'awaiting_run')
-  throw new Error('Pre-Start intake did not persist priority and awaiting-run placement state.');
+  throw smokeFailure('Pre-Start intake did not persist priority and awaiting-run placement state.');
 process.stdout.write(config.id);
 NODE
   )"
@@ -1133,10 +1190,13 @@ NODE
     201
   LPMS_SHIFT_ID="$(node --input-type=module - "$shift_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const now = Date.now();
 if (!(Date.parse(response.data.startsAt) <= now && now < Date.parse(response.data.endsAt)))
-  throw new Error('The synthetic shift must be active for scheduling proof.');
+  throw smokeFailure('The synthetic shift must be active for scheduling proof.');
 process.stdout.write(response.data.id);
 NODE
   )"
@@ -1153,6 +1213,9 @@ NODE
   EXPECTED_ORDER_ID="$LPMS_FIRST_ORDER_ID" EXPECTED_SHIFT_ID="$LPMS_SHIFT_ID" \
     node --input-type=module - "$selection_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const selection = response.data.selection;
 if (
@@ -1161,7 +1224,7 @@ if (
   selection.selectedOrderIds.length !== 1 ||
   selection.selectedOrderIds[0] !== process.env.EXPECTED_ORDER_ID ||
   response.data.replayed !== false
-) throw new Error('The explicit shift selection did not persist the ready order.');
+) throw smokeFailure('The explicit shift selection did not persist the ready order.');
 NODE
 
   local compute_request="$WORK_DIR/lpms-compute-request.json"
@@ -1176,6 +1239,9 @@ NODE
   local schedule_identity
   schedule_identity="$(EXPECTED_ORDER_ID="$LPMS_FIRST_ORDER_ID" node --input-type=module - "$compute_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const schedule = response.data;
 if (
@@ -1186,7 +1252,7 @@ if (
   schedule.batches[0].orderIds[0] !== process.env.EXPECTED_ORDER_ID ||
   schedule.unplacedOrderIds.length !== 0 ||
   schedule.warnings.length !== 0
-) throw new Error('Compute did not produce the expected complete one-order proposal.');
+) throw smokeFailure('Compute did not produce the expected complete one-order proposal.');
 process.stdout.write(`${schedule.scheduleRunId}|${schedule.outputPlanHash}`);
 NODE
   )"
@@ -1203,9 +1269,12 @@ NODE
     201
   EXPECTED_SCHEDULE_RUN_ID="$LPMS_SCHEDULE_RUN_ID" node --input-type=module - "$accept_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response.data.scheduleRunId !== process.env.EXPECTED_SCHEDULE_RUN_ID || response.data.replayed !== false)
-  throw new Error('Accept did not persist the expected current plan.');
+  throw smokeFailure('Accept did not persist the expected current plan.');
 NODE
 
   local prestart_state
@@ -1230,9 +1299,12 @@ resume_lpms_after_api_restart() {
   processor_request GET /api/processor/auth/session '' "$session_response" 200
   EXPECTED_CSRF_TOKEN="$LPMS_CSRF_TOKEN" node --input-type=module - "$session_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response.data.status !== 'authenticated' || response.data.csrfToken !== process.env.EXPECTED_CSRF_TOKEN)
-  throw new Error('API restart did not restore the authenticated Processor session and CSRF proof.');
+  throw smokeFailure('API restart did not restore the authenticated Processor session and CSRF proof.');
 NODE
 
   local workspace_response="$WORK_DIR/lpms-accepted-workspace.json"
@@ -1245,6 +1317,9 @@ NODE
   EXPECTED_SHIFT_ID="$LPMS_SHIFT_ID" EXPECTED_SCHEDULE_RUN_ID="$LPMS_SCHEDULE_RUN_ID" \
     EXPECTED_ORDER_ID="$LPMS_FIRST_ORDER_ID" node --input-type=module - "$workspace_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (
   response.data.currentShift?.id !== process.env.EXPECTED_SHIFT_ID ||
@@ -1252,7 +1327,7 @@ if (
   response.data.currentScheduleProposal?.status !== 'accepted' ||
   response.data.activeRuns.length !== 0 ||
   !response.data.pendingEligibleOrders.some((order) => order.id === process.env.EXPECTED_ORDER_ID)
-) throw new Error('Accepted plan did not survive API restart and explicit shift refresh.');
+) throw smokeFailure('Accepted plan did not survive API restart and explicit shift refresh.');
 NODE
 
   local start_request="$WORK_DIR/lpms-start-request.json"
@@ -1266,13 +1341,16 @@ NODE
     201
   LPMS_PRODUCTION_RUN_ID="$(EXPECTED_SCHEDULE_RUN_ID="$LPMS_SCHEDULE_RUN_ID" node --input-type=module - "$start_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (
   response.data.scheduleRunId !== process.env.EXPECTED_SCHEDULE_RUN_ID ||
   response.data.productionBatchIds.length !== 1 ||
   response.data.queueVersion !== 1 ||
   response.data.replayed !== false
-) throw new Error('Start did not create exactly one initial started run and batch.');
+) throw smokeFailure('Start did not create exactly one initial started run and batch.');
 process.stdout.write(response.data.productionRunId);
 NODE
   )"
@@ -1287,6 +1365,9 @@ NODE
   EXPECTED_RUN_ID="$LPMS_PRODUCTION_RUN_ID" EXPECTED_ORDER_ID="$LPMS_FIRST_ORDER_ID" \
     node --input-type=module - "$board_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const board = response.data;
 if (
@@ -1296,7 +1377,7 @@ if (
   board.batches[0].orders.length !== 1 ||
   board.batches[0].orders[0].id !== process.env.EXPECTED_ORDER_ID ||
   board.batches[0].orders[0].placementProvenance !== 'initial_schedule'
-) throw new Error('The direct run-ID board did not resume the initial started run.');
+) throw smokeFailure('The direct run-ID board did not resume the initial started run.');
 NODE
 }
 
@@ -1400,6 +1481,9 @@ NODE
   EXPECTED_RUN_ID="$LPMS_PRODUCTION_RUN_ID" EXPECTED_ORDER_ID="$LPMS_LIVE_ORDER_ID" \
     node --input-type=module - "$placement_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (
   response.data.status !== 'placed' ||
@@ -1408,7 +1492,7 @@ if (
   response.data.productionOrderId !== process.env.EXPECTED_ORDER_ID ||
   response.data.queueVersion !== 2 ||
   response.data.replayed !== false
-) throw new Error('The explicit compatible-placement request did not place the live order.');
+) throw smokeFailure('The explicit compatible-placement request did not place the live order.');
 NODE
   wait_for_projection "$LPMS_LIVE_EXTERNAL_ORDER_ID" scheduled
 
@@ -1423,10 +1507,13 @@ NODE
   freeze_identity="$(EXPECTED_FIRST_ORDER_ID="$LPMS_FIRST_ORDER_ID" EXPECTED_LIVE_ORDER_ID="$LPMS_LIVE_ORDER_ID" \
     node --input-type=module - "$placed_board" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const board = response.data;
 if (board.productionRun.queueVersion !== 2 || board.batches.length !== 1 || board.eligibleOrders.length !== 0)
-  throw new Error('Automatic live placement did not produce one stable queue mutation.');
+  throw smokeFailure('Automatic live placement did not produce one stable queue mutation.');
 const orders = board.batches[0].orders;
 const first = orders.find((order) => order.id === process.env.EXPECTED_FIRST_ORDER_ID);
 const live = orders.find((order) => order.id === process.env.EXPECTED_LIVE_ORDER_ID);
@@ -1436,7 +1523,7 @@ if (
   first?.placementProvenance !== 'initial_schedule' ||
   live?.priority !== true ||
   live?.placementProvenance !== 'automatic'
-) throw new Error('Live order placement provenance or priority is incorrect.');
+) throw smokeFailure('Live order placement provenance or priority is incorrect.');
 process.stdout.write(`${board.productionRun.queueVersion}|${board.batches[0].id}|${board.batches[0].version}`);
 NODE
   )"
@@ -1455,9 +1542,12 @@ NODE
     200
   node --input-type=module - "$freeze_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response.data.membership?.state !== 'frozen' || response.data.replayed !== false)
-  throw new Error('Explicit batch freeze did not commit frozen membership.');
+  throw smokeFailure('Explicit batch freeze did not commit frozen membership.');
 NODE
 
   local frozen_board="$WORK_DIR/lpms-board-after-freeze.json"
@@ -1470,11 +1560,14 @@ NODE
   local -a stage_rows
   mapfile -t stage_rows < <(node --input-type=module - "$frozen_board" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const batch = response.data.batches[0];
 const expected = ['sorting', 'washing', 'drying', 'folding_packaging'];
 if (batch?.membership?.state !== 'frozen' || batch.stages.map((stage) => stage.stage).join('|') !== expected.join('|'))
-  throw new Error('Frozen batch does not expose the canonical four-stage pipeline.');
+  throw smokeFailure('Frozen batch does not expose the canonical four-stage pipeline.');
 for (const stage of batch.stages) console.log(`${stage.id}|${stage.stage}|${stage.version}`);
 NODE
   )
@@ -1495,9 +1588,12 @@ NODE
       200
     stage_version="$(EXPECTED_STAGE_ID="$stage_id" node --input-type=module - "$start_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response.data.entityId !== process.env.EXPECTED_STAGE_ID || response.data.replayed !== false)
-  throw new Error('Stage start did not mutate the expected stage.');
+  throw smokeFailure('Stage start did not mutate the expected stage.');
 process.stdout.write(String(response.data.version));
 NODE
     )"
@@ -1515,9 +1611,12 @@ NODE
       200
     EXPECTED_STAGE_ID="$stage_id" node --input-type=module - "$complete_response" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response.data.entityId !== process.env.EXPECTED_STAGE_ID || response.data.replayed !== false)
-  throw new Error('Stage completion did not mutate the expected stage.');
+  throw smokeFailure('Stage completion did not mutate the expected stage.');
 NODE
   done
 
@@ -1532,6 +1631,9 @@ NODE
   EXPECTED_RUN_ID="$LPMS_PRODUCTION_RUN_ID" EXPECTED_FIRST_ORDER_ID="$LPMS_FIRST_ORDER_ID" \
     EXPECTED_LIVE_ORDER_ID="$LPMS_LIVE_ORDER_ID" node --input-type=module - "$completed_board" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const board = response.data;
 const batch = board.batches[0];
@@ -1547,7 +1649,7 @@ if (
   !orderIds.has(process.env.EXPECTED_LIVE_ORDER_ID) ||
   batch.stages.some((stage) => stage.status !== 'completed' || stage.allowedActions.length !== 0) ||
   board.eligibleOrders.length !== 0
-) throw new Error('The completed run-ID board did not preserve the full execution history.');
+) throw smokeFailure('The completed run-ID board did not preserve the full execution history.');
 NODE
 
   local durable_state
@@ -1618,7 +1720,7 @@ printf '%s\n' "$OWNER_PASSWORD" | \
     --env PRESSLY_BOOTSTRAP_OWNER_CONFIRM=bootstrap-first-owner \
     --workdir /repo \
     migrate \
-    node modules/business/auth/dist/bootstrap-owner/bootstrap-owner.command.js \
+    node apps/cli/dist/commands/bootstrap-owner.command.js \
     --password-stdin >/dev/null
 
 echo '[v2] starting release-a and proving Caddy routes'
@@ -1694,9 +1796,12 @@ processor_request \
 EXPECTED_RUN_ID="$LPMS_PRODUCTION_RUN_ID" \
   node --input-type=module - "$WORK_DIR/lpms-board-after-rollback.json" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response.data.productionRun?.id !== process.env.EXPECTED_RUN_ID || response.data.productionRun.status !== 'completed')
-  throw new Error('The completed run-ID board did not survive release rotation and rollback.');
+  throw smokeFailure('The completed run-ID board did not survive release rotation and rollback.');
 NODE
 
 RUNTIME_COUNTS="$(database_scalar "

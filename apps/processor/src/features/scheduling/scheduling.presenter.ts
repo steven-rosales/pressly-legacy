@@ -2,8 +2,8 @@ import type {
   ProductionOrderSummary,
   ProductionWarning,
   ScheduleProposal,
-} from "@pressly/contracts"
-import { validationError } from "@pressly/errors"
+} from "@pressly/contracts/production"
+import { validationError } from "@pressly/errors/factories"
 import type { TFunction } from "i18next"
 
 export type ScheduleWarningPresentation = Readonly<{

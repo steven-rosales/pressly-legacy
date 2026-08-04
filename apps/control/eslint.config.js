@@ -4,6 +4,7 @@ import reactHooks from "eslint-plugin-react-hooks"
 import reactRefresh from "eslint-plugin-react-refresh"
 import tseslint from "typescript-eslint"
 import { defineConfig, globalIgnores } from "eslint/config"
+import { architecturePlugin } from "../../eslint.config.mjs"
 
 export default defineConfig([
   globalIgnores(["dist"]),
@@ -20,6 +21,16 @@ export default defineConfig([
       parserOptions: {
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+    plugins: {
+      architecture: architecturePlugin,
+    },
+  },
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "architecture/owned-throwable": "error",
+      "architecture/qualified-mapper-role": "error",
     },
   },
 ])

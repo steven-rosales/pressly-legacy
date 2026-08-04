@@ -1,4 +1,4 @@
-import { notFoundError } from '@pressly/errors';
+import { notFoundError } from '@pressly/errors/factories';
 import type { RequestHandler } from 'express';
 
 export const makeNotFoundHandler = (): RequestHandler => {

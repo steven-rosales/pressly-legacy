@@ -2,7 +2,7 @@ import {
   loginRequestSchema,
   processorCompleteMfaChallengeRequestSchema,
   type ProcessorCompleteMfaChallengeRequest,
-} from '@pressly/contracts';
+} from '@pressly/contracts/auth';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import { Router, type Response } from 'express';
@@ -12,7 +12,7 @@ import {
   setProcessorCookie,
   type ProcessorCookieNames,
 } from './processor-cookie.adapter.ts';
-import { requireProcessorOrigin } from './processor-csrf.policy.ts';
+import { requireProcessorOrigin } from './processor-csrf.adapter.ts';
 import {
   processorForbidden,
   processorUnauthorized,
@@ -21,7 +21,7 @@ import {
   processorBrowserSession,
   processorRequestId,
   processorRequestMetadata,
-} from './processor-session.mapper.ts';
+} from './processor-session.contract.mapper.ts';
 import type { LoadProcessorCookieSession } from './processor-session.middleware.ts';
 import {
   isResultError,
@@ -48,7 +48,7 @@ export const makeProcessorSessionRoutes = (input: {
   const establishBrowserSession = async (
     response: Response,
     accessToken: string,
-    expiresAt: string,
+    expiresAt: Date,
   ): Promise<void> => {
     const loaded = await input.application.loadSession({
       bearerToken: accessToken,
@@ -122,7 +122,7 @@ export const makeProcessorSessionRoutes = (input: {
         response.status(200).json(
           apiSuccess({
             status: 'mfa_required' as const,
-            expiresAt: authenticated.value.expiresAt,
+            expiresAt: authenticated.value.expiresAt.toISOString(),
           }),
         );
         return;
@@ -207,11 +207,9 @@ export const makeProcessorSessionRoutes = (input: {
           ? {}
           : { requestId: processorRequestId(response)! }),
       });
-      if (isResultError(revoked)) throw revoked.error;
-
       clearProcessorCookie(response, input.names.session, input.options);
       clearProcessorCookie(response, input.names.mfa, input.options);
-      response.status(200).json(apiSuccess(revoked.value));
+      response.status(200).json(apiSuccess(revoked));
     }),
   );
 

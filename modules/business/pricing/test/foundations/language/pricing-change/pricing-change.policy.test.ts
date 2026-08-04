@@ -1,0 +1,235 @@
+import { describe, expect, it } from 'vitest';
+import type { PricingChangeCommand } from '../../../../src/foundations/language/pricing-change/pricing-change.model.ts';
+import {
+  makePricingChangePlan,
+  pricingChangeCommandViolations,
+  pricingChangePlanViolations,
+} from '../../../../src/foundations/language/pricing-change/pricing-change.policy.ts';
+
+const actor = {
+  id: 'user_1',
+  kind: 'human',
+  displayName: 'Steven',
+} satisfies PricingChangeCommand['requestedBy'];
+
+describe('publish pricing change policy', () => {
+  it('creates a pricing change plan from a valid global command', () => {
+    const command: PricingChangeCommand = {
+      serviceSlug: 'wash-fold',
+      reason: 'Update delivery fee',
+      requestedBy: actor,
+      items: [{ code: 'delivery_fee', priceCents: 100 }],
+    };
+
+    const result = makePricingChangePlan({
+      command,
+      currentSet: { id: 'set_1', currency: 'USD' },
+      currentItems: [
+        {
+          code: 'delivery_fee',
+          name: 'Delivery Fee',
+          priceCents: 495,
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      tag: 'ok',
+      value: {
+        serviceSlug: 'wash-fold',
+        reason: 'Update delivery fee',
+        oldPricingSetId: 'set_1',
+        currency: 'USD',
+        changes: [
+          {
+            code: 'delivery_fee',
+            name: 'Delivery Fee',
+            oldPriceCents: 495,
+            newPriceCents: 100,
+          },
+        ],
+      },
+    });
+  });
+
+  it('allows delivery fee to be free', () => {
+    const command: PricingChangeCommand = {
+      serviceSlug: 'wash-fold',
+      reason: 'Remove delivery fee',
+      requestedBy: actor,
+      items: [{ code: 'delivery_fee', priceCents: 0 }],
+    };
+
+    const result = makePricingChangePlan({
+      command,
+      currentSet: { id: 'set_1', currency: 'USD' },
+      currentItems: [
+        {
+          code: 'delivery_fee',
+          name: 'Delivery Fee',
+          priceCents: 495,
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      tag: 'ok',
+      value: {
+        serviceSlug: 'wash-fold',
+        reason: 'Remove delivery fee',
+        oldPricingSetId: 'set_1',
+        currency: 'USD',
+        changes: [
+          {
+            code: 'delivery_fee',
+            name: 'Delivery Fee',
+            oldPriceCents: 495,
+            newPriceCents: 0,
+          },
+        ],
+      },
+    });
+  });
+
+  it('returns only changed items', () => {
+    const command: PricingChangeCommand = {
+      serviceSlug: 'dry-cleaning',
+      reason: 'Update dry cleaning prices',
+      requestedBy: actor,
+      items: [
+        { code: 'delivery_fee', priceCents: 595 },
+        { code: 'shirts', priceCents: 495 },
+        { code: 'pants', priceCents: 995 },
+      ],
+    };
+
+    const result = makePricingChangePlan({
+      command,
+      currentSet: { id: 'set_2', currency: 'USD' },
+      currentItems: [
+        {
+          code: 'delivery_fee',
+          name: 'Delivery Fee',
+          priceCents: 495,
+        },
+        {
+          code: 'shirts',
+          name: 'Shirts',
+          priceCents: 495,
+        },
+        {
+          code: 'pants',
+          name: 'Pants',
+          priceCents: 895,
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      tag: 'ok',
+      value: {
+        serviceSlug: 'dry-cleaning',
+        reason: 'Update dry cleaning prices',
+        oldPricingSetId: 'set_2',
+        currency: 'USD',
+        changes: [
+          {
+            code: 'delivery_fee',
+            name: 'Delivery Fee',
+            oldPriceCents: 495,
+            newPriceCents: 595,
+          },
+          {
+            code: 'pants',
+            name: 'Pants',
+            oldPriceCents: 895,
+            newPriceCents: 995,
+          },
+        ],
+      },
+    });
+  });
+
+  it('reports command-level policy violations', () => {
+    const command: PricingChangeCommand = {
+      serviceSlug: 'wash-fold',
+      reason: 'short',
+      requestedBy: actor,
+      items: [
+        { code: 'delivery_fee', priceCents: 100 },
+        { code: 'delivery_fee', priceCents: 0 },
+        { code: 'hang_dry', priceCents: 0 },
+      ],
+    };
+
+    expect(pricingChangeCommandViolations(command)).toEqual([
+      {
+        code: 'pricing_change_reason_too_short',
+        minimumLength: 8,
+        actualLength: 5,
+      },
+      {
+        code: 'duplicate_pricing_item_code',
+        itemCode: 'delivery_fee',
+      },
+      {
+        code: 'invalid_pricing_item_price',
+        itemCode: 'hang_dry',
+        priceCents: 0,
+      },
+    ]);
+  });
+
+  it('reports unknown item codes', () => {
+    const command: PricingChangeCommand = {
+      serviceSlug: 'wash-fold',
+      reason: 'Update delivery fee',
+      requestedBy: actor,
+      items: [{ code: 'unknown_item', priceCents: 100 }],
+    };
+
+    const result = makePricingChangePlan({
+      command,
+      currentSet: { id: 'set_1', currency: 'USD' },
+      currentItems: [
+        {
+          code: 'delivery_fee',
+          name: 'Delivery Fee',
+          priceCents: 495,
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      tag: 'err',
+      error: {
+        code: 'pricing_item_code_not_found',
+        violations: [
+          {
+            code: 'pricing_item_code_not_found',
+            itemCode: 'unknown_item',
+          },
+          {
+            code: 'pricing_change_has_no_changes',
+          },
+        ],
+      },
+    });
+  });
+
+  it('reports no-op plans', () => {
+    expect(
+      pricingChangePlanViolations({
+        serviceSlug: 'wash-fold',
+        reason: 'Update delivery fee',
+        oldPricingSetId: 'set_1',
+        currency: 'USD',
+        changes: [],
+      }),
+    ).toEqual([
+      {
+        code: 'pricing_change_has_no_changes',
+      },
+    ]);
+  });
+});

@@ -1,0 +1,25 @@
+{
+  "extends": "../../../packages/tsconfig/node.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": "../../..",
+    "types": ["node", "vitest"],
+    "paths": {
+      "@pressly/auth/authentication": [
+        "../../../packages/auth/src/authentication/index.ts"
+      ],
+      "@pressly/auth/authorization": [
+        "../../../packages/auth/src/authorization/index.ts"
+      ],
+      "@pressly/contracts/utc-iso": [
+        "../../../packages/contracts/src/utc-iso.contracts.ts"
+      ],
+      "@pressly/contracts/*": ["../../../packages/contracts/src/*/index.ts"],
+      "@pressly/errors/*": ["../../../packages/errors/src/*.ts"],
+      "@pressly/time": ["../../../packages/time/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

@@ -22,7 +22,7 @@ import type {
   productionWorkspaceQuerySchema,
   publishSchedulerConfigCommandSchema,
   changeProductionAdmissionCommandSchema,
-  changeProductionOrderResolutionCommandSchema,
+  changeProductionOrderResolutionRequestSchema,
   recordOrderIntakeCommandSchema,
   reconcileProductionBatchProgressCommandSchema,
   replaceProductionShiftSelectionCommandSchema,
@@ -105,9 +105,20 @@ export type RecordOrderIntakeCommand = z.infer<
 export type ChangeProductionAdmissionCommand = z.infer<
   typeof changeProductionAdmissionCommandSchema
 >;
-export type ChangeProductionOrderResolutionCommand = z.infer<
-  typeof changeProductionOrderResolutionCommandSchema
+export type ChangeProductionOrderResolutionRequest = z.infer<
+  typeof changeProductionOrderResolutionRequestSchema
 >;
+
+/**
+ * Transitional browser-client composite. The Production module owns its
+ * application command; serialized callers should prefer the request type.
+ */
+export type ChangeProductionOrderResolutionCommand =
+  ChangeProductionOrderResolutionRequest &
+    Readonly<{
+      locationId: string;
+      orderId: string;
+    }>;
 export type ReplaceProductionShiftSelectionCommand = z.infer<
   typeof replaceProductionShiftSelectionCommandSchema
 >;

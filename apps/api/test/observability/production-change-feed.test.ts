@@ -1,4 +1,4 @@
-import { nullCounterSink } from '@pressly/metrics';
+import { nullCounterSink } from '@pressly/observability';
 import { nullLogger } from '@pressly/logging';
 import { describe, expect, it, vi } from 'vitest';
 import {

@@ -19,17 +19,17 @@
           "",
           "const supportedModes = ['valid', 'wrong_key', 'modified_body', 'stale'];",
           "if (!supportedModes.includes(proofMode)) {",
-          "  throw new Error(`Unsupported Pressly proof mode: ${proofMode}`);",
+          "  pm.expect.fail(`Unsupported Pressly proof mode: ${proofMode}`);",
           "}",
           "",
           "if (!pm.request.body || pm.request.body.mode !== 'raw') {",
-          "  throw new Error('Cents proof requests must use a raw body.');",
+          "  pm.expect.fail('Cents proof requests must use a raw body.');",
           "}",
           "",
           "const rawBody = pm.variables.replaceIn(pm.request.body.raw || '');",
           "const currentKey = pm.environment.get('cents_hmac_key');",
           "if (typeof currentKey !== 'string' || CryptoJS.enc.Utf8.parse(currentKey).sigBytes < 32) {",
-          "  throw new Error('Set a local cents_hmac_key of at least 32 UTF-8 bytes before running this collection.');",
+          "  pm.expect.fail('Set a local cents_hmac_key of at least 32 UTF-8 bytes before running this collection.');",
           "}",
           "",
           "const nowSeconds = Math.floor(Date.now() / 1000);",
@@ -324,7 +324,7 @@
           "host": ["{{base_url}}"],
           "path": ["webhooks", "cents"]
         },
-        "description": "Proof case: duplicate_delivery\nAutomated equivalent: modules/business/webhook-ingestion/test/ingest-event/ingest-event.usecase.test.ts :: hashes opaque canonical payload and acknowledges only after storage"
+        "description": "Proof case: duplicate_delivery\nAutomated equivalent: modules/integration/webhook-ingestion/test/features/inbox/ingest-event/ingest-event.usecase.test.ts :: hashes opaque canonical payload and acknowledges only after storage"
       }
     },
     {

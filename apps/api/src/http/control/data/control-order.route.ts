@@ -5,52 +5,19 @@ import {
   controlCorrectOrderRequestSchema,
   controlCreateOrderRequestSchema,
   orderMutationResultSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/orders';
+import type { ControlExperience } from '@pressly/control-experience';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
-import type { OrderCustomer, OrdersApplication } from '@pressly/orders';
 import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
-import {
-  controlAccess,
-  controlCommandContext,
-  controlLocationIds,
-} from './control-data.context.ts';
-import { controlOrder, controlOrderDetail } from './control-data.mapper.ts';
+import { controlResultValue } from '../control-experience.error.ts';
+import { readControlRequestContext } from '../control-request-context.adapter.ts';
 
 const orderParamsSchema = z.object({ orderId: z.uuid() }).strict();
 
-const directCustomer = (
-  input:
-    | Readonly<{ resolution: 'resolved'; userId: string }>
-    | Readonly<{ resolution: 'not_provided'; userId: null }>,
-): OrderCustomer =>
-  input.resolution === 'resolved'
-    ? {
-        resolution: 'resolved',
-        userId: input.userId,
-        externalUserId: null,
-      }
-    : {
-        resolution: 'not_provided',
-        userId: null,
-        externalUserId: null,
-      };
-
-const value = <Value>(
-  outcome:
-    | Readonly<{ tag: 'ok'; value: Value }>
-    | Readonly<{ tag: 'err'; error: unknown }>,
-): Value => {
-  if (outcome.tag === 'err') throw outcome.error;
-  return outcome.value;
-};
-
 export const makeControlOrderRoutes = (input: {
-  orders: Pick<
-    OrdersApplication,
-    'listCanonicalOrders' | 'getCanonicalOrder' | 'createOrder' | 'correctOrder'
-  >;
+  application: ControlExperience['orders'];
   authenticate: RequestHandler;
   limitIdentity: RequestHandler;
   requireRead: RequestHandler;
@@ -80,20 +47,22 @@ export const makeControlOrderRoutes = (input: {
         cursor?: string;
         limit: number;
       };
-      const page = value(
-        await input.orders.listCanonicalOrders({
-          businessId: controlAccess(response).business.id,
-          locationIds: controlLocationIds(response, query.locationId),
-          query: query.query ?? null,
-          state: query.state ?? null,
+      const page = controlResultValue(
+        await input.application.list({
+          context: readControlRequestContext(response),
+          ...(query.query === undefined ? {} : { query: query.query }),
+          ...(query.state === undefined ? {} : { state: query.state }),
+          ...(query.locationId === undefined
+            ? {}
+            : { locationId: query.locationId }),
           limit: query.limit,
-          cursor: query.cursor ?? null,
+          ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
         }),
       );
       response.json(
         apiSuccess(
           controlOrderListSchema.parse({
-            items: page.items.map(controlOrder),
+            items: page.items,
             nextCursor: page.nextCursor,
           }),
         ),
@@ -106,16 +75,13 @@ export const makeControlOrderRoutes = (input: {
     ...read,
     validateRequest({ params: orderParamsSchema }),
     catchAsync(async (request, response) => {
-      const order = value(
-        await input.orders.getCanonicalOrder({
-          businessId: controlAccess(response).business.id,
-          locationIds: controlLocationIds(response),
+      const order = controlResultValue(
+        await input.application.get({
+          context: readControlRequestContext(response),
           orderId: request.params['orderId'] as string,
         }),
       );
-      response.json(
-        apiSuccess(controlOrderDetailSchema.parse(controlOrderDetail(order))),
-      );
+      response.json(apiSuccess(controlOrderDetailSchema.parse(order)));
     }),
   );
 
@@ -124,14 +90,10 @@ export const makeControlOrderRoutes = (input: {
     ...write,
     validateRequest({ body: controlCreateOrderRequestSchema }),
     catchAsync(async (request, response) => {
-      controlLocationIds(response, request.body.fulfillment.locationId);
-      const outcome = value(
-        await input.orders.createOrder({
+      const outcome = controlResultValue(
+        await input.application.create({
           ...request.body,
-          businessId: controlAccess(response).business.id,
-          context: controlCommandContext(response),
-          customer: directCustomer(request.body.customer),
-          dueAt: new Date(request.body.dueAt),
+          context: readControlRequestContext(response),
         }),
       );
       response
@@ -147,34 +109,17 @@ export const makeControlOrderRoutes = (input: {
     validateRequest({ body: controlCorrectOrderRequestSchema }),
     catchAsync(async (request, response) => {
       const orderId = request.params['orderId'] as string;
-      const current = value(
-        await input.orders.getCanonicalOrder({
-          businessId: controlAccess(response).business.id,
-          locationIds: controlLocationIds(response),
-          orderId,
-        }),
-      );
       const body = request.body;
-      const outcome = value(
-        await input.orders.correctOrder({
-          businessId: controlAccess(response).business.id,
+      const outcome = controlResultValue(
+        await input.application.correct({
+          orderId,
           idempotencyKey: body.idempotencyKey,
-          context: controlCommandContext(response),
+          context: readControlRequestContext(response),
           reasonCode: body.reasonCode,
           reasonNote: body.reasonNote,
           expectedOrderVersion: body.expectedOrderVersion,
           expectedFulfillmentVersion: body.expectedFulfillmentVersion,
-          locationId: current.fulfillment.locationId,
-          orderId,
-          changes: {
-            ...body.changes,
-            ...(body.changes.customer === undefined
-              ? {}
-              : { customer: directCustomer(body.changes.customer) }),
-            ...(body.changes.dueAt === undefined
-              ? {}
-              : { dueAt: new Date(body.changes.dueAt) }),
-          },
+          changes: body.changes,
         }),
       );
       response.json(apiSuccess(orderMutationResultSchema.parse(outcome)));

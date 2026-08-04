@@ -1,10 +1,12 @@
 import js from '@eslint/js';
 import nextPlugin from '@next/eslint-plugin-next';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import prettier from 'eslint-config-prettier';
 import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
+import { makeArchitectureEslintPlugin } from './tooling/architecture/architecture-eslint.plugin.ts';
+import { presslyRepositoryRoot } from './tooling/architecture/architecture-discovery.ts';
+import { presslyModuleArchitecture } from './tooling/architecture/pressly-module-architecture.ts';
 
 const commonGlobals = {
   AbortController: 'readonly',
@@ -51,145 +53,19 @@ const restrictedFileNameRule = (message) => ({
   ],
 });
 
-const requiredModuleRootFiles = ['main.ts', 'public.ts'];
+const moduleGroupExpression = presslyModuleArchitecture.groupNames.join('|');
+const moduleOwnerRootPattern = new RegExp(
+  `^(.*\\/modules\\/(?:${moduleGroupExpression})\\/[^/]+)\\/src(?:\\/|$)`,
+);
 
-export const moduleRootFileDelta = (fileNames) => {
-  const actualFiles = new Set(fileNames);
+const modulePackageNames = new Set(
+  presslyModuleArchitecture.modulePackageNames,
+);
 
-  return {
-    missing: requiredModuleRootFiles.filter((file) => !actualFiles.has(file)),
-    unexpected: [...actualFiles]
-      .filter((file) => !requiredModuleRootFiles.includes(file))
-      .sort(),
-  };
-};
-
-export const moduleFoundationTargets = new Map([
-  ['business/auth', new Set(['http', 'persistence'])],
-  [
-    'business/orders',
-    new Set([
-      'command-execution',
-      'order-model',
-      'order-outbox',
-      'persistence',
-    ]),
-  ],
-  [
-    'business/production',
-    new Set([
-      'command-execution',
-      'http',
-      'persistence',
-      'production-lifecycle',
-      'production-policy',
-      'production-signals',
-      'scheduling',
-    ]),
-  ],
-  [
-    'business/users',
-    new Set(['command-execution', 'persistence', 'user-profile']),
-  ],
-  ['business/webhook-ingestion', new Set(['ingestion'])],
-  ['computation/scheduling', new Set(['fixed-pulse'])],
-  ['policy/access-control', new Set(['http', 'identity'])],
-]);
-
-const moduleFoundationDependencies = new Map([
-  [
-    'business/orders',
-    new Map([
-      ['order-outbox', new Set(['order-model'])],
-      [
-        'persistence',
-        new Set(['command-execution', 'order-model', 'order-outbox']),
-      ],
-    ]),
-  ],
-  [
-    'business/production',
-    new Map([
-      ['production-policy', new Set(['production-lifecycle'])],
-      [
-        'persistence',
-        new Set([
-          'command-execution',
-          'production-lifecycle',
-          'production-policy',
-          'scheduling',
-        ]),
-      ],
-    ]),
-  ],
-  [
-    'business/users',
-    new Map([['persistence', new Set(['command-execution', 'user-profile'])]]),
-  ],
-]);
-
-const moduleFoundationSourcePatternsFor = (group) =>
-  [...moduleFoundationTargets.entries()].flatMap(([moduleKey, foundations]) =>
-    moduleKey.startsWith(`${group}/`)
-      ? [...foundations].map(
-          (foundation) => `modules/${moduleKey}/src/${foundation}/**/*.ts`,
-        )
-      : [],
-  );
-
-const businessModuleSourceRoleSuffixes = [
-  'command',
-  'controller',
-  'error',
-  'mapper',
-  'middleware',
-  'model',
-  'policy',
-  'port',
-  'repo',
-  'route',
-  'usecase',
-];
-
-const businessModuleSourceRolePattern = `modules/business/*/src/**/*.{${businessModuleSourceRoleSuffixes.join(',')}}.ts`;
-
-const policyModuleSourceRoleSuffixes = ['guard', 'policy', 'port', 'resource'];
-const policyModuleSourceRolePattern = `modules/policy/*/src/**/*.{${policyModuleSourceRoleSuffixes.join(',')}}.ts`;
-
-const computationModuleSourceRoleSuffixes = ['computation', 'port'];
-const computationModuleSourceRolePattern = `modules/computation/*/src/**/*.{${computationModuleSourceRoleSuffixes.join(',')}}.ts`;
-
-const modulePackageNames = (() => {
-  const moduleRoot = path.resolve('modules');
-
-  if (!existsSync(moduleRoot)) return new Set();
-
-  return new Set(
-    readdirSync(moduleRoot, { withFileTypes: true }).flatMap((group) => {
-      if (!group.isDirectory()) return [];
-
-      const groupRoot = path.join(moduleRoot, group.name);
-
-      return readdirSync(groupRoot, { withFileTypes: true }).flatMap(
-        (module) => {
-          if (!module.isDirectory()) return [];
-
-          const manifestPath = path.join(
-            groupRoot,
-            module.name,
-            'package.json',
-          );
-
-          if (!existsSync(manifestPath)) return [];
-
-          const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-
-          return typeof manifest.name === 'string' ? [manifest.name] : [];
-        },
-      );
-    }),
-  );
-})();
+const moduleArchitectureV2Plugin = makeArchitectureEslintPlugin({
+  architecture: presslyModuleArchitecture,
+  repositoryRoot: presslyRepositoryRoot,
+});
 
 const isPathInside = (candidate, owner) =>
   candidate === owner || candidate.startsWith(`${owner}/`);
@@ -209,66 +85,41 @@ const importVisitors = (checkImport) => ({
 
 export const architecturePlugin = {
   rules: {
-    'module-root-files': {
+    ...moduleArchitectureV2Plugin.rules,
+    'explicit-package-boundaries': {
       meta: {
         type: 'problem',
         docs: {
           description:
-            'Seal every module src root to its composition and public surfaces.',
+            'Require explicit Contracts, DB, and Errors package subpaths at every dependency boundary.',
         },
         schema: [],
         messages: {
-          invalidSurface:
-            'Module src roots must contain exactly main.ts and public.ts. {{details}}',
+          packageRoot:
+            'Import "{{target}}" through an explicit public subpath; its package root is intentionally not exported.',
         },
       },
       create(context) {
-        const filename = path.resolve(context.filename);
-        const normalizedFilename = filename.replaceAll(path.sep, '/');
+        const forbiddenRoots = new Set([
+          '@pressly/contracts',
+          '@pressly/db',
+          '@pressly/errors',
+        ]);
+        const checkImport = (node) => {
+          const specifier = importSpecifier(node);
 
-        if (
-          !/\/modules\/(?:business|policy|computation)\/[^/]+\/src\/(?:main|public)\.ts$/.test(
-            normalizedFilename,
-          )
-        )
-          return {};
+          if (specifier === undefined || !forbiddenRoots.has(specifier)) return;
 
-        const sourceRoot = path.dirname(filename);
-
-        if (
-          path.basename(filename) === 'public.ts' &&
-          existsSync(path.join(sourceRoot, 'main.ts'))
-        )
-          return {};
-
-        return {
-          Program(node) {
-            const rootFiles = readdirSync(sourceRoot, { withFileTypes: true })
-              .filter((entry) => !entry.isDirectory())
-              .map((entry) => entry.name);
-            const { missing, unexpected } = moduleRootFileDelta(rootFiles);
-
-            if (missing.length === 0 && unexpected.length === 0) return;
-
-            const details = [
-              ...(missing.length === 0
-                ? []
-                : [`Missing: ${missing.join(', ')}.`]),
-              ...(unexpected.length === 0
-                ? []
-                : [`Unexpected: ${unexpected.join(', ')}.`]),
-            ].join(' ');
-
-            context.report({
-              node,
-              messageId: 'invalidSurface',
-              data: { details },
-            });
-          },
+          context.report({
+            node,
+            messageId: 'packageRoot',
+            data: { target: specifier },
+          });
         };
+
+        return importVisitors(checkImport);
       },
     },
-
     'module-isolation': {
       meta: {
         type: 'problem',
@@ -279,18 +130,16 @@ export const architecturePlugin = {
         schema: [],
         messages: {
           moduleDependency:
-            'Module source cannot import sibling module package "{{target}}". Inject its capability from an app composition root.',
+            'Module source cannot import sibling module package "{{target}}". Inject its public application surface from an app composition root.',
           outsideModule:
-            'Module source cannot import another module by relative path. Inject its public capability from an app composition root.',
+            'Module source cannot import another module by relative path. Inject its public application surface from an app composition root.',
         },
       },
       create(context) {
         const filename = path
           .resolve(context.filename)
           .replaceAll(path.sep, '/');
-        const match = filename.match(
-          /^(.*\/modules\/(?:business|policy|computation)\/[^/]+)\/src(?:\/|$)/,
-        );
+        const match = filename.match(moduleOwnerRootPattern);
 
         if (match === null) return {};
 
@@ -321,90 +170,6 @@ export const architecturePlugin = {
 
           if (!isPathInside(target, ownerRoot))
             context.report({ node, messageId: 'outsideModule' });
-        };
-
-        return importVisitors(checkImport);
-      },
-    },
-
-    'module-capability-imports': {
-      meta: {
-        type: 'problem',
-        docs: {
-          description:
-            'Keep module capability imports inside the capability or an explicit foundation.',
-        },
-        schema: [],
-        messages: {
-          crossCapability:
-            'Capability "{{source}}" cannot import "{{target}}". Keep the dependency inside the capability or promote a narrow explicit foundation.',
-          outsideModule:
-            'Module internals cannot use relative imports outside their own module.',
-          rootInternal:
-            'Capability files cannot import module-root files. Only main.ts and public.ts belong at the module root; move shared internals into an explicit foundation.',
-        },
-      },
-      create(context) {
-        const filename = path.resolve(context.filename);
-        const normalizedFilename = filename.replaceAll(path.sep, '/');
-        const match = normalizedFilename.match(
-          /\/modules\/(business|policy|computation)\/([^/]+)\/src\/([^/]+)\//,
-        );
-
-        if (match === null) return {};
-
-        const [, group, moduleName, sourceCapability] = match;
-        const moduleKey = `${group}/${moduleName}`;
-        const srcMarker = `/modules/${moduleKey}/src/`;
-        const srcRoot = normalizedFilename.slice(
-          0,
-          normalizedFilename.indexOf(srcMarker) + srcMarker.length,
-        );
-        const foundations = moduleFoundationTargets.get(moduleKey) ?? new Set();
-        const foundationDependencies =
-          moduleFoundationDependencies.get(moduleKey) ?? new Map();
-
-        const checkImport = (node) => {
-          const specifier = importSpecifier(node);
-
-          if (specifier === undefined || !specifier.startsWith('.')) return;
-
-          const target = path
-            .resolve(path.dirname(filename), specifier)
-            .replaceAll(path.sep, '/');
-
-          if (!target.startsWith(srcRoot)) {
-            context.report({ node, messageId: 'outsideModule' });
-            return;
-          }
-
-          const targetRelative = target.slice(srcRoot.length);
-          const [targetCapability] = targetRelative.split('/');
-
-          if (targetCapability === sourceCapability) return;
-
-          if (!targetRelative.includes('/')) {
-            context.report({ node, messageId: 'rootInternal' });
-            return;
-          }
-
-          if (foundations.has(targetCapability)) {
-            if (!foundations.has(sourceCapability)) return;
-
-            const allowedDependencies =
-              foundationDependencies.get(sourceCapability) ?? new Set();
-
-            if (allowedDependencies.has(targetCapability)) return;
-          }
-
-          context.report({
-            node,
-            messageId: 'crossCapability',
-            data: {
-              source: sourceCapability,
-              target: targetCapability,
-            },
-          });
         };
 
         return importVisitors(checkImport);
@@ -748,6 +513,9 @@ export default tseslint.config(
       sourceType: 'module',
       globals: commonGlobals,
     },
+    rules: {
+      'architecture/explicit-package-boundaries': 'error',
+    },
   },
 
   {
@@ -775,34 +543,7 @@ export default tseslint.config(
         },
       ],
       '@typescript-eslint/no-explicit-any': 'off',
-    },
-  },
-
-  {
-    files: ['**/*.{ts,tsx}'],
-    languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'module',
-      globals: commonGlobals,
-    },
-    rules: {
-      'no-undef': 'off',
-      '@typescript-eslint/consistent-type-imports': [
-        'error',
-        {
-          prefer: 'type-imports',
-          fixStyle: 'inline-type-imports',
-        },
-      ],
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        {
-          argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
-          caughtErrorsIgnorePattern: '^_',
-        },
-      ],
-      '@typescript-eslint/no-explicit-any': 'off',
+      'architecture/explicit-package-boundaries': 'error',
     },
   },
 
@@ -823,6 +564,49 @@ export default tseslint.config(
               regex: '^drizzle-orm(?:/.*)?$',
               message:
                 'Import database primitives through @pressly/db so SQL safety constraints cannot be bypassed.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: [
+      'apps/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'modules/*/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'packages/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+    ],
+    rules: {
+      'architecture/qualified-mapper-role': 'error',
+    },
+  },
+
+  {
+    files: [
+      'apps/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'packages/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+    ],
+    ignores: ['packages/errors/src/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
+    rules: {
+      'architecture/owned-throwable': 'error',
+    },
+  },
+
+  {
+    files: [
+      'apps/api/src/http/control/**/*.{ts,tsx}',
+      'apps/control/src/**/*.{ts,tsx}',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^@pressly/contracts$',
+              message:
+                'Control surfaces must import the explicit Auth, Users, or Orders contract boundary instead of the package root.',
             },
           ],
         },
@@ -857,210 +641,6 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/**/*.policy.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex:
-                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
-              message:
-                'Policy files cannot import database, HTTP, or UI mechanisms.',
-            },
-            {
-              regex:
-                '^\\.(?!.*\\.(?:model|policy|port|resource)(?:\\.(?:ts|js))?$).*',
-              message:
-                'Policy files may only import sibling models, policies, ports, or resource files.',
-            },
-          ],
-        },
-      ],
-
-      '@typescript-eslint/consistent-type-imports': [
-        'error',
-        {
-          prefer: 'type-imports',
-          fixStyle: 'inline-type-imports',
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/business/**/*.model.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex:
-                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
-              message:
-                'Business models cannot expose database, HTTP, or UI mechanism types.',
-            },
-            {
-              regex:
-                '^(?!(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)).*',
-              allowTypeImports: true,
-              message: 'Business models may only import types.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/**/*.usecase.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex:
-                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
-              message:
-                'Usecases cannot import database, HTTP, or UI mechanisms.',
-            },
-            {
-              regex:
-                '^\\.(?!.*\/[^/]+\\.(?:usecase|model|policy|port|error)(?:\\.(?:ts|js))?$).*',
-              message:
-                'Usecases may only import usecases, models, policies, ports, or errors; capability ownership is enforced separately.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/**/*.port.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '.*',
-              allowTypeImports: true,
-              message: 'Ports may only import types.',
-            },
-          ],
-        },
-      ],
-
-      '@typescript-eslint/consistent-type-imports': [
-        'error',
-        {
-          prefer: 'type-imports',
-          fixStyle: 'inline-type-imports',
-        },
-      ],
-    },
-  },
-
-  {
-    files: [
-      'modules/business/**/*.port.ts',
-      'modules/computation/**/*.port.ts',
-    ],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex:
-                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
-              message:
-                'Business and computation ports cannot expose database, HTTP, or UI mechanism types.',
-            },
-            {
-              regex:
-                '^(?!(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)).*',
-              allowTypeImports: true,
-              message: 'Ports may only import types.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/policy/access-control/src/http/auth.port.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '.*',
-              allowTypeImports: true,
-              message:
-                'The access-control auth port may expose HTTP types but still cannot import runtime mechanisms.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/**/*.error.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex:
-                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
-              message:
-                'Error mapping files cannot import database, HTTP, or UI mechanisms.',
-            },
-            {
-              regex:
-                '^\\.(?!/?[^/]+\\.(?:model|policy|error)(?:\\.(?:ts|js))?$).*',
-              message:
-                'Error mapping files may only import sibling model, policy, or error files.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/**/*.route.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '^(?:drizzle-orm(?:/.*)?$|@pressly/db(?:/.*)?$)',
-              message: 'Routes cannot import persistence mechanisms.',
-            },
-            {
-              regex:
-                '^\\.(?!/?[^/]+\\.(?:usecase|controller|middleware)(?:\\.(?:ts|js))?$).*',
-              message:
-                'Routes may only import sibling usecases, controllers, or middleware.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
     files: ['modules/*/*/src/{main,public}.ts'],
     rules: {
       'no-restricted-imports': [
@@ -1079,78 +659,9 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/**/*.controller.ts', 'modules/**/*.middleware.ts'],
-    ignores: ['modules/business/auth/src/http/**/*.middleware.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '^(?:drizzle-orm(?:/.*)?$|@pressly/db(?:/.*)?$)',
-              message:
-                'Controllers and middleware cannot import persistence mechanisms.',
-            },
-            {
-              regex:
-                '^\\.(?!/[^/]+\\.(?:usecase|port|error)(?:\\.(?:ts|js))?$|\\./http/[^/]+(?:\\.(?:ts|js))?$).*',
-              message:
-                'Controllers and middleware may only import sibling usecase, port, or error files, plus the explicit HTTP foundation.',
-            },
-            {
-              regex: '^\\..*\\.usecase(?:\\.(?:ts|js))?$',
-              allowTypeImports: true,
-              message:
-                'Controller and middleware files may only type-import from *.usecase files.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/policy/**/*.guard.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '^(?:drizzle-orm(?:/.*)?$|@pressly/db(?:/.*)?$)',
-              message: 'Policy guards cannot import persistence mechanisms.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/**/*.repo.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '^(?:express$|@pressly/http(?:/.*)?$|next(?:/.*)?$)',
-              message: 'Repositories cannot import HTTP or UI mechanisms.',
-            },
-            {
-              regex:
-                '^\\.(?!.*\\.(?:model|port|policy|mapper|repo)(?:\\.(?:ts|js))?$|\\./persistence/[^/]+(?:\\.(?:ts|js))?$).*',
-              message:
-                'Repositories may only import same-capability models, ports, policies, mappers, or repository collaborators, plus explicit foundations.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/business/auth/src/http/**/*.{ts,tsx}'],
+    files: [
+      'modules/security/identity/src/foundations/adapters/http/authentication-request/**/*.{ts,tsx}',
+    ],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -1168,7 +679,9 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/business/auth/src/persistence/**/*.{ts,tsx}'],
+    files: [
+      'modules/security/identity/src/foundations/adapters/postgres/identity-store/**/*.{ts,tsx}',
+    ],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -1186,35 +699,15 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/**/*.computation.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex:
-                '^(?:express$|drizzle-orm(?:/.*)?$|@pressly/(?:db|http)(?:/.*)?$|next(?:/.*)?$|react(?:/.*)?$)',
-              message:
-                'Computation files must remain deterministic and mechanism-free.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/*/*/src/main.ts'],
-    rules: {
-      'architecture/module-root-files': 'error',
-    },
-  },
-
-  {
     files: ['modules/*/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
     rules: {
-      'architecture/module-capability-imports': 'error',
+      'architecture/module-v2-file-role': 'error',
+      'architecture/module-v2-dependencies': 'error',
+      'architecture/module-v2-failure-boundary': 'error',
+      'architecture/module-v2-pure-role': 'error',
+      'architecture/module-v2-port-shape': 'error',
+      'architecture/module-v2-semantic-role': 'error',
+      'architecture/module-public-surface': 'error',
     },
   },
 
@@ -1222,17 +715,7 @@ export default tseslint.config(
     files: ['modules/*/*/src/*.{js,jsx,mjs,cjs,ts,tsx}'],
     ignores: ['modules/*/*/src/main.ts', 'modules/*/*/src/public.ts'],
     rules: restrictedFileNameRule(
-      'Module src roots are sealed. Only main.ts and public.ts may be root files; move this file into its owning capability or an explicit named foundation.',
-    ),
-  },
-
-  {
-    files: [
-      'modules/*/*/src/features/**/*.{ts,tsx}',
-      'modules/*/*/src/adapters/**/*.{ts,tsx}',
-    ],
-    rules: restrictedFileNameRule(
-      'Module source is capability-first. Move this file into its owning top-level capability.',
+      'Module src roots are sealed. Only main.ts and public.ts may be root files; move this file into its owning feature, foundation, or composition zone.',
     ),
   },
 
@@ -1242,7 +725,7 @@ export default tseslint.config(
       'modules/*/*/src/**/shared/**/*.{ts,tsx}',
     ],
     rules: restrictedFileNameRule(
-      'Module-local common/shared folders are forbidden. Name the capability or use an explicit technical foundation.',
+      'Module-local common/shared folders are forbidden. Name the owning feature or use an explicit foundation.',
     ),
   },
 
@@ -1260,53 +743,6 @@ export default tseslint.config(
     files: ['modules/*/*/src/**/*.{js,jsx,mjs,cjs,tsx}'],
     rules: restrictedFileNameRule(
       'Module source files must use the .ts extension.',
-    ),
-  },
-
-  {
-    files: ['modules/business/*/src/**/*.ts'],
-    ignores: [
-      'modules/business/*/src/main.ts',
-      'modules/business/*/src/public.ts',
-      ...moduleFoundationSourcePatternsFor('business'),
-      businessModuleSourceRolePattern,
-    ],
-    rules: restrictedFileNameRule(
-      `Business capability files must use one of these architectural role suffixes: ${businessModuleSourceRoleSuffixes
-        .map((suffix) => `*.${suffix}.ts`)
-        .join(
-          ', ',
-        )}. Descriptive filenames are reserved for registered explicit foundations.`,
-    ),
-  },
-
-  {
-    files: ['modules/policy/*/src/**/*.ts'],
-    ignores: [
-      'modules/policy/*/src/main.ts',
-      'modules/policy/*/src/public.ts',
-      ...moduleFoundationSourcePatternsFor('policy'),
-      policyModuleSourceRolePattern,
-    ],
-    rules: restrictedFileNameRule(
-      `Policy capability files must use one of these architectural role suffixes: ${policyModuleSourceRoleSuffixes
-        .map((suffix) => `*.${suffix}.ts`)
-        .join(', ')}.`,
-    ),
-  },
-
-  {
-    files: ['modules/computation/*/src/**/*.ts'],
-    ignores: [
-      'modules/computation/*/src/main.ts',
-      'modules/computation/*/src/public.ts',
-      ...moduleFoundationSourcePatternsFor('computation'),
-      computationModuleSourceRolePattern,
-    ],
-    rules: restrictedFileNameRule(
-      `Computation capability files must use one of these architectural role suffixes: ${computationModuleSourceRoleSuffixes
-        .map((suffix) => `*.${suffix}.ts`)
-        .join(', ')}.`,
     ),
   },
 
@@ -1337,9 +773,9 @@ export default tseslint.config(
         {
           patterns: [
             {
-              regex: '^(?:@pressly/|next(?:/.*)?$)',
+              regex: '^(?:@pressly/(?!errors/factories$)|next(?:/.*)?$)',
               message:
-                'UI primitives cannot depend on application, protocol, or server capabilities.',
+                'UI primitives may only depend on the pure error factory package, not application, protocol, or server capabilities.',
             },
           ],
         },

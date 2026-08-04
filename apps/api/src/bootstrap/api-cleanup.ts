@@ -1,6 +1,7 @@
-import { unexpectedError, type AppError } from '@pressly/errors';
+import { makeAggregateError, type AppError } from '@pressly/errors/app-error';
+import { unexpectedError } from '@pressly/errors/factories';
 import type { Logger } from '@pressly/logging';
-import { attemptObservation } from '@pressly/metrics';
+import { attemptObservation } from '@pressly/observability';
 
 export type ApiCleanupEffect = Readonly<{
   resource: string;
@@ -52,10 +53,10 @@ export const apiCleanupError = (
     message: 'One or more API resources failed to close.',
     safeMessage: 'The API could not shut down cleanly.',
     details: { resources: failures.map((failure) => failure.resource) },
-    cause: new AggregateError(
-      failures.map((failure) => failure.cause),
-      'API resource cleanup failed.',
-    ),
+    cause: makeAggregateError({
+      errors: failures.map((failure) => failure.cause),
+      message: 'API resource cleanup failed.',
+    }),
   });
 
 export const cleanupApiOrThrow = async (

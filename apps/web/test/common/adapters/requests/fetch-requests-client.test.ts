@@ -229,4 +229,44 @@ describe('makeFetchRequestClient', () => {
     });
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  it('preserves the native TimeoutError abort reason while classifying the request', async () => {
+    vi.useFakeTimers();
+
+    try {
+      vi.mocked(global.fetch).mockImplementationOnce(
+        (_input, init) =>
+          new Promise((_resolve, reject) => {
+            const signal = init?.signal;
+            signal?.addEventListener('abort', () => reject(signal.reason), {
+              once: true,
+            });
+          }),
+      );
+
+      const pending = makeClient().send({
+        method: 'GET',
+        path: '/slow',
+        response: z.object({ status: z.string() }),
+        timeoutMs: 25,
+      });
+
+      await vi.advanceTimersByTimeAsync(25);
+
+      await expect(pending).resolves.toMatchObject({
+        tag: 'err',
+        error: {
+          code: 'request_timed_out',
+          status: 504,
+        },
+      });
+
+      const signal = vi.mocked(global.fetch).mock.calls[0]?.[1]
+        ?.signal as AbortSignal;
+      expect(signal.reason).toBeInstanceOf(DOMException);
+      expect(signal.reason).toMatchObject({ name: 'TimeoutError' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

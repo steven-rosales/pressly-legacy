@@ -1,30 +1,35 @@
 import { readFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import {
   lpmsBootstrapManifestSchema,
-  productionBootstrapManifestSchema,
   type LpmsBootstrapManifest,
-  type ManageSourceLocationBindingsResult,
-  type ProductionBootstrapResult,
-} from '@pressly/contracts';
-import { createDatabaseRuntime } from '@pressly/db';
+} from '@pressly/contracts/lpms';
 import {
-  configError,
-  normalizeUnknownError,
-  validationError,
-} from '@pressly/errors';
+  productionBootstrapManifestSchema,
+  type ProductionBootstrapResult as ProductionBootstrapWireResult,
+} from '@pressly/contracts/production';
+import { type ManageSourceLocationBindingsResult as ManageSourceLocationBindingsWireResult } from '@pressly/contracts/webhook-ingestion';
+import { createDatabaseRuntime } from '@pressly/db/client';
+import { uuidIdSource } from '@pressly/kernel/node';
+import { normalizeUnknownError } from '@pressly/errors/app-error';
+import { configError, validationError } from '@pressly/errors/factories';
 import {
   makePostgresProductionApplication,
+  productionFailureToAppError,
   type ProductionApplication,
 } from '@pressly/production';
-import { makeProductionPolicy } from '@pressly/production-policy';
-import { makeProductionScheduler } from '@pressly/production-scheduling';
 import {
   makePostgresWebhookIngestionApplication,
   type WebhookIngestionApplication,
 } from '@pressly/webhook-ingestion';
+import { systemClock } from '@pressly/time';
 import { z } from 'zod';
+import {
+  toManageSourceLocationBindingsWireResult,
+  toProductionBootstrapManifest,
+  toProductionBootstrapWireResult,
+  toSourceLocationBindingsManifest,
+} from './bootstrap-production.contract.mapper.ts';
 
 const commandInputSchema = z
   .object({
@@ -126,13 +131,16 @@ export const executeProductionBootstrap = async (input: {
   manageResources: ProductionApplication['manageProductionResources'];
   manageSourceLocationBindings: WebhookIngestionApplication['manageSourceLocationBindings'];
 }): Promise<{
-  production: ProductionBootstrapResult;
-  sourceLocationBindings: ManageSourceLocationBindingsResult;
+  production: ProductionBootstrapWireResult;
+  sourceLocationBindings: ManageSourceLocationBindingsWireResult;
 }> => {
   const manifest = await readProductionBootstrapManifest(input.command.file);
   const { sourceLocationBindings, ...productionManifestInput } = manifest;
-  const productionManifest = productionBootstrapManifestSchema.parse(
-    productionManifestInput,
+  const bindingsManifest = toSourceLocationBindingsManifest(
+    sourceLocationBindings,
+  );
+  const productionManifest = toProductionBootstrapManifest(
+    productionBootstrapManifestSchema.parse(productionManifestInput),
   );
   const productionPreview = await input.manageResources({
     manifest: productionManifest,
@@ -140,12 +148,12 @@ export const executeProductionBootstrap = async (input: {
     actorId: input.command.actorId,
     idempotencyKey: input.command.idempotencyKey,
   });
-  if (productionPreview.tag === 'err') throw productionPreview.error;
+  if (productionPreview.tag === 'err')
+    throw productionFailureToAppError(productionPreview.error);
   const bindingsPreview = await input.manageSourceLocationBindings({
-    manifest: { sourceLocationBindings },
+    manifest: bindingsManifest,
     dryRun: true,
   });
-  if (bindingsPreview.tag === 'err') throw bindingsPreview.error;
 
   if (
     input.command.dryRun ||
@@ -153,8 +161,10 @@ export const executeProductionBootstrap = async (input: {
     bindingsPreview.value.status === 'rejected'
   )
     return {
-      production: productionPreview.value,
-      sourceLocationBindings: bindingsPreview.value,
+      production: toProductionBootstrapWireResult(productionPreview.value),
+      sourceLocationBindings: toManageSourceLocationBindingsWireResult(
+        bindingsPreview.value,
+      ),
     };
 
   const production = await input.manageResources({
@@ -163,15 +173,17 @@ export const executeProductionBootstrap = async (input: {
     actorId: input.command.actorId,
     idempotencyKey: input.command.idempotencyKey,
   });
-  if (production.tag === 'err') throw production.error;
+  if (production.tag === 'err')
+    throw productionFailureToAppError(production.error);
   const bindings = await input.manageSourceLocationBindings({
-    manifest: { sourceLocationBindings },
+    manifest: bindingsManifest,
     dryRun: false,
   });
-  if (bindings.tag === 'err') throw bindings.error;
   return {
-    production: production.value,
-    sourceLocationBindings: bindings.value,
+    production: toProductionBootstrapWireResult(production.value),
+    sourceLocationBindings: toManageSourceLocationBindingsWireResult(
+      bindings.value,
+    ),
   };
 };
 
@@ -195,15 +207,13 @@ const main = async (): Promise<void> => {
   try {
     const application = makePostgresProductionApplication({
       db: database.db,
-      policy: makeProductionPolicy(),
-      scheduler: makeProductionScheduler(),
-      clock: { now: () => new Date() },
-      ids: { next: randomUUID },
+      clock: systemClock,
+      ids: uuidIdSource,
     });
     const webhookIngestion = makePostgresWebhookIngestionApplication({
       db: database.db,
-      clock: { now: () => new Date() },
-      ids: { next: randomUUID },
+      clock: systemClock,
+      ids: uuidIdSource,
     });
     const outcome = await executeProductionBootstrap({
       command,

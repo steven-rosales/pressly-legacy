@@ -12,9 +12,11 @@ import type { TFunction } from "i18next"
 import type {
   ProcessorProductionLiveRunChangeOrder,
   ProcessorProductionLiveRunChanges,
+} from "@pressly/contracts/processor"
+import type {
   ProductionRunSummary,
   ProductionShift,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import {
   MetricStrip,
   SectionHeading,

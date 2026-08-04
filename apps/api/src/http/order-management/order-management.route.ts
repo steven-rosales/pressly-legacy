@@ -1,7 +1,7 @@
 import type { OrdersApplication } from '@pressly/orders';
-import type { LocationAncestryPort } from '@pressly/access-control';
+import type { LocationAncestryPort } from '@pressly/authorization';
 import { Router, type RequestHandler } from 'express';
-import type { ReadOrderManagementPrincipal } from './command-context.mapper.ts';
+import type { ReadOrderManagementPrincipal } from './command-context.adapter.ts';
 import { makeOrderCommandRoutes } from './orders/order-command.route.ts';
 import { makeFulfillmentReleaseRoutes } from './orders/fulfillment-release.route.ts';
 import { makeIncomingOrderProposalRoutes } from './orders/incoming-order-proposal.route.ts';

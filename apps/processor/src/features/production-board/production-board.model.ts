@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
+import type { ProcessorProductionBoard } from "@pressly/contracts/processor"
 import type {
   AdvanceProductionStageResult,
-  ProcessorProductionBoard,
   ProductionBatch,
   ProductionBatchProgressReconciliationConfirmationRequiredResult,
   ProductionMachine,
   ProductionStageCompletionConfirmationRequiredResult,
   ProductionStageStartConfirmationRequiredResult,
   StageRun,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import type { FloorProgressDraft } from "./floor-progress.presenter"

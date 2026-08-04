@@ -115,7 +115,7 @@ jobs:
         run: pnpm -F @pressly/db test:integration
 
       - name: Auth integration tests
-        run: pnpm -F @pressly/auth-module test:integration
+        run: pnpm -F @pressly/identity test:integration
 
       - name: Users integration tests
         run: pnpm -F @pressly/users test:integration

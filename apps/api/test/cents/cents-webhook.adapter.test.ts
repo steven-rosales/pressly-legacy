@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { centsIngressDecisionSchema } from '@pressly/contracts';
+import { centsIngressDecisionSchema } from '@pressly/contracts/cents';
 import { describe, expect, it } from 'vitest';
 import {
   CENTS_WEBHOOK_MAX_BODY_BYTES,

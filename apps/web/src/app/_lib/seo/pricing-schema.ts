@@ -1,7 +1,7 @@
 import type {
   PricingCatalogResult,
   PricingItemResult,
-} from '@pressly/contracts';
+} from '@pressly/contracts/pricing';
 import {
   DELIVERY_FEE_COPY,
   formatDeliveryFeeCopy,

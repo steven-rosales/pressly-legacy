@@ -1,36 +1,36 @@
 export {
-  makePostgresUsersApplication,
-  type UsersApplication,
-  type UsersApplicationDeps,
-} from './main.ts';
-export {
   decodeUserCursor,
   encodeUserCursor,
-} from './read-users/user-pagination.policy.ts';
-export {
   makePostgresCanonicalSourceUserAcceptanceAdapter,
-  type CanonicalSourceUserAcceptanceAdapter,
-  type CanonicalSourceUserAcceptanceInput,
-  type CanonicalSourceUserAcceptanceResult,
-} from './canonical-source-user/canonical-source-user.repo.ts';
+  makePostgresUsersApplication,
+} from './main.ts';
+
 export type {
+  CanonicalSourceUserAcceptanceAdapter,
+  CanonicalSourceUserAcceptanceInput,
+  CanonicalSourceUserAcceptanceResult,
   CreateUser,
-  CreateUserCommand,
-} from './create-user/create-user.port.ts';
-export type {
-  UpdateUser,
-  UpdateUserCommand,
-} from './update-user/update-user.port.ts';
-export type {
   GetUser,
   ListUsers,
+  UpdateUser,
+  UsersApplication,
+  UsersApplicationDeps,
+} from './main.ts';
+
+export type { CreateUserCommand } from './features/users/create-user/create-user.model.ts';
+export type { CreateUserFailure } from './features/users/create-user/create-user.failure.ts';
+export type {
   ListUsersQuery,
   UserListResult,
   UserSummary,
-} from './read-users/read-users.port.ts';
-export type { UserCommandResult } from './command-execution/user-command.port.ts';
+} from './features/users/read-users/read-users.model.ts';
+export type { ReadUsersFailure } from './features/users/read-users/read-users.failure.ts';
+export type { UpdateUserCommand } from './features/users/update-user/update-user.model.ts';
+export type { UpdateUserFailure } from './features/users/update-user/update-user.failure.ts';
+export type { ResolveCanonicalSourceUserFailure } from './features/sources/resolve-canonical-source-user/resolve-canonical-source-user.failure.ts';
+export type { UserCommandResult } from './foundations/language/command-identity/user-command-result.model.ts';
+export type { User } from './foundations/language/users/user.entity.ts';
 export type {
   UserFieldName,
   UserProfile,
-  UserRecord,
-} from './user-profile/user-profile.model.ts';
+} from './foundations/language/users/user-profile.value.ts';

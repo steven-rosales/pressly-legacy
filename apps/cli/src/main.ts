@@ -1,7 +1,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config as loadEnv } from 'dotenv';
-import { normalizeUnknownError } from '@pressly/errors';
+import { normalizeUnknownError } from '@pressly/errors/app-error';
 import { runPresslyCli } from './app.ts';
 import { writeCliError } from './shell/errors.ts';
 

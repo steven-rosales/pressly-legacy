@@ -1,12 +1,16 @@
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { nullLogger } from '@pressly/logging';
 import {
   nullCounterSink,
   nullErrorReporter,
   type ErrorReporter,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import type { OrdersApplication, OrderOutboxEvent } from '@pressly/orders';
-import type { ProductionApplication } from '@pressly/production';
+import {
+  productionFailureToAppError,
+  type ProductionApplication,
+  type ProductionFeatureFailure,
+} from '@pressly/production';
 import { describe, expect, it, vi } from 'vitest';
 import { makeFulfillmentDemandProjectionJob } from '../../../src/jobs/project-fulfillment-demand/fulfillment-demand.job.ts';
 
@@ -14,6 +18,16 @@ type DemandOutboxEvent = Extract<
   OrderOutboxEvent,
   { kind: 'fulfillment_demand_changed' }
 >;
+
+const productionConflict = (input: {
+  code: string;
+  message: string;
+  safeMessage: string;
+}): ProductionFeatureFailure => ({
+  tag: 'ProductionFailure',
+  kind: 'conflict',
+  ...input,
+});
 
 const event = (
   overrides: Partial<DemandOutboxEvent> = {},
@@ -36,12 +50,12 @@ const event = (
     typeCode: 'wash_fold',
     admissionState: 'released',
     commercialState: 'completed',
-    dueAt: '2026-07-22T20:00:00.000Z',
+    dueAt: new Date('2026-07-22T20:00:00.000Z'),
     estimatedWeightLbs: 42,
     estimatedWeightSource: 'source_estimate',
     bagCount: 2,
     version: 2,
-    observedAt: '2026-07-21T14:00:00.000Z',
+    observedAt: new Date('2026-07-21T14:00:00.000Z'),
   },
   ...overrides,
 });
@@ -59,13 +73,11 @@ const setup = (input: {
   const completeOutbox = vi.fn(
     input.complete ??
       (async () => ({
-        tag: 'ok' as const,
-        value: { completed: true },
+        completed: true,
       })),
   );
   const retryOutbox = vi.fn(async () => ({
-    tag: 'ok' as const,
-    value: { retried: true },
+    retried: true,
   }));
   const deadLetterOutbox = vi.fn(async () => ({
     tag: 'ok' as const,
@@ -127,6 +139,8 @@ describe('order outbox projector', () => {
         displayReference: 'P-1042',
         admissionState: 'released',
         commercialState: 'completed',
+        dueAt: '2026-07-22T20:00:00.000Z',
+        observedAt: '2026-07-21T14:00:00.000Z',
         estimatedWeightSource: 'external_estimate',
         idempotencyKey: `order-outbox:${event().id}`,
         projectionHash: expect.stringMatching(/^[a-f0-9]{64}$/),
@@ -148,11 +162,8 @@ describe('order outbox projector', () => {
     });
     const complete = vi
       .fn<OrdersApplication['completeOutbox']>()
-      .mockResolvedValueOnce({ tag: 'err', error: completionFailure })
-      .mockResolvedValueOnce({
-        tag: 'ok',
-        value: { completed: true },
-      });
+      .mockRejectedValueOnce(completionFailure)
+      .mockResolvedValueOnce({ completed: true });
     const harness = setup({ complete });
 
     await expect(harness.processor.runOnce()).rejects.toMatchObject({
@@ -178,7 +189,7 @@ describe('order outbox projector', () => {
     expect(harness.completeOutbox).toHaveBeenCalledOnce();
   });
 
-  it('returns a failed Production projection to the durable retry queue', async () => {
+  it('returns a thrown Production fault to the durable retry queue', async () => {
     const projectionFailure = makeAppError({
       kind: 'DatabaseError',
       code: 'production_unavailable',
@@ -187,7 +198,9 @@ describe('order outbox projector', () => {
       status: 503,
     });
     const harness = setup({
-      project: async () => ({ tag: 'err', error: projectionFailure }),
+      project: async () => {
+        throw projectionFailure;
+      },
     });
 
     await expect(harness.processor.runOnce()).resolves.toBe(1);
@@ -254,12 +267,10 @@ describe('order outbox projector', () => {
   });
 
   it('dead-letters permanent Production rejections', async () => {
-    const rejection = makeAppError({
-      kind: 'ConflictError',
+    const rejection = productionConflict({
       code: 'fulfillment_demand_diverged',
       message: 'diverged',
       safeMessage: 'The fulfillment demand conflicts with committed data.',
-      status: 409,
     });
     const harness = setup({
       project: async () => ({ tag: 'err', error: rejection }),
@@ -271,13 +282,10 @@ describe('order outbox projector', () => {
   });
 
   it('reports the original structured failure when dead-lettering', async () => {
-    const rejection = makeAppError({
-      kind: 'ConflictError',
+    const rejection = productionConflict({
       code: 'fulfillment_demand_diverged',
       message: 'diagnostic divergence',
       safeMessage: 'The fulfillment demand conflicts with committed data.',
-      status: 409,
-      cause: new Error('original cause'),
     });
     const capture = vi.fn();
     const harness = setup({
@@ -288,7 +296,7 @@ describe('order outbox projector', () => {
     await expect(harness.processor.runOnce()).resolves.toBe(1);
 
     expect(capture).toHaveBeenCalledWith(
-      rejection,
+      productionFailureToAppError(rejection),
       expect.objectContaining({ operation: 'order_outbox' }),
     );
     expect(harness.deadLetterOutbox).toHaveBeenCalledWith(
@@ -300,12 +308,10 @@ describe('order outbox projector', () => {
   });
 
   it('does not let dead-letter reporting strand later outbox work', async () => {
-    const rejection = makeAppError({
-      kind: 'ConflictError',
+    const rejection = productionConflict({
       code: 'fulfillment_demand_diverged',
       message: 'diagnostic divergence',
       safeMessage: 'The fulfillment demand conflicts with committed data.',
-      status: 409,
     });
     const project = vi
       .fn<ProductionApplication['applyFulfillmentDemand']>()
@@ -350,7 +356,9 @@ describe('order outbox projector', () => {
     });
     const harness = setup({
       claimed: [event({ attempts: 8 })],
-      project: async () => ({ tag: 'err', error: unavailable }),
+      project: async () => {
+        throw unavailable;
+      },
     });
 
     await expect(harness.processor.runOnce()).resolves.toBe(1);

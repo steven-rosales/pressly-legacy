@@ -1,6 +1,6 @@
 import type { Result } from '@pressly/kernel';
 import { createElement } from 'react';
-import type { AppError } from '@pressly/errors';
+import type { AppError } from '@pressly/errors/app-error';
 import { makeCliFeature } from '../../shell/feature.ts';
 import { parsePricingCliCommand, usage } from './args.ts';
 import {

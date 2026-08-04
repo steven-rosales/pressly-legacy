@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   controlCreateOrderRequestSchema,
-  controlCustomerListQuerySchema,
-  controlCustomerSchema,
   controlOrderListQuerySchema,
   controlOrderSchema,
-} from '../src/index.ts';
+} from '../src/orders/index.ts';
+import {
+  controlCustomerListQuerySchema,
+  controlCustomerSchema,
+} from '../src/users/index.ts';
 
 describe('Control customer and Order contracts', () => {
   it('coerces bounded list filters without accepting unknown tenant fields', () => {

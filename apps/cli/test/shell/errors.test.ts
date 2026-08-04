@@ -1,4 +1,4 @@
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { describe, expect, it } from 'vitest';
 import { writeCliError } from '../../src/shell/errors.ts';
 import { makeTestIo } from '../support/io.ts';

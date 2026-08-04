@@ -17,7 +17,7 @@ DATABASE_URL="$PRESSLY_TEST_MIGRATION_DATABASE_URL" pnpm -F @pressly/db migrate
 case "$target" in
   all)
     pnpm -F @pressly/db test:integration
-    pnpm -F @pressly/auth-module test:integration
+    pnpm -F @pressly/identity test:integration
     pnpm -F @pressly/users test:integration
     pnpm -F @pressly/orders test:integration
     pnpm -F @pressly/pricing test:integration
@@ -39,10 +39,13 @@ case "$target" in
     pnpm exec vitest run tooling/test/cents-webhook-assets.test.mjs
     ;;
   auth)
-    pnpm -F @pressly/auth-module test:integration
+    pnpm -F @pressly/identity test:integration
     ;;
   pricing)
     pnpm -F @pressly/pricing test:integration
+    ;;
+  production)
+    pnpm -F @pressly/production test:integration
     ;;
   db-security)
     pnpm -F @pressly/db test:integration

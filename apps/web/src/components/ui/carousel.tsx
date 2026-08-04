@@ -5,6 +5,7 @@ import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from 'embla-carousel-react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { invariantViolationError } from '@pressly/errors/factories';
 
 import { cn } from '@/styles/utils';
 import { Button } from '@/components/ui/button';
@@ -36,7 +37,10 @@ function useCarousel() {
   const context = React.useContext(CarouselContext);
 
   if (!context) {
-    throw new Error('useCarousel must be used within a <Carousel />');
+    throw invariantViolationError({
+      code: 'carousel_context_missing',
+      message: 'useCarousel must be used within a <Carousel />.',
+    });
   }
 
   return context;

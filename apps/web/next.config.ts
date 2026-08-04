@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { configError } from '@pressly/errors';
+import { configError } from '@pressly/errors/factories';
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 import { buildContentSecurityPolicy } from './src/common/security/content-security-policy';

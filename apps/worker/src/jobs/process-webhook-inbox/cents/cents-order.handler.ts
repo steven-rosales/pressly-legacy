@@ -2,14 +2,17 @@ import {
   centsOrderTerminalClosePayloadSchema,
   centsSubmittedOrderCandidatePayloadSchema,
   type CentsSubmittedOrderCandidatePayload,
-} from '@pressly/contracts';
+} from '@pressly/contracts/cents';
 import {
   externalServiceError,
   validationError,
-  type AppError,
-} from '@pressly/errors';
+} from '@pressly/errors/factories';
+import type { AppError } from '@pressly/errors/app-error';
 import type { OrdersWorkerApplication } from '@pressly/orders';
-import type { ProductionApplication } from '@pressly/production';
+import {
+  productionFailureToAppError,
+  type ProductionApplication,
+} from '@pressly/production';
 import type {
   ClaimedWebhookEvent,
   WebhookIngestionApplication,
@@ -19,6 +22,7 @@ import type {
   WebhookEventConsumer,
 } from '../webhook-inbox.job.ts';
 import { isRetryableAppError } from '../../../runtime/failure-disposition.ts';
+import { ordersWorkerFailureToAppError } from '../../order-failure.error.ts';
 
 const centsProposalContext = {
   origin: 'cents',
@@ -78,7 +82,7 @@ const validateStoredIdentity = (
       'cents_order_identity_invalid',
       'The stored Cents order identity or location is inconsistent.',
     );
-  if (event.sourceOccurredAt !== order.sourceUpdatedAt)
+  if (event.sourceOccurredAt?.toISOString() !== order.sourceUpdatedAt)
     return invalidEvent(
       'cents_order_revision_invalid',
       'The stored Cents order revision is inconsistent.',
@@ -97,11 +101,7 @@ const mutationOutcome = (
 ): EventConsumerOutcome =>
   result.tag === 'ok'
     ? { tag: 'ok' }
-    : {
-        tag: 'err',
-        error: result.error,
-        retryable: isRetryableAppError(result.error),
-      };
+    : permanentFailure(ordersWorkerFailureToAppError(result.error));
 
 export const makeCentsOrderHandler =
   (deps: {
@@ -116,8 +116,9 @@ export const makeCentsOrderHandler =
     const storedStatus =
       event.payload !== null &&
       typeof event.payload === 'object' &&
-      !Array.isArray(event.payload)
-        ? (event.payload as Record<string, unknown>)['status']
+      !Array.isArray(event.payload) &&
+      'status' in event.payload
+        ? event.payload['status']
         : null;
 
     // Drain legacy and unsupported observations without granting them a
@@ -151,7 +152,7 @@ export const makeCentsOrderHandler =
           at: new Date(order.sourceUpdatedAt),
           hash: event.payloadHash,
           adapterVersion: 'cents-webhook-v3',
-          observedAt: new Date(event.receivedAt),
+          observedAt: event.receivedAt,
           normalizedPayload: order,
         },
       });
@@ -164,12 +165,14 @@ export const makeCentsOrderHandler =
         actorId: sourceClosureAutomationActorId,
         idempotencyKey: `source-closed-fulfillment:${event.eventId}`,
       });
-      if (resolution.tag === 'err')
+      if (resolution.tag === 'err') {
+        const error = productionFailureToAppError(resolution.error);
         return {
           tag: 'err',
-          error: resolution.error,
-          retryable: isRetryableAppError(resolution.error),
+          error,
+          retryable: isRetryableAppError(error),
         };
+      }
       if (resolution.value.outcome === 'not_found')
         return {
           tag: 'err',
@@ -219,7 +222,7 @@ export const makeCentsOrderHandler =
         at: new Date(order.sourceUpdatedAt),
         hash: event.payloadHash,
         adapterVersion: 'cents-webhook-v3',
-        observedAt: new Date(event.receivedAt),
+        observedAt: event.receivedAt,
         normalizedPayload: order,
       },
       snapshot: {

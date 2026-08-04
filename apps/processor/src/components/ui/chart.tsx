@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { invariantViolationError } from "@pressly/errors/factories"
 import * as RechartsPrimitive from "recharts"
 import type { TooltipValueType } from "recharts"
 
@@ -33,7 +34,10 @@ function useChart() {
   const context = React.useContext(ChartContext)
 
   if (!context) {
-    throw new Error("useChart must be used within a <ChartContainer />")
+    throw invariantViolationError({
+      code: "processor_chart_context_missing",
+      message: "useChart must be used within a <ChartContainer />",
+    })
   }
 
   return context

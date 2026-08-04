@@ -1,14 +1,31 @@
 import {
   deadWebhookEventParamsSchema,
+  deadWebhookEventsResultSchema,
   deadWebhookEventsQuerySchema,
   replayDeadWebhookEventRequestSchema,
-  type DeadWebhookEventsQuery,
-  type ReplayDeadWebhookEventRequest,
-} from '@pressly/contracts';
-import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+  replayDeadWebhookEventResultSchema,
+} from '@pressly/contracts/webhook-ingestion';
+import {
+  defineRequestBoundary,
+  sendValidatedApiResult,
+} from '@pressly/http/express';
 import type { WebhookIngestionApplication } from '@pressly/webhook-ingestion';
 import { Router, type RequestHandler } from 'express';
+import {
+  toDeadWebhookEventsResult,
+  toListDeadWebhookEventsQuery,
+  toReplayDeadWebhookEventError,
+  toReplayDeadWebhookEventResult,
+} from './dead-letter.contract.mapper.ts';
+
+const listDeadWebhookEventsBoundary = defineRequestBoundary({
+  query: deadWebhookEventsQuerySchema,
+});
+
+const replayDeadWebhookEventBoundary = defineRequestBoundary({
+  params: deadWebhookEventParamsSchema,
+  body: replayDeadWebhookEventRequestSchema,
+});
 
 export const makeWebhookIngestionRoutes = (input: {
   application: Pick<
@@ -23,32 +40,34 @@ export const makeWebhookIngestionRoutes = (input: {
   router.get(
     '/webhook-ingestion/dead-letters',
     input.authenticate,
-    validateRequest({ query: deadWebhookEventsQuerySchema }),
+    listDeadWebhookEventsBoundary.validate,
     input.authorize,
-    catchAsync(async (request, response) => {
-      const result = await input.application.listDeadEvents(
-        request.query as unknown as DeadWebhookEventsQuery,
+    listDeadWebhookEventsBoundary.handler(async ({ query }, { response }) => {
+      const listed = await input.application.listDeadEvents(
+        toListDeadWebhookEventsQuery(query),
       );
-      if (result.tag === 'err') throw result.error;
-      response.json(apiSuccess(result.value));
+      sendValidatedApiResult(response, listed, {
+        schema: deadWebhookEventsResultSchema,
+        present: toDeadWebhookEventsResult,
+      });
     }),
   );
 
   router.post(
     '/webhook-ingestion/dead-letters/:eventId/replay',
     input.authenticate,
-    validateRequest({
-      params: deadWebhookEventParamsSchema,
-      body: replayDeadWebhookEventRequestSchema,
-    }),
+    replayDeadWebhookEventBoundary.validate,
     input.authorize,
-    catchAsync(async (request, response) => {
-      const result = await input.application.replayDeadEvent({
-        eventId: request.params['eventId'] as string,
-        ...(request.body as ReplayDeadWebhookEventRequest),
+    replayDeadWebhookEventBoundary.handler(async ({ params }, { response }) => {
+      const replayed = await input.application.replayDeadEvent({
+        eventId: params.eventId,
       });
-      if (result.tag === 'err') throw result.error;
-      response.json(apiSuccess(result.value));
+      if (replayed.tag === 'err')
+        throw toReplayDeadWebhookEventError(replayed.error);
+      sendValidatedApiResult(response, replayed, {
+        schema: replayDeadWebhookEventResultSchema,
+        present: toReplayDeadWebhookEventResult,
+      });
     }),
   );
   return router;

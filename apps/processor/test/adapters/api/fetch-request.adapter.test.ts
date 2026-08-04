@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { describe, expect, it, vi } from "vitest"
 import { makeFetchRequestAdapter } from "@/adapters/api/fetch-request.adapter"
-import { RequestFailure } from "@/ports/request.error"
+import type { RequestFailure } from "@/ports/request.error"
 
 describe("processor request boundary", () => {
   it("uses same-origin cookies and adds the in-memory CSRF proof only to unsafe methods", async () => {
@@ -66,7 +66,7 @@ describe("processor request boundary", () => {
     })
 
     await expect(request({ path: "/work" }, z.string())).rejects.toMatchObject({
-      kind,
+      requestKind: kind,
       code: "EXPECTED",
     } satisfies Partial<RequestFailure>)
     expect(unauthorized).toHaveBeenCalledTimes(status === 401 ? 1 : 0)
@@ -92,8 +92,9 @@ describe("processor request boundary", () => {
       await expect(
         request({ path: "/work" }, z.string())
       ).rejects.toMatchObject({
-        kind: "unavailable",
+        requestKind: "unavailable",
         status: 502,
+        responseStatus: status,
         cause: expect.objectContaining({
           kind: "ExternalServiceError",
           status: 502,
@@ -115,7 +116,7 @@ describe("processor request boundary", () => {
 
     await expect(
       request({ path: "/work" }, z.object({ version: z.number() }))
-    ).rejects.toMatchObject({ kind: "invalid_response" })
+    ).rejects.toMatchObject({ requestKind: "invalid_response" })
   })
 
   it("accepts success metadata and rejects malformed envelopes", async () => {
@@ -146,7 +147,7 @@ describe("processor request boundary", () => {
     await expect(
       request({ path: "/work" }, z.object({ version: z.number() }))
     ).rejects.toMatchObject({
-      kind: "invalid_response",
+      requestKind: "invalid_response",
       code: "INVALID_API_RESPONSE",
       cause: expect.any(Error),
     })
@@ -244,7 +245,7 @@ describe("processor request boundary", () => {
         z.unknown()
       )
     ).rejects.toMatchObject({
-      kind: "invalid_request",
+      requestKind: "invalid_request",
       code: "processor_request_body_not_serializable",
       status: 400,
       cause: expect.objectContaining({

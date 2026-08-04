@@ -1,4 +1,4 @@
-import { attemptObservation, type CounterSink } from '@pressly/metrics';
+import { attemptObservation, type CounterSink } from '@pressly/observability';
 import type { RequestHandler } from 'express';
 import { normalizedApiRoute } from './api-route.ts';
 

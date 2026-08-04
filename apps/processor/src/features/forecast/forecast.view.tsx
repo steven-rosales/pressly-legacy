@@ -4,41 +4,41 @@ import {
   IconCalendarEvent,
   IconCalendarStats,
   IconRefresh,
-} from "@tabler/icons-react"
-import { enUS, es } from "date-fns/locale"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import type { ProductionRemainingDayForecast } from "@pressly/contracts"
+} from '@tabler/icons-react';
+import { enUS, es } from 'date-fns/locale';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { ProductionRemainingDayForecast } from '@pressly/contracts/production';
 import {
   MetricStrip,
   SectionHeading,
-} from "@/components/layout/workspace-primitives"
-import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
+} from '@/components/layout/workspace-primitives';
+import { OperationalOrderIdentity } from '@/components/orders/operational-order-identity';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
+} from '@/components/ui/accordion';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Field, FieldLabel } from "@/components/ui/field"
+} from '@/components/ui/card';
+import { Field, FieldLabel } from '@/components/ui/field';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
-import { Skeleton } from "@/components/ui/skeleton"
-import type { RemainingDayForecastModel } from "./forecast.model"
+} from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { RemainingDayForecastModel } from './forecast.model';
 import {
   forecastActionLabelKey,
   forecastItemStateKey,
@@ -48,59 +48,59 @@ import {
   localeForLanguage,
   type ForecastItem,
   type ForecastNavigationTarget,
-} from "./forecast.presenter"
+} from './forecast.presenter';
 
 type ForecastGroup = Readonly<{
-  id: "inProduction" | "readyToPlace" | "expectedLater" | "needsShift"
-  items: readonly ForecastItem[]
-  summary: ProductionRemainingDayForecast["totals"]["all"]
-}>
+  id: 'inProduction' | 'readyToPlace' | 'expectedLater' | 'needsShift';
+  items: readonly ForecastItem[];
+  summary: ProductionRemainingDayForecast['totals']['all'];
+}>;
 
 const serviceDayToDate = (serviceDay: string): Date | undefined => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(serviceDay)
-  if (match === null) return undefined
-  const [, year, month, day] = match
-  const value = new Date(Number(year), Number(month) - 1, Number(day), 12)
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(serviceDay);
+  if (match === null) return undefined;
+  const [, year, month, day] = match;
+  const value = new Date(Number(year), Number(month) - 1, Number(day), 12);
   return value.getFullYear() === Number(year) &&
     value.getMonth() === Number(month) - 1 &&
     value.getDate() === Number(day)
     ? value
-    : undefined
-}
+    : undefined;
+};
 
 const dateToServiceDay = (value: Date): string =>
   [
-    String(value.getFullYear()).padStart(4, "0"),
-    String(value.getMonth() + 1).padStart(2, "0"),
-    String(value.getDate()).padStart(2, "0"),
-  ].join("-")
+    String(value.getFullYear()).padStart(4, '0'),
+    String(value.getMonth() + 1).padStart(2, '0'),
+    String(value.getDate()).padStart(2, '0'),
+  ].join('-');
 
 const formatServiceDay = (serviceDay: string, locale: string): string => {
-  const value = serviceDayToDate(serviceDay)
+  const value = serviceDayToDate(serviceDay);
   return value === undefined
     ? serviceDay
     : new Intl.DateTimeFormat(locale, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }).format(value)
-}
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(value);
+};
 
 const assumptionKeys = [
-  "forecast.assumptions.algorithm",
-  "forecast.assumptions.overdue",
-  "forecast.assumptions.intake",
-  "forecast.assumptions.wholeOrders",
-  "forecast.assumptions.weights",
-  "forecast.assumptions.missingEstimates",
-  "forecast.assumptions.revalidation",
-  "forecast.assumptions.noPreciseFinish",
-] as const
+  'forecast.assumptions.algorithm',
+  'forecast.assumptions.overdue',
+  'forecast.assumptions.intake',
+  'forecast.assumptions.wholeOrders',
+  'forecast.assumptions.weights',
+  'forecast.assumptions.missingEstimates',
+  'forecast.assumptions.revalidation',
+  'forecast.assumptions.noPreciseFinish',
+] as const;
 
 function ForecastLoading() {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   return (
-    <div className="flex flex-col gap-4" aria-label={t("forecast.loading")}>
+    <div className="flex flex-col gap-4" aria-label={t('forecast.loading')}>
       <Skeleton className="h-16 w-full" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[0, 1, 2, 3].map((index) => (
@@ -113,7 +113,7 @@ function ForecastLoading() {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 function ForecastItemRow({
@@ -123,15 +123,15 @@ function ForecastItemRow({
   onNavigate,
   canNavigate,
 }: Readonly<{
-  item: ForecastItem
-  timezone: string
-  locale: string
-  onNavigate: (target: ForecastNavigationTarget) => void
-  canNavigate: (target: ForecastNavigationTarget) => boolean
+  item: ForecastItem;
+  timezone: string;
+  locale: string;
+  onNavigate: (target: ForecastNavigationTarget) => void;
+  canNavigate: (target: ForecastNavigationTarget) => boolean;
 }>) {
-  const { t } = useTranslation()
-  const target = forecastNavigationTarget(item)
-  const actionLabelKey = forecastActionLabelKey(item)
+  const { t } = useTranslation();
+  const target = forecastNavigationTarget(item);
+  const actionLabelKey = forecastActionLabelKey(item);
 
   return (
     <li className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between">
@@ -141,26 +141,26 @@ function ForecastItemRow({
             identity={item.identity}
             className="me-auto"
           />
-          {item.priority && <Badge>{t("forecast.priority")}</Badge>}
+          {item.priority && <Badge>{t('forecast.priority')}</Badge>}
           <Badge variant="outline">{t(forecastItemStateKey(item))}</Badge>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t("forecast.due", {
+          {t('forecast.due', {
             date: formatForecastDateTime(item.dueAt, timezone, locale),
           })}
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           {item.estimatedWeightLbs === null
-            ? t("forecast.estimateMissing")
-            : t("forecast.estimatedWeight", {
+            ? t('forecast.estimateMissing')
+            : t('forecast.estimatedWeight', {
                 weight: item.estimatedWeightLbs,
               })}
-          {" · "}
+          {' · '}
           {item.bagCount === null
-            ? t("forecast.bagsNotRecorded")
-            : t("common.bags", { count: item.bagCount })}
+            ? t('forecast.bagsNotRecorded')
+            : t('common.bags', { count: item.bagCount })}
         </p>
-        {item.actionability.action === "monitor" && (
+        {item.actionability.action === 'monitor' && (
           <p className="mt-1 text-xs text-muted-foreground">
             {t(`forecast.actionReason.${item.actionability.reason}`)}
           </p>
@@ -178,7 +178,7 @@ function ForecastItemRow({
         </Button>
       )}
     </li>
-  )
+  );
 }
 
 function ForecastGroupCard({
@@ -188,13 +188,13 @@ function ForecastGroupCard({
   onNavigate,
   canNavigate,
 }: Readonly<{
-  group: ForecastGroup
-  timezone: string
-  locale: string
-  onNavigate: (target: ForecastNavigationTarget) => void
-  canNavigate: (target: ForecastNavigationTarget) => boolean
+  group: ForecastGroup;
+  timezone: string;
+  locale: string;
+  onNavigate: (target: ForecastNavigationTarget) => void;
+  canNavigate: (target: ForecastNavigationTarget) => boolean;
 }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   return (
     <Card className="min-w-0 bg-background">
       <CardHeader className="border-b">
@@ -203,14 +203,14 @@ function ForecastGroupCard({
             {t(`forecast.groups.${group.id}.title`)}
           </CardTitle>
           <Badge variant="secondary">
-            {t("common.orders", { count: group.summary.orderCount })}
+            {t('common.orders', { count: group.summary.orderCount })}
           </Badge>
         </div>
         <CardDescription>
           {t(`forecast.groups.${group.id}.description`)}
         </CardDescription>
         <p className="pt-1 text-xs text-muted-foreground">
-          {t("forecast.groupWeight", {
+          {t('forecast.groupWeight', {
             weight: group.summary.knownWeightLbs,
             missing: group.summary.missingEstimateOrderCount,
           })}
@@ -237,33 +237,33 @@ function ForecastGroupCard({
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function ForecastDetails({
   forecast,
   locale,
 }: Readonly<{
-  forecast: ProductionRemainingDayForecast
-  locale: string
+  forecast: ProductionRemainingDayForecast;
+  locale: string;
 }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   const capacityTone =
-    forecast.capacityRisk.level === "attention"
-      ? "secondary"
-      : forecast.capacityRisk.level === "clear"
-        ? "default"
-        : "outline"
+    forecast.capacityRisk.level === 'attention'
+      ? 'secondary'
+      : forecast.capacityRisk.level === 'clear'
+        ? 'default'
+        : 'outline';
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="bg-background">
         <CardHeader>
           <CardTitle role="heading" aria-level={3}>
-            {t("forecast.capacity.title")}
+            {t('forecast.capacity.title')}
           </CardTitle>
           <CardDescription>
-            {t("forecast.capacity.description")}
+            {t('forecast.capacity.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -273,8 +273,8 @@ function ForecastDetails({
             </Badge>
             <span className="text-sm text-muted-foreground">
               {forecast.capacityRisk.pulseCapacityLbs === null
-                ? t("forecast.capacity.unknownPulse")
-                : t("forecast.capacity.pulse", {
+                ? t('forecast.capacity.unknownPulse')
+                : t('forecast.capacity.pulse', {
                     weight: forecast.capacityRisk.pulseCapacityLbs,
                   })}
             </span>
@@ -290,14 +290,14 @@ function ForecastDetails({
       <Card className="bg-background">
         <CardHeader>
           <CardTitle role="heading" aria-level={3}>
-            {t("forecast.shifts.title")}
+            {t('forecast.shifts.title')}
           </CardTitle>
-          <CardDescription>{t("forecast.shifts.description")}</CardDescription>
+          <CardDescription>{t('forecast.shifts.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           {forecast.shifts.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              {t("forecast.shifts.empty")}
+              {t('forecast.shifts.empty')}
             </p>
           ) : (
             <ul className="divide-y">
@@ -310,13 +310,13 @@ function ForecastDetails({
                     {formatForecastClock(
                       shift.startsAt,
                       forecast.timezone,
-                      locale
+                      locale,
                     )}
-                    {" – "}
+                    {' – '}
                     {formatForecastClock(
                       shift.endsAt,
                       forecast.timezone,
-                      locale
+                      locale,
                     )}
                   </span>
                   <Badge variant="outline">
@@ -329,7 +329,7 @@ function ForecastDetails({
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 export function ForecastView({
@@ -338,27 +338,27 @@ export function ForecastView({
   onNavigate,
   canNavigate = () => true,
 }: Readonly<{
-  model: RemainingDayForecastModel
-  timezone: string
-  onNavigate: (target: ForecastNavigationTarget) => void
-  canNavigate?: (target: ForecastNavigationTarget) => boolean
+  model: RemainingDayForecastModel;
+  timezone: string;
+  onNavigate: (target: ForecastNavigationTarget) => void;
+  canNavigate?: (target: ForecastNavigationTarget) => boolean;
 }>) {
-  const { t, i18n } = useTranslation()
-  const locale = localeForLanguage(i18n.resolvedLanguage)
-  const forecast = model.forecast
-  const [calendarOpen, setCalendarOpen] = useState(false)
-  const serviceDayLabel = formatServiceDay(model.serviceDay, locale)
+  const { t, i18n } = useTranslation();
+  const locale = localeForLanguage(i18n.resolvedLanguage);
+  const forecast = model.forecast;
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const serviceDayLabel = formatServiceDay(model.serviceDay, locale);
 
   return (
     <div className="flex flex-col gap-5" data-testid="forecast-workspace">
       <SectionHeading
-        title={t("forecast.workspaceTitle")}
-        description={t("forecast.workspaceDescription")}
+        title={t('forecast.workspaceTitle')}
+        description={t('forecast.workspaceDescription')}
         action={
           <div className="flex flex-wrap items-end gap-2">
             <Field className="gap-1.5">
               <FieldLabel htmlFor="forecast-service-day" className="text-xs">
-                {t("forecast.serviceDay")}
+                {t('forecast.serviceDay')}
               </FieldLabel>
               <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                 <PopoverTrigger asChild>
@@ -367,7 +367,7 @@ export function ForecastView({
                     type="button"
                     variant="outline"
                     className="h-11 w-44 justify-start px-3 font-normal"
-                    aria-label={t("forecast.serviceDayValue", {
+                    aria-label={t('forecast.serviceDayValue', {
                       date: serviceDayLabel,
                     })}
                   >
@@ -383,20 +383,20 @@ export function ForecastView({
                 >
                   <Calendar
                     mode="single"
-                    locale={i18n.resolvedLanguage === "es" ? es : enUS}
+                    locale={i18n.resolvedLanguage === 'es' ? es : enUS}
                     timeZone={timezone}
                     selected={serviceDayToDate(model.serviceDay)}
                     defaultMonth={serviceDayToDate(model.serviceDay)}
                     onSelect={(date) => {
                       if (date !== undefined) {
-                        model.onServiceDayChange(dateToServiceDay(date))
-                        setCalendarOpen(false)
+                        model.onServiceDayChange(dateToServiceDay(date));
+                        setCalendarOpen(false);
                       }
                     }}
                     className="mx-auto w-fit max-w-full p-0 [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(11)]"
                     classNames={{
-                      month: "flex w-full flex-col gap-2",
-                      week: "mt-1 flex w-full",
+                      month: 'flex w-full flex-col gap-2',
+                      week: 'mt-1 flex w-full',
                     }}
                   />
                 </PopoverContent>
@@ -411,21 +411,21 @@ export function ForecastView({
             >
               <IconRefresh
                 data-icon="inline-start"
-                className={model.refreshing ? "animate-spin" : undefined}
+                className={model.refreshing ? 'animate-spin' : undefined}
               />
-              {t("common.refresh")}
+              {t('common.refresh')}
             </Button>
           </div>
         }
       />
 
       {model.error !== null && (
-        <Alert variant={forecast === null ? "destructive" : "default"}>
+        <Alert variant={forecast === null ? 'destructive' : 'default'}>
           <IconAlertTriangle />
           <AlertTitle>
             {forecast === null
-              ? t("forecast.loadFailed")
-              : t("forecast.refreshFailed")}
+              ? t('forecast.loadFailed')
+              : t('forecast.refreshFailed')}
           </AlertTitle>
           <AlertDescription>{model.error}</AlertDescription>
         </Alert>
@@ -437,9 +437,9 @@ export function ForecastView({
         <Card className="bg-background">
           <CardContent className="flex min-h-64 flex-col items-center justify-center gap-3 text-center">
             <IconCalendarStats className="size-6 text-muted-foreground" />
-            <p className="font-medium">{t("forecast.unavailableTitle")}</p>
+            <p className="font-medium">{t('forecast.unavailableTitle')}</p>
             <p className="max-w-md text-sm text-muted-foreground">
-              {t("forecast.unavailableDescription")}
+              {t('forecast.unavailableDescription')}
             </p>
             <Button
               type="button"
@@ -447,7 +447,7 @@ export function ForecastView({
               className="h-11"
               onClick={() => void model.refresh()}
             >
-              {t("common.retry")}
+              {t('common.retry')}
             </Button>
           </CardContent>
         </Card>
@@ -455,67 +455,67 @@ export function ForecastView({
         <>
           <div className="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <p>
-              {t("forecast.window", {
+              {t('forecast.window', {
                 start: formatForecastDateTime(
                   forecast.window.startsAt,
                   forecast.timezone,
-                  locale
+                  locale,
                 ),
                 end: formatForecastDateTime(
                   forecast.window.endsAt,
                   forecast.timezone,
-                  locale
+                  locale,
                 ),
                 timezone: forecast.timezone,
               })}
             </p>
             <p>
-              {t("forecast.updated", {
+              {t('forecast.updated', {
                 date: formatForecastDateTime(
                   forecast.asOf,
                   forecast.timezone,
-                  locale
+                  locale,
                 ),
               })}
             </p>
           </div>
 
           <MetricStrip
-            label={t("forecast.summary")}
+            label={t('forecast.summary')}
             metrics={[
               {
-                label: t("forecast.groups.inProduction.title"),
-                value: t("common.pounds", {
+                label: t('forecast.groups.inProduction.title'),
+                value: t('common.pounds', {
                   value: forecast.totals.inProduction.knownWeightLbs,
                 }),
-                detail: t("common.orders", {
+                detail: t('common.orders', {
                   count: forecast.totals.inProduction.orderCount,
                 }),
               },
               {
-                label: t("forecast.groups.readyToPlace.title"),
-                value: t("common.pounds", {
+                label: t('forecast.groups.readyToPlace.title'),
+                value: t('common.pounds', {
                   value: forecast.totals.readyToPlace.knownWeightLbs,
                 }),
-                detail: t("common.orders", {
+                detail: t('common.orders', {
                   count: forecast.totals.readyToPlace.orderCount,
                 }),
               },
               {
-                label: t("forecast.groups.expectedLater.title"),
-                value: t("common.pounds", {
+                label: t('forecast.groups.expectedLater.title'),
+                value: t('common.pounds', {
                   value: forecast.totals.expectedLater.knownWeightLbs,
                 }),
-                detail: t("common.orders", {
+                detail: t('common.orders', {
                   count: forecast.totals.expectedLater.orderCount,
                 }),
               },
               {
-                label: t("forecast.groups.needsShift.title"),
-                value: t("common.pounds", {
+                label: t('forecast.groups.needsShift.title'),
+                value: t('common.pounds', {
                   value: forecast.totals.needsShift.knownWeightLbs,
                 }),
-                detail: t("common.orders", {
+                detail: t('common.orders', {
                   count: forecast.totals.needsShift.orderCount,
                 }),
               },
@@ -528,22 +528,22 @@ export function ForecastView({
             {(
               [
                 {
-                  id: "inProduction",
+                  id: 'inProduction',
                   items: forecast.groups.inProduction,
                   summary: forecast.totals.inProduction,
                 },
                 {
-                  id: "readyToPlace",
+                  id: 'readyToPlace',
                   items: forecast.groups.readyToPlace,
                   summary: forecast.totals.readyToPlace,
                 },
                 {
-                  id: "expectedLater",
+                  id: 'expectedLater',
                   items: forecast.groups.expectedLater,
                   summary: forecast.totals.expectedLater,
                 },
                 {
-                  id: "needsShift",
+                  id: 'needsShift',
                   items: forecast.groups.needsShift,
                   summary: forecast.totals.needsShift,
                 },
@@ -565,7 +565,7 @@ export function ForecastView({
               <Accordion type="single" collapsible>
                 <AccordionItem value="assumptions" className="border-0">
                   <AccordionTrigger>
-                    {t("forecast.assumptions.title")}
+                    {t('forecast.assumptions.title')}
                   </AccordionTrigger>
                   <AccordionContent>
                     <ul className="list-disc space-y-1 ps-5 text-muted-foreground">
@@ -581,5 +581,5 @@ export function ForecastView({
         </>
       )}
     </div>
-  )
+  );
 }

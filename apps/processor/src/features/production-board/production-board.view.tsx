@@ -22,7 +22,7 @@ import {
   IconScale,
   IconStack2,
 } from "@tabler/icons-react"
-import type { ProductionMachine, StageRun } from "@pressly/contracts"
+import type { ProductionMachine, StageRun } from "@pressly/contracts/production"
 import {
   MetricStrip,
   SectionHeading,

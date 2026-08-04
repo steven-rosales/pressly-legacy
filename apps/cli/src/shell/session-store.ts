@@ -5,8 +5,9 @@ import { homedir } from 'node:os';
 import {
   authenticatedLoginResultSchema,
   type AuthenticatedLoginResult,
-} from '@pressly/contracts';
-import { authError, configError, type AppError } from '@pressly/errors';
+} from '@pressly/contracts/auth';
+import { type AppError } from '@pressly/errors/app-error';
+import { authError, configError } from '@pressly/errors/factories';
 
 export type CliSession = Readonly<AuthenticatedLoginResult>;
 

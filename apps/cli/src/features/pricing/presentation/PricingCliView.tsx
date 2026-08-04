@@ -3,14 +3,14 @@ import { Box, Text, useApp, useInput } from 'ink';
 import { result } from '@pressly/kernel';
 import {
   normalizeUnknownError,
-  presentAppError,
   type AppError,
-} from '@pressly/errors';
+} from '@pressly/errors/app-error';
+import { presentAppError } from '@pressly/errors/presentation';
 import type {
   LoadPricingCatalogResult,
   PricingChangePlan,
   PublishPricingChangeResult,
-} from '@pressly/contracts';
+} from '@pressly/contracts/pricing';
 import { commandError } from '../../../shell/command-error.ts';
 import { toPricingChangeInput } from '../application/command.ts';
 import type {

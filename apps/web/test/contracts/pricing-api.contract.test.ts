@@ -1,5 +1,5 @@
 import { result } from '@pressly/kernel';
-import { pricingCatalogSchema } from '@pressly/contracts';
+import { pricingCatalogSchema } from '@pressly/contracts/pricing';
 import { makePricingQueries } from '@/features/pricing/queries';
 
 const queryFetch = vi.hoisted(() => vi.fn());

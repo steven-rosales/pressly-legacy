@@ -3,23 +3,67 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "import": "./dist/auth/index.js",
+      "default": "./dist/auth/index.js"
+    },
+    "./cents": {
+      "types": "./dist/cents/index.d.ts",
+      "import": "./dist/cents/index.js",
+      "default": "./dist/cents/index.js"
+    },
+    "./lpms": {
+      "types": "./dist/lpms/index.d.ts",
+      "import": "./dist/lpms/index.js",
+      "default": "./dist/lpms/index.js"
+    },
+    "./orders": {
+      "types": "./dist/orders/index.d.ts",
+      "import": "./dist/orders/index.js",
+      "default": "./dist/orders/index.js"
+    },
+    "./pricing": {
+      "types": "./dist/pricing/index.d.ts",
+      "import": "./dist/pricing/index.js",
+      "default": "./dist/pricing/index.js"
+    },
+    "./processor": {
+      "types": "./dist/processor/index.d.ts",
+      "import": "./dist/processor/index.js",
+      "default": "./dist/processor/index.js"
+    },
+    "./production": {
+      "types": "./dist/production/index.d.ts",
+      "import": "./dist/production/index.js",
+      "default": "./dist/production/index.js"
+    },
+    "./users": {
+      "types": "./dist/users/index.d.ts",
+      "import": "./dist/users/index.js",
+      "default": "./dist/users/index.js"
+    },
+    "./utc-iso": {
+      "types": "./dist/utc-iso.contracts.d.ts",
+      "import": "./dist/utc-iso.contracts.js",
+      "default": "./dist/utc-iso.contracts.js"
+    },
+    "./webhook-ingestion": {
+      "types": "./dist/webhook-ingestion/index.d.ts",
+      "import": "./dist/webhook-ingestion/index.js",
+      "default": "./dist/webhook-ingestion/index.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
-    "test": "vitest run --passWithNoTests",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --passWithNoTests",
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@pressly/codec": "workspace:*",
     "@pressly/time": "workspace:*",
     "zod": "^4.3.6"
   },

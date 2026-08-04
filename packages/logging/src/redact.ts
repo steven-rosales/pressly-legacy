@@ -1,4 +1,4 @@
-import { isAppError } from '@pressly/errors';
+import { isAppError } from '@pressly/errors/app-error';
 
 const sensitiveKeyPattern =
   /(password|secret|token|credential|api[_-]?key|authorization|cookie|dsn|database[_-]?url|request[_-]?body|mfa|recovery[_-]?codes?)/i;

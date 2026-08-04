@@ -9,10 +9,10 @@ import {
   IconRefresh,
   IconStack2,
   IconUser,
-} from "@tabler/icons-react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+} from '@tabler/icons-react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,20 +22,23 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
-} from "@/components/ui/field"
-import { Checkbox } from "@/components/ui/checkbox"
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
+} from '@/components/ui/field';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from '@/components/ui/native-select';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import {
   Sheet,
   SheetContent,
@@ -43,10 +46,10 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet"
-import { Spinner } from "@/components/ui/spinner"
-import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/components/ui/class-names"
+} from '@/components/ui/sheet';
+import { Spinner } from '@/components/ui/spinner';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/components/ui/class-names';
 import type {
   OrderActionPreview,
   OrderArchiveAction,
@@ -55,7 +58,7 @@ import type {
   OrderDetailAction,
   OrderExceptionAction,
   OrderMoveAction,
-} from "./order-control.model"
+} from './order-control.model';
 
 function Fact({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
@@ -63,11 +66,11 @@ function Fact({ label, value }: Readonly<{ label: string; value: string }>) {
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-1 text-sm font-medium break-words">{value}</dd>
     </div>
-  )
+  );
 }
 
 function PreviewCard({ preview }: { preview: OrderActionPreview }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   return (
     <Card className="gap-3 bg-muted/35 py-4">
       <CardHeader className="px-4">
@@ -96,41 +99,41 @@ function PreviewCard({ preview }: { preview: OrderActionPreview }) {
         {preview.warnings.length > 0 && (
           <Alert className="border-warning-foreground/20 bg-warning text-warning-foreground">
             <IconAlertTriangle />
-            <AlertTitle>{t("orderControl.reviewBeforeConfirming")}</AlertTitle>
-            <AlertDescription>{preview.warnings.join(" ")}</AlertDescription>
+            <AlertTitle>{t('orderControl.reviewBeforeConfirming')}</AlertTitle>
+            <AlertDescription>{preview.warnings.join(' ')}</AlertDescription>
           </Alert>
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function ActionError({ error }: { error: string | null }) {
-  const { t } = useTranslation()
-  if (error === null) return null
+  const { t } = useTranslation();
+  if (error === null) return null;
   return (
     <Alert variant="destructive" role="alert">
       <IconAlertTriangle />
-      <AlertTitle>{t("orderControl.actionNotReady")}</AlertTitle>
+      <AlertTitle>{t('orderControl.actionNotReady')}</AlertTitle>
       <AlertDescription>{error}</AlertDescription>
     </Alert>
-  )
+  );
 }
 
 function MoveActionView({
   action,
   callbacks,
 }: Readonly<{
-  action: OrderMoveAction
-  callbacks: OrderControlCallbacks
+  action: OrderMoveAction;
+  callbacks: OrderControlCallbacks;
 }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   const selectedTarget = action.targets.find(
-    (target) => target.batchId === action.selectedBatchId
-  )
+    (target) => target.batchId === action.selectedBatchId,
+  );
   const canReview =
-    selectedTarget !== undefined && !selectedTarget.disabled && !action.busy
-  const locked = action.preview !== null || action.busy
+    selectedTarget !== undefined && !selectedTarget.disabled && !action.busy;
+  const locked = action.preview !== null || action.busy;
 
   return (
     <>
@@ -144,18 +147,18 @@ function MoveActionView({
             onClick={callbacks.onCancelAction}
           >
             <IconArrowLeft data-icon="inline-start" />
-            {t("orderControl.backToOrder")}
+            {t('orderControl.backToOrder')}
           </Button>
           <Alert>
             <IconArrowsMove />
-            <AlertTitle>{t("orderControl.queuedOnly")}</AlertTitle>
+            <AlertTitle>{t('orderControl.queuedOnly')}</AlertTitle>
             <AlertDescription>
-              {t("orderControl.queuedOnlyDescription")}
+              {t('orderControl.queuedOnlyDescription')}
             </AlertDescription>
           </Alert>
           <Field>
             <FieldLabel htmlFor="order-move-target">
-              {t("orderControl.destinationBatch")}
+              {t('orderControl.destinationBatch')}
             </FieldLabel>
             <NativeSelect
               id="order-move-target"
@@ -167,7 +170,7 @@ function MoveActionView({
               }
             >
               <NativeSelectOption value="" disabled>
-                {t("orderControl.chooseQueuedBatch")}
+                {t('orderControl.chooseQueuedBatch')}
               </NativeSelectOption>
               {action.targets.map((target) => (
                 <NativeSelectOption
@@ -199,7 +202,7 @@ function MoveActionView({
             disabled={action.busy}
             onClick={callbacks.onChangeActionDetails}
           >
-            {t("orderControl.changeDestination")}
+            {t('orderControl.changeDestination')}
           </Button>
         )}
         <Button
@@ -215,45 +218,45 @@ function MoveActionView({
         >
           {action.busy && <Spinner data-icon="inline-start" />}
           {action.preview === null
-            ? t("orderControl.reviewMove")
+            ? t('orderControl.reviewMove')
             : action.preview.confirmationLabel}
         </Button>
       </SheetFooter>
     </>
-  )
+  );
 }
 
 const exceptionCopy = {
   leave_behind: {
-    titleKey: "orderControl.leaveTitle",
-    descriptionKey: "orderControl.leaveDescription",
+    titleKey: 'orderControl.leaveTitle',
+    descriptionKey: 'orderControl.leaveDescription',
     icon: IconPackageExport,
   },
   rework: {
-    titleKey: "orderControl.reworkTitle",
-    descriptionKey: "orderControl.reworkDescription",
+    titleKey: 'orderControl.reworkTitle',
+    descriptionKey: 'orderControl.reworkDescription',
     icon: IconRefresh,
   },
-} as const
+} as const;
 
 function ExceptionActionView({
   action,
   callbacks,
 }: Readonly<{
-  action: OrderExceptionAction
-  callbacks: OrderControlCallbacks
+  action: OrderExceptionAction;
+  callbacks: OrderControlCallbacks;
 }>) {
-  const { t } = useTranslation()
-  const copy = exceptionCopy[action.kind]
-  const Icon = copy.icon
-  const locked = action.preview !== null || action.busy
+  const { t } = useTranslation();
+  const copy = exceptionCopy[action.kind];
+  const Icon = copy.icon;
+  const locked = action.preview !== null || action.busy;
   const missingOtherNote =
-    action.draft.reason === "other" && action.draft.note.trim().length === 0
+    action.draft.reason === 'other' && action.draft.note.trim().length === 0;
   const canReview =
     action.draft.reason.length > 0 &&
     action.draft.restartStage.length > 0 &&
     !missingOtherNote &&
-    !action.busy
+    !action.busy;
 
   return (
     <>
@@ -267,7 +270,7 @@ function ExceptionActionView({
             onClick={callbacks.onCancelAction}
           >
             <IconArrowLeft data-icon="inline-start" />
-            {t("orderControl.backToOrder")}
+            {t('orderControl.backToOrder')}
           </Button>
           <Alert className="border-warning-foreground/20 bg-warning text-warning-foreground">
             <Icon />
@@ -277,7 +280,7 @@ function ExceptionActionView({
           <FieldGroup className="gap-5">
             <Field>
               <FieldLabel htmlFor="order-exception-reason">
-                {t("orderControl.reason")}
+                {t('orderControl.reason')}
               </FieldLabel>
               <NativeSelect
                 id="order-exception-reason"
@@ -292,7 +295,7 @@ function ExceptionActionView({
                 }
               >
                 <NativeSelectOption value="" disabled>
-                  {t("orderControl.chooseWhatHappened")}
+                  {t('orderControl.chooseWhatHappened')}
                 </NativeSelectOption>
                 {action.reasonOptions.map((option) => (
                   <NativeSelectOption key={option.value} value={option.value}>
@@ -303,7 +306,7 @@ function ExceptionActionView({
             </Field>
             <Field>
               <FieldLabel htmlFor="order-exception-stage">
-                {t("orderControl.resumeAt")}
+                {t('orderControl.resumeAt')}
               </FieldLabel>
               <NativeSelect
                 id="order-exception-stage"
@@ -318,7 +321,7 @@ function ExceptionActionView({
                 }
               >
                 <NativeSelectOption value="" disabled>
-                  {t("orderControl.chooseNextStage")}
+                  {t('orderControl.chooseNextStage')}
                 </NativeSelectOption>
                 {action.restartStageOptions.map((option) => (
                   <NativeSelectOption key={option.value} value={option.value}>
@@ -327,29 +330,29 @@ function ExceptionActionView({
                 ))}
               </NativeSelect>
               <FieldDescription>
-                {t("orderControl.physicalTruth")}
+                {t('orderControl.physicalTruth')}
               </FieldDescription>
             </Field>
             <Alert>
               <IconStack2 />
-              <AlertTitle>{t("orderControl.nextCompatibleBatch")}</AlertTitle>
+              <AlertTitle>{t('orderControl.nextCompatibleBatch')}</AlertTitle>
               <AlertDescription>
-                {t("orderControl.nextCompatibleDescription")}
+                {t('orderControl.nextCompatibleDescription')}
               </AlertDescription>
             </Alert>
             <Field>
               <FieldLabel htmlFor="order-exception-note">
-                {t("orderControl.floorNote")}
-                {action.draft.reason === "other"
-                  ? ""
-                  : ` (${t("orderControl.optional")})`}
+                {t('orderControl.floorNote')}
+                {action.draft.reason === 'other'
+                  ? ''
+                  : ` (${t('orderControl.optional')})`}
               </FieldLabel>
               <Textarea
                 id="order-exception-note"
                 value={action.draft.note}
                 disabled={locked}
                 maxLength={500}
-                placeholder={t("orderControl.notePlaceholder")}
+                placeholder={t('orderControl.notePlaceholder')}
                 onChange={(event) =>
                   callbacks.onExceptionDraftChange({
                     ...action.draft,
@@ -359,7 +362,7 @@ function ExceptionActionView({
               />
               {missingOtherNote && (
                 <FieldDescription>
-                  {t("orderControl.otherNoteRequired")}
+                  {t('orderControl.otherNoteRequired')}
                 </FieldDescription>
               )}
             </Field>
@@ -377,7 +380,7 @@ function ExceptionActionView({
             disabled={action.busy}
             onClick={callbacks.onChangeActionDetails}
           >
-            {t("orderControl.changeDetails")}
+            {t('orderControl.changeDetails')}
           </Button>
         )}
         <Button
@@ -393,12 +396,12 @@ function ExceptionActionView({
         >
           {action.busy && <Spinner data-icon="inline-start" />}
           {action.preview === null
-            ? t("orderControl.reviewFloorChange")
+            ? t('orderControl.reviewFloorChange')
             : action.preview.confirmationLabel}
         </Button>
       </SheetFooter>
     </>
-  )
+  );
 }
 
 function ArchiveActionView({
@@ -406,21 +409,21 @@ function ArchiveActionView({
   action,
   callbacks,
 }: Readonly<{
-  order: OrderControlOrder
-  action: OrderArchiveAction
-  callbacks: OrderControlCallbacks
+  order: OrderControlOrder;
+  action: OrderArchiveAction;
+  callbacks: OrderControlCallbacks;
 }>) {
-  const { t } = useTranslation()
-  const [confirmationOpen, setConfirmationOpen] = useState(false)
+  const { t } = useTranslation();
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
   const missingOtherNote =
-    action.draft.reason === "other" && action.draft.note.trim().length === 0
+    action.draft.reason === 'other' && action.draft.note.trim().length === 0;
   const needsFactConfirmation =
-    action.requiresExplicitReview && !action.draft.confirmedFacts
+    action.requiresExplicitReview && !action.draft.confirmedFacts;
   const canConfirm =
     action.draft.reason.length > 0 &&
     !missingOtherNote &&
     !needsFactConfirmation &&
-    !action.busy
+    !action.busy;
 
   return (
     <>
@@ -434,21 +437,21 @@ function ArchiveActionView({
             onClick={callbacks.onCancelAction}
           >
             <IconArrowLeft data-icon="inline-start" />
-            {t("orderControl.backToOrder")}
+            {t('orderControl.backToOrder')}
           </Button>
 
           <Alert>
             <IconArchive />
-            <AlertTitle>{t("orderControl.archiveKeepsHistory")}</AlertTitle>
+            <AlertTitle>{t('orderControl.archiveKeepsHistory')}</AlertTitle>
             <AlertDescription>
-              {t("orderControl.archiveKeepsHistoryDetail")}
+              {t('orderControl.archiveKeepsHistoryDetail')}
             </AlertDescription>
           </Alert>
 
           <Card className="gap-1 bg-muted/35 py-4">
             <CardContent className="px-4">
               <p className="text-sm font-medium">
-                {t("orderControl.orderNumber", {
+                {t('orderControl.orderNumber', {
                   orderId: order.externalOrderId,
                 })}
               </p>
@@ -461,7 +464,7 @@ function ArchiveActionView({
           <FieldGroup className="gap-5">
             <Field>
               <FieldLabel htmlFor="order-archive-reason">
-                {t("orderControl.archiveReason")}
+                {t('orderControl.archiveReason')}
               </FieldLabel>
               <NativeSelect
                 id="order-archive-reason"
@@ -485,17 +488,17 @@ function ArchiveActionView({
 
             <Field>
               <FieldLabel htmlFor="order-archive-note">
-                {t("orderControl.archiveNote")}
-                {action.draft.reason === "other"
-                  ? ""
-                  : ` (${t("orderControl.optional")})`}
+                {t('orderControl.archiveNote')}
+                {action.draft.reason === 'other'
+                  ? ''
+                  : ` (${t('orderControl.optional')})`}
               </FieldLabel>
               <Textarea
                 id="order-archive-note"
                 value={action.draft.note}
                 disabled={action.busy}
                 maxLength={500}
-                placeholder={t("orderControl.archiveNotePlaceholder")}
+                placeholder={t('orderControl.archiveNotePlaceholder')}
                 onChange={(event) =>
                   callbacks.onArchiveDraftChange({
                     ...action.draft,
@@ -505,7 +508,7 @@ function ArchiveActionView({
               />
               {missingOtherNote && (
                 <FieldDescription>
-                  {t("orderControl.otherNoteRequired")}
+                  {t('orderControl.otherNoteRequired')}
                 </FieldDescription>
               )}
             </Field>
@@ -513,7 +516,7 @@ function ArchiveActionView({
             {action.requiresExplicitReview && (
               <div className="rounded-lg border p-4">
                 <p className="text-sm font-medium">
-                  {t("orderControl.archiveReviewFacts")}
+                  {t('orderControl.archiveReviewFacts')}
                 </p>
                 <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
                   {action.reviewReasons.map((reason) => (
@@ -535,7 +538,7 @@ function ArchiveActionView({
                       })
                     }
                   />
-                  <span>{t("orderControl.archiveFactsConfirmed")}</span>
+                  <span>{t('orderControl.archiveFactsConfirmed')}</span>
                 </label>
               </div>
             )}
@@ -551,7 +554,7 @@ function ArchiveActionView({
           disabled={action.busy}
           onClick={callbacks.onCancelAction}
         >
-          {t("common.cancel")}
+          {t('common.cancel')}
         </Button>
         <AlertDialog open={confirmationOpen} onOpenChange={setConfirmationOpen}>
           <Button
@@ -561,24 +564,24 @@ function ArchiveActionView({
             onClick={() => setConfirmationOpen(true)}
           >
             <IconArchive data-icon="inline-start" />
-            {t("orderControl.reviewArchive")}
+            {t('orderControl.reviewArchive')}
           </Button>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                {t("orderControl.confirmArchiveTitle", {
+                {t('orderControl.confirmArchiveTitle', {
                   order: order.externalOrderId,
                 })}
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {t("orderControl.confirmArchiveDetail", {
+                {t('orderControl.confirmArchiveDetail', {
                   customer: order.customerLabel,
                 })}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={action.busy}>
-                {t("common.cancel")}
+                {t('common.cancel')}
               </AlertDialogCancel>
               <AlertDialogAction
                 variant="default"
@@ -586,39 +589,39 @@ function ArchiveActionView({
                 onClick={callbacks.onConfirmArchive}
               >
                 {action.busy && <Spinner data-icon="inline-start" />}
-                {t("orderControl.archiveFromActive")}
+                {t('orderControl.archiveFromActive')}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       </SheetFooter>
     </>
-  )
+  );
 }
 
 function ActionReason({ children }: { children: string | null }) {
-  if (children === null) return null
-  return <p className="text-xs text-muted-foreground">{children}</p>
+  if (children === null) return null;
+  return <p className="text-xs text-muted-foreground">{children}</p>;
 }
 
 function OrderOverview({
   order,
   callbacks,
 }: Readonly<{
-  order: OrderControlOrder
-  callbacks: OrderControlCallbacks
+  order: OrderControlOrder;
+  callbacks: OrderControlCallbacks;
 }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   return (
     <>
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex min-w-0 flex-col gap-5 px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{order.statusLabel}</Badge>
-            {order.priority && <Badge>{t("orderControl.priority")}</Badge>}
-            {order.position.membership === "frozen" && (
+            {order.priority && <Badge>{t('orderControl.priority')}</Badge>}
+            {order.position.membership === 'frozen' && (
               <Badge variant="outline">
-                <IconLock data-icon="inline-start" /> {t("orderControl.frozen")}
+                <IconLock data-icon="inline-start" /> {t('orderControl.frozen')}
               </Badge>
             )}
           </div>
@@ -626,11 +629,11 @@ function OrderOverview({
           {order.attention !== null && (
             <Alert
               variant={
-                order.attention.tone === "critical" ? "destructive" : "default"
+                order.attention.tone === 'critical' ? 'destructive' : 'default'
               }
               className={cn(
-                order.attention.tone === "warning" &&
-                  "border-warning-foreground/20 bg-warning text-warning-foreground"
+                order.attention.tone === 'warning' &&
+                  'border-warning-foreground/20 bg-warning text-warning-foreground',
               )}
             >
               <IconAlertTriangle />
@@ -643,7 +646,7 @@ function OrderOverview({
             <div className="flex items-center gap-2">
               <IconStack2 className="size-4 text-muted-foreground" />
               <h3 id="order-position-heading" className="text-sm font-medium">
-                {t("orderControl.floorPosition")}
+                {t('orderControl.floorPosition')}
               </h3>
             </div>
             <Card className="mt-2 gap-2 bg-muted/35 py-4">
@@ -656,21 +659,21 @@ function OrderOverview({
             </Card>
             <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Fact
-                label={t("orderControl.commercialState")}
+                label={t('orderControl.commercialState')}
                 value={order.commercialStateLabel}
               />
               <Fact
-                label={t("orderControl.productionAdmission")}
+                label={t('orderControl.productionAdmission')}
                 value={order.admissionStateLabel}
               />
-              <Fact label={t("orderControl.due")} value={order.dueLabel} />
+              <Fact label={t('orderControl.due')} value={order.dueLabel} />
               <Fact
-                label={t("orderControl.demand")}
+                label={t('orderControl.demand')}
                 value={order.weightLabel}
               />
-              <Fact label={t("orderControl.bags")} value={order.bagLabel} />
+              <Fact label={t('orderControl.bags')} value={order.bagLabel} />
               <Fact
-                label={t("orderControl.updatedLabel")}
+                label={t('orderControl.updatedLabel')}
                 value={order.lastUpdatedLabel}
               />
             </dl>
@@ -679,13 +682,13 @@ function OrderOverview({
           {order.placement !== null && (
             <section aria-labelledby="order-placement-heading">
               <h3 id="order-placement-heading" className="text-sm font-medium">
-                {t("orderControl.placement")}
+                {t('orderControl.placement')}
               </h3>
               <div className="mt-2 rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium">{order.placement.label}</p>
                   {order.placement.pinned && (
-                    <Badge variant="outline">{t("orderControl.pinned")}</Badge>
+                    <Badge variant="outline">{t('orderControl.pinned')}</Badge>
                   )}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -698,7 +701,7 @@ function OrderOverview({
           <Separator />
           <section aria-labelledby="order-actions-heading">
             <h3 id="order-actions-heading" className="text-sm font-medium">
-              {t("orderControl.orderActions")}
+              {t('orderControl.orderActions')}
             </h3>
             <div className="mt-3 grid gap-3">
               <div>
@@ -710,7 +713,7 @@ function OrderOverview({
                   onClick={() => callbacks.onStartMove(order.id)}
                 >
                   <IconArrowsMove data-icon="inline-start" />
-                  {t("orderControl.moveToQueued")}
+                  {t('orderControl.moveToQueued')}
                 </Button>
                 <ActionReason>{order.move.reason}</ActionReason>
               </div>
@@ -721,11 +724,11 @@ function OrderOverview({
                   className="h-11 w-full justify-start"
                   disabled={!order.leaveBehind.available}
                   onClick={() =>
-                    callbacks.onStartException(order.id, "leave_behind")
+                    callbacks.onStartException(order.id, 'leave_behind')
                   }
                 >
                   <IconPackageExport data-icon="inline-start" />
-                  {t("orderControl.leaveBehind")}
+                  {t('orderControl.leaveBehind')}
                 </Button>
                 <ActionReason>{order.leaveBehind.reason}</ActionReason>
               </div>
@@ -735,10 +738,10 @@ function OrderOverview({
                   variant="outline"
                   className="h-11 w-full justify-start"
                   disabled={!order.rework.available}
-                  onClick={() => callbacks.onStartException(order.id, "rework")}
+                  onClick={() => callbacks.onStartException(order.id, 'rework')}
                 >
                   <IconRefresh data-icon="inline-start" />
-                  {t("orderControl.sendToRework")}
+                  {t('orderControl.sendToRework')}
                 </Button>
                 <ActionReason>{order.rework.reason}</ActionReason>
               </div>
@@ -752,7 +755,7 @@ function OrderOverview({
                   onClick={() => callbacks.onStartArchive(order.id)}
                 >
                   <IconArchive data-icon="inline-start" />
-                  {t("orderControl.archiveFromActive")}
+                  {t('orderControl.archiveFromActive')}
                 </Button>
                 <ActionReason>{order.archive.reason}</ActionReason>
               </div>
@@ -763,22 +766,22 @@ function OrderOverview({
             <div className="flex items-center gap-2">
               <IconUser className="size-4 text-muted-foreground" />
               <h3 id="order-customer-heading" className="text-sm font-medium">
-                {t("orderControl.customerAndOrder")}
+                {t('orderControl.customerAndOrder')}
               </h3>
             </div>
             <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Fact
-                label={t("orderControl.customer")}
+                label={t('orderControl.customer')}
                 value={order.customerLabel}
               />
-              <Fact label={t("orderControl.phone")} value={order.phoneLabel} />
+              <Fact label={t('orderControl.phone')} value={order.phoneLabel} />
             </dl>
           </section>
 
           {order.audit.length > 0 && (
             <details className="rounded-lg border">
               <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-                {t("orderControl.recentOrderActivity")}
+                {t('orderControl.recentOrderActivity')}
               </summary>
               <ul className="divide-y border-t">
                 {order.audit.map((entry) => (
@@ -801,11 +804,11 @@ function OrderOverview({
           className="h-11"
           onClick={callbacks.onCloseOrder}
         >
-          {t("common.close")}
+          {t('common.close')}
         </Button>
       </SheetFooter>
     </>
-  )
+  );
 }
 
 export function OrderDetailSheet({
@@ -814,58 +817,58 @@ export function OrderDetailSheet({
   callbacks,
   isMobile,
 }: Readonly<{
-  order: OrderControlOrder | null
-  action: OrderDetailAction
-  callbacks: OrderControlCallbacks
-  isMobile: boolean
+  order: OrderControlOrder | null;
+  action: OrderDetailAction;
+  callbacks: OrderControlCallbacks;
+  isMobile: boolean;
 }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   const title =
-    action.kind === "archive"
-      ? t("orderControl.archiveTitle")
-      : action.kind === "move"
-        ? t("orderControl.moveTitle")
-        : action.kind === "leave_behind"
-          ? t("orderControl.leaveOrderTitle")
-          : action.kind === "rework"
-            ? t("orderControl.recordReworkTitle")
+    action.kind === 'archive'
+      ? t('orderControl.archiveTitle')
+      : action.kind === 'move'
+        ? t('orderControl.moveTitle')
+        : action.kind === 'leave_behind'
+          ? t('orderControl.leaveOrderTitle')
+          : action.kind === 'rework'
+            ? t('orderControl.recordReworkTitle')
             : order === null
-              ? t("orderControl.detailsTitle")
-              : t("orderControl.orderNumber", {
+              ? t('orderControl.detailsTitle')
+              : t('orderControl.orderNumber', {
                   orderId: order.externalOrderId,
-                })
+                });
 
   return (
     <Sheet
       open={order !== null}
       onOpenChange={(open) => {
-        if (!open) callbacks.onCloseOrder()
+        if (!open) callbacks.onCloseOrder();
       }}
     >
       <SheetContent
-        side={isMobile ? "bottom" : "right"}
+        side={isMobile ? 'bottom' : 'right'}
         size="workspace"
-        closeLabel={t("common.close")}
+        closeLabel={t('common.close')}
       >
         <SheetHeader className="border-b px-5 py-4 pe-16 sm:px-6 sm:pe-16">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>
             {order === null
-              ? t("orderControl.reviewRecord")
+              ? t('orderControl.reviewRecord')
               : `${order.secondaryLabel ?? order.statusLabel} · ${order.dueDetail}`}
           </SheetDescription>
         </SheetHeader>
-        {order !== null && action.kind === "none" && (
+        {order !== null && action.kind === 'none' && (
           <OrderOverview order={order} callbacks={callbacks} />
         )}
-        {order !== null && action.kind === "move" && (
+        {order !== null && action.kind === 'move' && (
           <MoveActionView action={action} callbacks={callbacks} />
         )}
         {order !== null &&
-          (action.kind === "leave_behind" || action.kind === "rework") && (
+          (action.kind === 'leave_behind' || action.kind === 'rework') && (
             <ExceptionActionView action={action} callbacks={callbacks} />
           )}
-        {order !== null && action.kind === "archive" && (
+        {order !== null && action.kind === 'archive' && (
           <ArchiveActionView
             order={order}
             action={action}
@@ -874,5 +877,5 @@ export function OrderDetailSheet({
         )}
       </SheetContent>
     </Sheet>
-  )
+  );
 }

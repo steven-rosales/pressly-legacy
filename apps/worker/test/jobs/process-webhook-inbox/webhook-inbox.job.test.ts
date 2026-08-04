@@ -1,4 +1,4 @@
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { nullLogger } from '@pressly/logging';
 import {
   nullCounterSink,
@@ -6,7 +6,8 @@ import {
   nullMeasurementSink,
   type ErrorReporter,
   type MeasurementSink,
-} from '@pressly/metrics';
+} from '@pressly/observability';
+import type { Clock } from '@pressly/time';
 import type {
   ClaimedWebhookEvent,
   WebhookIngestionApplication,
@@ -29,8 +30,8 @@ const claimedEvent = (
   subjectType: 'order',
   subjectId: 'order-1',
   sourceLocationId: 'store-1',
-  sourceOccurredAt: '2026-07-10T13:00:00.000Z',
-  receivedAt: '2026-07-10T13:00:01.000Z',
+  sourceOccurredAt: new Date('2026-07-10T13:00:00.000Z'),
+  receivedAt: new Date('2026-07-10T13:00:01.000Z'),
   payload: {},
   payloadHash: 'a'.repeat(64),
   recoveredLease: false,
@@ -69,7 +70,7 @@ const ingestion = (
 const processor = (input: {
   ingestion: WorkerIngestion;
   consume: WebhookEventConsumer;
-  clock?: Readonly<{ now: () => Date }>;
+  clock?: Clock;
   measurements?: MeasurementSink;
   errors?: ErrorReporter;
   backlogMeasurementIntervalMs?: number;

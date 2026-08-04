@@ -7,8 +7,11 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { usePathname } from 'next/navigation';
-import { invariantViolationError } from '@pressly/errors';
-import { nullErrorReporter, nullAnalyticsTracker } from '@pressly/metrics';
+import { invariantViolationError } from '@pressly/errors/factories';
+import {
+  nullErrorReporter,
+  nullAnalyticsTracker,
+} from '@pressly/observability';
 import { nullLogger } from '@pressly/logging';
 import { webEnv } from '@/common/config/env';
 import { systemClock } from '@/common/core/runtime/clock';

@@ -1,10 +1,11 @@
 import { result, type Result } from '@pressly/kernel';
+import { makeAbortReason } from '@pressly/errors/abort-reason';
+import { type AppError } from '@pressly/errors/app-error';
 import {
   externalServiceError,
   validationError,
-  type AppError,
   type ExternalServiceErrorStatus,
-} from '@pressly/errors';
+} from '@pressly/errors/factories';
 import {
   appErrorFromApiFailure,
   decodeApiResponse,
@@ -82,7 +83,12 @@ const createAbortSignal = (
   const controller = new AbortController();
 
   const timeout = setTimeout(() => {
-    controller.abort(new DOMException('Request timed out', 'TimeoutError'));
+    controller.abort(
+      makeAbortReason({
+        name: 'TimeoutError',
+        message: 'Request timed out',
+      }),
+    );
   }, timeoutMs);
 
   const abort = () => controller.abort(externalSignal?.reason);

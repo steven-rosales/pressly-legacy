@@ -3,6 +3,7 @@ import {
   type AppError,
   type MakeAppErrorInput,
 } from './app-error.js';
+import type { JsonValue } from '@pressly/codec';
 
 export type AppErrorFactoryInput = Readonly<{
   code: string;
@@ -10,7 +11,7 @@ export type AppErrorFactoryInput = Readonly<{
   safeMessage?: string;
   cause?: unknown;
   details?: unknown;
-  publicDetails?: unknown;
+  publicDetails?: JsonValue;
   traceId?: string;
 }>;
 

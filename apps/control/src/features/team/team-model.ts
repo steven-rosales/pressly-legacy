@@ -23,39 +23,39 @@ import {
   type ControlWorkforceMemberProjection,
   type ControlWorkforceSession,
   type WorkforceRole as SharedWorkforceRole,
-} from "@pressly/contracts"
+} from '@pressly/contracts/auth';
 
-export const workforceRoleSchema = sharedWorkforceRoleSchema
+export const workforceRoleSchema = sharedWorkforceRoleSchema;
 export const workforceMembershipStateSchema =
-  sharedWorkforceMembershipStateSchema
+  sharedWorkforceMembershipStateSchema;
 export const workforceInvitationStateSchema =
-  sharedWorkforceInvitationStateSchema
+  sharedWorkforceInvitationStateSchema;
 
-export const accessGrantSchema = controlAccessGrantProjectionSchema
-export const workforceMemberSchema = controlWorkforceMemberProjectionSchema
+export const accessGrantSchema = controlAccessGrantProjectionSchema;
+export const workforceMemberSchema = controlWorkforceMemberProjectionSchema;
 export const workforceMemberDetailSchema =
-  controlWorkforceMemberDetailProjectionSchema
+  controlWorkforceMemberDetailProjectionSchema;
 export const workforceInvitationSchema =
-  controlWorkforceInvitationProjectionSchema
-export const workforcePageSchema = controlWorkforceMemberPageSchema
+  controlWorkforceInvitationProjectionSchema;
+export const workforcePageSchema = controlWorkforceMemberPageSchema;
 export const workforceInvitationPageSchema =
-  controlWorkforceInvitationPageSchema
-export const issueInvitationResultSchema = controlIssueInvitationResultSchema
+  controlWorkforceInvitationPageSchema;
+export const issueInvitationResultSchema = controlIssueInvitationResultSchema;
 export const invitationMutationResultSchema =
-  controlInvitationMutationResultSchema
+  controlInvitationMutationResultSchema;
 export const membershipMutationResultSchema =
-  controlMembershipMutationResultSchema
-export const grantAccessResultSchema = controlGrantAccessResultSchema
-export const revokeAccessResultSchema = controlRevokeAccessResultSchema
-export const workforceSessionSchema = controlWorkforceSessionSchema
-export const workforceSessionListSchema = controlWorkforceSessionListSchema
+  controlMembershipMutationResultSchema;
+export const grantAccessResultSchema = controlGrantAccessResultSchema;
+export const revokeAccessResultSchema = controlRevokeAccessResultSchema;
+export const workforceSessionSchema = controlWorkforceSessionSchema;
+export const workforceSessionListSchema = controlWorkforceSessionListSchema;
 export const workforceSessionRevokeResultSchema =
-  controlWorkforceSessionRevokeResultSchema
+  controlWorkforceSessionRevokeResultSchema;
 
-export type WorkforceRole = SharedWorkforceRole
-export type WorkforceMember = ControlWorkforceMemberProjection
-export type WorkforceMemberDetail = ControlWorkforceMemberDetailProjection
-export type WorkforceInvitation = ControlWorkforceInvitationProjection
-export type AccessGrant = ControlAccessGrantProjection
-export type WorkforceSession = ControlWorkforceSession
-export type IssueInvitationResult = ControlIssueInvitationResult
+export type WorkforceRole = SharedWorkforceRole;
+export type WorkforceMember = ControlWorkforceMemberProjection;
+export type WorkforceMemberDetail = ControlWorkforceMemberDetailProjection;
+export type WorkforceInvitation = ControlWorkforceInvitationProjection;
+export type AccessGrant = ControlAccessGrantProjection;
+export type WorkforceSession = ControlWorkforceSession;
+export type IssueInvitationResult = ControlIssueInvitationResult;

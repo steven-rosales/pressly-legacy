@@ -16,10 +16,20 @@
       "import": "./dist/database.js",
       "default": "./dist/database.js"
     },
+    "./clock": {
+      "types": "./dist/clock.d.ts",
+      "import": "./dist/clock.js",
+      "default": "./dist/clock.js"
+    },
     "./http": {
       "types": "./dist/http.d.ts",
       "import": "./dist/http.js",
       "default": "./dist/http.js"
+    },
+    "./id-source": {
+      "types": "./dist/id-source.d.ts",
+      "import": "./dist/id-source.js",
+      "default": "./dist/id-source.js"
     },
     "./result": {
       "types": "./dist/result.d.ts",
@@ -31,13 +41,14 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
-    "test": "vitest run --passWithNoTests",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --passWithNoTests",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@pressly/db": "workspace:*",
     "@pressly/errors": "workspace:*",
-    "@pressly/kernel": "workspace:*"
+    "@pressly/kernel": "workspace:*",
+    "@pressly/time": "workspace:*"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",

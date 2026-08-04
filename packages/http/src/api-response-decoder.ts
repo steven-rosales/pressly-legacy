@@ -6,10 +6,10 @@ import {
   permissionError,
   rateLimitError,
   validationError,
-  type AppError,
   type AppErrorFactoryInput,
-  type HttpStatusCode,
-} from '@pressly/errors';
+} from '@pressly/errors/factories';
+import type { AppError, HttpStatusCode } from '@pressly/errors/app-error';
+import { jsonValueSchema } from '@pressly/codec/zod';
 import { z } from 'zod';
 import type { ApiFailure } from './api-response.js';
 
@@ -25,7 +25,7 @@ export const apiFailureSchema = z
         code: z.string().min(1).max(200),
         message: z.string().min(1).max(1_000),
         traceId: z.string().min(1).max(200).optional(),
-        details: z.unknown().optional(),
+        details: jsonValueSchema.optional(),
       })
       .strict(),
   })
@@ -36,7 +36,7 @@ export const apiSuccessSchema = <Data>(dataSchema: z.ZodType<Data>) =>
     .object({
       ok: z.literal(true),
       data: dataSchema,
-      meta: z.record(z.string(), z.unknown()).optional(),
+      meta: z.record(z.string(), jsonValueSchema).optional(),
     })
     .strict();
 

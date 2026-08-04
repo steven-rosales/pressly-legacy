@@ -1,11 +1,11 @@
-import type { AppError } from '@pressly/errors';
+import type { AppError } from '@pressly/errors/app-error';
 import {
   attemptObservation,
   decideObservation,
   type ErrorReportContext,
   type ObservationDecision,
   type ObservationLogLevel,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import type { Logger, LogFields } from '@pressly/logging';
 import type { WebCorePorts } from '../runtime/ports';
 import type { ActionMeta } from './action-meta';

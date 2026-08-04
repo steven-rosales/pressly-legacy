@@ -68,6 +68,7 @@ const main = async (): Promise<void> => {
 
 void main().catch((error: unknown) => {
   process.exitCode = 1;
+
   try {
     reportWorkerFailure({
       error,

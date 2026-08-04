@@ -1,13 +1,13 @@
-import { IconCircleCheck, IconPackageImport } from "@tabler/icons-react"
-import { useTranslation } from "react-i18next"
-import type { ProcessorOrderControlItem } from "@pressly/contracts"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Spinner } from "@/components/ui/spinner"
-import { Switch } from "@/components/ui/switch"
+import { IconCircleCheck, IconPackageImport } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
+import type { ProcessorOrderControlItem } from '@pressly/contracts/processor';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -16,42 +16,42 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from '@/components/ui/table';
 import {
   presentIntakeCustomer,
   presentIntakeDueBucket,
   presentIntakeOrderNumber,
   presentIntakeSource,
-} from "./intake.presenter"
+} from './intake.presenter';
 
 type IntakeQueueProps = Readonly<{
-  items: readonly ProcessorOrderControlItem[]
-  bagCounts: Readonly<Record<string, string>>
-  priorities: Readonly<Record<string, boolean>>
-  busyOrderId: string | null
-  onBagCountChange: (orderId: string, value: string) => void
-  onPriorityChange: (orderId: string, value: boolean) => void
-  onRecord: (item: ProcessorOrderControlItem) => Promise<void>
-  onDecision: (item: ProcessorOrderControlItem, target: "released") => void
-}>
+  items: readonly ProcessorOrderControlItem[];
+  bagCounts: Readonly<Record<string, string>>;
+  priorities: Readonly<Record<string, boolean>>;
+  busyOrderId: string | null;
+  onBagCountChange: (orderId: string, value: string) => void;
+  onPriorityChange: (orderId: string, value: boolean) => void;
+  onRecord: (item: ProcessorOrderControlItem) => Promise<void>;
+  onDecision: (item: ProcessorOrderControlItem, target: 'released') => void;
+}>;
 
 type IntakeRowState = Readonly<{
-  value: string
-  priority: boolean
-  invalid: boolean
-  canRecord: boolean
-  busy: boolean
-  disabled: boolean
-  hasIntakeChanges: boolean
-}>
+  value: string;
+  priority: boolean;
+  invalid: boolean;
+  canRecord: boolean;
+  busy: boolean;
+  disabled: boolean;
+  hasIntakeChanges: boolean;
+}>;
 
 const rowStateFor = (
   item: ProcessorOrderControlItem,
-  props: IntakeQueueProps
+  props: IntakeQueueProps,
 ): IntakeRowState => {
-  const order = item.order
-  const value = props.bagCounts[order.id] ?? order.bagCount?.toString() ?? ""
-  const priority = props.priorities[order.id] ?? order.priority
+  const order = item.order;
+  const value = props.bagCounts[order.id] ?? order.bagCount?.toString() ?? '';
+  const priority = props.priorities[order.id] ?? order.priority;
   return {
     value,
     priority,
@@ -59,66 +59,66 @@ const rowStateFor = (
       value.length > 0 &&
       (!Number.isInteger(Number(value)) || Number(value) < 0),
     canRecord:
-      order.status === "release_pending" || order.status === "intake_pending",
+      order.status === 'release_pending' || order.status === 'intake_pending',
     busy: props.busyOrderId === order.id,
     disabled: props.busyOrderId !== null,
     hasIntakeChanges:
-      value !== (order.bagCount?.toString() ?? "") ||
+      value !== (order.bagCount?.toString() ?? '') ||
       priority !== order.priority,
-  }
-}
+  };
+};
 
 function OrderIdentity({
   item,
   priority,
 }: Readonly<{ item: ProcessorOrderControlItem; priority: boolean }>) {
-  const { t } = useTranslation()
-  const orderNumber = presentIntakeOrderNumber(item)
-  const customer = presentIntakeCustomer(item, t)
+  const { t } = useTranslation();
+  const orderNumber = presentIntakeOrderNumber(item);
+  const customer = presentIntakeCustomer(item, t);
 
   return (
     <div className="min-w-0">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <p className="truncate font-medium">
-          {t("intake.order", { orderId: orderNumber })}
+          {t('intake.order', { orderId: orderNumber })}
         </p>
-        {priority && <Badge>{t("intake.priority")}</Badge>}
+        {priority && <Badge>{t('intake.priority')}</Badge>}
       </div>
       <p className="mt-1 truncate text-xs text-muted-foreground">
         {customer.name}
-        {customer.phone === null ? "" : ` · ${customer.phone}`}
+        {customer.phone === null ? '' : ` · ${customer.phone}`}
       </p>
     </div>
-  )
+  );
 }
 
 function SourceState({ item }: Readonly<{ item: ProcessorOrderControlItem }>) {
-  const { t } = useTranslation()
-  const source = presentIntakeSource(item, t)
+  const { t } = useTranslation();
+  const source = presentIntakeSource(item, t);
 
-  return <p className="text-sm text-muted-foreground">{source.label}</p>
+  return <p className="text-sm text-muted-foreground">{source.label}</p>;
 }
 
 function DemandAndDue({ item }: Readonly<{ item: ProcessorOrderControlItem }>) {
-  const { t } = useTranslation()
-  const order = item.order
-  const due = presentIntakeDueBucket(order.dueBucket, t)
+  const { t } = useTranslation();
+  const order = item.order;
+  const due = presentIntakeDueBucket(order.dueBucket, t);
 
   return (
     <div className="min-w-0">
       <Badge
-        variant={order.dueBucket === "overdue" ? "destructive" : "outline"}
+        variant={order.dueBucket === 'overdue' ? 'destructive' : 'outline'}
       >
         {due}
       </Badge>
       <p className="mt-1.5 text-sm font-medium tabular-nums">
-        {t("common.pounds", { value: order.derivedWeightLbs })}
+        {t('common.pounds', { value: order.derivedWeightLbs })}
       </p>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        {t("intake.estimatedDemand")}
+        {t('intake.estimatedDemand')}
       </p>
     </div>
-  )
+  );
 }
 
 function IntakeControls({
@@ -129,58 +129,58 @@ function IntakeControls({
   onPriorityChange,
   onRecord,
 }: Readonly<{
-  item: ProcessorOrderControlItem
-  state: IntakeRowState
-  mobile?: boolean
-  onBagCountChange: (value: string) => void
-  onPriorityChange: (value: boolean) => void
-  onRecord: () => Promise<void>
+  item: ProcessorOrderControlItem;
+  state: IntakeRowState;
+  mobile?: boolean;
+  onBagCountChange: (value: string) => void;
+  onPriorityChange: (value: boolean) => void;
+  onRecord: () => Promise<void>;
 }>) {
-  const { t } = useTranslation()
-  const orderNumber = presentIntakeOrderNumber(item)
-  const bagsId = `bags-${mobile ? "mobile-" : ""}${item.order.id}`
-  const priorityId = `priority-${mobile ? "mobile-" : ""}${item.order.id}`
-  const helpId = `bags-help-${mobile ? "mobile-" : ""}${item.order.id}`
-  const missingBagCount = state.value.length === 0
-  const needsIntake = item.order.status === "intake_pending"
+  const { t } = useTranslation();
+  const orderNumber = presentIntakeOrderNumber(item);
+  const bagsId = `bags-${mobile ? 'mobile-' : ''}${item.order.id}`;
+  const priorityId = `priority-${mobile ? 'mobile-' : ''}${item.order.id}`;
+  const helpId = `bags-help-${mobile ? 'mobile-' : ''}${item.order.id}`;
+  const missingBagCount = state.value.length === 0;
+  const needsIntake = item.order.status === 'intake_pending';
   const recordDisabled =
     state.disabled ||
     !state.hasIntakeChanges ||
     missingBagCount ||
-    state.invalid
+    state.invalid;
   const helperText = state.invalid
-    ? t("intake.invalidBagCount")
+    ? t('intake.invalidBagCount')
     : missingBagCount
       ? needsIntake
-        ? t("intake.enterBagCount")
-        : t("intake.optionalBagCount")
+        ? t('intake.enterBagCount')
+        : t('intake.optionalBagCount')
       : state.hasIntakeChanges
-        ? t("intake.unsavedIntake")
-        : t("intake.intakeUpToDate")
+        ? t('intake.unsavedIntake')
+        : t('intake.intakeUpToDate');
 
   return (
     <div className="min-w-0">
       <div
         className={
           mobile
-            ? "grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
-            : "flex min-w-[16rem] items-end gap-2"
+            ? 'grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end'
+            : 'flex min-w-[16rem] items-end gap-2'
         }
       >
         <div className="min-w-0">
           <Label htmlFor={bagsId} className="mb-1.5 text-xs">
-            {t("intake.bagCount")}
+            {t('intake.bagCount')}
           </Label>
           <Input
             id={bagsId}
-            className={mobile ? "h-11 w-full" : "h-11 w-24"}
+            className={mobile ? 'h-11 w-full' : 'h-11 w-24'}
             type="number"
             inputMode="numeric"
             min={0}
             step={1}
             value={state.value}
             onChange={(event) => onBagCountChange(event.target.value)}
-            aria-label={t("intake.bagsForOrder", { orderId: orderNumber })}
+            aria-label={t('intake.bagsForOrder', { orderId: orderNumber })}
             aria-describedby={helpId}
             aria-invalid={state.invalid}
           />
@@ -188,26 +188,26 @@ function IntakeControls({
         <div
           className={
             mobile
-              ? "flex h-11 items-center justify-between rounded-lg border border-input px-3"
+              ? 'flex h-11 items-center justify-between rounded-lg border border-input px-3'
               : undefined
           }
         >
           <Label
             htmlFor={priorityId}
-            className={mobile ? "text-sm" : "mb-1.5 text-xs"}
+            className={mobile ? 'text-sm' : 'mb-1.5 text-xs'}
           >
-            {t("intake.priority")}
+            {t('intake.priority')}
           </Label>
           <div
             className={
-              mobile ? "flex items-center" : "flex h-11 items-center px-1"
+              mobile ? 'flex items-center' : 'flex h-11 items-center px-1'
             }
           >
             <Switch
               id={priorityId}
               checked={state.priority}
               onCheckedChange={onPriorityChange}
-              aria-label={t("intake.priorityForOrder", {
+              aria-label={t('intake.priorityForOrder', {
                 orderId: orderNumber,
               })}
             />
@@ -215,45 +215,45 @@ function IntakeControls({
         </div>
         <Button
           type="button"
-          variant={needsIntake && !recordDisabled ? "default" : "outline"}
-          className={mobile ? "h-11 sm:col-span-2" : "h-11 shrink-0"}
+          variant={needsIntake && !recordDisabled ? 'default' : 'outline'}
+          className={mobile ? 'h-11 sm:col-span-2' : 'h-11 shrink-0'}
           disabled={recordDisabled}
-          aria-label={t("intake.recordForOrder", { orderId: orderNumber })}
+          aria-label={t('intake.recordForOrder', { orderId: orderNumber })}
           onClick={() => void onRecord()}
         >
           {state.busy && <Spinner data-icon="inline-start" />}
-          {t("intake.record")}
+          {t('intake.record')}
         </Button>
       </div>
       <p
         id={helpId}
         className={
           state.invalid
-            ? "mt-1.5 text-xs text-destructive"
-            : "mt-1.5 text-xs text-muted-foreground"
+            ? 'mt-1.5 text-xs text-destructive'
+            : 'mt-1.5 text-xs text-muted-foreground'
         }
-        aria-live={state.invalid ? "polite" : undefined}
+        aria-live={state.invalid ? 'polite' : undefined}
       >
         {helperText}
       </p>
     </div>
-  )
+  );
 }
 
 function RecordedIntake({
   item,
 }: Readonly<{ item: ProcessorOrderControlItem }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   return (
     <div>
       <p className="text-sm font-medium">
-        {t("common.bags", { count: item.order.bagCount ?? 0 })}
+        {t('common.bags', { count: item.order.bagCount ?? 0 })}
       </p>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        {t("intake.intakeRecorded")}
+        {t('intake.intakeRecorded')}
       </p>
     </div>
-  )
+  );
 }
 
 function AdmissionAction({
@@ -263,19 +263,19 @@ function AdmissionAction({
   mobile = false,
   onDecision,
 }: Readonly<{
-  item: ProcessorOrderControlItem
-  busy: boolean
-  disabled: boolean
-  mobile?: boolean
-  onDecision: (target: "released") => void
+  item: ProcessorOrderControlItem;
+  busy: boolean;
+  disabled: boolean;
+  mobile?: boolean;
+  onDecision: (target: 'released') => void;
 }>) {
-  const { t } = useTranslation()
-  const orderNumber = presentIntakeOrderNumber(item)
-  const canRelease = item.admission.allowedActions.includes("release")
-  const actionClassName = mobile ? "h-11 w-full" : "h-11"
+  const { t } = useTranslation();
+  const orderNumber = presentIntakeOrderNumber(item);
+  const canRelease = item.admission.allowedActions.includes('release');
+  const actionClassName = mobile ? 'h-11 w-full' : 'h-11';
   const statusClassName = mobile
-    ? "flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground"
-    : "flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground"
+    ? 'flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground'
+    : 'flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground';
 
   if (canRelease)
     return (
@@ -284,67 +284,67 @@ function AdmissionAction({
           type="button"
           className={actionClassName}
           disabled={disabled}
-          aria-label={t("intake.releaseForOrder", { orderId: orderNumber })}
-          onClick={() => onDecision("released")}
+          aria-label={t('intake.releaseForOrder', { orderId: orderNumber })}
+          onClick={() => onDecision('released')}
         >
           {busy ? (
             <Spinner data-icon="inline-start" />
           ) : (
             <IconPackageImport data-icon="inline-start" />
           )}
-          {t("intake.release")}
+          {t('intake.release')}
         </Button>
         <p className="text-xs text-muted-foreground">
-          {t("intake.awaitingReleaseStatus")}
+          {t('intake.awaitingReleaseStatus')}
         </p>
       </div>
-    )
+    );
 
-  if (item.order.status === "intake_pending")
-    return <p className={statusClassName}>{t("intake.finishIntake")}</p>
+  if (item.order.status === 'intake_pending')
+    return <p className={statusClassName}>{t('intake.finishIntake')}</p>;
 
-  if (item.order.status === "eligible")
+  if (item.order.status === 'eligible')
     return (
       <p className={statusClassName}>
         <IconCircleCheck className="size-4 shrink-0" aria-hidden="true" />
-        {t("intake.readyForProduction")}
+        {t('intake.readyForProduction')}
       </p>
-    )
+    );
 
-  return <p className={statusClassName}>{t("intake.noActionAvailable")}</p>
+  return <p className={statusClassName}>{t('intake.noActionAvailable')}</p>;
 }
 
 function DesktopIntakeTable(props: IntakeQueueProps) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
 
   return (
     <div className="hidden overflow-hidden rounded-xl border bg-background 2xl:block">
       <Table className="table-fixed">
         <TableCaption className="sr-only">
-          {t("intake.queueLabel")}
+          {t('intake.queueLabel')}
         </TableCaption>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-[23%] px-4">
-              {t("intake.columns.order")}
+              {t('intake.columns.order')}
             </TableHead>
             <TableHead className="w-[20%]">
-              {t("intake.columns.source")}
+              {t('intake.columns.source')}
             </TableHead>
             <TableHead className="w-[13%]">
-              {t("intake.columns.demand")}
+              {t('intake.columns.demand')}
             </TableHead>
             <TableHead className="w-[26%]">
-              {t("intake.columns.intake")}
+              {t('intake.columns.intake')}
             </TableHead>
             <TableHead className="w-[18%] px-4">
-              {t("intake.columns.action")}
+              {t('intake.columns.action')}
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {props.items.map((item) => {
-            const state = rowStateFor(item, props)
+            const state = rowStateFor(item, props);
             return (
               <TableRow key={item.order.id} className="hover:bg-transparent">
                 <TableCell className="px-4 py-4 align-top whitespace-normal">
@@ -375,7 +375,7 @@ function DesktopIntakeTable(props: IntakeQueueProps) {
                 </TableCell>
                 <TableCell
                   className={`px-4 py-4 align-top whitespace-normal ${
-                    state.canRecord ? "pt-10" : ""
+                    state.canRecord ? 'pt-10' : ''
                   }`}
                 >
                   <AdmissionAction
@@ -386,24 +386,24 @@ function DesktopIntakeTable(props: IntakeQueueProps) {
                   />
                 </TableCell>
               </TableRow>
-            )
+            );
           })}
         </TableBody>
       </Table>
     </div>
-  )
+  );
 }
 
 function MobileIntakeCards(props: IntakeQueueProps) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
 
   return (
     <div className="grid gap-2 2xl:hidden">
       {props.items.map((item) => {
-        const state = rowStateFor(item, props)
+        const state = rowStateFor(item, props);
         const showAdmissionFooter =
-          item.admission.allowedActions.includes("release") ||
-          item.order.status === "eligible"
+          item.admission.allowedActions.includes('release') ||
+          item.order.status === 'eligible';
         return (
           <Card key={item.order.id} className="gap-4 bg-background py-4">
             <CardContent className="flex flex-col gap-4 px-4">
@@ -411,20 +411,20 @@ function MobileIntakeCards(props: IntakeQueueProps) {
               <div className="grid grid-cols-2 gap-4 border-y py-4">
                 <div className="min-w-0">
                   <p className="mb-2 text-xs font-medium text-muted-foreground">
-                    {t("intake.columns.source")}
+                    {t('intake.columns.source')}
                   </p>
                   <SourceState item={item} />
                 </div>
                 <div className="min-w-0">
                   <p className="mb-2 text-xs font-medium text-muted-foreground">
-                    {t("intake.columns.demand")}
+                    {t('intake.columns.demand')}
                   </p>
                   <DemandAndDue item={item} />
                 </div>
               </div>
               <div>
                 <p className="mb-2 text-xs font-medium text-muted-foreground">
-                  {t("intake.columns.intake")}
+                  {t('intake.columns.intake')}
                 </p>
                 {state.canRecord ? (
                   <IntakeControls
@@ -456,10 +456,10 @@ function MobileIntakeCards(props: IntakeQueueProps) {
               )}
             </CardContent>
           </Card>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 export function IntakeQueue(props: IntakeQueueProps) {
@@ -468,5 +468,5 @@ export function IntakeQueue(props: IntakeQueueProps) {
       <DesktopIntakeTable {...props} />
       <MobileIntakeCards {...props} />
     </>
-  )
+  );
 }

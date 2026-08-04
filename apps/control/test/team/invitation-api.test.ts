@@ -100,7 +100,7 @@ describe("Control invitation API", () => {
         z.object({ updated: z.literal(true) }),
       ),
     ).rejects.toMatchObject({
-      kind: "session_refresh_required",
+      controlKind: "session_refresh_required",
     })
     expect(fetchImplementation).toHaveBeenCalledTimes(1)
   })
@@ -135,7 +135,7 @@ describe("Control invitation API", () => {
         code: "123456",
       }),
     ).rejects.toMatchObject({
-      kind: "unreadable_response",
+      controlKind: "unreadable_response",
     })
   })
 
@@ -159,8 +159,8 @@ describe("Control invitation API", () => {
     )
 
     await expect(api.preview("t".repeat(43))).rejects.toMatchObject({
-      message: "conflict",
-      kind: "conflict",
+      kind: "ConflictError",
+      controlKind: "conflict",
       code: "workforce_invalid_state",
       status: 409,
     })
@@ -198,8 +198,8 @@ describe("Control invitation API", () => {
         password: "long-safe-password",
       }),
     ).rejects.toMatchObject({
-      message: "invalid_request",
-      kind: "invalid_request",
+      kind: "ValidationError",
+      controlKind: "invalid_request",
       code: "weak_invitation_password",
       status: 422,
     })

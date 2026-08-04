@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState } from 'react';
 import {
   IconAlertTriangle,
   IconArrowBackUp,
@@ -10,10 +10,10 @@ import {
   IconHistory,
   IconSearch,
   IconTimeline,
-} from "@tabler/icons-react"
-import { useTranslation } from "react-i18next"
-import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
-import { SectionHeading } from "@/components/layout/workspace-primitives"
+} from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
+import { OperationalOrderIdentity } from '@/components/orders/operational-order-identity';
+import { SectionHeading } from '@/components/layout/workspace-primitives';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,31 +24,34 @@ import {
   AlertDialogHeader,
   AlertDialogMedia,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { DelayedLoadingRows } from "@/components/ui/delayed-loading-rows"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+} from '@/components/ui/alert-dialog';
+import { DelayedLoadingRows } from '@/components/ui/delayed-loading-rows';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@/components/ui/empty"
+} from '@/components/ui/empty';
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-} from "@/components/ui/input-group"
+} from '@/components/ui/input-group';
 import {
   Field,
   FieldDescription,
   FieldError,
   FieldLabel,
-} from "@/components/ui/field"
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+} from '@/components/ui/field';
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from '@/components/ui/native-select';
 import {
   Select,
   SelectContent,
@@ -56,9 +59,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Spinner } from "@/components/ui/spinner"
-import { Textarea } from "@/components/ui/textarea"
+} from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
   TableBody,
@@ -66,10 +69,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { cn } from "@/components/ui/class-names"
-import { RunHistoryDetailSheet } from "./run-history-detail-sheet.view"
+} from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/components/ui/class-names';
+import { RunHistoryDetailSheet } from './run-history-detail-sheet.view';
 import type {
   HistoryActivityItem,
   HistoryCallbacks,
@@ -81,24 +84,24 @@ import type {
   HistoryRestoreReason,
   HistoryTab,
   HistoryViewModel,
-} from "./history.model"
+} from './history.model';
 
 const historyTabs: readonly Readonly<{
-  value: HistoryTab
-  labelKey: "history.runs" | "history.activity" | "history.plans"
-  icon: typeof IconHistory
+  value: HistoryTab;
+  labelKey: 'history.runs' | 'history.activity' | 'history.plans';
+  icon: typeof IconHistory;
 }>[] = [
-  { value: "runs", labelKey: "history.runs", icon: IconHistory },
-  { value: "activity", labelKey: "history.activity", icon: IconTimeline },
-  { value: "plans", labelKey: "history.plans", icon: IconCalendarClock },
-]
+  { value: 'runs', labelKey: 'history.runs', icon: IconHistory },
+  { value: 'activity', labelKey: 'history.activity', icon: IconTimeline },
+  { value: 'plans', labelKey: 'history.plans', icon: IconCalendarClock },
+];
 
 const defaultFilter = (value: string) =>
-  value === "" || value === "all" || value === "any"
+  value === '' || value === 'all' || value === 'any';
 
 const activeFilterCount = (filters: HistoryFilters) =>
   [filters.dateWindow, filters.status].filter((value) => !defaultFilter(value))
-    .length + (filters.query.trim().length > 0 ? 1 : 0)
+    .length + (filters.query.trim().length > 0 ? 1 : 0);
 
 function HistoryFilterSelect({
   id,
@@ -107,11 +110,11 @@ function HistoryFilterSelect({
   options,
   onChange,
 }: Readonly<{
-  id: string
-  label: string
-  value: string
-  options: readonly HistoryFilterOption[]
-  onChange: (value: string) => void
+  id: string;
+  label: string;
+  value: string;
+  options: readonly HistoryFilterOption[];
+  onChange: (value: string) => void;
 }>) {
   return (
     <NativeSelect
@@ -127,7 +130,7 @@ function HistoryFilterSelect({
         </NativeSelectOption>
       ))}
     </NativeSelect>
-  )
+  );
 }
 
 function RunStatusBadge({ run }: { run: HistoryRunSummary }) {
@@ -135,23 +138,23 @@ function RunStatusBadge({ run }: { run: HistoryRunSummary }) {
     <Badge
       variant="secondary"
       className={cn(
-        run.status === "completed" && "bg-success text-success-foreground",
-        run.status === "started" && "bg-foreground text-background"
+        run.status === 'completed' && 'bg-success text-success-foreground',
+        run.status === 'started' && 'bg-foreground text-background',
       )}
     >
       {run.statusLabel}
     </Badge>
-  )
+  );
 }
 
 function RunsView({
   runs,
   onOpenRun,
 }: Readonly<{
-  runs: readonly HistoryRunSummary[]
-  onOpenRun: (runId: string) => void
+  runs: readonly HistoryRunSummary[];
+  onOpenRun: (runId: string) => void;
 }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   return (
     <>
       <div className="hidden overflow-hidden rounded-xl border bg-background md:block">
@@ -159,14 +162,14 @@ function RunsView({
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-[26%] px-4">
-                {t("history.productionRun")}
+                {t('history.productionRun')}
               </TableHead>
-              <TableHead>{t("history.status")}</TableHead>
-              <TableHead>{t("history.demand")}</TableHead>
-              <TableHead>{t("history.timing")}</TableHead>
-              <TableHead>{t("history.exceptions")}</TableHead>
+              <TableHead>{t('history.status')}</TableHead>
+              <TableHead>{t('history.demand')}</TableHead>
+              <TableHead>{t('history.timing')}</TableHead>
+              <TableHead>{t('history.exceptions')}</TableHead>
               <TableHead>
-                <span className="sr-only">{t("history.openRunShort")}</span>
+                <span className="sr-only">{t('history.openRunShort')}</span>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -208,7 +211,7 @@ function RunsView({
                 <TableCell className="py-3 whitespace-normal">
                   {run.exceptionLabel === null ? (
                     <span className="text-sm text-muted-foreground">
-                      {t("common.none")}
+                      {t('common.none')}
                     </span>
                   ) : (
                     <Badge variant="outline">{run.exceptionLabel}</Badge>
@@ -220,7 +223,7 @@ function RunsView({
                     size="icon"
                     variant="ghost"
                     className="size-11"
-                    aria-label={t("history.openRun", { title: run.title })}
+                    aria-label={t('history.openRun', { title: run.title })}
                     onClick={() => onOpenRun(run.id)}
                   >
                     <IconChevronRight />
@@ -248,13 +251,13 @@ function RunsView({
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    {t("history.demand")}
+                    {t('history.demand')}
                   </p>
                   <p className="mt-1 font-medium">{run.demandLabel}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    {t("history.batches")}
+                    {t('history.batches')}
                   </p>
                   <p className="mt-1 font-medium">{run.batchesLabel}</p>
                 </div>
@@ -266,7 +269,7 @@ function RunsView({
                 className="h-11 w-full"
                 onClick={() => onOpenRun(run.id)}
               >
-                {t("history.openRunHistory")}
+                {t('history.openRunHistory')}
                 <IconChevronRight data-icon="inline-end" />
               </Button>
             </CardContent>
@@ -274,7 +277,7 @@ function RunsView({
         ))}
       </div>
     </>
-  )
+  );
 }
 
 function ActivityView({
@@ -283,21 +286,21 @@ function ActivityView({
   restoringOrderId,
   onRestoreOrder,
 }: Readonly<{
-  items: readonly HistoryActivityItem[]
-  canManage: boolean
-  restoringOrderId: string | null
-  onRestoreOrder: HistoryCallbacks["onRestoreOrder"]
+  items: readonly HistoryActivityItem[];
+  canManage: boolean;
+  restoringOrderId: string | null;
+  onRestoreOrder: HistoryCallbacks['onRestoreOrder'];
 }>) {
-  const { t } = useTranslation()
-  const [candidate, setCandidate] = useState<HistoryActivityItem | null>(null)
-  const [reason, setReason] = useState<HistoryRestoreReason | "">("")
-  const [note, setNote] = useState("")
-  const otherNoteMissing = reason === "other" && note.trim().length === 0
+  const { t } = useTranslation();
+  const [candidate, setCandidate] = useState<HistoryActivityItem | null>(null);
+  const [reason, setReason] = useState<HistoryRestoreReason | ''>('');
+  const [note, setNote] = useState('');
+  const otherNoteMissing = reason === 'other' && note.trim().length === 0;
   const closeDialog = () => {
-    setCandidate(null)
-    setReason("")
-    setNote("")
-  }
+    setCandidate(null);
+    setReason('');
+    setNote('');
+  };
 
   return (
     <>
@@ -309,9 +312,9 @@ function ActivityView({
           >
             <span
               className={cn(
-                "mt-1.5 size-2.5 shrink-0 rounded-full bg-muted-foreground",
-                item.tone === "warning" && "bg-warning-foreground",
-                item.tone === "critical" && "bg-destructive"
+                'mt-1.5 size-2.5 shrink-0 rounded-full bg-muted-foreground',
+                item.tone === 'warning' && 'bg-warning-foreground',
+                item.tone === 'critical' && 'bg-destructive',
               )}
               aria-hidden="true"
             />
@@ -345,9 +348,9 @@ function ActivityView({
                   restoringOrderId === item.restoreAction.productionOrderId
                 }
                 onClick={() => {
-                  setCandidate(item)
-                  setReason("")
-                  setNote("")
+                  setCandidate(item);
+                  setReason('');
+                  setNote('');
                 }}
               >
                 {restoringOrderId === item.restoreAction.productionOrderId ? (
@@ -355,7 +358,7 @@ function ActivityView({
                 ) : (
                   <IconArrowBackUp data-icon="inline-start" />
                 )}
-                {t("orderResolution.history.restore.trigger")}
+                {t('orderResolution.history.restore.trigger')}
               </Button>
             )}
           </article>
@@ -365,7 +368,7 @@ function ActivityView({
       <AlertDialog
         open={candidate !== null}
         onOpenChange={(open) => {
-          if (!open) closeDialog()
+          if (!open) closeDialog();
         }}
       >
         <AlertDialogContent>
@@ -374,13 +377,13 @@ function ActivityView({
               <IconArrowBackUp />
             </AlertDialogMedia>
             <AlertDialogTitle>
-              {t("orderResolution.history.restore.title", {
+              {t('orderResolution.history.restore.title', {
                 displayReference:
-                  candidate?.identity?.displayNumber ?? t("history.order"),
+                  candidate?.identity?.displayNumber ?? t('history.order'),
               })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("orderResolution.history.restore.description")}
+              {t('orderResolution.history.restore.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -391,7 +394,7 @@ function ActivityView({
               )}
             <Field>
               <FieldLabel htmlFor="history-restore-reason">
-                {t("orderResolution.history.restore.reasonLabel")}
+                {t('orderResolution.history.restore.reasonLabel')}
               </FieldLabel>
               <Select
                 value={reason}
@@ -405,7 +408,7 @@ function ActivityView({
                 >
                   <SelectValue
                     placeholder={t(
-                      "orderResolution.history.restore.reasonPlaceholder"
+                      'orderResolution.history.restore.reasonPlaceholder',
                     )}
                   />
                 </SelectTrigger>
@@ -413,14 +416,14 @@ function ActivityView({
                   <SelectGroup>
                     {(
                       [
-                        "manager_correction",
-                        "work_should_be_produced",
-                        "other",
+                        'manager_correction',
+                        'work_should_be_produced',
+                        'other',
                       ] as const
                     ).map((value) => (
                       <SelectItem key={value} value={value} className="h-11">
                         {t(
-                          `orderResolution.history.restore.reasonOptions.${value}`
+                          `orderResolution.history.restore.reasonOptions.${value}`,
                         )}
                       </SelectItem>
                     ))}
@@ -430,26 +433,26 @@ function ActivityView({
             </Field>
             <Field data-invalid={otherNoteMissing || undefined}>
               <FieldLabel htmlFor="history-restore-note">
-                {t("orderResolution.history.restore.noteLabel")}
+                {t('orderResolution.history.restore.noteLabel')}
               </FieldLabel>
               <Textarea
                 id="history-restore-note"
                 value={note}
                 rows={3}
                 maxLength={500}
-                required={reason === "other"}
+                required={reason === 'other'}
                 aria-invalid={otherNoteMissing || undefined}
                 placeholder={t(
-                  "orderResolution.history.restore.notePlaceholder"
+                  'orderResolution.history.restore.notePlaceholder',
                 )}
                 onChange={(event) => setNote(event.target.value)}
               />
               <FieldDescription>
-                {t("orderResolution.history.restore.noteDescription")}
+                {t('orderResolution.history.restore.noteDescription')}
               </FieldDescription>
               {otherNoteMissing && (
                 <FieldError>
-                  {t("orderResolution.history.restore.otherNoteRequired")}
+                  {t('orderResolution.history.restore.otherNoteRequired')}
                 </FieldError>
               )}
             </Field>
@@ -457,39 +460,39 @@ function ActivityView({
 
           <AlertDialogFooter>
             <AlertDialogCancel className="h-11">
-              {t("orderResolution.history.restore.cancel")}
+              {t('orderResolution.history.restore.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               className="h-11"
               disabled={
                 candidate?.restoreAction === null ||
                 candidate?.restoreAction === undefined ||
-                reason === "" ||
+                reason === '' ||
                 otherNoteMissing
               }
               onClick={() => {
                 if (
                   candidate?.restoreAction === null ||
                   candidate?.restoreAction === undefined ||
-                  reason === "" ||
+                  reason === '' ||
                   otherNoteMissing
                 )
-                  return
+                  return;
                 onRestoreOrder({
                   ...candidate.restoreAction,
                   reason,
                   note: note.trim().length === 0 ? null : note.trim(),
-                })
-                closeDialog()
+                });
+                closeDialog();
               }}
             >
-              {t("orderResolution.history.restore.confirm")}
+              {t('orderResolution.history.restore.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
+  );
 }
 
 function PlanStatusBadge({ plan }: { plan: HistoryPlanSummary }) {
@@ -497,34 +500,34 @@ function PlanStatusBadge({ plan }: { plan: HistoryPlanSummary }) {
     <Badge
       variant="secondary"
       className={cn(
-        plan.status === "accepted" && "bg-success text-success-foreground"
+        plan.status === 'accepted' && 'bg-success text-success-foreground',
       )}
     >
       {plan.statusLabel}
     </Badge>
-  )
+  );
 }
 
 function PlansView({
   plans,
   onOpenRun,
 }: Readonly<{
-  plans: readonly HistoryPlanSummary[]
-  onOpenRun: (runId: string) => void
+  plans: readonly HistoryPlanSummary[];
+  onOpenRun: (runId: string) => void;
 }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   return (
     <div className="overflow-hidden rounded-xl border bg-background">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="px-4">{t("history.revision")}</TableHead>
-            <TableHead>{t("history.shift")}</TableHead>
-            <TableHead>{t("history.status")}</TableHead>
-            <TableHead>{t("history.timing")}</TableHead>
-            <TableHead>{t("history.warnings")}</TableHead>
+            <TableHead className="px-4">{t('history.revision')}</TableHead>
+            <TableHead>{t('history.shift')}</TableHead>
+            <TableHead>{t('history.status')}</TableHead>
+            <TableHead>{t('history.timing')}</TableHead>
+            <TableHead>{t('history.warnings')}</TableHead>
             <TableHead>
-              <span className="sr-only">{t("history.productionRun")}</span>
+              <span className="sr-only">{t('history.productionRun')}</span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -540,11 +543,11 @@ function PlansView({
               </TableCell>
               <TableCell className="py-3 whitespace-normal">
                 <p className="text-sm">
-                  {t("history.computedAt", { date: plan.computedAtLabel })}
+                  {t('history.computedAt', { date: plan.computedAtLabel })}
                 </p>
                 {plan.acceptedAtLabel !== null && (
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {t("history.acceptedAt", { date: plan.acceptedAtLabel })}
+                    {t('history.acceptedAt', { date: plan.acceptedAtLabel })}
                   </p>
                 )}
               </TableCell>
@@ -557,7 +560,7 @@ function PlansView({
                     className="h-11"
                     onClick={() => onOpenRun(plan.productionRunId!)}
                   >
-                    {t("history.openRunShort")}
+                    {t('history.openRunShort')}
                   </Button>
                 )}
               </TableCell>
@@ -566,20 +569,20 @@ function PlansView({
         </TableBody>
       </Table>
     </div>
-  )
+  );
 }
 
 function HistoryPagination({
   page,
   callbacks,
 }: Readonly<{
-  page: HistoryCursorPageViewModel
-  callbacks: Pick<HistoryCallbacks, "onPreviousPage" | "onNextPage">
+  page: HistoryCursorPageViewModel;
+  callbacks: Pick<HistoryCallbacks, 'onPreviousPage' | 'onNextPage'>;
 }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   return (
     <nav
-      aria-label={t("history.pages")}
+      aria-label={t('history.pages')}
       className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="text-sm text-muted-foreground">{page.rangeLabel}</p>
@@ -591,11 +594,11 @@ function HistoryPagination({
           disabled={page.previousCursor === null}
           onClick={() => {
             if (page.previousCursor !== null)
-              callbacks.onPreviousPage(page.previousCursor)
+              callbacks.onPreviousPage(page.previousCursor);
           }}
         >
           <IconChevronLeft data-icon="inline-start" />
-          {t("common.previous")}
+          {t('common.previous')}
         </Button>
         <Button
           type="button"
@@ -603,15 +606,15 @@ function HistoryPagination({
           className="h-11"
           disabled={page.nextCursor === null}
           onClick={() => {
-            if (page.nextCursor !== null) callbacks.onNextPage(page.nextCursor)
+            if (page.nextCursor !== null) callbacks.onNextPage(page.nextCursor);
           }}
         >
-          {t("common.next")}
+          {t('common.next')}
           <IconChevronRight data-icon="inline-end" />
         </Button>
       </div>
     </nav>
-  )
+  );
 }
 
 export function HistoryWorkspace({
@@ -619,22 +622,22 @@ export function HistoryWorkspace({
   callbacks,
   isMobile,
 }: Readonly<{
-  model: HistoryViewModel
-  callbacks: HistoryCallbacks
-  isMobile: boolean
+  model: HistoryViewModel;
+  callbacks: HistoryCallbacks;
+  isMobile: boolean;
 }>) {
-  const { t } = useTranslation()
-  const filterCount = activeFilterCount(model.filters)
+  const { t } = useTranslation();
+  const filterCount = activeFilterCount(model.filters);
   const updateFilter = <TKey extends keyof HistoryFilters>(
     key: TKey,
-    value: HistoryFilters[TKey]
-  ) => callbacks.onFiltersChange({ ...model.filters, [key]: value })
+    value: HistoryFilters[TKey],
+  ) => callbacks.onFiltersChange({ ...model.filters, [key]: value });
   const itemCount =
-    model.tab === "runs"
+    model.tab === 'runs'
       ? model.runs.length
-      : model.tab === "activity"
+      : model.tab === 'activity'
         ? model.activity.length
-        : model.plans.length
+        : model.plans.length;
 
   return (
     <div
@@ -642,8 +645,8 @@ export function HistoryWorkspace({
       aria-busy={model.loading || model.refreshing}
     >
       <SectionHeading
-        title={t("history.title")}
-        description={t("history.description", { asOf: model.asOfLabel })}
+        title={t('history.title')}
+        description={t('history.description', { asOf: model.asOfLabel })}
         action={
           model.refreshing ? (
             <div
@@ -651,7 +654,7 @@ export function HistoryWorkspace({
               className="flex h-8 items-center gap-2 text-xs text-muted-foreground"
             >
               <Spinner className="size-3.5" aria-hidden="true" />
-              {t("history.updating")}
+              {t('history.updating')}
             </div>
           ) : undefined
         }
@@ -660,7 +663,7 @@ export function HistoryWorkspace({
       {model.error !== null && (
         <Alert variant="destructive" role="alert">
           <IconAlertTriangle />
-          <AlertTitle>{t("history.unavailable")}</AlertTitle>
+          <AlertTitle>{t('history.unavailable')}</AlertTitle>
           <AlertDescription>{model.error}</AlertDescription>
         </Alert>
       )}
@@ -668,7 +671,7 @@ export function HistoryWorkspace({
         <Alert variant="destructive" role="alert">
           <IconAlertTriangle />
           <AlertTitle>
-            {t("orderResolution.history.restore.errorTitle")}
+            {t('orderResolution.history.restore.errorTitle')}
           </AlertTitle>
           <AlertDescription>{model.restoreError}</AlertDescription>
         </Alert>
@@ -677,7 +680,7 @@ export function HistoryWorkspace({
         <Alert role="status">
           <IconArrowBackUp />
           <AlertTitle>
-            {t("orderResolution.history.restore.successTitle")}
+            {t('orderResolution.history.restore.successTitle')}
           </AlertTitle>
           <AlertDescription>{model.restoreNotice}</AlertDescription>
         </Alert>
@@ -709,33 +712,33 @@ export function HistoryWorkspace({
             </InputGroupAddon>
             <InputGroupInput
               type="search"
-              aria-label={t("history.search")}
+              aria-label={t('history.search')}
               placeholder={
-                model.tab === "activity"
-                  ? t("history.searchActivity")
-                  : model.tab === "plans"
-                    ? t("history.searchPlans")
-                    : t("history.searchRuns")
+                model.tab === 'activity'
+                  ? t('history.searchActivity')
+                  : model.tab === 'plans'
+                    ? t('history.searchPlans')
+                    : t('history.searchRuns')
               }
               value={model.filters.query}
-              onChange={(event) => updateFilter("query", event.target.value)}
+              onChange={(event) => updateFilter('query', event.target.value)}
             />
           </InputGroup>
           <div className="flex flex-wrap gap-2 sm:ml-auto">
             <HistoryFilterSelect
               id="history-date-filter"
-              label={t("history.date")}
+              label={t('history.date')}
               value={model.filters.dateWindow}
               options={model.dateOptions}
-              onChange={(value) => updateFilter("dateWindow", value)}
+              onChange={(value) => updateFilter('dateWindow', value)}
             />
             {model.statusOptions.length > 1 && (
               <HistoryFilterSelect
                 id="history-status-filter"
-                label={t("history.status")}
+                label={t('history.status')}
                 value={model.filters.status}
                 options={model.statusOptions}
-                onChange={(value) => updateFilter("status", value)}
+                onChange={(value) => updateFilter('status', value)}
               />
             )}
             {filterCount > 0 && (
@@ -746,7 +749,7 @@ export function HistoryWorkspace({
                 onClick={callbacks.onClearFilters}
               >
                 <IconFilter data-icon="inline-start" />
-                {t("history.clearFilters", { count: filterCount })}
+                {t('history.clearFilters', { count: filterCount })}
               </Button>
             )}
           </div>
@@ -754,29 +757,29 @@ export function HistoryWorkspace({
       </Card>
 
       {model.loading ? (
-        <DelayedLoadingRows label={t("history.loading")} />
+        <DelayedLoadingRows label={t('history.loading')} />
       ) : itemCount === 0 ? (
         <Empty className="min-h-72 border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              {model.tab === "activity" ? <IconClock /> : <IconHistory />}
+              {model.tab === 'activity' ? <IconClock /> : <IconHistory />}
             </EmptyMedia>
             <EmptyTitle role="heading" aria-level={2}>
-              {t("history.emptyTitle")}
+              {t('history.emptyTitle')}
             </EmptyTitle>
             <EmptyDescription>
               {filterCount > 0
-                ? t("history.emptyFiltered")
-                : t("history.empty")}
+                ? t('history.emptyFiltered')
+                : t('history.empty')}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
         <>
-          {model.tab === "runs" && (
+          {model.tab === 'runs' && (
             <RunsView runs={model.runs} onOpenRun={callbacks.onOpenRun} />
           )}
-          {model.tab === "activity" && (
+          {model.tab === 'activity' && (
             <ActivityView
               items={model.activity}
               canManage={model.canManage}
@@ -784,7 +787,7 @@ export function HistoryWorkspace({
               onRestoreOrder={callbacks.onRestoreOrder}
             />
           )}
-          {model.tab === "plans" && (
+          {model.tab === 'plans' && (
             <PlansView plans={model.plans} onOpenRun={callbacks.onOpenRun} />
           )}
           <HistoryPagination page={model.page} callbacks={callbacks} />
@@ -797,7 +800,7 @@ export function HistoryWorkspace({
         isMobile={isMobile}
       />
     </div>
-  )
+  );
 }
 
 export type {
@@ -805,4 +808,4 @@ export type {
   HistoryFilters,
   HistoryRunDetail,
   HistoryViewModel,
-} from "./history.model"
+} from './history.model';

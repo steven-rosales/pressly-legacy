@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import express, { type Express } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { requireJsonContentType } from '@pressly/http/express';
 import { makeErrorHandler } from '../../src/http/middleware/error.middleware.ts';
 import { makeRequestContext } from '../../src/http/middleware/request-context.middleware.ts';
@@ -156,7 +156,7 @@ const makeThrowingObservationApp = (): Express => {
   return app;
 };
 
-const makeResultFailureApp = (
+const makeApplicationFailureApp = (
   error: ReturnType<typeof makeAppError>,
 ): Express => {
   const app = express();
@@ -167,8 +167,16 @@ const makeResultFailureApp = (
   app.use(
     makeWebhookIngestionRoutes({
       application: {
-        listDeadEvents: async () => ({ tag: 'err' as const, error }),
-        replayDeadEvent: async () => ({ tag: 'err' as const, error }),
+        listDeadEvents: async () => {
+          throw error;
+        },
+        replayDeadEvent: async () => ({
+          tag: 'err' as const,
+          error: {
+            code: 'webhook_event_not_found' as const,
+            message: 'The webhook event was not found.',
+          },
+        }),
       },
       authenticate: continueRequest,
       authorize: continueRequest,
@@ -287,7 +295,7 @@ describe('API request boundary', () => {
     );
   });
 
-  it('routes Result failures through the error boundary exactly once', async () => {
+  it('routes application failures through the error boundary exactly once', async () => {
     const error = makeAppError({
       kind: 'DatabaseError',
       code: 'dead_letter_store_unavailable',
@@ -300,7 +308,7 @@ describe('API request boundary', () => {
       publicDetails: { retryAfterSeconds: 30 },
     });
     const response = await fetch(
-      `${await start(makeResultFailureApp(error))}/webhook-ingestion/dead-letters`,
+      `${await start(makeApplicationFailureApp(error))}/webhook-ingestion/dead-letters`,
     );
     const requestId = response.headers.get('x-request-id');
     const body = await response.json();

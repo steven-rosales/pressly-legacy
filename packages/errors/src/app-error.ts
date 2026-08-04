@@ -1,3 +1,5 @@
+import type { JsonValue } from '@pressly/codec';
+
 export const errorKinds = [
   'ConfigError',
   'ValidationError',
@@ -33,7 +35,7 @@ export type AppError = Error &
     /** Private diagnostic context. Never serialize this field to a client. */
     details?: unknown;
     /** Deliberately wire-safe structured context for callers. */
-    publicDetails?: unknown;
+    publicDetails?: JsonValue;
     cause?: unknown;
     traceId?: string;
   }>;
@@ -45,9 +47,15 @@ export type MakeAppErrorInput = Readonly<{
   status: HttpStatusCode;
   safeMessage?: string;
   details?: unknown;
-  publicDetails?: unknown;
+  publicDetails?: JsonValue;
   cause?: unknown;
   traceId?: string;
+}>;
+
+export type MakeAggregateErrorInput = Readonly<{
+  errors: Iterable<unknown>;
+  message: string;
+  cause?: unknown;
 }>;
 
 const defaultSafeMessage = (status: HttpStatusCode): string =>
@@ -59,6 +67,19 @@ const makeThrowable = (input: MakeAppErrorInput): Error =>
   input.cause === undefined
     ? new Error(input.message)
     : new Error(input.message, { cause: input.cause });
+
+/**
+ * Centralizes construction of the one native aggregate throwable that carries
+ * multiple independent unexpected failures. Application code should normally
+ * prefer an AppError factory; this exists for observability and concurrency
+ * boundaries that must preserve every member failure.
+ */
+export const makeAggregateError = (
+  input: MakeAggregateErrorInput,
+): AggregateError =>
+  input.cause === undefined
+    ? new AggregateError(input.errors, input.message)
+    : new AggregateError(input.errors, input.message, { cause: input.cause });
 
 export const makeAppError = (input: MakeAppErrorInput): AppError => {
   const error = makeThrowable(input);

@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { EnvSource } from './env-source.js';
-import { configError } from '@pressly/errors';
+import { configError } from '@pressly/errors/factories';
 
 export type ParsedEnv<S extends z.ZodType> = Readonly<z.infer<S>>;
 

@@ -1,12 +1,14 @@
 import {
-  listProductionHistoryActivityQuerySchema,
-  previewProductionOrderBacklogRequestSchema,
   processorListProductionHistoryActivityResultSchema,
   processorProductionOrderBacklogPreviewSchema,
   processorProductionBoardSchema,
   processorProductionHistoryRunDetailSchema,
   processorProductionWorkspaceSchema,
   processorRemainingDayForecastSchema,
+} from '@pressly/contracts/processor';
+import {
+  listProductionHistoryActivityQuerySchema,
+  previewProductionOrderBacklogRequestSchema,
   productionHistoryLocationParamsSchema,
   productionHistoryRunParamsSchema,
   productionLocationParamsSchema,
@@ -15,36 +17,58 @@ import {
   productionRunBoardParamsSchema,
   productionWorkspaceParamsSchema,
   productionWorkspaceQuerySchema,
-  type ListProductionHistoryActivityQuery,
-  type PreviewProductionOrderBacklogCommand,
-  type ProductionRemainingDayForecast,
-} from '@pressly/contracts';
+} from '@pressly/contracts/production';
 import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
-import type { ProductionApplication } from '@pressly/production';
+import { defineRequestBoundary } from '@pressly/http/express';
+import type {
+  ProductionApplication,
+  ProductionHttpApplication,
+} from '@pressly/production';
 import { Router, type RequestHandler } from 'express';
-import type { ProcessorOperationalOrderReadModel } from './operational-order-identity.read-model.ts';
+import type { ProcessorOperationalOrderIdentityAdapter } from './operational-order-identity.adapter.ts';
 
 type ProcessorProductionReadApplication = Readonly<{
   loadProductionWorkspace: ProductionApplication['loadProductionWorkspace'];
   loadProductionBoard: ProductionApplication['loadProductionBoard'];
   previewProductionOrderBacklog: ProductionApplication['previewProductionOrderBacklog'];
-  loadRemainingDayForecast: (query: {
-    locationId: string;
-    serviceDay: string;
-  }) => Promise<
-    | Readonly<{ tag: 'ok'; value: ProductionRemainingDayForecast }>
-    | Readonly<{ tag: 'err'; error: unknown }>
-  >;
+  loadRemainingDayForecast: ProductionHttpApplication['loadRemainingDayForecast'];
   productionHistory: Pick<
     ProductionApplication['productionHistory'],
     'listActivity' | 'loadRun'
   >;
 }>;
 
+const previewProductionOrderBacklogBoundary = defineRequestBoundary({
+  params: productionLocationParamsSchema,
+  body: previewProductionOrderBacklogRequestSchema,
+});
+
+const productionBoardBoundary = defineRequestBoundary({
+  params: productionRunBoardParamsSchema,
+});
+
+const productionWorkspaceBoundary = defineRequestBoundary({
+  params: productionWorkspaceParamsSchema,
+  query: productionWorkspaceQuerySchema,
+});
+
+const remainingDayForecastBoundary = defineRequestBoundary({
+  params: productionRemainingDayForecastParamsSchema,
+  query: productionRemainingDayForecastQuerySchema,
+});
+
+const productionHistoryActivityBoundary = defineRequestBoundary({
+  params: productionHistoryLocationParamsSchema,
+  query: listProductionHistoryActivityQuerySchema,
+});
+
+const productionHistoryRunBoundary = defineRequestBoundary({
+  params: productionHistoryRunParamsSchema,
+});
+
 export const makeProcessorOperationalOrderRoutes = (input: {
   production: ProcessorProductionReadApplication;
-  readModel: ProcessorOperationalOrderReadModel;
+  operationalOrderAdapter: ProcessorOperationalOrderIdentityAdapter;
   authenticate: RequestHandler;
   authorizeRead: RequestHandler;
   authorizeOverride: RequestHandler;
@@ -54,18 +78,18 @@ export const makeProcessorOperationalOrderRoutes = (input: {
   routes.get(
     '/production/locations/:locationId/runs/:productionRunId/board',
     input.authenticate,
-    validateRequest({ params: productionRunBoardParamsSchema }),
+    productionBoardBoundary.validate,
     input.authorizeRead,
-    catchAsync(async (request, response) => {
+    productionBoardBoundary.handler(async ({ params }, { response }) => {
       const result = await input.production.loadProductionBoard({
-        locationId: request.params['locationId'] as string,
-        productionRunId: request.params['productionRunId'] as string,
+        locationId: params.locationId,
+        productionRunId: params.productionRunId,
       });
       if (result.tag === 'err') throw result.error;
       response.json(
         apiSuccess(
           processorProductionBoardSchema.parse(
-            await input.readModel.composeBoard(result.value),
+            await input.operationalOrderAdapter.composeBoard(result.value),
           ),
         ),
       );
@@ -75,120 +99,135 @@ export const makeProcessorOperationalOrderRoutes = (input: {
   routes.post(
     '/production/locations/:locationId/order-backlog/preview',
     input.authenticate,
-    validateRequest({
-      params: productionLocationParamsSchema,
-      body: previewProductionOrderBacklogRequestSchema,
-    }),
+    previewProductionOrderBacklogBoundary.validate,
     input.authorizeOverride,
-    catchAsync(async (request, response) => {
-      const body = request.body as Omit<
-        PreviewProductionOrderBacklogCommand,
-        'locationId'
-      >;
-      const preview = await input.production.previewProductionOrderBacklog({
-        ...body,
-        locationId: request.params['locationId'] as string,
-      });
-      if (preview.tag === 'err') throw preview.error;
-      response.json(
-        apiSuccess(
-          processorProductionOrderBacklogPreviewSchema.parse(
-            await input.readModel.composeBacklogPreview(preview.value),
+    previewProductionOrderBacklogBoundary.handler(
+      async ({ body, params }, { response }) => {
+        const preview = await input.production.previewProductionOrderBacklog({
+          locationId: params.locationId,
+          filter: body.filter,
+          cutoff: body.cutoff,
+          reason: body.reason,
+          cursor: body.cursor,
+          maxOrders: body.maxOrders,
+        });
+        if (preview.tag === 'err') throw preview.error;
+        response.json(
+          apiSuccess(
+            processorProductionOrderBacklogPreviewSchema.parse(
+              await input.operationalOrderAdapter.composeBacklogPreview(
+                preview.value,
+              ),
+            ),
           ),
-        ),
-      );
-    }),
+        );
+      },
+    ),
   );
 
   routes.get(
     '/production/locations/:locationId/workspace',
     input.authenticate,
-    validateRequest({
-      params: productionWorkspaceParamsSchema,
-      query: productionWorkspaceQuerySchema,
-    }),
+    productionWorkspaceBoundary.validate,
     input.authorizeRead,
-    catchAsync(async (request, response) => {
-      const result = await input.production.loadProductionWorkspace({
-        locationId: request.params['locationId'] as string,
-        ...(typeof request.query['shiftId'] === 'string'
-          ? { shiftId: request.query['shiftId'] }
-          : {}),
-      });
-      if (result.tag === 'err') throw result.error;
-      response.json(
-        apiSuccess(
-          processorProductionWorkspaceSchema.parse(
-            await input.readModel.composeWorkspace(result.value),
+    productionWorkspaceBoundary.handler(
+      async ({ params, query }, { response }) => {
+        const result = await input.production.loadProductionWorkspace({
+          locationId: params.locationId,
+          ...(query.shiftId === undefined ? {} : { shiftId: query.shiftId }),
+        });
+        if (result.tag === 'err') throw result.error;
+        response.json(
+          apiSuccess(
+            processorProductionWorkspaceSchema.parse(
+              await input.operationalOrderAdapter.composeWorkspace(
+                result.value,
+              ),
+            ),
           ),
-        ),
-      );
-    }),
+        );
+      },
+    ),
   );
 
   routes.get(
     '/production/locations/:locationId/forecast',
     input.authenticate,
-    validateRequest({
-      params: productionRemainingDayForecastParamsSchema,
-      query: productionRemainingDayForecastQuerySchema,
-    }),
+    remainingDayForecastBoundary.validate,
     input.authorizeRead,
-    catchAsync(async (request, response) => {
-      const result = await input.production.loadRemainingDayForecast({
-        locationId: request.params['locationId'] as string,
-        serviceDay: request.query['serviceDay'] as string,
-      });
-      if (result.tag === 'err') throw result.error;
-      response.json(
-        apiSuccess(
-          processorRemainingDayForecastSchema.parse(
-            await input.readModel.composeForecast(result.value),
+    remainingDayForecastBoundary.handler(
+      async ({ params, query }, { response }) => {
+        const result = await input.production.loadRemainingDayForecast({
+          locationId: params.locationId,
+          serviceDay: query.serviceDay,
+        });
+        if (result.tag === 'err') throw result.error;
+        response.json(
+          apiSuccess(
+            processorRemainingDayForecastSchema.parse(
+              await input.operationalOrderAdapter.composeForecast(result.value),
+            ),
           ),
-        ),
-      );
-    }),
+        );
+      },
+    ),
   );
 
   routes.get(
     '/production/locations/:locationId/history/activity',
     input.authenticate,
-    validateRequest({
-      params: productionHistoryLocationParamsSchema,
-      query: listProductionHistoryActivityQuerySchema,
-    }),
+    productionHistoryActivityBoundary.validate,
     input.authorizeRead,
-    catchAsync(async (request, response) => {
-      const activity = await input.production.productionHistory.listActivity({
-        ...(request.query as unknown as ListProductionHistoryActivityQuery),
-        locationId: request.params['locationId'] as string,
-      });
-      if (activity.tag === 'err') throw activity.error;
-      response.json(
-        apiSuccess(
-          processorListProductionHistoryActivityResultSchema.parse(
-            await input.readModel.composeHistoryActivity(activity.value),
+    productionHistoryActivityBoundary.handler(
+      async ({ params, query }, { response }) => {
+        const activity = await input.production.productionHistory.listActivity({
+          locationId: params.locationId,
+          limit: query.limit,
+          ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+          ...(query.runId === undefined ? {} : { runId: query.runId }),
+          ...(query.entityType === undefined
+            ? {}
+            : { entityType: query.entityType }),
+          ...(query.eventType === undefined
+            ? {}
+            : { eventType: query.eventType }),
+          ...(query.orderResolution === undefined
+            ? {}
+            : { orderResolution: query.orderResolution }),
+          ...(query.search === undefined ? {} : { search: query.search }),
+          ...(query.occurredAfter === undefined
+            ? {}
+            : { occurredAfter: new Date(query.occurredAfter) }),
+        });
+        if (activity.tag === 'err') throw activity.error;
+        response.json(
+          apiSuccess(
+            processorListProductionHistoryActivityResultSchema.parse(
+              await input.operationalOrderAdapter.composeHistoryActivity(
+                activity.value,
+              ),
+            ),
           ),
-        ),
-      );
-    }),
+        );
+      },
+    ),
   );
 
   routes.get(
     '/production/locations/:locationId/history/runs/:productionRunId',
     input.authenticate,
-    validateRequest({ params: productionHistoryRunParamsSchema }),
+    productionHistoryRunBoundary.validate,
     input.authorizeRead,
-    catchAsync(async (request, response) => {
+    productionHistoryRunBoundary.handler(async ({ params }, { response }) => {
       const result = await input.production.productionHistory.loadRun({
-        locationId: request.params['locationId'] as string,
-        productionRunId: request.params['productionRunId'] as string,
+        locationId: params.locationId,
+        productionRunId: params.productionRunId,
       });
       if (result.tag === 'err') throw result.error;
       response.json(
         apiSuccess(
           processorProductionHistoryRunDetailSchema.parse(
-            await input.readModel.composeHistoryRun(result.value),
+            await input.operationalOrderAdapter.composeHistoryRun(result.value),
           ),
         ),
       );

@@ -5,8 +5,8 @@ import type {
   PublishPricingChangeItem,
   PricingChangePlan,
   PublishPricingChangeResult,
-} from '@pressly/contracts';
-import { type AppError } from '@pressly/errors';
+} from '@pressly/contracts/pricing';
+import { type AppError } from '@pressly/errors/app-error';
 import { commandError } from '../../../shell/command-error.ts';
 import type { PricingChangeInput, PricingClient } from './ports.ts';
 

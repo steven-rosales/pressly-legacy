@@ -1,18 +1,17 @@
 import type { z } from 'zod';
 import type {
-  loadPricingCatalogCommandSchema,
   pricingParamsRequestSchema,
   pricingChangeRequestSchema,
   publishPricingChangeItemSchema,
 } from './pricing.contracts.js';
 
-export type LoadPricingCatalogCommand = z.infer<
-  typeof loadPricingCatalogCommandSchema
->;
+export type PricingParamsRequest = z.infer<typeof pricingParamsRequestSchema>;
 
-export type PricingParamsRequestSchema = z.infer<
-  typeof pricingParamsRequestSchema
->;
+/** @deprecated Use PricingParamsRequest for the serialized route parameters. */
+export type LoadPricingCatalogCommand = PricingParamsRequest;
+
+/** @deprecated Use PricingParamsRequest. */
+export type PricingParamsRequestSchema = PricingParamsRequest;
 
 export type PublishPricingChangeItem = z.infer<
   typeof publishPricingChangeItemSchema

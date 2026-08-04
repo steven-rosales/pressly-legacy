@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { CaptureWebhookReceipt } from '@pressly/webhook-ingestion';
 import { describe, expect, it, vi } from 'vitest';
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import {
   makeCentsWebhookNormalizationBoundary,
   readCentsWebhookQuarantineReceiptId,
@@ -103,7 +103,9 @@ describe('Cents webhook normalization quarantine', () => {
     });
     const boundary = await run({
       payload: documentedCentsOrderWebhook,
-      captureReceipt: vi.fn(async () => ({ tag: 'err' as const, error })),
+      captureReceipt: vi.fn(async () => {
+        throw error;
+      }),
     });
 
     expect(boundary.next).toHaveBeenCalledWith(error);

@@ -1,5 +1,9 @@
-import { normalizeUnknownError, type AppError } from '@pressly/errors';
+import {
+  normalizeUnknownError,
+  type AppError,
+} from '@pressly/errors/app-error';
 import { redactLogFields, type Logger, type LogFields } from '@pressly/logging';
+import type { Clock } from '@pressly/time';
 import {
   attemptObservation,
   isolateCounterSink,
@@ -7,7 +11,7 @@ import {
   type CounterSink,
   type ErrorReporter,
   type MeasurementSink,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import type {
   ClaimedWebhookEvent,
   WebhookIngestionApplication,
@@ -17,8 +21,6 @@ import {
   isRetryableAppError,
 } from '../../runtime/failure-disposition.ts';
 import { retryDelayMs } from '../../runtime/retry.ts';
-
-export type WorkerClock = Readonly<{ now: () => Date }>;
 
 export type EventConsumerOutcome =
   | Readonly<{ tag: 'ok' }>
@@ -43,7 +45,7 @@ type IngestionWorkerPort = Pick<
 export const makeWebhookInboxJob = (deps: {
   ingestion: IngestionWorkerPort;
   consume: WebhookEventConsumer;
-  clock: WorkerClock;
+  clock: Clock;
   random: () => number;
   logger: Logger;
   counters: CounterSink;
@@ -133,7 +135,6 @@ export const makeWebhookInboxJob = (deps: {
 
     try {
       const purged = await deps.ingestion.purgeExpiredReceipts();
-      if (purged.tag === 'err') throw purged.error;
       if (purged.value.purgedCount > 0)
         logInfo('expired webhook quarantine receipts purged', {
           purgedCount: purged.value.purgedCount,

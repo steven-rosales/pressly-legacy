@@ -1,4 +1,13 @@
 import {
+  processorListProductionHistoryActivityResultSchema,
+  listProcessorOrderControlResultSchema,
+  processorProductionHistoryRunDetailSchema,
+  processorProductionOrderBacklogPreviewSchema,
+  processorProductionBoardSchema,
+  processorProductionWorkspaceSchema,
+  processorRemainingDayForecastSchema,
+} from '@pressly/contracts/processor';
+import {
   acceptScheduleResultSchema,
   advanceProductionStageResultSchema,
   automaticProductionOrderPlacementResultSchema,
@@ -7,19 +16,12 @@ import {
   changeProductionOrderResolutionResultSchema,
   exactProductionOrderPlacementResultSchema,
   commitProductionOrderRouteResultSchema,
-  processorListProductionHistoryActivityResultSchema,
   listProductionHistoryPlansResultSchema,
   listProductionHistoryRunsResultSchema,
-  listProcessorOrderControlResultSchema,
   productionBatchMembershipMutationResultSchema,
   productionBatchProgressReconciliationResultSchema,
   listProductionLocationsResultSchema,
   listProductionOrdersResultSchema,
-  processorProductionHistoryRunDetailSchema,
-  processorProductionOrderBacklogPreviewSchema,
-  processorProductionBoardSchema,
-  processorProductionWorkspaceSchema,
-  processorRemainingDayForecastSchema,
   productionOrderBacklogCommitResultSchema,
   productionMutationResultSchema,
   productionOrderRouteProposalSchema,
@@ -30,29 +32,29 @@ import {
   schedulerConfigSchema,
   startScheduleResultSchema,
   updateProductionShiftResultSchema,
-} from "@pressly/contracts"
-import type { ProductionPort } from "@/ports/production.port"
-import type { RequestPort } from "@/ports/request.port"
+} from '@pressly/contracts/production';
+import type { ProductionPort } from '@/ports/production.port';
+import type { RequestPort } from '@/ports/request.port';
 
 export const makeApiProductionAdapter = (
-  request: RequestPort
+  request: RequestPort,
 ): ProductionPort => ({
   listLocations: () =>
     request(
-      { path: "/production/locations" },
-      listProductionLocationsResultSchema
+      { path: '/production/locations' },
+      listProductionLocationsResultSchema,
     ),
   loadWorkspace: (locationId, shiftId, signal) => {
-    const query = new URLSearchParams()
-    if (shiftId !== undefined) query.set("shiftId", shiftId)
-    const suffix = query.size === 0 ? "" : `?${query.toString()}`
+    const query = new URLSearchParams();
+    if (shiftId !== undefined) query.set('shiftId', shiftId);
+    const suffix = query.size === 0 ? '' : `?${query.toString()}`;
     return request(
       {
         path: `/production/locations/${encodeURIComponent(locationId)}/workspace${suffix}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      processorProductionWorkspaceSchema
-    )
+      processorProductionWorkspaceSchema,
+    );
   },
   loadRemainingDayForecast: ({ locationId, serviceDay, signal }) =>
     request(
@@ -60,58 +62,58 @@ export const makeApiProductionAdapter = (
         path: `/production/locations/${encodeURIComponent(locationId)}/forecast?${new URLSearchParams({ serviceDay }).toString()}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      processorRemainingDayForecastSchema
+      processorRemainingDayForecastSchema,
     ),
   listOrders: ({ locationId, cursor, limit = 100, signal }) => {
-    const query = new URLSearchParams({ limit: String(limit) })
-    if (cursor !== undefined) query.set("cursor", cursor)
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (cursor !== undefined) query.set('cursor', cursor);
     return request(
       {
         path: `/production/locations/${encodeURIComponent(locationId)}/orders?${query.toString()}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      listProductionOrdersResultSchema
-    )
+      listProductionOrdersResultSchema,
+    );
   },
   listOrderControl: ({ locationId, query: input, signal }) => {
-    const query = new URLSearchParams()
+    const query = new URLSearchParams();
     Object.entries(input).forEach(([key, value]) => {
-      if (value !== undefined) query.set(key, String(value))
-    })
+      if (value !== undefined) query.set(key, String(value));
+    });
     return request(
       {
         path: `/production/locations/${encodeURIComponent(locationId)}/order-control?${query.toString()}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      listProcessorOrderControlResultSchema
-    )
+      listProcessorOrderControlResultSchema,
+    );
   },
   previewOrderBacklog: ({ locationId, request: body }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/order-backlog/preview`,
         body,
       },
-      processorProductionOrderBacklogPreviewSchema
+      processorProductionOrderBacklogPreviewSchema,
     ),
   commitOrderBacklog: ({ locationId, request: body }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/order-backlog`,
         body,
       },
-      productionOrderBacklogCommitResultSchema
+      productionOrderBacklogCommitResultSchema,
     ),
   changeOrderResolution: ({ locationId, productionOrderId, request: body }) =>
     request(
       {
-        method: "PUT",
+        method: 'PUT',
         path: `/production/locations/${encodeURIComponent(locationId)}/orders/${encodeURIComponent(productionOrderId)}/resolution`,
         body,
       },
-      changeProductionOrderResolutionResultSchema
+      changeProductionOrderResolutionResultSchema,
     ),
   previewOrderRoute: ({
     locationId,
@@ -121,11 +123,11 @@ export const makeApiProductionAdapter = (
   }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/orders/${encodeURIComponent(productionOrderId)}/route/preview`,
         body,
       },
-      productionOrderRouteProposalSchema
+      productionOrderRouteProposalSchema,
     ),
   commitOrderRoute: ({
     locationId,
@@ -135,50 +137,50 @@ export const makeApiProductionAdapter = (
   }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/orders/${encodeURIComponent(productionOrderId)}/route`,
         body,
       },
-      commitProductionOrderRouteResultSchema
+      commitProductionOrderRouteResultSchema,
     ),
   listHistoryRuns: ({ locationId, query: input, signal }) => {
-    const query = new URLSearchParams()
+    const query = new URLSearchParams();
     Object.entries(input).forEach(([key, value]) => {
-      if (value !== undefined) query.set(key, String(value))
-    })
+      if (value !== undefined) query.set(key, String(value));
+    });
     return request(
       {
         path: `/production/locations/${encodeURIComponent(locationId)}/history/runs?${query.toString()}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      listProductionHistoryRunsResultSchema
-    )
+      listProductionHistoryRunsResultSchema,
+    );
   },
   listHistoryActivity: ({ locationId, query: input, signal }) => {
-    const query = new URLSearchParams()
+    const query = new URLSearchParams();
     Object.entries(input).forEach(([key, value]) => {
-      if (value !== undefined) query.set(key, String(value))
-    })
+      if (value !== undefined) query.set(key, String(value));
+    });
     return request(
       {
         path: `/production/locations/${encodeURIComponent(locationId)}/history/activity?${query.toString()}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      processorListProductionHistoryActivityResultSchema
-    )
+      processorListProductionHistoryActivityResultSchema,
+    );
   },
   listHistoryPlans: ({ locationId, query: input, signal }) => {
-    const query = new URLSearchParams()
+    const query = new URLSearchParams();
     Object.entries(input).forEach(([key, value]) => {
-      if (value !== undefined) query.set(key, String(value))
-    })
+      if (value !== undefined) query.set(key, String(value));
+    });
     return request(
       {
         path: `/production/locations/${encodeURIComponent(locationId)}/history/plans?${query.toString()}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      listProductionHistoryPlansResultSchema
-    )
+      listProductionHistoryPlansResultSchema,
+    );
   },
   loadHistoryRun: (locationId, productionRunId, signal) =>
     request(
@@ -186,95 +188,95 @@ export const makeApiProductionAdapter = (
         path: `/production/locations/${encodeURIComponent(locationId)}/history/runs/${encodeURIComponent(productionRunId)}`,
         ...(signal === undefined ? {} : { signal }),
       },
-      processorProductionHistoryRunDetailSchema
+      processorProductionHistoryRunDetailSchema,
     ),
   recordIntake: ({ locationId, productionOrderId, ...body }) =>
     request(
       {
-        method: "PUT",
+        method: 'PUT',
         path: `/production/locations/${encodeURIComponent(locationId)}/orders/${encodeURIComponent(productionOrderId)}/intake`,
         body,
       },
-      recordOrderIntakeResultSchema
+      recordOrderIntakeResultSchema,
     ),
   changeAdmission: ({ locationId, productionOrderId, ...body }) =>
     request(
       {
-        method: "PUT",
+        method: 'PUT',
         path: `/production/locations/${encodeURIComponent(locationId)}/orders/${encodeURIComponent(productionOrderId)}/admission`,
         body,
       },
-      changeProductionAdmissionResultSchema
+      changeProductionAdmissionResultSchema,
     ),
   publishConfig: ({ locationId, ...body }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/scheduler-configs`,
         body,
       },
-      schedulerConfigSchema
+      schedulerConfigSchema,
     ),
   createShift: ({ locationId, ...body }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/shifts`,
         body,
       },
-      productionShiftSchema
+      productionShiftSchema,
     ),
   updateShift: ({ locationId, productionShiftId, ...body }) =>
     request(
       {
-        method: "PATCH",
+        method: 'PATCH',
         path: `/production/locations/${encodeURIComponent(locationId)}/shifts/${encodeURIComponent(productionShiftId)}`,
         body,
       },
-      updateProductionShiftResultSchema
+      updateProductionShiftResultSchema,
     ),
   replaceShiftSelection: ({ locationId, productionShiftId, ...body }) =>
     request(
       {
-        method: "PUT",
+        method: 'PUT',
         path: `/production/locations/${encodeURIComponent(locationId)}/shifts/${encodeURIComponent(productionShiftId)}/selection`,
         body,
       },
-      replaceProductionShiftSelectionResultSchema
+      replaceProductionShiftSelectionResultSchema,
     ),
   createSchedule: ({ locationId, ...body }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/schedules`,
         body,
       },
-      scheduleProposalSchema
+      scheduleProposalSchema,
     ),
   loadSchedule: (locationId, scheduleRunId) =>
     request(
       {
         path: `/production/locations/${encodeURIComponent(locationId)}/schedules/${encodeURIComponent(scheduleRunId)}`,
       },
-      scheduleProposalSchema
+      scheduleProposalSchema,
     ),
   acceptSchedule: ({ locationId, scheduleRunId, ...body }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/schedules/${encodeURIComponent(scheduleRunId)}/accept`,
         body,
       },
-      acceptScheduleResultSchema
+      acceptScheduleResultSchema,
     ),
   startSchedule: ({ locationId, scheduleRunId, ...body }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/schedules/${encodeURIComponent(scheduleRunId)}/start`,
         body,
       },
-      startScheduleResultSchema
+      startScheduleResultSchema,
     ),
   loadBoard: (locationId, productionRunId, signal) =>
     request(
@@ -282,25 +284,25 @@ export const makeApiProductionAdapter = (
         path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/board`,
         ...(signal === undefined ? {} : { signal }),
       },
-      processorProductionBoardSchema
+      processorProductionBoardSchema,
     ),
   setPriority: ({ locationId, productionOrderId, ...body }) =>
     request(
       {
-        method: "PATCH",
+        method: 'PATCH',
         path: `/production/locations/${encodeURIComponent(locationId)}/orders/${encodeURIComponent(productionOrderId)}/priority`,
         body,
       },
-      productionMutationResultSchema
+      productionMutationResultSchema,
     ),
   freezeBatch: ({ locationId, productionRunId, productionBatchId, ...body }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/batches/${encodeURIComponent(productionBatchId)}/freeze`,
         body,
       },
-      productionBatchMembershipMutationResultSchema
+      productionBatchMembershipMutationResultSchema,
     ),
   unfreezeBatch: ({
     locationId,
@@ -310,11 +312,11 @@ export const makeApiProductionAdapter = (
   }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/batches/${encodeURIComponent(productionBatchId)}/unfreeze`,
         body,
       },
-      productionBatchMembershipMutationResultSchema
+      productionBatchMembershipMutationResultSchema,
     ),
   retryAutomaticPlacement: ({
     locationId,
@@ -324,11 +326,11 @@ export const makeApiProductionAdapter = (
   }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/orders/${encodeURIComponent(productionOrderId)}/place`,
         body,
       },
-      automaticProductionOrderPlacementResultSchema
+      automaticProductionOrderPlacementResultSchema,
     ),
   placeOrderExactly: ({
     locationId,
@@ -339,11 +341,11 @@ export const makeApiProductionAdapter = (
   }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/batches/${encodeURIComponent(productionBatchId)}/orders/${encodeURIComponent(productionOrderId)}/place`,
         body,
       },
-      exactProductionOrderPlacementResultSchema
+      exactProductionOrderPlacementResultSchema,
     ),
   confirmPlacementOvertime: ({
     locationId,
@@ -353,11 +355,11 @@ export const makeApiProductionAdapter = (
   }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/orders/${encodeURIComponent(productionOrderId)}/confirm-overtime`,
         body,
       },
-      confirmProductionOrderOvertimeResultSchema
+      confirmProductionOrderOvertimeResultSchema,
     ),
   reconcileBatchProgress: ({
     locationId,
@@ -367,28 +369,28 @@ export const makeApiProductionAdapter = (
   }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/runs/${encodeURIComponent(productionRunId)}/batches/${encodeURIComponent(productionBatchId)}/progress-reconciliation`,
         body,
       },
-      productionBatchProgressReconciliationResultSchema
+      productionBatchProgressReconciliationResultSchema,
     ),
   advanceStage: ({ locationId, stageRunId, transition, ...body }) =>
     request(
       {
-        method: "POST",
+        method: 'POST',
         path: `/production/locations/${encodeURIComponent(locationId)}/stages/${encodeURIComponent(stageRunId)}/${encodeURIComponent(transition)}`,
         body,
       },
-      advanceProductionStageResultSchema
+      advanceProductionStageResultSchema,
     ),
   assignStageMachines: ({ locationId, stageRunId, ...body }) =>
     request(
       {
-        method: "PUT",
+        method: 'PUT',
         path: `/production/locations/${encodeURIComponent(locationId)}/stages/${encodeURIComponent(stageRunId)}/machines`,
         body,
       },
-      productionMutationResultSchema
+      productionMutationResultSchema,
     ),
-})
+});

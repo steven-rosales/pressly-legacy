@@ -7,20 +7,24 @@
     "types": ["node", "vitest"],
     "paths": {
       "@pressly/config": ["../../packages/config/src/index.ts"],
-      "@pressly/contracts": ["../../packages/contracts/src/index.ts"],
-      "@pressly/db": ["../../packages/db/src/index.ts"],
-      "@pressly/errors": ["../../packages/errors/src/index.ts"],
+      "@pressly/codec": ["../../packages/codec/src/index.ts"],
+      "@pressly/codec/node": ["../../packages/codec/src/node.ts"],
+      "@pressly/codec/zod": ["../../packages/codec/src/zod.ts"],
+      "@pressly/contracts/utc-iso": [
+        "../../packages/contracts/src/utc-iso.contracts.ts"
+      ],
+      "@pressly/contracts/*": ["../../packages/contracts/src/*/index.ts"],
+      "@pressly/db/schema/*": ["../../packages/db/src/schema/*.schema.ts"],
+      "@pressly/db/*": ["../../packages/db/src/*.ts"],
+      "@pressly/errors/*": ["../../packages/errors/src/*.ts"],
       "@pressly/logging": ["../../packages/logging/src/index.ts"],
-      "@pressly/metrics": ["../../packages/metrics/src/index.ts"],
+      "@pressly/kernel": ["../../packages/kernel/src/index.ts"],
+      "@pressly/kernel/node": ["../../packages/kernel/src/node.ts"],
+      "@pressly/observability": ["../../packages/observability/src/index.ts"],
       "@pressly/production": [
         "../../modules/business/production/src/public.ts"
       ],
-      "@pressly/production-policy": [
-        "../../modules/policy/production/src/public.ts"
-      ],
-      "@pressly/production-scheduling": [
-        "../../modules/computation/scheduling/src/public.ts"
-      ]
+      "@pressly/time": ["../../packages/time/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],

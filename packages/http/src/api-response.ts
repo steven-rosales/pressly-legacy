@@ -1,9 +1,10 @@
-import type { AppError } from '@pressly/errors';
+import type { AppError } from '@pressly/errors/app-error';
+import type { JsonObject, JsonValue } from '@pressly/codec';
 
 export type ApiSuccess<T> = Readonly<{
   ok: true;
   data: T;
-  meta?: Record<string, unknown> | undefined;
+  meta?: JsonObject | undefined;
 }>;
 
 export type ApiFailure = Readonly<{
@@ -12,16 +13,13 @@ export type ApiFailure = Readonly<{
     code: string;
     message: string;
     traceId?: string | undefined;
-    details?: unknown;
+    details?: JsonValue | undefined;
   }>;
 }>;
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
 
-export const apiSuccess = <T>(
-  data: T,
-  meta?: Record<string, unknown>,
-): ApiSuccess<T> => ({
+export const apiSuccess = <T>(data: T, meta?: JsonObject): ApiSuccess<T> => ({
   ok: true,
   data,
   ...(meta === undefined ? {} : { meta }),

@@ -56,7 +56,7 @@ describe("Control security API", () => {
     )
 
     await expect(api.listSecurityEvents()).rejects.toMatchObject({
-      kind: "unreadable_response",
+      controlKind: "unreadable_response",
     })
   })
 })

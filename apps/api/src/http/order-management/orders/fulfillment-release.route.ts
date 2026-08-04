@@ -3,16 +3,17 @@ import {
   orderMutationResultSchema,
   releaseFulfillmentRequestSchema,
   withdrawFulfillmentRequestSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/orders';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import type { OrdersApplication } from '@pressly/orders';
-import type { LocationAncestryPort } from '@pressly/access-control';
+import type { LocationAncestryPort } from '@pressly/authorization';
 import { Router, type RequestHandler } from 'express';
 import {
   orderManagementCommandContext,
   type ReadOrderManagementPrincipal,
-} from '../command-context.mapper.ts';
+} from '../command-context.adapter.ts';
+import { orderManagementResultValue } from './order-management.error.ts';
 
 export const makeFulfillmentReleaseRoutes = (input: {
   orders: Pick<OrdersApplication, 'releaseFulfillment' | 'withdrawFulfillment'>;
@@ -43,8 +44,8 @@ export const makeFulfillmentReleaseRoutes = (input: {
         fulfillmentId: request.params['fulfillmentId'] as string,
         locationId: request.params['locationId'] as string,
       });
-      if (outcome.tag === 'err') throw outcome.error;
-      response.json(apiSuccess(orderMutationResultSchema.parse(outcome.value)));
+      const value = orderManagementResultValue(outcome);
+      response.json(apiSuccess(orderMutationResultSchema.parse(value)));
     }),
   );
 
@@ -62,8 +63,8 @@ export const makeFulfillmentReleaseRoutes = (input: {
         fulfillmentId: request.params['fulfillmentId'] as string,
         locationId: request.params['locationId'] as string,
       });
-      if (outcome.tag === 'err') throw outcome.error;
-      response.json(apiSuccess(orderMutationResultSchema.parse(outcome.value)));
+      const value = orderManagementResultValue(outcome);
+      response.json(apiSuccess(orderMutationResultSchema.parse(value)));
     }),
   );
 

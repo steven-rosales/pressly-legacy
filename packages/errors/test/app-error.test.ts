@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isAppError,
   mapUnknownError,
+  makeAggregateError,
   makeAppError,
   normalizeUnknownError,
 } from '../src/app-error.js';
@@ -98,5 +99,38 @@ describe('AppError', () => {
     expect(error.tag).toBe('AppError');
     expect(error.kind).toBe('UnexpectedError');
     expect(error.code).toBe('unknown_thrown_value');
+  });
+
+  it('constructs aggregate throwables without losing member failures', () => {
+    const cause = makeAppError({
+      kind: 'UnexpectedError',
+      code: 'aggregate_cause',
+      message: 'Aggregate cause.',
+      status: 500,
+    });
+    const members = [
+      makeAppError({
+        kind: 'DatabaseError',
+        code: 'first_failure',
+        message: 'First failure.',
+        status: 500,
+      }),
+      makeAppError({
+        kind: 'ExternalServiceError',
+        code: 'second_failure',
+        message: 'Second failure.',
+        status: 503,
+      }),
+    ];
+
+    const error = makeAggregateError({
+      errors: members,
+      message: 'Multiple operations failed.',
+      cause,
+    });
+
+    expect(error).toBeInstanceOf(AggregateError);
+    expect(error.errors).toEqual(members);
+    expect(error.cause).toBe(cause);
   });
 });

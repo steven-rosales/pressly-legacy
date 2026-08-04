@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { getTableConfig, getTableName, orders } from '../src/index.ts';
+import { getTableConfig, getTableName } from '../src/query.ts';
+import * as orders from '../src/schema/orders.schema.ts';
 
 const checkNames = (table: Parameters<typeof getTableConfig>[0]): string[] =>
   getTableConfig(table).checks.map((candidate) => candidate.name);

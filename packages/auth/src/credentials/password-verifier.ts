@@ -1,23 +1,20 @@
-import { result, type Result } from '@pressly/kernel';
 import { verify } from 'argon2';
-import { unexpectedError, type AppError } from '@pressly/errors';
+import { unexpectedError } from '@pressly/errors/factories';
 
 export const makePasswordVerifier = () => ({
   verify: async (
     passwordHash: string,
     plainTextPassword: string,
-  ): Promise<Result<boolean, AppError>> => {
+  ): Promise<boolean> => {
     try {
-      return result.ok(await verify(passwordHash, plainTextPassword));
+      return await verify(passwordHash, plainTextPassword);
     } catch (error) {
-      return result.err(
-        unexpectedError({
-          code: 'password_verification_failed',
-          message: 'Password verification failed.',
-          safeMessage: 'Invalid email or password.',
-          cause: error,
-        }),
-      );
+      throw unexpectedError({
+        code: 'password_verification_failed',
+        message: 'Password verification failed.',
+        safeMessage: 'Invalid email or password.',
+        cause: error,
+      });
     }
   },
 });

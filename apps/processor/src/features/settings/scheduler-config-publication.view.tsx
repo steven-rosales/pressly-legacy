@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconAlertTriangle, IconGauge, IconLock } from "@tabler/icons-react"
-import type { SchedulerConfig } from "@pressly/contracts"
+import type { SchedulerConfig } from "@pressly/contracts/production"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"

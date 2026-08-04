@@ -1,8 +1,9 @@
-import type { LoadedProcessorSession } from '../../src/http/processor/session/processor-session.port.ts';
 import {
-  resolveProcessorAccessFromLocations,
+  resolveProcessorAccess,
   type ProcessorLocationAuthority,
-} from '../../src/http/processor/session/processor-access.query.ts';
+  type ProcessorSession,
+} from '@pressly/processor-experience';
+import { productionCapabilitiesForLocation } from '@pressly/authorization';
 import { describe, expect, it } from 'vitest';
 
 const now = new Date('2026-07-29T18:00:00.000Z');
@@ -22,9 +23,9 @@ const locations: readonly ProcessorLocationAuthority[] = [
 ];
 
 const session = (
-  assignments: LoadedProcessorSession['principalAttributes']['assignments'],
+  assignments: ProcessorSession['principalAttributes']['assignments'],
   assuranceLevel: 'password' | 'mfa' = 'password',
-): LoadedProcessorSession => ({
+): ProcessorSession => ({
   principal: {
     identityId: '00000000-0000-4000-8000-000000000001',
     kind: 'human',
@@ -41,13 +42,23 @@ const session = (
   },
 });
 
-const resolve = (loadedSession: LoadedProcessorSession) =>
-  resolveProcessorAccessFromLocations({
+const resolve = (loadedSession: ProcessorSession) =>
+  resolveProcessorAccess({
     session: loadedSession,
     locations,
-    processorOrigin: 'https://processor.trypressly.com',
-    controlOrigin: 'https://control.trypressly.com',
+    origins: {
+      processor: 'https://processor.trypressly.com',
+      control: 'https://control.trypressly.com',
+    },
     now,
+    resolveCapabilities: ({ session, location, now: observedAt }) =>
+      productionCapabilitiesForLocation({
+        principal: session.principal,
+        principalAttributes: session.principalAttributes,
+        locationId: location.id,
+        businessId: location.businessId,
+        now: observedAt,
+      }),
   });
 
 describe('Processor access projection', () => {

@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { configError } from '@pressly/errors';
+import { configError } from '@pressly/errors/factories';
+import { systemClock, type Clock } from '@pressly/time';
 
 export const isHeartbeatFresh = (input: {
   modifiedAt: Date;
@@ -14,10 +15,10 @@ export const isHeartbeatFresh = (input: {
 export const checkWorkerHeartbeat = async (input: {
   path: string;
   maxAgeMs: number;
-  clock?: Readonly<{ now: () => Date }>;
+  clock?: Clock;
   getModifiedAt?: (path: string) => Promise<Date>;
 }): Promise<boolean> => {
-  const clock = input.clock ?? { now: () => new Date() };
+  const clock = input.clock ?? systemClock;
   const getModifiedAt =
     input.getModifiedAt ?? (async (path: string) => (await stat(path)).mtime);
 

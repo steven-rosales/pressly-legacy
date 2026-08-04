@@ -4,7 +4,8 @@ import {
   authError,
   externalServiceError,
   validationError,
-} from '@pressly/errors';
+} from '@pressly/errors/factories';
+import type { Clock } from '@pressly/time';
 
 const sha256Bytes = 32;
 const minimumKeyBytes = 32;
@@ -30,7 +31,7 @@ export type CentsWebhookVerifier = (
 export type CentsWebhookHmacVerifierOptions = Readonly<{
   currentKey?: string;
   previousKey?: string;
-  clock: Readonly<{ now: () => Date }>;
+  clock: Clock;
   clockWindowSeconds?: number;
 }>;
 

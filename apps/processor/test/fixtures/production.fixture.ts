@@ -4,11 +4,13 @@ import type {
   ProcessorProductionBoard,
   ProcessorProductionWorkspace,
   ProcessorRemainingDayForecast,
+} from "@pressly/contracts/processor"
+import type {
   ProductionLocation,
   ProductionShift,
   ScheduleProposal,
   SchedulerConfig,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import type { ProductionPort } from "@/ports/production.port"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 

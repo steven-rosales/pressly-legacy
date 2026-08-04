@@ -1,37 +1,39 @@
-import type { ControlHttpClient } from "@/api/control-http-client"
+import type { ControlHttpClient } from '@/api/control-http-client';
 import {
-  ControlApiError,
+  isControlApiError,
+  makeControlApiError,
   makeControlHttpClient,
-} from "@/api/control-http-client"
-import type { ZodType } from "zod"
+} from '@/api/control-http-client';
+import type { ZodType } from 'zod';
 import {
   controlAuthenticatedSessionSchema,
   controlLoginResultSchema,
   logoutResultSchema,
   type ControlAuthenticatedSession,
   type ControlLoginResult,
-} from "./control-session"
+} from './control-session';
 
-export { ControlApiError }
+export { isControlApiError, makeControlApiError };
+export type { ControlApiError } from '@/api/control-http-client';
 
 export type ControlAuthenticationApi = Readonly<{
-  restore: () => Promise<ControlAuthenticatedSession>
+  restore: () => Promise<ControlAuthenticatedSession>;
   login: (credentials: {
-    email: string
-    password: string
-  }) => Promise<ControlLoginResult>
+    email: string;
+    password: string;
+  }) => Promise<ControlLoginResult>;
   completeMfa: (input: {
-    method: "totp" | "recovery"
-    code: string
-  }) => Promise<ControlAuthenticatedSession>
-  logout: () => Promise<void>
-}>
+    method: 'totp' | 'recovery';
+    code: string;
+  }) => Promise<ControlAuthenticatedSession>;
+  logout: () => Promise<void>;
+}>;
 
 export function makeControlAuthenticationApi(
   input: {
-    client?: ControlHttpClient
-    fetchImplementation?: typeof fetch
-    apiBaseUrl?: string
+    client?: ControlHttpClient;
+    fetchImplementation?: typeof fetch;
+    apiBaseUrl?: string;
   } = {},
 ): ControlAuthenticationApi {
   const client =
@@ -43,47 +45,47 @@ export function makeControlAuthenticationApi(
       ...(input.apiBaseUrl === undefined
         ? {}
         : { apiBaseUrl: input.apiBaseUrl }),
-    })
+    });
 
   const request = async <Result>(
-    requestInput: Parameters<ControlHttpClient["request"]>[0],
+    requestInput: Parameters<ControlHttpClient['request']>[0],
     schema: ZodType<Result>,
-  ) => client.request(requestInput, schema)
+  ) => client.request(requestInput, schema);
 
   const accept = <Session extends ControlAuthenticatedSession>(
     session: Session,
   ) => {
-    client.acceptCsrfToken(session.csrfToken)
-    return session
-  }
+    client.acceptCsrfToken(session.csrfToken);
+    return session;
+  };
 
   return {
     restore: async () =>
       accept(
         await request(
-          { path: "/control/auth/session" },
+          { path: '/control/auth/session' },
           controlAuthenticatedSessionSchema,
         ),
       ),
     login: async (credentials) => {
       const result = await request(
         {
-          method: "POST",
-          path: "/control/auth/login",
+          method: 'POST',
+          path: '/control/auth/login',
           body: credentials,
         },
         controlLoginResultSchema,
-      )
-      if (result.status === "authenticated") accept(result)
-      else client.clearCsrfToken()
-      return result
+      );
+      if (result.status === 'authenticated') accept(result);
+      else client.clearCsrfToken();
+      return result;
     },
     completeMfa: async (body) =>
       accept(
         await request(
           {
-            method: "POST",
-            path: "/control/auth/mfa/challenge",
+            method: 'POST',
+            path: '/control/auth/mfa/challenge',
             body,
           },
           controlAuthenticatedSessionSchema,
@@ -92,13 +94,13 @@ export function makeControlAuthenticationApi(
     logout: async () => {
       await request(
         {
-          method: "POST",
-          path: "/control/auth/logout",
+          method: 'POST',
+          path: '/control/auth/logout',
           csrf: true,
         },
         logoutResultSchema,
-      )
-      client.clearCsrfToken()
+      );
+      client.clearCsrfToken();
     },
-  }
+  };
 }

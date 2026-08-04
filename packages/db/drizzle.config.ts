@@ -2,7 +2,7 @@
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { configError } from '@pressly/errors';
+import { configError } from '@pressly/errors/factories';
 import { config as loadEnv } from 'dotenv';
 import { defineConfig, type Config } from 'drizzle-kit';
 

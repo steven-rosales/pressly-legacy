@@ -1,5 +1,6 @@
-import { pricing, type Database } from '@pressly/db';
-import { makeAppError } from '@pressly/errors';
+import { type Database } from '@pressly/db/client';
+import * as pricing from '@pressly/db/schema/pricing';
+import { makeAppError } from '@pressly/errors/app-error';
 
 type PricingServiceRow = typeof pricing.pricingServices.$inferSelect;
 type PricingSetRow = typeof pricing.pricingSets.$inferSelect;

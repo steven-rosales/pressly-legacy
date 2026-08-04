@@ -3,7 +3,7 @@ import {
   processorCompleteMfaChallengeRequestSchema,
   type ControlAuthenticatedSession,
   type ProcessorCompleteMfaChallengeRequest,
-} from '@pressly/contracts';
+} from '@pressly/contracts/auth';
 import { apiSuccess } from '@pressly/http';
 import { catchAsync, validateRequest } from '@pressly/http/express';
 import { Router, type Response } from 'express';
@@ -13,16 +13,19 @@ import {
   setControlCookie,
   type ControlCookieNames,
 } from './control-cookie.adapter.ts';
-import { requireControlOrigin } from './control-csrf.policy.ts';
+import {
+  deriveControlCsrfToken,
+  requireControlOrigin,
+} from './control-csrf.adapter.ts';
 import {
   controlForbidden,
   controlUnauthorized,
 } from './control-session.error.ts';
 import {
-  controlBrowserSession,
   controlRequestId,
   controlRequestMetadata,
-} from './control-session.mapper.ts';
+} from './control-request-metadata.adapter.ts';
+import { controlBrowserSession } from './control-session.contract.mapper.ts';
 import type { LoadControlCookieSession } from './control-session.middleware.ts';
 import {
   isControlResultError,
@@ -38,7 +41,7 @@ export const establishControlBrowserSession = async (input: {
   names: ControlCookieNames;
   options: ControlSessionOptions;
   accessToken: string;
-  expiresAt: string;
+  expiresAt: Date;
 }): Promise<ControlAuthenticatedSession> => {
   const loaded = await input.application.loadSession({
     bearerToken: input.accessToken,
@@ -53,7 +56,9 @@ export const establishControlBrowserSession = async (input: {
         ? {}
         : { requestId: controlRequestId(input.response)! }),
     });
+
     clearControlCookie(input.response, input.names.session, input.options);
+
     throw controlForbidden({
       code: 'control_access_unavailable',
       message:
@@ -69,11 +74,11 @@ export const establishControlBrowserSession = async (input: {
     input.expiresAt,
     input.options,
   );
+
   return controlBrowserSession(
     loaded.value,
     access,
-    input.accessToken,
-    input.options,
+    deriveControlCsrfToken(input.accessToken, input.options.csrfSecret),
   );
 };
 
@@ -85,6 +90,7 @@ export const makeControlSessionRoutes = (input: {
   options: ControlSessionOptions;
 }): Router => {
   const routes = Router();
+
   routes.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Pragma', 'no-cache');
@@ -164,6 +170,7 @@ export const makeControlSessionRoutes = (input: {
         });
 
       const body = request.body as ProcessorCompleteMfaChallengeRequest;
+
       const completed = await input.application.completeMfaChallenge({
         ...body,
         challengeToken,
@@ -174,6 +181,7 @@ export const makeControlSessionRoutes = (input: {
       if (isControlResultError(completed)) throw completed.error;
 
       clearControlCookie(response, input.names.mfa, input.options);
+
       const session = await establishControlBrowserSession({
         response,
         application: input.application,
@@ -183,6 +191,7 @@ export const makeControlSessionRoutes = (input: {
         accessToken: completed.value.accessToken,
         expiresAt: completed.value.expiresAt,
       });
+
       response.status(200).json(apiSuccess(session));
     }),
   );
@@ -191,6 +200,7 @@ export const makeControlSessionRoutes = (input: {
     '/session',
     catchAsync(async (request, response) => {
       const session = await input.loadCookieSession(request, response);
+
       response
         .status(200)
         .json(
@@ -198,8 +208,10 @@ export const makeControlSessionRoutes = (input: {
             controlBrowserSession(
               session.loaded,
               session.access,
-              session.sessionToken,
-              input.options,
+              deriveControlCsrfToken(
+                session.sessionToken,
+                input.options.csrfSecret,
+              ),
             ),
           ),
         );
@@ -216,11 +228,11 @@ export const makeControlSessionRoutes = (input: {
           ? {}
           : { requestId: controlRequestId(response)! }),
       });
-      if (isControlResultError(revoked)) throw revoked.error;
 
       clearControlCookie(response, input.names.session, input.options);
       clearControlCookie(response, input.names.mfa, input.options);
-      response.status(200).json(apiSuccess(revoked.value));
+
+      response.status(200).json(apiSuccess(revoked));
     }),
   );
 

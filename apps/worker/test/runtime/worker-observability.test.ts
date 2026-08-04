@@ -1,5 +1,5 @@
 import type { Logger } from '@pressly/logging';
-import { makeAppError, isAppError } from '@pressly/errors';
+import { makeAppError, isAppError } from '@pressly/errors/app-error';
 import { describe, expect, it, vi } from 'vitest';
 import {
   initializeWorkerSentry,

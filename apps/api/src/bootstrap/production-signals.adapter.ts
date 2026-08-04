@@ -1,4 +1,4 @@
-import { isolateCounterSink, type CounterSink } from '@pressly/metrics';
+import { isolateCounterSink, type CounterSink } from '@pressly/observability';
 import type { ProductionSignalsPort } from '@pressly/production';
 
 /** Maps bounded production workflow outcomes to the deployment counter sink. */

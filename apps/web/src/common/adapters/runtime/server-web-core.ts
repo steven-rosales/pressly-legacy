@@ -1,7 +1,10 @@
 import 'server-only';
 
 import { nullLogger } from '@pressly/logging';
-import { nullAnalyticsTracker, nullErrorReporter } from '@pressly/metrics';
+import {
+  nullAnalyticsTracker,
+  nullErrorReporter,
+} from '@pressly/observability';
 import { webEnv } from '@/common/config/env';
 import { systemClock } from '@/common/core/runtime/clock';
 import { createWebCore, type WebCore } from '@/common/core/runtime/core';

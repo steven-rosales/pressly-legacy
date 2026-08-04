@@ -5,7 +5,7 @@ import type {
   AnalyticsContext,
   AnalyticsTracker,
   ProductEvent,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 
 const toProperties = (
   event: ProductEvent,

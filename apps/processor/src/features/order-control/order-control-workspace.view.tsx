@@ -1,18 +1,18 @@
-import { useIsMobile } from "@/components/ui/use-mobile"
+import { useIsMobile } from '@/components/ui/use-mobile';
 import {
   OrderAttentionSummary,
   OrderControlWorkspace,
-} from "./order-control.view"
+} from './order-control.view';
 import {
   useOrderControlWorkspaceModel,
   type OrderControlWorkspaceModelInput,
-} from "./order-control-workspace.model"
+} from './order-control-workspace.model';
 
 export function OrderControlWorkspaceContainer(
-  props: OrderControlWorkspaceModelInput
+  props: OrderControlWorkspaceModelInput,
 ) {
-  const isMobile = useIsMobile()
-  const { model, callbacks } = useOrderControlWorkspaceModel(props)
+  const isMobile = useIsMobile();
+  const { model, callbacks } = useOrderControlWorkspaceModel(props);
 
   return (
     <OrderControlWorkspace
@@ -20,7 +20,7 @@ export function OrderControlWorkspaceContainer(
       callbacks={callbacks}
       isMobile={isMobile}
     />
-  )
+  );
 }
 
 export function OrderAttentionSummaryContainer({
@@ -28,9 +28,9 @@ export function OrderAttentionSummaryContainer({
   ...props
 }: OrderControlWorkspaceModelInput &
   Readonly<{
-    onOpenOrders: () => void
+    onOpenOrders: () => void;
   }>) {
-  const { model } = useOrderControlWorkspaceModel({ ...props, limit: 3 })
+  const { model } = useOrderControlWorkspaceModel({ ...props, limit: 3 });
 
-  return <OrderAttentionSummary model={model} onOpenOrders={onOpenOrders} />
+  return <OrderAttentionSummary model={model} onOpenOrders={onOpenOrders} />;
 }

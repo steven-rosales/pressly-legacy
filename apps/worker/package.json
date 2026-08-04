@@ -3,13 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:workspace-deps": "pnpm --dir ../.. exec turbo build --filter=@pressly/worker...",
+    "build:workspace-deps": "pnpm --dir ../.. exec turbo build --filter=@pressly/worker... --concurrency=2",
     "dev": "pnpm run build:workspace-deps && tsx watch src/main.ts",
     "start": "node dist/main.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint src test vitest.config.ts --max-warnings=0",
-    "test": "vitest run --exclude 'test/**/*.int.test.ts' --passWithNoTests",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --exclude 'test/**/*.int.test.ts' --passWithNoTests",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
@@ -20,16 +20,17 @@
     "vitest": "^4.1.5"
   },
   "dependencies": {
+    "@pressly/codec": "workspace:*",
     "@pressly/config": "workspace:*",
     "@pressly/contracts": "workspace:*",
     "@pressly/db": "workspace:*",
     "@pressly/errors": "workspace:*",
+    "@pressly/kernel": "workspace:*",
     "@pressly/logging": "workspace:*",
-    "@pressly/metrics": "workspace:*",
+    "@pressly/observability": "workspace:*",
     "@pressly/orders": "workspace:*",
     "@pressly/production": "workspace:*",
-    "@pressly/production-policy": "workspace:*",
-    "@pressly/production-scheduling": "workspace:*",
+    "@pressly/time": "workspace:*",
     "@pressly/webhook-ingestion": "workspace:*",
     "@sentry/node": "^10.50.0",
     "dotenv": "^17.4.2",

@@ -4,7 +4,7 @@ import {
   previewProductionOrderRouteRequestSchema,
   productionOrderCommandCapabilitiesSchema,
   productionOrderRouteProposalSchema,
-} from '../src/index.ts';
+} from '../src/production/index.ts';
 import { describe, expect, it } from 'vitest';
 
 const id = (value: number): string =>

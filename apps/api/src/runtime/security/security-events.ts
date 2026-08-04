@@ -1,4 +1,4 @@
-import { unexpectedError } from '@pressly/errors';
+import { unexpectedError } from '@pressly/errors/factories';
 import type { SecurityEvent, SecurityEventSink } from '@pressly/logging';
 import {
   attemptObservation,
@@ -6,7 +6,8 @@ import {
   type CounterSink,
   type ErrorReporter,
   type ObservationDecision,
-} from '@pressly/metrics';
+} from '@pressly/observability';
+import { systemClock } from '@pressly/time';
 
 const alertCode = (event: SecurityEvent): string =>
   `security_alert_${event.name.replaceAll('.', '_')}`;
@@ -58,7 +59,7 @@ export const makeSecurityEventSink = (input: {
   alertWindowMs?: number;
 }): SecurityEventSink => {
   const alertCounts = new Map<string, { count: number; resetAtMs: number }>();
-  const nowMs = input.nowMs ?? Date.now;
+  const nowMs = input.nowMs ?? (() => systemClock.now().getTime());
   const threshold = input.alertThreshold ?? 5;
   const windowMs = input.alertWindowMs ?? 5 * 60_000;
 

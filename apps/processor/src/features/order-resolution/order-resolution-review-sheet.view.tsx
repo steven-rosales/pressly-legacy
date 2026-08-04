@@ -13,8 +13,8 @@ import {
 import type {
   ProcessorProductionOrderBacklogPreview,
   ProcessorProductionOrderBacklogPreviewItem,
-  ProductionOrderBacklogCategory,
-} from "@pressly/contracts"
+} from "@pressly/contracts/processor"
+import type { ProductionOrderBacklogCategory } from "@pressly/contracts/production"
 import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
 import {
   Accordion,

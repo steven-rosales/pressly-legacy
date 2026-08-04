@@ -14,7 +14,7 @@ describe('ignored legacy Cents event consumer', () => {
         subjectId: 'customer-1',
         sourceLocationId: null,
         sourceOccurredAt: null,
-        receivedAt: '2026-07-10T13:00:01.000Z',
+        receivedAt: new Date('2026-07-10T13:00:01.000Z'),
         payloadHash: 'a'.repeat(64),
         recoveredLease: false,
         payload: {},

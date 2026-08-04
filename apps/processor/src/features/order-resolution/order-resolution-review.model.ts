@@ -1,4 +1,8 @@
 import type {
+  ProcessorProductionOrderBacklogPreview,
+  ProcessorProductionOrderBacklogPreviewItem,
+} from "@pressly/contracts/processor"
+import type {
   ChangeProductionOrderResolutionCommand,
   CommitProductionOrderBacklogCommand,
   PreviewProductionOrderBacklogCommand,
@@ -7,9 +11,7 @@ import type {
   ProductionOrderBacklogCommitResult,
   ProductionOrderBacklogCursor,
   ProductionOrderBacklogFilter,
-  ProcessorProductionOrderBacklogPreview,
-  ProcessorProductionOrderBacklogPreviewItem,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 
 type ResolutionReason = ProcessorProductionOrderBacklogPreview["reason"]
 type ResolveWithoutProductionCommand = Extract<

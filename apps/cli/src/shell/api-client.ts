@@ -1,9 +1,9 @@
 import { result, type Result } from '@pressly/kernel';
+import { type AppError } from '@pressly/errors/app-error';
 import {
   externalServiceError,
   validationError,
-  type AppError,
-} from '@pressly/errors';
+} from '@pressly/errors/factories';
 import {
   appErrorFromApiFailure,
   decodeApiResponse,

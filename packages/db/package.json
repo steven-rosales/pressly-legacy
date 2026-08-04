@@ -3,13 +3,61 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+    "./unit-of-work": {
+      "types": "./dist/unit-of-work.d.ts",
+      "import": "./dist/unit-of-work.js",
+      "default": "./dist/unit-of-work.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js",
+      "default": "./dist/client.js"
+    },
+    "./health": {
+      "types": "./dist/health.d.ts",
+      "import": "./dist/health.js",
+      "default": "./dist/health.js"
+    },
+    "./query": {
+      "types": "./dist/query.d.ts",
+      "import": "./dist/query.js",
+      "default": "./dist/query.js"
+    },
+    "./schema/auth": {
+      "types": "./dist/schema/auth.schema.d.ts",
+      "import": "./dist/schema/auth.schema.js",
+      "default": "./dist/schema/auth.schema.js"
+    },
+    "./schema/business": {
+      "types": "./dist/schema/business.schema.d.ts",
+      "import": "./dist/schema/business.schema.js",
+      "default": "./dist/schema/business.schema.js"
+    },
+    "./schema/laundry-production": {
+      "types": "./dist/schema/laundry-production.schema.d.ts",
+      "import": "./dist/schema/laundry-production.schema.js",
+      "default": "./dist/schema/laundry-production.schema.js"
+    },
+    "./schema/orders": {
+      "types": "./dist/schema/orders.schema.d.ts",
+      "import": "./dist/schema/orders.schema.js",
+      "default": "./dist/schema/orders.schema.js"
+    },
+    "./schema/pricing": {
+      "types": "./dist/schema/pricing.schema.d.ts",
+      "import": "./dist/schema/pricing.schema.js",
+      "default": "./dist/schema/pricing.schema.js"
+    },
+    "./schema/users": {
+      "types": "./dist/schema/users.schema.d.ts",
+      "import": "./dist/schema/users.schema.js",
+      "default": "./dist/schema/users.schema.js"
+    },
+    "./schema/webhook-ingestion": {
+      "types": "./dist/schema/webhook-ingestion.schema.d.ts",
+      "import": "./dist/schema/webhook-ingestion.schema.js",
+      "default": "./dist/schema/webhook-ingestion.schema.js"
     },
     "./testing": {
       "types": "./dist/testing.d.ts",
@@ -21,7 +69,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json",
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
-    "test": "vitest run --dir test --exclude '**/*.int.test.ts'",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --dir test --exclude '**/*.int.test.ts'",
     "test:integration": "vitest run --dir test --no-file-parallelism",
     "migrate": "pnpm -F @pressly/errors build && drizzle-kit migrate --config drizzle.config.ts",
     "generate": "pnpm -F @pressly/errors build && drizzle-kit generate --config drizzle.config.ts",
@@ -31,6 +79,7 @@
   },
   "dependencies": {
     "@pressly/errors": "workspace:*",
+    "@pressly/kernel": "workspace:*",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.0",
     "pg": "^8.20.0",

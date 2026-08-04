@@ -1,11 +1,11 @@
-import type { AppError } from '@pressly/errors';
+import type { AppError } from '@pressly/errors/app-error';
 import { redactLogFields } from '@pressly/logging';
 import {
   attemptObservation,
   decideObservation,
   type ErrorReportContext,
   type ObservationDecision,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import type { Request } from 'express';
 import type { ApiRuntime } from '../../runtime/api-runtime.ts';
 import {

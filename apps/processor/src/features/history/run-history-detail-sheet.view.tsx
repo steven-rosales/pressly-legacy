@@ -4,13 +4,13 @@ import {
   IconClock,
   IconScale,
   IconStack2,
-} from "@tabler/icons-react"
-import { useTranslation } from "react-i18next"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
+} from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Sheet,
   SheetContent,
@@ -18,7 +18,7 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet"
+} from '@/components/ui/sheet';
 import {
   Table,
   TableBody,
@@ -26,24 +26,24 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { cn } from "@/components/ui/class-names"
-import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
+} from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/components/ui/class-names';
+import { OperationalOrderIdentity } from '@/components/orders/operational-order-identity';
 import type {
   HistoryActivityItem,
   HistoryCallbacks,
   HistoryRunDetail,
-} from "./history.model"
+} from './history.model';
 
 function RunFact({
   label,
   value,
   icon: Icon,
 }: Readonly<{
-  label: string
-  value: string
-  icon: typeof IconClock
+  label: string;
+  value: string;
+  icon: typeof IconClock;
 }>) {
   return (
     <Card className="gap-2 bg-background py-3">
@@ -55,28 +55,28 @@ function RunFact({
         <p className="mt-2 text-sm font-medium">{value}</p>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function ActivityTimeline({
   items,
 }: Readonly<{ items: readonly HistoryActivityItem[] }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   if (items.length === 0)
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
-        {t("history.noActivity")}
+        {t('history.noActivity')}
       </p>
-    )
+    );
   return (
     <ol className="relative ml-2 border-l">
       {items.map((item) => (
         <li key={item.id} className="relative pb-5 pl-5 last:pb-0">
           <span
             className={cn(
-              "absolute top-1.5 -left-1.5 size-3 rounded-full border-2 border-background bg-muted-foreground",
-              item.tone === "warning" && "bg-warning-foreground",
-              item.tone === "critical" && "bg-destructive"
+              'absolute top-1.5 -left-1.5 size-3 rounded-full border-2 border-background bg-muted-foreground',
+              item.tone === 'warning' && 'bg-warning-foreground',
+              item.tone === 'critical' && 'bg-destructive',
             )}
             aria-hidden="true"
           />
@@ -93,7 +93,7 @@ function ActivityTimeline({
         </li>
       ))}
     </ol>
-  )
+  );
 }
 
 export function RunHistoryDetailSheet({
@@ -101,32 +101,32 @@ export function RunHistoryDetailSheet({
   callbacks,
   isMobile,
 }: Readonly<{
-  run: HistoryRunDetail | null
-  callbacks: Pick<HistoryCallbacks, "onCloseRun">
-  isMobile: boolean
+  run: HistoryRunDetail | null;
+  callbacks: Pick<HistoryCallbacks, 'onCloseRun'>;
+  isMobile: boolean;
 }>) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   return (
     <Sheet
       open={run !== null}
       onOpenChange={(open) => {
-        if (!open) callbacks.onCloseRun()
+        if (!open) callbacks.onCloseRun();
       }}
     >
       <SheetContent
-        side={isMobile ? "bottom" : "right"}
+        side={isMobile ? 'bottom' : 'right'}
         size="workspace"
-        closeLabel={t("common.close")}
+        closeLabel={t('common.close')}
       >
         <SheetHeader className="border-b px-5 py-4 pe-16">
           <div className="flex flex-wrap items-center gap-2">
-            <SheetTitle>{run?.title ?? t("history.productionRun")}</SheetTitle>
+            <SheetTitle>{run?.title ?? t('history.productionRun')}</SheetTitle>
             {run !== null && (
               <Badge variant="secondary">{run.statusLabel}</Badge>
             )}
           </div>
           <SheetDescription>
-            {run?.shiftLabel ?? t("history.readOnly")}
+            {run?.shiftLabel ?? t('history.readOnly')}
           </SheetDescription>
         </SheetHeader>
 
@@ -141,31 +141,31 @@ export function RunHistoryDetailSheet({
                   value="overview"
                   className="min-w-0 px-1 text-xs sm:text-sm"
                 >
-                  {t("history.overview")}
+                  {t('history.overview')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="batches"
                   className="min-w-0 px-1 text-xs sm:text-sm"
                 >
-                  {t("history.batches")}
+                  {t('history.batches')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="orders"
                   className="min-w-0 px-1 text-xs sm:text-sm"
                 >
-                  {t("history.orders")}
+                  {t('history.orders')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="activity"
                   className="min-w-0 px-1 text-xs sm:text-sm"
                 >
-                  {t("history.activity")}
+                  {t('history.activity')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="plans"
                   className="min-w-0 px-1 text-xs sm:text-sm"
                 >
-                  {t("history.plans")}
+                  {t('history.plans')}
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -173,30 +173,30 @@ export function RunHistoryDetailSheet({
               <TabsContent value="overview" className="py-4">
                 <div className="grid grid-cols-2 gap-2">
                   <RunFact
-                    label={t("history.demand")}
+                    label={t('history.demand')}
                     value={run.demandLabel}
                     icon={IconScale}
                   />
                   <RunFact
-                    label={t("history.batches")}
+                    label={t('history.batches')}
                     value={run.batchCountLabel}
                     icon={IconStack2}
                   />
                   <RunFact
-                    label={t("history.planned")}
+                    label={t('history.planned')}
                     value={run.plannedTimingLabel}
                     icon={IconCalendarClock}
                   />
                   <RunFact
-                    label={t("history.actual")}
+                    label={t('history.actual')}
                     value={run.actualTimingLabel}
                     icon={IconClock}
                   />
                 </div>
-                {run.exceptionLabel !== t("common.none") && (
+                {run.exceptionLabel !== t('common.none') && (
                   <Alert className="mt-4 border-warning-foreground/20 bg-warning text-warning-foreground">
                     <IconAlertTriangle />
-                    <AlertTitle>{t("history.recordedExceptions")}</AlertTitle>
+                    <AlertTitle>{t('history.recordedExceptions')}</AlertTitle>
                     <AlertDescription>{run.exceptionLabel}</AlertDescription>
                   </Alert>
                 )}
@@ -234,11 +234,11 @@ export function RunHistoryDetailSheet({
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="px-3">
-                          {t("history.order")}
+                          {t('history.order')}
                         </TableHead>
-                        <TableHead>{t("history.status")}</TableHead>
-                        <TableHead>{t("history.batches")}</TableHead>
-                        <TableHead>{t("history.demand")}</TableHead>
+                        <TableHead>{t('history.status')}</TableHead>
+                        <TableHead>{t('history.batches')}</TableHead>
+                        <TableHead>{t('history.demand')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -274,12 +274,12 @@ export function RunHistoryDetailSheet({
                         <Badge variant="secondary">{plan.statusLabel}</Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {t("history.computedAt", {
+                        {t('history.computedAt', {
                           date: plan.computedAtLabel,
                         })}
                         {plan.acceptedAtLabel === null
-                          ? ""
-                          : ` · ${t("history.acceptedAt", {
+                          ? ''
+                          : ` · ${t('history.acceptedAt', {
                               date: plan.acceptedAtLabel,
                             })}`}
                       </p>
@@ -301,10 +301,10 @@ export function RunHistoryDetailSheet({
             className="h-11"
             onClick={callbacks.onCloseRun}
           >
-            {t("history.closeHistory")}
+            {t('history.closeHistory')}
           </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
-  )
+  );
 }

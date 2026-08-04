@@ -5,22 +5,22 @@ import {
   mfaRecoveryCodesResultSchema,
   type ControlSecurityEvent,
   type MfaEnrollmentResult,
-} from "@pressly/contracts"
-import type { ControlHttpClient } from "@/api/control-http-client"
+} from '@pressly/contracts/auth';
+import type { ControlHttpClient } from '@/api/control-http-client';
 
-export type MfaEnrollment = MfaEnrollmentResult
-export type SecurityEvent = ControlSecurityEvent
+export type MfaEnrollment = MfaEnrollmentResult;
+export type SecurityEvent = ControlSecurityEvent;
 
 export type ControlSecurityApi = Readonly<{
-  beginMfaEnrollment: () => Promise<MfaEnrollment>
-  confirmMfaEnrollment: (code: string) => Promise<readonly string[]>
-  regenerateRecoveryCodes: () => Promise<readonly string[]>
-  removeMfa: () => Promise<void>
+  beginMfaEnrollment: () => Promise<MfaEnrollment>;
+  confirmMfaEnrollment: (code: string) => Promise<readonly string[]>;
+  regenerateRecoveryCodes: () => Promise<readonly string[]>;
+  removeMfa: () => Promise<void>;
   listSecurityEvents: (cursor?: string) => Promise<{
-    events: readonly SecurityEvent[]
-    nextCursor: string | null
-  }>
-}>
+    events: readonly SecurityEvent[];
+    nextCursor: string | null;
+  }>;
+}>;
 
 export function makeControlSecurityApi(
   client: ControlHttpClient,
@@ -29,8 +29,8 @@ export function makeControlSecurityApi(
     beginMfaEnrollment: () =>
       client.request(
         {
-          method: "POST",
-          path: "/control/auth/mfa/enrollment",
+          method: 'POST',
+          path: '/control/auth/mfa/enrollment',
           csrf: true,
         },
         mfaEnrollmentResultSchema,
@@ -39,8 +39,8 @@ export function makeControlSecurityApi(
       (
         await client.request(
           {
-            method: "POST",
-            path: "/control/auth/mfa/enrollment/confirm",
+            method: 'POST',
+            path: '/control/auth/mfa/enrollment/confirm',
             csrf: true,
             body: { code },
           },
@@ -51,8 +51,8 @@ export function makeControlSecurityApi(
       (
         await client.request(
           {
-            method: "POST",
-            path: "/control/auth/mfa/recovery-codes/regenerate",
+            method: 'POST',
+            path: '/control/auth/mfa/recovery-codes/regenerate',
             csrf: true,
           },
           mfaRecoveryCodesResultSchema,
@@ -61,21 +61,21 @@ export function makeControlSecurityApi(
     removeMfa: async () => {
       await client.request(
         {
-          method: "POST",
-          path: "/control/auth/mfa/remove",
+          method: 'POST',
+          path: '/control/auth/mfa/remove',
           csrf: true,
         },
         mfaMutationResultSchema,
-      )
+      );
     },
     listSecurityEvents: (cursor) =>
       client.request(
         {
           path: `/control/security/events?limit=25${
-            cursor === undefined ? "" : `&cursor=${encodeURIComponent(cursor)}`
+            cursor === undefined ? '' : `&cursor=${encodeURIComponent(cursor)}`
           }`,
         },
         controlSecurityEventListSchema,
       ),
-  }
+  };
 }

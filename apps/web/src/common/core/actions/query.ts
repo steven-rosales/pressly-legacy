@@ -1,10 +1,13 @@
 import { result, type Result } from '@pressly/kernel';
-import { normalizeUnknownError, type AppError } from '@pressly/errors';
+import {
+  normalizeUnknownError,
+  type AppError,
+} from '@pressly/errors/app-error';
 import {
   attemptObservation,
   attemptObservationValue,
   type ObservationValueAttempt,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import type { RequestInput } from '../requests/request-client';
 import type { WebCorePorts } from '../runtime/ports';
 import type { ActionMeta } from './action-meta';

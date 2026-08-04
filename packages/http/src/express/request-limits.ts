@@ -1,4 +1,4 @@
-import { validationError } from '@pressly/errors';
+import { validationError } from '@pressly/errors/factories';
 import type { RequestHandler } from 'express';
 
 export const requireJsonContentType =

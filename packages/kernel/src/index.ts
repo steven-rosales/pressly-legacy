@@ -1,8 +1,9 @@
 export { flow, pipe } from './pipe.ts';
 
-export { canonicalJson } from './canonical-json.ts';
 export { isCommandContextValid } from './command-context.ts';
 export type { CommandContext, CommandPrincipal } from './command-context.ts';
+export type { IdSource } from './id-source.ts';
+export type { ResultUnitOfWork, UnitOfWork } from './unit-of-work.ts';
 export type { None, Option, Some } from './option.ts';
 export type { CodedFailure, Err, Ok, Result } from './result.ts';
 export type { Spec } from './spec.ts';

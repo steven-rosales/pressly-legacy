@@ -1,6 +1,6 @@
 import type { Logger } from '@pressly/logging';
-import { normalizeUnknownError } from '@pressly/errors';
-import { attemptObservation } from '@pressly/metrics';
+import { normalizeUnknownError } from '@pressly/errors/app-error';
+import { attemptObservation } from '@pressly/observability';
 
 type ShutdownHandlersInput = {
   logger: Logger;

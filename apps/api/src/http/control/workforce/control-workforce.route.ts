@@ -1,4 +1,4 @@
-import type { WorkforceApplication } from '@pressly/auth-module';
+import type { ControlExperience } from '@pressly/control-experience';
 import {
   controlGrantAccessRequestSchema,
   controlGrantParamsSchema,
@@ -11,51 +11,13 @@ import {
   controlWorkforceSessionRevokeRequestSchema,
   controlWorkforceListQuerySchema,
   issueWorkforceInvitationRequestSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/auth';
 import { apiSuccess } from '@pressly/http';
-import { invariantViolationError, validationError } from '@pressly/errors';
+import { validationError } from '@pressly/errors/factories';
 import { catchAsync, validateRequest } from '@pressly/http/express';
-import { Router, type RequestHandler, type Response } from 'express';
-import type {
-  ControlAccess,
-  LoadedControlSession,
-} from '../session/control-session.port.ts';
-import {
-  controlGrant,
-  controlInvitation,
-  controlMember,
-  controlMemberDetail,
-} from './control-workforce.mapper.ts';
-
-type ControlAuthContext = Readonly<{
-  principal: LoadedControlSession['principal'];
-}>;
-
-const actor = (response: Response) => {
-  const auth = response.locals['auth'] as ControlAuthContext;
-  if (auth.principal.sessionId === undefined)
-    throw invariantViolationError({
-      code: 'control_session_id_missing',
-      message: 'Authenticated Control principal is missing a session ID.',
-      safeMessage: 'Session could not be loaded.',
-    });
-  return {
-    identityId: auth.principal.identityId,
-    sessionId: auth.principal.sessionId,
-  };
-};
-
-const access = (response: Response): ControlAccess =>
-  response.locals['controlAccess'] as ControlAccess;
-
-const resultValue = <Value>(
-  outcome:
-    | Readonly<{ tag: 'ok'; value: Value }>
-    | Readonly<{ tag: 'err'; error: unknown }>,
-): Value => {
-  if (outcome.tag === 'err') throw outcome.error;
-  return outcome.value;
-};
+import { Router, type RequestHandler } from 'express';
+import { controlResultValue } from '../control-experience.error.ts';
+import { readControlRequestContext } from '../control-request-context.adapter.ts';
 
 type ParamsSchema<Value> = Readonly<{
   safeParse(input: unknown):
@@ -94,7 +56,7 @@ const routeParams = <Value>(
 };
 
 export const makeControlWorkforceRoutes = (input: {
-  application: WorkforceApplication;
+  application: Pick<ControlExperience, 'workforce' | 'invitations'>;
   authenticate: RequestHandler;
   limitIdentity: RequestHandler;
   requireRead: RequestHandler;
@@ -127,25 +89,27 @@ export const makeControlWorkforceRoutes = (input: {
         cursor?: string;
         limit: number;
       };
+
       const states =
         query.state === undefined
           ? undefined
           : Array.isArray(query.state)
             ? query.state
             : [query.state];
-      const page = resultValue(
-        await input.application.listWorkforce({
-          actor: actor(response),
-          businessId: access(response).business.id,
+
+      const page = controlResultValue(
+        await input.application.workforce.listMembers({
+          context: readControlRequestContext(response),
           ...(states === undefined ? {} : { states }),
           ...(query.query === undefined ? {} : { query: query.query }),
           ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
           limit: query.limit,
         }),
       );
+
       response.json(
         apiSuccess({
-          members: page.members.map(controlMember),
+          members: page.members,
           nextCursor: page.nextCursor,
         }),
       );
@@ -157,14 +121,13 @@ export const makeControlWorkforceRoutes = (input: {
     ...readSecurity,
     catchAsync(async (request, response) => {
       const params = routeParams(controlMembershipParamsSchema, request.params);
-      const member = resultValue(
-        await input.application.getWorkforceMember({
-          actor: actor(response),
-          businessId: access(response).business.id,
+      const member = controlResultValue(
+        await input.application.workforce.getMember({
+          context: readControlRequestContext(response),
           membershipId: params.membershipId,
         }),
       );
-      response.json(apiSuccess(controlMemberDetail(member)));
+      response.json(apiSuccess(member));
     }),
   );
 
@@ -173,10 +136,9 @@ export const makeControlWorkforceRoutes = (input: {
     ...readSecurity,
     catchAsync(async (request, response) => {
       const params = routeParams(controlMembershipParamsSchema, request.params);
-      const sessions = resultValue(
-        await input.application.listMemberSessions({
-          actor: actor(response),
-          businessId: access(response).business.id,
+      const sessions = controlResultValue(
+        await input.application.workforce.listMemberSessions({
+          context: readControlRequestContext(response),
           membershipId: params.membershipId,
         }),
       );
@@ -193,10 +155,9 @@ export const makeControlWorkforceRoutes = (input: {
     catchAsync(async (request, response) => {
       const body = request.body;
       const params = routeParams(controlMembershipParamsSchema, request.params);
-      const revoked = resultValue(
-        await input.application.revokeMemberSessions({
-          actor: actor(response),
-          businessId: access(response).business.id,
+      const revoked = controlResultValue(
+        await input.application.workforce.revokeMemberSessions({
+          context: readControlRequestContext(response),
           membershipId: params.membershipId,
           idempotencyKey: body.idempotencyKey,
           ...(body.sessionId === undefined
@@ -218,10 +179,9 @@ export const makeControlWorkforceRoutes = (input: {
         cursor?: string;
         limit: number;
       };
-      const page = resultValue(
-        await input.application.listInvitations({
-          actor: actor(response),
-          businessId: access(response).business.id,
+      const page = controlResultValue(
+        await input.application.invitations.list({
+          context: readControlRequestContext(response),
           includeTerminal: query.includeTerminal,
           ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
           limit: query.limit,
@@ -229,7 +189,7 @@ export const makeControlWorkforceRoutes = (input: {
       );
       response.json(
         apiSuccess({
-          invitations: page.invitations.map(controlInvitation),
+          invitations: page.invitations,
           nextCursor: page.nextCursor,
         }),
       );
@@ -241,19 +201,18 @@ export const makeControlWorkforceRoutes = (input: {
     ...writeSecurity,
     validateRequest({ body: issueWorkforceInvitationRequestSchema }),
     catchAsync(async (request, response) => {
-      const outcome = resultValue(
-        await input.application.issueInvitation({
-          actor: actor(response),
-          businessId: access(response).business.id,
+      const outcome = controlResultValue(
+        await input.application.invitations.issue({
+          context: readControlRequestContext(response),
           ...request.body,
         }),
       );
       response.status(outcome.status === 'issued' ? 201 : 200).json(
         apiSuccess({
           status: outcome.status,
-          invitation: controlInvitation(outcome.invitation),
+          invitation: outcome.invitation,
           ...(outcome.status === 'issued'
-            ? { acceptanceToken: outcome.token }
+            ? { acceptanceToken: outcome.acceptanceToken }
             : {}),
         }),
       );
@@ -267,10 +226,9 @@ export const makeControlWorkforceRoutes = (input: {
     catchAsync(async (request, response) => {
       const body = request.body;
       const params = routeParams(controlInvitationParamsSchema, request.params);
-      const outcome = resultValue(
-        await input.application.reissueInvitation({
-          actor: actor(response),
-          businessId: access(response).business.id,
+      const outcome = controlResultValue(
+        await input.application.invitations.reissue({
+          context: readControlRequestContext(response),
           invitationId: params.invitationId,
           expectedVersion: body.expectedVersion,
           idempotencyKey: body.idempotencyKey,
@@ -279,9 +237,9 @@ export const makeControlWorkforceRoutes = (input: {
       response.json(
         apiSuccess({
           status: outcome.status,
-          invitation: controlInvitation(outcome.invitation),
+          invitation: outcome.invitation,
           ...(outcome.status === 'issued'
-            ? { acceptanceToken: outcome.token }
+            ? { acceptanceToken: outcome.acceptanceToken }
             : {}),
         }),
       );
@@ -295,26 +253,22 @@ export const makeControlWorkforceRoutes = (input: {
     catchAsync(async (request, response) => {
       const body = request.body;
       const params = routeParams(controlInvitationParamsSchema, request.params);
-      const invitation = resultValue(
-        await input.application.revokeInvitation({
-          actor: actor(response),
-          businessId: access(response).business.id,
+      const invitation = controlResultValue(
+        await input.application.invitations.revoke({
+          context: readControlRequestContext(response),
           invitationId: params.invitationId,
           expectedVersion: body.expectedVersion,
           idempotencyKey: body.idempotencyKey,
           ...(body.reason === undefined ? {} : { reason: body.reason }),
         }),
       );
-      response.json(apiSuccess(controlInvitation(invitation)));
+      response.json(apiSuccess(invitation));
     }),
   );
 
   const transition = (
     path: string,
-    command:
-      | WorkforceApplication['suspendMembership']
-      | WorkforceApplication['reactivateMembership']
-      | WorkforceApplication['endMembership'],
+    transition: 'suspend' | 'reactivate' | 'end',
   ) => {
     routes.post(
       path,
@@ -326,10 +280,10 @@ export const makeControlWorkforceRoutes = (input: {
           controlMembershipParamsSchema,
           request.params,
         );
-        const outcome = resultValue(
-          await command({
-            actor: actor(response),
-            businessId: access(response).business.id,
+        const outcome = controlResultValue(
+          await input.application.workforce.transitionMembership({
+            transition,
+            context: readControlRequestContext(response),
             membershipId: params.membershipId,
             expectedVersion: body.expectedVersion,
             idempotencyKey: body.idempotencyKey,
@@ -338,7 +292,7 @@ export const makeControlWorkforceRoutes = (input: {
         );
         response.json(
           apiSuccess({
-            member: controlMemberDetail(outcome.member),
+            member: outcome.member,
             revokedSessionCount: outcome.revokedSessionCount,
           }),
         );
@@ -346,15 +300,9 @@ export const makeControlWorkforceRoutes = (input: {
     );
   };
 
-  transition(
-    '/team/:membershipId/suspend',
-    input.application.suspendMembership,
-  );
-  transition(
-    '/team/:membershipId/reactivate',
-    input.application.reactivateMembership,
-  );
-  transition('/team/:membershipId/end', input.application.endMembership);
+  transition('/team/:membershipId/suspend', 'suspend');
+  transition('/team/:membershipId/reactivate', 'reactivate');
+  transition('/team/:membershipId/end', 'end');
 
   routes.post(
     '/team/:membershipId/grants',
@@ -363,24 +311,19 @@ export const makeControlWorkforceRoutes = (input: {
     catchAsync(async (request, response) => {
       const body = request.body;
       const params = routeParams(controlMembershipParamsSchema, request.params);
-      const granted = resultValue(
-        await input.application.grantAccess({
-          actor: actor(response),
-          businessId: access(response).business.id,
+      const granted = controlResultValue(
+        await input.application.workforce.grantAccess({
+          context: readControlRequestContext(response),
           membershipId: params.membershipId,
           identityId: body.identityId,
           role: body.role,
           scope: body.scope,
-          ...(body.startsAt === undefined
-            ? {}
-            : { startsAt: new Date(body.startsAt) }),
-          ...(body.endsAt === undefined
-            ? {}
-            : { endsAt: new Date(body.endsAt) }),
+          ...(body.startsAt === undefined ? {} : { startsAt: body.startsAt }),
+          ...(body.endsAt === undefined ? {} : { endsAt: body.endsAt }),
           idempotencyKey: body.idempotencyKey,
         }),
       );
-      response.status(201).json(apiSuccess(controlGrant(granted)));
+      response.status(201).json(apiSuccess(granted));
     }),
   );
 
@@ -391,10 +334,9 @@ export const makeControlWorkforceRoutes = (input: {
     catchAsync(async (request, response) => {
       const body = request.body;
       const params = routeParams(controlGrantParamsSchema, request.params);
-      const revoked = resultValue(
-        await input.application.revokeAccess({
-          actor: actor(response),
-          businessId: access(response).business.id,
+      const revoked = controlResultValue(
+        await input.application.workforce.revokeAccess({
+          context: readControlRequestContext(response),
           grantId: params.grantId,
           expectedVersion: body.expectedVersion,
           idempotencyKey: body.idempotencyKey,
@@ -403,7 +345,7 @@ export const makeControlWorkforceRoutes = (input: {
       );
       response.json(
         apiSuccess({
-          grant: controlGrant(revoked.grant),
+          grant: revoked.grant,
           revokedSessionCount: revoked.revokedSessionCount,
         }),
       );

@@ -1,14 +1,12 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type {
-  ProductionOrderBacklogCursor,
-  ProcessorProductionOrderBacklogPreview,
-} from "@pressly/contracts"
+import type { ProcessorProductionOrderBacklogPreview } from "@pressly/contracts/processor"
+import type { ProductionOrderBacklogCursor } from "@pressly/contracts/production"
 import { OrderResolutionReviewContainer } from "@/features/order-resolution/order-resolution-review.container.view"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
-import { RequestFailure } from "@/ports/request.error"
+import { requestFailure } from "@/ports/request.error"
 import {
   makeTestProductionPort,
   testLocation,
@@ -199,11 +197,11 @@ describe("connected order resolution review", () => {
     )
     const commitOrderBacklog = vi.fn<ProductionPort["commitOrderBacklog"]>(
       async () => {
-        throw new RequestFailure({
-          kind: "conflict",
+        throw requestFailure({
+          requestKind: "conflict",
           code: "production_order_backlog_preview_changed",
           message: "The exact candidate set changed.",
-          status: 409,
+          responseStatus: 409,
         })
       }
     )

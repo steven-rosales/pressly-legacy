@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { ProcessorOrderControlItem } from '@pressly/contracts/processor';
 import type {
   ChangeProductionOrderResolutionCommand,
   ListProductionOrderControlQuery,
-  ProcessorOrderControlItem,
   ProductionBoard,
   ProductionOrderRouteProposal,
   ProductionOrderRouteReason,
-} from "@pressly/contracts"
-import type { IdempotencyPort } from "@/ports/idempotency.port"
-import type { ProductionPort } from "@/ports/production.port"
-import { presentOrderControlError } from "./order-control.error.presenter"
+} from '@pressly/contracts/production';
+import type { IdempotencyPort } from '@/ports/idempotency.port';
+import type { ProductionPort } from '@/ports/production.port';
+import { presentOrderControlError } from './order-control.error.presenter';
 import type {
   OrderControlCallbacks,
   OrderArchiveDraft,
@@ -19,7 +19,7 @@ import type {
   OrderDetailAction,
   OrderExceptionDraft,
   OrderExceptionKind,
-} from "./order-control.model"
+} from './order-control.model';
 import {
   emptyOrderControlFilters,
   formatOrderControlDate,
@@ -31,24 +31,24 @@ import {
   presentOrderRoutePreview,
   stageForOrder,
   type OrderControlStage,
-} from "./order-control.presenter"
+} from './order-control.presenter';
 
 export type OrderControlWorkspaceModelInput = Readonly<{
-  production: ProductionPort
-  idempotency: IdempotencyPort
-  locationId: string
-  timezone: string
-  board: ProductionBoard | null
-  revision: string
-  onMutated: () => Promise<void>
-  limit?: number
-}>
+  production: ProductionPort;
+  idempotency: IdempotencyPort;
+  locationId: string;
+  timezone: string;
+  board: ProductionBoard | null;
+  revision: string;
+  onMutated: () => Promise<void>;
+  limit?: number;
+}>;
 
 export const useOrderControlWorkspaceModel = (
-  input: OrderControlWorkspaceModelInput
+  input: OrderControlWorkspaceModelInput,
 ): Readonly<{
-  model: OrderControlViewModel
-  callbacks: OrderControlCallbacks
+  model: OrderControlViewModel;
+  callbacks: OrderControlCallbacks;
 }> => {
   const {
     production,
@@ -58,155 +58,163 @@ export const useOrderControlWorkspaceModel = (
     revision,
     onMutated,
     limit = 25,
-  } = input
-  const { t, i18n } = useTranslation()
-  const locale = localeForOrderControlLanguage(i18n.resolvedLanguage)
+  } = input;
+  const { t, i18n } = useTranslation();
+  const locale = localeForOrderControlLanguage(i18n.resolvedLanguage);
   const [tab, setTab] =
-    useState<OrderControlViewModel["tab"]>("needs_attention")
+    useState<OrderControlViewModel['tab']>('needs_attention');
   const [filters, setFilters] = useState<OrderControlFilters>(
-    emptyOrderControlFilters
-  )
-  const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [cursor, setCursor] = useState<string | undefined>()
-  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([])
-  const [items, setItems] = useState<readonly ProcessorOrderControlItem[]>([])
-  const [counts, setCounts] = useState({ attention: 0, active: 0, all: 0 })
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [asOf, setAsOf] = useState(revision)
-  const [loading, setLoading] = useState(true)
-  const [hasLoaded, setHasLoaded] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
-  const selectedOrderIdRef = useRef<string | null>(null)
-  const [action, setAction] = useState<OrderDetailAction>({ kind: "none" })
+    emptyOrderControlFilters,
+  );
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [cursor, setCursor] = useState<string | undefined>();
+  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>(
+    [],
+  );
+  const [items, setItems] = useState<readonly ProcessorOrderControlItem[]>([]);
+  const [counts, setCounts] = useState({ attention: 0, active: 0, all: 0 });
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [asOf, setAsOf] = useState(revision);
+  const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const selectedOrderIdRef = useRef<string | null>(null);
+  const [action, setAction] = useState<OrderDetailAction>({ kind: 'none' });
   const [proposal, setProposal] = useState<ProductionOrderRouteProposal | null>(
-    null
-  )
-  const refreshSequence = useRef(0)
+    null,
+  );
+  const refreshSequence = useRef(0);
 
   useEffect(() => {
-    selectedOrderIdRef.current = selectedOrderId
-  }, [selectedOrderId])
+    selectedOrderIdRef.current = selectedOrderId;
+  }, [selectedOrderId]);
 
   useEffect(() => {
     const timeout = window.setTimeout(
       () => setDebouncedSearch(filters.query.trim()),
-      220
-    )
-    return () => window.clearTimeout(timeout)
-  }, [filters.query])
+      220,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [filters.query]);
 
   const query = useMemo<ListProductionOrderControlQuery>(() => {
     return {
       view:
-        tab === "needs_attention"
-          ? "attention"
-          : tab === "active"
-            ? "active"
-            : "all",
+        tab === 'needs_attention'
+          ? 'attention'
+          : tab === 'active'
+            ? 'active'
+            : 'all',
       limit,
       ...(debouncedSearch.length === 0 ? {} : { search: debouncedSearch }),
-      ...(filters.status === "all" ? {} : { status: filters.status as never }),
-      ...(filters.stage === "all"
+      ...(filters.status === 'all' ? {} : { status: filters.status as never }),
+      ...(filters.stage === 'all'
         ? {}
         : { stage: filters.stage as OrderControlStage }),
-      ...(filters.priority === "all"
+      ...(filters.priority === 'all'
         ? {}
-        : { priority: filters.priority === "priority" }),
-      ...(filters.due === "all" ? {} : { dueBucket: filters.due }),
+        : { priority: filters.priority === 'priority' }),
+      ...(filters.due === 'all' ? {} : { dueBucket: filters.due }),
       ...(cursor === undefined ? {} : { cursor }),
-    }
-  }, [cursor, debouncedSearch, filters, limit, tab])
+    };
+  }, [cursor, debouncedSearch, filters, limit, tab]);
 
   const load = useCallback(async () => {
-    const sequence = ++refreshSequence.current
-    setLoading(true)
-    setError(null)
+    const sequence = ++refreshSequence.current;
+
+    setLoading(true);
+    setError(null);
+
     try {
-      const result = await production.listOrderControl({ locationId, query })
-      if (sequence !== refreshSequence.current) return
-      setItems(result.items)
-      setCounts(result.counts)
-      setNextCursor(result.nextCursor)
-      setAsOf(result.asOf)
-      const selectedId = selectedOrderIdRef.current
+      const result = await production.listOrderControl({ locationId, query });
+
+      if (sequence !== refreshSequence.current) return;
+
+      setItems(result.items);
+      setCounts(result.counts);
+      setNextCursor(result.nextCursor);
+      setAsOf(result.asOf);
+
+      const selectedId = selectedOrderIdRef.current;
+
       if (
         selectedId !== null &&
         !result.items.some((item) => item.order.id === selectedId)
       ) {
-        setSelectedOrderId(null)
-        setAction({ kind: "none" })
+        setSelectedOrderId(null);
+        setAction({ kind: 'none' });
       }
     } catch (cause) {
       if (sequence === refreshSequence.current)
-        setError(presentOrderControlError(cause, "load", t))
+        setError(presentOrderControlError(cause, 'load', t));
     } finally {
       if (sequence === refreshSequence.current) {
-        setHasLoaded(true)
-        setLoading(false)
+        setHasLoaded(true);
+        setLoading(false);
       }
     }
-  }, [locationId, production, query, t])
+  }, [locationId, production, query, t]);
 
   useEffect(() => {
-    void load()
-  }, [load, revision])
+    void load();
+  }, [load, revision]);
 
   const selectedItem =
-    items.find((item) => item.order.id === selectedOrderId) ?? null
+    items.find((item) => item.order.id === selectedOrderId) ?? null;
   const orders = useMemo(
     () =>
       items.map((item) =>
-        presentOrderControlOrder(item, timezone, asOf, locale, t)
+        presentOrderControlOrder(item, timezone, asOf, locale, t),
       ),
-    [asOf, items, locale, t, timezone]
-  )
+    [asOf, items, locale, t, timezone],
+  );
   const selectedOrder =
-    orders.find((order) => order.id === selectedOrderId) ?? null
+    orders.find((order) => order.id === selectedOrderId) ?? null;
 
   const resetPaging = useCallback(() => {
-    setCursor(undefined)
-    setCursorHistory([])
-  }, [])
+    setCursor(undefined);
+    setCursorHistory([]);
+  }, []);
 
   const startException = useCallback(
     (item: ProcessorOrderControlItem, kind: OrderExceptionKind) => {
-      if (item.commands.routeException.status === "blocked") return
-      const current = stageForOrder(item)
-      const currentIndex = orderControlStages.indexOf(current)
+      if (item.commands.routeException.status === 'blocked') return;
+      const current = stageForOrder(item);
+      const currentIndex = orderControlStages.indexOf(current);
       const restartStage =
-        kind === "rework" &&
-        currentIndex >= orderControlStages.indexOf("washing")
-          ? "washing"
-          : current
-      setProposal(null)
+        kind === 'rework' &&
+        currentIndex >= orderControlStages.indexOf('washing')
+          ? 'washing'
+          : current;
+      setProposal(null);
       setAction({
         kind,
         draft: {
           reason:
-            kind === "rework"
-              ? "rewash_required"
-              : current === "drying"
-                ? "needs_more_drying"
-                : "stage_incomplete",
+            kind === 'rework'
+              ? 'rewash_required'
+              : current === 'drying'
+                ? 'needs_more_drying'
+                : 'stage_incomplete',
           restartStage,
-          note: "",
+          note: '',
         },
         reasonOptions: [
           {
-            value: "needs_more_drying",
-            label: t("orderControl.needsMoreDrying"),
+            value: 'needs_more_drying',
+            label: t('orderControl.needsMoreDrying'),
           },
-          { value: "rewash_required", label: t("orderControl.rewashRequired") },
+          { value: 'rewash_required', label: t('orderControl.rewashRequired') },
           {
-            value: "sorting_incomplete",
-            label: t("orderControl.sortingIncomplete"),
+            value: 'sorting_incomplete',
+            label: t('orderControl.sortingIncomplete'),
           },
           {
-            value: "stage_incomplete",
-            label: t("orderControl.stageIncomplete"),
+            value: 'stage_incomplete',
+            label: t('orderControl.stageIncomplete'),
           },
-          { value: "other", label: t("orderControl.otherFloorReason") },
+          { value: 'other', label: t('orderControl.otherFloorReason') },
         ],
         restartStageOptions: orderControlStages
           .slice(0, currentIndex + 1)
@@ -217,98 +225,104 @@ export const useOrderControlWorkspaceModel = (
         preview: null,
         busy: false,
         error: null,
-      })
+      });
     },
-    [t]
-  )
+    [t],
+  );
 
   const startMove = useCallback(
     (orderId: string) => {
-      const item = items.find((candidate) => candidate.order.id === orderId)
+      const item = items.find((candidate) => candidate.order.id === orderId);
+
       if (
         item?.currentPlacement === null ||
         item === undefined ||
-        item.commands.queuedMove.status === "blocked"
+        item.commands.queuedMove.status === 'blocked'
       )
-        return
-      setSelectedOrderId(orderId)
-      setProposal(null)
-      const targets = presentOrderMoveTargets(item, locale, t)
-      const first = targets.find((target) => !target.disabled)?.batchId ?? ""
+        return;
+
+      setSelectedOrderId(orderId);
+      setProposal(null);
+
+      const targets = presentOrderMoveTargets(item, locale, t);
+      const first = targets.find((target) => !target.disabled)?.batchId ?? '';
+
       setAction({
-        kind: "move",
+        kind: 'move',
         selectedBatchId: first,
         targets,
         preview: null,
         busy: false,
-        error: first.length === 0 ? t("orderControl.noTarget") : null,
-      })
+        error: first.length === 0 ? t('orderControl.noTarget') : null,
+      });
     },
-    [items, locale, t]
-  )
+    [items, locale, t],
+  );
 
   const startArchive = useCallback(
     (orderId: string) => {
-      const item = items.find((candidate) => candidate.order.id === orderId)
-      const presented = orders.find((candidate) => candidate.id === orderId)
+      const item = items.find((candidate) => candidate.order.id === orderId);
+      const presented = orders.find((candidate) => candidate.id === orderId);
+
       if (
         item === undefined ||
-        item.resolutionAction.status !== "allowed" ||
+        item.resolutionAction.status !== 'allowed' ||
         presented === undefined
       )
-        return
+        return;
 
-      setSelectedOrderId(orderId)
-      setProposal(null)
+      setSelectedOrderId(orderId);
+      setProposal(null);
       setAction({
-        kind: "archive",
+        kind: 'archive',
         expectedVersion: item.resolutionAction.expectedVersion,
         requiresExplicitReview: item.resolutionAction.requiresExplicitReview,
         reviewReasons: presented.archive.reviewReasons,
         draft: {
-          reason: "order_will_not_be_produced",
-          note: "",
+          reason: 'order_will_not_be_produced',
+          note: '',
           confirmedFacts: !item.resolutionAction.requiresExplicitReview,
         },
         reasonOptions: [
           {
-            value: "completed_outside_pressly",
-            label: t("orderControl.archiveReasonCompletedOutside"),
+            value: 'completed_outside_pressly',
+            label: t('orderControl.archiveReasonCompletedOutside'),
           },
           {
-            value: "processor_not_in_use",
-            label: t("orderControl.archiveReasonProcessorNotUsed"),
+            value: 'processor_not_in_use',
+            label: t('orderControl.archiveReasonProcessorNotUsed'),
           },
           {
-            value: "duplicate_or_test",
-            label: t("orderControl.archiveReasonDuplicate"),
+            value: 'duplicate_or_test',
+            label: t('orderControl.archiveReasonDuplicate'),
           },
           {
-            value: "order_will_not_be_produced",
-            label: t("orderControl.archiveReasonNotProduced"),
+            value: 'order_will_not_be_produced',
+            label: t('orderControl.archiveReasonNotProduced'),
           },
-          { value: "other", label: t("orderControl.archiveReasonOther") },
+          { value: 'other', label: t('orderControl.archiveReasonOther') },
         ],
         busy: false,
         error: null,
-      })
+      });
     },
-    [items, orders, t]
-  )
+    [items, orders, t],
+  );
 
   const commitArchive = useCallback(async () => {
-    if (selectedItem === null || action.kind !== "archive") return
+    if (selectedItem === null || action.kind !== 'archive') return;
 
     setAction((current) =>
-      current.kind === "archive"
+      current.kind === 'archive'
         ? { ...current, busy: true, error: null }
-        : current
-    )
+        : current,
+    );
+
     try {
       const normalizedNote =
-        action.draft.note.trim().length === 0 ? null : action.draft.note.trim()
+        action.draft.note.trim().length === 0 ? null : action.draft.note.trim();
       const idempotencyKey = await idempotency.key({
-        operation: "resolve-production-order",
+        operation: 'resolve-production-order',
         payload: {
           orderId: selectedItem.order.id,
           expectedVersion: action.expectedVersion,
@@ -316,24 +330,25 @@ export const useOrderControlWorkspaceModel = (
           note: normalizedNote,
           confirmReviewedFacts: action.draft.confirmedFacts,
         },
-      })
+      });
       const command = {
-        action: "resolve_without_production" as const,
+        action: 'resolve_without_production' as const,
         reason: action.draft.reason as
-          | "completed_outside_pressly"
-          | "processor_not_in_use"
-          | "duplicate_or_test"
-          | "order_will_not_be_produced"
-          | "other",
+          | 'completed_outside_pressly'
+          | 'processor_not_in_use'
+          | 'duplicate_or_test'
+          | 'order_will_not_be_produced'
+          | 'other',
         note: normalizedNote,
         confirmReviewedFacts: action.draft.confirmedFacts,
       } satisfies Pick<
         Extract<
           ChangeProductionOrderResolutionCommand,
-          { action: "resolve_without_production" }
+          { action: 'resolve_without_production' }
         >,
-        "action" | "reason" | "note" | "confirmReviewedFacts"
-      >
+        'action' | 'reason' | 'note' | 'confirmReviewedFacts'
+      >;
+
       await production.changeOrderResolution({
         locationId,
         productionOrderId: selectedItem.order.id,
@@ -342,21 +357,23 @@ export const useOrderControlWorkspaceModel = (
           expectedVersion: action.expectedVersion,
           idempotencyKey,
         },
-      })
-      setSelectedOrderId(null)
-      setAction({ kind: "none" })
-      setProposal(null)
-      await Promise.all([load(), onMutated()])
+      });
+
+      setSelectedOrderId(null);
+      setAction({ kind: 'none' });
+      setProposal(null);
+
+      await Promise.all([load(), onMutated()]);
     } catch (cause) {
       setAction((current) =>
-        current.kind === "archive"
+        current.kind === 'archive'
           ? {
               ...current,
               busy: false,
-              error: presentOrderControlError(cause, "commit", t),
+              error: presentOrderControlError(cause, 'commit', t),
             }
-          : current
-      )
+          : current,
+      );
     }
   }, [
     action,
@@ -367,42 +384,45 @@ export const useOrderControlWorkspaceModel = (
     production,
     selectedItem,
     t,
-  ])
+  ]);
 
   const previewRoute = useCallback(
-    async (kind: "move" | "exception") => {
+    async (kind: 'move' | 'exception') => {
       if (selectedItem?.currentPlacement === null || selectedItem === null)
-        return
+        return;
+
       const capability =
-        kind === "move"
+        kind === 'move'
           ? selectedItem.commands.queuedMove
-          : selectedItem.commands.routeException
-      if (capability.status === "blocked") return
+          : selectedItem.commands.routeException;
+      if (capability.status === 'blocked') return;
+
       setAction((current) =>
-        current.kind === "none"
+        current.kind === 'none'
           ? current
-          : { ...current, busy: true, error: null }
-      )
+          : { ...current, busy: true, error: null },
+      );
+
       try {
-        const placement = selectedItem.currentPlacement
+        const placement = selectedItem.currentPlacement;
         const request =
-          kind === "move" && action.kind === "move"
+          kind === 'move' && action.kind === 'move'
             ? ({
-                kind: "queued_move" as const,
-                reason: "manual_rebatch" as const,
+                kind: 'queued_move' as const,
+                reason: 'manual_rebatch' as const,
                 targetProductionBatchId: action.selectedBatchId,
-                restartStage: "sorting" as const,
+                restartStage: 'sorting' as const,
                 expectedQueueVersion: capability.expectedQueueVersion,
                 expectedOrderVersion: capability.expectedOrderVersion,
                 expectedSourceBatchVersion:
                   capability.expectedSourceBatchVersion,
               } as const)
-            : action.kind === "leave_behind" || action.kind === "rework"
+            : action.kind === 'leave_behind' || action.kind === 'rework'
               ? ({
-                  kind: "exception" as const,
+                  kind: 'exception' as const,
                   reason: action.draft.reason as Exclude<
                     ProductionOrderRouteReason,
-                    "manual_rebatch"
+                    'manual_rebatch'
                   >,
                   restartStage: action.draft.restartStage as OrderControlStage,
                   ...(action.draft.note.trim().length === 0
@@ -413,80 +433,80 @@ export const useOrderControlWorkspaceModel = (
                   expectedSourceBatchVersion:
                     capability.expectedSourceBatchVersion,
                 } as const)
-              : null
-        if (request === null) return
+              : null;
+        if (request === null) return;
         const next = await production.previewOrderRoute({
           locationId,
           productionRunId: placement.productionRunId,
           productionOrderId: selectedItem.order.id,
           request,
-        })
-        setProposal(next)
+        });
+        setProposal(next);
         setAction((current) =>
-          current.kind === "none"
+          current.kind === 'none'
             ? current
             : {
                 ...current,
                 preview: presentOrderRoutePreview(next, t),
                 busy: false,
-              }
-        )
+              },
+        );
       } catch (cause) {
         setAction((current) =>
-          current.kind === "none"
+          current.kind === 'none'
             ? current
             : {
                 ...current,
                 busy: false,
-                error: presentOrderControlError(cause, "preview", t),
-              }
-        )
+                error: presentOrderControlError(cause, 'preview', t),
+              },
+        );
       }
     },
-    [action, locationId, production, selectedItem, t]
-  )
+    [action, locationId, production, selectedItem, t],
+  );
 
   const commitRoute = useCallback(async () => {
     if (
       selectedItem?.currentPlacement === null ||
       selectedItem === null ||
       proposal === null ||
-      action.kind === "none"
+      action.kind === 'none'
     )
-      return
-    setAction((current) => ({ ...current, busy: true, error: null }))
+      return;
+    setAction((current) => ({ ...current, busy: true, error: null }));
     try {
-      const placement = selectedItem.currentPlacement
+      const placement = selectedItem.currentPlacement;
       const operation =
-        proposal.kind === "queued_move"
-          ? "move-queued-order"
-          : "route-order-exception"
+        proposal.kind === 'queued_move'
+          ? 'move-queued-order'
+          : 'route-order-exception';
       const idempotencyKey = await idempotency.key({
         operation,
         payload: {
           orderId: selectedItem.order.id,
           proposalHash: proposal.proposalHash,
         },
-      })
+      });
       const request =
-        proposal.kind === "queued_move" && action.kind === "move"
+        proposal.kind === 'queued_move' && action.kind === 'move'
           ? ({
-              kind: "queued_move" as const,
-              reason: "manual_rebatch" as const,
+              kind: 'queued_move' as const,
+              reason: 'manual_rebatch' as const,
               targetProductionBatchId: action.selectedBatchId,
-              restartStage: "sorting" as const,
+              restartStage: 'sorting' as const,
               expectedQueueVersion: proposal.expectedQueueVersion,
               expectedOrderVersion: proposal.expectedOrderVersion,
               expectedSourceBatchVersion: proposal.expectedSourceBatchVersion,
               proposalHash: proposal.proposalHash,
               idempotencyKey,
             } as const)
-          : action.kind === "leave_behind" || action.kind === "rework"
+          : action.kind === 'leave_behind' || action.kind === 'rework'
             ? ({
-                kind: "exception" as const,
+                kind: 'exception' as const,
                 reason: action.draft.reason as Exclude<
                   ProductionOrderRouteReason,
-                  "manual_rebatch"
+                  'manual_rebatch'
                 >,
                 restartStage: action.draft.restartStage as OrderControlStage,
                 ...(action.draft.note.trim().length === 0
@@ -498,28 +518,28 @@ export const useOrderControlWorkspaceModel = (
                 proposalHash: proposal.proposalHash,
                 idempotencyKey,
               } as const)
-            : null
-      if (request === null) return
+            : null;
+      if (request === null) return;
       await production.commitOrderRoute({
         locationId,
         productionRunId: placement.productionRunId,
         productionOrderId: selectedItem.order.id,
         request,
-      })
-      setSelectedOrderId(null)
-      setAction({ kind: "none" })
-      setProposal(null)
-      await Promise.all([load(), onMutated()])
+      });
+      setSelectedOrderId(null);
+      setAction({ kind: 'none' });
+      setProposal(null);
+      await Promise.all([load(), onMutated()]);
     } catch (cause) {
       setAction((current) =>
-        current.kind === "none"
+        current.kind === 'none'
           ? current
           : {
               ...current,
               busy: false,
-              error: presentOrderControlError(cause, "commit", t),
-            }
-      )
+              error: presentOrderControlError(cause, 'commit', t),
+            },
+      );
     }
   }, [
     action,
@@ -531,89 +551,89 @@ export const useOrderControlWorkspaceModel = (
     selectedItem,
     t,
     onMutated,
-  ])
+  ]);
 
   const callbacks: OrderControlCallbacks = {
     onTabChange: (next) => {
-      setTab(next)
-      resetPaging()
+      setTab(next);
+      resetPaging();
     },
     onFiltersChange: (next) => {
-      setFilters(next)
-      resetPaging()
+      setFilters(next);
+      resetPaging();
     },
     onClearFilters: () => {
-      setFilters(emptyOrderControlFilters)
-      resetPaging()
+      setFilters(emptyOrderControlFilters);
+      resetPaging();
     },
     onPreviousPage: (previous) => {
-      const history = cursorHistory.slice(0, -1)
-      setCursor(previous === "first" ? undefined : previous)
-      setCursorHistory(history)
+      const history = cursorHistory.slice(0, -1);
+      setCursor(previous === 'first' ? undefined : previous);
+      setCursorHistory(history);
     },
     onNextPage: (next) => {
-      setCursorHistory((history) => [...history, cursor])
-      setCursor(next)
+      setCursorHistory((history) => [...history, cursor]);
+      setCursor(next);
     },
     onOpenOrder: (orderId) => {
-      setSelectedOrderId(orderId)
-      setAction({ kind: "none" })
-      setProposal(null)
+      setSelectedOrderId(orderId);
+      setAction({ kind: 'none' });
+      setProposal(null);
     },
     onCloseOrder: () => {
-      setSelectedOrderId(null)
-      setAction({ kind: "none" })
-      setProposal(null)
+      setSelectedOrderId(null);
+      setAction({ kind: 'none' });
+      setProposal(null);
     },
     onStartMove: (orderId) => void startMove(orderId),
     onMoveTargetChange: (batchId) => {
-      setProposal(null)
+      setProposal(null);
       setAction((current) =>
-        current.kind === "move"
+        current.kind === 'move'
           ? { ...current, selectedBatchId: batchId, preview: null, error: null }
-          : current
-      )
+          : current,
+      );
     },
-    onReviewMove: () => void previewRoute("move"),
+    onReviewMove: () => void previewRoute('move'),
     onConfirmMove: () => void commitRoute(),
     onStartException: (orderId, kind) => {
-      const item = items.find((candidate) => candidate.order.id === orderId)
-      if (item === undefined) return
-      setSelectedOrderId(orderId)
-      startException(item, kind)
+      const item = items.find((candidate) => candidate.order.id === orderId);
+      if (item === undefined) return;
+      setSelectedOrderId(orderId);
+      startException(item, kind);
     },
     onExceptionDraftChange: (draft: OrderExceptionDraft) => {
-      setProposal(null)
+      setProposal(null);
       setAction((current) =>
-        current.kind === "leave_behind" || current.kind === "rework"
+        current.kind === 'leave_behind' || current.kind === 'rework'
           ? { ...current, draft, preview: null, error: null }
-          : current
-      )
+          : current,
+      );
     },
-    onReviewException: () => void previewRoute("exception"),
+    onReviewException: () => void previewRoute('exception'),
     onConfirmException: () => void commitRoute(),
     onStartArchive: (orderId) => startArchive(orderId),
     onArchiveDraftChange: (draft: OrderArchiveDraft) => {
       setAction((current) =>
-        current.kind === "archive"
+        current.kind === 'archive'
           ? { ...current, draft, error: null }
-          : current
-      )
+          : current,
+      );
     },
     onConfirmArchive: () => void commitArchive(),
     onChangeActionDetails: () => {
-      setProposal(null)
+      setProposal(null);
       setAction((current) =>
-        current.kind === "none"
+        current.kind === 'none'
           ? current
-          : { ...current, preview: null, error: null }
-      )
+          : { ...current, preview: null, error: null },
+      );
     },
     onCancelAction: () => {
-      setProposal(null)
-      setAction({ kind: "none" })
+      setProposal(null);
+      setAction({ kind: 'none' });
     },
-  }
+  };
 
   const model: OrderControlViewModel = {
     tab,
@@ -625,45 +645,45 @@ export const useOrderControlWorkspaceModel = (
     filters,
     filterOptions: {
       statuses: [
-        { value: "all", label: t("orderControl.allStatuses") },
-        { value: "release_pending", label: t("orderControl.forecastOnly") },
-        { value: "intake_pending", label: t("orderControl.intakeNeeded") },
-        { value: "eligible", label: t("orderControl.eligible") },
-        { value: "scheduled", label: t("orderControl.inProduction") },
-        { value: "finished", label: t("orderControl.finished") },
+        { value: 'all', label: t('orderControl.allStatuses') },
+        { value: 'release_pending', label: t('orderControl.forecastOnly') },
+        { value: 'intake_pending', label: t('orderControl.intakeNeeded') },
+        { value: 'eligible', label: t('orderControl.eligible') },
+        { value: 'scheduled', label: t('orderControl.inProduction') },
+        { value: 'finished', label: t('orderControl.finished') },
       ],
       dueWindows: [
-        { value: "all", label: t("orderControl.anyDueDate") },
-        { value: "overdue", label: t("orderControl.pastDue") },
-        { value: "today", label: t("orderControl.dueToday") },
-        { value: "tomorrow", label: t("orderControl.dueTomorrow") },
-        { value: "later", label: t("orderControl.dueLater") },
+        { value: 'all', label: t('orderControl.anyDueDate') },
+        { value: 'overdue', label: t('orderControl.pastDue') },
+        { value: 'today', label: t('orderControl.dueToday') },
+        { value: 'tomorrow', label: t('orderControl.dueTomorrow') },
+        { value: 'later', label: t('orderControl.dueLater') },
       ],
       stages: [
-        { value: "all", label: t("orderControl.anyStage") },
+        { value: 'all', label: t('orderControl.anyStage') },
         ...orderControlStages.map((stage) => ({
           value: stage,
           label: labelForOrderControlValue(stage, t),
         })),
       ],
       priorities: [
-        { value: "all", label: t("orderControl.anyPriority") },
-        { value: "priority", label: t("orderControl.priorityOnly") },
-        { value: "standard", label: t("orderControl.standardOnly") },
+        { value: 'all', label: t('orderControl.anyPriority') },
+        { value: 'priority', label: t('orderControl.priorityOnly') },
+        { value: 'standard', label: t('orderControl.standardOnly') },
       ],
     },
     orders,
     page: {
-      rangeLabel: t("orderControl.showing", {
-        orders: t("common.orders", { count: orders.length }),
+      rangeLabel: t('orderControl.showing', {
+        orders: t('common.orders', { count: orders.length }),
       }),
       previousCursor:
         cursorHistory.length === 0
           ? null
-          : (cursorHistory[cursorHistory.length - 1] ?? "first"),
+          : (cursorHistory[cursorHistory.length - 1] ?? 'first'),
       nextCursor,
     },
-    asOfLabel: t("orderControl.updated", {
+    asOfLabel: t('orderControl.updated', {
       date: formatOrderControlDate(asOf, timezone, locale),
     }),
     selectedOrder,
@@ -671,7 +691,7 @@ export const useOrderControlWorkspaceModel = (
     loading: loading && !hasLoaded,
     refreshing: loading && hasLoaded,
     error,
-  }
+  };
 
-  return { model, callbacks }
-}
+  return { model, callbacks };
+};

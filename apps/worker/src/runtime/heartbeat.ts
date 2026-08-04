@@ -1,13 +1,14 @@
 import { writeFile } from 'node:fs/promises';
+import { systemClock, type Clock } from '@pressly/time';
 
 export type WorkerHeartbeat = Readonly<{ beat: () => Promise<void> }>;
 
 export const makeFileHeartbeat = (input: {
   path: string;
-  clock?: Readonly<{ now: () => Date }>;
+  clock?: Clock;
   write?: (path: string, value: string) => Promise<void>;
 }): WorkerHeartbeat => {
-  const clock = input.clock ?? { now: () => new Date() };
+  const clock = input.clock ?? systemClock;
   const write = input.write ?? writeFile;
 
   return {

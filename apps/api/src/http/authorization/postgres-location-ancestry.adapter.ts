@@ -1,6 +1,8 @@
-import type { LocationAncestryPort } from '@pressly/access-control';
-import { asc, business, eq, inArray, type Database } from '@pressly/db';
-import { notFoundError } from '@pressly/errors';
+import type { LocationAncestryPort } from '@pressly/authorization';
+import { type Database } from '@pressly/db/client';
+import { asc, eq, inArray } from '@pressly/db/query';
+import * as business from '@pressly/db/schema/business';
+import { notFoundError } from '@pressly/errors/factories';
 
 export const makePostgresLocationAncestryAdapter = (
   db: Database,

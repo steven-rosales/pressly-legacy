@@ -9,8 +9,9 @@ import {
   sessionResultSchema,
   type AuthenticatedLoginResult,
   type LoginRequest,
-} from '@pressly/contracts';
-import { authError, type AppError } from '@pressly/errors';
+} from '@pressly/contracts/auth';
+import { type AppError } from '@pressly/errors/app-error';
+import { authError } from '@pressly/errors/factories';
 import {
   readApiUrl,
   requestApi,

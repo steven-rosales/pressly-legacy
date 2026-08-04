@@ -1,44 +1,28 @@
-import { createHash } from 'node:crypto';
-import type { FulfillmentDemandChangedEvent } from '@pressly/contracts';
 import type { Logger } from '@pressly/logging';
 import {
   attemptObservation,
   isolateCounterSink,
   type CounterSink,
   type ErrorReporter,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import type { OrdersWorkerApplication } from '@pressly/orders';
-import type { ProductionApplication } from '@pressly/production';
 import {
-  invariantViolationError,
+  productionFailureToAppError,
+  type ProductionApplication,
+} from '@pressly/production';
+import type { Clock } from '@pressly/time';
+import {
   normalizeUnknownError,
   type AppError,
-} from '@pressly/errors';
+} from '@pressly/errors/app-error';
+import { invariantViolationError } from '@pressly/errors/factories';
 import {
   decideFailureDisposition,
   isRetryableAppError,
 } from '../../runtime/failure-disposition.ts';
 import { retryDelayMs } from '../../runtime/retry.ts';
-
-const projectionHash = (value: FulfillmentDemandChangedEvent): string =>
-  createHash('sha256')
-    .update(
-      JSON.stringify([
-        value.fulfillmentId,
-        value.displayNumber,
-        value.locationId,
-        value.typeCode,
-        value.admissionState,
-        value.commercialState,
-        value.dueAt,
-        value.estimatedWeightLbs,
-        value.estimatedWeightSource,
-        value.bagCount,
-        value.version,
-        value.observedAt,
-      ]),
-    )
-    .digest('hex');
+import { toApplyFulfillmentDemandCommand } from './fulfillment-demand.projection.mapper.ts';
+import { ordersWorkerFailureToAppError } from '../order-failure.error.ts';
 
 type OrderOutboxPort = Pick<
   OrdersWorkerApplication,
@@ -53,7 +37,7 @@ type ProductionDemandPort = Pick<
 export const makeFulfillmentDemandProjectionJob = (deps: {
   orders: OrderOutboxPort;
   production: ProductionDemandPort;
-  clock: Readonly<{ now: () => Date }>;
+  clock: Clock;
   random: () => number;
   logger: Logger;
   counters: CounterSink;
@@ -90,6 +74,7 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
       maxMs: deps.config.retryMaxMs,
       jitter: deps.random(),
     });
+
     const outcome = await deps.orders.retryOutbox({
       eventId: input.eventId,
       workerId: deps.config.workerId,
@@ -97,8 +82,8 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
       errorCode: input.code,
       errorMessage: input.message,
     });
-    if (outcome.tag === 'err') throw outcome.error;
-    if (!outcome.value.retried)
+
+    if (!outcome.retried)
       logWarn('order outbox retry discarded after lease loss', {
         eventId: input.eventId,
         workerId: deps.config.workerId,
@@ -120,7 +105,9 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
       errorCode: input.error.code,
       errorMessage: input.error.safeMessage,
     });
-    if (outcome.tag === 'err') throw outcome.error;
+
+    if (outcome.tag === 'err')
+      throw ordersWorkerFailureToAppError(outcome.error);
     if (!outcome.value.deadLettered) {
       logWarn('order outbox dead-letter discarded after lease loss', {
         eventId: input.eventId,
@@ -128,6 +115,7 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
       });
       return;
     }
+
     logError('order outbox event dead-lettered', {
       eventId: input.eventId,
       code: input.error.code,
@@ -158,10 +146,12 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
       attempt: input.attempt,
       maxAttempts: deps.config.maxAttempts,
     });
+
     if (disposition.action === 'dead_letter') {
       await deadLetter(input);
       return;
     }
+
     await retry({
       eventId: input.eventId,
       attempt: input.attempt,
@@ -175,8 +165,7 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
       eventId,
       workerId: deps.config.workerId,
     });
-    if (outcome.tag === 'err') throw outcome.error;
-    if (!outcome.value.completed)
+    if (!outcome.completed)
       logWarn('order outbox completion discarded after lease loss', {
         eventId,
         workerId: deps.config.workerId,
@@ -194,7 +183,7 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
         limit: deps.config.batchSize,
         leaseMs: deps.config.leaseMs,
       });
-      if (claim.tag === 'err') throw claim.error;
+      if (claim.tag === 'err') throw ordersWorkerFailureToAppError(claim.error);
 
       for (const event of claim.value) {
         if (event.kind === 'invalid') {
@@ -221,22 +210,12 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
           ReturnType<ProductionApplication['applyFulfillmentDemand']>
         >;
         try {
-          projected = await deps.production.applyFulfillmentDemand({
-            fulfillmentId: demand.fulfillmentId,
-            fulfillmentVersion: demand.version,
-            projectionHash: projectionHash(demand),
-            displayReference: demand.displayNumber,
-            locationId: demand.locationId,
-            admissionState: demand.admissionState,
-            commercialState: demand.commercialState,
-            dueAt: demand.dueAt,
-            observedAt: demand.observedAt,
-            estimatedWeightLbs: demand.estimatedWeightLbs,
-            estimatedWeightSource:
-              demand.estimatedWeightLbs === null ? null : 'external_estimate',
-            bagCount: demand.bagCount,
-            idempotencyKey: `order-outbox:${event.id}`,
-          });
+          projected = await deps.production.applyFulfillmentDemand(
+            toApplyFulfillmentDemandCommand({
+              eventId: event.id,
+              demand,
+            }),
+          );
         } catch (error: unknown) {
           await fail({
             eventId: event.id,
@@ -249,7 +228,7 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
           await fail({
             eventId: event.id,
             attempt: event.attempts,
-            error: projected.error,
+            error: productionFailureToAppError(projected.error),
           });
           continue;
         }

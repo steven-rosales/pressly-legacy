@@ -1,6 +1,6 @@
 'use client';
 
-import { invariantViolationError } from '@pressly/errors';
+import { invariantViolationError } from '@pressly/errors/factories';
 import { createContext, useContext, type PropsWithChildren } from 'react';
 import type { TrackPublicEvent } from '@/common/core/analytics/track';
 

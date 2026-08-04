@@ -21,7 +21,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
-    "test": "vitest run --dir test",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --dir test",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",
+    "@types/node": "^25.6.0",
     "typescript": "latest",
     "vitest": "^4.1.5"
   }

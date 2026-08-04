@@ -1,4 +1,4 @@
-import { isolateCounterSink, type CounterSink } from '@pressly/metrics';
+import { isolateCounterSink, type CounterSink } from '@pressly/observability';
 import type { ProductionSignalsPort } from '@pressly/production';
 
 /** Domain-outcome counters for commands committed by the webhook worker. */

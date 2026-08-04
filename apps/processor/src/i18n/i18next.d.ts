@@ -1,11 +1,11 @@
-import "i18next"
-import type { englishProcessorMessages } from "./index"
+import 'i18next';
+import type { englishProcessorMessages } from './index';
 
-declare module "i18next" {
+declare module 'i18next' {
   interface CustomTypeOptions {
-    defaultNS: "translation"
+    defaultNS: 'translation';
     resources: {
-      translation: typeof englishProcessorMessages
-    }
+      translation: typeof englishProcessorMessages;
+    };
   }
 }

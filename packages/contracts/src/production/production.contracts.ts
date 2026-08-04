@@ -1431,13 +1431,6 @@ const productionOrderResolutionNoteSchema = z
   .nullable()
   .default(null);
 
-const resolutionCommandIdentifiers = {
-  locationId: z.string().min(1),
-  orderId: productionIdSchema,
-  expectedVersion: z.number().int().positive(),
-  idempotencyKey: z.string().min(8).max(200),
-} as const;
-
 const requireResolutionOtherNote = (
   value: Readonly<{ reason: string; note: string | null }>,
   context: z.RefinementCtx,
@@ -1449,29 +1442,6 @@ const requireResolutionOtherNote = (
       message: 'An explanatory note is required for the other reason.',
     });
 };
-
-export const changeProductionOrderResolutionCommandSchema =
-  z.discriminatedUnion('action', [
-    z
-      .object({
-        ...resolutionCommandIdentifiers,
-        action: z.literal('resolve_without_production'),
-        reason: productionOrderResolutionReasonSchema,
-        note: productionOrderResolutionNoteSchema,
-        confirmReviewedFacts: z.boolean().default(false),
-      })
-      .strict()
-      .superRefine(requireResolutionOtherNote),
-    z
-      .object({
-        ...resolutionCommandIdentifiers,
-        action: z.literal('restore'),
-        reason: productionOrderRestorationReasonSchema,
-        note: productionOrderResolutionNoteSchema,
-      })
-      .strict()
-      .superRefine(requireResolutionOtherNote),
-  ]);
 
 export const changeProductionOrderResolutionRequestSchema =
   z.discriminatedUnion('action', [

@@ -1,4 +1,4 @@
-import { isAppError } from '@pressly/errors';
+import { isAppError } from '@pressly/errors/app-error';
 import { describe, expect, it, vi } from 'vitest';
 import { makeSequentialJob } from '../../src/runtime/job.ts';
 

@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next"
-import { RequestFailure } from "@/ports/request.error"
+import { isRequestFailure } from "@/ports/request.error"
 
 export type ProductionBoardErrorOperation =
   | "load"
@@ -30,7 +30,7 @@ export const presentProductionBoardError = (
   operation: ProductionBoardErrorOperation,
   t: TFunction
 ): string => {
-  if (!(cause instanceof RequestFailure)) return fallbackMessage(operation, t)
+  if (!isRequestFailure(cause)) return fallbackMessage(operation, t)
 
   switch (cause.code.toLowerCase()) {
     case "production_board_not_found":
@@ -100,17 +100,19 @@ export const presentProductionBoardError = (
       return t("production.errors.recordChanged")
   }
 
-  if (cause.kind === "unauthorized") return t("production.errors.unauthorized")
-  if (cause.kind === "forbidden") return t("production.errors.forbidden")
-  if (cause.kind === "unavailable")
+  if (cause.requestKind === "unauthorized")
+    return t("production.errors.unauthorized")
+  if (cause.requestKind === "forbidden") return t("production.errors.forbidden")
+  if (cause.requestKind === "unavailable")
     return operation === "load"
       ? t("production.errors.unavailable")
       : fallbackMessage(operation, t)
-  if (cause.kind === "invalid_response")
+  if (cause.requestKind === "invalid_response")
     return operation === "load"
       ? t("production.errors.invalidResponse")
       : fallbackMessage(operation, t)
-  if (cause.kind === "conflict") return t("production.errors.recordChanged")
+  if (cause.requestKind === "conflict")
+    return t("production.errors.recordChanged")
   return fallbackMessage(operation, t)
 }
 

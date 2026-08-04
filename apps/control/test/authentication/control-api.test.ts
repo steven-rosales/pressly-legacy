@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import {
-  ControlApiError,
   makeControlAuthenticationApi,
+  type ControlApiError,
 } from "@/authentication/control-api"
 import { makeControlHttpClient } from "@/api/control-http-client"
 import { z } from "zod"
@@ -83,7 +83,8 @@ describe("Control authentication API", () => {
 
     await expect(api.restore()).rejects.toMatchObject({
       status: 502,
-      kind: "unreadable_response",
+      kind: "ExternalServiceError",
+      controlKind: "unreadable_response",
       code: "control_status_envelope_mismatch",
       traceId: "mismatched-status-request",
     })
@@ -104,12 +105,10 @@ describe("Control authentication API", () => {
       ),
     ).rejects.toMatchObject({
       status: 400,
-      kind: "invalid_request",
+      kind: "ValidationError",
+      controlKind: "invalid_request",
       code: "control_request_body_not_serializable",
-      cause: expect.objectContaining({
-        kind: "ValidationError",
-        cause: expect.any(TypeError),
-      }),
+      cause: expect.any(TypeError),
     })
     expect(fetchImplementation).not.toHaveBeenCalled()
   })
@@ -122,8 +121,9 @@ describe("Control authentication API", () => {
     })
 
     await expect(api.restore()).rejects.toMatchObject({
-      name: "ControlApiError",
-      kind: "unreadable_response",
+      name: "ExternalServiceError",
+      kind: "ExternalServiceError",
+      controlKind: "unreadable_response",
     })
   })
 
@@ -146,7 +146,8 @@ describe("Control authentication API", () => {
     await expect(api.restore()).rejects.toEqual(
       expect.objectContaining<Partial<ControlApiError>>({
         status: 401,
-        kind: "authentication_required",
+        kind: "AuthError",
+        controlKind: "authentication_required",
         code: "AUTH_INVALID_CREDENTIALS",
       }),
     )
@@ -168,7 +169,8 @@ describe("Control authentication API", () => {
     })
 
     await expect(api.restore()).rejects.toMatchObject({
-      kind: "unreadable_response",
+      kind: "ExternalServiceError",
+      controlKind: "unreadable_response",
       traceId: "request-control-123",
       cause: expect.any(Error),
     })
@@ -197,7 +199,9 @@ describe("Control authentication API", () => {
 
     await expect(api.restore()).rejects.toMatchObject({
       traceId: "request-control-456",
-      cause: expect.objectContaining({ tag: "AppError" }),
+      tag: "AppError",
+      kind: "AuthError",
+      controlKind: "authentication_required",
     })
   })
 

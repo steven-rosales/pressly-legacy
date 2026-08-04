@@ -4,7 +4,7 @@ import {
   type CounterLabels,
   type CounterName,
   type CounterSink,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 
 export const makeLoggingCounterSink = (logger: Logger): CounterSink => ({
   increment: (name: CounterName, labels?: CounterLabels) => {

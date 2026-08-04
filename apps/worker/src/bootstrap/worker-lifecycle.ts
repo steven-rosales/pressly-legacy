@@ -1,5 +1,5 @@
 import type { Logger } from '@pressly/logging';
-import { attemptObservation } from '@pressly/metrics';
+import { attemptObservation } from '@pressly/observability';
 
 export type WorkerLifecycle = Readonly<{
   signal: AbortSignal;

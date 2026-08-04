@@ -1,11 +1,14 @@
 import * as Sentry from '@sentry/nextjs';
-import { normalizeUnknownError, type AppError } from '@pressly/errors';
+import {
+  normalizeUnknownError,
+  type AppError,
+} from '@pressly/errors/app-error';
 import { redactLogFields } from '@pressly/logging';
 import {
   attemptObservation,
   type ErrorReporter,
   type ErrorReportContext,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 
 const toSentryContext = (value: unknown): Record<string, unknown> => {
   const redacted = redactLogFields(value);

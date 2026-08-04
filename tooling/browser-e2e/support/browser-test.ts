@@ -5,6 +5,7 @@ import {
   type Page,
   type Response,
 } from '@playwright/test';
+import { toolingError } from '@pressly/errors/tooling-error';
 import { allowedBrowserHostnames } from './environment';
 
 export type BrowserDiagnostics = Readonly<{
@@ -95,7 +96,10 @@ export const successfulResponseData = (response: BrowserJsonResponse) => {
     response.body.ok !== true ||
     !('data' in response.body)
   ) {
-    throw new Error('Expected a successful Pressly API response envelope.');
+    throw toolingError({
+      code: 'invalid_success_response_envelope',
+      message: 'Expected a successful Pressly API response envelope.',
+    });
   }
   return response.body.data;
 };

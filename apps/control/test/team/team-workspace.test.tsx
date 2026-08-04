@@ -1,10 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
-import { ControlApiError } from "@/api/control-http-client"
 import { TeamWorkspace } from "@/features/team/team-workspace"
 import type { ControlTeamApi } from "@/features/team/team-api"
 import type { ControlAuthenticatedSession } from "@/authentication/control-session"
+import { controlApiErrorFixture } from "../support/control-api-error.fixture"
 
 const session = (
   capabilities: ControlAuthenticatedSession["access"]["capabilities"],
@@ -261,7 +261,7 @@ describe("Team workspace", () => {
     }
     const transitionMember = vi
       .fn()
-      .mockRejectedValue(new ControlApiError(409, "conflict"))
+      .mockRejectedValue(controlApiErrorFixture("conflict", { status: 409 }))
     const api = makeApi({
       listMembers: vi.fn().mockResolvedValue({
         members: [member],

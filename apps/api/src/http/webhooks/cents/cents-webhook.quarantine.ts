@@ -1,5 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { configError, invariantViolationError } from '@pressly/errors';
+import {
+  configError,
+  invariantViolationError,
+} from '@pressly/errors/factories';
 
 export const CENTS_WEBHOOK_ADAPTER_VERSION = 'cents-webhook-v1';
 

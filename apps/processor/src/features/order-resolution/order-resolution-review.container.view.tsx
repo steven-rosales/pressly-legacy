@@ -2,9 +2,10 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconArchive } from "@tabler/icons-react"
 import type { TFunction } from "i18next"
+import type { Clock } from "@pressly/time"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
-import { RequestFailure } from "@/ports/request.error"
+import { isRequestFailure } from "@/ports/request.error"
 import {
   defaultOrderResolutionCutoffDate,
   orderResolutionCutoffIso,
@@ -173,11 +174,12 @@ const copyFor = (t: TFunction): OrderResolutionReviewCopy => ({
 })
 
 const messageForFailure = (cause: unknown, t: TFunction): string => {
-  if (!(cause instanceof RequestFailure))
-    return t("orderResolution.previewErrorTitle")
-  if (cause.kind === "forbidden") return t("history.errors.forbidden")
-  if (cause.kind === "unauthorized") return t("history.errors.unauthorized")
-  if (cause.kind === "unavailable") return t("history.errors.unavailable")
+  if (!isRequestFailure(cause)) return t("orderResolution.previewErrorTitle")
+  if (cause.requestKind === "forbidden") return t("history.errors.forbidden")
+  if (cause.requestKind === "unauthorized")
+    return t("history.errors.unauthorized")
+  if (cause.requestKind === "unavailable")
+    return t("history.errors.unavailable")
   return t("orderResolution.previewErrorTitle")
 }
 
@@ -187,7 +189,7 @@ type OrderResolutionReviewContainerProps = Readonly<{
   locationId: string
   timezone: string
   canManage: boolean
-  now: () => Date
+  now: Clock["now"]
   onMutated: () => Promise<void>
   onOpenHistory: (productionOrderId?: string) => void
 }>
@@ -359,7 +361,7 @@ function OrderResolutionReviewWorkspace({
               } catch (cause) {
                 const message = messageForFailure(cause, t)
                 setModel(
-                  cause instanceof RequestFailure && cause.kind === "conflict"
+                  isRequestFailure(cause) && cause.requestKind === "conflict"
                     ? {
                         status: "drift",
                         preview: currentPreview,

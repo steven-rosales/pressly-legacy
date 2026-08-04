@@ -1,4 +1,4 @@
-import type { ControlCapability } from '@pressly/contracts';
+import type { ControlCapability } from '@pressly/contracts/auth';
 import { catchAsync } from '@pressly/http/express';
 import type { Request, Response, RequestHandler } from 'express';
 import {
@@ -9,7 +9,7 @@ import {
 import {
   controlRequestNeedsCsrf,
   requireControlCsrf,
-} from './control-csrf.policy.ts';
+} from './control-csrf.adapter.ts';
 import {
   controlForbidden,
   controlUnauthorized,
@@ -73,6 +73,7 @@ export const makeControlSessionAuthentication = (input: {
     const access = await input.resolveAccess(loaded.value);
     if (access === null) {
       clearControlCookie(response, input.names.session, input.options);
+
       throw controlForbidden({
         code: 'control_access_unavailable',
         message:
@@ -112,6 +113,7 @@ export const makeControlSessionAuthentication = (input: {
           next();
           return;
         }
+
         throw controlForbidden({
           code: 'control_capability_denied',
           message: `Control capability ${capability} was denied.`,

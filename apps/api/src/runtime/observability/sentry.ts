@@ -1,5 +1,8 @@
 import * as Sentry from '@sentry/node';
-import { normalizeUnknownError, type AppError } from '@pressly/errors';
+import {
+  normalizeUnknownError,
+  type AppError,
+} from '@pressly/errors/app-error';
 import { redactLogFields } from '@pressly/logging';
 import {
   attemptObservation,
@@ -10,7 +13,8 @@ import {
   type ErrorReporter,
   type MeasurementLabels,
   type MeasurementSink,
-} from '@pressly/metrics';
+} from '@pressly/observability';
+import { systemClock } from '@pressly/time';
 import type { Logger, LogFields } from '@pressly/logging';
 
 type SentryConfig = Readonly<{
@@ -91,7 +95,7 @@ export const makeApiSignalSinks = (input: {
 }): Readonly<{ counters: CounterSink; measurements: MeasurementSink }> => {
   const exportEnabled = input.sentryEnabled && input.metricsEnabled;
   const sentryMetrics = input.sentryMetrics ?? Sentry.metrics;
-  const nowMs = input.nowMs ?? Date.now;
+  const nowMs = input.nowMs ?? (() => systemClock.now().getTime());
   const exportFailureLogIntervalMs = input.exportFailureLogIntervalMs ?? 60_000;
   const lastExportFailureAt = new Map<string, number>();
 
