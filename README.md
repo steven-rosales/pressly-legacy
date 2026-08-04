@@ -123,10 +123,14 @@ Stop the stack with `pnpm docker:down`.
 - `apps/processor` — the production-floor application
 - `apps/api` — HTTP delivery, authentication, and application composition
 - `apps/worker` — durable webhook and fulfillment projection jobs
-- `modules/business` — Users, Orders, Production, Pricing, and Auth capabilities
-- `modules/computation` — deterministic scheduling and read projections
+- `modules/business` — Orders, Pricing, Production, and Users authorities
+- `modules/security` — Identity and framework-free Authorization authorities
+- `modules/integration` — durable external-system interaction authorities
+- `modules/experience` — Control and Processor cross-domain workflows
 - `packages` — shared contracts, database schema, time, money, and runtime tools
 - [`docs/architecture.md`](docs/architecture.md) — system boundaries and data flow
+- [`docs/module-architecture.md`](docs/module-architecture.md) — executable
+  placement, dependency, and file-role rules
 
 ## Project status
 

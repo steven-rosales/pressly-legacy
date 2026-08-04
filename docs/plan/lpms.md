@@ -1653,12 +1653,13 @@ There is no washer/dryer hardware integration in v1.
 
 The current repository implements the happy-path slice described above:
 
-- `modules/computation/scheduling` produces deterministic fixed-pulse
-  all-eligible proposals and stable online-placement decisions without I/O.
-- `modules/policy/production` owns eligibility, schedule acceptance, machine
-  assignment, Start, membership, placement, whole-order routing, and
-  stage-transition decisions.
-- `modules/business/webhook-ingestion` owns source-neutral durable ingestion,
+- `modules/business/production/src/foundations/algorithms` owns the approved,
+  deterministic fixed-pulse and stable online-placement algorithms without
+  I/O.
+- `modules/business/production/src/foundations/language` owns intrinsic
+  eligibility, schedule acceptance, machine assignment, Start, membership,
+  placement, whole-order routing, and stage-transition decisions.
+- `modules/integration/webhook-ingestion` owns source-neutral durable ingestion,
   encrypted-receipt quarantine persistence, retention purge, deduplication,
   leases, retries, dead letters, replay, and source-location bindings.
 - `modules/business/orders` owns immutable incoming candidates, their

@@ -43,12 +43,13 @@ should the system allow it?
 It defines principals, assignments, scopes, resources, policy rules,
 conditions, and decisions.
 
-`modules/business/auth` authenticates callers.
+`modules/security/identity` authenticates callers.
 
 It verifies credentials and sessions, then loads trusted principal facts.
 It should not know pricing policy.
 
-`modules/policy/access-control` owns application authorization policy.
+`modules/security/authorization` owns framework-free application authorization
+policy.
 
 It maps business requests into authorization actions, resources, and policies.
 
@@ -473,7 +474,7 @@ Business modules execute business behavior.
 
 They should not know how a principal received authority.
 
-Policy modules decide authorization.
+The Authorization module decides authorization.
 
 They should know actions, resources, and policy rules.
 
@@ -488,7 +489,7 @@ When adding a new protected operation:
 1. Add or reuse an `Action`.
 2. Decide what `Resource` is being touched.
 3. Decide the resource `Scope`.
-4. Add policy rules in `modules/policy/access-control`.
+4. Add policy rules in `modules/security/authorization`.
 5. Wire route middleware to authenticate, build the resource, and authorize.
 6. Keep the business use case actor-neutral.
 7. Add tests for allow, deny, stale session, missing assignment, and wrong scope.

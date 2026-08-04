@@ -87,7 +87,8 @@ Pressly code owns the policy decision: which origins, methods, and headers are a
 
 ## Browser Security Headers
 
-The API applies `helmet()` before all routes in `apps/api/src/app.ts`.
+The API applies `helmet()` before all routes from
+`apps/api/src/bootstrap/api.composition.ts`.
 It removes the Express disclosure header and adds baseline browser defenses such as content-type sniffing protection, frame restrictions, transport security, and referrer policy.
 
 The web application owns the meaningful browser execution policy because it serves executable pages.

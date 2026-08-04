@@ -301,14 +301,14 @@ historical transition.
 
 ### Production Order Resolution
 
-| Property        | Value                                                                                                          |
-| --------------- | -------------------------------------------------------------------------------------------------------------- |
-| Persisted field | `production_orders.resolution_state`                                                                           |
-| States          | `open`, `resolved_without_production`                                                                          |
-| Owner           | `modules/policy/production/src/lifecycle/production-order-resolution-lifecycle.policy.ts`                      |
-| Writers         | explicit manager resolve and restore commands only                                                             |
-| Lock/version    | location scheduling lock and `production_orders.version`                                                       |
-| Archive meaning | read-only presentation of retained `resolved_without_production` work; never deletion, cancellation, or finish |
+| Property        | Value                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Persisted field | `production_orders.resolution_state`                                                                                 |
+| States          | `open`, `resolved_without_production`                                                                                |
+| Owner           | `modules/business/production/src/foundations/language/lifecycles/production-order-resolution-lifecycle.lifecycle.ts` |
+| Writers         | explicit manager resolve and restore commands only                                                                   |
+| Lock/version    | location scheduling lock and `production_orders.version`                                                             |
+| Archive meaning | read-only presentation of retained `resolved_without_production` work; never deletion, cancellation, or finish       |
 
 Authoritative graph:
 

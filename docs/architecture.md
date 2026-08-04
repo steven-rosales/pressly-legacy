@@ -1,1109 +1,526 @@
 # Architecture
 
-Architecture is how this repo keeps meaning separate from mechanism.
+Pressly is a TypeScript modular monolith. The architecture exists to make
+ownership, dependency direction, effects, and boundary translation obvious in
+the filesystem before the repository grows substantially.
 
-The goal is not to look enterprise. The goal is to make code easy to place, easy to change, and hard to accidentally couple. Business language should live in modules. Runtime wiring should live in apps. Shared technical capabilities should live in packages. The frontend is a UI and protocol adapter, not the owner of backend business rules.
+This document defines repository-level boundaries. The normative backend
+placement and suffix rules are in
+[Module architecture](./module-architecture.md). The compiler and ESLint rules
+under `tooling/architecture` are the executable authority.
 
-This repo is intentionally TypeScript and SQL first.
+## 1. System Rule
 
-## 1. Working Principles
-
-### Name the idea before the mechanism
-
-A file, function, type, or package should answer one clear question:
-
-- What concept does this represent?
-- What invariant does this protect?
-- What transformation does this describe?
-- What effect does this perform?
-- What outside mechanism does this adapt?
-
-Implementation details are allowed, but only after the meaning has a home.
-
-### Keep meaning separate from mechanism
-
-These are not the same thing:
-
-- A database row and a domain concept
-- An HTTP request and a use case
-- A React component and a business rule
-- A Zod schema and a domain model
-- Express middleware and application policy
-- A cron schedule and a business process
-
-Adapters translate mechanisms. They should not become the place where business meaning hides.
-
-### Compose at the edge
-
-Inner code should be small and explicit. Outer code can compose many pieces.
-
-Prefer:
-
-```txt
-validate -> authorize -> transact -> execute -> present
-```
-
-Avoid:
-
-```txt
-controller.doEverything(req, res)
-```
-
-`main.ts`, route handlers, page components, and app startup files may import
-many things because they are composition points. Capability use cases,
-intrinsic policies, and computations should import very little.
-
-### Make state and effects visible
-
-State needs an owner. Effects need a boundary.
-
-Allowed state owners:
-
-- Database records
-- Request context
-- Transaction context
-- Auth/session context
-- UI state
-- Worker job state
-- Process runtime state
-
-Do not smuggle state through mutable singletons, hidden module variables, accidental caches, or framework objects passed deep into the system.
-
-Effects include database writes, HTTP calls, email, queues, cron, logging, metrics, time, and random IDs. Inner code should depend on capabilities, not concrete vendors.
-
-## 2. Repo Shape
-
-Current high-level shape:
-
-```txt
-pressly/
-  apps/
-    web/
-      src/app/          Next.js routes and route-private composition
-      src/features/     product capabilities used by routes
-      src/components/   reusable UI primitives
-      src/common/       technical web core and concrete adapters
-      src/config/       static site configuration
-
-    api/              Express HTTP process
-      src/main.ts     minimal process entrypoint
-      src/bootstrap/  runtime and module composition
-      src/http/       protocol middleware and capability-owned routes
-      src/runtime/    environment, telemetry, and process foundations
-    worker/           background and scheduled process
-      src/main.ts     minimal process entrypoint
-      src/bootstrap/  module and durable-job composition
-      src/jobs/       independently named durable work
-      src/runtime/    polling, retry, heartbeat, and telemetry mechanics
-    processor/        LPMS operator interface and protocol adapter
-    cli/              operator/developer CLI tools
-
-  modules/
-    business/
-      auth/           authentication/session capability module
-      users/          canonical customer identity and source links
-      orders/         source-neutral commercial Orders and fulfillments
-      pricing/        business capability module
-      production/     LPMS state, transactions, routes, and use cases
-      webhook-ingestion/ durable external-event inbox and location bindings
-    policy/
-      access-control/ authorization policy module
-      production/     headless production invariants and transitions
-    computation/
-      scheduling/     deterministic fixed-pulse schedule proposals
-
-  packages/
-    auth/             shared auth and authorization primitives
-    config/           environment parsing and runtime config
-    contracts/        shared protocol contracts, commands, and results
-    db/               Drizzle schema, migrations, seeds, and db client
-    errors/           AppError constructors and presentation language
-    http/             HTTP helpers, response shapes, Express adapters
-    logging/          structured logging capabilities
-    metrics/          metrics capabilities
-    testkit/          shared test helpers
-    tsconfig/         shared TypeScript configs
-
-  tooling/            repo scripts and automation
-  docs/               project docs
-```
-
-The short version:
-
-```txt
+```text
 apps compose
 modules decide
 packages enable
-adapters translate
-contracts validate boundaries
+contracts validate serialized boundaries
+adapters translate mechanisms
 ```
 
-## 3. Dependency Direction
+Meaning points inward. Mechanisms stay at the edges.
 
-Dependencies point inward.
-
-Allowed direction:
-
-```txt
-apps -> modules -> packages
-apps -> multiple peer modules through dependency injection
-module main.ts -> capability files
-capability adapters -> same-capability use cases and ports
-web app -> features, UI primitives, and common runtime
-web features -> common core
-common adapters -> common core
+```text
+unknown input
+  -> parse a serialized contract
+  -> map into application language
+  -> load explicit facts through ports
+  -> decide or derive with pure functions
+  -> commit through adapters
+  -> map into a serialized result
 ```
 
-Disallowed direction:
+The goal is not layer count. The goal is that each fact, decision, and effect
+has one discoverable owner.
 
-```txt
-modules -> apps
-one module -> another module
-one module capability -> a sibling capability
-use cases -> HTTP details
-use cases -> SQL details
-intrinsic policy -> Express / Next.js / Drizzle / Pino
-web common -> app or features
-web features -> app
-apps/web -> backend module internals
-packages -> apps
+## 2. Sources of Truth
+
+Different artifacts answer different questions:
+
+1. Code, migrations, and runtime contracts say what the checkout implements.
+2. Stateworks domain memory preserves accepted domain decisions and
+   invariants.
+3. Stateworks work packages preserve active state, proof, and known gaps.
+4. Living docs explain the architecture and operations.
+5. Completed work and plans are historical evidence, not current runtime
+   authority.
+
+When two sources disagree, record and reconcile the drift. Do not silently
+rewrite history or invent behavior.
+
+## 3. Repository Shape
+
+```text
+apps/
+  api/                 HTTP process and transport composition
+  worker/              durable and scheduled job process
+  web/                 customer-facing Next.js application
+  control/             management frontend
+  processor/           LPMS operator frontend
+  cli/                 operator and developer command-line adapter
+
+modules/
+  business/
+    orders/            commercial Orders and fulfillment authority
+    pricing/           pricebook authority
+    production/        LPMS state, policy, and scheduling authority
+    users/             canonical customer identity authority
+  security/
+    identity/          login, sessions, MFA, and workforce identity
+    authorization/     framework-free authorization decisions
+  integration/
+    webhook-ingestion/ durable external-event inbox authority
+  experience/
+    control/           Control cross-domain application workflows
+    processor/         Processor cross-domain application workflows
+
+packages/
+  auth/                reusable authentication and authorization primitives
+  codec/               canonical and bound serialization codecs
+  config/              environment and runtime configuration parsing
+  contracts/           schemas and serialized boundary values
+  db/                  schema, migrations, database runtime, and SQL facade
+  errors/              unexpected throwable error language
+  http/                protocol helpers and Express mechanisms
+  kernel/              Result, IDs, unit-of-work algebra, and core factories
+  logging/             structured logging language
+  money/               immutable money value and arithmetic
+  observability/       counters, measurements, reporting, and sink isolation
+  testkit/             deterministic shared test capabilities
+  time/                clocks and calendar/time transformations
+
+stateworks/            durable domain memory and delivery work state
+tooling/architecture/  architecture definition, compiler, checks, and lint
 ```
 
-Modules are isolated peers. A module cannot import, call, or declare a package
-dependency on another module, including through `public.ts`. Apps import stable
-module surfaces and connect them through narrow dependency injection. Cross-package
-imports go through package exports.
+There are no top-level `modules/policy` or `modules/computation` authorities.
+Authorization is a Security authority. Intrinsic Production policies and
+approved scheduling algorithms belong to Production. A calculation becomes a
+peer authority only if it develops independent state, lifecycle, and product
+meaning; technical complexity alone is not enough.
 
-## 4. Packages
+## 4. Dependency Direction
 
-Packages are for stable, reusable boundaries. They should not become a junk drawer for app-specific behavior.
+Allowed dependencies are intentionally few:
 
-Use a package when the code is:
+```text
+apps -> module public surfaces
+apps -> packages
+modules -> packages
+module composition -> its own features and adapters
+feature -> its declared foundations
+adapter/repository -> the port it implements
+contract mapper -> an explicit Contracts subpath
+```
 
-- Needed by more than one app or module
-- Stable enough to expose as a public API
-- Technical infrastructure rather than product-specific behavior
-- Useful to test independently
+Forbidden dependencies include:
 
-Examples:
+```text
+module -> app
+module -> peer module
+feature -> sibling feature
+domain language -> HTTP, SQL, React, filesystem, network, clock, or randomness
+use case -> Express, Next.js, or Drizzle
+package -> module or app
+frontend -> backend module internals
+```
 
-- `@pressly/errors` owns the structured error language.
-- `@pressly/contracts` owns shared protocol contracts and command/result types.
-- `@pressly/db` owns persistence schema and database wiring.
-- `@pressly/http` owns HTTP response helpers and Express-specific adapters under `src/express`.
-- `@pressly/config`, `@pressly/logging`, and `@pressly/metrics` own runtime capabilities.
-
-Rules:
-
-- Export from `src/index.ts` or another explicit public entry.
-- Avoid deep imports across package internals.
-- Runtime packages should export built `dist` files, not raw `src` files.
-- A package should have a small public surface and boring internals.
+Peer modules collaborate only when an app injects one module's public
+capability into another module's declared port. An Experience module may
+coordinate several domains, but it still imports no peer module package.
 
 ## 5. Modules
 
-A module is a bounded application capability.
+Every backend module has one grammar:
 
-Modules are grouped by the kind of application capability they own:
-
-- `modules/business/*` owns product and stateful application capabilities.
-- `modules/policy/*` owns cross-cutting application policy.
-- `modules/computation/*` owns derived views, calculations, projections, and
-  analysis.
-
-Most modules are vertical business capabilities, but not all of them are. Some
-modules own policy, projections, computations, or other application-level
-capabilities. Their internal roles differ, but their source remains organized
-by named capability rather than a mandatory horizontal folder template.
-
-The invariant is ownership, not folder ritual.
-
-All modules should keep these surfaces:
-
-- `main.ts` is the module composition root.
-- `public.ts` is the stable module surface.
-- The `src/` root contains exactly those two files. Every other source file
-  belongs to a named capability or an explicit, narrowly scoped foundation.
-- `test/` holds module tests outside `src/`.
-- Other modules never import this module; apps consume `public.ts` and compose
-  peer modules.
-- Internal files under `src/` are not imported directly by other modules.
-
-### Capability-First Module Shape
-
-Module source is organized by the capability an engineer is changing, not by
-horizontal technical layers.
-
-```txt
-modules/business/pricing/
+```text
+modules/<family>/<authority>/
+  module.architecture.ts
   src/
-    load-pricing-catalog/
-      load-pricing-catalog.usecase.ts
-      load-pricing-catalog.port.ts
-      load-pricing-catalog.repo.ts
-      load-pricing-catalog.controller.ts
-      load-pricing-catalog.route.ts
-
-    publish-pricing/
-      plan-pricing-change.usecase.ts
-      publish-pricing-change.usecase.ts
-      publish-pricing-change.policy.ts
-      publish-pricing-change.port.ts
-      publish-pricing-change.repo.ts
-      publish-pricing-change.controller.ts
-      publish-pricing-change.route.ts
-
+    features/<namespace>/<verb-object>/
+    foundations/
+      language/<concept>/
+      algorithms/<algorithm>/
+      ports/<capability>/
+      adapters/<mechanism>/<capability>/
+    composition/<authority>.composition.ts
     main.ts
     public.ts
-
   test/
-    load-pricing-catalog/
-    publish-pricing/
+    features/
+    foundations/
+    integration/
     support/
-    module.test.ts
 ```
 
-Rules:
+A feature is an application action or query named with a verb-object phrase.
+A foundation is a proven shared dependency with a narrow semantic owner. Empty
+ceremonial files and generic `common`, `shared`, `utils`, `services`, or
+`platform` directories are forbidden.
 
-- Keep the use case, its ports, and its adapters loose inside one capability.
-- A capability imports sibling files with `./...`.
-- Capabilities do not import sibling capabilities.
-- Promote genuinely reused technical code into a narrow named foundation such
-  as auth `http/` or `persistence/`; do not create module-local `common/` or
-  `shared/` buckets.
-- Tests mirror capability names under the module's `test/` tree. Tests never
-  live under module `src/`.
-- Business capability source uses a closed architectural vocabulary. A new
-  business role suffix requires an intentional architecture change, not a
-  local naming preference.
-- Registered explicit foundations may use descriptive filenames because the
-  directory already establishes their architectural role.
-- A foundation never imports a consumer capability. Dependencies between two
-  foundations must be directed and declared in the root ESLint architecture
-  graph; undeclared foundation edges are rejected.
+`module.architecture.ts` is immutable formal data. It declares namespaces,
+feature profiles, foundation profiles, and dependency edges. The compiler
+checks the filesystem and ESLint checks source dependencies and pure roles.
 
-Auth has explicit `http/` and `persistence/` foundations. Access-control has an
-explicit `http/` and `identity/` foundation. Those are directed dependencies,
-not general-purpose dumping grounds.
+Each feature leaf owns at most one `*.usecase.ts`. Independently named
+operations are independently named verb-object features and are connected by
+narrow injected ports, never sibling imports. Module `main.ts` and `public.ts`
+enumerate canonical exports explicitly; export-star and aliased compatibility
+surfaces are forbidden.
 
-### Business Modules
+See [Module architecture](./module-architecture.md) for the complete placement
+decision tree, role vocabulary, Entity-versus-Model rule, failure grammar,
+factory criterion, manifest form, and review checklist.
 
-A business module owns product or stateful application behavior.
+## 6. Apps and Experience Boundaries
 
-Current examples:
+Apps own process and delivery mechanisms:
 
-- `modules/business/auth`
-- `modules/business/pricing`
-- `modules/business/production`
+- process startup, shutdown, signals, and configuration;
+- HTTP or job registration and middleware order;
+- authentication extraction and protocol security;
+- composition of multiple peer modules;
+- concrete observability, database, network, and vendor adapters;
+- final protocol response or UI rendering.
 
-Business module rules:
+This includes environment reads, process arguments, stdin/stdout, operating
+system signals, exit codes, and runtime shutdown. Modules receive derived
+configuration or narrow capabilities rather than reading process state.
 
-- Use cases own application behavior.
-- Business modules own durable state and transactionally enforce every
-  invariant supplied through their required policy ports.
-- Repositories and controllers are mechanism adapters colocated with that
-  capability.
-- Repository ports are shaped around one capability's use case, not around an
-  entire module or database. Do not create module-wide stores that accumulate
-  unrelated persistence operations.
-- Reuse transaction runners, row mappers, and stable persistence primitives
-  through the explicit `persistence/` foundation. DRY persistence mechanics
-  must not erase feature ownership.
-- Business modules should not own cross-cutting authorization policy.
-- Business modules should not import `@pressly/auth` authorization primitives unless the module itself is the auth module.
-- Injected policy or computation is mandatory when the capability declares
-  that dependency; there is no global or permissive fallback.
+Apps do not own domain policy or cross-domain application decisions.
 
-Capability files should speak application language. For reads and lookups, prefer precise verbs:
+`apps/api` is a thin HTTP adapter. Control and Processor workflows that combine
+Identity, Authorization, Orders, Users, or Production belong in their
+Experience modules. API code parses Contracts, invokes an injected public
+capability, maps the result, and writes the response. It must not become a
+second business layer. Qualified contract mappers remain synchronous; an API
+adapter owns any asynchronous Experience lookup and then passes the resolved
+facts into the pure contract transformation.
 
-- `loadX` for loading an application-facing view or catalog.
-- `findX` for a persistence lookup that may or may not exist.
-- `publishX` for making a controlled business change visible.
-- `createX`, `updateX`, and `deleteX` only when that is literally the business action.
+### Control reference boundary
 
-Avoid `getX` in application and module naming. It is too vague and collides mentally with HTTP `GET`. HTTP route methods can still use `router.get(...)`.
+Control is the reference implementation of this split:
 
-### Policy Modules
+| Owner                        | Owns                                                                                                                                       | Must not own                                                                                              |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `modules/experience/control` | business and location scoping, cross-domain orchestration, Control capabilities, application destinations, and Control read projections    | Express, cookies, CSRF, request locals, Zod wire schemas, or peer-module imports                          |
+| `apps/api/src/http/control`  | contract validation, authenticated request-context adaptation, cookies, CSRF, rate limits, result presentation, and response serialization | business/location decisions, peer sequencing, date-rich application transformations, or read-model policy |
+| `apps/control`               | browser presentation state and interaction                                                                                                 | backend authorization or domain decisions                                                                 |
 
-A policy module owns application policy that cuts across business capabilities.
+The API composition root adapts the public capabilities of Identity, Users,
+and Orders to narrow Control-owned ports. The Experience module never imports
+those peer packages. This is deliberate dependency inversion, not a shared
+service layer.
 
-Current examples:
+Peer adapters classify only reviewed, caller-actionable rejections into typed
+Control failure records. Database, invariant, configuration, and unexpected
+peer failures remain throwable `AppError` values and propagate to the outer
+API error boundary. They must never be hidden inside `cause: unknown` on a
+successful application `Result` channel.
 
-```txt
-modules/policy/access-control/
-  src/
-    auth-sessions/
-    http/
-      auth.port.ts
-    identity/
-      location-ancestry.port.ts
-    mfa/
-    pricing/
-    main.ts
-    public.ts
-  test/
+Control session authority is split deliberately: the Experience module derives
+business, location, capability, and destination access; the API owns host-only
+cookies, authentication loading, origin/CSRF enforcement, and session response
+serialization. Neither side duplicates the other.
+
+`apps/worker` is the asynchronous composition root. It owns polling, leases,
+retry scheduling, heartbeats, and job delivery. Durable inbox/outbox state and
+application disposition remain owned by their modules.
+
+`apps/cli` is a protocol adapter. It parses operator input, calls stable app or
+module capabilities, and presents results; it does not duplicate policy.
+
+Module composition only constructs and injects. A use case owns branching that
+depends on the semantic result of its operation, including which signal or
+observation to emit and whether replay suppresses it. Apps implement the
+concrete sink; composition does not wrap use cases to rediscover those rules.
+
+## 7. Contracts and Type Boundaries
+
+`@pressly/contracts` owns only data that crosses a trust, process, durable
+serialization, or versioned integration boundary.
+
+Contracts may contain:
+
+- runtime schemas for HTTP and external payloads;
+- serialized request, response, event, and job values;
+- types inferred from those schemas;
+- explicit boundary versions.
+
+Contracts must not contain entities, use-case ports, repository interfaces,
+policies, database rows, or internal `Date`-rich models.
+
+Use explicit boundary subpaths such as:
+
+```text
+@pressly/contracts/auth
+@pressly/contracts/orders
+@pressly/contracts/pricing
+@pressly/contracts/processor
+@pressly/contracts/production
+@pressly/contracts/webhook-ingestion
 ```
 
-`modules/policy/production` is the headless LPMS policy peer. It exports pure
-eligibility, current-plan acceptance, Start, live-placement,
-membership-control, machine-assignment, and stage-transition decisions.
+The package root is not an application dependency. A
+`*.contract.mapper.ts` translates between a validated serialized value and the
+owning feature's application model.
 
-Policy module rules:
+Contracts, DB, and Errors deliberately expose explicit subpaths instead of
+package-root barrels. Importing `@pressly/contracts`, `@pressly/db`, or
+`@pressly/errors` at the package root is an architecture violation.
 
-- Own Pressly authorization policy, not authentication.
-- Import pure authorization primitives from `@pressly/auth`.
-- Build resource mappers and policy guard bundles for business routes.
-- Depend on stable packages only, never another module surface or its internals.
-- Do not make `apps/api` define policy.
-- Remain headless and replaceable at the composition boundary.
-- May own pure domain invariants and transition definitions when that policy is
-  injected into the business module that owns durable state.
+Use `unknown` exactly where trust ends, parse it once, and preserve the type
+proof afterward. Prefer discriminated unions and closed type aliases. Use an
+interface only for an intentionally open extension point or declaration
+merging.
 
-For LPMS specifically, `modules/policy/production` owns the pure production
-transition and invariant definitions. `modules/business/production` owns the
-durable execution state and must invoke the injected policy inside the same
-transaction as every protected mutation.
+Open-ended serialized data uses `JsonValue` from `@pressly/codec`. Runtime
+schema boundaries use `jsonValueSchema` from `@pressly/codec/zod`; persistence
+mappers guard decoded JSON before exposing it inward. `undefined`, non-finite
+numbers, dates, class instances, and cycles are rejected rather than smuggled
+through `unknown`.
 
-This keeps the API app as a composition root and keeps business modules from
-becoming security modules by accident.
+## 8. Functional Core and Effects
 
-### Projection and Computation Modules
+Pure decisions take complete input and return immutable data. Effectful shells
+obtain facts and commit plans through explicit capabilities.
 
-A projection or computation module owns deterministic derived views,
-calculations, proposals, or analysis that are not authoritative business state.
+```text
+functional core
+  entity / value / event / lifecycle
+  policy / projection / algorithm
+  contract and persistence transformations
 
-Current shape:
-
-```txt
-modules/computation/scheduling/
-  src/
-    propose-schedule/
-      *.computation.ts
-      *.port.ts
-    main.ts
-    public.ts
-  test/
+imperative shell
+  use case
+  port
+  repository / adapter
+  composition
+  transport or job edge
 ```
 
-Projection/computation module rules:
+Effects must be visible:
 
-- Add adapter-suffixed files only when the capability talks to an external
-  mechanism.
-- Add use cases and ports only when the capability has application workflow.
-- Return explicit infeasibility and warnings instead of mutating input or
-  operational state.
-- A module may have no database if it computes over existing inputs or projections.
-- Receive immutable input and return a result or proposal.
-- Never mutate another module's operational state.
+- time through `Clock` from `@pressly/time`;
+- identifiers through `IdSource` from `@pressly/kernel`;
+- atomic work through `UnitOfWork` from `@pressly/kernel`, constructed by
+  `@pressly/db/unit-of-work`;
+- expected rejection after partial transactional work through
+  `ResultUnitOfWork` and `defineResultUnitOfWork`, which keep rollback inside
+  the DB adapter and typed failure data in the application;
+- SQL through `@pressly/db/query` and explicit schema subpaths;
+- persistence, network, crypto, queues, and files through ports and adapters;
+- logging and observation through injected sinks.
 
-The folder names in the previous three bullets describe optional roles, not a
-required horizontal tree. New source remains capability-first.
+Do not create semantic-free aliases such as `FeatureClockPort = Clock`. A local
+port must add application meaning, narrow semantics, or expose a genuine
+replacement axis.
 
-### Intrinsic Rules, Injected Policy, and Computation
+Pure functions may use local mutation when the mutation is unobservable and
+materially clearer or faster. Functional architecture is about explicit
+state and effects, not avoiding efficient implementation.
 
-These responsibilities are deliberately different:
+## 9. Errors and Failure Control Flow
 
-```txt
-business module
-  owns durable state, transactions, idempotency, and enforcement
+Three failure categories have different owners:
 
-policy module
-  owns pure decisions, invariants, and transition definitions
+```text
+expected application rejection
+  -> feature *.failure.ts discriminated data
+  -> Result<Value, FeatureFailure>
 
-computation module
-  supplies replaceable calculations or proposals from stable input
+unexpected mechanism or invariant failure
+  -> AppError throwable from @pressly/errors/factories
+  -> normalize once, observe once
 
-app
-  injects concrete policy and computation into the business boundary
+protocol presentation
+  -> controller or outer middleware
+  -> safe response from explicit error presentation
 ```
 
-A business command invokes its injected policy inside the transaction and
-revalidates a computation proposal against current durable state. An injected
-dependency does not own state, and the business capability cannot bypass it.
+Expected failures include ineligibility, not-found business records, and
+current-state conflicts a caller can act on. They are not exceptions and do
+not carry HTTP status codes. A validation distinction is application data such
+as `malformed` versus `semantic`; the presenting edge chooses 400 versus 422.
 
-For LPMS, production policy owns eligibility, order-cohesion, plan acceptance,
-Start, membership, placement, stage-transition, pulse-boundary, and
-machine-overlap decisions. The production business module owns optimistic
-concurrency, idempotency, run-first locking, and the transaction that records
-operational changes.
+Unexpected failures include unavailable mechanisms, corrupt persistence,
+impossible invariants, bad configuration, and programming defects. They use
+the explicit error subpaths:
 
-LPMS deliberately has two computation modes:
-
-```txt
-before Start: fixed-pulse-ffd-v2 computes one immutable global plan
-after Start:  online-stable-insertion-v1 places one arrival into one run
+```text
+@pressly/errors/app-error
+@pressly/errors/factories
+@pressly/errors/presentation
 ```
 
-Accept persists the manager's preference for the current immutable plan; it
-does not create execution. Start revalidates that accepted plan and the exact
-eligible-order snapshot, then atomically creates the shift's sole started
-production run. Post-start placement may change only the arriving order and a
-mutable queued suffix. Frozen or in-flight batches are anchors, hard pulse
-capacity is universal, and every queue mutation is guarded by the run's
-separate `queue_version`.
+Live source in apps, modules, packages, and executable repository tooling
+outside Errors does not construct, call, or subclass native throwable types.
+Native construction is owned by Errors. TypeScript consumers use an explicit
+`@pressly/errors/*` subpath; checkout tooling that must run before workspace
+installation uses the dependency-free
+`packages/errors/src/tooling-error.mjs` factory. Tests may create native values
+only as deliberate fault fixtures. Never catch an unexpected exception merely
+to disguise it as an expected business failure.
+Private `details` and `cause` never cross a client boundary; reviewed
+`publicDetails` is a strict `JsonValue` and is the only structured diagnostic
+context eligible for serialization.
 
-The Processor projects this durable state. It keeps explicit `shiftId` and
-`runId` navigation identifiers and refreshes authoritatively after commands,
-but it does not poll workspace state on a timer. Each committed `work_events`
-insert advances the owning location's durable `live_revision` and emits a
-transactional PostgreSQL notification. One API listener fans those revisions
-out through an authenticated, location-authorized SSE stream. The stream
-subscribes before reading its initial revision, so a commit during connection
-setup is buffered instead of lost. On ready, reconnect, or revision, the
-Processor coalesces invalidations and performs one ordinary workspace GET;
-SSE never becomes a second source of production truth.
+API controllers, Worker jobs, and CLI commands translate expected module
+failures into `AppError` only at the edge that owns HTTP or retry semantics.
 
-The SSE heartbeat only keeps the connection alive, and the board's local
-countdown only advances presentation time; neither reads server state. The
-Processor does not own acceptance, pending overtime proposals, queue identity,
-or batch membership in temporary React state.
+Observation is non-authoritative. Logging, counters, or error-reporting failure
+must not replace a business result or recovery disposition.
 
-## 6. Contracts
+## 10. Persistence and Transactions
 
-Contracts are boundary language.
+`@pressly/db` owns database schema, migrations, clients, health checks,
+unit-of-work construction, and the reviewed query facade. Consumers use
+explicit subpaths:
 
-They may describe:
-
-- HTTP params
-- HTTP request bodies
-- HTTP response bodies
-- Event payloads
-- Commands entering a use case
-- Results leaving a use case
-- Error envelopes
-
-Current pattern:
-
-```txt
-packages/contracts/src/pricing/
-  pricing.contracts.ts  runtime schemas, usually Zod
-  pricing.command.ts    command types
-  pricing.result.ts     result types
+```text
+@pressly/db/client
+@pressly/db/health
+@pressly/db/query
+@pressly/db/schema/<authority>
+@pressly/db/testing
+@pressly/db/unit-of-work
 ```
 
-Do not default to `*.dto.ts`. A DTO is usually either input, output, or protocol shape. Name the role directly.
+Storage rows are not domain entities. A `*.persistence.mapper.ts` validates and
+translates representation. A `*.repo.ts` implements a feature or shared module
+port. SQL and database executors never enter domain language or use-case
+signatures.
 
-A Zod schema is a validation contract. It does not automatically become a domain model.
+Accordingly, `Stored*`, `Persisted*`, `*Row`, and `*Record` declarations do not
+belong in `*.entity.ts`. A genuinely hydrated entity uses the business name;
+otherwise the representation remains local to the persistence adapter and its
+mapper.
 
-Input path:
+Durable JSON ports accept Codec `JsonObject` or a closed serialized union, not
+inward `unknown`. A typed pure projection selects and normalizes every field
+before a value crosses the port; a generic `JSON.stringify` round trip is not a
+mapper. Persistence adapters structurally guard the JSON again on read. In
+Production, `ProductionShift` and `ScheduleProposal` are entities because
+their identities continue through owned lifecycle transitions; board,
+History, command, context, and mutation representations remain models.
 
-```txt
-unknown input
-  -> contract validation
-  -> command
-  -> use case
-  -> domain/application decision
+Use cases own atomic intent. A unit of work makes the transaction boundary
+explicit, and transaction-scoped operations enforce invariants, idempotency,
+audit, and outbox writes together where required. Avoid external network calls
+inside database transactions unless the invariant genuinely requires them.
+
+## 11. Frontends
+
+Each frontend remains a delivery system rather than a backend domain owner.
+
+`apps/web` uses Next.js route composition, product feature slices, reusable UI
+primitives, and a technical web core. Product features do not select concrete
+adapters except at a server or route composition edge.
+
+`apps/control` and `apps/processor` consume serialized Experience APIs. Their
+local models own presentation state only. They do not reimplement backend
+authorization, Orders, Pricing, or Production decisions.
+
+Frontend dependency direction remains:
+
+```text
+entry/route -> feature/view -> inward UI or core port
+composition -> concrete adapter -> inward port
 ```
 
-Output path:
+Route-private folders stay inside their route subtree. UI primitives do not
+import product features. Framework and vendor dependencies stay out of core
+application transformations.
 
-```txt
-domain/application result
-  -> presenter
-  -> response contract
-  -> protocol response
+## 12. Observability
+
+Every process should expose enough context to explain authoritative behavior:
+
+- request, trace, job, route, or command identity as appropriate;
+- structured, redacted logs;
+- bounded counters and measurements;
+- liveness and readiness;
+- safe error reporting and correlation;
+- explicit shutdown and cleanup behavior.
+
+`@pressly/observability` owns declarations and sink-isolation policy. Apps own
+concrete Sentry and runtime adapters. Modules receive narrow sinks only when
+observation is part of their application boundary.
+
+Do not log secrets, session material, customer payloads, or proof artifacts.
+Do not use high-cardinality customer, order, or trace IDs as metric labels.
+
+## 13. Testing and Proof
+
+Tests prove the boundary where behavior lives:
+
+```text
+policy/lifecycle/algorithm test  -> pure decision and invariant
+use-case test                    -> application behavior with fake ports
+adapter/repository test          -> mechanism and representation
+app integration test             -> real composition and protocol
+end-to-end test                  -> critical public workflow
 ```
 
-## 7. Web App
+Module tests mirror `features` and `foundations`. Shared deterministic clocks,
+IDs, and Result assertions live in `@pressly/testkit`. Database integration is
+reported separately from non-database gates and is never treated as passing
+when PostgreSQL was unavailable.
 
-`apps/web` is a feature-oriented Next.js frontend. It is not formal MVVM.
-`page.tsx`, `layout.tsx`, and `route.ts` are real composition points, while
-product behavior lives outside the route tree.
+Repository validation is deliberately bounded for WSL stability:
 
-Current shape:
-
-```txt
-apps/web/src/app/
-  _components/
-  _lib/
-  (marketing)/
-    page.tsx
-    _components/
-  schedule/
-    page.tsx
-    ui/
-
-apps/web/src/features/
-  pricing/
-  order-entry/
-
-apps/web/src/components/
-  ui/
-
-apps/web/src/common/
-  core/         technical ports and runtime policy
-  adapters/     PostHog, Sentry, Sonner, request and runtime implementations
-  testing/
-
-apps/web/src/config/
-  site.ts
+```text
+VITEST_MAX_WORKERS=2 turbo test --concurrency=2
 ```
 
-Frontend rules:
+Every checked-in Turbo entrypoint, including app dependency builders and
+Docker build stages, carries `--concurrency=2`; unit-test entrypoints also cap
+Vitest at two workers. Database integration remains sequential at one worker.
+Do not add an uncapped alternate path.
 
-- `page.tsx` and `layout.tsx` compose.
-- Route-private `_components/`, `_lib/`, and `_shared/` stay inside their
-  owning route subtree.
-- `features/<capability>` owns product queries, commands, schemas, presenters,
-  and view state.
-- A feature `server.ts` may select server runtime adapters.
-- `components/ui` contains mechanism-level UI primitives, not product behavior.
-- `common/core` owns generic web capabilities, not business rules.
-- `common/adapters` owns vendor/framework implementations.
-- `config` contains static site configuration.
-- There is no app-wide `shared/` bucket and no separate `infra/` junk drawer.
+Lint, typecheck, build, architecture checks, Stateworks verification, and diff
+hygiene remain independent proof obligations.
 
-The frontend can validate protocol payloads and build view models. It should not recreate backend domain rules as truth.
+## 14. Reusable Patterns
 
-For public marketing pages, prefer static or build-time rendering unless the route genuinely needs per-request behavior. If a build-time fetch has a fallback, the fallback policy must be explicit and user-safe.
+Start with immutable definitions and pure `makeX` or `defineX` functions. A
+design-pattern factory is justified only after multiple real consumers share
+the same semantics, the varying parts form a small typed input, and the
+factory makes control flow or effects more explicit.
 
-## 8. Web Core
+Earned examples include state-machine definitions, bound cursor codecs,
+unit-of-work construction, and cookie-CSRF protection. Similar syntax alone
+does not justify a generic repository, base entity, policy engine, service
+locator, decorator framework, or dependency-injection container.
 
-Web core is a small capability layer, not a god object.
+## 15. Adding Behavior
 
-It exists to make runtime effects declarative:
+For backend behavior:
 
-```txt
-core.query.run(...)
-core.query.fetch(...)
-core.analytics.track(...)
-core.context.get()
-core.clock.now()
-core.request.send(...)
-core.errors.capture(...)
-core.logger.info(...)
+```text
+1. Name the semantic authority.
+2. Name the verb-object application feature.
+3. Define inward application data and expected failures.
+4. Define pure entities, values, policies, projections, or algorithms only as needed.
+5. Declare effects as narrow ports or shared technical algebras.
+6. Implement repositories and adapters at mechanism boundaries.
+7. Add a serialized Contract only where data crosses a real boundary.
+8. Compose module peers only in an app.
+9. Mirror tests under the same ownership tree.
+10. Update the manifest and run architecture, lint, type, test, and build gates.
 ```
 
-The call site should describe the work. The query interpreter handles metadata,
-error normalization, reporting, and logging through the injected ports.
+For frontend behavior:
 
-Rules:
-
-- Core should not own product workflows.
-- Core should not know pricing, marketing, or Cents-specific behavior.
-- Core should not import React, Next.js, product features, or concrete adapters.
-- Vendor imports belong in adapters.
-- Concrete adapters should not import routes or product features.
-- Route entrypoints and feature `server.ts` files select concrete adapters.
-- Add to core only when the capability is broadly useful across frontend workflows.
-
-State machines, forms, workflow engines, and pricing flows can be sibling interpreters that consume core. They do not all need to be inside core.
-
-## 9. API, Worker, and CLI Apps
-
-Apps own runtime composition.
-
-`apps/api` responsibilities:
-
-- Load env
-- Create logger
-- Create database connection
-- Install HTTP middleware
-- Compose authentication, access-control, and business modules
-- Mount module routes
-- Map errors to HTTP responses
-- Expose health/readiness endpoints
-- Shut down cleanly
-
-Its source tree follows one explicit dependency shape:
-
-```txt
-main -> bootstrap -> HTTP capabilities + module public ports
-                  -> runtime foundations
-HTTP capability -> its own files + module public ports
-runtime -> packages only
+```text
+1. Put route ownership in the framework route tree.
+2. Put product behavior in a named feature.
+3. Keep route-only composition private to the route.
+4. Depend inward on ports and pure models.
+5. Select concrete adapters only at composition boundaries.
+6. Keep server policy authoritative and presentation state local.
 ```
 
-`main.ts` starts the process; it does not assemble routes. `bootstrap/` is the
-only place allowed to connect peer modules or peer HTTP capabilities. Routes
-live under the capability they expose (`order-management/`, `production/`,
-`webhook-ingestion/`, `processor/`, or a vendor webhook boundary). Peer HTTP
-capabilities do not import one another. Generic request mechanics live under
-`http/middleware/`; vendor normalization stays inside the owning webhook
-boundary. `runtime/` cannot import HTTP code, jobs, or business modules.
-
-`apps/worker` responsibilities:
-
-- Create job context
-- Run scheduled/background work
-- Enforce timeouts and cancellation
-- Keep retries and idempotency visible
-- Reclaim expired inbox leases and preserve dead-letter evidence
-- Invoke production use cases through injected module capabilities
-- Emit sparse heartbeat, lag, retry, dead-letter, and fatal signals without a
-  public HTTP route
-
-Its source tree is organized around durable work rather than vendors or the
-LPMS product name:
-
-```txt
-main -> bootstrap -> process-webhook-inbox job
-                  -> project-fulfillment-demand job
-                  -> runtime foundations
-job -> its own handlers + module public ports
-runtime -> packages only
-```
-
-The Cents handlers are private adapters of `process-webhook-inbox`; they are
-not a top-level Worker architecture. Jobs do not import peer jobs. Polling,
-retry, cancellation, heartbeat, and observability remain source-neutral runtime
-mechanics. Bootstrap composes jobs sequentially and is the only layer that
-connects their module dependencies.
-
-`apps/processor` responsibilities:
-
-- Use the existing opaque server session through a same-origin Secure,
-  HttpOnly, SameSite=Strict cookie and CSRF protection
-- Restore authentication, authorized location, and active production workspace
-  from server truth after refresh
-- Present schedule proposals, warnings, hashes, and operational board state
-- Submit versioned, idempotent operator commands
-- Display only backend-provided allowed actions; never duplicate policy
-
-The processor is a client-only Vite SPA. It uses `main.tsx` and `app/` as its
-runtime boundary instead of copying the Next.js route and server conventions
-from `apps/web`:
-
-```txt
-apps/processor/src/
-  app/          bootstrap composition, providers, navigation, and app chrome
-  ports/        framework-free capabilities and expected failure values
-  adapters/     same-origin fetch, live API, and non-secret browser preferences
-  features/     product slices expressed as model/view pairs
-  components/   app-neutral layout and shadcn UI primitives
-```
-
-Processor dependency direction is closed:
-
-```txt
-main -> app
-app -> features + adapters + ports + components
-features -> own feature + ports + components
-adapters -> ports + contracts
-ports -> contracts only
-components/ui -> components/ui
-```
-
-Rules:
-
-- Feature models own local view state, asynchronous orchestration, and expected
-  error presentation. Views remain declarative.
-- Feature presenters own pure protocol-to-display transformations. A workspace
-  view may select a model and responsive primitive, but it does not own request
-  sequencing, mutation workflows, or product copy decisions.
-- Features receive ports from app composition and cannot import adapters or
-  peer features.
-- Adapters cannot import app composition, product features, or UI.
-- Ports cannot import React, browser APIs, or concrete implementations.
-- Runtime source contains no demo adapter or production fixture. Deterministic
-  synthetic data belongs under `test/` only.
-- Browser storage may hold non-secret presentation preferences such as theme or
-  last-selected location. It must never hold a session credential.
-- `components/ui` contains mechanisms and cannot import Pressly protocols.
-- `shared/`, `common/`, generic `hooks/`, and `lib/` buckets are forbidden.
-  The shadcn-only class-name merger belongs to `components/ui/class-names.ts`.
-- Feature files declare a real role with `*.model.ts`, `*.presenter.ts`, or
-  `*.view.tsx`.
-- Port files use `*.port.ts` or `*.error.ts`; adapter files use
-  `*.adapter.ts`. Test fixtures remain under `test/`.
-
-These rules are enforced by the processor ESLint configuration and repository
-architecture-boundary tests, including relative and aliased imports.
-
-`apps/cli` responsibilities:
-
-- Run operator/developer workflows
-- Validate operator input
-- Call module/application capabilities safely
-- Fail loudly with structured errors
-
-Production topology bootstrap is an operator command under `apps/cli`; it is
-built into the API operations image for deployment use, but it is not API
-runtime source.
-
-Apps do not own business meaning. They assemble the program.
-
-For Cents ingress, `apps/api` owns the vendor wire adapter and its explicit
-authentication policy. HMAC mode verifies exact raw bytes; the temporary
-vendor-compatibility mode accepts Cents' documented unsigned HTTPS JSON
-request. Both modes share event classification, alias normalization,
-decimal-money conversion, payload minimization, and the same source-neutral
-command submitted to `modules/business/webhook-ingestion`, which owns the
-durable inbox, claims, retries, dead letters, and source-location bindings.
-
-`apps/worker` is the asynchronous composition root. The Cents consumer submits
-one source-neutral incoming-Order candidate only when the claimed Order event
-reports exact `SUBMITTED`. Exact `COMPLETED` or `CANCELED` observations submit a
-source-neutral close command. `READY_FOR_PICKUP`, `PICKED_UP`, `IN_PROGRESS`,
-every other known or unknown Cents lifecycle value, and Cents customer and
-marketing events are durably acknowledged as evidence only. The adapter does
-not resolve a canonical User, create an Order, or request a lifecycle,
-fulfillment-release, or floor transition.
-
-Orders owns the immutable candidate snapshot and the only candidate graph:
-
-```txt
-pending --accept--> accepted
-pending --reject--> rejected
-pending --source_close--> source_closed
-source_closed --restore--> restored_pending
-restored_pending --accept--> accepted
-restored_pending --reject--> rejected
-```
-
-Exact `(source, external_order_id)` identity suppresses a candidate when a
-canonical source link or source-terminal tombstone already exists; contact
-values and fuzzy similarity never select or merge canonical records.
-Acceptance rechecks that identity and the expected candidate version under one
-transaction, creates or reuses the exact source-linked User when customer
-identity is present, creates the canonical Order and **unreleased**
-fulfillment, and emits the normal Orders outbox event. Rejection is terminal
-and creates no canonical or Production work. A manager restore moves
-source-closed evidence into a distinct manager-owned state that later source
-observations cannot close. Later Cents events cannot update the accepted
-canonical aggregates.
-
-Every canonical Orders change that affects fulfillment demand emits a versioned
-`fulfillment_demand_changed` outbox event in the same transaction. A separate
-bounded projector claims that event and calls Production's source-neutral
-fulfillment-demand capability. The version-one event envelope retains
-`bagCount` for compatibility, but Orders emits it as `null` and Production never
-uses it as physical intake. Invalid, permanent, or retry-exhausted events are
-lease-fenced into an inspectable terminal state.
-
-```txt
-Cents HTTP -> webhook inbox -> Worker vendor adapter
-                              -> exact SUBMITTED candidate
-                              -> exact COMPLETED/CANCELED source closure
-                              -> all other states evidence-only
-
-operator Accept -> candidate graph + exact-identity/version recheck
-                -> canonical User + Order + unreleased fulfillment
-                -> durable Orders outbox
-
-operator Reject -> terminal candidate decision
-                -> no canonical or Production work
-
-operator Restore -> source_closed to restored_pending
-                 -> later source closure cannot override the manager
-
-accepted source terminal -> named Pressly automation request
-                         -> Production resolution graph and guard
-                         -> resolve untouched work, otherwise no mutation
-
-Pressly command -> Orders lifecycle/release graph
-                -> canonical Orders change + durable outbox
-
-canonical Orders change + durable outbox
-  -> bounded outbox projector
-  -> Production demand projection
-  -> operator-recorded physical intake
-```
-
-Production owns physical-production rules and has no knowledge of Cents, HTTP
-webhooks, inbox receipts, worker leases, or incoming candidates. The Processor
-presents pending and manager-restored candidates in an Incoming review queue
-with server-authorized Add, Reject, and Restore actions. Once accepted, the
-work appears only through canonical Orders and Production projections; Cents
-remains provenance, never an operational comparison or action surface. A
-source-terminal observation for accepted work can only invoke a source-neutral
-Pressly automation at the Worker composition boundary. Production's existing
-resolution graph and operational guard own the decision and permit mutation
-only for untouched, unreleased, unassigned work. Bag count and bag rows are
-created only by the versioned operator-intake command; a demand projection
-preserves existing intake unchanged. Modules remain isolated peers and never import or
-declare package dependencies on one another. API and worker applications are
-the only places that connect their public ports.
-
-The current Orders application deliberately supports exactly one fulfillment
-per Order. The relational schema retains a one-to-many shape for future order
-types, but command adapters reject missing or ambiguous fulfillment aggregates
-instead of guessing. Multi-fulfillment workflow is a future policy change, not
-an implicit behavior in the current release.
-
-`apps/api` may wire route guards produced by a policy module. It should not
-define application authorization policy itself.
-
-## 10. Persistence
-
-`packages/db` owns database schema, migrations, seeds, and database clients.
-
-Modules may import schema through stable database exports when implementing persistence adapters. The database package should not import business modules. That keeps migration/schema ownership from creating circular dependencies.
-
-Rules:
-
-- Schema describes storage.
-- Repositories translate storage into application results.
-- Use cases decide business policy.
-- Temporal fields must be honored by reads.
-- Seed data and schema migrations should be split once business data starts changing regularly.
-
-## 11. Errors
-
-Errors must be structured and predictable.
-
-`AppError` is both the structured error value and the throwable `Error`.
-
-The common error shape is:
-
-```txt
-kind
-code
-message
-safeMessage
-status
-details
-publicDetails
-cause
-traceId
-```
-
-Rules:
-
-- Return `Result<_, AppError>` for expected application outcomes.
-- Throw `AppError` for unexpected infrastructure or invariant failures.
-- Preserve an existing `AppError`; wrap an unknown failure once at the
-  boundary that can name it.
-- Domain errors should describe violated meaning.
-- Adapter errors should describe failed mechanisms.
-- Semantic constructors own kind and allowed status; clients may interpret the
-  status but must not infer or replace domain meaning.
-- `details` and `cause` are private diagnostics. Only explicitly reviewed
-  `publicDetails` may be serialized.
-- The runtime's outer error boundary owns normalization, observability,
-  correlation, and presentation exactly once.
-- Logging, counters, and error reporting are non-authoritative effects. Run
-  them through `attemptObservation` so a failed sink cannot replace the
-  business result, HTTP envelope, worker disposition, or recovery surface.
-- Encode request bodies before entering the transport effect. Unsupported
-  local data is validation failure, never a network or upstream outage.
-- Native `Error` is reserved for sealed local programmer assertions such as a
-  UI primitive used outside its provider, plus tests and tooling. It must not
-  cross an application, module, persistence, HTTP, or worker boundary.
-- Failed responses should include a trace id when available.
-
-## 12. Transactions
-
-Transactions are application boundaries, not repository accidents.
-
-Preferred shape:
-
-```txt
-use case
-  -> feature repo transaction(...)
-    -> feature repo operation
-    -> feature repo operation
-    -> result
-```
-
-Rules:
-
-- A use case owns the transaction boundary.
-- The feature repository supplies transaction-scoped operations without
-  exposing a database executor to the use case.
-- Multi-table consistency for one capability happens inside one transaction.
-- Shared transaction execution belongs in a narrow persistence foundation;
-  it is not a reason to create one repository for the whole module.
-- External network calls should not happen inside database transactions unless explicitly required.
-- Idempotency should wrap risky operations at the application boundary.
-
-## 13. Observability
-
-The system should explain itself while running.
-
-Every runtime path should support:
-
-```txt
-request id
-trace id
-structured logs
-metrics
-health checks
-readiness checks
-error reporting
-```
-
-Rules:
-
-- Logs are structured.
-- Logs do not contain secrets.
-- Each request gets request metadata.
-- Each job run gets a run id.
-- Health proves the process is alive.
-- Readiness proves the process can serve traffic.
-- Metrics describe system behavior, not guesses.
-- Errors should be correlated with trace ids.
-
-## 14. Testing
-
-Tests should match the layer being tested.
-
-```txt
-intrinsic rule tests
-  Pure rules and invariants.
-
-use case tests
-  Application behavior with fake ports.
-
-adapter tests
-  HTTP, persistence, vendor, and framework translation.
-
-integration tests
-  Real database, real app wiring, real middleware.
-
-e2e tests
-  Public behavior through browser or API protocols.
-```
-
-Rules:
-
-- Pure code gets fast unit tests.
-- Use cases should not require Express or Postgres.
-- Repository tests may require Postgres.
-- Controller tests verify protocol behavior.
-- E2E tests cover critical flows only.
-- Shared helpers belong in `packages/testkit`.
-
-## 15. Naming
-
-Names should reveal architectural role, but the naming contract follows the
-kind of module rather than forcing one global suffix list.
-
-Business capability source uses this deliberately closed vocabulary:
-
-```txt
-*.command.ts      non-HTTP delivery entrypoint
-*.controller.ts   protocol-to-use-case adapter
-*.error.ts        expected error mapping
-*.mapper.ts       representation mapping
-*.middleware.ts   protocol middleware
-*.model.ts        domain or application data with no injected capability
-*.policy.ts       intrinsic business policy
-*.port.ts         required capability contract
-*.repo.ts         persistence adapter
-*.route.ts        route binding
-*.usecase.ts      application behavior
-```
-
-Within every module, the `src/` root contains exactly `main.ts` and `public.ts`.
-Business capability files use the role suffixes above; files inside an explicit
-foundation may omit one when the foundation itself supplies the architectural
-role. Foundation names and filenames should describe the narrow responsibility
-they centralize, such as `http/auth-context.ts`,
-`persistence/database-result.ts`, `command-execution/user-command.port.ts`, or
-`order-model/order-invariant.error.ts`.
-
-Errors belong to the capability or invariant whose meaning they express.
-Generic module-wide failure routers are not foundations; reusable error
-mechanics belong in `@pressly/errors`.
-
-Models contain mechanism-free domain or application data. They establish no
-injected capability and should not be named as ports merely to satisfy the
-closed vocabulary.
-
-Policy modules use this closed policy vocabulary:
-
-```txt
-*.guard.ts       framework-facing policy enforcement
-*.policy.ts      pure policy decisions and invariants
-*.resource.ts    policy resource representation
-*.port.ts        injected capability required to enforce policy
-```
-
-The policy `*.port.ts` role is retained because policy must receive runtime
-capabilities through dependency injection rather than import business module
-internals. Computation modules use their own closed vocabulary:
-
-```txt
-*.computation.ts  pure deterministic calculation
-*.port.ts         typed capability boundary when composition requires one
-```
-
-Every module may use `main.ts` for composition and `public.ts` for its stable
-external surface.
-
-There are no root-file exceptions for ports, policies, or errors. Mechanism-free
-language shared by multiple capabilities belongs in a narrowly named explicit
-foundation. Generic `shared/`, `common/`, and `internal/` buckets remain
-forbidden because they hide ownership instead of naming it.
-
-Module tests live under `test/`, where test-specific names such as
-`*.test.ts`, `*.fake.ts`, and `*.builder.ts` are allowed. Runtime boundary
-schemas belong in `packages/contracts`; persistence schemas belong in
-`packages/db`. Transport parsing belongs at the application adapter boundary.
-Module `src/` therefore does not contain `*.schema.ts`, `*.parser.ts`, or test
-files.
-
-Other repository areas use vocabulary appropriate to their boundary. For
-example, contracts use:
-
-```txt
-*.contracts.ts   runtime boundary schemas
-*.result.ts      output from a use case
-```
-
-Functions:
-
-```txt
-makeX     creates a composed capability
-parseX    validates unknown input
-toX       transforms representation
-assertX   enforces an invariant
-isX       returns boolean
-loadX     loads an application-facing result
-findX     looks up something that may not exist
-publishX  makes a controlled business change visible
-runX      performs an effectful operation
-```
-
-Types:
-
-```txt
-XCommand
-XResult
-XUseCase
-XPort
-XRepo
-XController
-XPresenter
-XContext
-XConfig
-```
-
-General rules:
-
-- Prefer precise names over short names.
-- Name concepts before mechanisms.
-- Avoid generic `service` names.
-- Avoid files that contain unrelated ideas.
-- Keep public names stable.
-- Let private names change freely.
-
-## 16. Adding a Feature
-
-A normal backend feature should move like this:
-
-```txt
-1. Define shared contract if the feature crosses a boundary.
-2. Add command/result types.
-3. Add a top-level capability folder in the owning module.
-4. Add the use case and ports inside that capability.
-5. Colocate HTTP, persistence, vendor, or job adapters in that capability.
-6. Wire everything in module main.ts.
-7. Mount the module in the app.
-8. Mirror the capability under test/ and add tests at the right boundary.
-```
-
-A normal frontend page should move like this:
-
-```txt
-1. Put the route in app/.
-2. Put product behavior in features/<capability>.
-3. Keep route-only composition in private _components/_lib/_shared folders.
-4. Use common core ports and select adapters only at composition boundaries.
-5. Keep vendor imports out of product and route components.
-6. Render UI from explicit data and minimal client state.
-7. Preserve static rendering unless per-request behavior is intentional.
-```
-
-That is the architecture in one sentence: put meaning near the business capability, put mechanisms at the edges, and compose the final program only at the runtime boundary.
+If a file cannot be placed by these rules, the architecture decision is not
+finished. Do not conceal ambiguity with a generic directory name.
