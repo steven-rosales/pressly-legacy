@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react"
 
 export function WorkspaceSectionHeading({
   title,
@@ -6,10 +6,10 @@ export function WorkspaceSectionHeading({
   description,
   action,
 }: {
-  title: string;
-  titleId?: string;
-  description: string;
-  action?: ReactNode;
+  title: string
+  titleId?: string
+  description: string
+  action?: ReactNode
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -23,5 +23,5 @@ export function WorkspaceSectionHeading({
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
-  );
+  )
 }

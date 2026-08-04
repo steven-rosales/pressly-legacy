@@ -7,15 +7,15 @@ import {
   IconFilter,
   IconPackage,
   IconSearch,
-} from '@tabler/icons-react';
-import { useTranslation } from 'react-i18next';
-import { SectionHeading } from '@/components/layout/workspace-primitives';
-import { OperationalOrderIdentity } from '@/components/orders/operational-order-identity';
-import { DelayedLoadingRows } from '@/components/ui/delayed-loading-rows';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
+import { SectionHeading } from "@/components/layout/workspace-primitives"
+import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
+import { DelayedLoadingRows } from "@/components/ui/delayed-loading-rows"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Empty,
   EmptyContent,
@@ -23,18 +23,15 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty';
+} from "@/components/ui/empty"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-} from '@/components/ui/input-group';
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from '@/components/ui/native-select';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Spinner } from '@/components/ui/spinner';
+} from "@/components/ui/input-group"
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Table,
   TableBody,
@@ -42,10 +39,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { cn } from '@/components/ui/class-names';
-import { OrderDetailSheet } from './order-detail-sheet.view';
+} from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/components/ui/class-names"
+import { OrderDetailSheet } from "./order-detail-sheet.view"
 import type {
   CursorPageViewModel,
   OrderControlCallbacks,
@@ -54,49 +51,49 @@ import type {
   OrderControlOrder,
   OrderControlTab,
   OrderControlViewModel,
-} from './order-control.model';
+} from "./order-control.model"
 
 const tabCopy: ReadonlyArray<
   Readonly<{
-    value: OrderControlTab;
+    value: OrderControlTab
     labelKey:
-      | 'orderControl.needsAttention'
-      | 'orderControl.active'
-      | 'orderControl.all';
+      | "orderControl.needsAttention"
+      | "orderControl.active"
+      | "orderControl.all"
     compactLabelKey:
-      | 'orderControl.attention'
-      | 'orderControl.active'
-      | 'orderControl.all';
-    count: (model: OrderControlViewModel) => number;
+      | "orderControl.attention"
+      | "orderControl.active"
+      | "orderControl.all"
+    count: (model: OrderControlViewModel) => number
   }>
 > = [
   {
-    value: 'needs_attention',
-    labelKey: 'orderControl.needsAttention',
-    compactLabelKey: 'orderControl.attention',
+    value: "needs_attention",
+    labelKey: "orderControl.needsAttention",
+    compactLabelKey: "orderControl.attention",
     count: (model) => model.counts.needsAttention,
   },
   {
-    value: 'active',
-    labelKey: 'orderControl.active',
-    compactLabelKey: 'orderControl.active',
+    value: "active",
+    labelKey: "orderControl.active",
+    compactLabelKey: "orderControl.active",
     count: (model) => model.counts.active,
   },
   {
-    value: 'all',
-    labelKey: 'orderControl.all',
-    compactLabelKey: 'orderControl.all',
+    value: "all",
+    labelKey: "orderControl.all",
+    compactLabelKey: "orderControl.all",
     count: (model) => model.counts.all,
   },
-];
+]
 
 const defaultFilterValue = (value: string) =>
-  value === '' || value === 'all' || value === 'any';
+  value === "" || value === "all" || value === "any"
 
 const activeFilterCount = (filters: OrderControlFilters) =>
   [filters.status, filters.due, filters.stage, filters.priority].filter(
-    (value) => !defaultFilterValue(value),
-  ).length + (filters.query.trim().length > 0 ? 1 : 0);
+    (value) => !defaultFilterValue(value)
+  ).length + (filters.query.trim().length > 0 ? 1 : 0)
 
 function FilterSelect<TValue extends string>({
   id,
@@ -105,11 +102,11 @@ function FilterSelect<TValue extends string>({
   options,
   onValueChange,
 }: Readonly<{
-  id: string;
-  label: string;
-  value: TValue;
-  options: readonly OrderControlFilterOption<TValue>[];
-  onValueChange: (value: TValue) => void;
+  id: string
+  label: string
+  value: TValue
+  options: readonly OrderControlFilterOption<TValue>[]
+  onValueChange: (value: TValue) => void
 }>) {
   return (
     <NativeSelect
@@ -125,23 +122,23 @@ function FilterSelect<TValue extends string>({
         </NativeSelectOption>
       ))}
     </NativeSelect>
-  );
+  )
 }
 
 function AttentionBadge({ order }: { order: OrderControlOrder }) {
   if (order.attention === null)
-    return <Badge variant="secondary">{order.statusLabel}</Badge>;
+    return <Badge variant="secondary">{order.statusLabel}</Badge>
   return (
     <Badge
-      variant={order.attention.tone === 'critical' ? 'destructive' : 'outline'}
+      variant={order.attention.tone === "critical" ? "destructive" : "outline"}
       className={cn(
-        order.attention.tone === 'warning' &&
-          'border-warning-foreground/30 bg-warning text-warning-foreground',
+        order.attention.tone === "warning" &&
+          "border-warning-foreground/30 bg-warning text-warning-foreground"
       )}
     >
       {order.attention.label}
     </Badge>
-  );
+  )
 }
 
 function PositionCell({ order }: { order: OrderControlOrder }) {
@@ -152,34 +149,34 @@ function PositionCell({ order }: { order: OrderControlOrder }) {
         {order.position.detail}
       </p>
     </div>
-  );
+  )
 }
 
 function DesktopOrderTable({
   orders,
   onOpenOrder,
 }: Readonly<{
-  orders: readonly OrderControlOrder[];
-  onOpenOrder: (orderId: string) => void;
+  orders: readonly OrderControlOrder[]
+  onOpenOrder: (orderId: string) => void
 }>) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   return (
     <div className="hidden overflow-hidden rounded-xl border bg-background md:block">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-[24%] px-4">
-              {t('orderControl.order')}
+              {t("orderControl.order")}
             </TableHead>
-            <TableHead>{t('orderControl.state')}</TableHead>
-            <TableHead>{t('orderControl.due')}</TableHead>
+            <TableHead>{t("orderControl.state")}</TableHead>
+            <TableHead>{t("orderControl.due")}</TableHead>
             <TableHead className="w-[24%]">
-              {t('orderControl.floorPosition')}
+              {t("orderControl.floorPosition")}
             </TableHead>
-            <TableHead>{t('orderControl.demand')}</TableHead>
+            <TableHead>{t("orderControl.demand")}</TableHead>
             <TableHead>
               <span className="sr-only">
-                {t('orderControl.openOrderShort')}
+                {t("orderControl.openOrderShort")}
               </span>
             </TableHead>
           </TableRow>
@@ -197,7 +194,7 @@ function DesktopOrderTable({
                 <div className="flex flex-wrap items-center gap-1.5">
                   <AttentionBadge order={order} />
                   {order.priority && (
-                    <Badge>{t('orderControl.priority')}</Badge>
+                    <Badge>{t("orderControl.priority")}</Badge>
                   )}
                 </div>
               </TableCell>
@@ -224,7 +221,7 @@ function DesktopOrderTable({
                   size="icon"
                   variant="ghost"
                   className="size-11"
-                  aria-label={t('orderControl.openOrder', {
+                  aria-label={t("orderControl.openOrder", {
                     orderId: order.externalOrderId,
                   })}
                   onClick={() => onOpenOrder(order.id)}
@@ -237,17 +234,17 @@ function DesktopOrderTable({
         </TableBody>
       </Table>
     </div>
-  );
+  )
 }
 
 function MobileOrderCards({
   orders,
   onOpenOrder,
 }: Readonly<{
-  orders: readonly OrderControlOrder[];
-  onOpenOrder: (orderId: string) => void;
+  orders: readonly OrderControlOrder[]
+  onOpenOrder: (orderId: string) => void
 }>) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   return (
     <div className="grid gap-2 md:hidden">
       {orders.map((order) => (
@@ -263,7 +260,7 @@ function MobileOrderCards({
                   {order.dueLabel} · {order.weightLabel} · {order.bagLabel}
                 </p>
               </div>
-              {order.priority && <Badge>{t('orderControl.priority')}</Badge>}
+              {order.priority && <Badge>{t("orderControl.priority")}</Badge>}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <AttentionBadge order={order} />
@@ -278,14 +275,14 @@ function MobileOrderCards({
               className="h-11 w-full"
               onClick={() => onOpenOrder(order.id)}
             >
-              {t('orderControl.openOrderShort')}
+              {t("orderControl.openOrderShort")}
               <IconChevronRight data-icon="inline-end" />
             </Button>
           </CardContent>
         </Card>
       ))}
     </div>
-  );
+  )
 }
 
 function OrderPagination({
@@ -293,14 +290,14 @@ function OrderPagination({
   onPreviousPage,
   onNextPage,
 }: Readonly<{
-  page: CursorPageViewModel;
-  onPreviousPage: (cursor: string) => void;
-  onNextPage: (cursor: string) => void;
+  page: CursorPageViewModel
+  onPreviousPage: (cursor: string) => void
+  onNextPage: (cursor: string) => void
 }>) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   return (
     <nav
-      aria-label={t('orderControl.pages')}
+      aria-label={t("orderControl.pages")}
       className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="text-sm text-muted-foreground">{page.rangeLabel}</p>
@@ -312,11 +309,11 @@ function OrderPagination({
           disabled={page.previousCursor === null}
           onClick={() => {
             if (page.previousCursor !== null)
-              onPreviousPage(page.previousCursor);
+              onPreviousPage(page.previousCursor)
           }}
         >
           <IconChevronLeft data-icon="inline-start" />
-          {t('common.previous')}
+          {t("common.previous")}
         </Button>
         <Button
           type="button"
@@ -324,35 +321,35 @@ function OrderPagination({
           className="h-11"
           disabled={page.nextCursor === null}
           onClick={() => {
-            if (page.nextCursor !== null) onNextPage(page.nextCursor);
+            if (page.nextCursor !== null) onNextPage(page.nextCursor)
           }}
         >
-          {t('common.next')}
+          {t("common.next")}
           <IconChevronRight data-icon="inline-end" />
         </Button>
       </div>
     </nav>
-  );
+  )
 }
 
 export function OrderAttentionSummary({
   model,
   onOpenOrders,
 }: Readonly<{
-  model: OrderControlViewModel;
-  onOpenOrders: () => void;
+  model: OrderControlViewModel
+  onOpenOrders: () => void
 }>) {
-  const { t } = useTranslation();
-  const attentionOrders = model.orders.slice(0, 3);
-  const count = model.counts.needsAttention;
-  const attentionAvailable = !model.loading && model.error === null;
+  const { t } = useTranslation()
+  const attentionOrders = model.orders.slice(0, 3)
+  const count = model.counts.needsAttention
+  const attentionAvailable = !model.loading && model.error === null
 
   return (
     <Card
       size="sm"
       className="bg-background"
       role="region"
-      aria-label={t('orderControl.summaryTitle')}
+      aria-label={t("orderControl.summaryTitle")}
       aria-busy={model.loading || model.refreshing}
       data-testid="order-attention-summary"
     >
@@ -366,21 +363,21 @@ export function OrderAttentionSummary({
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-medium">{t('orderControl.summaryTitle')}</p>
+              <p className="font-medium">{t("orderControl.summaryTitle")}</p>
               {attentionAvailable && (
-                <Badge variant={count > 0 ? 'secondary' : 'outline'}>
+                <Badge variant={count > 0 ? "secondary" : "outline"}>
                   {count}
                 </Badge>
               )}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {model.loading
-                ? t('orderControl.summaryLoading')
+                ? t("orderControl.summaryLoading")
                 : model.error !== null
-                  ? t('orderControl.summaryUnavailable')
+                  ? t("orderControl.summaryUnavailable")
                   : count > 0
-                    ? t('orderControl.summaryNeedsAttention', { count })
-                    : t('orderControl.summaryClear')}
+                    ? t("orderControl.summaryNeedsAttention", { count })
+                    : t("orderControl.summaryClear")}
             </p>
           </div>
         </div>
@@ -421,12 +418,12 @@ export function OrderAttentionSummary({
           className="h-11 shrink-0"
           onClick={onOpenOrders}
         >
-          {t('orderControl.openOrders')}
+          {t("orderControl.openOrders")}
           <IconArrowRight data-icon="inline-end" />
         </Button>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 export function OrderControlWorkspace({
@@ -434,16 +431,16 @@ export function OrderControlWorkspace({
   callbacks,
   isMobile,
 }: Readonly<{
-  model: OrderControlViewModel;
-  callbacks: OrderControlCallbacks;
-  isMobile: boolean;
+  model: OrderControlViewModel
+  callbacks: OrderControlCallbacks
+  isMobile: boolean
 }>) {
-  const { t } = useTranslation();
-  const filterCount = activeFilterCount(model.filters);
+  const { t } = useTranslation()
+  const filterCount = activeFilterCount(model.filters)
   const updateFilter = <TKey extends keyof OrderControlFilters>(
     key: TKey,
-    value: OrderControlFilters[TKey],
-  ) => callbacks.onFiltersChange({ ...model.filters, [key]: value });
+    value: OrderControlFilters[TKey]
+  ) => callbacks.onFiltersChange({ ...model.filters, [key]: value })
 
   return (
     <div
@@ -451,8 +448,8 @@ export function OrderControlWorkspace({
       aria-busy={model.loading || model.refreshing}
     >
       <SectionHeading
-        title={t('orderControl.title')}
-        description={t('orderControl.description', {
+        title={t("orderControl.title")}
+        description={t("orderControl.description", {
           asOf: model.asOfLabel,
         })}
         action={
@@ -462,7 +459,7 @@ export function OrderControlWorkspace({
               className="flex h-8 items-center gap-2 text-xs text-muted-foreground"
             >
               <Spinner className="size-3.5" aria-hidden="true" />
-              {t('orderControl.updating')}
+              {t("orderControl.updating")}
             </div>
           ) : undefined
         }
@@ -471,7 +468,7 @@ export function OrderControlWorkspace({
       {model.error !== null && (
         <Alert variant="destructive" role="alert">
           <IconAlertTriangle />
-          <AlertTitle>{t('orderControl.ordersNeedAttention')}</AlertTitle>
+          <AlertTitle>{t("orderControl.ordersNeedAttention")}</AlertTitle>
           <AlertDescription>{model.error}</AlertDescription>
         </Alert>
       )}
@@ -487,7 +484,7 @@ export function OrderControlWorkspace({
             <TabsTrigger
               key={tab.value}
               value={tab.value}
-              aria-label={t('orderControl.tabLabel', {
+              aria-label={t("orderControl.tabLabel", {
                 label: t(tab.labelKey),
                 count: tab.count(model),
               })}
@@ -496,7 +493,7 @@ export function OrderControlWorkspace({
               <span className="sm:hidden">{t(tab.compactLabelKey)}</span>
               <span className="hidden sm:inline">{t(tab.labelKey)}</span>
               <Badge
-                variant={model.tab === tab.value ? 'secondary' : 'outline'}
+                variant={model.tab === tab.value ? "secondary" : "outline"}
                 className="min-w-5 shrink-0 px-1"
               >
                 {tab.count(model)}
@@ -514,40 +511,40 @@ export function OrderControlWorkspace({
             </InputGroupAddon>
             <InputGroupInput
               type="search"
-              aria-label={t('orderControl.search')}
-              placeholder={t('orderControl.searchPlaceholder')}
+              aria-label={t("orderControl.search")}
+              placeholder={t("orderControl.searchPlaceholder")}
               value={model.filters.query}
-              onChange={(event) => updateFilter('query', event.target.value)}
+              onChange={(event) => updateFilter("query", event.target.value)}
             />
           </InputGroup>
           <div className="flex flex-wrap gap-2">
             <FilterSelect
               id="order-status-filter"
-              label={t('orderControl.orderStatus')}
+              label={t("orderControl.orderStatus")}
               value={model.filters.status}
               options={model.filterOptions.statuses}
-              onValueChange={(value) => updateFilter('status', value)}
+              onValueChange={(value) => updateFilter("status", value)}
             />
             <FilterSelect
               id="order-due-filter"
-              label={t('orderControl.dueWindow')}
+              label={t("orderControl.dueWindow")}
               value={model.filters.due}
               options={model.filterOptions.dueWindows}
-              onValueChange={(value) => updateFilter('due', value)}
+              onValueChange={(value) => updateFilter("due", value)}
             />
             <FilterSelect
               id="order-stage-filter"
-              label={t('orderControl.floorStage')}
+              label={t("orderControl.floorStage")}
               value={model.filters.stage}
               options={model.filterOptions.stages}
-              onValueChange={(value) => updateFilter('stage', value)}
+              onValueChange={(value) => updateFilter("stage", value)}
             />
             <FilterSelect
               id="order-priority-filter"
-              label={t('orderControl.priority')}
+              label={t("orderControl.priority")}
               value={model.filters.priority}
               options={model.filterOptions.priorities}
-              onValueChange={(value) => updateFilter('priority', value)}
+              onValueChange={(value) => updateFilter("priority", value)}
             />
             {filterCount > 0 && (
               <Button
@@ -557,7 +554,7 @@ export function OrderControlWorkspace({
                 onClick={callbacks.onClearFilters}
               >
                 <IconFilter data-icon="inline-start" />
-                {t('orderControl.clearCount', { count: filterCount })}
+                {t("orderControl.clearCount", { count: filterCount })}
               </Button>
             )}
           </div>
@@ -565,26 +562,26 @@ export function OrderControlWorkspace({
       </Card>
 
       {model.loading ? (
-        <DelayedLoadingRows label={t('orderControl.loading')} />
+        <DelayedLoadingRows label={t("orderControl.loading")} />
       ) : model.orders.length === 0 ? (
         <Empty className="min-h-72 border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              {model.tab === 'needs_attention' ? (
+              {model.tab === "needs_attention" ? (
                 <IconCircleCheck />
               ) : (
                 <IconPackage />
               )}
             </EmptyMedia>
             <EmptyTitle role="heading" aria-level={2}>
-              {model.tab === 'needs_attention'
-                ? t('orderControl.noAttention')
-                : t('orderControl.noMatch')}
+              {model.tab === "needs_attention"
+                ? t("orderControl.noAttention")
+                : t("orderControl.noMatch")}
             </EmptyTitle>
             <EmptyDescription>
               {filterCount > 0
-                ? t('orderControl.emptyFiltered')
-                : t('orderControl.empty')}
+                ? t("orderControl.emptyFiltered")
+                : t("orderControl.empty")}
             </EmptyDescription>
           </EmptyHeader>
           {filterCount > 0 && (
@@ -595,7 +592,7 @@ export function OrderControlWorkspace({
                 className="h-11"
                 onClick={callbacks.onClearFilters}
               >
-                {t('orderControl.clearFilters')}
+                {t("orderControl.clearFilters")}
               </Button>
             </EmptyContent>
           )}
@@ -625,7 +622,7 @@ export function OrderControlWorkspace({
         isMobile={isMobile}
       />
     </div>
-  );
+  )
 }
 
 export type {
@@ -633,4 +630,4 @@ export type {
   OrderControlFilters,
   OrderControlOrder,
   OrderControlViewModel,
-} from './order-control.model';
+} from "./order-control.model"

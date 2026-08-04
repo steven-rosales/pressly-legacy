@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useState, type FormEvent } from "react"
+import { useTranslation } from "react-i18next"
 import {
   Alert,
   AlertDescription,
@@ -17,15 +17,15 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui';
-import type { ControlCustomer, CustomerProfile } from './customer-model';
+} from "@/components/ui"
+import type { ControlCustomer, CustomerProfile } from "./customer-model"
 
-type CustomerFormValue = CustomerProfile & { active?: boolean };
+type CustomerFormValue = CustomerProfile & { active?: boolean }
 
 const text = (value: string) => {
-  const normalized = value.trim();
-  return normalized.length === 0 ? null : normalized;
-};
+  const normalized = value.trim()
+  return normalized.length === 0 ? null : normalized
+}
 
 const valueFrom = (customer: ControlCustomer | null): CustomerFormValue => ({
   firstName: customer?.firstName ?? null,
@@ -34,7 +34,7 @@ const valueFrom = (customer: ControlCustomer | null): CustomerFormValue => ({
   phone: customer?.phone ?? null,
   email: customer?.email ?? null,
   ...(customer === null ? {} : { active: customer.active }),
-});
+})
 
 export function CustomerForm({
   customer,
@@ -43,31 +43,31 @@ export function CustomerForm({
   onSubmit,
   onCancel,
 }: {
-  customer: ControlCustomer | null;
-  busy: boolean;
-  error: string | null;
-  onSubmit: (value: CustomerFormValue) => Promise<void>;
-  onCancel: () => void;
+  customer: ControlCustomer | null
+  busy: boolean
+  error: string | null
+  onSubmit: (value: CustomerFormValue) => Promise<void>
+  onCancel: () => void
 }) {
-  const { t } = useTranslation();
-  const [value, setValue] = useState(() => valueFrom(customer));
-  const [validation, setValidation] = useState<string | null>(null);
+  const { t } = useTranslation()
+  const [value, setValue] = useState(() => valueFrom(customer))
+  const [validation, setValidation] = useState<string | null>(null)
 
   const update = <Key extends keyof CustomerFormValue>(
     key: Key,
     next: CustomerFormValue[Key],
-  ) => setValue((current) => ({ ...current, [key]: next }));
+  ) => setValue((current) => ({ ...current, [key]: next }))
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+    event.preventDefault()
     const profile = {
-      firstName: text(value.firstName ?? ''),
-      lastName: text(value.lastName ?? ''),
-      businessName: text(value.businessName ?? ''),
-      phone: text(value.phone ?? ''),
-      email: text(value.email ?? ''),
+      firstName: text(value.firstName ?? ""),
+      lastName: text(value.lastName ?? ""),
+      businessName: text(value.businessName ?? ""),
+      phone: text(value.phone ?? ""),
+      email: text(value.email ?? ""),
       ...(value.active === undefined ? {} : { active: value.active }),
-    };
+    }
     if (
       profile.firstName === null &&
       profile.lastName === null &&
@@ -75,19 +75,19 @@ export function CustomerForm({
       profile.phone === null &&
       profile.email === null
     ) {
-      setValidation(t('customers.form.validation.identityRequired'));
-      return;
+      setValidation(t("customers.form.validation.identityRequired"))
+      return
     }
-    setValidation(null);
-    void onSubmit(profile);
-  };
+    setValidation(null)
+    void onSubmit(profile)
+  }
 
   return (
     <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
       <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
         {error !== null && (
           <Alert variant="destructive">
-            <AlertTitle>{t('customers.form.saveErrorTitle')}</AlertTitle>
+            <AlertTitle>{t("customers.form.saveErrorTitle")}</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -96,68 +96,68 @@ export function CustomerForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="customer-first-name">
-                {t('customers.form.firstName')}
+                {t("customers.form.firstName")}
               </FieldLabel>
               <Input
                 id="customer-first-name"
                 autoComplete="given-name"
-                value={value.firstName ?? ''}
-                onChange={(event) => update('firstName', event.target.value)}
+                value={value.firstName ?? ""}
+                onChange={(event) => update("firstName", event.target.value)}
                 disabled={busy}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="customer-last-name">
-                {t('customers.form.lastName')}
+                {t("customers.form.lastName")}
               </FieldLabel>
               <Input
                 id="customer-last-name"
                 autoComplete="family-name"
-                value={value.lastName ?? ''}
-                onChange={(event) => update('lastName', event.target.value)}
+                value={value.lastName ?? ""}
+                onChange={(event) => update("lastName", event.target.value)}
                 disabled={busy}
               />
             </Field>
           </div>
           <Field>
             <FieldLabel htmlFor="customer-business-name">
-              {t('customers.form.businessName')}
+              {t("customers.form.businessName")}
             </FieldLabel>
             <Input
               id="customer-business-name"
               autoComplete="organization"
-              value={value.businessName ?? ''}
-              onChange={(event) => update('businessName', event.target.value)}
+              value={value.businessName ?? ""}
+              onChange={(event) => update("businessName", event.target.value)}
               disabled={busy}
             />
             <FieldDescription>
-              {t('customers.form.businessDescription')}
+              {t("customers.form.businessDescription")}
             </FieldDescription>
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="customer-phone">
-                {t('customers.form.phone')}
+                {t("customers.form.phone")}
               </FieldLabel>
               <Input
                 id="customer-phone"
                 type="tel"
                 autoComplete="tel"
-                value={value.phone ?? ''}
-                onChange={(event) => update('phone', event.target.value)}
+                value={value.phone ?? ""}
+                onChange={(event) => update("phone", event.target.value)}
                 disabled={busy}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="customer-email">
-                {t('customers.form.email')}
+                {t("customers.form.email")}
               </FieldLabel>
               <Input
                 id="customer-email"
                 type="email"
                 autoComplete="email"
-                value={value.email ?? ''}
-                onChange={(event) => update('email', event.target.value)}
+                value={value.email ?? ""}
+                onChange={(event) => update("email", event.target.value)}
                 disabled={busy}
               />
             </Field>
@@ -165,11 +165,11 @@ export function CustomerForm({
           {value.active !== undefined && (
             <Field>
               <FieldLabel htmlFor="customer-status">
-                {t('customers.form.recordStatus')}
+                {t("customers.form.recordStatus")}
               </FieldLabel>
               <Select
-                value={value.active ? 'active' : 'inactive'}
-                onValueChange={(next) => update('active', next === 'active')}
+                value={value.active ? "active" : "inactive"}
+                onValueChange={(next) => update("active", next === "active")}
                 disabled={busy}
               >
                 <SelectTrigger id="customer-status" className="w-full">
@@ -178,16 +178,16 @@ export function CustomerForm({
                 <SelectContent>
                   <SelectGroup>
                     <SelectItem value="active">
-                      {t('customers.status.active')}
+                      {t("customers.status.active")}
                     </SelectItem>
                     <SelectItem value="inactive">
-                      {t('customers.status.inactive')}
+                      {t("customers.status.inactive")}
                     </SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
               <FieldDescription>
-                {t('customers.form.statusDescription')}
+                {t("customers.form.statusDescription")}
               </FieldDescription>
             </Field>
           )}
@@ -201,17 +201,17 @@ export function CustomerForm({
             onClick={onCancel}
             disabled={busy}
           >
-            {t('customers.actions.cancel')}
+            {t("customers.actions.cancel")}
           </Button>
           <Button type="submit" disabled={busy}>
             {busy
-              ? t('customers.actions.saving')
+              ? t("customers.actions.saving")
               : customer === null
-                ? t('customers.actions.create')
-                : t('customers.actions.saveCorrection')}
+                ? t("customers.actions.create")
+                : t("customers.actions.saveCorrection")}
           </Button>
         </div>
       </div>
     </form>
-  );
+  )
 }

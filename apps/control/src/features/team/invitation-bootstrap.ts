@@ -1,20 +1,20 @@
 export function consumeInvitationToken(
-  location: Pick<Location, 'hash' | 'pathname' | 'search'>,
-  history: Pick<History, 'replaceState' | 'state'>,
+  location: Pick<Location, "hash" | "pathname" | "search">,
+  history: Pick<History, "replaceState" | "state">,
 ): string | null {
-  if (!location.hash.startsWith('#')) return null;
+  if (!location.hash.startsWith("#")) return null
 
-  const parameters = new URLSearchParams(location.hash.slice(1));
-  const token = parameters.get('invite');
-  if (token === null) return null;
+  const parameters = new URLSearchParams(location.hash.slice(1))
+  const token = parameters.get("invite")
+  if (token === null) return null
 
-  parameters.delete('invite');
-  const remaining = parameters.toString();
+  parameters.delete("invite")
+  const remaining = parameters.toString()
   history.replaceState(
     history.state,
-    '',
-    `${location.pathname}${location.search}${remaining.length === 0 ? '' : `#${remaining}`}`,
-  );
+    "",
+    `${location.pathname}${location.search}${remaining.length === 0 ? "" : `#${remaining}`}`,
+  )
 
-  return token.length >= 32 && token.length <= 512 ? token : null;
+  return token.length >= 32 && token.length <= 512 ? token : null
 }

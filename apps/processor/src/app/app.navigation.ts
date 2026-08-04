@@ -7,227 +7,226 @@ import {
   IconLayoutBoard,
   IconPackage,
   IconPackageImport,
-} from '@tabler/icons-react';
-import type { ProcessorCapability } from '@pressly/contracts/auth';
+} from "@tabler/icons-react"
+import type { ProcessorCapability } from "@pressly/contracts/auth"
 
 export type WorkspaceView =
-  | 'home'
-  | 'orders'
-  | 'intake'
-  | 'schedule'
-  | 'forecast'
-  | 'board'
-  | 'history'
-  | 'settings';
+  | "home"
+  | "orders"
+  | "intake"
+  | "schedule"
+  | "forecast"
+  | "board"
+  | "history"
+  | "settings"
 
 export type WorkspaceRoute = Readonly<{
-  view: WorkspaceView;
-  shiftId: string | null;
-  runId: string | null;
-}>;
+  view: WorkspaceView
+  shiftId: string | null
+  runId: string | null
+}>
 
 export const workspaceHomeNavigation = {
-  id: 'home' as const,
-  labelKey: 'navigation.home' as const,
+  id: "home" as const,
+  labelKey: "navigation.home" as const,
   icon: IconHome,
-};
+}
 
 export const workspaceNavigationSections = [
   {
-    id: 'dailyWork',
-    labelKey: 'navigation.sections.dailyWork',
+    id: "dailyWork",
+    labelKey: "navigation.sections.dailyWork",
     items: [
       {
-        id: 'intake' as const,
-        labelKey: 'navigation.intake',
+        id: "intake" as const,
+        labelKey: "navigation.intake",
         icon: IconPackageImport,
       },
       {
-        id: 'schedule' as const,
-        labelKey: 'navigation.schedule',
+        id: "schedule" as const,
+        labelKey: "navigation.schedule",
         icon: IconCalendarClock,
       },
       {
-        id: 'board' as const,
-        labelKey: 'navigation.production',
+        id: "board" as const,
+        labelKey: "navigation.production",
         icon: IconLayoutBoard,
       },
     ],
   },
   {
-    id: 'manageReview',
-    labelKey: 'navigation.sections.manageReview',
+    id: "manageReview",
+    labelKey: "navigation.sections.manageReview",
     items: [
       {
-        id: 'orders' as const,
-        labelKey: 'navigation.orders',
+        id: "orders" as const,
+        labelKey: "navigation.orders",
         icon: IconPackage,
       },
       {
-        id: 'forecast' as const,
-        labelKey: 'navigation.forecast',
+        id: "forecast" as const,
+        labelKey: "navigation.forecast",
         icon: IconChartHistogram,
       },
       {
-        id: 'history' as const,
-        labelKey: 'navigation.history',
+        id: "history" as const,
+        labelKey: "navigation.history",
         icon: IconHistory,
       },
     ],
   },
   {
-    id: 'system',
-    labelKey: 'navigation.sections.system',
+    id: "system",
+    labelKey: "navigation.sections.system",
     items: [
       {
-        id: 'settings' as const,
-        labelKey: 'navigation.configuration',
+        id: "settings" as const,
+        labelKey: "navigation.configuration",
         icon: IconAdjustmentsHorizontal,
       },
     ],
   },
-] as const;
+] as const
 
 const workspaceViewCapabilities = {
-  home: ['production:read'],
-  orders: ['production:accept', 'production:override'],
-  intake: ['production:intake', 'production:admission'],
-  schedule: ['production:schedule'],
-  forecast: ['production:read'],
-  board: ['production:stage'],
-  history: ['production:read'],
-  settings: ['production:schedule', 'production:resources'],
-} as const satisfies Record<WorkspaceView, readonly ProcessorCapability[]>;
+  home: ["production:read"],
+  orders: ["production:accept", "production:override"],
+  intake: ["production:intake", "production:admission"],
+  schedule: ["production:schedule"],
+  forecast: ["production:read"],
+  board: ["production:stage"],
+  history: ["production:read"],
+  settings: ["production:schedule", "production:resources"],
+} as const satisfies Record<WorkspaceView, readonly ProcessorCapability[]>
 
 export const canAccessWorkspaceView = (
   capabilities: readonly ProcessorCapability[],
-  view: WorkspaceView,
+  view: WorkspaceView
 ): boolean => {
-  const available = new Set(capabilities);
+  const available = new Set(capabilities)
   return workspaceViewCapabilities[view].some((capability) =>
-    available.has(capability),
-  );
-};
+    available.has(capability)
+  )
+}
 
 export const visibleWorkspaceNavigationSections = (
-  capabilities: readonly ProcessorCapability[],
+  capabilities: readonly ProcessorCapability[]
 ) =>
   workspaceNavigationSections
     .map((section) => ({
       ...section,
       items: section.items.filter((item) =>
-        canAccessWorkspaceView(capabilities, item.id),
+        canAccessWorkspaceView(capabilities, item.id)
       ),
     }))
-    .filter((section) => section.items.length > 0);
+    .filter((section) => section.items.length > 0)
 
 export type WorkspaceNavigationItem =
   | typeof workspaceHomeNavigation
-  | (typeof workspaceNavigationSections)[number]['items'][number];
+  | (typeof workspaceNavigationSections)[number]["items"][number]
 
 export const workspaceNavigation: readonly WorkspaceNavigationItem[] = [
   workspaceHomeNavigation,
   ...workspaceNavigationSections.flatMap<WorkspaceNavigationItem>(
-    (section) => section.items,
+    (section) => section.items
   ),
-];
+]
 
 export const workspaceCopyKeys = {
-  home: ['navigation.home', 'navigation.homeDescription'],
-  orders: ['navigation.orders', 'navigation.ordersDescription'],
-  intake: ['navigation.intake', 'navigation.intakeDescription'],
-  schedule: ['navigation.schedule', 'navigation.scheduleDescription'],
-  forecast: ['navigation.forecast', 'navigation.forecastDescription'],
-  board: ['navigation.production', 'navigation.productionDescription'],
-  history: ['navigation.history', 'navigation.historyDescription'],
-  settings: ['navigation.configuration', 'navigation.configurationDescription'],
-} as const satisfies Record<WorkspaceView, readonly [string, string]>;
+  home: ["navigation.home", "navigation.homeDescription"],
+  orders: ["navigation.orders", "navigation.ordersDescription"],
+  intake: ["navigation.intake", "navigation.intakeDescription"],
+  schedule: ["navigation.schedule", "navigation.scheduleDescription"],
+  forecast: ["navigation.forecast", "navigation.forecastDescription"],
+  board: ["navigation.production", "navigation.productionDescription"],
+  history: ["navigation.history", "navigation.historyDescription"],
+  settings: ["navigation.configuration", "navigation.configurationDescription"],
+} as const satisfies Record<WorkspaceView, readonly [string, string]>
 
 const decodeSegment = (segment: string | undefined): string | null => {
-  if (segment === undefined || segment.length === 0) return null;
+  if (segment === undefined || segment.length === 0) return null
   try {
-    return decodeURIComponent(segment);
+    return decodeURIComponent(segment)
   } catch {
-    return null;
+    return null
   }
-};
+}
 
 /**
  * Maps the browser path to the small route value consumed by the application
  * model. Query parameters intentionally have no role in Processor navigation.
  */
 export const readWorkspaceRoute = (pathname: string): WorkspaceRoute | null => {
-  const segments = pathname.split('/').filter(Boolean);
+  const segments = pathname.split("/").filter(Boolean)
 
-  if (segments.length === 0)
-    return { view: 'home', shiftId: null, runId: null };
-  if (segments.length === 1 && segments[0] === 'history')
-    return { view: 'history', shiftId: null, runId: null };
-  if (segments.length === 1 && segments[0] === 'intake')
-    return { view: 'intake', shiftId: null, runId: null };
-  if (segments.length === 1 && segments[0] === 'orders')
-    return { view: 'orders', shiftId: null, runId: null };
-  if (segments.length === 1 && segments[0] === 'forecast')
-    return { view: 'forecast', shiftId: null, runId: null };
-  if (segments.length === 1 && segments[0] === 'configuration')
-    return { view: 'settings', shiftId: null, runId: null };
+  if (segments.length === 0) return { view: "home", shiftId: null, runId: null }
+  if (segments.length === 1 && segments[0] === "history")
+    return { view: "history", shiftId: null, runId: null }
+  if (segments.length === 1 && segments[0] === "intake")
+    return { view: "intake", shiftId: null, runId: null }
+  if (segments.length === 1 && segments[0] === "orders")
+    return { view: "orders", shiftId: null, runId: null }
+  if (segments.length === 1 && segments[0] === "forecast")
+    return { view: "forecast", shiftId: null, runId: null }
+  if (segments.length === 1 && segments[0] === "configuration")
+    return { view: "settings", shiftId: null, runId: null }
 
   if (
     (segments.length === 1 || segments.length === 2) &&
-    segments[0] === 'schedule'
+    segments[0] === "schedule"
   ) {
-    const shiftId = decodeSegment(segments[1]);
-    if (segments.length === 2 && shiftId === null) return null;
-    return { view: 'schedule', shiftId, runId: null };
+    const shiftId = decodeSegment(segments[1])
+    if (segments.length === 2 && shiftId === null) return null
+    return { view: "schedule", shiftId, runId: null }
   }
 
   if (
     (segments.length === 1 || segments.length === 2) &&
-    segments[0] === 'production'
+    segments[0] === "production"
   ) {
-    const runId = decodeSegment(segments[1]);
-    if (segments.length === 2 && runId === null) return null;
-    return { view: 'board', shiftId: null, runId };
+    const runId = decodeSegment(segments[1])
+    if (segments.length === 2 && runId === null) return null
+    return { view: "board", shiftId: null, runId }
   }
 
-  return null;
-};
+  return null
+}
 
 export const workspaceRoutePath = (route: WorkspaceRoute): string => {
-  if (route.view === 'home') return '/';
-  if (route.view === 'orders') return '/orders';
-  if (route.view === 'intake') return '/intake';
-  if (route.view === 'forecast') return '/forecast';
-  if (route.view === 'history') return '/history';
-  if (route.view === 'settings') return '/configuration';
-  if (route.view === 'board')
+  if (route.view === "home") return "/"
+  if (route.view === "orders") return "/orders"
+  if (route.view === "intake") return "/intake"
+  if (route.view === "forecast") return "/forecast"
+  if (route.view === "history") return "/history"
+  if (route.view === "settings") return "/configuration"
+  if (route.view === "board")
     return route.runId === null
-      ? '/production'
-      : `/production/${encodeURIComponent(route.runId)}`;
+      ? "/production"
+      : `/production/${encodeURIComponent(route.runId)}`
   return route.shiftId === null
-    ? '/schedule'
-    : `/schedule/${encodeURIComponent(route.shiftId)}`;
-};
+    ? "/schedule"
+    : `/schedule/${encodeURIComponent(route.shiftId)}`
+}
 
 export const workspaceRouteForView = (
   view: WorkspaceView,
-  identifiers: Partial<Pick<WorkspaceRoute, 'shiftId' | 'runId'>> = {},
+  identifiers: Partial<Pick<WorkspaceRoute, "shiftId" | "runId">> = {}
 ): WorkspaceRoute => {
   if (
-    view === 'home' ||
-    view === 'orders' ||
-    view === 'intake' ||
-    view === 'forecast' ||
-    view === 'history'
+    view === "home" ||
+    view === "orders" ||
+    view === "intake" ||
+    view === "forecast" ||
+    view === "history"
   )
-    return { view, shiftId: null, runId: null };
-  if (view === 'settings')
-    return { view: 'settings', shiftId: null, runId: null };
-  if (view === 'board')
-    return { view: 'board', shiftId: null, runId: identifiers.runId ?? null };
+    return { view, shiftId: null, runId: null }
+  if (view === "settings")
+    return { view: "settings", shiftId: null, runId: null }
+  if (view === "board")
+    return { view: "board", shiftId: null, runId: identifiers.runId ?? null }
   return {
-    view: 'schedule',
+    view: "schedule",
     shiftId: identifiers.shiftId ?? null,
     runId: null,
-  };
-};
+  }
+}

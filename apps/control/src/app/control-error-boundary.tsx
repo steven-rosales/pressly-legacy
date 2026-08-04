@@ -1,32 +1,32 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from "react"
 
 type ControlErrorBoundaryProps = Readonly<{
-  children: ReactNode;
-  report: (error: Error, context: Readonly<{ componentStack: string }>) => void;
-}>;
+  children: ReactNode
+  report: (error: Error, context: Readonly<{ componentStack: string }>) => void
+}>
 
-type ControlErrorBoundaryState = Readonly<{ failed: boolean }>;
+type ControlErrorBoundaryState = Readonly<{ failed: boolean }>
 
 export class ControlErrorBoundary extends Component<
   ControlErrorBoundaryProps,
   ControlErrorBoundaryState
 > {
-  state: ControlErrorBoundaryState = { failed: false };
+  state: ControlErrorBoundaryState = { failed: false }
 
   static getDerivedStateFromError(): ControlErrorBoundaryState {
-    return { failed: true };
+    return { failed: true }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     try {
-      this.props.report(error, { componentStack: info.componentStack ?? '' });
+      this.props.report(error, { componentStack: info.componentStack ?? "" })
     } catch {
       // Reporting cannot replace the recovery surface.
     }
   }
 
   render(): ReactNode {
-    if (!this.state.failed) return this.props.children;
+    if (!this.state.failed) return this.props.children
 
     return (
       <main className="bg-muted/30 grid min-h-screen place-items-center p-4">
@@ -51,6 +51,6 @@ export class ControlErrorBoundary extends Component<
           </button>
         </section>
       </main>
-    );
+    )
   }
 }

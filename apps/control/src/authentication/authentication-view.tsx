@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
-import { IconLock, IconShieldCheck } from '@tabler/icons-react';
-import { useTranslation } from 'react-i18next';
+import { useState, type FormEvent } from "react"
+import { IconLock, IconShieldCheck } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 import {
   Alert,
   AlertDescription,
@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
   Spinner,
-} from '@/components/ui';
+} from "@/components/ui"
 
 export function AuthenticationView({
   mode,
@@ -37,47 +37,47 @@ export function AuthenticationView({
   onCompleteMfa,
   onRestart,
 }: {
-  mode: 'login' | 'mfa';
-  busy: boolean;
-  error: string | null;
-  onLogin: (input: { email: string; password: string }) => Promise<void>;
+  mode: "login" | "mfa"
+  busy: boolean
+  error: string | null
+  onLogin: (input: { email: string; password: string }) => Promise<void>
   onCompleteMfa: (input: {
-    method: 'totp' | 'recovery';
-    code: string;
-  }) => Promise<void>;
-  onRestart: () => void;
+    method: "totp" | "recovery"
+    code: string
+  }) => Promise<void>
+  onRestart: () => void
 }) {
-  const { t } = useTranslation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [method, setMethod] = useState<'totp' | 'recovery'>('totp');
-  const [code, setCode] = useState('');
+  const { t } = useTranslation()
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [method, setMethod] = useState<"totp" | "recovery">("totp")
+  const [code, setCode] = useState("")
   const invalidCode =
     code.length > 0 &&
-    (method === 'totp' ? !/^\d{6}$/.test(code) : code.length < 16);
+    (method === "totp" ? !/^\d{6}$/.test(code) : code.length < 16)
 
   const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (mode === 'login') void onLogin({ email, password });
-    else void onCompleteMfa({ method, code });
-  };
+    event.preventDefault()
+    if (mode === "login") void onLogin({ email, password })
+    else void onCompleteMfa({ method, code })
+  }
 
   return (
     <main className="bg-muted/30 grid min-h-screen place-items-center px-4 py-10">
       <Card className="bg-background w-full max-w-md">
         <CardHeader>
           <div className="bg-foreground text-background mb-3 grid size-10 place-items-center rounded-lg">
-            {mode === 'login' ? <IconLock /> : <IconShieldCheck />}
+            {mode === "login" ? <IconLock /> : <IconShieldCheck />}
           </div>
           <CardTitle role="heading" aria-level={1}>
-            {mode === 'login'
-              ? t('authentication.title.signIn')
-              : t('authentication.title.verify')}
+            {mode === "login"
+              ? t("authentication.title.signIn")
+              : t("authentication.title.verify")}
           </CardTitle>
           <CardDescription>
-            {mode === 'login'
-              ? t('authentication.description.signIn')
-              : t('authentication.description.verify')}
+            {mode === "login"
+              ? t("authentication.description.signIn")
+              : t("authentication.description.verify")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={submit}>
@@ -85,15 +85,15 @@ export function AuthenticationView({
             <FieldGroup>
               {error !== null && (
                 <Alert variant="destructive" role="alert">
-                  <AlertTitle>{t('authentication.attention')}</AlertTitle>
+                  <AlertTitle>{t("authentication.attention")}</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              {mode === 'login' ? (
+              {mode === "login" ? (
                 <>
                   <Field>
                     <FieldLabel htmlFor="control-email">
-                      {t('authentication.email')}
+                      {t("authentication.email")}
                     </FieldLabel>
                     <Input
                       id="control-email"
@@ -106,7 +106,7 @@ export function AuthenticationView({
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="control-password">
-                      {t('authentication.password')}
+                      {t("authentication.password")}
                     </FieldLabel>
                     <Input
                       id="control-password"
@@ -123,13 +123,13 @@ export function AuthenticationView({
                 <>
                   <Field>
                     <FieldLabel htmlFor="control-mfa-method">
-                      {t('authentication.verificationMethod')}
+                      {t("authentication.verificationMethod")}
                     </FieldLabel>
                     <Select
                       value={method}
                       onValueChange={(value) => {
-                        setMethod(value as 'totp' | 'recovery');
-                        setCode('');
+                        setMethod(value as "totp" | "recovery")
+                        setCode("")
                       }}
                     >
                       <SelectTrigger id="control-mfa-method">
@@ -138,10 +138,10 @@ export function AuthenticationView({
                       <SelectContent>
                         <SelectGroup>
                           <SelectItem value="totp">
-                            {t('authentication.authenticatorCode')}
+                            {t("authentication.authenticatorCode")}
                           </SelectItem>
                           <SelectItem value="recovery">
-                            {t('authentication.recoveryCode')}
+                            {t("authentication.recoveryCode")}
                           </SelectItem>
                         </SelectGroup>
                       </SelectContent>
@@ -149,11 +149,11 @@ export function AuthenticationView({
                   </Field>
                   <Field data-invalid={invalidCode}>
                     <FieldLabel htmlFor="control-mfa-code">
-                      {method === 'totp'
-                        ? t('authentication.sixDigitCode')
-                        : t('authentication.recoveryCode')}
+                      {method === "totp"
+                        ? t("authentication.sixDigitCode")
+                        : t("authentication.recoveryCode")}
                     </FieldLabel>
-                    {method === 'totp' ? (
+                    {method === "totp" ? (
                       <InputOTP
                         id="control-mfa-code"
                         maxLength={6}
@@ -178,9 +178,9 @@ export function AuthenticationView({
                     )}
                     {invalidCode && (
                       <FieldError>
-                        {method === 'totp'
-                          ? t('authentication.invalidSixDigitCode')
-                          : t('authentication.invalidRecoveryCode')}
+                        {method === "totp"
+                          ? t("authentication.invalidSixDigitCode")
+                          : t("authentication.invalidRecoveryCode")}
                       </FieldError>
                     )}
                   </Field>
@@ -194,17 +194,17 @@ export function AuthenticationView({
               className="w-full"
               disabled={
                 busy ||
-                (mode === 'login'
+                (mode === "login"
                   ? email.length === 0 || password.length < 8
                   : code.length === 0 || invalidCode)
               }
             >
               {busy && <Spinner data-icon="inline-start" />}
-              {mode === 'login'
-                ? t('authentication.actions.signIn')
-                : t('authentication.actions.verifyAndContinue')}
+              {mode === "login"
+                ? t("authentication.actions.signIn")
+                : t("authentication.actions.verifyAndContinue")}
             </Button>
-            {mode === 'mfa' && (
+            {mode === "mfa" && (
               <Button
                 type="button"
                 variant="ghost"
@@ -212,12 +212,12 @@ export function AuthenticationView({
                 disabled={busy}
                 onClick={onRestart}
               >
-                {t('authentication.actions.backToSignIn')}
+                {t("authentication.actions.backToSignIn")}
               </Button>
             )}
           </CardFooter>
         </form>
       </Card>
     </main>
-  );
+  )
 }

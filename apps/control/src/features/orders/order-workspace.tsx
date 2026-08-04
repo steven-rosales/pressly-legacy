@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import type { TFunction } from 'i18next';
-import { useTranslation } from 'react-i18next';
-import { formatInstant, instantFromDate } from '@pressly/time';
+import { useCallback, useEffect, useState, type FormEvent } from "react"
+import type { TFunction } from "i18next"
+import { useTranslation } from "react-i18next"
+import { formatInstant, instantFromDate } from "@pressly/time"
 import {
   IconAlertTriangle,
   IconChevronLeft,
@@ -10,7 +10,7 @@ import {
   IconPlus,
   IconRefresh,
   IconSearch,
-} from '@tabler/icons-react';
+} from "@tabler/icons-react"
 import {
   Alert,
   AlertDescription,
@@ -50,24 +50,24 @@ import {
   TableHeader,
   TableRow,
   WorkspaceSectionHeading,
-} from '@/components/ui';
-import { controlErrorMessage } from '@/i18n/control-error-message';
-import type { ControlAuthenticatedSession } from '@/authentication/control-session';
-import type { ControlCustomerApi } from '@/features/customers/customer-api';
-import type { ControlCustomer } from '@/features/customers/customer-model';
-import type { ControlOrderApi } from './order-api';
-import { OrderForm } from './order-form';
+} from "@/components/ui"
+import { controlErrorMessage } from "@/i18n/control-error-message"
+import type { ControlAuthenticatedSession } from "@/authentication/control-session"
+import type { ControlCustomerApi } from "@/features/customers/customer-api"
+import type { ControlCustomer } from "@/features/customers/customer-model"
+import type { ControlOrderApi } from "./order-api"
+import { OrderForm } from "./order-form"
 import type {
   ControlOrder,
   ControlOrderDetail,
   ControlOrderPage,
   OrderState,
-} from './order-model';
+} from "./order-model"
 
-type StateFilter = 'all' | OrderState;
-type Drawer = { mode: 'create' } | { mode: 'detail'; orderId: string } | null;
+type StateFilter = "all" | OrderState
+type Drawer = { mode: "create" } | { mode: "detail"; orderId: string } | null
 
-const emptyPage: ControlOrderPage = { items: [], nextCursor: null };
+const emptyPage: ControlOrderPage = { items: [], nextCursor: null }
 
 const errorMessage = (
   error: unknown,
@@ -77,7 +77,7 @@ const errorMessage = (
 ) =>
   controlErrorMessage(error, t, fallback, {
     conflict: conflictMessage,
-  });
+  })
 
 const customerLine = (order: ControlOrder, unresolvedCustomer: string) =>
   [
@@ -85,10 +85,10 @@ const customerLine = (order: ControlOrder, unresolvedCustomer: string) =>
     order.customer.phone ?? order.customer.email,
   ]
     .filter(Boolean)
-    .join(' · ');
+    .join(" · ")
 
 const money = (
-  locale: 'en-US' | 'es-US',
+  locale: "en-US" | "es-US",
   currency: string,
   cents: number | null,
   notRecorded: string,
@@ -96,104 +96,104 @@ const money = (
   cents === null
     ? notRecorded
     : new Intl.NumberFormat(locale, {
-        style: 'currency',
+        style: "currency",
         currency,
-      }).format(cents / 100);
+      }).format(cents / 100)
 
 export function OrderWorkspace({
   api,
   customersApi,
   session,
 }: {
-  api: ControlOrderApi;
-  customersApi: ControlCustomerApi;
-  session: ControlAuthenticatedSession;
+  api: ControlOrderApi
+  customersApi: ControlCustomerApi
+  session: ControlAuthenticatedSession
 }) {
-  const { t, i18n } = useTranslation();
-  const locale: 'en-US' | 'es-US' =
-    i18n.resolvedLanguage?.startsWith('es') === true ? 'es-US' : 'en-US';
+  const { t, i18n } = useTranslation()
+  const locale: "en-US" | "es-US" =
+    i18n.resolvedLanguage?.startsWith("es") === true ? "es-US" : "en-US"
   const stateLabel: Readonly<Record<OrderState, string>> = {
-    open: t('orders.states.open'),
-    completed: t('orders.states.completed'),
-    canceled: t('orders.states.canceled'),
-  };
+    open: t("orders.states.open"),
+    completed: t("orders.states.completed"),
+    canceled: t("orders.states.canceled"),
+  }
   const orderTitle = (order: ControlOrder) =>
-    t('orders.orderTitle', {
+    t("orders.orderTitle", {
       number: order.displayNumber ?? order.id.slice(0, 8).toUpperCase(),
-    });
+    })
   const orderCustomerLine = (order: ControlOrder) =>
-    customerLine(order, t('orders.customerNotResolved'));
+    customerLine(order, t("orders.customerNotResolved"))
   const formatMoney = (currency: string, cents: number | null) =>
-    money(locale, currency, cents, t('orders.common.notRecorded'));
-  const canWrite = session.access.capabilities.includes('orders:write');
-  const [searchDraft, setSearchDraft] = useState('');
-  const [query, setQuery] = useState('');
-  const [stateFilter, setStateFilter] = useState<StateFilter>('open');
+    money(locale, currency, cents, t("orders.common.notRecorded"))
+  const canWrite = session.access.capabilities.includes("orders:write")
+  const [searchDraft, setSearchDraft] = useState("")
+  const [query, setQuery] = useState("")
+  const [stateFilter, setStateFilter] = useState<StateFilter>("open")
   const [locationId, setLocationId] = useState<string | null>(
     session.access.selectedLocationId,
-  );
+  )
   const [cursorStack, setCursorStack] = useState<readonly (string | null)[]>([
     null,
-  ]);
-  const cursor = cursorStack.at(-1) ?? null;
-  const [page, setPage] = useState<ControlOrderPage>(emptyPage);
-  const [customers, setCustomers] = useState<readonly ControlCustomer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [listError, setListError] = useState<string | null>(null);
-  const [refreshVersion, setRefreshVersion] = useState(0);
-  const [drawer, setDrawer] = useState<Drawer>(null);
-  const [detail, setDetail] = useState<ControlOrderDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [writeBusy, setWriteBusy] = useState(false);
-  const [writeError, setWriteError] = useState<string | null>(null);
+  ])
+  const cursor = cursorStack.at(-1) ?? null
+  const [page, setPage] = useState<ControlOrderPage>(emptyPage)
+  const [customers, setCustomers] = useState<readonly ControlCustomer[]>([])
+  const [loading, setLoading] = useState(true)
+  const [listError, setListError] = useState<string | null>(null)
+  const [refreshVersion, setRefreshVersion] = useState(0)
+  const [drawer, setDrawer] = useState<Drawer>(null)
+  const [detail, setDetail] = useState<ControlOrderDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [writeBusy, setWriteBusy] = useState(false)
+  const [writeError, setWriteError] = useState<string | null>(null)
 
   const load = useCallback(
     () =>
       Promise.all([
         api.list({
           query,
-          state: stateFilter === 'all' ? null : stateFilter,
+          state: stateFilter === "all" ? null : stateFilter,
           locationId,
           cursor,
         }),
         customersApi.list({
-          query: '',
+          query: "",
           active: true,
           cursor: null,
           limit: 100,
         }),
       ])
         .then(([ordersPage, customerPage]) => {
-          setPage(ordersPage);
-          setCustomers(customerPage.items);
-          setListError(null);
+          setPage(ordersPage)
+          setCustomers(customerPage.items)
+          setListError(null)
         })
         .catch((error: unknown) => {
           setListError(
             errorMessage(
               error,
               t,
-              t('orders.errors.loadList'),
-              t('orders.errors.conflict'),
+              t("orders.errors.loadList"),
+              t("orders.errors.conflict"),
             ),
-          );
+          )
         })
         .finally(() => setLoading(false)),
     [api, cursor, customersApi, locationId, query, stateFilter, t],
-  );
+  )
 
   useEffect(() => {
-    void load();
-  }, [load, refreshVersion]);
+    void load()
+  }, [load, refreshVersion])
 
   useEffect(() => {
-    if (drawer?.mode !== 'detail') return;
-    let active = true;
+    if (drawer?.mode !== "detail") return
+    let active = true
 
     void api
       .get(drawer.orderId)
       .then((order) => {
-        if (active) setDetail(order);
+        if (active) setDetail(order)
       })
       .catch((error: unknown) => {
         if (active)
@@ -201,77 +201,77 @@ export function OrderWorkspace({
             errorMessage(
               error,
               t,
-              t('orders.errors.loadDetail'),
-              t('orders.errors.conflict'),
+              t("orders.errors.loadDetail"),
+              t("orders.errors.conflict"),
             ),
-          );
+          )
       })
       .finally(() => {
-        if (active) setDetailLoading(false);
-      });
+        if (active) setDetailLoading(false)
+      })
 
     return () => {
-      active = false;
-    };
-  }, [api, drawer, t]);
+      active = false
+    }
+  }, [api, drawer, t])
 
-  const resetPaging = () => setCursorStack([null]);
+  const resetPaging = () => setCursorStack([null])
   const closeDrawer = () => {
-    if (writeBusy) return;
-    setDrawer(null);
-    setDetail(null);
-    setWriteError(null);
-  };
+    if (writeBusy) return
+    setDrawer(null)
+    setDetail(null)
+    setWriteError(null)
+  }
 
   const openCreate = () => {
-    setDetail(null);
-    setWriteError(null);
-    setDrawer({ mode: 'create' });
-  };
+    setDetail(null)
+    setWriteError(null)
+    setDrawer({ mode: "create" })
+  }
 
   const openDetail = (orderId: string) => {
-    setDetail(null);
-    setDetailLoading(true);
-    setWriteError(null);
-    setDrawer({ mode: 'detail', orderId });
-  };
+    setDetail(null)
+    setDetailLoading(true)
+    setWriteError(null)
+    setDrawer({ mode: "detail", orderId })
+  }
 
   const refresh = () => {
-    setLoading(true);
-    setListError(null);
-    setRefreshVersion((current) => current + 1);
-  };
+    setLoading(true)
+    setListError(null)
+    setRefreshVersion((current) => current + 1)
+  }
 
   const applySearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    resetPaging();
-    setQuery(searchDraft.trim());
-  };
+    event.preventDefault()
+    resetPaging()
+    setQuery(searchDraft.trim())
+  }
 
   const submitOrder: React.ComponentProps<
     typeof OrderForm
-  >['onSubmit'] = async (submission) => {
-    setWriteBusy(true);
-    setWriteError(null);
+  >["onSubmit"] = async (submission) => {
+    setWriteBusy(true)
+    setWriteError(null)
     try {
-      if (submission.mode === 'create') await api.create(submission.value);
-      else await api.correct(submission.value);
-      setDrawer(null);
-      resetPaging();
-      setRefreshVersion((current) => current + 1);
+      if (submission.mode === "create") await api.create(submission.value)
+      else await api.correct(submission.value)
+      setDrawer(null)
+      resetPaging()
+      setRefreshVersion((current) => current + 1)
     } catch (error) {
       setWriteError(
         errorMessage(
           error,
           t,
-          t('orders.errors.save'),
-          t('orders.errors.conflict'),
+          t("orders.errors.save"),
+          t("orders.errors.conflict"),
         ),
-      );
+      )
     } finally {
-      setWriteBusy(false);
+      setWriteBusy(false)
     }
-  };
+  }
 
   const searchCustomers = async (customerQuery: string) => {
     const customerPage = await customersApi.list({
@@ -279,48 +279,48 @@ export function OrderWorkspace({
       active: true,
       cursor: null,
       limit: 100,
-    });
-    return customerPage.items;
-  };
+    })
+    return customerPage.items
+  }
 
   const timezoneFor = (order: ControlOrder) =>
     session.access.locations.find(
       ({ id }) => id === order.fulfillment.locationId,
-    )?.timezone ?? 'America/New_York';
+    )?.timezone ?? "America/New_York"
 
   const locationName = (order: ControlOrder) =>
     session.access.locations.find(
       ({ id }) => id === order.fulfillment.locationId,
-    )?.name ?? t('orders.assignedLocation');
+    )?.name ?? t("orders.assignedLocation")
 
   const dueLabel = (order: ControlOrder) =>
     formatInstant(timezoneFor(order), instantFromDate(new Date(order.dueAt)), {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
       locale,
-    });
+    })
 
   const weightLabel = (order: ControlOrder) =>
     order.fulfillment.estimatedWeightLbs === null
-      ? t('orders.weight.notEstimated')
-      : t('orders.weight.estimated', {
+      ? t("orders.weight.notEstimated")
+      : t("orders.weight.estimated", {
           value: order.fulfillment.estimatedWeightLbs,
-        });
+        })
 
   const balanceLabel = (order: ControlOrder) =>
     order.balanceDueCents === null
-      ? t('orders.balance.notRecorded')
-      : t('orders.balance.due', {
+      ? t("orders.balance.notRecorded")
+      : t("orders.balance.due", {
           amount: formatMoney(order.currency, order.balanceDueCents),
-        });
+        })
 
   const reviewLabel = (order: ControlOrder) =>
-    t('orders.actions.reviewOrder', {
+    t("orders.actions.reviewOrder", {
       order: orderTitle(order),
-      customer: order.customer.displayName ?? t('orders.customerNotResolved'),
-    });
+      customer: order.customer.displayName ?? t("orders.customerNotResolved"),
+    })
 
   return (
     <section
@@ -329,8 +329,8 @@ export function OrderWorkspace({
     >
       <WorkspaceSectionHeading
         titleId="commercial-orders-title"
-        title={t('orders.workspace.title')}
-        description={t('orders.workspace.description')}
+        title={t("orders.workspace.title")}
+        description={t("orders.workspace.description")}
         action={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -341,7 +341,7 @@ export function OrderWorkspace({
               disabled={loading}
             >
               <IconRefresh data-icon="inline-start" />
-              {t('orders.actions.refresh')}
+              {t("orders.actions.refresh")}
             </Button>
             {canWrite && (
               <Button
@@ -351,7 +351,7 @@ export function OrderWorkspace({
                 disabled={customers.length === 0}
               >
                 <IconPlus data-icon="inline-start" />
-                {t('orders.actions.new')}
+                {t("orders.actions.new")}
               </Button>
             )}
           </div>
@@ -361,9 +361,9 @@ export function OrderWorkspace({
       {canWrite && !loading && customers.length === 0 && (
         <Alert>
           <IconAlertTriangle />
-          <AlertTitle>{t('orders.customerRequired.title')}</AlertTitle>
+          <AlertTitle>{t("orders.customerRequired.title")}</AlertTitle>
           <AlertDescription>
-            {t('orders.customerRequired.description')}
+            {t("orders.customerRequired.description")}
           </AlertDescription>
         </Alert>
       )}
@@ -376,7 +376,7 @@ export function OrderWorkspace({
           >
             <Field className="xl:max-w-xl">
               <FieldLabel htmlFor="order-search">
-                {t('orders.search.label')}
+                {t("orders.search.label")}
               </FieldLabel>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                 <div className="relative flex-1">
@@ -384,25 +384,25 @@ export function OrderWorkspace({
                   <Input
                     id="order-search"
                     className="h-11 pl-9"
-                    placeholder={t('orders.search.placeholder')}
+                    placeholder={t("orders.search.placeholder")}
                     value={searchDraft}
                     onChange={(event) => setSearchDraft(event.target.value)}
                   />
                 </div>
                 <Button type="submit" variant="outline" className="h-11">
-                  {t('orders.actions.search')}
+                  {t("orders.actions.search")}
                 </Button>
               </div>
             </Field>
             <Field>
               <FieldLabel htmlFor="order-state-filter">
-                {t('orders.filters.stateLabel')}
+                {t("orders.filters.stateLabel")}
               </FieldLabel>
               <Select
                 value={stateFilter}
                 onValueChange={(next: StateFilter) => {
-                  setStateFilter(next);
-                  resetPaging();
+                  setStateFilter(next)
+                  resetPaging()
                 }}
               >
                 <SelectTrigger id="order-state-filter" className="h-11 w-full">
@@ -411,16 +411,16 @@ export function OrderWorkspace({
                 <SelectContent>
                   <SelectGroup>
                     <SelectItem value="open">
-                      {t('orders.filters.open')}
+                      {t("orders.filters.open")}
                     </SelectItem>
                     <SelectItem value="completed">
-                      {t('orders.filters.completed')}
+                      {t("orders.filters.completed")}
                     </SelectItem>
                     <SelectItem value="canceled">
-                      {t('orders.filters.canceled')}
+                      {t("orders.filters.canceled")}
                     </SelectItem>
                     <SelectItem value="all">
-                      {t('orders.filters.allStates')}
+                      {t("orders.filters.allStates")}
                     </SelectItem>
                   </SelectGroup>
                 </SelectContent>
@@ -428,13 +428,13 @@ export function OrderWorkspace({
             </Field>
             <Field>
               <FieldLabel htmlFor="order-location-filter">
-                {t('orders.form.location')}
+                {t("orders.form.location")}
               </FieldLabel>
               <Select
-                value={locationId ?? 'all'}
+                value={locationId ?? "all"}
                 onValueChange={(next) => {
-                  setLocationId(next === 'all' ? null : next);
-                  resetPaging();
+                  setLocationId(next === "all" ? null : next)
+                  resetPaging()
                 }}
               >
                 <SelectTrigger
@@ -446,7 +446,7 @@ export function OrderWorkspace({
                 <SelectContent>
                   <SelectGroup>
                     <SelectItem value="all">
-                      {t('orders.filters.allLocations')}
+                      {t("orders.filters.allLocations")}
                     </SelectItem>
                     {session.access.locations.map((location) => (
                       <SelectItem key={location.id} value={location.id}>
@@ -464,18 +464,18 @@ export function OrderWorkspace({
       {listError !== null && (
         <Alert variant="destructive">
           <IconAlertTriangle />
-          <AlertTitle>{t('orders.errors.listTitle')}</AlertTitle>
+          <AlertTitle>{t("orders.errors.listTitle")}</AlertTitle>
           <AlertDescription>{listError}</AlertDescription>
         </Alert>
       )}
 
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>{t('orders.list.title')}</CardTitle>
+          <CardTitle>{t("orders.list.title")}</CardTitle>
           <CardDescription>
             {query.length > 0
-              ? t('orders.list.showingMatches', { query })
-              : t('orders.list.description')}
+              ? t("orders.list.showingMatches", { query })
+              : t("orders.list.description")}
           </CardDescription>
         </CardHeader>
         {loading && page.items.length === 0 ? (
@@ -484,9 +484,9 @@ export function OrderWorkspace({
               <EmptyMedia variant="icon">
                 <Spinner />
               </EmptyMedia>
-              <EmptyTitle>{t('orders.loading.listTitle')}</EmptyTitle>
+              <EmptyTitle>{t("orders.loading.listTitle")}</EmptyTitle>
               <EmptyDescription>
-                {t('orders.loading.listDescription')}
+                {t("orders.loading.listDescription")}
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -496,16 +496,16 @@ export function OrderWorkspace({
               <EmptyMedia variant="icon">
                 <IconPackage />
               </EmptyMedia>
-              <EmptyTitle>{t('orders.empty.title')}</EmptyTitle>
+              <EmptyTitle>{t("orders.empty.title")}</EmptyTitle>
               <EmptyDescription>
-                {t('orders.empty.description')}
+                {t("orders.empty.description")}
               </EmptyDescription>
             </EmptyHeader>
             {canWrite && customers.length > 0 && (
               <EmptyContent>
                 <Button onClick={openCreate}>
                   <IconPlus data-icon="inline-start" />
-                  {t('orders.actions.new')}
+                  {t("orders.actions.new")}
                 </Button>
               </EmptyContent>
             )}
@@ -519,12 +519,12 @@ export function OrderWorkspace({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t('orders.table.orderCustomer')}</TableHead>
-                    <TableHead>{t('orders.filters.stateLabel')}</TableHead>
-                    <TableHead>{t('orders.table.due')}</TableHead>
-                    <TableHead>{t('orders.table.fulfillment')}</TableHead>
-                    <TableHead>{t('orders.table.amount')}</TableHead>
-                    <TableHead>{t('orders.table.review')}</TableHead>
+                    <TableHead>{t("orders.table.orderCustomer")}</TableHead>
+                    <TableHead>{t("orders.filters.stateLabel")}</TableHead>
+                    <TableHead>{t("orders.table.due")}</TableHead>
+                    <TableHead>{t("orders.table.fulfillment")}</TableHead>
+                    <TableHead>{t("orders.table.amount")}</TableHead>
+                    <TableHead>{t("orders.table.review")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -539,7 +539,7 @@ export function OrderWorkspace({
                       <TableCell>
                         <Badge
                           variant={
-                            order.state === 'open' ? 'secondary' : 'outline'
+                            order.state === "open" ? "secondary" : "outline"
                           }
                         >
                           {stateLabel[order.state]}
@@ -568,7 +568,7 @@ export function OrderWorkspace({
                           aria-label={reviewLabel(order)}
                           onClick={() => openDetail(order.id)}
                         >
-                          {t('orders.actions.review')}
+                          {t("orders.actions.review")}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -596,7 +596,7 @@ export function OrderWorkspace({
                     </div>
                     <Badge
                       className="shrink-0"
-                      variant={order.state === 'open' ? 'secondary' : 'outline'}
+                      variant={order.state === "open" ? "secondary" : "outline"}
                     >
                       {stateLabel[order.state]}
                     </Badge>
@@ -604,13 +604,13 @@ export function OrderWorkspace({
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                     <div>
                       <dt className="text-muted-foreground text-xs">
-                        {t('orders.table.due')}
+                        {t("orders.table.due")}
                       </dt>
                       <dd className="mt-0.5 font-medium">{dueLabel(order)}</dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground text-xs">
-                        {t('orders.table.amount')}
+                        {t("orders.table.amount")}
                       </dt>
                       <dd className="mt-0.5 font-medium">
                         {formatMoney(order.currency, order.totalAmountCents)}
@@ -621,7 +621,7 @@ export function OrderWorkspace({
                     </div>
                     <div className="col-span-2">
                       <dt className="text-muted-foreground text-xs">
-                        {t('orders.table.fulfillment')}
+                        {t("orders.table.fulfillment")}
                       </dt>
                       <dd className="mt-0.5 font-medium">
                         {locationName(order)}
@@ -638,14 +638,14 @@ export function OrderWorkspace({
                     aria-label={reviewLabel(order)}
                     onClick={() => openDetail(order.id)}
                   >
-                    {t('orders.actions.review')}
+                    {t("orders.actions.review")}
                   </Button>
                 </article>
               ))}
             </div>
             <div className="flex flex-col gap-3 border-t p-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-muted-foreground text-sm">
-                {t('orders.pagination.page', { page: cursorStack.length })}
+                {t("orders.pagination.page", { page: cursorStack.length })}
               </p>
               <div className="grid grid-cols-2 gap-2 sm:flex">
                 <Button
@@ -659,7 +659,7 @@ export function OrderWorkspace({
                   }
                 >
                   <IconChevronLeft data-icon="inline-start" />
-                  {t('orders.actions.previous')}
+                  {t("orders.actions.previous")}
                 </Button>
                 <Button
                   type="button"
@@ -669,13 +669,10 @@ export function OrderWorkspace({
                   disabled={page.nextCursor === null || loading}
                   onClick={() => {
                     if (page.nextCursor !== null)
-                      setCursorStack((current) => [
-                        ...current,
-                        page.nextCursor,
-                      ]);
+                      setCursorStack((current) => [...current, page.nextCursor])
                   }}
                 >
-                  {t('orders.actions.next')}
+                  {t("orders.actions.next")}
                   <IconChevronRight data-icon="inline-end" />
                 </Button>
               </div>
@@ -689,12 +686,12 @@ export function OrderWorkspace({
         onOpenChange={(open) => !open && closeDrawer()}
       >
         <SheetContent size="workspace">
-          {drawer?.mode === 'create' ? (
+          {drawer?.mode === "create" ? (
             <>
               <SheetHeader>
-                <SheetTitle>{t('orders.create.title')}</SheetTitle>
+                <SheetTitle>{t("orders.create.title")}</SheetTitle>
                 <SheetDescription>
-                  {t('orders.create.description')}
+                  {t("orders.create.description")}
                 </SheetDescription>
               </SheetHeader>
               <OrderForm
@@ -714,13 +711,13 @@ export function OrderWorkspace({
               <SheetHeader>
                 <SheetTitle>
                   {detail === null
-                    ? t('orders.detail.fallbackTitle')
+                    ? t("orders.detail.fallbackTitle")
                     : orderTitle(detail)}
                 </SheetTitle>
                 <SheetDescription>
                   {canWrite
-                    ? t('orders.detail.editDescription')
-                    : t('orders.detail.readDescription')}
+                    ? t("orders.detail.editDescription")
+                    : t("orders.detail.readDescription")}
                 </SheetDescription>
               </SheetHeader>
               {detailLoading ? (
@@ -729,31 +726,31 @@ export function OrderWorkspace({
                     <EmptyMedia variant="icon">
                       <Spinner />
                     </EmptyMedia>
-                    <EmptyTitle>{t('orders.loading.detailTitle')}</EmptyTitle>
+                    <EmptyTitle>{t("orders.loading.detailTitle")}</EmptyTitle>
                   </EmptyHeader>
                 </Empty>
               ) : detail === null ? (
                 <div className="px-4">
                   <Alert variant="destructive">
-                    <AlertTitle>{t('orders.errors.openTitle')}</AlertTitle>
+                    <AlertTitle>{t("orders.errors.openTitle")}</AlertTitle>
                     <AlertDescription>
-                      {writeError ?? t('orders.errors.openDescription')}
+                      {writeError ?? t("orders.errors.openDescription")}
                     </AlertDescription>
                   </Alert>
                 </div>
               ) : canWrite ? (
                 <>
-                  {detail.state !== 'open' && (
+                  {detail.state !== "open" && (
                     <Alert className="mx-4">
                       <IconAlertTriangle />
                       <AlertTitle>
-                        {t('orders.lifecycleNotice.title', {
+                        {t("orders.lifecycleNotice.title", {
                           state:
                             stateLabel[detail.state].toLocaleLowerCase(locale),
                         })}
                       </AlertTitle>
                       <AlertDescription>
-                        {t('orders.lifecycleNotice.description')}
+                        {t("orders.lifecycleNotice.description")}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -777,38 +774,38 @@ export function OrderWorkspace({
         </SheetContent>
       </Sheet>
     </section>
-  );
+  )
 }
 
 function OrderReadOnly({
   order,
   session,
 }: {
-  order: ControlOrderDetail;
-  session: ControlAuthenticatedSession;
+  order: ControlOrderDetail
+  session: ControlAuthenticatedSession
 }) {
-  const { t, i18n } = useTranslation();
-  const locale: 'en-US' | 'es-US' =
-    i18n.resolvedLanguage?.startsWith('es') === true ? 'es-US' : 'en-US';
-  const state = t(`orders.states.${order.state}`);
-  const notRecorded = t('orders.common.notRecorded');
+  const { t, i18n } = useTranslation()
+  const locale: "en-US" | "es-US" =
+    i18n.resolvedLanguage?.startsWith("es") === true ? "es-US" : "en-US"
+  const state = t(`orders.states.${order.state}`)
+  const notRecorded = t("orders.common.notRecorded")
   const location = session.access.locations.find(
     ({ id }) => id === order.fulfillment.locationId,
-  );
+  )
   return (
     <div className="flex flex-col gap-4 overflow-y-auto px-4">
       <dl className="grid gap-3 sm:grid-cols-2">
         <OrderDatum
-          label={t('orders.form.customer')}
-          value={customerLine(order, t('orders.customerNotResolved'))}
+          label={t("orders.form.customer")}
+          value={customerLine(order, t("orders.customerNotResolved"))}
         />
-        <OrderDatum label={t('orders.filters.stateLabel')} value={state} />
+        <OrderDatum label={t("orders.filters.stateLabel")} value={state} />
         <OrderDatum
-          label={t('orders.form.location')}
-          value={location?.name ?? t('orders.assignedLocation')}
+          label={t("orders.form.location")}
+          value={location?.name ?? t("orders.assignedLocation")}
         />
         <OrderDatum
-          label={t('orders.form.orderTotal')}
+          label={t("orders.form.orderTotal")}
           value={money(
             locale,
             order.currency,
@@ -817,7 +814,7 @@ function OrderReadOnly({
           )}
         />
         <OrderDatum
-          label={t('orders.form.balanceDue')}
+          label={t("orders.form.balanceDue")}
           value={money(
             locale,
             order.currency,
@@ -826,18 +823,18 @@ function OrderReadOnly({
           )}
         />
         <OrderDatum
-          label={t('orders.form.estimatedWeight')}
+          label={t("orders.form.estimatedWeight")}
           value={
             order.fulfillment.estimatedWeightLbs === null
-              ? t('orders.weight.notEstimatedShort')
-              : t('orders.weight.value', {
+              ? t("orders.weight.notEstimatedShort")
+              : t("orders.weight.value", {
                   value: order.fulfillment.estimatedWeightLbs,
                 })
           }
         />
       </dl>
     </div>
-  );
+  )
 }
 
 function OrderDatum({ label, value }: { label: string; value: string }) {
@@ -846,5 +843,5 @@ function OrderDatum({ label, value }: { label: string; value: string }) {
       <dt className="text-muted-foreground text-xs">{label}</dt>
       <dd className="mt-1 font-medium">{value}</dd>
     </div>
-  );
+  )
 }

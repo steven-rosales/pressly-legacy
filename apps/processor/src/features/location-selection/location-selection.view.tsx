@@ -1,5 +1,5 @@
-import type { ProductionLocation } from '@pressly/contracts/production';
-import { useTranslation } from 'react-i18next';
+import type { ProductionLocation } from "@pressly/contracts/production"
+import { useTranslation } from "react-i18next"
 import {
   Select,
   SelectContent,
@@ -7,7 +7,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select"
 
 export function ProductionLocationSelect({
   locations,
@@ -17,14 +17,14 @@ export function ProductionLocationSelect({
   className,
   onValueChange,
 }: {
-  locations: readonly ProductionLocation[];
-  value: string | null;
-  disabled: boolean;
-  triggerId: string;
-  className?: string;
-  onValueChange: (locationId: string) => void;
+  locations: readonly ProductionLocation[]
+  value: string | null
+  disabled: boolean
+  triggerId: string
+  className?: string
+  onValueChange: (locationId: string) => void
 }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   return (
     <Select
       value={value ?? undefined}
@@ -35,9 +35,9 @@ export function ProductionLocationSelect({
         id={triggerId}
         size="sm"
         className={className}
-        aria-label={t('location.productionLocation')}
+        aria-label={t("location.productionLocation")}
       >
-        <SelectValue placeholder={t('location.choosePlaceholder')} />
+        <SelectValue placeholder={t("location.choosePlaceholder")} />
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
@@ -49,5 +49,5 @@ export function ProductionLocationSelect({
         </SelectGroup>
       </SelectContent>
     </Select>
-  );
+  )
 }

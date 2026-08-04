@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense } from "react"
 import {
   Button,
   Card,
@@ -15,62 +15,62 @@ import {
   Spinner,
   WorkspaceSectionHeading,
   type WorkspaceNavigationSection,
-} from '@/components/ui';
-import { IconArrowRight } from '@tabler/icons-react';
-import { useTranslation } from 'react-i18next';
-import type { ControlView } from './control-navigation';
-import type { ControlRuntime } from './control-app';
-import type { ControlAuthenticatedSession } from '@/authentication/control-session';
+} from "@/components/ui"
+import { IconArrowRight } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
+import type { ControlView } from "./control-navigation"
+import type { ControlRuntime } from "./control-app"
+import type { ControlAuthenticatedSession } from "@/authentication/control-session"
 
 const TeamWorkspace = lazy(() =>
-  import('@/features/team/team-workspace').then((module) => ({
+  import("@/features/team/team-workspace").then((module) => ({
     default: module.TeamWorkspace,
   })),
-);
+)
 const SecurityWorkspace = lazy(() =>
-  import('@/features/security/security-workspace').then((module) => ({
+  import("@/features/security/security-workspace").then((module) => ({
     default: module.SecurityWorkspace,
   })),
-);
+)
 const CustomerWorkspace = lazy(() =>
-  import('@/features/customers/customer-workspace').then((module) => ({
+  import("@/features/customers/customer-workspace").then((module) => ({
     default: module.CustomerWorkspace,
   })),
-);
+)
 const OrderWorkspace = lazy(() =>
-  import('@/features/orders/order-workspace').then((module) => ({
+  import("@/features/orders/order-workspace").then((module) => ({
     default: module.OrderWorkspace,
   })),
-);
+)
 const ConfigurationWorkspace = lazy(() =>
-  import('@/features/configuration/configuration-workspace').then((module) => ({
+  import("@/features/configuration/configuration-workspace").then((module) => ({
     default: module.ConfigurationWorkspace,
   })),
-);
+)
 
 const homeDescriptionKeys = {
-  home: 'home.description',
-  orders: 'home.cards.orders.description',
-  customers: 'home.cards.customers.description',
-  team: 'home.cards.team.description',
-  security: 'home.cards.security.description',
-  configuration: 'home.cards.configuration.description',
-} as const satisfies Readonly<Record<ControlView, string>>;
+  home: "home.description",
+  orders: "home.cards.orders.description",
+  customers: "home.cards.customers.description",
+  team: "home.cards.team.description",
+  security: "home.cards.security.description",
+  configuration: "home.cards.configuration.description",
+} as const satisfies Readonly<Record<ControlView, string>>
 
 function HomeContent({
   sections,
   onNavigate,
 }: {
-  sections: readonly WorkspaceNavigationSection<ControlView>[];
-  onNavigate: (view: ControlView) => void;
+  sections: readonly WorkspaceNavigationSection<ControlView>[]
+  onNavigate: (view: ControlView) => void
 }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   const destinations = sections.flatMap((section) =>
     section.items.map((item) => ({
       ...item,
       sectionLabel: section.label,
     })),
-  );
+  )
 
   return (
     <section
@@ -79,12 +79,12 @@ function HomeContent({
     >
       <WorkspaceSectionHeading
         titleId="control-overview-title"
-        title={t('home.title')}
-        description={t('home.description')}
+        title={t("home.title")}
+        description={t("home.description")}
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {destinations.map((destination) => {
-          const Icon = destination.icon;
+          const Icon = destination.icon
           return (
             <Card key={destination.id}>
               <CardHeader>
@@ -108,21 +108,21 @@ function HomeContent({
                   type="button"
                   variant="ghost"
                   className="h-11 sm:h-8"
-                  aria-label={t('home.openWorkspaceLabel', {
+                  aria-label={t("home.openWorkspaceLabel", {
                     workspace: destination.label,
                   })}
                   onClick={() => onNavigate(destination.id)}
                 >
-                  {t('home.openWorkspace')}
+                  {t("home.openWorkspace")}
                   <IconArrowRight data-icon="inline-end" />
                 </Button>
               </CardFooter>
             </Card>
-          );
+          )
         })}
       </div>
     </section>
-  );
+  )
 }
 
 export function WorkspaceContent({
@@ -133,29 +133,29 @@ export function WorkspaceContent({
   sections,
   onNavigate,
 }: {
-  view: ControlView;
-  runtime: ControlRuntime;
-  session: ControlAuthenticatedSession;
-  onSessionRefresh: () => Promise<void>;
-  sections: readonly WorkspaceNavigationSection<ControlView>[];
-  onNavigate: (view: ControlView) => void;
+  view: ControlView
+  runtime: ControlRuntime
+  session: ControlAuthenticatedSession
+  onSessionRefresh: () => Promise<void>
+  sections: readonly WorkspaceNavigationSection<ControlView>[]
+  onNavigate: (view: ControlView) => void
 }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
 
-  if (view === 'home')
-    return <HomeContent sections={sections} onNavigate={onNavigate} />;
-  if (view === 'team')
+  if (view === "home")
+    return <HomeContent sections={sections} onNavigate={onNavigate} />
+  if (view === "team")
     return (
       <Suspense
-        fallback={<WorkspaceLoading label={t('workspace.loading.team')} />}
+        fallback={<WorkspaceLoading label={t("workspace.loading.team")} />}
       >
         <TeamWorkspace api={runtime.team} session={session} />
       </Suspense>
-    );
-  if (view === 'security')
+    )
+  if (view === "security")
     return (
       <Suspense
-        fallback={<WorkspaceLoading label={t('workspace.loading.security')} />}
+        fallback={<WorkspaceLoading label={t("workspace.loading.security")} />}
       >
         <SecurityWorkspace
           api={runtime.security}
@@ -163,29 +163,29 @@ export function WorkspaceContent({
           onSessionRefresh={onSessionRefresh}
         />
       </Suspense>
-    );
-  if (view === 'customers')
+    )
+  if (view === "customers")
     return (
       <Suspense
-        fallback={<WorkspaceLoading label={t('workspace.loading.customers')} />}
+        fallback={<WorkspaceLoading label={t("workspace.loading.customers")} />}
       >
         <CustomerWorkspace api={runtime.customers} session={session} />
       </Suspense>
-    );
-  if (view === 'configuration')
+    )
+  if (view === "configuration")
     return (
       <Suspense
         fallback={
-          <WorkspaceLoading label={t('workspace.configuration.title')} />
+          <WorkspaceLoading label={t("workspace.configuration.title")} />
         }
       >
         <ConfigurationWorkspace />
       </Suspense>
-    );
+    )
 
   return (
     <Suspense
-      fallback={<WorkspaceLoading label={t('workspace.loading.orders')} />}
+      fallback={<WorkspaceLoading label={t("workspace.loading.orders")} />}
     >
       <OrderWorkspace
         api={runtime.orders}
@@ -193,11 +193,11 @@ export function WorkspaceContent({
         session={session}
       />
     </Suspense>
-  );
+  )
 }
 
 function WorkspaceLoading({ label }: { label: string }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
 
   return (
     <Empty className="min-h-80 border">
@@ -205,9 +205,9 @@ function WorkspaceLoading({ label }: { label: string }) {
         <Spinner />
         <EmptyTitle>{label}</EmptyTitle>
         <EmptyDescription>
-          {t('workspace.loading.description')}
+          {t("workspace.loading.description")}
         </EmptyDescription>
       </EmptyHeader>
     </Empty>
-  );
+  )
 }

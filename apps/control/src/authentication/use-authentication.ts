@@ -1,159 +1,156 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import {
-  isControlApiError,
-  type ControlAuthenticationApi,
-} from './control-api';
-import type { ControlAuthenticatedSession } from './control-session';
-import { controlErrorMessage } from '@/i18n/control-error-message';
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { isControlApiError, type ControlAuthenticationApi } from "./control-api"
+import type { ControlAuthenticatedSession } from "./control-session"
+import { controlErrorMessage } from "@/i18n/control-error-message"
 
 type AuthenticationState =
-  | Readonly<{ status: 'restoring'; error: string | null }>
-  | Readonly<{ status: 'unauthenticated'; error: string | null }>
-  | Readonly<{ status: 'mfa'; error: string | null }>
+  | Readonly<{ status: "restoring"; error: string | null }>
+  | Readonly<{ status: "unauthenticated"; error: string | null }>
+  | Readonly<{ status: "mfa"; error: string | null }>
   | Readonly<{
-      status: 'authenticated';
-      error: string | null;
-      session: ControlAuthenticatedSession;
-    }>;
+      status: "authenticated"
+      error: string | null
+      session: ControlAuthenticatedSession
+    }>
 
-const maximumTimeoutMilliseconds = 2_147_000_000;
+const maximumTimeoutMilliseconds = 2_147_000_000
 
 export function useAuthentication(api: ControlAuthenticationApi) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   const [state, setState] = useState<AuthenticationState>({
-    status: 'restoring',
+    status: "restoring",
     error: null,
-  });
-  const [busy, setBusy] = useState(false);
-  const mounted = useRef(true);
+  })
+  const [busy, setBusy] = useState(false)
+  const mounted = useRef(true)
 
   useEffect(() => {
-    mounted.current = true;
+    mounted.current = true
     return () => {
-      mounted.current = false;
-    };
-  }, []);
+      mounted.current = false
+    }
+  }, [])
 
   useEffect(() => {
-    let active = true;
+    let active = true
     api
       .restore()
       .then((session) => {
-        if (active) setState({ status: 'authenticated', error: null, session });
+        if (active) setState({ status: "authenticated", error: null, session })
       })
       .catch((error: unknown) => {
-        if (!active) return;
+        if (!active) return
         setState({
-          status: 'unauthenticated',
+          status: "unauthenticated",
           error:
             isControlApiError(error) && error.status === 401
               ? null
               : controlErrorMessage(
                   error,
                   t,
-                  t('authentication.errors.restore'),
+                  t("authentication.errors.restore"),
                 ),
-        });
-      });
+        })
+      })
     return () => {
-      active = false;
-    };
-  }, [api, t]);
+      active = false
+    }
+  }, [api, t])
 
   useEffect(() => {
-    if (state.status !== 'authenticated') return;
-    const remaining = Date.parse(state.session.expiresAt) - Date.now();
+    if (state.status !== "authenticated") return
+    const remaining = Date.parse(state.session.expiresAt) - Date.now()
     const timeout = window.setTimeout(
       () =>
         setState({
-          status: 'unauthenticated',
-          error: t('authentication.errors.sessionExpired'),
+          status: "unauthenticated",
+          error: t("authentication.errors.sessionExpired"),
         }),
       Math.max(0, Math.min(remaining, maximumTimeoutMilliseconds)),
-    );
-    return () => window.clearTimeout(timeout);
-  }, [state, t]);
+    )
+    return () => window.clearTimeout(timeout)
+  }, [state, t])
 
   const login = useCallback(
     async (credentials: { email: string; password: string }) => {
-      setBusy(true);
-      setState({ status: 'unauthenticated', error: null });
+      setBusy(true)
+      setState({ status: "unauthenticated", error: null })
       try {
-        const result = await api.login(credentials);
-        if (!mounted.current) return;
+        const result = await api.login(credentials)
+        if (!mounted.current) return
         setState(
-          result.status === 'authenticated'
-            ? { status: 'authenticated', error: null, session: result }
-            : { status: 'mfa', error: null },
-        );
+          result.status === "authenticated"
+            ? { status: "authenticated", error: null, session: result }
+            : { status: "mfa", error: null },
+        )
       } catch (error) {
-        if (!mounted.current) return;
+        if (!mounted.current) return
         setState({
-          status: 'unauthenticated',
+          status: "unauthenticated",
           error: controlErrorMessage(
             error,
             t,
-            t('authentication.errors.signIn'),
+            t("authentication.errors.signIn"),
           ),
-        });
+        })
       } finally {
-        if (mounted.current) setBusy(false);
+        if (mounted.current) setBusy(false)
       }
     },
     [api, t],
-  );
+  )
 
   const completeMfa = useCallback(
-    async (input: { method: 'totp' | 'recovery'; code: string }) => {
-      setBusy(true);
-      setState({ status: 'mfa', error: null });
+    async (input: { method: "totp" | "recovery"; code: string }) => {
+      setBusy(true)
+      setState({ status: "mfa", error: null })
       try {
-        const session = await api.completeMfa(input);
+        const session = await api.completeMfa(input)
         if (mounted.current)
-          setState({ status: 'authenticated', error: null, session });
+          setState({ status: "authenticated", error: null, session })
       } catch (error) {
         if (mounted.current)
           setState({
-            status: 'mfa',
+            status: "mfa",
             error: controlErrorMessage(
               error,
               t,
-              t('authentication.errors.verifyCode'),
+              t("authentication.errors.verifyCode"),
             ),
-          });
+          })
       } finally {
-        if (mounted.current) setBusy(false);
+        if (mounted.current) setBusy(false)
       }
     },
     [api, t],
-  );
+  )
 
   const logout = useCallback(async () => {
-    setBusy(true);
+    setBusy(true)
     try {
-      await api.logout();
-      if (mounted.current) setState({ status: 'unauthenticated', error: null });
+      await api.logout()
+      if (mounted.current) setState({ status: "unauthenticated", error: null })
     } catch (error) {
-      if (mounted.current && state.status === 'authenticated')
+      if (mounted.current && state.status === "authenticated")
         setState({
           ...state,
           error: controlErrorMessage(
             error,
             t,
-            t('authentication.errors.signOut'),
+            t("authentication.errors.signOut"),
           ),
-        });
+        })
     } finally {
-      if (mounted.current) setBusy(false);
+      if (mounted.current) setBusy(false)
     }
-  }, [api, state, t]);
+  }, [api, state, t])
 
   const refreshSession = useCallback(async () => {
-    const session = await api.restore();
+    const session = await api.restore()
     if (mounted.current)
-      setState({ status: 'authenticated', error: null, session });
-  }, [api]);
+      setState({ status: "authenticated", error: null, session })
+  }, [api])
 
   return {
     state,
@@ -162,6 +159,6 @@ export function useAuthentication(api: ControlAuthenticationApi) {
     completeMfa,
     logout,
     refreshSession,
-    restart: () => setState({ status: 'unauthenticated', error: null }),
-  };
+    restart: () => setState({ status: "unauthenticated", error: null }),
+  }
 }

@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { TFunction } from 'i18next';
-import { useTranslation } from 'react-i18next';
+import { useCallback, useEffect, useMemo, useState } from "react"
+import type { TFunction } from "i18next"
+import { useTranslation } from "react-i18next"
 import {
   IconDots,
   IconMailPlus,
   IconRefresh,
   IconShieldCheck,
   IconUsers,
-} from '@tabler/icons-react';
+} from "@tabler/icons-react"
 import {
   Alert,
   AlertDescription,
@@ -44,89 +44,89 @@ import {
   TableHeader,
   TableRow,
   WorkspaceSectionHeading,
-} from '@/components/ui';
-import { controlErrorMessage } from '@/i18n/control-error-message';
-import type { ControlAuthenticatedSession } from '@/authentication/control-session';
+} from "@/components/ui"
+import { controlErrorMessage } from "@/i18n/control-error-message"
+import type { ControlAuthenticatedSession } from "@/authentication/control-session"
 import {
   InviteTeamMemberSheet,
   OneTimeInvitationSheet,
-} from './team-invitation-workflow';
-import type { ControlTeamApi } from './team-api';
-import { MemberDetailSheet } from './team-member-detail-sheet';
+} from "./team-invitation-workflow"
+import type { ControlTeamApi } from "./team-api"
+import { MemberDetailSheet } from "./team-member-detail-sheet"
 import type {
   WorkforceInvitation,
   WorkforceMember,
   WorkforceRole,
-} from './team-model';
+} from "./team-model"
 
 type TeamState =
-  | { status: 'loading'; members: readonly []; invitations: readonly [] }
+  | { status: "loading"; members: readonly []; invitations: readonly [] }
   | {
-      status: 'ready';
-      members: readonly WorkforceMember[];
-      invitations: readonly WorkforceInvitation[];
+      status: "ready"
+      members: readonly WorkforceMember[]
+      invitations: readonly WorkforceInvitation[]
     }
   | {
-      status: 'error';
-      members: readonly WorkforceMember[];
-      invitations: readonly WorkforceInvitation[];
-      message: string;
-    };
+      status: "error"
+      members: readonly WorkforceMember[]
+      invitations: readonly WorkforceInvitation[]
+      message: string
+    }
 
 type InvitationAction = Readonly<{
-  invitation: WorkforceInvitation;
-  action: 'reissue' | 'revoke';
-}> | null;
+  invitation: WorkforceInvitation
+  action: "reissue" | "revoke"
+}> | null
 
-const formatDate = (value: string, locale: 'en-US' | 'es-US') =>
+const formatDate = (value: string, locale: "en-US" | "es-US") =>
   new Intl.DateTimeFormat(locale, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value))
 
 const roleLabel = (t: TFunction, role: WorkforceRole) => {
-  if (role === 'owner') return t('team.roles.owner');
-  if (role === 'manager') return t('team.roles.manager');
-  return t('team.roles.operator');
-};
+  if (role === "owner") return t("team.roles.owner")
+  if (role === "manager") return t("team.roles.manager")
+  return t("team.roles.operator")
+}
 
 const errorMessage = (error: unknown, fallback: string, t: TFunction) => {
   return controlErrorMessage(error, t, fallback, {
-    conflict: t('team.errors.conflict'),
-  });
-};
+    conflict: t("team.errors.conflict"),
+  })
+}
 
-const stateBadgeVariant = (state: WorkforceMember['state']) =>
-  state === 'active'
-    ? ('secondary' as const)
-    : state === 'suspended'
-      ? ('destructive' as const)
-      : ('outline' as const);
+const stateBadgeVariant = (state: WorkforceMember["state"]) =>
+  state === "active"
+    ? ("secondary" as const)
+    : state === "suspended"
+      ? ("destructive" as const)
+      : ("outline" as const)
 
-const memberStateLabel = (t: TFunction, state: WorkforceMember['state']) =>
-  state === 'active'
-    ? t('team.membershipStates.active')
-    : state === 'suspended'
-      ? t('team.membershipStates.suspended')
-      : t('team.membershipStates.ended');
+const memberStateLabel = (t: TFunction, state: WorkforceMember["state"]) =>
+  state === "active"
+    ? t("team.membershipStates.active")
+    : state === "suspended"
+      ? t("team.membershipStates.suspended")
+      : t("team.membershipStates.ended")
 
 const memberAccessLabel = (t: TFunction, member: WorkforceMember) => {
-  const effective = member.grants.filter((grant) => grant.effective);
+  const effective = member.grants.filter((grant) => grant.effective)
   return effective.length === 0
-    ? t('team.members.noEffectiveAccess')
+    ? t("team.members.noEffectiveAccess")
     : [...new Set(effective.map((grant) => roleLabel(t, grant.role)))].join(
-        ', ',
-      );
-};
+        ", ",
+      )
+}
 
 function InvitationActions({
   invitation,
   onAction,
 }: {
-  invitation: WorkforceInvitation;
-  onAction: (action: Exclude<InvitationAction, null>) => void;
+  invitation: WorkforceInvitation
+  onAction: (action: Exclude<InvitationAction, null>) => void
 }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
 
   return (
     <DropdownMenu>
@@ -135,7 +135,7 @@ function InvitationActions({
           variant="ghost"
           size="icon-sm"
           className="size-11 md:size-7"
-          aria-label={t('team.table.actionsFor', {
+          aria-label={t("team.table.actionsFor", {
             name: invitation.displayName,
           })}
         >
@@ -144,69 +144,69 @@ function InvitationActions({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem
-          onSelect={() => onAction({ invitation, action: 'reissue' })}
+          onSelect={() => onAction({ invitation, action: "reissue" })}
         >
-          {t('team.invitations.replace')}
+          {t("team.invitations.replace")}
         </DropdownMenuItem>
         <DropdownMenuItem
           variant="destructive"
-          onSelect={() => onAction({ invitation, action: 'revoke' })}
+          onSelect={() => onAction({ invitation, action: "revoke" })}
         >
-          {t('team.invitations.revoke')}
+          {t("team.invitations.revoke")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
+  )
 }
 
 export function TeamWorkspace({
   api,
   session,
 }: {
-  api: ControlTeamApi;
-  session: ControlAuthenticatedSession;
+  api: ControlTeamApi
+  session: ControlAuthenticatedSession
 }) {
-  const { t, i18n } = useTranslation();
-  const locale = i18n.resolvedLanguage?.startsWith('es') ? 'es-US' : 'en-US';
+  const { t, i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage?.startsWith("es") ? "es-US" : "en-US"
   const [state, setState] = useState<TeamState>({
-    status: 'loading',
+    status: "loading",
     members: [],
     invitations: [],
-  });
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteBusy, setInviteBusy] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [oneTimeLink, setOneTimeLink] = useState<string | null>(null);
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  })
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteBusy, setInviteBusy] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [oneTimeLink, setOneTimeLink] = useState<string | null>(null)
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [invitationAction, setInvitationAction] =
-    useState<InvitationAction>(null);
-  const [actionBusy, setActionBusy] = useState(false);
-  const canWrite = session.access.capabilities.includes('team:write');
+    useState<InvitationAction>(null)
+  const [actionBusy, setActionBusy] = useState(false)
+  const canWrite = session.access.capabilities.includes("team:write")
 
   const load = useCallback(async () => {
     try {
       const [members, invitations] = await Promise.all([
         api.listMembers(),
         api.listInvitations(),
-      ]);
+      ])
       setState({
-        status: 'ready',
+        status: "ready",
         members: members.members,
         invitations: invitations.invitations,
-      });
+      })
     } catch (loadError) {
       setState((current) => ({
-        status: 'error',
+        status: "error",
         members: current.members,
         invitations: current.invitations,
-        message: errorMessage(loadError, t('team.errors.load'), t),
-      }));
+        message: errorMessage(loadError, t("team.errors.load"), t),
+      }))
     }
-  }, [api, t]);
+  }, [api, t])
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load()
+  }, [load])
 
   const locationNames = useMemo(
     () =>
@@ -217,61 +217,61 @@ export function TeamWorkspace({
         ]),
       ),
     [session.access.locations],
-  );
+  )
 
   const showLink = (token: string) => {
-    const link = new URL(window.location.origin);
-    link.hash = new URLSearchParams({ invite: token }).toString();
-    setOneTimeLink(link.href);
-  };
+    const link = new URL(window.location.origin)
+    link.hash = new URLSearchParams({ invite: token }).toString()
+    setOneTimeLink(link.href)
+  }
 
   const issue = async (input: {
-    displayName: string;
-    email: string;
-    intendedRole: WorkforceRole;
-    intendedLocationId: string | null;
+    displayName: string
+    email: string
+    intendedRole: WorkforceRole
+    intendedLocationId: string | null
   }) => {
-    setInviteBusy(true);
-    setInviteError(null);
+    setInviteBusy(true)
+    setInviteError(null)
     try {
-      const result = await api.issueInvitation(input);
-      await load();
-      if (result.status === 'issued') {
-        setInviteOpen(false);
-        showLink(result.acceptanceToken);
+      const result = await api.issueInvitation(input)
+      await load()
+      if (result.status === "issued") {
+        setInviteOpen(false)
+        showLink(result.acceptanceToken)
       } else {
-        setInviteError(t('team.errors.invitationReplay'));
+        setInviteError(t("team.errors.invitationReplay"))
       }
     } catch (error) {
-      setInviteError(errorMessage(error, t('team.errors.invitationCreate'), t));
+      setInviteError(errorMessage(error, t("team.errors.invitationCreate"), t))
     } finally {
-      setInviteBusy(false);
+      setInviteBusy(false)
     }
-  };
+  }
 
   const confirmInvitationAction = async () => {
-    if (invitationAction === null) return;
-    setActionBusy(true);
+    if (invitationAction === null) return
+    setActionBusy(true)
     try {
-      if (invitationAction.action === 'reissue') {
-        const result = await api.reissueInvitation(invitationAction.invitation);
-        if (result.status === 'issued') showLink(result.acceptanceToken);
+      if (invitationAction.action === "reissue") {
+        const result = await api.reissueInvitation(invitationAction.invitation)
+        if (result.status === "issued") showLink(result.acceptanceToken)
       } else {
-        await api.revokeInvitation(invitationAction.invitation);
+        await api.revokeInvitation(invitationAction.invitation)
       }
-      setInvitationAction(null);
-      await load();
+      setInvitationAction(null)
+      await load()
     } catch (error) {
       setState((current) => ({
-        status: 'error',
+        status: "error",
         members: current.members,
         invitations: current.invitations,
-        message: errorMessage(error, t('team.errors.invitationChange'), t),
-      }));
+        message: errorMessage(error, t("team.errors.invitationChange"), t),
+      }))
     } finally {
-      setActionBusy(false);
+      setActionBusy(false)
     }
-  };
+  }
 
   return (
     <section
@@ -279,19 +279,19 @@ export function TeamWorkspace({
       aria-labelledby="team-workspace-title"
     >
       <WorkspaceSectionHeading
-        title={t('team.workspace.title')}
+        title={t("team.workspace.title")}
         titleId="team-workspace-title"
-        description={t('team.workspace.description')}
+        description={t("team.workspace.description")}
         action={
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               className="h-11 sm:h-8"
               onClick={() => void load()}
-              disabled={state.status === 'loading'}
+              disabled={state.status === "loading"}
             >
               <IconRefresh data-icon="inline-start" />
-              {t('team.common.refresh')}
+              {t("team.common.refresh")}
             </Button>
             {canWrite && (
               <Button
@@ -299,38 +299,38 @@ export function TeamWorkspace({
                 onClick={() => setInviteOpen(true)}
               >
                 <IconMailPlus data-icon="inline-start" />
-                {t('team.invite.action')}
+                {t("team.invite.action")}
               </Button>
             )}
           </div>
         }
       />
 
-      {state.status === 'error' && (
+      {state.status === "error" && (
         <Alert variant="destructive">
-          <AlertTitle>{t('team.workspace.attention')}</AlertTitle>
+          <AlertTitle>{t("team.workspace.attention")}</AlertTitle>
           <AlertDescription>{state.message}</AlertDescription>
         </Alert>
       )}
       {!canWrite && (
         <Alert>
           <IconShieldCheck />
-          <AlertTitle>{t('team.workspace.readOnlyTitle')}</AlertTitle>
+          <AlertTitle>{t("team.workspace.readOnlyTitle")}</AlertTitle>
           <AlertDescription>
-            {t('team.workspace.readOnlyDescription')}
+            {t("team.workspace.readOnlyDescription")}
           </AlertDescription>
         </Alert>
       )}
 
-      {state.status === 'loading' ? (
+      {state.status === "loading" ? (
         <Empty className="min-h-72 border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <Spinner />
             </EmptyMedia>
-            <EmptyTitle>{t('team.workspace.loadingTitle')}</EmptyTitle>
+            <EmptyTitle>{t("team.workspace.loadingTitle")}</EmptyTitle>
             <EmptyDescription>
-              {t('team.workspace.loadingDescription')}
+              {t("team.workspace.loadingDescription")}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -339,9 +339,9 @@ export function TeamWorkspace({
           {state.invitations.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>{t('team.invitations.title')}</CardTitle>
+                <CardTitle>{t("team.invitations.title")}</CardTitle>
                 <CardDescription>
-                  {t('team.invitations.description')}
+                  {t("team.invitations.description")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-0">
@@ -350,14 +350,14 @@ export function TeamWorkspace({
                     <TableHeader>
                       <TableRow>
                         <TableHead className="ps-4">
-                          {t('team.table.person')}
+                          {t("team.table.person")}
                         </TableHead>
-                        <TableHead>{t('team.table.access')}</TableHead>
-                        <TableHead>{t('team.table.expires')}</TableHead>
+                        <TableHead>{t("team.table.access")}</TableHead>
+                        <TableHead>{t("team.table.expires")}</TableHead>
                         {canWrite && (
                           <TableHead className="w-12 pe-4 text-end">
                             <span className="sr-only">
-                              {t('team.table.actions')}
+                              {t("team.table.actions")}
                             </span>
                           </TableHead>
                         )}
@@ -378,10 +378,10 @@ export function TeamWorkspace({
                             <p>{roleLabel(t, invitation.intendedRole)}</p>
                             <p className="text-muted-foreground">
                               {invitation.intendedLocationId === null
-                                ? t('team.entireBusiness')
+                                ? t("team.entireBusiness")
                                 : (locationNames.get(
                                     invitation.intendedLocationId,
-                                  ) ?? t('team.assignedLocation'))}
+                                  ) ?? t("team.assignedLocation"))}
                             </p>
                           </TableCell>
                           <TableCell>
@@ -402,7 +402,7 @@ export function TeamWorkspace({
                 </div>
                 <div
                   role="list"
-                  aria-label={t('team.invitations.title')}
+                  aria-label={t("team.invitations.title")}
                   className="grid gap-3 px-4 md:hidden"
                 >
                   {state.invitations.map((invitation) => (
@@ -430,22 +430,22 @@ export function TeamWorkspace({
                       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                         <div>
                           <dt className="text-muted-foreground">
-                            {t('team.table.access')}
+                            {t("team.table.access")}
                           </dt>
                           <dd className="font-medium">
                             {roleLabel(t, invitation.intendedRole)}
                           </dd>
                           <dd className="text-muted-foreground">
                             {invitation.intendedLocationId === null
-                              ? t('team.entireBusiness')
+                              ? t("team.entireBusiness")
                               : (locationNames.get(
                                   invitation.intendedLocationId,
-                                ) ?? t('team.assignedLocation'))}
+                                ) ?? t("team.assignedLocation"))}
                           </dd>
                         </div>
                         <div>
                           <dt className="text-muted-foreground">
-                            {t('team.table.expires')}
+                            {t("team.table.expires")}
                           </dt>
                           <dd className="font-medium">
                             {formatDate(invitation.expiresAt, locale)}
@@ -461,8 +461,8 @@ export function TeamWorkspace({
 
           <Card>
             <CardHeader>
-              <CardTitle>{t('team.members.title')}</CardTitle>
-              <CardDescription>{t('team.members.description')}</CardDescription>
+              <CardTitle>{t("team.members.title")}</CardTitle>
+              <CardDescription>{t("team.members.description")}</CardDescription>
             </CardHeader>
             <CardContent className="px-0">
               {state.members.length === 0 ? (
@@ -471,9 +471,9 @@ export function TeamWorkspace({
                     <EmptyMedia variant="icon">
                       <IconUsers />
                     </EmptyMedia>
-                    <EmptyTitle>{t('team.members.emptyTitle')}</EmptyTitle>
+                    <EmptyTitle>{t("team.members.emptyTitle")}</EmptyTitle>
                     <EmptyDescription>
-                      {t('team.members.emptyDescription')}
+                      {t("team.members.emptyDescription")}
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -484,14 +484,14 @@ export function TeamWorkspace({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="ps-4">
-                            {t('team.table.person')}
+                            {t("team.table.person")}
                           </TableHead>
-                          <TableHead>{t('team.table.access')}</TableHead>
-                          <TableHead>{t('team.table.security')}</TableHead>
-                          <TableHead>{t('team.table.status')}</TableHead>
+                          <TableHead>{t("team.table.access")}</TableHead>
+                          <TableHead>{t("team.table.security")}</TableHead>
+                          <TableHead>{t("team.table.status")}</TableHead>
                           <TableHead className="pe-4 text-end">
                             <span className="sr-only">
-                              {t('team.table.open')}
+                              {t("team.table.open")}
                             </span>
                           </TableHead>
                         </TableRow>
@@ -514,10 +514,10 @@ export function TeamWorkspace({
                               {member.mfaEnabled ? (
                                 <span className="inline-flex items-center gap-1.5">
                                   <IconShieldCheck className="size-4" />
-                                  {t('team.members.mfaEnabled')}
+                                  {t("team.members.mfaEnabled")}
                                 </span>
                               ) : (
-                                t('team.members.passwordOnly')
+                                t("team.members.passwordOnly")
                               )}
                             </TableCell>
                             <TableCell>
@@ -529,14 +529,14 @@ export function TeamWorkspace({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                aria-label={t('team.members.reviewFor', {
+                                aria-label={t("team.members.reviewFor", {
                                   name: member.displayName,
                                 })}
                                 onClick={() =>
                                   setSelectedMemberId(member.membershipId)
                                 }
                               >
-                                {t('team.members.review')}
+                                {t("team.members.review")}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -546,7 +546,7 @@ export function TeamWorkspace({
                   </div>
                   <div
                     role="list"
-                    aria-label={t('team.members.title')}
+                    aria-label={t("team.members.title")}
                     className="grid gap-3 px-4 md:hidden"
                   >
                     {state.members.map((member) => (
@@ -569,7 +569,7 @@ export function TeamWorkspace({
                         <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                           <div>
                             <dt className="text-muted-foreground">
-                              {t('team.table.access')}
+                              {t("team.table.access")}
                             </dt>
                             <dd className="font-medium">
                               {memberAccessLabel(t, member)}
@@ -577,26 +577,26 @@ export function TeamWorkspace({
                           </div>
                           <div>
                             <dt className="text-muted-foreground">
-                              {t('team.table.security')}
+                              {t("team.table.security")}
                             </dt>
                             <dd className="font-medium">
                               {member.mfaEnabled
-                                ? t('team.members.mfaEnabled')
-                                : t('team.members.passwordOnly')}
+                                ? t("team.members.mfaEnabled")
+                                : t("team.members.passwordOnly")}
                             </dd>
                           </div>
                         </dl>
                         <Button
                           className="mt-4 h-11 w-full"
                           variant="outline"
-                          aria-label={t('team.members.reviewFor', {
+                          aria-label={t("team.members.reviewFor", {
                             name: member.displayName,
                           })}
                           onClick={() =>
                             setSelectedMemberId(member.membershipId)
                           }
                         >
-                          {t('team.members.review')}
+                          {t("team.members.review")}
                         </Button>
                       </div>
                     ))}
@@ -615,8 +615,8 @@ export function TeamWorkspace({
           error={inviteError}
           onClose={() => {
             if (!inviteBusy) {
-              setInviteOpen(false);
-              setInviteError(null);
+              setInviteOpen(false)
+              setInviteError(null)
             }
           }}
           onIssue={issue}
@@ -644,58 +644,58 @@ export function TeamWorkspace({
       <AlertDialog
         open={invitationAction !== null}
         onOpenChange={(open) => {
-          if (!open && !actionBusy) setInvitationAction(null);
+          if (!open && !actionBusy) setInvitationAction(null)
         }}
       >
         {invitationAction !== null && (
           <AlertDialogContent
             onEscapeKeyDown={(event) => {
-              if (actionBusy) event.preventDefault();
+              if (actionBusy) event.preventDefault()
             }}
           >
             <AlertDialogHeader>
               <AlertDialogMedia>
-                {invitationAction.action === 'revoke' ? (
+                {invitationAction.action === "revoke" ? (
                   <IconShieldCheck />
                 ) : (
                   <IconMailPlus />
                 )}
               </AlertDialogMedia>
               <AlertDialogTitle>
-                {invitationAction.action === 'reissue'
-                  ? t('team.invitations.replaceTitle', {
+                {invitationAction.action === "reissue"
+                  ? t("team.invitations.replaceTitle", {
                       name: invitationAction.invitation.displayName,
                     })
-                  : t('team.invitations.revokeTitle', {
+                  : t("team.invitations.revokeTitle", {
                       name: invitationAction.invitation.displayName,
                     })}
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {invitationAction.action === 'reissue'
-                  ? t('team.invitations.replaceDescription')
-                  : t('team.invitations.revokeDescription')}
+                {invitationAction.action === "reissue"
+                  ? t("team.invitations.replaceDescription")
+                  : t("team.invitations.revokeDescription")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={actionBusy}>
-                {t('team.common.cancel')}
+                {t("team.common.cancel")}
               </AlertDialogCancel>
               <Button
                 variant={
-                  invitationAction.action === 'revoke'
-                    ? 'destructive'
-                    : 'default'
+                  invitationAction.action === "revoke"
+                    ? "destructive"
+                    : "default"
                 }
                 disabled={actionBusy}
                 onClick={() => void confirmInvitationAction()}
               >
                 {actionBusy && <Spinner data-icon="inline-start" />}
-                {t('team.common.confirm')}
+                {t("team.common.confirm")}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         )}
       </AlertDialog>
     </section>
-  );
+  )
 }

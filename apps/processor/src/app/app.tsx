@@ -1,20 +1,20 @@
-import { useCallback, useEffect, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useCallback, useEffect, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import {
   BrowserRouter,
   Navigate,
   useLocation,
   useNavigate,
-} from 'react-router-dom';
+} from "react-router-dom"
 import {
   IconAlertTriangle,
   IconMapPin,
   IconRefresh,
   IconWifiOff,
-} from '@tabler/icons-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@tabler/icons-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -22,7 +22,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from "@/components/ui/card"
 import {
   Empty,
   EmptyContent,
@@ -30,32 +30,32 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { Skeleton } from '@/components/ui/skeleton';
-import { AuthenticationView } from '@/features/authentication/authentication.view';
-import { ForecastWorkspaceContainer } from '@/features/forecast/forecast-workspace.view';
-import { IntakeWorkspace } from '@/features/intake/intake.view';
-import { HistoryWorkspaceContainer } from '@/features/history/history-workspace.view';
-import { ProductionLocationSelect } from '@/features/location-selection/location-selection.view';
+} from "@/components/ui/empty"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Skeleton } from "@/components/ui/skeleton"
+import { AuthenticationView } from "@/features/authentication/authentication.view"
+import { ForecastWorkspaceContainer } from "@/features/forecast/forecast-workspace.view"
+import { IntakeWorkspace } from "@/features/intake/intake.view"
+import { HistoryWorkspaceContainer } from "@/features/history/history-workspace.view"
+import { ProductionLocationSelect } from "@/features/location-selection/location-selection.view"
 import {
   OrderAttentionSummaryContainer,
   OrderControlWorkspaceContainer,
-} from '@/features/order-control/order-control-workspace.view';
-import { OrderManagementWorkspace } from '@/features/order-control/order-management-workspace.view';
-import { OrderResolutionReviewContainer } from '@/features/order-resolution/order-resolution-review.container.view';
-import { ProductionBoardWorkspace } from '@/features/production-board/production-board.view';
-import { LiveRunChangesWorkspace } from '@/features/scheduling/live-run-changes.view';
-import { ScheduleHistoryView } from '@/features/scheduling/schedule-history.view';
-import { SchedulingWorkspace } from '@/features/scheduling/scheduling.view';
-import { SettingsView } from '@/features/settings/settings.view';
-import { AppShell } from './app-shell';
-import type { ProcessorRuntime } from './app.composition';
+} from "@/features/order-control/order-control-workspace.view"
+import { OrderManagementWorkspace } from "@/features/order-control/order-management-workspace.view"
+import { OrderResolutionReviewContainer } from "@/features/order-resolution/order-resolution-review.container.view"
+import { ProductionBoardWorkspace } from "@/features/production-board/production-board.view"
+import { LiveRunChangesWorkspace } from "@/features/scheduling/live-run-changes.view"
+import { ScheduleHistoryView } from "@/features/scheduling/schedule-history.view"
+import { SchedulingWorkspace } from "@/features/scheduling/scheduling.view"
+import { SettingsView } from "@/features/settings/settings.view"
+import { AppShell } from "./app-shell"
+import type { ProcessorRuntime } from "./app.composition"
 import {
   classifyScheduleContext,
   derivePlanningDefaults,
   useProcessorAppModel,
-} from './app.model';
+} from "./app.model"
 import {
   canAccessWorkspaceView,
   readWorkspaceRoute,
@@ -64,13 +64,13 @@ import {
   workspaceCopyKeys,
   type WorkspaceRoute,
   type WorkspaceView,
-} from './app.navigation';
-import { useTheme } from './providers';
+} from "./app.navigation"
+import { useTheme } from "./providers"
 
 function WorkspaceLoading() {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-4" aria-label={t('workspace.loading')}>
+    <div className="flex flex-col gap-4" aria-label={t("workspace.loading")}>
       <Skeleton className="h-8 w-64" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[0, 1, 2, 3].map((index) => (
@@ -79,7 +79,7 @@ function WorkspaceLoading() {
       </div>
       <Skeleton className="h-96" />
     </div>
-  );
+  )
 }
 
 function NoLocations({
@@ -87,11 +87,11 @@ function NoLocations({
   onRefresh,
   onLogout,
 }: {
-  busy: boolean;
-  onRefresh: () => void;
-  onLogout: () => void;
+  busy: boolean
+  onRefresh: () => void
+  onLogout: () => void
 }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
       <Empty className="max-w-lg border bg-background">
@@ -100,34 +100,34 @@ function NoLocations({
             <IconMapPin />
           </EmptyMedia>
           <EmptyTitle role="heading" aria-level={1}>
-            {t('location.unavailableTitle')}
+            {t("location.unavailableTitle")}
           </EmptyTitle>
           <EmptyDescription>
-            {t('location.unavailableDescription')}
+            {t("location.unavailableDescription")}
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button disabled={busy} onClick={onRefresh}>
             <IconRefresh data-icon="inline-start" />
-            {t('location.refreshAccess')}
+            {t("location.refreshAccess")}
           </Button>
           <Button variant="ghost" disabled={busy} onClick={onLogout}>
-            {t('navigation.signOut')}
+            {t("navigation.signOut")}
           </Button>
         </EmptyContent>
       </Empty>
     </main>
-  );
+  )
 }
 
 function ChooseLocation({
   model,
   onSelectLocation,
 }: {
-  model: ReturnType<typeof useProcessorAppModel>;
-  onSelectLocation: (locationId: string) => void;
+  model: ReturnType<typeof useProcessorAppModel>
+  onSelectLocation: (locationId: string) => void
 }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
       <Card className="w-full max-w-md bg-background">
@@ -136,14 +136,14 @@ function ChooseLocation({
             <IconMapPin />
           </div>
           <CardTitle role="heading" aria-level={1}>
-            {t('location.chooseTitle')}
+            {t("location.chooseTitle")}
           </CardTitle>
-          <CardDescription>{t('location.chooseDescription')}</CardDescription>
+          <CardDescription>{t("location.chooseDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <Field>
             <FieldLabel htmlFor="production-location-choice">
-              {t('location.productionLocation')}
+              {t("location.productionLocation")}
             </FieldLabel>
             <ProductionLocationSelect
               locations={model.locations}
@@ -161,12 +161,12 @@ function ChooseLocation({
             disabled={model.authBusy}
             onClick={() => void model.logout()}
           >
-            {t('navigation.signOut')}
+            {t("navigation.signOut")}
           </Button>
         </CardFooter>
       </Card>
     </main>
-  );
+  )
 }
 
 function ForbiddenWorkspace({
@@ -175,19 +175,19 @@ function ForbiddenWorkspace({
   error,
   onLogout,
 }: {
-  principalName: string;
-  busy: boolean;
-  error: string | null;
-  onLogout: () => void;
+  principalName: string
+  busy: boolean
+  error: string | null
+  onLogout: () => void
 }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   return (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
       <Card className="w-full max-w-lg bg-background">
         <CardHeader>
-          <CardTitle>{t('authentication.accessNotAssigned')}</CardTitle>
+          <CardTitle>{t("authentication.accessNotAssigned")}</CardTitle>
           <CardDescription>
-            {t('authentication.accessNotAssignedDescription', {
+            {t("authentication.accessNotAssignedDescription", {
               name: principalName,
             })}
           </CardDescription>
@@ -195,82 +195,82 @@ function ForbiddenWorkspace({
         {error !== null && (
           <CardContent>
             <Alert variant="destructive" role="alert">
-              <AlertTitle>{t('authentication.signOutFailed')}</AlertTitle>
+              <AlertTitle>{t("authentication.signOutFailed")}</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           </CardContent>
         )}
         <CardFooter>
           <Button disabled={busy} onClick={onLogout}>
-            {t('navigation.signOut')}
+            {t("navigation.signOut")}
           </Button>
         </CardFooter>
       </Card>
     </main>
-  );
+  )
 }
 
 function ProcessorWorkspace({
   runtime,
   route,
 }: {
-  runtime: ProcessorRuntime;
-  route: WorkspaceRoute;
+  runtime: ProcessorRuntime
+  route: WorkspaceRoute
 }) {
-  const routerNavigate = useNavigate();
-  const model = useProcessorAppModel(runtime, route);
-  const { theme, setTheme } = useTheme();
-  const { t } = useTranslation();
+  const routerNavigate = useNavigate()
+  const model = useProcessorAppModel(runtime, route)
+  const { theme, setTheme } = useTheme()
+  const { t } = useTranslation()
 
   const goToRoute = useCallback(
     (next: WorkspaceRoute, replace = false) => {
-      routerNavigate(workspaceRoutePath(next), { replace });
+      routerNavigate(workspaceRoutePath(next), { replace })
     },
-    [routerNavigate],
-  );
+    [routerNavigate]
+  )
 
   const selectLocation = useCallback(
     (locationId: string) => {
-      if (locationId === model.selectedLocationId) return;
+      if (locationId === model.selectedLocationId) return
 
-      goToRoute(workspaceRouteForView(route.view), true);
+      goToRoute(workspaceRouteForView(route.view), true)
 
-      model.selectLocation(locationId);
+      model.selectLocation(locationId)
     },
-    [goToRoute, model, route.view],
-  );
+    [goToRoute, model, route.view]
+  )
 
   const navigateToView = (
     next: WorkspaceView,
-    identifiers: Partial<Pick<WorkspaceRoute, 'shiftId' | 'runId'>> = {},
-  ) => goToRoute(workspaceRouteForView(next, identifiers));
+    identifiers: Partial<Pick<WorkspaceRoute, "shiftId" | "runId">> = {}
+  ) => goToRoute(workspaceRouteForView(next, identifiers))
   const navigateFromForecast = (
     target:
-      | Readonly<{ view: 'intake' }>
-      | Readonly<{ view: 'production'; runId: string }>
-      | Readonly<{ view: 'schedule' }>,
+      | Readonly<{ view: "intake" }>
+      | Readonly<{ view: "production"; runId: string }>
+      | Readonly<{ view: "schedule" }>
   ) => {
-    if (target.view === 'production')
-      navigateToView('board', { runId: target.runId });
-    else navigateToView(target.view);
-  };
+    if (target.view === "production")
+      navigateToView("board", { runId: target.runId })
+    else navigateToView(target.view)
+  }
   const canNavigateFromForecast = (
     target:
-      | Readonly<{ view: 'intake' }>
-      | Readonly<{ view: 'production'; runId: string }>
-      | Readonly<{ view: 'schedule' }>,
+      | Readonly<{ view: "intake" }>
+      | Readonly<{ view: "production"; runId: string }>
+      | Readonly<{ view: "schedule" }>
   ) =>
     canAccessWorkspaceView(
       model.selectedCapabilities,
-      target.view === 'production' ? 'board' : target.view,
-    );
+      target.view === "production" ? "board" : target.view
+    )
 
   const resolvedRunId =
     route.runId ??
     model.workspace?.board?.productionRun.id ??
     (model.workspace?.activeRuns.length === 1
       ? model.workspace.activeRuns[0]!.id
-      : null);
+      : null)
   const scheduleContext = useMemo(
     () =>
       model.workspace === null
@@ -280,8 +280,8 @@ function ProcessorWorkspace({
             requestedShiftId: route.shiftId,
             now: runtime.now(),
           }),
-    [model.workspace, route.shiftId, runtime],
-  );
+    [model.workspace, route.shiftId, runtime]
+  )
 
   const planningDefaults = useMemo(
     () =>
@@ -291,28 +291,28 @@ function ProcessorWorkspace({
             now: runtime.now(),
             workspace: model.workspace,
             shift:
-              scheduleContext.kind === 'planning'
+              scheduleContext.kind === "planning"
                 ? scheduleContext.shift
                 : null,
           }),
-    [model.workspace, runtime, scheduleContext],
-  );
+    [model.workspace, runtime, scheduleContext]
+  )
 
   useEffect(() => {
-    if (model.workspace === null) return;
+    if (model.workspace === null) return
 
     const resolvedRoute =
-      route.view === 'schedule'
-        ? workspaceRouteForView('schedule', {
+      route.view === "schedule"
+        ? workspaceRouteForView("schedule", {
             shiftId:
               route.shiftId ??
-              (scheduleContext?.kind === 'planning'
+              (scheduleContext?.kind === "planning"
                 ? scheduleContext.shift?.id
                 : scheduleContext?.shift.id) ??
               null,
           })
-        : route.view === 'board'
-          ? workspaceRouteForView('board', {
+        : route.view === "board"
+          ? workspaceRouteForView("board", {
               runId:
                 route.runId ??
                 model.workspace.board?.productionRun.id ??
@@ -320,21 +320,21 @@ function ProcessorWorkspace({
                   ? model.workspace.activeRuns[0]!.id
                   : null),
             })
-          : workspaceRouteForView(route.view);
+          : workspaceRouteForView(route.view)
 
-    if (workspaceRoutePath(resolvedRoute) === workspaceRoutePath(route)) return;
+    if (workspaceRoutePath(resolvedRoute) === workspaceRoutePath(route)) return
 
-    const timeout = window.setTimeout(() => goToRoute(resolvedRoute, true), 0);
+    const timeout = window.setTimeout(() => goToRoute(resolvedRoute, true), 0)
 
-    return () => window.clearTimeout(timeout);
-  }, [goToRoute, model.workspace, route, scheduleContext]);
+    return () => window.clearTimeout(timeout)
+  }, [goToRoute, model.workspace, route, scheduleContext])
 
-  if (model.authStatus === 'restoring')
+  if (model.authStatus === "restoring")
     return (
       <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
         <div
           className="flex w-full max-w-sm flex-col gap-3"
-          aria-label={t('authentication.restoring')}
+          aria-label={t("authentication.restoring")}
         >
           <Skeleton className="h-10 w-10" />
           <Skeleton className="h-7 w-64" />
@@ -342,21 +342,21 @@ function ProcessorWorkspace({
           <Skeleton className="h-48 w-full" />
         </div>
       </main>
-    );
+    )
 
-  if (model.authStatus === 'signed_out' || model.authStatus === 'mfa_required')
+  if (model.authStatus === "signed_out" || model.authStatus === "mfa_required")
     return (
       <AuthenticationView
-        mode={model.authStatus === 'signed_out' ? 'login' : 'mfa'}
+        mode={model.authStatus === "signed_out" ? "login" : "mfa"}
         busy={model.authBusy}
         error={model.authError}
         onLogin={model.login}
         onCompleteMfa={model.completeMfa}
         onRestart={model.restartLogin}
       />
-    );
+    )
 
-  if (model.authStatus === 'forbidden' && model.session !== null)
+  if (model.authStatus === "forbidden" && model.session !== null)
     return (
       <ForbiddenWorkspace
         principalName={model.session.principal.displayName}
@@ -364,7 +364,7 @@ function ProcessorWorkspace({
         error={model.authError}
         onLogout={() => void model.logout()}
       />
-    );
+    )
 
   if (
     model.session === null ||
@@ -374,7 +374,7 @@ function ProcessorWorkspace({
       <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
         <Skeleton className="h-64 w-full max-w-lg" />
       </main>
-    );
+    )
 
   if (model.locations.length === 0)
     return (
@@ -383,21 +383,21 @@ function ProcessorWorkspace({
         onRefresh={() => void model.refreshLocations()}
         onLogout={() => void model.logout()}
       />
-    );
+    )
 
   if (model.selectedLocationId === null)
-    return <ChooseLocation model={model} onSelectLocation={selectLocation} />;
+    return <ChooseLocation model={model} onSelectLocation={selectLocation} />
 
-  const location = model.selectedLocation;
+  const location = model.selectedLocation
   if (location === null)
     return (
       <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
         <Skeleton className="h-64 w-full max-w-lg" />
       </main>
-    );
+    )
 
   if (!canAccessWorkspaceView(model.selectedCapabilities, route.view))
-    return <Navigate to="/" replace />;
+    return <Navigate to="/" replace />
 
   return (
     <AppShell
@@ -416,12 +416,12 @@ function ProcessorWorkspace({
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="hidden sm:inline-flex">
             {!model.online
-              ? t('connection.offline')
-              : model.liveConnectionState === 'open'
-                ? t('connection.live')
-                : model.liveConnectionState === 'reconnecting'
-                  ? t('connection.reconnecting')
-                  : t('connection.connecting')}
+              ? t("connection.offline")
+              : model.liveConnectionState === "open"
+                ? t("connection.live")
+                : model.liveConnectionState === "reconnecting"
+                  ? t("connection.reconnecting")
+                  : t("connection.connecting")}
           </Badge>
           {model.locations.length > 1 && (
             <ProductionLocationSelect
@@ -439,16 +439,16 @@ function ProcessorWorkspace({
         {!model.online && (
           <Alert role="alert">
             <IconWifiOff />
-            <AlertTitle>{t('connection.offlineTitle')}</AlertTitle>
+            <AlertTitle>{t("connection.offlineTitle")}</AlertTitle>
             <AlertDescription>
-              {t('connection.offlineDescription')}
+              {t("connection.offlineDescription")}
             </AlertDescription>
           </Alert>
         )}
         {model.workspaceError !== null && (
           <Alert variant="destructive" role="alert">
             <IconAlertTriangle />
-            <AlertTitle>{t('workspace.attentionTitle')}</AlertTitle>
+            <AlertTitle>{t("workspace.attentionTitle")}</AlertTitle>
             <AlertDescription className="flex flex-col items-start gap-3">
               <span>{model.workspaceError}</span>
               <Button
@@ -456,7 +456,7 @@ function ProcessorWorkspace({
                 variant="outline"
                 onClick={() => void model.refreshWorkspace()}
               >
-                <IconRefresh data-icon="inline-start" /> {t('common.retry')}
+                <IconRefresh data-icon="inline-start" /> {t("common.retry")}
               </Button>
             </AlertDescription>
           </Alert>
@@ -467,20 +467,20 @@ function ProcessorWorkspace({
         ) : model.workspace === null || planningDefaults === null ? (
           <Empty className="min-h-80 border">
             <EmptyHeader>
-              <EmptyTitle>{t('workspace.unavailableTitle')}</EmptyTitle>
+              <EmptyTitle>{t("workspace.unavailableTitle")}</EmptyTitle>
               <EmptyDescription>
-                {t('workspace.unavailableDescription')}
+                {t("workspace.unavailableDescription")}
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button onClick={() => void model.refreshWorkspace()}>
-                <IconRefresh data-icon="inline-start" /> {t('common.refresh')}
+                <IconRefresh data-icon="inline-start" /> {t("common.refresh")}
               </Button>
             </EmptyContent>
           </Empty>
         ) : (
           <>
-            {route.view === 'forecast' && (
+            {route.view === "forecast" && (
               <ForecastWorkspaceContainer
                 key={`${location.id}:${location.timezone}:forecast`}
                 production={runtime.production}
@@ -491,10 +491,10 @@ function ProcessorWorkspace({
                 variant="full"
                 onNavigate={navigateFromForecast}
                 canNavigate={canNavigateFromForecast}
-                onOpenForecast={() => navigateToView('forecast')}
+                onOpenForecast={() => navigateToView("forecast")}
               />
             )}
-            {route.view === 'intake' && (
+            {route.view === "intake" && (
               <IntakeWorkspace
                 production={runtime.production}
                 idempotency={runtime.idempotency}
@@ -504,7 +504,7 @@ function ProcessorWorkspace({
                 onMutated={model.refreshWorkspace}
               />
             )}
-            {route.view === 'home' && (
+            {route.view === "home" && (
               <>
                 <ForecastWorkspaceContainer
                   key={`${location.id}:${location.timezone}:home`}
@@ -515,11 +515,11 @@ function ProcessorWorkspace({
                   now={runtime.now}
                   variant="home"
                   onNavigate={navigateFromForecast}
-                  onOpenForecast={() => navigateToView('forecast')}
+                  onOpenForecast={() => navigateToView("forecast")}
                 />
                 {canAccessWorkspaceView(
                   model.selectedCapabilities,
-                  'orders',
+                  "orders"
                 ) && (
                   <OrderAttentionSummaryContainer
                     production={runtime.production}
@@ -529,12 +529,12 @@ function ProcessorWorkspace({
                     board={model.workspace.board}
                     revision={model.workspace.asOf}
                     onMutated={model.refreshWorkspace}
-                    onOpenOrders={() => navigateToView('orders')}
+                    onOpenOrders={() => navigateToView("orders")}
                   />
                 )}
               </>
             )}
-            {route.view === 'orders' && (
+            {route.view === "orders" && (
               <OrderManagementWorkspace
                 orderManagement={runtime.orderManagement}
                 idempotency={runtime.idempotency}
@@ -550,11 +550,11 @@ function ProcessorWorkspace({
                       locationId={location.id}
                       timezone={location.timezone}
                       canManage={model.selectedCapabilities.includes(
-                        'production:override',
+                        "production:override"
                       )}
                       now={runtime.now}
                       onMutated={model.refreshWorkspace}
-                      onOpenHistory={() => navigateToView('history')}
+                      onOpenHistory={() => navigateToView("history")}
                     />
                     <OrderControlWorkspaceContainer
                       production={runtime.production}
@@ -569,7 +569,7 @@ function ProcessorWorkspace({
                 }
               />
             )}
-            {route.view === 'schedule' && scheduleContext?.kind === 'live' && (
+            {route.view === "schedule" && scheduleContext?.kind === "live" && (
               <LiveRunChangesWorkspace
                 production={runtime.production}
                 idempotency={runtime.idempotency}
@@ -579,7 +579,7 @@ function ProcessorWorkspace({
                 productionRun={scheduleContext.productionRun}
                 changes={scheduleContext.changes}
                 canManage={model.selectedCapabilities.includes(
-                  'production:override',
+                  "production:override"
                 )}
                 online={model.online}
                 updatesState={model.liveConnectionState}
@@ -593,42 +593,42 @@ function ProcessorWorkspace({
                     now={runtime.now}
                     variant="schedule"
                     onNavigate={navigateFromForecast}
-                    onOpenForecast={() => navigateToView('forecast')}
+                    onOpenForecast={() => navigateToView("forecast")}
                   />
                 }
                 onMutated={() =>
                   model.refreshWorkspace(scheduleContext.shift.id)
                 }
                 onOpenProduction={() =>
-                  navigateToView('board', {
+                  navigateToView("board", {
                     runId: scheduleContext.productionRun.id,
                   })
                 }
-                onOpenForecast={() => navigateToView('forecast')}
+                onOpenForecast={() => navigateToView("forecast")}
               />
             )}
-            {route.view === 'schedule' &&
-              scheduleContext?.kind === 'history' && (
+            {route.view === "schedule" &&
+              scheduleContext?.kind === "history" && (
                 <ScheduleHistoryView
                   shift={scheduleContext.shift}
                   productionRun={scheduleContext.productionRun}
                   reason={scheduleContext.reason}
                   timezone={location.timezone}
-                  onPlanNewShift={() => navigateToView('schedule')}
+                  onPlanNewShift={() => navigateToView("schedule")}
                   onOpenProduction={
                     scheduleContext.productionRun === null
                       ? null
                       : () =>
-                          navigateToView('board', {
+                          navigateToView("board", {
                             runId: scheduleContext.productionRun!.id,
                           })
                   }
                 />
               )}
-            {route.view === 'schedule' &&
-              scheduleContext?.kind === 'planning' && (
+            {route.view === "schedule" &&
+              scheduleContext?.kind === "planning" && (
                 <SchedulingWorkspace
-                  key={`${location.id}:${scheduleContext.shift?.id ?? 'new'}:${scheduleContext.proposal?.scheduleRunId ?? 'none'}:${scheduleContext.proposal?.status ?? 'none'}:${model.workspace.shiftSelection?.version ?? 0}`}
+                  key={`${location.id}:${scheduleContext.shift?.id ?? "new"}:${scheduleContext.proposal?.scheduleRunId ?? "none"}:${scheduleContext.proposal?.status ?? "none"}:${model.workspace.shiftSelection?.version ?? 0}`}
                   production={runtime.production}
                   idempotency={runtime.idempotency}
                   locationId={location.id}
@@ -639,7 +639,7 @@ function ProcessorWorkspace({
                   shiftSelection={model.workspace.shiftSelection}
                   initialProposal={scheduleContext.proposal ?? undefined}
                   canManage={model.selectedCapabilities.includes(
-                    'production:schedule',
+                    "production:schedule"
                   )}
                   remainingDayContext={
                     <ForecastWorkspaceContainer
@@ -651,37 +651,37 @@ function ProcessorWorkspace({
                       now={runtime.now}
                       variant="schedule"
                       onNavigate={navigateFromForecast}
-                      onOpenForecast={() => navigateToView('forecast')}
+                      onOpenForecast={() => navigateToView("forecast")}
                     />
                   }
                   onOpenConfiguration={
                     canAccessWorkspaceView(
                       model.selectedCapabilities,
-                      'settings',
+                      "settings"
                     )
-                      ? () => navigateToView('settings')
+                      ? () => navigateToView("settings")
                       : undefined
                   }
                   onScheduleChanged={async (productionShiftId) => {
                     goToRoute(
-                      workspaceRouteForView('schedule', {
+                      workspaceRouteForView("schedule", {
                         shiftId: productionShiftId,
                       }),
-                      true,
-                    );
-                    await model.refreshWorkspace(productionShiftId);
+                      true
+                    )
+                    await model.refreshWorkspace(productionShiftId)
                   }}
                   onStarted={async (result, productionShiftId) => {
-                    await model.refreshWorkspace(productionShiftId);
+                    await model.refreshWorkspace(productionShiftId)
                     goToRoute(
-                      workspaceRouteForView('board', {
+                      workspaceRouteForView("board", {
                         runId: result.productionRunId,
-                      }),
-                    );
+                      })
+                    )
                   }}
                 />
               )}
-            {route.view === 'board' && resolvedRunId !== null && (
+            {route.view === "board" && resolvedRunId !== null && (
               <ProductionBoardWorkspace
                 key={`${location.id}:${resolvedRunId}`}
                 production={runtime.production}
@@ -699,28 +699,28 @@ function ProcessorWorkspace({
                 online={model.online}
                 updatesState={model.liveConnectionState}
                 canManage={model.selectedCapabilities.includes(
-                  'production:override',
+                  "production:override"
                 )}
                 onOpenSchedule={
-                  canAccessWorkspaceView(model.selectedCapabilities, 'schedule')
+                  canAccessWorkspaceView(model.selectedCapabilities, "schedule")
                     ? (productionShiftId) =>
-                        navigateToView('schedule', {
+                        navigateToView("schedule", {
                           shiftId: productionShiftId,
                         })
                     : undefined
                 }
               />
             )}
-            {route.view === 'board' && resolvedRunId === null && (
+            {route.view === "board" && resolvedRunId === null && (
               <Empty className="min-h-80 border">
                 <EmptyHeader>
-                  <EmptyTitle>{t('workspace.noActiveRun')}</EmptyTitle>
+                  <EmptyTitle>{t("workspace.noActiveRun")}</EmptyTitle>
                   <EmptyDescription>
                     {model.workspace.pendingEligibleOrders.some(
-                      (order) => order.placement.status === 'ambiguous_run',
+                      (order) => order.placement.status === "ambiguous_run"
                     )
-                      ? t('workspace.ambiguousRun')
-                      : t('workspace.startSchedule')}
+                      ? t("workspace.ambiguousRun")
+                      : t("workspace.startSchedule")}
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
@@ -730,8 +730,8 @@ function ProcessorWorkspace({
                         candidate.productionRunId !== null ||
                         canAccessWorkspaceView(
                           model.selectedCapabilities,
-                          'schedule',
-                        ),
+                          "schedule"
+                        )
                     )
                     .map((candidate) => (
                       <Button
@@ -740,38 +740,38 @@ function ProcessorWorkspace({
                         onClick={() =>
                           navigateToView(
                             candidate.productionRunId === null
-                              ? 'schedule'
-                              : 'board',
+                              ? "schedule"
+                              : "board",
                             {
                               shiftId: candidate.productionShiftId,
                               runId: candidate.productionRunId,
-                            },
+                            }
                           )
                         }
                       >
-                        {t('workspace.openCandidate', {
+                        {t("workspace.openCandidate", {
                           reason: t(
-                            candidate.reason === 'started_run'
-                              ? 'workspace.candidateReason.startedRun'
-                              : candidate.reason === 'accepted_plan'
-                                ? 'workspace.candidateReason.acceptedPlan'
-                                : 'workspace.candidateReason.openShift',
+                            candidate.reason === "started_run"
+                              ? "workspace.candidateReason.startedRun"
+                              : candidate.reason === "accepted_plan"
+                                ? "workspace.candidateReason.acceptedPlan"
+                                : "workspace.candidateReason.openShift"
                           ),
                         })}
                       </Button>
                     ))}
                   {canAccessWorkspaceView(
                     model.selectedCapabilities,
-                    'schedule',
+                    "schedule"
                   ) && (
-                    <Button onClick={() => navigateToView('schedule')}>
-                      {t('workspace.openScheduling')}
+                    <Button onClick={() => navigateToView("schedule")}>
+                      {t("workspace.openScheduling")}
                     </Button>
                   )}
                 </EmptyContent>
               </Empty>
             )}
-            {route.view === 'history' && (
+            {route.view === "history" && (
               <HistoryWorkspaceContainer
                 production={runtime.production}
                 idempotency={runtime.idempotency}
@@ -779,14 +779,14 @@ function ProcessorWorkspace({
                 timezone={location.timezone}
                 revision={model.workspace.asOf}
                 canManage={model.selectedCapabilities.includes(
-                  'production:override',
+                  "production:override"
                 )}
                 onMutated={model.refreshWorkspace}
               />
             )}
-            {route.view === 'settings' && (
+            {route.view === "settings" && (
               <SettingsView
-                theme={theme === 'dark' ? 'dark' : 'light'}
+                theme={theme === "dark" ? "dark" : "light"}
                 onThemeChange={setTheme}
                 schedulerConfig={model.workspace.currentSchedulerConfig}
                 shift={model.workspace.currentShift}
@@ -794,10 +794,10 @@ function ProcessorWorkspace({
                 idempotency={runtime.idempotency}
                 locationId={location.id}
                 canManage={model.selectedCapabilities.includes(
-                  'production:schedule',
+                  "production:schedule"
                 )}
                 onConfigurationPublished={async () => {
-                  await model.refreshWorkspace(route.shiftId ?? undefined);
+                  await model.refreshWorkspace(route.shiftId ?? undefined)
                 }}
               />
             )}
@@ -805,14 +805,14 @@ function ProcessorWorkspace({
         )}
       </div>
     </AppShell>
-  );
+  )
 }
 
 function ProcessorRoute({ runtime }: { runtime: ProcessorRuntime }) {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const route = readWorkspaceRoute(location.pathname);
-  const { t } = useTranslation();
+  const location = useLocation()
+  const navigate = useNavigate()
+  const route = readWorkspaceRoute(location.pathname)
+  const { t } = useTranslation()
 
   return route === null ? (
     <main className="grid min-h-screen place-items-center bg-muted/30 p-4">
@@ -822,22 +822,22 @@ function ProcessorRoute({ runtime }: { runtime: ProcessorRuntime }) {
             <IconAlertTriangle />
           </EmptyMedia>
           <EmptyTitle role="heading" aria-level={1}>
-            {t('workspace.pageNotFound')}
+            {t("workspace.pageNotFound")}
           </EmptyTitle>
           <EmptyDescription>
-            {t('workspace.pageNotFoundDescription')}
+            {t("workspace.pageNotFoundDescription")}
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button onClick={() => navigate('/')}>
-            {t('workspace.openHome')}
+          <Button onClick={() => navigate("/")}>
+            {t("workspace.openHome")}
           </Button>
         </EmptyContent>
       </Empty>
     </main>
   ) : (
     <ProcessorWorkspace runtime={runtime} route={route} />
-  );
+  )
 }
 
 export default function App({ runtime }: { runtime: ProcessorRuntime }) {
@@ -845,5 +845,5 @@ export default function App({ runtime }: { runtime: ProcessorRuntime }) {
     <BrowserRouter>
       <ProcessorRoute runtime={runtime} />
     </BrowserRouter>
-  );
+  )
 }

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from "react"
+import { BrowserRouter, useLocation, useNavigate } from "react-router-dom"
 import {
   Empty,
   EmptyContent,
@@ -10,18 +10,18 @@ import {
   Button,
   Spinner,
   WorkspaceShell,
-} from '@/components/ui';
-import { IconRouteOff, IconShieldLock } from '@tabler/icons-react';
-import { useTranslation } from 'react-i18next';
-import { AuthenticationView } from '@/authentication/authentication-view';
-import type { ControlAuthenticationApi } from '@/authentication/control-api';
-import { useAuthentication } from '@/authentication/use-authentication';
-import type { ControlTeamApi } from '@/features/team/team-api';
-import type { ControlSecurityApi } from '@/features/security/security-api';
-import type { ControlInvitationApi } from '@/features/team/invitation-api';
-import type { ControlCustomerApi } from '@/features/customers/customer-api';
-import type { ControlOrderApi } from '@/features/orders/order-api';
-import { InvitationAcceptanceView } from '@/features/team/invitation-acceptance-view';
+} from "@/components/ui"
+import { IconRouteOff, IconShieldLock } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
+import { AuthenticationView } from "@/authentication/authentication-view"
+import type { ControlAuthenticationApi } from "@/authentication/control-api"
+import { useAuthentication } from "@/authentication/use-authentication"
+import type { ControlTeamApi } from "@/features/team/team-api"
+import type { ControlSecurityApi } from "@/features/security/security-api"
+import type { ControlInvitationApi } from "@/features/team/invitation-api"
+import type { ControlCustomerApi } from "@/features/customers/customer-api"
+import type { ControlOrderApi } from "@/features/orders/order-api"
+import { InvitationAcceptanceView } from "@/features/team/invitation-acceptance-view"
 import {
   controlHomeNavigation,
   controlViewFromPath,
@@ -30,22 +30,22 @@ import {
   navigationForCapabilities,
   pathForControlView,
   type ControlView,
-} from './control-navigation';
-import { localizeApplicationDestination } from './application-destinations';
-import { WorkspaceContent } from './workspace-content';
+} from "./control-navigation"
+import { localizeApplicationDestination } from "./application-destinations"
+import { WorkspaceContent } from "./workspace-content"
 
 export type ControlRuntime = Readonly<{
-  authentication: ControlAuthenticationApi;
-  team: ControlTeamApi;
-  security: ControlSecurityApi;
-  invitations: ControlInvitationApi;
-  customers: ControlCustomerApi;
-  orders: ControlOrderApi;
-  initialInvitationToken: string | null;
-}>;
+  authentication: ControlAuthenticationApi
+  team: ControlTeamApi
+  security: ControlSecurityApi
+  invitations: ControlInvitationApi
+  customers: ControlCustomerApi
+  orders: ControlOrderApi
+  initialInvitationToken: string | null
+}>
 
 function RestoringSession() {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
 
   return (
     <main className="bg-muted/30 grid min-h-screen place-items-center p-4">
@@ -54,14 +54,14 @@ function RestoringSession() {
           <EmptyMedia variant="icon">
             <Spinner />
           </EmptyMedia>
-          <EmptyTitle>{t('workspace.restoring.title')}</EmptyTitle>
+          <EmptyTitle>{t("workspace.restoring.title")}</EmptyTitle>
           <EmptyDescription>
-            {t('workspace.restoring.description')}
+            {t("workspace.restoring.description")}
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
     </main>
-  );
+  )
 }
 
 function ControlWorkspace({
@@ -73,33 +73,33 @@ function ControlWorkspace({
 }: {
   session: NonNullable<
     Extract<
-      ReturnType<typeof useAuthentication>['state'],
-      { status: 'authenticated' }
-    >['session']
-  >;
-  logoutBusy: boolean;
-  onLogout: () => void;
-  runtime: ControlRuntime;
-  onSessionRefresh: () => Promise<void>;
+      ReturnType<typeof useAuthentication>["state"],
+      { status: "authenticated" }
+    >["session"]
+  >
+  logoutBusy: boolean
+  onLogout: () => void
+  runtime: ControlRuntime
+  onSessionRefresh: () => Promise<void>
 }) {
-  const { t } = useTranslation();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const requestedView = controlViewFromPath(location.pathname);
+  const { t } = useTranslation()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const requestedView = controlViewFromPath(location.pathname)
   const sections = useMemo(() => {
     const sectionLabels: Readonly<Record<string, string>> = {
-      business: t('navigation.sections.business'),
-      peopleAccess: t('navigation.sections.peopleAccess'),
-      system: t('navigation.sections.system'),
-    };
+      business: t("navigation.sections.business"),
+      peopleAccess: t("navigation.sections.peopleAccess"),
+      system: t("navigation.sections.system"),
+    }
     const itemLabels: Readonly<Record<ControlView, string>> = {
-      home: t('navigation.home'),
-      orders: t('navigation.orders'),
-      customers: t('navigation.customers'),
-      team: t('navigation.team'),
-      security: t('navigation.security'),
-      configuration: t('navigation.configuration'),
-    };
+      home: t("navigation.home"),
+      orders: t("navigation.orders"),
+      customers: t("navigation.customers"),
+      team: t("navigation.team"),
+      security: t("navigation.security"),
+      configuration: t("navigation.configuration"),
+    }
 
     return navigationForCapabilities(session.access.capabilities).map(
       (section) => ({
@@ -110,41 +110,41 @@ function ControlWorkspace({
           label: itemLabels[item.id],
         })),
       }),
-    );
-  }, [session.access.capabilities, t]);
+    )
+  }, [session.access.capabilities, t])
 
   const canOpen =
     requestedView !== null &&
-    mayOpenControlView(requestedView, session.access.capabilities);
+    mayOpenControlView(requestedView, session.access.capabilities)
   const copy =
     requestedView === null
       ? {
-          title: t('workspace.notFound.title'),
-          description: t('workspace.notFound.description'),
+          title: t("workspace.notFound.title"),
+          description: t("workspace.notFound.description"),
         }
       : {
           title: t(controlWorkspaceCopyKeys[requestedView].title),
           description: t(controlWorkspaceCopyKeys[requestedView].description),
-        };
+        }
   const selectedLocation = session.access.locations.find(
     ({ id }) => id === session.access.selectedLocationId,
-  );
+  )
 
   const navigateTo = (next: ControlView) => {
-    navigate(pathForControlView(next));
-  };
+    navigate(pathForControlView(next))
+  }
   const applications = session.access.applications.map((application) =>
     localizeApplicationDestination(application, {
       processor: {
-        label: t('applications.processor.label'),
-        description: t('applications.processor.description'),
+        label: t("applications.processor.label"),
+        description: t("applications.processor.description"),
       },
       control: {
-        label: t('applications.control.label'),
-        description: t('applications.control.description'),
+        label: t("applications.control.label"),
+        description: t("applications.control.description"),
       },
     }),
-  );
+  )
 
   return (
     <WorkspaceShell
@@ -153,24 +153,24 @@ function ControlWorkspace({
       title={copy.title}
       description={copy.description}
       currentApplicationId="control"
-      applicationName={t('common.appName')}
+      applicationName={t("common.appName")}
       applications={applications}
-      applicationsLabel={t('navigation.applications')}
-      switchApplicationLabel={t('navigation.switchApplication', {
-        application: t('common.appName'),
+      applicationsLabel={t("navigation.applications")}
+      switchApplicationLabel={t("navigation.switchApplication", {
+        application: t("common.appName"),
       })}
-      home={{ ...controlHomeNavigation, label: t('navigation.home') }}
+      home={{ ...controlHomeNavigation, label: t("navigation.home") }}
       sections={sections}
-      navigationLabel={t('navigation.label')}
-      navigationDialogTitle={t('navigation.dialogTitle')}
-      navigationDialogDescription={t('navigation.dialogDescription')}
-      openNavigationLabel={t('navigation.open')}
-      skipToContentLabel={t('navigation.skipToContent')}
-      closeLabel={t('common.close')}
-      signedInLabel={t('navigation.signedInAs', {
+      navigationLabel={t("navigation.label")}
+      navigationDialogTitle={t("navigation.dialogTitle")}
+      navigationDialogDescription={t("navigation.dialogDescription")}
+      openNavigationLabel={t("navigation.open")}
+      skipToContentLabel={t("navigation.skipToContent")}
+      closeLabel={t("common.close")}
+      signedInLabel={t("navigation.signedInAs", {
         name: session.principal.displayName,
       })}
-      signOutLabel={t('navigation.signOut')}
+      signOutLabel={t("navigation.signOut")}
       principalName={session.principal.displayName}
       logoutBusy={logoutBusy}
       onLogout={onLogout}
@@ -181,8 +181,8 @@ function ControlWorkspace({
           </p>
           <p className="mt-1">
             {selectedLocation === undefined
-              ? t('navigation.businessAccess')
-              : t('navigation.locationAndTimezone', {
+              ? t("navigation.businessAccess")
+              : t("navigation.locationAndTimezone", {
                   location: selectedLocation.name,
                   timezone: selectedLocation.timezone,
                 })}
@@ -196,18 +196,18 @@ function ControlWorkspace({
             <EmptyMedia variant="icon">
               <IconRouteOff />
             </EmptyMedia>
-            <EmptyTitle>{t('workspace.notFound.title')}</EmptyTitle>
+            <EmptyTitle>{t("workspace.notFound.title")}</EmptyTitle>
             <EmptyDescription>
-              {t('workspace.notFound.description')}
+              {t("workspace.notFound.description")}
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigateTo('home')}
+              onClick={() => navigateTo("home")}
             >
-              {t('common.returnHome')}
+              {t("common.returnHome")}
             </Button>
           </EmptyContent>
         </Empty>
@@ -226,44 +226,44 @@ function ControlWorkspace({
             <EmptyMedia variant="icon">
               <IconShieldLock />
             </EmptyMedia>
-            <EmptyTitle>{t('workspace.accessDenied.title')}</EmptyTitle>
+            <EmptyTitle>{t("workspace.accessDenied.title")}</EmptyTitle>
             <EmptyDescription>
-              {t('workspace.accessDenied.description')}
+              {t("workspace.accessDenied.description")}
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigateTo('home')}
+              onClick={() => navigateTo("home")}
             >
-              {t('common.returnHome')}
+              {t("common.returnHome")}
             </Button>
           </EmptyContent>
         </Empty>
       )}
     </WorkspaceShell>
-  );
+  )
 }
 
 function ControlRoute({ runtime }: { runtime: ControlRuntime }) {
-  const authentication = useAuthentication(runtime.authentication);
+  const authentication = useAuthentication(runtime.authentication)
 
-  if (authentication.state.status === 'restoring') return <RestoringSession />;
+  if (authentication.state.status === "restoring") return <RestoringSession />
   if (
-    authentication.state.status === 'unauthenticated' ||
-    authentication.state.status === 'mfa'
+    authentication.state.status === "unauthenticated" ||
+    authentication.state.status === "mfa"
   )
     return (
       <AuthenticationView
-        mode={authentication.state.status === 'mfa' ? 'mfa' : 'login'}
+        mode={authentication.state.status === "mfa" ? "mfa" : "login"}
         busy={authentication.busy}
         error={authentication.state.error}
         onLogin={authentication.login}
         onCompleteMfa={authentication.completeMfa}
         onRestart={authentication.restart}
       />
-    );
+    )
 
   return (
     <ControlWorkspace
@@ -273,13 +273,13 @@ function ControlRoute({ runtime }: { runtime: ControlRuntime }) {
       runtime={runtime}
       onSessionRefresh={authentication.refreshSession}
     />
-  );
+  )
 }
 
 export default function ControlApp({ runtime }: { runtime: ControlRuntime }) {
   const [invitationToken, setInvitationToken] = useState(
     runtime.initialInvitationToken,
-  );
+  )
 
   if (invitationToken !== null)
     return (
@@ -288,11 +288,11 @@ export default function ControlApp({ runtime }: { runtime: ControlRuntime }) {
         token={invitationToken}
         onContinueToSignIn={() => setInvitationToken(null)}
       />
-    );
+    )
 
   return (
     <BrowserRouter>
       <ControlRoute runtime={runtime} />
     </BrowserRouter>
-  );
+  )
 }

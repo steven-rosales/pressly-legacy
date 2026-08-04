@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { IdempotencyPort } from '@/ports/idempotency.port';
-import type { OrderManagementPort } from '@/ports/order-management.port';
-import { IncomingOrdersWorkspace } from './incoming-orders.view';
+import type { ReactNode } from "react"
+import { useTranslation } from "react-i18next"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import type { IdempotencyPort } from "@/ports/idempotency.port"
+import type { OrderManagementPort } from "@/ports/order-management.port"
+import { IncomingOrdersWorkspace } from "./incoming-orders.view"
 
 export function OrderManagementWorkspace({
   orderManagement,
@@ -14,26 +14,26 @@ export function OrderManagementWorkspace({
   onMutated,
   currentOrders,
 }: Readonly<{
-  orderManagement: OrderManagementPort;
-  idempotency: IdempotencyPort;
-  locationId: string;
-  timezone: string;
-  revision: string;
-  onMutated: () => Promise<void>;
-  currentOrders: ReactNode;
+  orderManagement: OrderManagementPort
+  idempotency: IdempotencyPort
+  locationId: string
+  timezone: string
+  revision: string
+  onMutated: () => Promise<void>
+  currentOrders: ReactNode
 }>) {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   return (
     <Tabs defaultValue="incoming" className="min-w-0 gap-6">
       <TabsList
-        aria-label={t('orderControl.manageOrders.tabsLabel')}
+        aria-label={t("orderControl.manageOrders.tabsLabel")}
         className="grid h-11 w-full grid-cols-2 sm:w-80"
       >
         <TabsTrigger value="incoming">
-          {t('orderControl.manageOrders.incoming')}
+          {t("orderControl.manageOrders.incoming")}
         </TabsTrigger>
         <TabsTrigger value="active">
-          {t('orderControl.manageOrders.active')}
+          {t("orderControl.manageOrders.active")}
         </TabsTrigger>
       </TabsList>
 
@@ -53,5 +53,5 @@ export function OrderManagementWorkspace({
         {currentOrders}
       </TabsContent>
     </Tabs>
-  );
+  )
 }
