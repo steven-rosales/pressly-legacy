@@ -1,0 +1,286 @@
+work_id: module-architecture-refactor
+title: Declarative functional module architecture refactor
+status: complete
+
+goal:
+  - Make module ownership, file roles, dependency direction, and boundary decoding declarative and mechanically enforced.
+  - Keep application language inside its owning module and serialized protocol language inside contracts.
+  - Preserve behavior while improving traversal, proof flow, and change isolation.
+
+invariants:
+  - Modules decide and packages enable; business meaning is not moved into a generic shared package.
+  - Every module source file is exactly one composition surface, capability role, or declared foundation member.
+  - Capabilities may depend on declared foundations; foundations never depend on consumer capabilities; foundation dependencies are directed and acyclic.
+  - Model, mapper, and policy code is mechanism-free; ports describe required effects; use cases orchestrate those effects; adapters implement them.
+  - Unknown data is decoded once at a trust boundary and the inferred type proof is preserved inward.
+  - Contracts contain serialized trust-boundary or process-boundary data, not ordinary in-process application commands and results.
+  - A design pattern is introduced only as a typed functional factory or compiler that captures repeated semantics; patterns are never mandatory scaffolding.
+  - Thin use cases may remain as stable open-for-extension application seams without speculative hooks.
+  - Existing public behavior and durable business invariants remain unchanged during structural migrations.
+  - Existing unrelated worktree changes are preserved and excluded.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Characterize module roles and contract ownership
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:docs/architecture.md
+      - repo:eslint.config.mjs
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - repo:modules
+      - repo:packages/contracts
+    writes:
+      - repo:stateworks/work/done/module-architecture-refactor/evidence.md
+    action:
+      - Inventory capability, foundation, role, contract, and application-type ownership.
+      - Distinguish lexical enforcement from semantic enforcement and record the migration order.
+      - Identify unrelated dirty paths and exclude them.
+    verifier:
+      - Evidence names concrete ownership and enforcement gaps without changing runtime behavior.
+      - The migration order starts with reusable enforcement and one bounded pilot.
+    rollback:
+      - No rollback is required for read-only characterization.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t0--characterize-module-roles-and-contract-ownership
+
+  - id: T1
+    title: Compile declarative module architecture
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:eslint.config.mjs
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - repo:modules
+    writes:
+      - repo:tooling/architecture
+      - repo:eslint.config.mjs
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - repo:package.json
+    action:
+      - Define a typed functional factory that compiles immutable module groups, roles, foundations, and directed dependencies into pure enforcement queries.
+      - Make lint and repository validation consume the same definition.
+      - Reject undeclared modules, missing or undeclared foundations, invalid role files, cycles, and forbidden dependency directions.
+      - Add focused purity enforcement for representation mappers without pretending static lint proves all behavior.
+    verifier:
+      - The architecture factory typechecks independently and through the root typecheck command.
+      - Focused tests cover valid structure, invalid declarations, cycles, dependency decisions, and repository alignment.
+      - The architecture boundary suite passes.
+    rollback:
+      - Restore the former inline declarations while keeping existing boundary rules intact.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t1--compile-declarative-module-architecture
+
+  - id: T2
+    title: Prove the boundary model through Pricing
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:modules/business/pricing
+      - repo:packages/contracts/src/pricing
+      - repo:packages/http/src/express
+      - repo:apps/cli/src/features/pricing
+    writes:
+      - repo:modules/business/pricing
+      - repo:packages/contracts/src/pricing
+      - repo:packages/http/src/express
+      - repo:apps/cli/src/features/pricing
+    action:
+      - Move Pricing application data and Date values into module-owned models.
+      - Keep Zod schemas and serialized values in contracts and map only at the HTTP edge.
+      - Replace duplicated CLI response schemas with authoritative serialized contracts.
+      - Preserve request type proof through a small generic request-boundary factory if Express can support it honestly.
+    verifier:
+      - Pricing policies, use cases, ports, and repositories no longer depend on contracts.
+      - Pricing HTTP responses are mapped and validated against runtime schemas.
+      - Contracts, HTTP, Pricing, and CLI focused tests, lint, and typechecks pass.
+    rollback:
+      - Restore the previous structurally compatible wire aliases without changing Pricing persistence or public routes.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t2--prove-the-boundary-model-through-pricing
+
+  - id: T3
+    title: Correct semantic file ownership
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:modules/business/orders/src/persistence
+      - repo:modules/business/production/src/scheduling
+      - repo:modules/business/users
+    writes:
+      - repo:modules/business/orders/src/persistence
+      - repo:modules/business/production/src/scheduling
+      - repo:modules/business/users/src/persistence
+    action:
+      - Rename data-only ports as models.
+      - Move the canonical source User transaction adapter into its existing persistence foundation.
+      - Preserve public composition seams and runtime behavior.
+    verifier:
+      - No stale file references remain.
+      - Orders, Production, Users, and affected API checks pass.
+      - Architecture validation recognizes descriptive same-foundation dependencies without an exemption comment.
+    rollback:
+      - Revert path-only changes without changing the underlying behavior.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t3--correct-semantic-file-ownership
+
+  - id: T4
+    title: Split oversized capability families
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T3
+    reads:
+      - repo:modules/business/auth/src/workforce
+      - repo:modules/business/orders/src/incoming-order-proposal
+      - repo:modules/business/production/src/list-production-history
+    writes:
+      - repo:modules/business/auth/src
+      - repo:modules/business/orders/src/incoming-order-proposal
+      - repo:modules/business/production/src/production-history
+    action:
+      - Split capability families by independently invocable application behavior while retaining cohesive aggregate policy.
+      - Extract known data from ports into models and split oversized repositories by owned operation.
+      - Mirror the final capability names under each module test tree.
+    verifier:
+      - Every resulting directory has one intuitive capability or declared-foundation responsibility.
+      - Existing behavior, transaction boundaries, and public module surfaces remain compatible.
+      - Focused and module-wide checks pass after each migration.
+    rollback:
+      - Revert one capability migration independently without weakening enforcement.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t4--split-oversized-capability-families
+
+  - id: T5
+    title: Contain contracts at real boundaries
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+    reads:
+      - repo:modules/business/auth
+      - repo:modules/business/webhook-ingestion
+      - repo:modules/business/production
+      - repo:apps/processor
+      - repo:packages/contracts
+    writes:
+      - repo:modules/business/auth
+      - repo:modules/business/webhook-ingestion
+      - repo:modules/business/production
+      - repo:apps/processor
+      - repo:packages/contracts
+    action:
+      - Migrate application commands, results, models, and ports out of serialized contracts one capability at a time.
+      - Keep event, webhook, HTTP, browser, file, and persisted-JSON schemas at their actual trust or process boundary.
+      - Introduce bounded contract subpath exports only after consumers have explicit ownership.
+      - Tighten contract-import lint after each migrated slice is green.
+    verifier:
+      - Policies and use cases depend only on module-owned application language and stable enabling packages.
+      - Boundary adapters decode unknown data and map to or from application models exactly once.
+      - Package, module, application, and integration checks pass for each migrated capability.
+    rollback:
+      - Restore compatibility aliases for the affected boundary without moving business behavior into contracts.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t5--contain-contracts-at-real-boundaries
+
+  - id: V1
+    title: Prove repository architecture and behavior
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T4
+      - T5
+    reads:
+      - repo:tooling/architecture
+      - repo:modules
+      - repo:packages
+      - repo:apps
+    writes:
+      - repo:stateworks/work/done/module-architecture-refactor/evidence.md
+    action:
+      - Run focused checks during each slice and the WSL-bounded repository test, lint, typecheck, and build gates at closure.
+      - Record exact passing scope and separate repository proof from deployment or pilot readiness.
+    verifier:
+      - VITEST_MAX_WORKERS=2 pnpm test
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm build
+      - pnpm stateworks:verify stateworks/work/done/module-architecture-refactor/network.yaml --state stateworks/work/done/module-architecture-refactor/state.yaml
+    rollback:
+      - Keep the work active and revert only the failing slice; never weaken an architectural invariant to make the gate green.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#v1--prove-repository-architecture-and-behavior
+
+  - id: T6
+    title: Close architecture evidence
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:stateworks/work/done/module-architecture-refactor/evidence.md
+      - repo:docs/architecture.md
+    writes:
+      - repo:stateworks/work/done/module-architecture-refactor/final-report.md
+      - repo:stateworks/work/done/module-architecture-refactor/state.yaml
+    action:
+      - Record the implemented boundary, verification evidence, and deliberately omitted complexity.
+      - Leave any incomplete migration as a named active task instead of overstating repository conformance.
+    verifier:
+      - The final report distinguishes current code, normative architecture, and remaining work.
+      - Stateworks validation passes and no domain-memory claim is changed by a structural refactor.
+    rollback:
+      - Keep the work active until the evidence is complete.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t6--close-architecture-evidence
+      - stateworks/work/done/module-architecture-refactor/final-report.md

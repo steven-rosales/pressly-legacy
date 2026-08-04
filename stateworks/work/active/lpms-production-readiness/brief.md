@@ -66,9 +66,9 @@ the current repository state.
 The post-V2 refactor adds a deliberate change-control pair, `R1 -> RV1`, before
 the first external gate:
 
-- `modules/business/webhook-ingestion` owns generic durable inbox lifecycle,
+- `modules/integration/webhook-ingestion` owns generic durable inbox lifecycle,
   dead letters, replay, and source-location bindings.
-- `apps/api/src/vendors/cents` owns Cents authentication and wire
+- `apps/api/src/http/webhooks/cents` owns Cents authentication and wire
   normalization.
 - `apps/worker` owns the `source:subjectType` consumer registry, composes webhook
   ingestion with Orders observation capabilities, and separately projects the

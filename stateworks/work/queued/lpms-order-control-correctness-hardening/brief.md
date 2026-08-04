@@ -26,6 +26,31 @@ checkpoint: its recorded commands passed. A later read-only audit found four
 correctness gaps that those tests did not cover. This work records the new
 evidence without rewriting historical results.
 
+## Architecture Rebaseline - 2026-08-03
+
+Production is now the sole authority for its application features, intrinsic
+rules, and approved scheduling algorithms. The architecture migration moved
+the affected slices without claiming or implementing any of the four repairs:
+
+- whole-order routing is under
+  `modules/business/production/src/features/orders/route-order`;
+- routing and stage rules are under
+  `modules/business/production/src/foundations/language/{order-routing,stage-transition}`;
+- PostgreSQL command, execution, and scheduling adapters are under
+  `modules/business/production/src/foundations/adapters/postgres`;
+- History application features are under
+  `modules/business/production/src/features/history`;
+- the current cursor factory remains under
+  `modules/business/production/src/foundations/language/history`; and
+- History repositories and row mappers are under
+  `modules/business/production/src/foundations/adapters/postgres/history`.
+
+The moved routing, lifecycle, idempotency, cursor, and PostgreSQL suites passed
+as behavior-preserving characterization during the migration. They do not
+contain the deterministic red proofs required by this work's Definition of
+Done. T0 must still reproduce every gap against these current paths before any
+repair begins.
+
 ## Completed UI Checkpoint
 
 The current worktree also contains a small Processor loading-state improvement:

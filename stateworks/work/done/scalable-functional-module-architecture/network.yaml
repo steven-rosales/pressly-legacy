@@ -1,0 +1,330 @@
+work_id: scalable-functional-module-architecture
+title: Scalable functional module architecture
+status: complete
+
+goal:
+  - Make repository placement, ownership, dependency direction, and feature traversal deterministic before substantial product growth.
+  - Implement a declarative functional hexagonal architecture without ceremonial layers or behavior changes.
+  - Encode the architecture as immutable manifests, pure compiler rules, lint, tests, and durable documentation.
+
+invariants:
+  - Preserve current business behavior and all laundry-production invariants.
+  - Keep modules isolated peers; only apps compose multiple modules.
+  - Keep protocol contracts at trust or process boundaries and module application language inward.
+  - Return expected business failures as typed data and reserve exceptions for unexpected failures.
+  - Do not hide clocks, IDs, transactions, network, persistence, or other effects in pure code.
+  - Do not add empty role files, generic repositories, a DI container, service locator, base entity hierarchy, or universal policy engine.
+  - Do not claim the queued LPMS routing and History correctness gaps are solved.
+  - Preserve user-owned unrelated working-tree changes and do not expose secrets or customer data.
+
+max_repair_attempts: 3
+stop_on:
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Baseline behavior and migration inventory
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo:modules
+      - repo:apps
+      - repo:packages
+      - repo:tooling/architecture
+      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening
+    writes:
+      - repo:stateworks/work/done/scalable-functional-module-architecture/evidence.md
+    action:
+      - Inventory current authorities, dependencies, suffixes, protocol boundaries, and runtime composition.
+      - Record characterization protection for Production slices affected by queued correctness debt.
+    verifier:
+      - The evidence names every current module and its target authority.
+      - The queued LPMS gaps remain explicitly unsolved.
+    rollback:
+      - No rollback; this task records the migration baseline.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t0---baseline-behavior-and-migration-inventory
+
+  - id: T1
+    title: Compile Architecture Compiler v2
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:tooling/architecture
+      - repo:eslint.config.mjs
+    writes:
+      - repo:tooling/architecture
+      - repo:tooling/test
+      - repo:eslint.config.mjs
+    action:
+      - Add per-module manifests, auto-discovery, namespaces, feature and foundation profiles, qualified roles, dependency graph rules, and pure-role constraints.
+      - Keep a compatibility compiler only while modules are migrated.
+    verifier:
+      - pnpm typecheck:architecture
+      - VITEST_MAX_WORKERS=2 pnpm exec vitest run tooling/test/architecture-compiler-v2.test.mjs tooling/test/architecture-discovery.test.mjs tooling/test/architecture-eslint-v2.test.mjs tooling/test/architecture-topology-v2.test.mjs tooling/test/architecture-boundaries.test.mjs
+      - pnpm architecture:check
+      - pnpm lint:architecture
+    rollback:
+      - Restore the v1 compiler while retaining the inventory and characterization evidence.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t1---compile-architecture-compiler-v2
+
+  - id: T2
+    title: Establish shared technical package owners
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:packages
+      - repo:modules
+      - repo:apps
+    writes:
+      - repo:packages
+      - repo:pnpm-lock.yaml
+    action:
+      - Complete Kernel, Time, Codec, DB, HTTP, Auth, Money, Observability, Errors, and Testkit ownership and explicit subpath exports.
+      - Introduce only reusable functional factories with proven repeated semantics.
+    verifier:
+      - pnpm lint
+      - pnpm typecheck
+      - VITEST_MAX_WORKERS=2 pnpm test
+    rollback:
+      - Retain compatibility exports until all consumers have migrated.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t2---establish-shared-technical-package-owners
+
+  - id: T3
+    title: Prove the universal module grammar through Pricing
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:modules/business/pricing
+      - repo:packages/contracts/src/pricing
+    writes:
+      - repo:modules/business/pricing
+      - repo:packages/contracts/src/pricing
+    action:
+      - Migrate Pricing to features, foundations, composition, qualified mappers, explicit failures, and per-module architecture declaration.
+      - Use the migrated module as the executable template for remaining modules.
+    verifier:
+      - pnpm --filter @pressly/pricing lint
+      - pnpm --filter @pressly/pricing typecheck
+      - VITEST_MAX_WORKERS=2 pnpm --filter @pressly/pricing test
+      - pnpm --filter @pressly/pricing build
+    rollback:
+      - Restore transitional paths and exports without moving application language into Contracts.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t3---prove-the-universal-module-grammar-through-pricing
+
+  - id: T4
+    title: Migrate business and integration modules
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+    reads:
+      - repo:modules/business
+      - repo:apps/worker
+    writes:
+      - repo:modules/business
+      - repo:modules/integration
+      - repo:apps/worker
+    action:
+      - Migrate Orders, Users, Webhook Ingestion, and Production to the universal module grammar.
+      - Characterize and preserve queued LPMS correctness behavior before moving affected Production slices.
+    verifier:
+      - Affected module lint, typecheck, test, and build gates pass.
+      - Architecture tests find no compatibility directories or undeclared feature dependencies.
+    rollback:
+      - Revert only the failing module slice and retain compatibility exports until consumers move.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t4---migrate-business-and-integration-modules
+
+  - id: T5
+    title: Reassign security policy and scheduling authority
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T4
+    reads:
+      - repo:modules/security/identity
+      - repo:modules/security/authorization
+      - repo:modules/business/production/src/foundations/language
+      - repo:modules/business/production/src/foundations/algorithms
+      - repo:modules/business/production
+    writes:
+      - repo:modules/security
+      - repo:modules/business/production
+      - repo:apps
+    action:
+      - Move Identity and Authorization to Security authorities.
+      - Absorb Production Policy and Scheduling into Production language and versioned algorithm foundations.
+      - Remove framework leakage, the giant Production policy bag, and arbitrary algorithm injection.
+    verifier:
+      - Affected module and app lint, typecheck, test, and build gates pass.
+      - Authorization imports no Express request type and Production owns its intrinsic rules and approved algorithms.
+    rollback:
+      - Retain temporary package aliases at app composition edges only.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t5---reassign-security-policy-and-scheduling-authority
+
+  - id: T6
+    title: Extract experience applications and thin API
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+    reads:
+      - repo:apps/api/src/http/control
+      - repo:apps/api/src/http/processor
+      - repo:apps/control
+      - repo:apps/processor
+    writes:
+      - repo:modules/experience
+      - repo:apps/api
+      - repo:apps/control
+      - repo:apps/processor
+      - repo:packages/http
+    action:
+      - Move Control and Processor cross-domain application/query behavior into experience modules.
+      - Keep API transport-only and consolidate repeated HTTP boundary factories such as cookie CSRF.
+    verifier:
+      - Affected API, Control, Processor, HTTP, and experience module gates pass.
+      - API architecture tests reject business policy and cross-domain read-model ownership.
+    rollback:
+      - Restore app-local composition adapters while keeping generic HTTP machinery package-owned.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t6---extract-experience-applications-and-thin-api
+
+  - id: T7
+    title: Normalize Contracts, DB, errors, and public surfaces
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T6
+    reads:
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:packages/errors
+    writes:
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:packages/errors
+      - repo:modules
+      - repo:apps
+    action:
+      - Split explicit feature-aligned contract and database subpaths.
+      - Separate expected feature failures, normalized unexpected errors, and HTTP problem presentation end to end.
+      - Remove compatibility exports after all consumers use the stable surfaces.
+    verifier:
+      - Contracts contain no application entities, policies, ports, or use cases.
+      - Expected business conditions do not use throw-based control flow in migrated features.
+      - Affected lint, typecheck, test, and build gates pass.
+    rollback:
+      - Restore narrow compatibility exports without reintroducing inward dependency violations.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t7---normalize-contracts-db-errors-and-public-surfaces
+
+  - id: T8
+    title: Enforce and document the placement system
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T7
+    reads:
+      - repo:docs
+      - repo:tooling/architecture
+      - repo:modules
+      - repo:packages
+      - repo:apps
+    writes:
+      - repo:docs/architecture.md
+      - repo:docs
+      - repo:tooling
+      - repo:stateworks/work/done/scalable-functional-module-architecture/evidence.md
+    action:
+      - Publish deterministic placement and dependency decision trees, feature profiles, examples, anti-patterns, and migration guidance.
+      - Make documentation examples executable through architecture fixtures or repository tests.
+    verifier:
+      - Documentation matches the enforced compiler vocabulary and current repository tree.
+      - No documented path relies on a compatibility alias.
+    rollback:
+      - Keep normative documentation paired to the last verified compiler state.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t8---enforce-and-document-the-placement-system
+
+  - id: V1
+    title: Prove repository architecture and behavior
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T8
+    reads:
+      - repo
+    writes:
+      - repo:stateworks/work/done/scalable-functional-module-architecture/evidence.md
+      - repo:stateworks/work/done/scalable-functional-module-architecture/final-report.md
+      - repo:stateworks/work/done/scalable-functional-module-architecture/state.yaml
+    action:
+      - Run bounded repository test, lint, typecheck, build, architecture, Stateworks, and diff hygiene gates.
+      - Report database integration and external runtime proof separately.
+    verifier:
+      - VITEST_MAX_WORKERS=2 pnpm test
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm build
+      - pnpm stateworks:verify stateworks/work/done/scalable-functional-module-architecture/network.yaml --state stateworks/work/done/scalable-functional-module-architecture/state.yaml
+      - git diff --check
+    rollback:
+      - Keep the work active and repair the failing slice without weakening an invariant.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#v1---prove-repository-architecture-and-behavior
+      - stateworks/work/done/scalable-functional-module-architecture/final-report.md

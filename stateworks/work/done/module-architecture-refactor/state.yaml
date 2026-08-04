@@ -1,0 +1,42 @@
+work_id: module-architecture-refactor
+status: complete
+updated: 2026-08-02T17:11:03-04:00
+
+current_focus:
+  - complete
+  - Declarative capability ownership and serialized contract boundaries are implemented and verified locally.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t0--characterize-module-roles-and-contract-ownership
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t1--compile-declarative-module-architecture
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t2--prove-the-boundary-model-through-pricing
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t3--correct-semantic-file-ownership
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t4--split-oversized-capability-families
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t5--contain-contracts-at-real-boundaries
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#v1--prove-repository-architecture-and-behavior
+  T6:
+    status: committed
+    evidence:
+      - stateworks/work/done/module-architecture-refactor/evidence.md#t6--close-architecture-evidence
+      - stateworks/work/done/module-architecture-refactor/final-report.md

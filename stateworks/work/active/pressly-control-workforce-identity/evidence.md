@@ -16,7 +16,7 @@
   MFA credentials and challenges, login attempts, audit events, and scoped role
   assignments in `packages/db/src/schema/auth.schema.ts`.
 - Session loading re-reads current role assignments on every request in
-  `modules/business/auth/src/load-session/load-session.repo.ts`; this is the
+  `modules/security/identity/src/features/sessions/load-session/load-session.repo.ts`; this is the
   correct revocation and capability-truth foundation and does not require JWT
   or an independent Auth service.
 - Current roles omit `manager`; current scopes omit a business/account scope.
@@ -27,7 +27,7 @@
   `modules/policy/access-control/src/order-management/order-management.policy.ts`
   exposes only broad customer-write and order-write actions.
 - Privileged MFA is conditional on an already-enabled credential in
-  `modules/business/auth/src/login/login.usecase.ts`. A privileged identity
+  `modules/security/identity/src/features/sessions/login/login.usecase.ts`. A privileged identity
   without enrollment can still receive a password-assurance session.
 - Processor's browser boundary has the correct basic shape:
   `apps/api/src/http/processor/session/processor-cookie.adapter.ts` uses
@@ -39,7 +39,7 @@
   owner/admin role names. The server remains the final guard, but the browser
   can present controls that are not authorized for the selected location.
 - Production command adapters still record synthetic effective roles in
-  `modules/business/production/src/place-production-order`,
+  `modules/business/production/src/features/scheduling/place-order`,
   `manage-batch-membership`, and `route-production-order`, rather than one
   authenticated actor plus the exact authorized action context.
 - Canonical customer profiles live in `modules/business/users` and
@@ -528,6 +528,61 @@ summary: Unrelated deleted and untracked files were identified and excluded.
 ```
 
 ## Decisions
+
+### T3/T6 authority correction — 2026-08-03
+
+The original Control behavior remains, but its application authority moved out
+of API transport code into the v2 `@pressly/control-experience` module.
+
+- Control access resolution, capability derivation, application destinations,
+  business/location scoping, Customer and Order orchestration, workforce and
+  invitation orchestration, and Control projections now live under
+  `modules/experience/control`.
+- `apps/api/src/http/control` retains contract validation and serialization,
+  authenticated request-context adaptation, cookies, origin/CSRF enforcement,
+  rate limiting, and outer error presentation.
+- API composition adapts Identity, Users, and Orders public capabilities into
+  narrow Control ports. The Experience module imports no peer module package.
+- Expected peer rejections are typed, feature-specific data. Unexpected
+  mechanism and invariant failures throw through to the standard API error
+  boundary; no `cause: unknown` is stored in an expected failure union.
+- Existing Control wire contracts and browser consumers were preserved. The
+  full API suite passed 30 files and 198 tests; the Control Experience suite
+  passed 4 files and 12 tests; and the Control browser suite passed 20 files
+  and 80 tests. All three surfaces passed lint, source/test type checks, and
+  production builds. Architecture check, lint, typecheck, and the affected
+  Stateworks validators also passed.
+- Control API and browser consumers now import the explicit Auth, Users, and
+  Orders contract subpaths. With behavior and wire schemas unchanged, the
+  Control production entry chunk decreased from 509.96 kB / 146.66 kB gzip to
+  455.18 kB / 135.03 kB gzip in the same verification run.
+
+### Identity failure and Control semantic-role refinement — 2026-08-03
+
+- Identity expected failures are module-owned data for bootstrap, login,
+  load-session, MFA, and workforce use cases. Database, cryptographic,
+  configuration, corrupt-row, and invariant failures throw normalized
+  `AppError` values instead of entering the expected failure union.
+- MFA's atomic transition uses the shared result-aware unit of work, so an
+  expected challenge rejection rolls back without using a private throwable
+  as application control flow.
+- Identity command receipts and acceptance replay metadata use Codec
+  `JsonObject` and validate persisted structure before projection. Cursor wire
+  bytes are preserved through shared Base64URL JSON primitives.
+- The Control language is physically classified. Grant, invitation, and
+  membership are continuity-bearing entities. Workforce snapshots, details,
+  pages, lists, and mutation outcomes are models; roles, scopes, states, and
+  actor references are values. Control access is a resolved application model,
+  not an entity.
+- Customer and Order application records were renamed to snapshots. The
+  `Record` suffix is reserved for genuine representation records and cannot be
+  used as an ambiguous synonym for a hydrated peer value.
+- Identity passed lint, source/test typecheck, build, 139 unit tests, and 33
+  sequential PostgreSQL integration tests. Control Experience passed lint,
+  source/test typecheck, build, and 12 tests. Eight focused Control/Auth API
+  files passed 36 tests; the API lint, source/test typecheck, and build gates
+  passed. Both affected Stateworks networks validated and verified with no stop
+  reason.
 
 - Decision: Keep one modular-monolith Auth authority with app-specific browser
   session boundaries.

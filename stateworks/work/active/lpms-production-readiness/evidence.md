@@ -392,7 +392,7 @@ external behavior.
 
 Status: committed
 
-- `modules/business/webhook-ingestion` now owns the generic durable event
+- `modules/integration/webhook-ingestion` now owns the generic durable event
   lifecycle: deduplication, claims, expiring leases, retry/dead-letter
   completion, replay, backlog measurement, and source-location bindings.
 - `apps/api/src/vendors/cents` owns exact-byte Cents HMAC verification and wire

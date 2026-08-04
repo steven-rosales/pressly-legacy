@@ -45,10 +45,10 @@ tasks:
       - repo:stateworks/work/done/security-hardening
       - repo:stateworks/work/queued/future-distributed-authentication
       - repo:packages/db/src/schema/auth.schema.ts
-      - repo:modules/business/auth
+      - repo:modules/security/identity
       - repo:modules/business/users
       - repo:modules/business/orders
-      - repo:modules/policy/access-control
+      - repo:modules/security/authorization
       - repo:apps/api
       - repo:apps/processor
       - repo:docs/architecture.md
@@ -84,10 +84,10 @@ tasks:
     writes:
       - repo:stateworks/memory/index.yaml
       - repo:stateworks/memory/domains/identity-access
-      - repo:modules/business/auth/src/workforce-invitation
-      - repo:modules/business/auth/src/workforce-membership
-      - repo:modules/business/auth/src/access-grant
-      - repo:modules/business/auth/test/workforce
+      - repo:modules/security/identity/src/foundations/language/workforce-invitation
+      - repo:modules/security/identity/src/foundations/language/workforce-membership
+      - repo:modules/security/identity/src/foundations/language/access-grant
+      - repo:modules/security/identity/test/foundations/language
     action:
       - Create source-backed Identity Access memory for business membership, invitation, scoped grants, app sessions, and role/capability decisions.
       - Define invitation, workforce-membership, and access-grant graphs with the shared kernel state-machine interpreter.
@@ -116,15 +116,15 @@ tasks:
       - repo:packages/db/src/schema/orders.schema.ts
       - repo:packages/db/src/schema/laundry-production.schema.ts
       - repo:packages/auth/src/authorization
-      - repo:modules/business/auth
-      - repo:modules/business/auth
+      - repo:modules/security/identity
+      - repo:modules/security/identity
     writes:
       - repo:packages/db/src/schema
       - repo:packages/db/src/migrations
       - repo:packages/db/test
       - repo:packages/auth/src/authorization
       - repo:packages/auth/test
-      - repo:modules/business/auth
+      - repo:modules/security/identity
       - repo:packages/contracts/src
       - repo:packages/contracts/test
     action:
@@ -152,15 +152,15 @@ tasks:
     deps:
       - T2
     reads:
-      - repo:modules/business/auth
-      - repo:modules/business/auth
-      - repo:modules/policy/access-control
+      - repo:modules/security/identity
+      - repo:modules/security/identity
+      - repo:modules/security/authorization
       - repo:apps/api/src/http/processor/session
       - repo:apps/api/src/bootstrap
       - repo:packages/contracts/src
     writes:
-      - repo:modules/business/auth
-      - repo:modules/policy/access-control
+      - repo:modules/security/identity
+      - repo:modules/security/authorization
       - repo:apps/api/src/http/control
       - repo:apps/api/src/bootstrap
       - repo:apps/api/test/control
@@ -271,7 +271,7 @@ tasks:
     writes:
       - repo:modules/business/users
       - repo:modules/business/orders
-      - repo:modules/policy/access-control
+      - repo:modules/security/authorization
       - repo:apps/api/src/http/control
       - repo:apps/api/test/control
       - repo:apps/control/src/features/customers
@@ -305,14 +305,14 @@ tasks:
     reads:
       - repo:apps/api/src/http/processor
       - repo:apps/processor/src/app
-      - repo:modules/policy/access-control/src/production
+      - repo:modules/security/authorization/src/features/operations/authorize-production
       - repo:modules/business/production/src
     writes:
       - repo:apps/api/src/http/processor
       - repo:apps/api/test/processor
       - repo:apps/processor/src/app
       - repo:apps/processor/test
-      - repo:modules/policy/access-control/src/production
+      - repo:modules/security/authorization/src/features/operations/authorize-production
       - repo:modules/business/production/src
       - repo:modules/business/production/test
       - repo:packages/contracts/src
@@ -391,22 +391,22 @@ tasks:
       - T7
     reads:
       - repo:packages/auth
-      - repo:modules/business/auth
+      - repo:modules/security/identity
       - repo:modules/business/users
       - repo:modules/business/orders
       - repo:modules/business/production
-      - repo:modules/policy/access-control
-      - repo:modules/policy/production
+      - repo:modules/security/authorization
+      - repo:modules/business/production/src/foundations/language
       - repo:packages/contracts
       - repo:apps/api
     writes:
       - repo:packages/auth/test
-      - repo:modules/business/auth/test
+      - repo:modules/security/identity/test
       - repo:modules/business/users/test
       - repo:modules/business/orders/test
       - repo:modules/business/production/test
-      - repo:modules/policy/access-control/test
-      - repo:modules/policy/production/test
+      - repo:modules/security/authorization/test
+      - repo:modules/business/production/test/foundations/language
       - repo:packages/contracts/test
       - repo:apps/api/test/control
       - repo:apps/api/test/security

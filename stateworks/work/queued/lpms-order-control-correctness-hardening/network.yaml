@@ -38,11 +38,11 @@ tasks:
       - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast
       - repo:stateworks/work/queued/lpms-order-control-correctness-hardening/brief.md
       - repo:docs/plan/lpms-state-transitions.md
-      - repo:modules/business/production/src/route-production-order
-      - repo:modules/business/production/src/advance-production-stage
-      - repo:modules/business/production/src/list-production-history
-      - repo:modules/policy/production/src/lifecycle
-      - repo:modules/policy/production/src/stage-transition
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/floor/advance-stage
+      - repo:modules/business/production/src/features/history
+      - repo:modules/business/production/src/foundations/language/lifecycles
+      - repo:modules/business/production/src/foundations/language/stage-transition
       - repo:packages/db/src/schema/laundry-production.schema.ts
     writes:
       - repo:stateworks/work/active/lpms-order-control-correctness-hardening/evidence.md
@@ -69,18 +69,18 @@ tasks:
     deps:
       - T0
     reads:
-      - repo:modules/policy/production/src/order-routing
-      - repo:modules/policy/production/src/stage-transition
-      - repo:modules/business/production/src/route-production-order
-      - repo:modules/business/production/src/advance-production-stage
-      - repo:modules/business/production/src/persistence
+      - repo:modules/business/production/src/foundations/language/order-routing
+      - repo:modules/business/production/src/foundations/language/stage-transition
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/floor/advance-stage
+      - repo:modules/business/production/src/foundations/adapters/postgres
       - repo:packages/db/src/schema/laundry-production.schema.ts
     writes:
-      - repo:modules/policy/production/src/order-routing
-      - repo:modules/policy/production/src/stage-transition
-      - repo:modules/business/production/src/route-production-order
-      - repo:modules/business/production/test/route-production-order
-      - repo:modules/business/production/test/concurrency
+      - repo:modules/business/production/src/foundations/language/order-routing
+      - repo:modules/business/production/src/foundations/language/stage-transition
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/test/features/orders/route-order
+      - repo:modules/business/production/test/integration/concurrency
     action:
       - Model the between-stage milestone without creating another execution state machine.
       - Ensure routing recomputes, repairs, or invalidates affected planned machine assignments so an under-capacity target cannot start.
@@ -105,13 +105,13 @@ tasks:
       - T1
     reads:
       - repo:packages/contracts/src/production/production-order-control.contracts.ts
-      - repo:modules/business/production/src/route-production-order
-      - repo:modules/business/production/src/place-production-order
-      - repo:modules/business/production/src/advance-production-stage
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/scheduling/place-order
+      - repo:modules/business/production/src/features/floor/advance-stage
     writes:
-      - repo:modules/business/production/src/route-production-order
-      - repo:modules/business/production/test/route-production-order
-      - repo:modules/business/production/test/concurrency
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/test/features/orders/route-order
+      - repo:modules/business/production/test/integration/concurrency
       - repo:packages/contracts/test/production-order-control.contracts.test.ts
     action:
       - Recheck replay after the run-first aggregate lock and before mutable-version rejection.
@@ -137,13 +137,19 @@ tasks:
       - T0
     reads:
       - repo:packages/contracts/src/production/production-history.contracts.ts
-      - repo:modules/business/production/src/list-production-history
+      - repo:modules/business/production/src/features/history
+      - repo:modules/business/production/src/foundations/language/history
+      - repo:modules/business/production/src/foundations/adapters/postgres/history
       - repo:packages/db/src/query.ts
     writes:
       - repo:packages/contracts/src/production/production-history.contracts.ts
       - repo:packages/contracts/test/production-history.contracts.test.ts
-      - repo:modules/business/production/src/list-production-history
-      - repo:modules/business/production/test/list-production-history
+      - repo:modules/business/production/src/features/history
+      - repo:modules/business/production/test/features/history
+      - repo:modules/business/production/src/foundations/language/history
+      - repo:modules/business/production/src/foundations/adapters/postgres/history
+      - repo:modules/business/production/test/foundations/language/history
+      - repo:modules/business/production/test/foundations/adapters/postgres/history
     action:
       - Preserve the exact database ordering key across cursor encode and decode.
       - Keep cursors filter-bound, opaque, bounded, and backward-incompatible only if required for correctness.
@@ -167,7 +173,7 @@ tasks:
       - T2
       - T3
     reads:
-      - repo:modules/policy/production
+      - repo:modules/business/production/src/foundations/language
       - repo:modules/business/production
       - repo:packages/contracts
       - repo:packages/db
@@ -180,7 +186,7 @@ tasks:
       - Reverify the Processor loading-state checkpoint and local Docker path without resetting the development database.
       - Record exact test counts, environment boundaries, and any nonblocking warnings.
     verifier:
-      - pnpm --filter @pressly/production-policy test
+      - pnpm --filter @pressly/production exec vitest run test/foundations/language
       - pnpm --filter @pressly/contracts test
       - pnpm --filter @pressly/production test
       - pnpm --filter @pressly/production test:integration
