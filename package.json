@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "turbo dev --concurrency=2",
     "build": "turbo build --concurrency=2",
+    "build:integration-deps": "turbo build --filter='@pressly/api^...' --concurrency=2",
     "typecheck": "turbo typecheck --concurrency=2 && pnpm typecheck:browser && pnpm typecheck:architecture",
     "typecheck:browser": "tsc -p tooling/browser-e2e/tsconfig.json --noEmit",
     "typecheck:architecture": "tsc -p tooling/architecture/tsconfig.json --noEmit",
@@ -56,7 +57,7 @@
     "test:pricing:int": "bash tooling/scripts/run-integration-tests.sh pricing",
     "test:db-security:int": "bash tooling/scripts/run-integration-tests.sh db-security",
     "test:lpms:int": "bash tooling/scripts/run-integration-tests.sh lpms",
-    "test:lpms:e2e": "VITEST_MAX_WORKERS=2 pnpm --filter @pressly/api exec vitest run test/cents test/lpms/lpms-happy-path.e2e.test.ts && VITEST_MAX_WORKERS=2 pnpm exec turbo test --filter=@pressly/processor --concurrency=2",
+    "test:lpms:e2e": "pnpm build:integration-deps && VITEST_MAX_WORKERS=2 pnpm --filter @pressly/api exec vitest run test/cents test/lpms/lpms-happy-path.e2e.test.ts && VITEST_MAX_WORKERS=2 pnpm exec turbo test --filter=@pressly/processor --concurrency=2",
     "test:browser:e2e": "bash tooling/scripts/run-browser-e2e.sh",
     "test:browser:smoke": "bash tooling/scripts/run-browser-e2e.sh --grep @smoke",
     "test:browser:install": "playwright install chromium",

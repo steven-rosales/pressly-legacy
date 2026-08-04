@@ -11,6 +11,10 @@ export PRESSLY_TEST_BACKUP_DATABASE_URL="${PRESSLY_TEST_BACKUP_DATABASE_URL:-pos
 export PRESSLY_TEST_DATABASE_URL="${PRESSLY_TEST_DATABASE_URL:-$PRESSLY_TEST_RUNTIME_DATABASE_URL}"
 export PRESSLY_TEST_DATABASE_RESET_URL="${PRESSLY_TEST_DATABASE_RESET_URL:-$PRESSLY_TEST_MIGRATION_DATABASE_URL}"
 
+# These suites invoke Vitest directly, so materialize the compiled workspace
+# exports loaded by the API-composed integration graph first.
+pnpm build:integration-deps
+
 tooling/scripts/configure-test-database-roles.sh
 DATABASE_URL="$PRESSLY_TEST_MIGRATION_DATABASE_URL" pnpm -F @pressly/db migrate
 

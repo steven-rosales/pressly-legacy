@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:workspace-deps": "pnpm --dir ../../packages/errors run build && pnpm --dir ../../packages/kernel run build && pnpm --dir ../../packages/time run build && pnpm --dir ../../packages/http run build && pnpm --dir ../../packages/config run build && pnpm --dir ../../packages/logging run build && pnpm --dir ../../packages/observability run build && pnpm --dir ../../packages/contracts run build",
+    "build:workspace-deps": "pnpm --dir ../.. exec turbo build --filter='@pressly/web^...' --concurrency=2",
     "dev": "pnpm run build:workspace-deps && next dev",
     "build": "pnpm run build:workspace-deps && next build",
     "typecheck": "tsc --noEmit",
