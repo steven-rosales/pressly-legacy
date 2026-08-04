@@ -67,13 +67,14 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:tooling-deps": "pnpm --filter @pressly/errors... run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json",
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
     "test": "VITEST_MAX_WORKERS=2 vitest run --dir test --exclude '**/*.int.test.ts'",
     "test:integration": "vitest run --dir test --no-file-parallelism",
-    "migrate": "pnpm -F @pressly/errors build && drizzle-kit migrate --config drizzle.config.ts",
-    "generate": "pnpm -F @pressly/errors build && drizzle-kit generate --config drizzle.config.ts",
-    "seed:pricing": "tsx src/seeds/pricing.ts",
+    "migrate": "pnpm run build:tooling-deps && drizzle-kit migrate --config drizzle.config.ts",
+    "generate": "pnpm run build:tooling-deps && drizzle-kit generate --config drizzle.config.ts",
+    "seed:pricing": "pnpm run build:tooling-deps && tsx src/seeds/pricing.ts",
     "migrate:docker": "pnpm --dir ../.. docker:db:migrate",
     "clean": "rm -rf dist"
   },
