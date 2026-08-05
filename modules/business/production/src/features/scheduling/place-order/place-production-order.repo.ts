@@ -25,10 +25,10 @@ import {
 import type { ProductionOrderSchedulingMutation } from '../../../foundations/language/execution/production-lifecycle.model.ts';
 import type {
   PlaceProductionOrderRepository,
-  PlacementContext,
   PlacementOutcomeInput,
   StoredOvertimeProposal,
 } from './place-production-order.port.ts';
+import type { ProductionOrderPlacementContext } from '../../../foundations/language/scheduling/online-placement.model.ts';
 
 const productionInvariantViolation = (code: string, message: string) =>
   invariantViolationError({
@@ -166,7 +166,7 @@ const commitPlacement = async (
   db: DatabaseExecutor,
   ids: IdSource,
   input: PlacementOutcomeInput & {
-    context: PlacementContext;
+    context: ProductionOrderPlacementContext;
     proposal: OnlinePlacementProposal;
     overtimeConfirmed: boolean;
     orderLifecycle: ProductionOrderSchedulingMutation;

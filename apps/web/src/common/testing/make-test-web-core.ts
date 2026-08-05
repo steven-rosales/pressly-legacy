@@ -1,9 +1,9 @@
 import { invariantViolationError } from '@pressly/errors/factories';
 import type { Logger } from '@pressly/logging';
 import type { AnalyticsTracker, ErrorReporter } from '@pressly/observability';
+import type { Clock } from '@pressly/time';
 import { createWebCore, type WebCore } from '../core/runtime/core';
 import type { RequestClient } from '../core/requests/request-client';
-import type { Clock } from '../core/runtime/clock';
 import type { ContextProvider, WebContext } from '../core/runtime/context';
 
 export type TestWebCore = WebCore & {

@@ -5,9 +5,7 @@ import * as userSchema from '@pressly/db/schema/users';
 import { defineUnitOfWork } from '@pressly/db/unit-of-work';
 import {
   createStoredPresslyOrder,
-  loadOrderCommandReceipt,
-  lockOrderKey,
-  saveOrderCommandReceipt,
+  makeOrderCommandOperations,
 } from '../../../foundations/adapters/postgres/order-store/order-store.repo.ts';
 import type {
   CreateOrderOperations,
@@ -15,9 +13,7 @@ import type {
 } from './create-order.port.ts';
 
 const operations = (tx: DatabaseExecutor): CreateOrderOperations => ({
-  lockCommand: (key) => lockOrderKey(tx, `orders:command:${key}`),
-  loadCommandReceipt: (key) => loadOrderCommandReceipt(tx, key),
-  saveCommandReceipt: (input) => saveOrderCommandReceipt(tx, input),
+  ...makeOrderCommandOperations(tx),
   validateReferences: async (input) => {
     const [location] = await tx
       .select({ id: businessSchema.productionLocations.id })

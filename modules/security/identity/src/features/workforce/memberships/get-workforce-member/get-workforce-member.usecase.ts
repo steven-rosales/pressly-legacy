@@ -7,7 +7,7 @@ import {
 import { requireIdentifier } from '../../../../foundations/language/workforce-command/workforce-command.policy.ts';
 import type { WorkforceActorRef } from '../../../../foundations/language/workforce/workforce.model.ts';
 import type { WorkforceMemberDetail } from '../../../../foundations/language/workforce-membership/workforce-membership.model.ts';
-import type { WorkforceMembershipStore } from '../../../../foundations/ports/workforce-membership-store/workforce-membership-store.port.ts';
+import type { GetWorkforceMemberStore } from './get-workforce-member.port.ts';
 
 export type GetWorkforceMemberCommand = Readonly<{
   actor: WorkforceActorRef;
@@ -21,7 +21,7 @@ export type GetWorkforceMember = (
 
 export const makeGetWorkforceMember =
   (deps: {
-    store: WorkforceMembershipStore;
+    store: GetWorkforceMemberStore;
     clock: Clock;
   }): GetWorkforceMember =>
   async (command) => {

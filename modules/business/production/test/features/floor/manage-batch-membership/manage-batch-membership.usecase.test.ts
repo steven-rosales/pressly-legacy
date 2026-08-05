@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ProductionBatchMembershipMutationResult } from '../../../../src/features/floor/manage-batch-membership/manage-batch-membership.model.ts';
-import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.model.ts';
 import type {
   BatchMembershipContext,
   ManageBatchMembershipRepository,

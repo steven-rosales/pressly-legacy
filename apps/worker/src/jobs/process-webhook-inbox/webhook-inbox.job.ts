@@ -30,8 +30,6 @@ export type WebhookEventConsumer = (
   event: ClaimedWebhookEvent,
 ) => Promise<EventConsumerOutcome>;
 
-export { retryDelayMs } from '../../runtime/retry.ts';
-
 type IngestionWorkerPort = Pick<
   WebhookIngestionApplication,
   | 'measureBacklog'

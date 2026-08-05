@@ -1,8 +1,3 @@
-export {
-  productionOrderParamsSchema,
-  recordOrderIntakeRequestSchema,
-  recordOrderIntakeResultSchema,
-} from '@pressly/contracts/production';
 import type { RecordOrderIntakeResult as RecordOrderIntakeWireResult } from '@pressly/contracts/production';
 import type { RecordOrderIntakeResult } from './record-order-intake.model.ts';
 

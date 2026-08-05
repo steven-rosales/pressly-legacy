@@ -1,4 +1,4 @@
-import type { RecordOrderIntakeFailure } from './record-order-intake.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -13,7 +13,7 @@ import type {
 
 export type RecordOrderIntake = (
   command: RecordOrderIntakeCommand & Readonly<{ actorId: string }>,
-) => Promise<Result<RecordOrderIntakeResult, RecordOrderIntakeFailure>>;
+) => Promise<Result<RecordOrderIntakeResult, ProductionFeatureFailure>>;
 
 export type LockedIntakeOrder = Readonly<{
   orderId: string;

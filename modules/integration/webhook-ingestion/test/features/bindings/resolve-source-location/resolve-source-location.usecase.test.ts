@@ -4,11 +4,7 @@ import { makeResolveSourceLocation } from '../../../../src/features/bindings/res
 describe('source-location resolution', () => {
   it('delegates a source-scoped external identifier to the binding store', async () => {
     const resolve = vi.fn(async () => 'location-1');
-    const usecase = makeResolveSourceLocation({
-      resolve,
-      loadAll: vi.fn(async () => []),
-      insert: vi.fn(async () => undefined),
-    });
+    const usecase = makeResolveSourceLocation(resolve);
 
     await expect(
       usecase({ source: 'cents', externalLocationId: 'store-1' }),

@@ -10,3 +10,8 @@ export type ReplayDeadWebhookEvent = (
 ) => Promise<
   Result<ReplayDeadWebhookEventResult, ReplayDeadWebhookEventFailure>
 >;
+
+export type ReplayDeadWebhookEventRepository = (
+  eventId: string,
+  now: Date,
+) => Promise<'queued' | 'already_queued' | 'not_found' | 'not_replayable'>;

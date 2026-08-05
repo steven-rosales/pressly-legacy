@@ -1,6 +1,7 @@
 import type { Result } from '@pressly/kernel';
 import { createElement } from 'react';
 import type { AppError } from '@pressly/errors/app-error';
+import type { ApiClientEnv } from '../../shell/api-client.ts';
 import { makeCliFeature } from '../../shell/feature.ts';
 import { parsePricingCliCommand, usage } from './args.ts';
 import {
@@ -9,10 +10,7 @@ import {
   type PricingCliOutput,
 } from './application/command.ts';
 import type { PricingClient } from './application/ports.ts';
-import {
-  makeApiPricingClient,
-  type PricingCliEnv,
-} from './adapters/api-client.ts';
+import { makeApiPricingClient } from './adapters/api-client.ts';
 import { PricingCliView } from './presentation/PricingCliView.tsx';
 import {
   presentPricingOutput,
@@ -20,7 +18,7 @@ import {
 } from './presentation/presenter.ts';
 
 export type PricingCliDeps = Readonly<{
-  makePricingClient: (env: PricingCliEnv) => Result<PricingClient, AppError>;
+  makePricingClient: (env: ApiClientEnv) => Result<PricingClient, AppError>;
 }>;
 
 const defaultDeps: PricingCliDeps = {

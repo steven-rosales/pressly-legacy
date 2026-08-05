@@ -13,12 +13,23 @@ import {
   mfaFailure,
   type MfaFailure,
 } from '../../../foundations/language/mfa/mfa.failure.ts';
-import type {
-  CompleteMfaChallengeStore,
-  TokenService,
-} from '../../../foundations/ports/mfa-store/mfa-challenge-store.port.ts';
 import type { AuthenticatedSession } from '../../../foundations/language/authentication-session/authenticated-session.model.ts';
 import type { CompleteMfaChallengeCommand } from './complete-mfa-challenge.model.ts';
+import type {
+  CompleteMfaChallengeStore,
+  MfaChallengeTokenService,
+} from './complete-mfa-challenge.port.ts';
+
+type MakeCompleteMfaChallengeDeps = {
+  store: CompleteMfaChallengeStore;
+  tokenService: MfaChallengeTokenService;
+  totp: TotpAuthenticator;
+  secretBox: SecretBox;
+  recoveryCodes: RecoveryCodeService;
+  clock: Clock;
+  sessionTtlMinutes: number;
+  securityEvents?: SecurityEventSink;
+};
 
 export type CompleteMfaChallenge = (
   command: CompleteMfaChallengeCommand,
@@ -28,16 +39,7 @@ const addMinutes = (date: Date, minutes: number): Date =>
   new Date(date.getTime() + minutes * 60_000);
 
 export const makeCompleteMfaChallenge =
-  (deps: {
-    store: CompleteMfaChallengeStore;
-    tokenService: TokenService;
-    totp: TotpAuthenticator;
-    secretBox: SecretBox;
-    recoveryCodes: RecoveryCodeService;
-    clock: Clock;
-    sessionTtlMinutes: number;
-    securityEvents?: SecurityEventSink;
-  }): CompleteMfaChallenge =>
+  (deps: MakeCompleteMfaChallengeDeps): CompleteMfaChallenge =>
   async (command) => {
     const securityEvents = deps.securityEvents ?? nullSecurityEventSink;
     const now = deps.clock.now();

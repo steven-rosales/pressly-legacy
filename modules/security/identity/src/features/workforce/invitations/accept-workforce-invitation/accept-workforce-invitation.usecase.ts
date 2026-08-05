@@ -13,11 +13,11 @@ import {
   commandFingerprint,
   requireIdentifier,
 } from '../../../../foundations/language/workforce-command/workforce-command.policy.ts';
+import type { InvitationTokenService } from '../../../../foundations/ports/workforce-invitation-token/workforce-invitation-token.port.ts';
 import type {
-  InvitationTokenService,
-  WorkforceInvitationStore,
-} from '../../../../foundations/ports/workforce-invitation-store/workforce-invitation-store.port.ts';
-import type { AcceptedInvitation } from '../../../../foundations/ports/workforce-invitation-store/workforce-invitation-store.port.ts';
+  AcceptedInvitation,
+  AcceptWorkforceInvitationStore,
+} from './accept-workforce-invitation.port.ts';
 
 export type AcceptWorkforceInvitationCommand = Readonly<{
   rawToken: string;
@@ -40,7 +40,7 @@ export type AcceptWorkforceInvitation = (
 
 export const makeAcceptWorkforceInvitation =
   (deps: {
-    store: WorkforceInvitationStore;
+    store: AcceptWorkforceInvitationStore;
     tokenService: InvitationTokenService;
     passwordHasher: PasswordHasher;
     clock: Clock;

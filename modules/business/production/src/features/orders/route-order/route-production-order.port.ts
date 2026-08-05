@@ -1,4 +1,4 @@
-import type { RouteProductionOrderFailure } from './route-production-order.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -20,12 +20,12 @@ import type {
 
 export type PreviewProductionOrderRoute = (
   command: PreviewProductionOrderRouteCommand,
-) => Promise<Result<ProductionOrderRouteProposal, RouteProductionOrderFailure>>;
+) => Promise<Result<ProductionOrderRouteProposal, ProductionFeatureFailure>>;
 
 export type CommitProductionOrderRoute = (
   command: CommitProductionOrderRouteCommand,
 ) => Promise<
-  Result<CommitProductionOrderRouteResult, RouteProductionOrderFailure>
+  Result<CommitProductionOrderRouteResult, ProductionFeatureFailure>
 >;
 
 export type ProductionOrderRoutingContext = Readonly<{

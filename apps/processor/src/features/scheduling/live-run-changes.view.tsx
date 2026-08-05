@@ -17,10 +17,8 @@ import type {
   ProductionRunSummary,
   ProductionShift,
 } from "@pressly/contracts/production"
-import {
-  MetricStrip,
-  SectionHeading,
-} from "@/components/layout/workspace-primitives"
+import { MetricStrip } from "@/components/layout/workspace-primitives"
+import { WorkspaceSectionHeading as SectionHeading } from "@/components/layout/workspace-section-heading"
 import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"

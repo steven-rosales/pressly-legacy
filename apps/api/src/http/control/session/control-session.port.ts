@@ -3,7 +3,6 @@ import type {
   ControlAccess,
   ControlCapability,
 } from '@pressly/control-experience';
-import type { ControlAuthenticatedSession } from '@pressly/contracts/auth';
 import type { Response, Router, RequestHandler } from 'express';
 import type { ControlCookieNames } from './control-cookie.adapter.ts';
 
@@ -41,8 +40,6 @@ export type ControlBrowserBoundary = Readonly<{
   }>;
 }>;
 
-export type ControlBrowserSession = ControlAuthenticatedSession;
-
 export type ResultLike<Value, Error> =
   | Readonly<{ tag: 'ok'; value: Value }>
   | Readonly<{ tag: 'err'; error: Error }>;
@@ -50,5 +47,3 @@ export type ResultLike<Value, Error> =
 export const isControlResultError = <Value, Error>(
   value: ResultLike<Value, Error>,
 ): value is Readonly<{ tag: 'err'; error: Error }> => value.tag === 'err';
-
-export type { ControlAccess, ControlCapability };

@@ -544,6 +544,7 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-explicit-any': 'off',
       'architecture/explicit-package-boundaries': 'error',
+      'architecture/symbol-ownership': 'error',
     },
   },
 
@@ -707,6 +708,7 @@ export default tseslint.config(
       'architecture/module-v2-pure-role': 'error',
       'architecture/module-v2-port-shape': 'error',
       'architecture/module-v2-semantic-role': 'error',
+      'architecture/module-v2-usecase-shape': 'error',
       'architecture/module-public-surface': 'error',
     },
   },

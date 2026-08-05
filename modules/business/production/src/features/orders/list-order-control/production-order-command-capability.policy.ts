@@ -3,7 +3,7 @@ import type {
   OrderRoutingInput,
   OrderRoutingStage,
 } from '../../../foundations/language/order-routing/order-routing.policy.ts';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type {
   ProductionOrderCommandCapabilities,
   ProductionOrderRouteCommandDenialCode,

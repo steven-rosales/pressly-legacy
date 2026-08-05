@@ -6,7 +6,7 @@ import {
   type WorkforceFailure,
 } from '../../../../foundations/language/workforce-failure/workforce-failure.failure.ts';
 import type { WorkforceActorRef } from '../../../../foundations/language/workforce/workforce.model.ts';
-import type { WorkforceSecurityStore } from '../../../../foundations/ports/workforce-security-store/workforce-security-store.port.ts';
+import type { ListWorkforceMemberSessionsStore } from './list-workforce-member-sessions.port.ts';
 
 export type ListWorkforceMemberSessions = (command: {
   actor: WorkforceActorRef;
@@ -30,7 +30,7 @@ export type ListWorkforceMemberSessions = (command: {
 
 export const makeListWorkforceMemberSessions =
   (deps: {
-    store: WorkforceSecurityStore;
+    store: ListWorkforceMemberSessionsStore;
     clock: Clock;
   }): ListWorkforceMemberSessions =>
   async (command) => {

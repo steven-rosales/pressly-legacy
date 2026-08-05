@@ -8,16 +8,11 @@ import {
   recentOperationalOrderAudit,
   uniqueOperationalOrderReferences,
 } from '../../../foundations/language/operational-order/operational-order.policy.ts';
-import type { OperationalOrderAuditPort } from '../../../foundations/ports/operational-order-audit/operational-order-audit.port.ts';
 import type { OperationalOrderIdentityPort } from '../../../foundations/ports/operational-order-identity/operational-order-identity.port.ts';
-import type { OperationalOrderControlContextSource } from './load-operational-order-contexts.model.ts';
+import type { LoadOperationalOrderAudit } from './load-operational-order-contexts.port.ts';
 
 export type LoadOperationalOrderContexts = (
   references: readonly OperationalOrderIdentityReference[],
-) => Promise<ReadonlyMap<string, OperationalOrderContextResolution>>;
-
-export type LoadOperationalOrderControlContexts = (
-  items: readonly OperationalOrderControlContextSource[],
 ) => Promise<ReadonlyMap<string, OperationalOrderContextResolution>>;
 
 const append = <Value>(
@@ -31,7 +26,7 @@ const append = <Value>(
 export const makeLoadOperationalOrderContexts =
   (deps: {
     identities: OperationalOrderIdentityPort;
-    audit: OperationalOrderAuditPort;
+    loadAudit: LoadOperationalOrderAudit;
   }): LoadOperationalOrderContexts =>
   async (inputReferences) => {
     const references = uniqueOperationalOrderReferences(inputReferences);
@@ -52,7 +47,7 @@ export const makeLoadOperationalOrderContexts =
         ),
       ),
     ];
-    const facts = await deps.audit.load({
+    const facts = await deps.loadAudit({
       canonicalOrderIds,
       productionOrderIds,
     });
@@ -136,19 +131,3 @@ export const makeLoadOperationalOrderContexts =
       }),
     );
   };
-
-export const makeLoadOperationalOrderControlContexts = (deps: {
-  identities: OperationalOrderIdentityPort;
-  audit: OperationalOrderAuditPort;
-}): LoadOperationalOrderControlContexts => {
-  const loadContexts = makeLoadOperationalOrderContexts(deps);
-  return (items) =>
-    loadContexts(
-      items.map((item) => ({
-        referenceId: item.order.id,
-        productionOrderId: item.order.id,
-        orderDemandId: null,
-        fallbackDisplayNumber: item.order.externalOrderId,
-      })),
-    );
-};

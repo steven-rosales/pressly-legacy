@@ -1,7 +1,3 @@
-export {
-  listProductionLocationsQuerySchema,
-  listProductionLocationsResultSchema,
-} from '@pressly/contracts/production';
 import type { ListProductionLocationsResult } from '@pressly/contracts/production';
 import { utcIsoFromDate } from '@pressly/time';
 import type { ProductionLocations } from './list-production-locations.model.ts';

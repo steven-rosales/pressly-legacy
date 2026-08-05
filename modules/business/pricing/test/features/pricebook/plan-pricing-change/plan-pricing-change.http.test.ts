@@ -1,11 +1,8 @@
 import { result } from '@pressly/kernel';
-import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
-import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import { makeHttpResponse } from '@pressly/testkit/http';
+import type { Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  makePlanPricingChangeController,
-  planPricingChangeBoundary,
-} from '../../../../src/features/pricebook/plan-pricing-change/plan-pricing-change.controller.ts';
+import { makePlanPricingChangeController } from '../../../../src/features/pricebook/plan-pricing-change/plan-pricing-change.controller.ts';
 import { makePlanPricingChangeRoute } from '../../../../src/features/pricebook/plan-pricing-change/plan-pricing-change.route.ts';
 import type { PlanPricingChange } from '../../../../src/features/pricebook/plan-pricing-change/plan-pricing-change.usecase.ts';
 import {
@@ -69,12 +66,11 @@ describe('plan pricing change http boundary', () => {
     const next = vi.fn();
 
     await runMiddleware(
-      planPricingChangeBoundary.validate,
+      controller.validate,
       request,
       response as unknown as Response,
     );
-    controller(request, response as unknown as Response, next as NextFunction);
-    await waitForController();
+    await controller.handle(request, response as unknown as Response, next);
 
     expect(planPricingChange).toHaveBeenCalledWith(command);
     expect(response.json).toHaveBeenCalledWith({
@@ -125,14 +121,13 @@ describe('plan pricing change http boundary', () => {
     const next = vi.fn();
 
     await runMiddleware(
-      planPricingChangeBoundary.validate,
+      controller.validate,
       request,
       response as unknown as Response,
     );
-    controller(request, response as unknown as Response, next as NextFunction);
-
-    await vi.waitFor(() => expect(next).toHaveBeenCalledOnce());
-    expect(next.mock.calls[0]?.[0]).toMatchObject({
+    await expect(
+      controller.handle(request, response as unknown as Response, next),
+    ).rejects.toMatchObject({
       tag: 'AppError',
       kind: 'ValidationError',
       code: 'pricing_change_reason_too_short',

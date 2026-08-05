@@ -4,7 +4,6 @@ import {
 } from '../../../foundations/language/failures/production-failure.factory.ts';
 import { databaseError } from '@pressly/errors/factories';
 import { mapUnknownError } from '@pressly/errors/app-error';
-import { sha256Text } from '@pressly/codec/node';
 import { result } from '@pressly/kernel';
 import { productionIdempotencyConflict } from '../../../foundations/language/commands/production-command.failure.ts';
 import {
@@ -24,24 +23,9 @@ import type {
   ProductionBootstrapResourceType,
   ProductionBootstrapResult,
 } from './manage-production-resources.model.ts';
+import { hashProductionBootstrapManifest } from './manage-production-resources.policy.ts';
 
 type ResourceType = ProductionBootstrapResourceType;
-
-const canonicalManifest = (manifest: ProductionBootstrapManifest) => ({
-  ...manifest,
-  stations: [...manifest.stations].sort((left, right) =>
-    left.kind.localeCompare(right.kind),
-  ),
-  machines: [...manifest.machines].sort((left, right) =>
-    `${left.stationKind}\0${left.label}`.localeCompare(
-      `${right.stationKind}\0${right.label}`,
-    ),
-  ),
-});
-
-export const hashProductionBootstrapManifest = (
-  manifest: ProductionBootstrapManifest,
-): string => sha256Text(JSON.stringify(canonicalManifest(manifest)));
 
 const changedFields = <Value extends object>(
   existing: Value,

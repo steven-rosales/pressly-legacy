@@ -16,14 +16,12 @@ import { useIsMobile } from "@/components/ui/use-mobile"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import { presentHistoryError } from "./history.error.presenter"
-import {
-  HistoryWorkspace,
-  type HistoryCallbacks,
-  type HistoryFilters,
-  type HistoryRunDetail,
-  type HistoryViewModel,
-} from "./history.view"
+import { HistoryWorkspace } from "./history.view"
 import type {
+  HistoryCallbacks,
+  HistoryFilters,
+  HistoryRunDetail,
+  HistoryViewModel,
   HistoryActivityItem,
   HistoryPlanSummary as HistoryPlanViewModel,
   HistoryRestoreReason,

@@ -15,7 +15,7 @@ import type { IdSource } from '@pressly/kernel';
 import type { Clock } from '@pressly/time';
 import type { OrderDemandPhase } from '../../../foundations/language/execution/order-demand.model.ts';
 import type { ProductionOrderExecutionState } from '../../../foundations/language/execution/production-lifecycle.model.ts';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type {
   ApplyFulfillmentDemand,
   ApplyFulfillmentDemandRepository,

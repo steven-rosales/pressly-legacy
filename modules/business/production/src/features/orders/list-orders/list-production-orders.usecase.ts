@@ -41,10 +41,3 @@ export const makeListProductionOrders =
 
     return result.ok(found.value);
   };
-
-export type {
-  ListProductionOrders,
-  ListProductionOrdersCommand,
-  ListProductionOrdersRepository,
-  ListProductionOrdersRepositoryResult,
-} from './list-production-orders.port.ts';

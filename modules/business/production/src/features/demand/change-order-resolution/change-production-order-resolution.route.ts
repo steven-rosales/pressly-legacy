@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  changeProductionOrderResolutionBoundary,
-  makeChangeProductionOrderResolutionController,
-} from './change-production-order-resolution.controller.ts';
-import type { ChangeProductionOrderResolution } from './change-production-order-resolution.usecase.ts';
+import { makeChangeProductionOrderResolutionController } from './change-production-order-resolution.controller.ts';
+import type { ChangeProductionOrderResolution } from './change-production-order-resolution.port.ts';
 
 export const makeChangeProductionOrderResolutionRoute = (input: {
   changeResolution: ChangeProductionOrderResolution;
@@ -12,12 +9,13 @@ export const makeChangeProductionOrderResolutionRoute = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const controller = makeChangeProductionOrderResolutionController(input);
   router.put(
     '/production/locations/:locationId/orders/:productionOrderId/resolution',
     input.authenticate,
-    changeProductionOrderResolutionBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeChangeProductionOrderResolutionController(input),
+    controller.handle,
   );
   return router;
 };

@@ -2,8 +2,10 @@ import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
 import { result } from '@pressly/kernel';
 import type { Clock } from '@pressly/time';
-import type { SourceLocationBindingStore } from '../../../foundations/ports/source-location-binding-store/source-location-binding-store.port.ts';
-import type { ReconcileSourceLocationBindings } from './reconcile-source-location-bindings.port.ts';
+import type {
+  ReconcileSourceLocationBindings,
+  ReconcileSourceLocationBindingsRepository,
+} from './reconcile-source-location-bindings.port.ts';
 import { planSourceLocationBindings } from './source-location-binding-plan.policy.ts';
 
 const sourceLocationBindingReconciliationFailure = (cause: unknown): AppError =>
@@ -19,18 +21,18 @@ const sourceLocationBindingReconciliationFailure = (cause: unknown): AppError =>
 
 export const makeReconcileSourceLocationBindings =
   (deps: {
-    store: SourceLocationBindingStore;
+    repo: ReconcileSourceLocationBindingsRepository;
     clock: Clock;
   }): ReconcileSourceLocationBindings =>
   async ({ manifest, dryRun }) => {
     try {
-      const existing = await deps.store.loadAll();
+      const existing = await deps.repo.loadAll();
       const plan = planSourceLocationBindings({
         existing,
         desired: manifest.sourceLocationBindings,
       });
       if (plan.status === 'converged' && !dryRun && plan.additions.length > 0)
-        await deps.store.insert(plan.additions, deps.clock.now());
+        await deps.repo.insert(plan.additions, deps.clock.now());
 
       return result.ok({
         mode: dryRun ? 'dry_run' : 'apply',

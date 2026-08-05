@@ -9,7 +9,7 @@ import {
   type WorkforceFailure,
 } from '../../../../foundations/language/workforce-failure/workforce-failure.failure.ts';
 import type { WorkforceActorRef } from '../../../../foundations/language/workforce/workforce.model.ts';
-import type { WorkforceSecurityStore } from '../../../../foundations/ports/workforce-security-store/workforce-security-store.port.ts';
+import type { RevokeWorkforceMemberSessionsStore } from './revoke-workforce-member-sessions.port.ts';
 
 export type RevokeWorkforceMemberSessions = (command: {
   actor: WorkforceActorRef;
@@ -26,7 +26,7 @@ export type RevokeWorkforceMemberSessions = (command: {
 
 export const makeRevokeWorkforceMemberSessions =
   (deps: {
-    store: WorkforceSecurityStore;
+    store: RevokeWorkforceMemberSessionsStore;
     clock: Clock;
   }): RevokeWorkforceMemberSessions =>
   async (command) => {

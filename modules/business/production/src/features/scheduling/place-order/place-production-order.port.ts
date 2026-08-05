@@ -1,4 +1,4 @@
-import type { PlaceProductionOrderFailure } from './place-production-order.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -27,22 +27,20 @@ import type {
 export type PlaceProductionOrderAutomatically = (
   command: PlaceProductionOrderAutomaticallyCommand,
 ) => Promise<
-  Result<AutomaticProductionOrderPlacementResult, PlaceProductionOrderFailure>
+  Result<AutomaticProductionOrderPlacementResult, ProductionFeatureFailure>
 >;
 
 export type PlaceProductionOrderExactly = (
   command: PlaceProductionOrderExactlyCommand,
 ) => Promise<
-  Result<ExactProductionOrderPlacementResult, PlaceProductionOrderFailure>
+  Result<ExactProductionOrderPlacementResult, ProductionFeatureFailure>
 >;
 
 export type ConfirmProductionOrderOvertime = (
   command: ConfirmProductionOrderOvertimeCommand,
 ) => Promise<
-  Result<ConfirmProductionOrderOvertimeResult, PlaceProductionOrderFailure>
+  Result<ConfirmProductionOrderOvertimeResult, ProductionFeatureFailure>
 >;
-
-export type PlacementContext = ProductionOrderPlacementContext;
 
 export type StoredOvertimeProposal = Readonly<{
   mode: 'automatic' | 'manager_exact';
@@ -90,7 +88,7 @@ export type PlaceProductionOrderOperations = Readonly<{
     locationId: string,
     productionRunId: string,
     productionOrderId: string,
-  ) => Promise<PlacementContext | null>;
+  ) => Promise<ProductionOrderPlacementContext | null>;
   findOvertimeProposal: (
     locationId: string,
     productionOrderId: string,
@@ -99,7 +97,7 @@ export type PlaceProductionOrderOperations = Readonly<{
   recordOutcome: (input: PlacementOutcomeInput) => Promise<void>;
   commitPlacement: (
     input: PlacementOutcomeInput & {
-      context: PlacementContext;
+      context: ProductionOrderPlacementContext;
       proposal: OnlinePlacementProposal;
       overtimeConfirmed: boolean;
       orderLifecycle: ProductionOrderSchedulingMutation;

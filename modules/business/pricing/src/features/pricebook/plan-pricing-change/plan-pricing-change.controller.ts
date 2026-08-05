@@ -1,5 +1,5 @@
 import {
-  defineRequestBoundary,
+  defineValidatedController,
   sendValidatedApiResult,
 } from '@pressly/http/express';
 import { result } from '@pressly/kernel';
@@ -13,10 +13,6 @@ import {
 } from './plan-pricing-change.contract.mapper.ts';
 import type { PlanPricingChange } from './plan-pricing-change.usecase.ts';
 
-export const planPricingChangeBoundary = defineRequestBoundary({
-  body: planPricingChangeContract.body,
-});
-
 export type ReadPricingChangeAuthor = (
   response: Parameters<RequestHandler>[1],
 ) => PricingChangeAuthor;
@@ -24,18 +20,21 @@ export type ReadPricingChangeAuthor = (
 export const makePlanPricingChangeController = (input: {
   planPricingChange: PlanPricingChange;
   readAuthor: ReadPricingChangeAuthor;
-}): RequestHandler =>
-  planPricingChangeBoundary.handler(async ({ body }, { response }) => {
-    const plan = await input.planPricingChange(
-      toPlanPricingChangeCommand(body, input.readAuthor(response)),
-    );
+}) =>
+  defineValidatedController({
+    request: { body: planPricingChangeContract.body },
+    handle: async ({ body }, { response }) => {
+      const plan = await input.planPricingChange(
+        toPlanPricingChangeCommand(body, input.readAuthor(response)),
+      );
 
-    sendValidatedApiResult(
-      response,
-      result.mapError(pricingChangeFailureToAppError)(plan),
-      {
-        schema: planPricingChangeContract.response,
-        present: toPricingChangePlanResult,
-      },
-    );
+      sendValidatedApiResult(
+        response,
+        result.mapError(pricingChangeFailureToAppError)(plan),
+        {
+          schema: planPricingChangeContract.response,
+          present: toPricingChangePlanResult,
+        },
+      );
+    },
   });

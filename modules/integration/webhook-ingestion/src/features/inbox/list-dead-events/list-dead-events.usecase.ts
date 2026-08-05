@@ -2,8 +2,10 @@ import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
 import { result } from '@pressly/kernel';
 import type { Clock } from '@pressly/time';
-import type { DeadWebhookEventStore } from '../../../foundations/ports/dead-webhook-event-store/dead-webhook-event-store.port.ts';
-import type { ListDeadWebhookEvents } from './list-dead-events.port.ts';
+import type {
+  ListDeadWebhookEvents,
+  ListDeadWebhookEventsRepository,
+} from './list-dead-events.port.ts';
 
 const deadEventListFailure = (cause: unknown): AppError =>
   mapUnknownError(cause, (unknownCause) =>
@@ -18,13 +20,13 @@ const deadEventListFailure = (cause: unknown): AppError =>
 
 export const makeListDeadWebhookEvents =
   (deps: {
-    store: DeadWebhookEventStore;
+    repo: ListDeadWebhookEventsRepository;
     clock: Clock;
   }): ListDeadWebhookEvents =>
   async (query) => {
-    let rows: Awaited<ReturnType<DeadWebhookEventStore['list']>>;
+    let rows: Awaited<ReturnType<ListDeadWebhookEventsRepository>>;
     try {
-      rows = await deps.store.list({
+      rows = await deps.repo({
         ...(query.source === undefined ? {} : { source: query.source }),
         ...(query.afterEventId === undefined
           ? {}

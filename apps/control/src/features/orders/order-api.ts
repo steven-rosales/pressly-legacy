@@ -1,13 +1,15 @@
 import type { ControlHttpClient } from "@/api/control-http-client"
 import {
   controlOrderDetailSchema,
-  controlOrderPageSchema,
+  controlOrderListSchema as controlOrderPageSchema,
   orderMutationResultSchema,
   type ControlOrderDetail,
-  type ControlOrderPage,
+  type ControlOrderList as ControlOrderPage,
   type OrderMutationResult,
-  type OrderState,
-} from "./order-model"
+  type ControlOrder,
+} from "@pressly/contracts/orders"
+
+type OrderState = ControlOrder["state"]
 
 export type OrderListInput = Readonly<{
   query: string

@@ -3,7 +3,7 @@ import {
   ingestWebhookEventResultSchema,
 } from '@pressly/contracts/webhook-ingestion';
 import {
-  defineRequestBoundary,
+  defineValidatedController,
   requireJsonContentType,
   sendValidatedApiResult,
 } from '@pressly/http/express';
@@ -24,10 +24,6 @@ import {
   toLinkWebhookReceiptError,
 } from './cents-webhook.contract.mapper.ts';
 
-const centsWebhookIngestionBoundary = defineRequestBoundary({
-  body: ingestWebhookEventCommandSchema,
-});
-
 export const makeCentsWebhookRoute = (input: {
   verifier: CentsWebhookVerifier;
   ingestEvent: WebhookIngestionApplication['ingestEvent'];
@@ -38,18 +34,9 @@ export const makeCentsWebhookRoute = (input: {
   }>;
 }): Router => {
   const router = Router();
-  router.post(
-    '/',
-    (_request, response, next) => {
-      response.locals['webhookSource'] = 'cents';
-      next();
-    },
-    requireJsonContentType(),
-    express.raw({ type: 'application/json', limit: '256kb' }),
-    makeCentsWebhookBoundary(input.verifier),
-    makeCentsWebhookNormalizationBoundary(input.quarantine),
-    centsWebhookIngestionBoundary.validate,
-    centsWebhookIngestionBoundary.handler(async ({ body }, { response }) => {
+  const controller = defineValidatedController({
+    request: { body: ingestWebhookEventCommandSchema },
+    handle: async ({ body }, { response }) => {
       const ingested = await input.ingestEvent(
         toIngestWebhookEventCommand(body),
       );
@@ -68,7 +55,20 @@ export const makeCentsWebhookRoute = (input: {
         present: toIngestWebhookEventResult,
         successStatus: 202,
       });
-    }),
+    },
+  });
+  router.post(
+    '/',
+    (_request, response, next) => {
+      response.locals['webhookSource'] = 'cents';
+      next();
+    },
+    requireJsonContentType(),
+    express.raw({ type: 'application/json', limit: '256kb' }),
+    makeCentsWebhookBoundary(input.verifier),
+    makeCentsWebhookNormalizationBoundary(input.quarantine),
+    controller.validate,
+    controller.handle,
   );
   return router;
 };

@@ -14,8 +14,8 @@ import {
   type MfaFailure,
 } from '../../../foundations/language/mfa/mfa.failure.ts';
 import type { MfaRecoveryCodes } from '../../../foundations/language/mfa/mfa.model.ts';
-import type { MfaEnrollmentStore } from '../../../foundations/ports/mfa-store/mfa-enrollment-store.port.ts';
 import type { ConfirmMfaEnrollmentCommand } from './confirm-mfa-enrollment.model.ts';
+import type { ConfirmMfaEnrollmentStore } from './confirm-mfa-enrollment.port.ts';
 
 export type ConfirmMfaEnrollment = (
   command: ConfirmMfaEnrollmentCommand,
@@ -23,7 +23,7 @@ export type ConfirmMfaEnrollment = (
 
 export const makeConfirmMfaEnrollment =
   (deps: {
-    store: MfaEnrollmentStore;
+    store: ConfirmMfaEnrollmentStore;
     totp: TotpAuthenticator;
     secretBox: SecretBox;
     recoveryCodes: RecoveryCodeService;

@@ -1,5 +1,11 @@
 export { makeControlExperience } from './main.ts';
-export type { ControlExperience, ControlExperienceDeps } from './main.ts';
+export type {
+  ControlCustomerCapabilities,
+  ControlExperience,
+  ControlExperienceDeps,
+  ControlOrderCapabilities,
+  ControlWorkforceCapabilities,
+} from './main.ts';
 export type {
   ControlAccess,
   ControlAccessPrincipal,
@@ -17,6 +23,7 @@ export type {
   ControlRequestContext,
 } from './foundations/language/control-context/control-context.value.ts';
 export type { ControlCustomerEntity } from './foundations/language/control-customer/control-customer.entity.ts';
+export type { ControlCustomerRejection } from './foundations/language/control-customer/control-customer.failure.ts';
 export type {
   ControlCustomer,
   ControlCustomerList,
@@ -28,6 +35,11 @@ export type {
   ControlFulfillmentEntity,
   ControlOrderEntity,
 } from './foundations/language/control-order/control-order.entity.ts';
+export type {
+  ControlLocationFailure,
+  ControlOrderFailure,
+  ControlOrderRejection,
+} from './foundations/language/control-order/control-order.failure.ts';
 export type {
   ControlOrder,
   ControlOrderCustomerProjection,
@@ -51,6 +63,7 @@ export type {
   ControlInvitationEntity,
   ControlMembershipEntity,
 } from './foundations/language/control-workforce/control-workforce.entity.ts';
+export type { ControlWorkforceRejection } from './foundations/language/control-workforce/control-workforce.failure.ts';
 export type {
   ControlAcceptedInvitation,
   ControlGrant,
@@ -79,15 +92,3 @@ export type {
   ControlWorkforceRole,
   ControlWorkforceScope,
 } from './foundations/language/control-workforce/control-workforce.value.ts';
-export type {
-  ControlCustomerRejection,
-  ControlCustomersPort,
-} from './foundations/ports/control-customers/control-customers.port.ts';
-export type {
-  ControlOrderRejection,
-  ControlOrdersPort,
-} from './foundations/ports/control-orders/control-orders.port.ts';
-export type {
-  ControlWorkforcePort,
-  ControlWorkforceRejection,
-} from './foundations/ports/control-workforce/control-workforce.port.ts';

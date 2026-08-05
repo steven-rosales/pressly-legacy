@@ -1,4 +1,4 @@
-import type { ListProductionLocationsFailure } from './list-production-locations.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   ProductionLocation,
@@ -12,7 +12,7 @@ export type ListProductionLocationsCommand = Readonly<{
 
 export type ListProductionLocations = (
   command: ListProductionLocationsCommand,
-) => Promise<Result<ProductionLocations, ListProductionLocationsFailure>>;
+) => Promise<Result<ProductionLocations, ProductionFeatureFailure>>;
 
 export type ListProductionLocationsRepository = Readonly<{
   listLocations: (input: {

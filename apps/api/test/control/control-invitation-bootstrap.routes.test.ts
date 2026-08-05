@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { IdentityModule, WorkforceApplication } from '@pressly/identity';
+import type { ControlAccess } from '@pressly/control-experience';
 import { isAppError, makeAppError } from '@pressly/errors/app-error';
 import express, {
   type ErrorRequestHandler,
@@ -9,7 +10,6 @@ import express, {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { controlCookieNames } from '../../src/http/control/session/control-cookie.adapter.ts';
 import type {
-  ControlAccess,
   ControlAuthApplication,
   ControlSessionOptions,
 } from '../../src/http/control/session/control-session.port.ts';

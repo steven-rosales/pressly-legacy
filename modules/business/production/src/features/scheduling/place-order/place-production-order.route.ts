@@ -3,13 +3,12 @@ import {
   makeConfirmProductionOrderOvertimeController,
   makePlaceProductionOrderAutomaticallyController,
   makePlaceProductionOrderExactlyController,
-  placeProductionOrderBoundaries,
 } from './place-production-order.controller.ts';
 import type {
   ConfirmProductionOrderOvertime,
   PlaceProductionOrderAutomatically,
   PlaceProductionOrderExactly,
-} from './place-production-order.usecase.ts';
+} from './place-production-order.port.ts';
 
 export const makePlaceProductionOrderRoutes = (input: {
   placeAutomatically: PlaceProductionOrderAutomatically;
@@ -20,35 +19,38 @@ export const makePlaceProductionOrderRoutes = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const automaticController = makePlaceProductionOrderAutomaticallyController({
+    place: input.placeAutomatically,
+    readActorId: input.readActorId,
+  });
+  const exactController = makePlaceProductionOrderExactlyController({
+    place: input.placeExactly,
+    readActorId: input.readActorId,
+  });
+  const overtimeController = makeConfirmProductionOrderOvertimeController({
+    confirm: input.confirmOvertime,
+    readActorId: input.readActorId,
+  });
   router.post(
     '/production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/place',
     input.authenticate,
-    placeProductionOrderBoundaries.automatic.validate,
+    automaticController.validate,
     input.authorizeOverride,
-    makePlaceProductionOrderAutomaticallyController({
-      place: input.placeAutomatically,
-      readActorId: input.readActorId,
-    }),
+    automaticController.handle,
   );
   router.post(
     '/production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/orders/:productionOrderId/place',
     input.authenticate,
-    placeProductionOrderBoundaries.exact.validate,
+    exactController.validate,
     input.authorizeOverride,
-    makePlaceProductionOrderExactlyController({
-      place: input.placeExactly,
-      readActorId: input.readActorId,
-    }),
+    exactController.handle,
   );
   router.post(
     '/production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/confirm-overtime',
     input.authenticate,
-    placeProductionOrderBoundaries.confirmOvertime.validate,
+    overtimeController.validate,
     input.authorizeOverride,
-    makeConfirmProductionOrderOvertimeController({
-      confirm: input.confirmOvertime,
-      readActorId: input.readActorId,
-    }),
+    overtimeController.handle,
   );
   return router;
 };

@@ -1,0 +1,38 @@
+work_id: foundation-cohesion-http-boundary-hardening
+status: complete
+updated: 2026-08-05T14:00:28-04:00
+
+current_focus:
+  - complete
+  - Feature ownership, foundation cohesion, canonical HTTP boundaries, documentation, and repository verification are complete.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t0---baseline
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t1---foundation-cohesion-compiler
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t2---canonical-http-boundary
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t3---identity-feature-ownership
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t4---remaining-module-ownership
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t5---durable-rules
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#v1---repository-verification
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/final-report.md

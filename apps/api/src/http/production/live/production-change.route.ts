@@ -1,6 +1,6 @@
 import { productionLocationParamsSchema } from '@pressly/contracts/production';
 import { notFoundError } from '@pressly/errors/factories';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
 import {
   isolateCounterSink,
   isolateMeasurementSink,
@@ -56,13 +56,10 @@ export const makeProductionChangeRoutes = (input: {
   const { increment } = isolateCounterSink(input.counters);
   const { observe: measure } = isolateMeasurementSink(input.measurements);
 
-  router.get(
-    '/production/locations/:locationId/events',
-    input.authenticate,
-    validateRequest({ params: productionLocationParamsSchema }),
-    input.authorize,
-    catchAsync(async (request, response) => {
-      const locationId = request.params['locationId'] as string;
+  const changeController = defineValidatedController({
+    request: { params: productionLocationParamsSchema },
+    handle: async ({ params }, { request, response }) => {
+      const { locationId } = params;
       let bufferedRevision: number | null = null;
       let bufferedResync = false;
       let ready = false;
@@ -186,7 +183,15 @@ export const makeProductionChangeRoutes = (input: {
         Math.min(reauthorizeIntervalMs, untilExpiry),
       );
       reauthorize.unref();
-    }),
+    },
+  });
+
+  router.get(
+    '/production/locations/:locationId/events',
+    input.authenticate,
+    changeController.validate,
+    input.authorize,
+    changeController.handle,
   );
 
   return router;

@@ -1,7 +1,6 @@
 import { Router, type RequestHandler } from 'express';
 import {
   makePublishPricingChangeController,
-  publishPricingChangeBoundary,
   type ReadPricingChangeAuthor,
 } from './publish-pricing-change.controller.ts';
 import type { PublishPricingChange } from './publish-pricing-change.usecase.ts';
@@ -17,16 +16,17 @@ export const makePublishPricingChangeRoute = (input: {
   security: PublishPricingChangeRouteSecurity;
 }): Router => {
   const router = Router();
+  const controller = makePublishPricingChangeController({
+    publishPricingChange: input.publishPricingChange,
+    readAuthor: input.security.readAuthor,
+  });
 
   router.post(
     '/changes/publish',
-    publishPricingChangeBoundary.validate,
+    controller.validate,
     input.security.authenticate,
     input.security.authorize,
-    makePublishPricingChangeController({
-      publishPricingChange: input.publishPricingChange,
-      readAuthor: input.security.readAuthor,
-    }),
+    controller.handle,
   );
 
   return router;

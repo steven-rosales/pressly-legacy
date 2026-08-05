@@ -1,4 +1,4 @@
-import type { SourceLocationBinding } from '../../../foundations/language/source-location-bindings/source-location-binding.entity.ts';
+import type { SourceLocationBinding } from './source-location-binding.entity.ts';
 
 export type SourceLocationBindingsManifest = Readonly<{
   sourceLocationBindings: readonly SourceLocationBinding[];

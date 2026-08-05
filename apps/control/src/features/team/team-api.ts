@@ -1,29 +1,32 @@
 import type { ControlHttpClient } from "@/api/control-http-client"
 import {
-  grantAccessResultSchema,
-  invitationMutationResultSchema,
-  issueInvitationResultSchema,
-  membershipMutationResultSchema,
-  revokeAccessResultSchema,
-  workforceInvitationPageSchema,
-  workforceMemberDetailSchema,
-  workforcePageSchema,
-  workforceSessionListSchema,
-  workforceSessionRevokeResultSchema,
-  type IssueInvitationResult,
-  type WorkforceInvitation,
-  type WorkforceMemberDetail,
+  controlGrantAccessResultSchema,
+  controlInvitationMutationResultSchema,
+  controlIssueInvitationResultSchema,
+  controlMembershipMutationResultSchema,
+  controlRevokeAccessResultSchema,
+  controlWorkforceInvitationPageSchema,
+  controlWorkforceMemberDetailProjectionSchema,
+  controlWorkforceMemberPageSchema,
+  controlWorkforceSessionListSchema,
+  controlWorkforceSessionRevokeResultSchema,
+  type ControlAccessGrantProjection as AccessGrant,
+  type ControlIssueInvitationResult as IssueInvitationResult,
+  type ControlWorkforceInvitationProjection as WorkforceInvitation,
+  type ControlWorkforceMemberDetailProjection as WorkforceMemberDetail,
+  type ControlWorkforceMemberProjection as WorkforceMember,
+  type ControlWorkforceSession as WorkforceSession,
   type WorkforceRole,
-} from "./team-model"
+} from "@pressly/contracts/auth"
 
 export type ControlTeamApi = Readonly<{
   listMembers: () => Promise<{
-    members: readonly import("./team-model").WorkforceMember[]
+    members: readonly WorkforceMember[]
     nextCursor: string | null
   }>
   getMember: (membershipId: string) => Promise<WorkforceMemberDetail>
   listMemberSessions: (membershipId: string) => Promise<{
-    sessions: readonly import("./team-model").WorkforceSession[]
+    sessions: readonly WorkforceSession[]
   }>
   revokeMemberSessions: (input: {
     membershipId: string
@@ -59,13 +62,13 @@ export type ControlTeamApi = Readonly<{
     identityId: string
     role: WorkforceRole
     scope: { kind: "business"; id: string } | { kind: "location"; id: string }
-  }) => Promise<import("./team-model").AccessGrant>
+  }) => Promise<AccessGrant>
   revokeAccess: (input: {
     grantId: string
     expectedVersion: number
     reason?: string
   }) => Promise<{
-    grant: import("./team-model").AccessGrant
+    grant: AccessGrant
     revokedSessionCount: number
   }>
 }>
@@ -75,18 +78,21 @@ const idempotencyKey = () => crypto.randomUUID()
 export function makeControlTeamApi(client: ControlHttpClient): ControlTeamApi {
   return {
     listMembers: () =>
-      client.request({ path: "/control/team?limit=100" }, workforcePageSchema),
+      client.request(
+        { path: "/control/team?limit=100" },
+        controlWorkforceMemberPageSchema,
+      ),
     getMember: (membershipId) =>
       client.request(
         { path: `/control/team/${encodeURIComponent(membershipId)}` },
-        workforceMemberDetailSchema,
+        controlWorkforceMemberDetailProjectionSchema,
       ),
     listMemberSessions: (membershipId) =>
       client.request(
         {
           path: `/control/team/${encodeURIComponent(membershipId)}/sessions`,
         },
-        workforceSessionListSchema,
+        controlWorkforceSessionListSchema,
       ),
     revokeMemberSessions: (input) =>
       client.request(
@@ -101,12 +107,12 @@ export function makeControlTeamApi(client: ControlHttpClient): ControlTeamApi {
               : { sessionId: input.sessionId }),
           },
         },
-        workforceSessionRevokeResultSchema,
+        controlWorkforceSessionRevokeResultSchema,
       ),
     listInvitations: () =>
       client.request(
         { path: "/control/invitations?limit=100" },
-        workforceInvitationPageSchema,
+        controlWorkforceInvitationPageSchema,
       ),
     issueInvitation: (input) =>
       client.request(
@@ -116,7 +122,7 @@ export function makeControlTeamApi(client: ControlHttpClient): ControlTeamApi {
           csrf: true,
           body: { ...input, idempotencyKey: idempotencyKey() },
         },
-        issueInvitationResultSchema,
+        controlIssueInvitationResultSchema,
       ),
     reissueInvitation: (invitation) =>
       client.request(
@@ -129,7 +135,7 @@ export function makeControlTeamApi(client: ControlHttpClient): ControlTeamApi {
             expectedVersion: invitation.version,
           },
         },
-        issueInvitationResultSchema,
+        controlIssueInvitationResultSchema,
       ),
     revokeInvitation: (invitation) =>
       client.request(
@@ -143,7 +149,7 @@ export function makeControlTeamApi(client: ControlHttpClient): ControlTeamApi {
             reason: "Access is no longer needed.",
           },
         },
-        invitationMutationResultSchema,
+        controlInvitationMutationResultSchema,
       ),
     transitionMember: (input) =>
       client.request(
@@ -157,7 +163,7 @@ export function makeControlTeamApi(client: ControlHttpClient): ControlTeamApi {
             ...(input.reason === undefined ? {} : { reason: input.reason }),
           },
         },
-        membershipMutationResultSchema,
+        controlMembershipMutationResultSchema,
       ),
     grantAccess: (input) =>
       client.request(
@@ -172,7 +178,7 @@ export function makeControlTeamApi(client: ControlHttpClient): ControlTeamApi {
             scope: input.scope,
           },
         },
-        grantAccessResultSchema,
+        controlGrantAccessResultSchema,
       ),
     revokeAccess: (input) =>
       client.request(
@@ -186,7 +192,7 @@ export function makeControlTeamApi(client: ControlHttpClient): ControlTeamApi {
             ...(input.reason === undefined ? {} : { reason: input.reason }),
           },
         },
-        revokeAccessResultSchema,
+        controlRevokeAccessResultSchema,
       ),
   }
 }

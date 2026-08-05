@@ -10,7 +10,7 @@ import { makeFakePricingChangeStore } from '../../../support/pricing-change-stor
 
 describe('plan pricing change usecase', () => {
   it('loads current pricing and returns a diff without committing', async () => {
-    const { store, calls } = makeFakePricingChangeStore({
+    const { loadCurrentPricing, calls } = makeFakePricingChangeStore({
       current: {
         currentSet: {
           id: 'set_1',
@@ -30,7 +30,7 @@ describe('plan pricing change usecase', () => {
         ]),
       },
     });
-    const planPricingChange = makePlanPricingChange(store);
+    const planPricingChange = makePlanPricingChange(loadCurrentPricing);
 
     const actual = await planPricingChange(
       makePricingChangeCommand({
@@ -66,8 +66,8 @@ describe('plan pricing change usecase', () => {
   });
 
   it('rejects command policy violations before loading current pricing', async () => {
-    const { store, calls } = makeFakePricingChangeStore();
-    const planPricingChange = makePlanPricingChange(store);
+    const { loadCurrentPricing, calls } = makeFakePricingChangeStore();
+    const planPricingChange = makePlanPricingChange(loadCurrentPricing);
 
     const actual = await planPricingChange(
       makePricingChangeCommand({
@@ -85,10 +85,10 @@ describe('plan pricing change usecase', () => {
       code: 'active_pricing_set_not_found',
       serviceSlug: 'wash-fold',
     } as const;
-    const { store, calls } = makeFakePricingChangeStore({
+    const { loadCurrentPricing, calls } = makeFakePricingChangeStore({
       loadResult: result.err(loadFailure),
     });
-    const planPricingChange = makePlanPricingChange(store);
+    const planPricingChange = makePlanPricingChange(loadCurrentPricing);
 
     const actual = await planPricingChange(makePricingChangeCommand());
 
@@ -98,8 +98,8 @@ describe('plan pricing change usecase', () => {
   });
 
   it('rejects unknown pricing item codes after loading current pricing', async () => {
-    const { store, calls } = makeFakePricingChangeStore();
-    const planPricingChange = makePlanPricingChange(store);
+    const { loadCurrentPricing, calls } = makeFakePricingChangeStore();
+    const planPricingChange = makePlanPricingChange(loadCurrentPricing);
 
     const actual = await planPricingChange(
       makePricingChangeCommand({

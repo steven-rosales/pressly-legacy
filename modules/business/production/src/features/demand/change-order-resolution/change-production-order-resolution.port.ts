@@ -1,4 +1,4 @@
-import type { ChangeProductionOrderResolutionFailure } from './change-production-order-resolution.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -15,10 +15,7 @@ import type {
 export type ChangeProductionOrderResolution = (
   command: ChangeProductionOrderResolutionCommand,
 ) => Promise<
-  Result<
-    ChangeProductionOrderResolutionResult,
-    ChangeProductionOrderResolutionFailure
-  >
+  Result<ChangeProductionOrderResolutionResult, ProductionFeatureFailure>
 >;
 
 export type ChangeProductionOrderResolutionRepository = UnitOfWork<

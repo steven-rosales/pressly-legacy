@@ -1,4 +1,4 @@
-import type { LoadProductionWorkspaceFailure } from './load-production-workspace.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type { ProductionBoardProjection } from '../../../foundations/language/board/production-board-read.model.ts';
 import type {
@@ -35,7 +35,7 @@ export type DemandOutlookRow = Readonly<{
 
 export type LoadProductionWorkspace = (
   command: LoadProductionWorkspaceCommand,
-) => Promise<Result<ProductionWorkspaceModel, LoadProductionWorkspaceFailure>>;
+) => Promise<Result<ProductionWorkspaceModel, ProductionFeatureFailure>>;
 
 export type LoadProductionWorkspaceRepository = Readonly<{
   loadWorkspace: (

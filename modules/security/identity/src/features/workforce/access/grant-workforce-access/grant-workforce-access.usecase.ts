@@ -14,7 +14,7 @@ import type {
   WorkforceScope,
 } from '../../../../foundations/language/workforce/workforce.model.ts';
 import type { AccessGrantSummary } from '../../../../foundations/language/access-grant/access-grant.model.ts';
-import type { AccessGrantStore } from '../../../../foundations/ports/workforce-access-store/workforce-access-store.port.ts';
+import type { GrantWorkforceAccessStore } from './grant-workforce-access.port.ts';
 
 export type GrantWorkforceAccessCommand = Readonly<{
   actor: WorkforceActorRef;
@@ -33,7 +33,10 @@ export type GrantWorkforceAccess = (
 ) => Promise<Result<AccessGrantSummary, WorkforceFailure>>;
 
 export const makeGrantWorkforceAccess =
-  (deps: { store: AccessGrantStore; clock: Clock }): GrantWorkforceAccess =>
+  (deps: {
+    store: GrantWorkforceAccessStore;
+    clock: Clock;
+  }): GrantWorkforceAccess =>
   async (command) => {
     const businessId = requireIdentifier(command.businessId, 'business_id');
     if (result.isErr(businessId)) return businessId;

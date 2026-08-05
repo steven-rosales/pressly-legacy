@@ -2,11 +2,10 @@ import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
 import { result, type IdSource } from '@pressly/kernel';
 import type { Clock } from '@pressly/time';
-import type { WebhookReceiptQuarantineStore } from '../../../foundations/ports/webhook-receipt-quarantine-store/webhook-receipt-quarantine-store.port.ts';
-import type { CaptureWebhookReceipt } from './capture-webhook-receipt.port.ts';
-
-export const DEFAULT_WEBHOOK_QUARANTINE_RETENTION_MS =
-  30 * 24 * 60 * 60 * 1_000;
+import type {
+  CaptureWebhookReceipt,
+  CaptureWebhookReceiptRepository,
+} from './capture-webhook-receipt.port.ts';
 
 const quarantineCaptureFailure = (cause: unknown): AppError =>
   mapUnknownError(cause, (unknownCause) =>
@@ -22,7 +21,7 @@ const quarantineCaptureFailure = (cause: unknown): AppError =>
 
 export const makeCaptureWebhookReceipt =
   (deps: {
-    store: WebhookReceiptQuarantineStore;
+    repo: CaptureWebhookReceiptRepository;
     clock: Clock;
     ids: IdSource;
     retentionMs: number;
@@ -31,7 +30,7 @@ export const makeCaptureWebhookReceipt =
     try {
       const receivedAt = deps.clock.now();
       return result.ok(
-        await deps.store.capture({
+        await deps.repo({
           receiptId: deps.ids.next(),
           receipt,
           receivedAt,

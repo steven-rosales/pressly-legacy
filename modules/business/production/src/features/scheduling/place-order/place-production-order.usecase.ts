@@ -16,7 +16,7 @@ import {
 } from '../../../foundations/language/commands/production-idempotency.policy.ts';
 import type { Clock } from '@pressly/time';
 import type { OnlinePlacementProposal } from '../../../foundations/language/scheduling/online-placement.model.ts';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { ProductionAlgorithmRegistry } from '../../../foundations/algorithms/approved-production/production-algorithm-registry.factory.ts';
 import type { ProductionSignalsPort } from '../../../foundations/ports/signals/production-signals.port.ts';
 import { productionPlacementFailureReason } from '../../../foundations/language/scheduling/production-placement.policy.ts';
@@ -33,7 +33,7 @@ import type {
   PlacementActor,
   PlacementMode,
 } from './place-production-order.model.ts';
-import type { PlaceProductionOrderFailure } from './place-production-order.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type {
   AutomaticProductionOrderPlacementResult,
   ConfirmProductionOrderOvertimeResult,
@@ -43,11 +43,6 @@ import type {
   ProductionOrderPlacementResult,
   ProductionPendingPlacement,
 } from '../../../foundations/language/scheduling/production-placement.model.ts';
-export type {
-  ConfirmProductionOrderOvertime,
-  PlaceProductionOrderAutomatically,
-  PlaceProductionOrderExactly,
-} from './place-production-order.port.ts';
 
 type PlacementCommand = Readonly<{
   locationId: string;
@@ -137,7 +132,7 @@ const executePlacementInTransaction = async (deps: {
   storedOvertime: StoredOvertimeProposal | null;
   expectedProposalHash: string | null;
 }): Promise<
-  Result<ProductionOrderPlacementResult, PlaceProductionOrderFailure>
+  Result<ProductionOrderPlacementResult, ProductionFeatureFailure>
 > => {
   const payload = {
     expectedQueueVersion: deps.command.expectedQueueVersion,
@@ -428,9 +423,7 @@ const executePlacement = async (deps: {
   operation: string;
   storedOvertime: StoredOvertimeProposal | null;
   expectedProposalHash: string | null;
-}): Promise<
-  Result<ProductionOrderPlacementResult, PlaceProductionOrderFailure>
-> =>
+}): Promise<Result<ProductionOrderPlacementResult, ProductionFeatureFailure>> =>
   deps.repo.transaction((repo) =>
     executePlacementInTransaction({ ...deps, repo }),
   );
@@ -500,7 +493,7 @@ export const makePlaceProductionOrder = (deps: {
   ) => Promise<
     Result<
       AutomaticProductionOrderPlacementResult | null,
-      PlaceProductionOrderFailure
+      ProductionFeatureFailure
     >
   >;
   placeAutomatically: PlaceProductionOrderAutomatically;

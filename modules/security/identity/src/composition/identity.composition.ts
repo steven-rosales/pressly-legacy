@@ -31,62 +31,73 @@ import { makeRevokeSessionStore } from '../features/sessions/revoke-session/revo
 import { makeLogin } from '../features/sessions/login/login.usecase.ts';
 import { makeLoadSession } from '../features/sessions/load-session/load-session.usecase.ts';
 import { makeRevokeSession } from '../features/sessions/revoke-session/revoke-session.usecase.ts';
-import { makeIdentitySessionStore } from '../foundations/adapters/postgres/identity-session-store/identity-session-store.repo.ts';
+import { makeListIdentitySessionsStore } from '../features/sessions/list-identity-sessions/list-identity-sessions.repo.ts';
 import { makeListIdentitySessions } from '../features/sessions/list-identity-sessions/list-identity-sessions.usecase.ts';
 import { makeListIdentitySessionsRouter } from '../features/sessions/list-identity-sessions/list-identity-sessions.route.ts';
 import { makeRevokeIdentitySessions } from '../features/sessions/revoke-identity-sessions/revoke-identity-sessions.usecase.ts';
+import { makeRevokeIdentitySessionsStore } from '../features/sessions/revoke-identity-sessions/revoke-identity-sessions.repo.ts';
 import { makeRevokeIdentitySessionsRouter } from '../features/sessions/revoke-identity-sessions/revoke-identity-sessions.route.ts';
 import type { ReadPrincipalIdentityId } from '../features/sessions/revoke-identity-sessions/revoke-identity-sessions.controller.ts';
 import {
   nullSecurityEventSink,
   type SecurityEventSink,
 } from '@pressly/logging';
-import { makeMfaStore } from '../foundations/adapters/postgres/mfa-store/mfa-store.repo.ts';
+import { makeBeginMfaEnrollmentStore } from '../features/mfa/begin-mfa-enrollment/begin-mfa-enrollment.repo.ts';
 import { makeBeginMfaEnrollment } from '../features/mfa/begin-mfa-enrollment/begin-mfa-enrollment.usecase.ts';
 import { makeBeginMfaEnrollmentRouter } from '../features/mfa/begin-mfa-enrollment/begin-mfa-enrollment.route.ts';
 import { makeConfirmMfaEnrollment } from '../features/mfa/confirm-mfa-enrollment/confirm-mfa-enrollment.usecase.ts';
+import { makeConfirmMfaEnrollmentStore } from '../features/mfa/confirm-mfa-enrollment/confirm-mfa-enrollment.repo.ts';
 import { makeConfirmMfaEnrollmentRouter } from '../features/mfa/confirm-mfa-enrollment/confirm-mfa-enrollment.route.ts';
 import { makeCompleteMfaChallenge } from '../features/mfa/complete-mfa-challenge/complete-mfa-challenge.usecase.ts';
+import { makeCompleteMfaChallengeStore } from '../features/mfa/complete-mfa-challenge/complete-mfa-challenge.repo.ts';
 import { makeCompleteMfaChallengeRouter } from '../features/mfa/complete-mfa-challenge/complete-mfa-challenge.route.ts';
 import { makeRegenerateMfaRecoveryCodes } from '../features/mfa/regenerate-mfa-recovery-codes/regenerate-mfa-recovery-codes.usecase.ts';
+import { makeRegenerateMfaRecoveryCodesStore } from '../features/mfa/regenerate-mfa-recovery-codes/regenerate-mfa-recovery-codes.repo.ts';
 import { makeRegenerateMfaRecoveryCodesRouter } from '../features/mfa/regenerate-mfa-recovery-codes/regenerate-mfa-recovery-codes.route.ts';
 import { makeRemoveMfa } from '../features/mfa/remove-mfa/remove-mfa.usecase.ts';
+import { makeRemoveMfaStore } from '../features/mfa/remove-mfa/remove-mfa.repo.ts';
 import { makeRemoveMfaRouter } from '../features/mfa/remove-mfa/remove-mfa.route.ts';
 import type { Login } from '../features/sessions/login/login.usecase.ts';
 import type { LoadSession } from '../features/sessions/load-session/load-session.usecase.ts';
 import type { RevokeSession } from '../features/sessions/revoke-session/revoke-session.usecase.ts';
 import type { CompleteMfaChallenge } from '../features/mfa/complete-mfa-challenge/complete-mfa-challenge.usecase.ts';
-import { makeWorkforceInvitationStore } from '../foundations/adapters/postgres/workforce-invitation-store/workforce-invitation-store.repo.ts';
+import { makeIssueWorkforceInvitationStore } from '../features/workforce/invitations/issue-workforce-invitation/issue-workforce-invitation.repo.ts';
 import { makeIssueWorkforceInvitation } from '../features/workforce/invitations/issue-workforce-invitation/issue-workforce-invitation.usecase.ts';
 import { makeReissueWorkforceInvitation } from '../features/workforce/invitations/reissue-workforce-invitation/reissue-workforce-invitation.usecase.ts';
+import { makeReissueWorkforceInvitationStore } from '../features/workforce/invitations/reissue-workforce-invitation/reissue-workforce-invitation.repo.ts';
 import { makeRevokeWorkforceInvitation } from '../features/workforce/invitations/revoke-workforce-invitation/revoke-workforce-invitation.usecase.ts';
+import { makeRevokeWorkforceInvitationStore } from '../features/workforce/invitations/revoke-workforce-invitation/revoke-workforce-invitation.repo.ts';
 import { makePreviewWorkforceInvitation } from '../features/workforce/invitations/preview-workforce-invitation/preview-workforce-invitation.usecase.ts';
+import { makePreviewWorkforceInvitationStore } from '../features/workforce/invitations/preview-workforce-invitation/preview-workforce-invitation.repo.ts';
 import { makeAcceptWorkforceInvitation } from '../features/workforce/invitations/accept-workforce-invitation/accept-workforce-invitation.usecase.ts';
+import { makeAcceptWorkforceInvitationStore } from '../features/workforce/invitations/accept-workforce-invitation/accept-workforce-invitation.repo.ts';
 import { makeListWorkforceInvitations } from '../features/workforce/invitations/list-workforce-invitations/list-workforce-invitations.usecase.ts';
-import { makeWorkforceMembershipStore } from '../foundations/adapters/postgres/workforce-membership-store/workforce-membership-store.repo.ts';
+import { makeListWorkforceInvitationsStore } from '../features/workforce/invitations/list-workforce-invitations/list-workforce-invitations.repo.ts';
+import { makeListWorkforceStore } from '../features/workforce/memberships/list-workforce/list-workforce.repo.ts';
 import { makeListWorkforce } from '../features/workforce/memberships/list-workforce/list-workforce.usecase.ts';
 import { makeGetWorkforceMember } from '../features/workforce/memberships/get-workforce-member/get-workforce-member.usecase.ts';
-import {
-  makeEndWorkforceMembership,
-  makeReactivateWorkforceMembership,
-  makeSuspendWorkforceMembership,
-} from '../features/workforce/memberships/transition-workforce-membership/transition-workforce-membership.usecase.ts';
-import { makeWorkforceAccessStore } from '../foundations/adapters/postgres/workforce-access-store/workforce-access-store.repo.ts';
+import { makeGetWorkforceMemberStore } from '../features/workforce/memberships/get-workforce-member/get-workforce-member.repo.ts';
+import { makeTransitionWorkforceMembership } from '../features/workforce/memberships/transition-workforce-membership/transition-workforce-membership.usecase.ts';
+import { makeTransitionWorkforceMembershipStore } from '../features/workforce/memberships/transition-workforce-membership/transition-workforce-membership.repo.ts';
+import { makeGrantWorkforceAccessStore } from '../features/workforce/access/grant-workforce-access/grant-workforce-access.repo.ts';
 import { makeGrantWorkforceAccess } from '../features/workforce/access/grant-workforce-access/grant-workforce-access.usecase.ts';
 import { makeRevokeWorkforceAccess } from '../features/workforce/access/revoke-workforce-access/revoke-workforce-access.usecase.ts';
-import { makeWorkforceSecurityStore } from '../foundations/adapters/postgres/workforce-security-store/workforce-security-store.repo.ts';
+import { makeRevokeWorkforceAccessStore } from '../features/workforce/access/revoke-workforce-access/revoke-workforce-access.repo.ts';
 import {
   makeListWorkforceMemberSessions,
   type ListWorkforceMemberSessions,
 } from '../features/workforce/security/list-workforce-member-sessions/list-workforce-member-sessions.usecase.ts';
+import { makeListWorkforceMemberSessionsStore } from '../features/workforce/security/list-workforce-member-sessions/list-workforce-member-sessions.repo.ts';
 import {
   makeRevokeWorkforceMemberSessions,
   type RevokeWorkforceMemberSessions,
 } from '../features/workforce/security/revoke-workforce-member-sessions/revoke-workforce-member-sessions.usecase.ts';
+import { makeRevokeWorkforceMemberSessionsStore } from '../features/workforce/security/revoke-workforce-member-sessions/revoke-workforce-member-sessions.repo.ts';
 import {
   makeListWorkforceSecurityEvents,
   type ListWorkforceSecurityEvents,
 } from '../features/workforce/security/list-workforce-security-events/list-workforce-security-events.usecase.ts';
+import { makeListWorkforceSecurityEventsStore } from '../features/workforce/security/list-workforce-security-events/list-workforce-security-events.repo.ts';
 import type { IssueWorkforceInvitation } from '../features/workforce/invitations/issue-workforce-invitation/issue-workforce-invitation.usecase.ts';
 import type { ReissueWorkforceInvitation } from '../features/workforce/invitations/reissue-workforce-invitation/reissue-workforce-invitation.usecase.ts';
 import type { RevokeWorkforceInvitation } from '../features/workforce/invitations/revoke-workforce-invitation/revoke-workforce-invitation.usecase.ts';
@@ -175,12 +186,47 @@ export const makeIdentityModule = (
   const loginStore = makeLoginStore(deps.db);
   const loadSessionStore = makeLoadSessionStore(deps.db);
   const revokeSessionStore = makeRevokeSessionStore(deps.db);
-  const identitySessionStore = makeIdentitySessionStore(deps.db);
-  const mfaStore = makeMfaStore(deps.db);
-  const workforceInvitationStore = makeWorkforceInvitationStore(deps.db);
-  const workforceMembershipStore = makeWorkforceMembershipStore(deps.db);
-  const accessGrantStore = makeWorkforceAccessStore(deps.db);
-  const workforceSecurityStore = makeWorkforceSecurityStore(deps.db);
+  const listIdentitySessionsStore = makeListIdentitySessionsStore(deps.db);
+  const revokeIdentitySessionsStore = makeRevokeIdentitySessionsStore(deps.db);
+  const completeMfaChallengeStore = makeCompleteMfaChallengeStore(deps.db);
+  const beginMfaEnrollmentStore = makeBeginMfaEnrollmentStore(deps.db);
+  const confirmMfaEnrollmentStore = makeConfirmMfaEnrollmentStore(deps.db);
+  const regenerateMfaRecoveryCodesStore = makeRegenerateMfaRecoveryCodesStore(
+    deps.db,
+  );
+  const removeMfaStore = makeRemoveMfaStore(deps.db);
+  const issueWorkforceInvitationStore = makeIssueWorkforceInvitationStore(
+    deps.db,
+  );
+  const reissueWorkforceInvitationStore = makeReissueWorkforceInvitationStore(
+    deps.db,
+  );
+  const revokeWorkforceInvitationStore = makeRevokeWorkforceInvitationStore(
+    deps.db,
+  );
+  const previewWorkforceInvitationStore = makePreviewWorkforceInvitationStore(
+    deps.db,
+  );
+  const acceptWorkforceInvitationStore = makeAcceptWorkforceInvitationStore(
+    deps.db,
+  );
+  const listWorkforceInvitationsStore = makeListWorkforceInvitationsStore(
+    deps.db,
+  );
+  const listWorkforceStore = makeListWorkforceStore(deps.db);
+  const getWorkforceMemberStore = makeGetWorkforceMemberStore(deps.db);
+  const transitionWorkforceMembershipStore =
+    makeTransitionWorkforceMembershipStore(deps.db);
+  const grantWorkforceAccessStore = makeGrantWorkforceAccessStore(deps.db);
+  const revokeWorkforceAccessStore = makeRevokeWorkforceAccessStore(deps.db);
+  const listWorkforceMemberSessionsStore = makeListWorkforceMemberSessionsStore(
+    deps.db,
+  );
+  const revokeWorkforceMemberSessionsStore =
+    makeRevokeWorkforceMemberSessionsStore(deps.db);
+  const listWorkforceSecurityEventsStore = makeListWorkforceSecurityEventsStore(
+    deps.db,
+  );
   const tokenIssuer = makeTokenIssuer(deps.tokenSecret);
   const passwordHasher = makePasswordHasher();
   const clock = deps.clock;
@@ -216,14 +262,16 @@ export const makeIdentityModule = (
     clock,
     securityEvents,
   });
-  const listIdentitySessions = makeListIdentitySessions(identitySessionStore);
+  const listIdentitySessions = makeListIdentitySessions(
+    listIdentitySessionsStore,
+  );
   const revokeIdentitySessions = makeRevokeIdentitySessions({
-    store: identitySessionStore,
+    store: revokeIdentitySessionsStore,
     clock,
     securityEvents,
   });
   const completeMfaChallenge = makeCompleteMfaChallenge({
-    store: mfaStore,
+    store: completeMfaChallengeStore,
     tokenService: tokenIssuer,
     totp,
     secretBox,
@@ -233,7 +281,7 @@ export const makeIdentityModule = (
     securityEvents,
   });
   const beginMfaEnrollment = makeBeginMfaEnrollment({
-    store: mfaStore,
+    store: beginMfaEnrollmentStore,
     totp,
     secretBox,
     clock,
@@ -241,7 +289,7 @@ export const makeIdentityModule = (
     securityEvents,
   });
   const confirmMfaEnrollment = makeConfirmMfaEnrollment({
-    store: mfaStore,
+    store: confirmMfaEnrollmentStore,
     totp,
     secretBox,
     recoveryCodes,
@@ -249,82 +297,90 @@ export const makeIdentityModule = (
     securityEvents,
   });
   const regenerateMfaRecoveryCodes = makeRegenerateMfaRecoveryCodes({
-    store: mfaStore,
+    store: regenerateMfaRecoveryCodesStore,
     recoveryCodes,
     clock,
     securityEvents,
   });
   const removeMfa = makeRemoveMfa({
-    store: mfaStore,
+    store: removeMfaStore,
     clock,
     securityEvents,
   });
   const invitationDeps = {
-    store: workforceInvitationStore,
     tokenService: tokenIssuer,
     clock,
     invitationTtlMinutes: deps.workforceInvitationTtlMinutes ?? 72 * 60,
   };
   const workforce: WorkforceApplication = {
-    issueInvitation: makeIssueWorkforceInvitation(invitationDeps),
-    reissueInvitation: makeReissueWorkforceInvitation(invitationDeps),
+    issueInvitation: makeIssueWorkforceInvitation({
+      ...invitationDeps,
+      store: issueWorkforceInvitationStore,
+    }),
+    reissueInvitation: makeReissueWorkforceInvitation({
+      ...invitationDeps,
+      store: reissueWorkforceInvitationStore,
+    }),
     revokeInvitation: makeRevokeWorkforceInvitation({
-      store: workforceInvitationStore,
+      store: revokeWorkforceInvitationStore,
       clock,
     }),
     previewInvitation: makePreviewWorkforceInvitation({
-      store: workforceInvitationStore,
+      store: previewWorkforceInvitationStore,
       tokenService: tokenIssuer,
       clock,
     }),
     acceptInvitation: makeAcceptWorkforceInvitation({
-      store: workforceInvitationStore,
+      store: acceptWorkforceInvitationStore,
       tokenService: tokenIssuer,
       passwordHasher,
       clock,
     }),
     listInvitations: makeListWorkforceInvitations({
-      store: workforceInvitationStore,
+      store: listWorkforceInvitationsStore,
       clock,
     }),
     listWorkforce: makeListWorkforce({
-      store: workforceMembershipStore,
+      store: listWorkforceStore,
       clock,
     }),
     getWorkforceMember: makeGetWorkforceMember({
-      store: workforceMembershipStore,
+      store: getWorkforceMemberStore,
       clock,
     }),
-    suspendMembership: makeSuspendWorkforceMembership({
-      store: workforceMembershipStore,
+    suspendMembership: makeTransitionWorkforceMembership({
+      store: transitionWorkforceMembershipStore,
       clock,
+      event: 'suspend',
     }),
-    reactivateMembership: makeReactivateWorkforceMembership({
-      store: workforceMembershipStore,
+    reactivateMembership: makeTransitionWorkforceMembership({
+      store: transitionWorkforceMembershipStore,
       clock,
+      event: 'reactivate',
     }),
-    endMembership: makeEndWorkforceMembership({
-      store: workforceMembershipStore,
+    endMembership: makeTransitionWorkforceMembership({
+      store: transitionWorkforceMembershipStore,
       clock,
+      event: 'end',
     }),
     grantAccess: makeGrantWorkforceAccess({
-      store: accessGrantStore,
+      store: grantWorkforceAccessStore,
       clock,
     }),
     revokeAccess: makeRevokeWorkforceAccess({
-      store: accessGrantStore,
+      store: revokeWorkforceAccessStore,
       clock,
     }),
     listMemberSessions: makeListWorkforceMemberSessions({
-      store: workforceSecurityStore,
+      store: listWorkforceMemberSessionsStore,
       clock,
     }),
     revokeMemberSessions: makeRevokeWorkforceMemberSessions({
-      store: workforceSecurityStore,
+      store: revokeWorkforceMemberSessionsStore,
       clock,
     }),
     listSecurityEvents: makeListWorkforceSecurityEvents({
-      store: workforceSecurityStore,
+      store: listWorkforceSecurityEventsStore,
       clock,
     }),
   };

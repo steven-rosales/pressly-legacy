@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import { catchAsync, sendValidatedApiResult } from '@pressly/http/express';
+import { sendValidatedApiResult } from '@pressly/http/express';
 import type { LoadSession } from './load-session.usecase.ts';
 import { readBearerToken } from '../../../foundations/adapters/http/authentication-request/read-bearer.adapter.ts';
 import {
@@ -8,10 +8,9 @@ import {
   toSessionResult,
 } from './load-session.contract.mapper.ts';
 
-export const makeLoadSessionController = (
-  loadSession: LoadSession,
-): RequestHandler =>
-  catchAsync(async (req, res) => {
+export const makeLoadSessionController =
+  (loadSession: LoadSession): RequestHandler =>
+  async (req, res) => {
     const loadSessionResult = await loadSession({
       bearerToken: readBearerToken(req.header('authorization') ?? undefined),
     });
@@ -21,4 +20,4 @@ export const makeLoadSessionController = (
       present: toSessionResult,
       mapFailure: toLoadSessionHttpError,
     });
-  });
+  };

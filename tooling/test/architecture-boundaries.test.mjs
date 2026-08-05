@@ -453,9 +453,14 @@ describe('module architecture boundaries', () => {
     await expectAllowed(
       fixturePath,
       `
-        export { loginRequestSchema } from '@pressly/contracts/auth';
-        export { createDatabaseRuntime } from '@pressly/db/client';
-        export { makeAppError } from '@pressly/errors/app-error';
+        import { loginRequestSchema } from '@pressly/contracts/auth';
+        import { createDatabaseRuntime } from '@pressly/db/client';
+        import { makeAppError } from '@pressly/errors/app-error';
+        export const explicitBoundaryDependencies = {
+          loginRequestSchema,
+          createDatabaseRuntime,
+          makeAppError,
+        };
       `,
     );
   });
@@ -501,7 +506,7 @@ describe('web architecture boundaries', () => {
       'apps/web/src/features/pricing/server.ts',
       `
         import { makeServerWebCore } from '@/common/adapters/runtime/server-web-core';
-        export const makeRuntime = makeServerWebCore;
+        export const pricingRuntimeAdapters = { makeServerWebCore };
       `,
     );
   });
@@ -511,7 +516,7 @@ describe('web architecture boundaries', () => {
       'apps/web/src/features/pricing/model.ts',
       `
         import type { WebCore } from '../../common/core/runtime/core';
-        export type PricingRuntime = WebCore;
+        export type PricingRuntime = Readonly<{ core: WebCore }>;
       `,
     );
   });
@@ -521,7 +526,7 @@ describe('web architecture boundaries', () => {
       'apps/web/src/app/schedule/page.tsx',
       `
         import { ScheduleFrame } from './_components/ScheduleFrame';
-        export const Frame = ScheduleFrame;
+        export const scheduleComponents = { ScheduleFrame };
       `,
     );
   });

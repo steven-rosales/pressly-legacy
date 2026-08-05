@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  listProductionHistoryActivityBoundary,
-  makeListProductionHistoryActivityController,
-} from './list-production-history-activity.controller.ts';
-import type { ListProductionHistoryActivity } from './list-production-history-activity.usecase.ts';
+import { makeListProductionHistoryActivityController } from './list-production-history-activity.controller.ts';
+import type { ListProductionHistoryActivity } from './list-production-history-activity.port.ts';
 
 export const makeListProductionHistoryActivityRoute = (input: {
   listActivity: ListProductionHistoryActivity;
@@ -11,12 +8,13 @@ export const makeListProductionHistoryActivityRoute = (input: {
   authorize: RequestHandler;
 }): Router => {
   const router = Router();
+  const controller = makeListProductionHistoryActivityController(input);
   router.get(
     '/production/locations/:locationId/history/activity',
     input.authenticate,
-    listProductionHistoryActivityBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeListProductionHistoryActivityController(input),
+    controller.handle,
   );
   return router;
 };

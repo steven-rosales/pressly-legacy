@@ -12,15 +12,14 @@ import {
   resolveWorkEventReplay,
 } from '../../../foundations/language/commands/production-idempotency.policy.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { ProductionSignalsPort } from '../../../foundations/ports/signals/production-signals.port.ts';
+import type { ProductionOrderSchedulingMutation } from '../../../foundations/language/execution/production-lifecycle.model.ts';
 import type {
-  ScheduleStartOrderLifecycle,
   StartSchedule,
   StartScheduleRepository,
 } from './start-schedule.port.ts';
 import type { StartScheduleResult } from './start-schedule.model.ts';
-export type { StartSchedule } from './start-schedule.port.ts';
 
 type StartSchedulePolicy = Pick<
   ProductionRules,
@@ -159,7 +158,7 @@ export const makeStartSchedule =
                 'The accepted schedule no longer matches its selected orders.',
             }),
           );
-        const orderLifecycles: ScheduleStartOrderLifecycle[] = [];
+        const orderLifecycles: ProductionOrderSchedulingMutation[] = [];
         for (const order of lockedOrders) {
           const resolved = deps.policy.resolveProductionOrderExecutionState({
             executionState: order.executionStatus,

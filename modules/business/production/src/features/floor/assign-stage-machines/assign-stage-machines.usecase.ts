@@ -13,12 +13,11 @@ import {
   resolveWorkEventReplay,
 } from '../../../foundations/language/commands/production-idempotency.policy.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type {
   AssignStageMachines,
   AssignStageMachinesRepository,
 } from './assign-stage-machines.port.ts';
-export type { AssignStageMachines } from './assign-stage-machines.port.ts';
 
 export const makeAssignStageMachines =
   (deps: {

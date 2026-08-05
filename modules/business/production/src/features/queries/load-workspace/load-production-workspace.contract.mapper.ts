@@ -1,8 +1,3 @@
-export {
-  productionWorkspaceParamsSchema,
-  productionWorkspaceQuerySchema,
-  productionWorkspaceSchema,
-} from '@pressly/contracts/production';
 import { productionPendingPlacementSchema } from '@pressly/contracts/production';
 import type {
   ProductionBoard as ProductionBoardResult,

@@ -242,7 +242,7 @@ describe('Postgres Processor Order control composition', () => {
         processor: 'https://processor.trypressly.com',
         control: 'https://control.trypressly.com',
       },
-      productionCapabilities: { resolveForLocation: () => [] },
+      resolveProductionCapabilities: () => [],
     });
     const orderControlAdapter = makeProcessorOrderControlAdapter(
       experience.loadOperationalOrderControlContexts,

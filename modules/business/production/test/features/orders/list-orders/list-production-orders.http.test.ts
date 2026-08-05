@@ -1,11 +1,9 @@
 import { result } from '@pressly/kernel';
-import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
+import type { ValidatedController } from '@pressly/http/express';
+import { makeHttpResponse } from '@pressly/testkit/http';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  listProductionOrdersBoundary,
-  makeListProductionOrdersController,
-} from '../../../../src/features/orders/list-orders/list-production-orders.controller.ts';
+import { makeListProductionOrdersController } from '../../../../src/features/orders/list-orders/list-production-orders.controller.ts';
 import type { ListProductionOrders } from '../../../../src/features/orders/list-orders/list-production-orders.port.ts';
 import { makeListProductionOrdersRoute } from '../../../../src/features/orders/list-orders/list-production-orders.route.ts';
 
@@ -38,27 +36,26 @@ const page = {
 };
 
 const runController = async (input: {
-  controller: RequestHandler;
+  controller: ValidatedController;
   request: Request;
   response: ReturnType<typeof makeHttpResponse>;
   next: NextFunction;
 }): Promise<void> => {
-  listProductionOrdersBoundary.validate(
+  await new Promise<void>((resolve, reject) => {
+    input.controller.validate(
+      input.request,
+      input.response as unknown as Response,
+      (error?: unknown) => {
+        if (error === undefined) resolve();
+        else reject(error);
+      },
+    );
+  });
+  await input.controller.handle(
     input.request,
     input.response as unknown as Response,
-    (error?: unknown) => {
-      if (error !== undefined) {
-        input.next(error);
-        return;
-      }
-      input.controller(
-        input.request,
-        input.response as unknown as Response,
-        input.next,
-      );
-    },
+    input.next,
   );
-  for (let turn = 0; turn < 4; turn += 1) await waitForController();
 };
 
 describe('list production orders HTTP boundary', () => {

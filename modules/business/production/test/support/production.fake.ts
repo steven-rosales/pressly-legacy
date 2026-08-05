@@ -1,10 +1,8 @@
 import type { IdSource } from '@pressly/kernel';
 import type { Clock } from '@pressly/time';
 import type { ProductionAlgorithmRegistry } from '../../src/foundations/algorithms/approved-production/production-algorithm-registry.factory.ts';
-import {
-  productionRules,
-  type ProductionRules,
-} from '../../src/foundations/language/rules/production-rules.factory.ts';
+import { productionRules } from '../../src/foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../src/foundations/language/rules/production-rules.model.ts';
 import type {
   SchedulingInput,
   SchedulingOutput,

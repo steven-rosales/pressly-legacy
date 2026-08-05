@@ -159,7 +159,7 @@ describe('Postgres Processor experience', () => {
         processor: 'https://processor.trypressly.com',
         control: 'https://control.trypressly.com',
       },
-      productionCapabilities: { resolveForLocation: () => [] },
+      resolveProductionCapabilities: () => [],
     });
 
     const contexts = await experience.loadOperationalOrderControlContexts([

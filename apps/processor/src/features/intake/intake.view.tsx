@@ -7,7 +7,7 @@ import {
   IconSearch,
 } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
-import { SectionHeading } from "@/components/layout/workspace-primitives"
+import { WorkspaceSectionHeading as SectionHeading } from "@/components/layout/workspace-section-heading"
 import {
   AlertDialog,
   AlertDialogAction,

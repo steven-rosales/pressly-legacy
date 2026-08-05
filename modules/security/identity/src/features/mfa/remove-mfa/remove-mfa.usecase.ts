@@ -3,14 +3,14 @@ import {
   type SecurityEventSink,
 } from '@pressly/logging';
 import type { Clock } from '@pressly/time';
-import type { MfaManagementStore } from '../../../foundations/ports/mfa-store/mfa-management-store.port.ts';
 import type { MfaMutation, RemoveMfaCommand } from './remove-mfa.model.ts';
+import type { RemoveMfaStore } from './remove-mfa.port.ts';
 
 export type RemoveMfa = (command: RemoveMfaCommand) => Promise<MfaMutation>;
 
 export const makeRemoveMfa =
   (deps: {
-    store: MfaManagementStore;
+    store: RemoveMfaStore;
     clock: Clock;
     securityEvents?: SecurityEventSink;
   }): RemoveMfa =>

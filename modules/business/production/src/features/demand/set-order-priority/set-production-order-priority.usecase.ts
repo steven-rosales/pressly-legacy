@@ -13,12 +13,11 @@ import {
   resolveWorkEventReplay,
 } from '../../../foundations/language/commands/production-idempotency.policy.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type {
   SetProductionOrderPriority,
   SetProductionOrderPriorityRepository,
 } from './set-production-order-priority.port.ts';
-export type { SetProductionOrderPriority } from './set-production-order-priority.port.ts';
 
 export const makeSetProductionOrderPriority =
   (deps: {

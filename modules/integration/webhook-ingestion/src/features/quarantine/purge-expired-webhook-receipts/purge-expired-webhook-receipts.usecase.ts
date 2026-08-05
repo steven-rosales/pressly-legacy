@@ -2,8 +2,10 @@ import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
 import { result } from '@pressly/kernel';
 import type { Clock } from '@pressly/time';
-import type { WebhookReceiptQuarantineStore } from '../../../foundations/ports/webhook-receipt-quarantine-store/webhook-receipt-quarantine-store.port.ts';
-import type { PurgeExpiredWebhookReceipts } from './purge-expired-webhook-receipts.port.ts';
+import type {
+  PurgeExpiredWebhookReceipts,
+  PurgeExpiredWebhookReceiptsRepository,
+} from './purge-expired-webhook-receipts.port.ts';
 
 const quarantinePurgeFailure = (cause: unknown): AppError =>
   mapUnknownError(cause, (unknownCause) =>
@@ -18,13 +20,13 @@ const quarantinePurgeFailure = (cause: unknown): AppError =>
 
 export const makePurgeExpiredWebhookReceipts =
   (deps: {
-    store: WebhookReceiptQuarantineStore;
+    repo: PurgeExpiredWebhookReceiptsRepository;
     clock: Clock;
   }): PurgeExpiredWebhookReceipts =>
   async () => {
     try {
       return result.ok({
-        purgedCount: await deps.store.purgeExpired(deps.clock.now()),
+        purgedCount: await deps.repo(deps.clock.now()),
       });
     } catch (error) {
       throw quarantinePurgeFailure(error);

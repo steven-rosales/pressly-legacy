@@ -1,4 +1,4 @@
-import type { LoadProductionBoardFailure } from './load-production-board.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   ProductionBoard,
@@ -8,7 +8,7 @@ import type { LoadProductionBoardCommand } from './load-production-board.model.t
 
 export type LoadProductionBoard = (
   command: LoadProductionBoardCommand,
-) => Promise<Result<ProductionBoard, LoadProductionBoardFailure>>;
+) => Promise<Result<ProductionBoard, ProductionFeatureFailure>>;
 
 export type LoadProductionBoardRepository = Readonly<{
   loadBoardProjection: (

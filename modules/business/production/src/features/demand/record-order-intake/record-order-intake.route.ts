@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  makeRecordOrderIntakeController,
-  recordOrderIntakeBoundary,
-} from './record-order-intake.controller.ts';
-import type { RecordOrderIntake } from './record-order-intake.usecase.ts';
+import { makeRecordOrderIntakeController } from './record-order-intake.controller.ts';
+import type { RecordOrderIntake } from './record-order-intake.port.ts';
 
 export const makeRecordOrderIntakeRoute = (input: {
   recordIntake: RecordOrderIntake;
@@ -12,12 +9,13 @@ export const makeRecordOrderIntakeRoute = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const controller = makeRecordOrderIntakeController(input);
   router.put(
     '/production/locations/:locationId/orders/:productionOrderId/intake',
     input.authenticate,
-    recordOrderIntakeBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeRecordOrderIntakeController(input),
+    controller.handle,
   );
   return router;
 };

@@ -8,7 +8,7 @@ import type {
   ProductionBoardStage,
   ProductionBoardStageNextAction,
 } from './production-board-read.model.ts';
-import type { ProductionRules } from '../rules/production-rules.factory.ts';
+import type { ProductionRules } from '../rules/production-rules.model.ts';
 
 const productionInvariantViolation = (code: string, message: string) =>
   invariantViolationError({

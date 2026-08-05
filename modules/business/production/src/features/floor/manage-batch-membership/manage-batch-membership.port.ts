@@ -1,4 +1,4 @@
-import type { ManageBatchMembershipFailure } from './manage-batch-membership.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -14,10 +14,8 @@ import type {
 export type ManageBatchMembership = (
   command: ManageBatchMembershipCommand,
 ) => Promise<
-  Result<ProductionBatchMembershipMutationResult, ManageBatchMembershipFailure>
+  Result<ProductionBatchMembershipMutationResult, ProductionFeatureFailure>
 >;
-
-export type { BatchMembershipAction } from './manage-batch-membership.model.ts';
 
 export type BatchMembershipContext = Readonly<{
   productionRun: Readonly<{

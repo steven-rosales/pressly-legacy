@@ -1,7 +1,7 @@
 import {
   controlInvitationAcceptanceSchema,
   controlInvitationBootstrapResultSchema as sharedControlInvitationBootstrapResultSchema,
-  controlInvitationPreviewSchema as sharedControlInvitationPreviewSchema,
+  controlInvitationPreviewSchema,
   type ControlInvitationAcceptance,
   type ControlInvitationBootstrapResult,
   type ControlInvitationPreview,
@@ -11,10 +11,6 @@ import {
   applicationDestinationSchema,
   controlAuthenticatedSessionSchema,
 } from "@/authentication/control-session"
-
-export const invitationPreviewSchema = sharedControlInvitationPreviewSchema
-export const invitationAcceptanceResultSchema =
-  controlInvitationAcceptanceSchema
 
 const invitationBootstrapResultSchema =
   sharedControlInvitationBootstrapResultSchema.superRefine(
@@ -44,34 +40,30 @@ const invitationBootstrapResultSchema =
     },
   )
 
-export type InvitationPreview = ControlInvitationPreview
-export type InvitationAcceptanceResult = ControlInvitationAcceptance
-export type InvitationBootstrapResult = ControlInvitationBootstrapResult
-
 export type ControlInvitationApi = Readonly<{
-  preview: (token: string) => Promise<InvitationPreview>
+  preview: (token: string) => Promise<ControlInvitationPreview>
   acceptNewIdentity: (input: {
     token: string
     idempotencyKey: string
     password: string
-  }) => Promise<InvitationAcceptanceResult>
+  }) => Promise<ControlInvitationAcceptance>
   acceptExistingPassword: (input: {
     token: string
     idempotencyKey: string
     password: string
-  }) => Promise<InvitationBootstrapResult>
+  }) => Promise<ControlInvitationBootstrapResult>
   acceptExistingMfa: (input: {
     token: string
     idempotencyKey: string
     method: "totp" | "recovery"
     code: string
-  }) => Promise<InvitationBootstrapResult>
+  }) => Promise<ControlInvitationBootstrapResult>
 }>
 
 export function makeControlInvitationApi(
   client: ControlHttpClient,
 ): ControlInvitationApi {
-  const acceptBootstrapSession = (result: InvitationBootstrapResult) => {
+  const acceptBootstrapSession = (result: ControlInvitationBootstrapResult) => {
     if (result.status === "accepted" && result.session !== null)
       client.acceptCsrfToken(result.session.csrfToken)
     return result
@@ -85,7 +77,7 @@ export function makeControlInvitationApi(
           path: "/control/invitations/preview",
           body: { acceptanceToken },
         },
-        invitationPreviewSchema,
+        controlInvitationPreviewSchema,
       ),
     acceptNewIdentity: ({ token, idempotencyKey, password }) =>
       client.request(
@@ -99,7 +91,7 @@ export function makeControlInvitationApi(
             password,
           },
         },
-        invitationAcceptanceResultSchema,
+        controlInvitationAcceptanceSchema,
       ),
     acceptExistingPassword: async ({ token, idempotencyKey, password }) =>
       acceptBootstrapSession(

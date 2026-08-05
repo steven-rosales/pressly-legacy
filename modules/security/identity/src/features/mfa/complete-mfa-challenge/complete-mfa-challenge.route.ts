@@ -1,18 +1,12 @@
 import { Router } from 'express';
-import {
-  completeMfaChallengeBoundary,
-  makeCompleteMfaChallengeController,
-} from './complete-mfa-challenge.controller.ts';
+import { makeCompleteMfaChallengeController } from './complete-mfa-challenge.controller.ts';
 import type { CompleteMfaChallenge } from './complete-mfa-challenge.usecase.ts';
 
 export const makeCompleteMfaChallengeRouter = (
   completeMfaChallenge: CompleteMfaChallenge,
 ): Router => {
   const router = Router();
-  router.post(
-    '/challenge',
-    completeMfaChallengeBoundary.validate,
-    makeCompleteMfaChallengeController(completeMfaChallenge),
-  );
+  const controller = makeCompleteMfaChallengeController(completeMfaChallenge);
+  router.post('/challenge', controller.validate, controller.handle);
   return router;
 };

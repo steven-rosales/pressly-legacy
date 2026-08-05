@@ -1,10 +1,3 @@
-export {
-  commitProductionOrderRouteRequestSchema,
-  commitProductionOrderRouteResultSchema,
-  previewProductionOrderRouteRequestSchema,
-  productionOrderRouteProposalSchema,
-  productionOrderRoutingParamsSchema,
-} from '@pressly/contracts/production';
 import type {
   CommitProductionOrderRouteRequest,
   CommitProductionOrderRouteResult as CommitProductionOrderRouteWireResult,

@@ -4,8 +4,8 @@ import {
   previewProductionOrderRouteRequestSchema,
   productionOrderRouteProposalSchema,
   productionOrderRoutingParamsSchema,
-} from './route-production-order.contract.mapper.ts';
-import { defineRequestBoundary } from '@pressly/http/express';
+} from '@pressly/contracts/production';
+import { defineValidatedController } from '@pressly/http/express';
 import { sendValidatedProductionResult } from '../../../foundations/adapters/errors/production-api-result.adapter.ts';
 import type { RequestHandler } from 'express';
 import {
@@ -38,21 +38,15 @@ const routingIdentity = (
   actorId: input.readActorId(response),
 });
 
-export const previewProductionOrderRouteBoundary = defineRequestBoundary({
-  params: productionOrderRoutingParamsSchema,
-  body: previewProductionOrderRouteRequestSchema,
-});
-
-export const commitProductionOrderRouteBoundary = defineRequestBoundary({
-  params: productionOrderRoutingParamsSchema,
-  body: commitProductionOrderRouteRequestSchema,
-});
-
 export const makePreviewProductionOrderRouteController = (
   input: ControllerInput & { preview: PreviewProductionOrderRoute },
-): RequestHandler =>
-  previewProductionOrderRouteBoundary.handler(
-    async ({ body, params }, { response }) => {
+) =>
+  defineValidatedController({
+    request: {
+      params: productionOrderRoutingParamsSchema,
+      body: previewProductionOrderRouteRequestSchema,
+    },
+    handle: async ({ body, params }, { response }) => {
       sendValidatedProductionResult(
         response,
         await input.preview(
@@ -67,13 +61,17 @@ export const makePreviewProductionOrderRouteController = (
         },
       );
     },
-  );
+  });
 
 export const makeCommitProductionOrderRouteController = (
   input: ControllerInput & { commit: CommitProductionOrderRoute },
-): RequestHandler =>
-  commitProductionOrderRouteBoundary.handler(
-    async ({ body, params }, { response }) => {
+) =>
+  defineValidatedController({
+    request: {
+      params: productionOrderRoutingParamsSchema,
+      body: commitProductionOrderRouteRequestSchema,
+    },
+    handle: async ({ body, params }, { response }) => {
       sendValidatedProductionResult(
         response,
         await input.commit(
@@ -88,4 +86,4 @@ export const makeCommitProductionOrderRouteController = (
         },
       );
     },
-  );
+  });

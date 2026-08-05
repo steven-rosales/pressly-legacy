@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
+import { makeControlAuthenticationApi } from "@/authentication/control-api"
 import {
-  makeControlAuthenticationApi,
+  makeControlHttpClient,
   type ControlApiError,
-} from "@/authentication/control-api"
-import { makeControlHttpClient } from "@/api/control-http-client"
+} from "@/api/control-http-client"
 import { z } from "zod"
 
 const session = {

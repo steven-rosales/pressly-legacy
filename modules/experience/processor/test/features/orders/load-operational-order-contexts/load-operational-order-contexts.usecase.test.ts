@@ -34,33 +34,31 @@ describe('load operational order contexts', () => {
             ]),
           ),
       },
-      audit: {
-        load: async () => ({
-          sources: [
-            {
-              canonicalOrderId: 'canonical-order-1',
-              name: 'cents',
-              observedAt: new Date('2026-08-03T12:00:00.000Z'),
-            },
-          ],
-          orderCommands: Array.from({ length: 8 }, (_, index) => ({
+      loadAudit: async () => ({
+        sources: [
+          {
             canonicalOrderId: 'canonical-order-1',
-            code: `ORDER_${index}`,
-            actorId: 'manager-1',
-            occurredAt: new Date(
-              `2026-08-03T12:${(index + 1).toString().padStart(2, '0')}:00.000Z`,
-            ),
-          })),
-          productionCommands: [
-            {
-              productionOrderId: 'production-order-1',
-              code: 'PRODUCTION_LATEST',
-              actorId: 'operator-1',
-              occurredAt: new Date('2026-08-03T13:00:00.000Z'),
-            },
-          ],
-        }),
-      },
+            name: 'cents',
+            observedAt: new Date('2026-08-03T12:00:00.000Z'),
+          },
+        ],
+        orderCommands: Array.from({ length: 8 }, (_, index) => ({
+          canonicalOrderId: 'canonical-order-1',
+          code: `ORDER_${index}`,
+          actorId: 'manager-1',
+          occurredAt: new Date(
+            `2026-08-03T12:${(index + 1).toString().padStart(2, '0')}:00.000Z`,
+          ),
+        })),
+        productionCommands: [
+          {
+            productionOrderId: 'production-order-1',
+            code: 'PRODUCTION_LATEST',
+            actorId: 'operator-1',
+            occurredAt: new Date('2026-08-03T13:00:00.000Z'),
+          },
+        ],
+      }),
     });
 
     const result = await loadContexts([
@@ -99,13 +97,11 @@ describe('load operational order contexts', () => {
             ]),
           ),
       },
-      audit: {
-        load: async () => ({
-          sources: [],
-          orderCommands: [],
-          productionCommands: [],
-        }),
-      },
+      loadAudit: async () => ({
+        sources: [],
+        orderCommands: [],
+        productionCommands: [],
+      }),
     });
 
     const result = await loadContexts([

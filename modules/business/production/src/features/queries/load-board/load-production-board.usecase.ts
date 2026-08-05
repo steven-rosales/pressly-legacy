@@ -2,13 +2,12 @@ import { notFoundFailure } from '../../../foundations/language/failures/producti
 import { result } from '@pressly/kernel';
 import { withProductionDatabaseError } from '../../../foundations/adapters/postgres/commands/production-database-error.adapter.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type {
   LoadProductionBoard,
   LoadProductionBoardRepository,
 } from './load-production-board.port.ts';
 import { evaluateProductionBoardProjection } from '../../../foundations/language/board/production-board-read.policy.ts';
-export type { LoadProductionBoard } from './load-production-board.port.ts';
 
 export const makeLoadProductionBoard =
   (deps: {

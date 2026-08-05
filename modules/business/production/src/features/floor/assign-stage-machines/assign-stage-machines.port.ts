@@ -1,4 +1,4 @@
-import type { AssignStageMachinesFailure } from './assign-stage-machines.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type { StageTransitionContext } from '../../../foundations/language/execution/stage-transition.model.ts';
 import type {
@@ -19,7 +19,7 @@ export type AssignStageMachinesCommand = Readonly<{
 
 export type AssignStageMachines = (
   command: AssignStageMachinesCommand,
-) => Promise<Result<ProductionMutationResult, AssignStageMachinesFailure>>;
+) => Promise<Result<ProductionMutationResult, ProductionFeatureFailure>>;
 
 export type AssignStageMachinesRepository = UnitOfWork<
   Readonly<{

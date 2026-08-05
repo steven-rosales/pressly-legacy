@@ -5,8 +5,8 @@ import type {
   ProcessorCapability,
   ProcessorLocationAuthority,
   ProcessorSession,
-} from '../../../foundations/language/processor-access/processor-access.model.ts';
-import type { ResolveProductionCapabilities } from '../../../foundations/ports/production-capabilities/production-capabilities.port.ts';
+} from './resolve-processor-access.model.ts';
+import type { ResolveProductionCapabilities } from './resolve-processor-access.port.ts';
 
 const applicationsFor = (input: {
   origins: ProcessorApplicationOrigins;

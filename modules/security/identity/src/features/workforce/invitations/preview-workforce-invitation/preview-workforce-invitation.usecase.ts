@@ -6,10 +6,8 @@ import {
   type WorkforceFailure,
 } from '../../../../foundations/language/workforce-failure/workforce-failure.failure.ts';
 import type { WorkforceInvitationPreview } from '../../../../foundations/language/workforce-invitation/workforce-invitation.model.ts';
-import type {
-  InvitationTokenService,
-  WorkforceInvitationStore,
-} from '../../../../foundations/ports/workforce-invitation-store/workforce-invitation-store.port.ts';
+import type { InvitationTokenService } from '../../../../foundations/ports/workforce-invitation-token/workforce-invitation-token.port.ts';
+import type { PreviewWorkforceInvitationStore } from './preview-workforce-invitation.port.ts';
 
 export type PreviewWorkforceInvitation = (
   rawToken: string,
@@ -17,7 +15,7 @@ export type PreviewWorkforceInvitation = (
 
 export const makePreviewWorkforceInvitation =
   (deps: {
-    store: WorkforceInvitationStore;
+    store: PreviewWorkforceInvitationStore;
     tokenService: InvitationTokenService;
     clock: Clock;
   }): PreviewWorkforceInvitation =>

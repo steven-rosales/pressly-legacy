@@ -13,9 +13,6 @@ import { makeMfaPolicies } from '../features/identity/authorize-mfa/mfa-authoriz
 import {
   makeProductionPolicies,
   productionCapabilitiesForLocation,
-  productionCapabilityActions,
-  productionFloorActions,
-  productionManagerActions,
 } from '../features/operations/authorize-production/production-authorization.policy.ts';
 import {
   productionLocationResource,
@@ -95,23 +92,3 @@ export const makeAuthorizationModule = (
     }),
     productionCapabilitiesForLocation,
   });
-
-export {
-  makeOrderManagementPolicies,
-  makeProductionPolicies,
-  orderManagementLocationResource,
-  orderManagementUsersResource,
-  productionCapabilitiesForLocation,
-  productionCapabilityActions,
-  productionFloorActions,
-  productionLocationResource,
-  productionManagerActions,
-};
-
-export type {
-  OrderManagementLocationResource,
-  OrderManagementUsersResource,
-} from '../features/commercial/authorize-order-management/order-management-resource.value.ts';
-export type { ProductionCapabilityAction } from '../features/operations/authorize-production/production-authorization.policy.ts';
-export type { ProductionLocationResource } from '../features/operations/authorize-production/production-resource.value.ts';
-export type { LocationAncestryPort } from '../foundations/ports/location-ancestry/location-ancestry.port.ts';

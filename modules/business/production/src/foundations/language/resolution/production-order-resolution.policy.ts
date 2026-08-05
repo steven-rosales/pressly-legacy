@@ -4,7 +4,7 @@ import type {
   ProductionOrderResolutionLifecycleDecision,
   ProductionOrderResolutionReviewReason,
 } from '../execution/production-lifecycle.model.ts';
-import type { ProductionRules } from '../rules/production-rules.factory.ts';
+import type { ProductionRules } from '../rules/production-rules.model.ts';
 
 type ResolutionFacts = Readonly<{
   resolutionState: string;

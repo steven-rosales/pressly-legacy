@@ -1,4 +1,4 @@
-import type { ChangeProductionAdmissionFailure } from './change-production-admission.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -12,9 +12,7 @@ import type {
 
 export type ChangeProductionAdmission = (
   command: ChangeProductionAdmissionCommand & Readonly<{ actorId: string }>,
-) => Promise<
-  Result<ChangeProductionAdmissionResult, ChangeProductionAdmissionFailure>
->;
+) => Promise<Result<ChangeProductionAdmissionResult, ProductionFeatureFailure>>;
 
 export type LockedProductionAdmission = Readonly<{
   orderId: string;

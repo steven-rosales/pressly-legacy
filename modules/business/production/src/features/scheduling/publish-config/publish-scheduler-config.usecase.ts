@@ -17,7 +17,6 @@ import type {
   PublishSchedulerConfig,
   PublishSchedulerConfigRepository,
 } from './publish-scheduler-config.port.ts';
-export type { PublishSchedulerConfig } from './publish-scheduler-config.port.ts';
 
 export const makePublishSchedulerConfig =
   (deps: {

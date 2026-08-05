@@ -1,8 +1,10 @@
 import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
 import type { Clock } from '@pressly/time';
-import type { WebhookInboxQueueStore } from '../../../foundations/ports/webhook-inbox-queue-store/webhook-inbox-queue-store.port.ts';
-import type { ClaimWebhookEvents } from './claim-events.port.ts';
+import type {
+  ClaimWebhookEvents,
+  ClaimWebhookEventsRepository,
+} from './claim-events.port.ts';
 
 const claimStoreFailure = (cause: unknown): AppError =>
   mapUnknownError(cause, (unknownCause) =>
@@ -16,10 +18,13 @@ const claimStoreFailure = (cause: unknown): AppError =>
   );
 
 export const makeClaimWebhookEvents =
-  (deps: { store: WebhookInboxQueueStore; clock: Clock }): ClaimWebhookEvents =>
+  (deps: {
+    repo: ClaimWebhookEventsRepository;
+    clock: Clock;
+  }): ClaimWebhookEvents =>
   async (input) => {
     try {
-      return await deps.store.claim({ ...input, now: deps.clock.now() });
+      return await deps.repo({ ...input, now: deps.clock.now() });
     } catch (error) {
       throw claimStoreFailure(error);
     }

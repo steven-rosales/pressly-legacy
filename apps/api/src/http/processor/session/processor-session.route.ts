@@ -1,10 +1,10 @@
 import {
   loginRequestSchema,
   processorCompleteMfaChallengeRequestSchema,
-  type ProcessorCompleteMfaChallengeRequest,
 } from '@pressly/contracts/auth';
 import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
+import type { ResolveProcessorAccess } from '@pressly/processor-experience';
 import { Router, type Response } from 'express';
 import {
   clearProcessorCookie,
@@ -26,7 +26,6 @@ import type { LoadProcessorCookieSession } from './processor-session.middleware.
 import {
   isResultError,
   type ProcessorAuthApplication,
-  type ResolveProcessorAccess,
   type ProcessorSessionOptions,
 } from './processor-session.port.ts';
 
@@ -91,21 +90,11 @@ export const makeProcessorSessionRoutes = (input: {
         ),
       );
   };
-
-  routes.post(
-    '/login',
-    (request, _response, next) => {
-      try {
-        requireProcessorOrigin(request, input.options);
-        next();
-      } catch (error) {
-        next(error);
-      }
-    },
-    validateRequest({ body: loginRequestSchema }),
-    catchAsync(async (request, response) => {
+  const loginController = defineValidatedController({
+    request: { body: loginRequestSchema },
+    handle: async ({ body }, { request, response }) => {
       const authenticated = await input.application.login({
-        ...(request.body as { email: string; password: string }),
+        ...body,
         ...processorRequestMetadata(request, response),
       });
       if (isResultError(authenticated)) throw authenticated.error;
@@ -134,21 +123,11 @@ export const makeProcessorSessionRoutes = (input: {
         authenticated.value.accessToken,
         authenticated.value.expiresAt,
       );
-    }),
-  );
-
-  routes.post(
-    '/mfa/challenge',
-    (request, _response, next) => {
-      try {
-        requireProcessorOrigin(request, input.options);
-        next();
-      } catch (error) {
-        next(error);
-      }
     },
-    validateRequest({ body: processorCompleteMfaChallengeRequestSchema }),
-    catchAsync(async (request, response) => {
+  });
+  const challengeController = defineValidatedController({
+    request: { body: processorCompleteMfaChallengeRequestSchema },
+    handle: async ({ body }, { request, response }) => {
       const challengeToken = readProcessorCookie(
         request.header('cookie'),
         input.names.mfa,
@@ -159,7 +138,6 @@ export const makeProcessorSessionRoutes = (input: {
           message: 'Processor MFA challenge cookie is missing.',
         });
 
-      const body = request.body as ProcessorCompleteMfaChallengeRequest;
       const completed = await input.application.completeMfaChallenge({
         ...body,
         challengeToken,
@@ -175,43 +153,65 @@ export const makeProcessorSessionRoutes = (input: {
         completed.value.accessToken,
         completed.value.expiresAt,
       );
-    }),
-  );
+    },
+  });
 
-  routes.get(
-    '/session',
-    catchAsync(async (request, response) => {
-      const session = await input.loadCookieSession(request, response);
-      response
-        .status(200)
-        .json(
-          apiSuccess(
-            processorBrowserSession(
-              session.loaded,
-              session.access,
-              session.sessionToken,
-              input.options,
-            ),
-          ),
-        );
-    }),
+  routes.post(
+    '/login',
+    (request, _response, next) => {
+      try {
+        requireProcessorOrigin(request, input.options);
+        next();
+      } catch (error) {
+        next(error);
+      }
+    },
+    loginController.validate,
+    loginController.handle,
   );
 
   routes.post(
-    '/logout',
-    catchAsync(async (request, response) => {
-      const session = await input.loadCookieSession(request, response);
-      const revoked = await input.application.revokeSession({
-        bearerToken: session.sessionToken,
-        ...(processorRequestId(response) === undefined
-          ? {}
-          : { requestId: processorRequestId(response)! }),
-      });
-      clearProcessorCookie(response, input.names.session, input.options);
-      clearProcessorCookie(response, input.names.mfa, input.options);
-      response.status(200).json(apiSuccess(revoked));
-    }),
+    '/mfa/challenge',
+    (request, _response, next) => {
+      try {
+        requireProcessorOrigin(request, input.options);
+        next();
+      } catch (error) {
+        next(error);
+      }
+    },
+    challengeController.validate,
+    challengeController.handle,
   );
+
+  routes.get('/session', async (request, response) => {
+    const session = await input.loadCookieSession(request, response);
+    response
+      .status(200)
+      .json(
+        apiSuccess(
+          processorBrowserSession(
+            session.loaded,
+            session.access,
+            session.sessionToken,
+            input.options,
+          ),
+        ),
+      );
+  });
+
+  routes.post('/logout', async (request, response) => {
+    const session = await input.loadCookieSession(request, response);
+    const revoked = await input.application.revokeSession({
+      bearerToken: session.sessionToken,
+      ...(processorRequestId(response) === undefined
+        ? {}
+        : { requestId: processorRequestId(response)! }),
+    });
+    clearProcessorCookie(response, input.names.session, input.options);
+    clearProcessorCookie(response, input.names.mfa, input.options);
+    response.status(200).json(apiSuccess(revoked));
+  });
 
   return routes;
 };

@@ -1,4 +1,4 @@
-import type { ReconcileProductionBatchProgressFailure } from './reconcile-production-batch-progress.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -21,10 +21,7 @@ import type {
 export type ReconcileProductionBatchProgress = (
   command: ReconcileProductionBatchProgressCommand,
 ) => Promise<
-  Result<
-    ProductionBatchProgressReconciliationResult,
-    ReconcileProductionBatchProgressFailure
-  >
+  Result<ProductionBatchProgressReconciliationResult, ProductionFeatureFailure>
 >;
 
 export type ReconcileProductionBatchProgressRepository = UnitOfWork<

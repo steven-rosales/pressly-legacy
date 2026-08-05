@@ -8,16 +8,13 @@ import {
 } from "@pressly/contracts/auth"
 import type { ControlHttpClient } from "@/api/control-http-client"
 
-export type MfaEnrollment = MfaEnrollmentResult
-export type SecurityEvent = ControlSecurityEvent
-
 export type ControlSecurityApi = Readonly<{
-  beginMfaEnrollment: () => Promise<MfaEnrollment>
+  beginMfaEnrollment: () => Promise<MfaEnrollmentResult>
   confirmMfaEnrollment: (code: string) => Promise<readonly string[]>
   regenerateRecoveryCodes: () => Promise<readonly string[]>
   removeMfa: () => Promise<void>
   listSecurityEvents: (cursor?: string) => Promise<{
-    events: readonly SecurityEvent[]
+    events: readonly ControlSecurityEvent[]
     nextCursor: string | null
   }>
 }>

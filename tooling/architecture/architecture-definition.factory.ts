@@ -42,6 +42,8 @@ export type FoundationProfileName =
   | 'port'
   | 'adapter';
 
+export type FoundationBasis = 'reuse' | 'continuity';
+
 export type FeatureProfile = Readonly<{
   allowedRoles: readonly ArchitectureRole[];
   requiredRoles: readonly ArchitectureRole[];
@@ -154,7 +156,9 @@ export type FeatureDefinition = Readonly<{
 export type FoundationDefinition = Readonly<{
   node: 'foundation';
   profile: FoundationProfileName;
+  basis: FoundationBasis;
   dependsOn: readonly string[];
+  implementsPort: string | null;
 }>;
 
 export type ArchitectureTreeNode =
@@ -191,10 +195,19 @@ export type RepositoryDefinition = Readonly<{
   moduleFamilies: NonEmptyReadonlyArray<string>;
   moduleRootFiles: NonEmptyReadonlyArray<string>;
   packageKinds: Readonly<Partial<Record<PackageKind, readonly string[]>>>;
+  symbolSurfaces?: readonly string[];
 }>;
 
 type FeatureOptions = Readonly<{ dependsOn?: readonly string[] }>;
-type FoundationOptions = Readonly<{ dependsOn?: readonly string[] }>;
+type ReusedFoundationOptions = Readonly<{ dependsOn?: readonly string[] }>;
+type LanguageFoundationOptions = Readonly<{
+  dependsOn?: readonly string[];
+  basis?: FoundationBasis;
+}>;
+type AdapterFoundationOptions = Readonly<{
+  dependsOn?: readonly string[];
+  implements?: string;
+}>;
 
 const feature = (
   profile: FeatureProfileName,
@@ -208,13 +221,18 @@ const feature = (
 
 const foundation = (
   profile: FoundationProfileName,
-  options: FoundationOptions = {},
-): FoundationDefinition =>
-  Object.freeze({
+  options: LanguageFoundationOptions & Readonly<{ implements?: string }> = {},
+): FoundationDefinition => {
+  const implementsPort = options.implements ?? null;
+
+  return Object.freeze({
     node: 'foundation',
     profile,
+    basis: options.basis ?? 'reuse',
     dependsOn: Object.freeze([...(options.dependsOn ?? [])]),
+    implementsPort,
   });
+};
 
 export const defineFeature = Object.freeze({
   httpCommand: (options?: FeatureOptions): FeatureDefinition =>
@@ -232,13 +250,13 @@ export const defineFeature = Object.freeze({
 });
 
 export const defineFoundation = Object.freeze({
-  language: (options?: FoundationOptions): FoundationDefinition =>
+  language: (options?: LanguageFoundationOptions): FoundationDefinition =>
     foundation('language', options),
-  algorithm: (options?: FoundationOptions): FoundationDefinition =>
+  algorithm: (options?: ReusedFoundationOptions): FoundationDefinition =>
     foundation('algorithm', options),
-  port: (options?: FoundationOptions): FoundationDefinition =>
+  port: (options?: ReusedFoundationOptions): FoundationDefinition =>
     foundation('port', options),
-  adapter: (options?: FoundationOptions): FoundationDefinition =>
+  adapter: (options?: AdapterFoundationOptions): FoundationDefinition =>
     foundation('adapter', options),
 });
 
@@ -264,4 +282,8 @@ export const defineModule = <
 
 export const defineRepository = <const Definition extends RepositoryDefinition>(
   definition: Definition,
-): RepositoryDefinition => Object.freeze({ ...definition });
+): RepositoryDefinition =>
+  Object.freeze({
+    ...definition,
+    symbolSurfaces: Object.freeze([...(definition.symbolSurfaces ?? [])]),
+  });

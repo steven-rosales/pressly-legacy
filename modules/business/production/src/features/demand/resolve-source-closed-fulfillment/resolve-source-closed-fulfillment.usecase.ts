@@ -16,12 +16,6 @@ import type {
 } from './resolve-source-closed-fulfillment.port.ts';
 import { classifySourceClosedFulfillment } from './resolve-source-closed-fulfillment.policy.ts';
 
-export type {
-  ResolveSourceClosedFulfillmentCommand,
-  ResolveSourceClosedFulfillmentResult,
-} from './resolve-source-closed-fulfillment.model.ts';
-export type { ResolveSourceClosedFulfillment } from './resolve-source-closed-fulfillment.port.ts';
-
 const reviewReasonForResolutionError = (
   code: string,
 ): SourceClosedFulfillmentReviewReason => {

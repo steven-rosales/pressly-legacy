@@ -1,7 +1,3 @@
-export {
-  productionHistoryRunDetailSchema,
-  productionHistoryRunParamsSchema,
-} from '@pressly/contracts/production';
 import type { ProductionHistoryRunDetail as ProductionHistoryRunWireDetail } from '@pressly/contracts/production';
 import { utcIsoFromDate } from '@pressly/time';
 import { copyProductionHistoryActivityDetails } from '../../../foundations/adapters/postgres/history/production-history-activity.persistence.mapper.ts';

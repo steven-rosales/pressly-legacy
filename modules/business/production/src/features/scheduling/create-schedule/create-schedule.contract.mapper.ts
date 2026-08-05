@@ -1,17 +1,10 @@
-export {
-  createScheduleRequestSchema,
-  productionLocationParamsSchema,
-  scheduleProposalSchema,
-} from '@pressly/contracts/production';
 import type {
   CreateScheduleCommand as CreateScheduleWireCommand,
   ScheduleProposal as ScheduleProposalWireResult,
 } from '@pressly/contracts/production';
 import { toScheduleProposalRepresentation } from '../../../foundations/language/scheduling/schedule-proposal.projection.ts';
-import type {
-  CreateScheduleCommand,
-  CreateScheduleResult,
-} from './create-schedule.model.ts';
+import type { CreateScheduleCommand } from './create-schedule.model.ts';
+import type { ScheduleProposal } from '../../../foundations/language/scheduling/schedule-proposal.entity.ts';
 
 export const toCreateScheduleCommand = (
   identity: Readonly<{ locationId: string; actorId: string }>,
@@ -25,5 +18,5 @@ export const toCreateScheduleCommand = (
 });
 
 export const toCreateScheduleResult = (
-  schedule: CreateScheduleResult,
+  schedule: ScheduleProposal,
 ): ScheduleProposalWireResult => toScheduleProposalRepresentation(schedule);

@@ -1,4 +1,4 @@
-import type { LoadRemainingDayForecastFailure } from './load-remaining-day-forecast.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   RemainingDayForecastInput,
@@ -12,9 +12,7 @@ import type {
 
 export type LoadRemainingDayForecast = (
   command: LoadRemainingDayForecastCommand,
-) => Promise<
-  Result<ProductionRemainingDayForecast, LoadRemainingDayForecastFailure>
->;
+) => Promise<Result<ProductionRemainingDayForecast, ProductionFeatureFailure>>;
 
 export type LoadRemainingDayForecastRepository = Readonly<{
   load: (input: {

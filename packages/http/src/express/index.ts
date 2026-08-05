@@ -1,4 +1,3 @@
-export { catchAsync, type AsyncRequestHandler } from './catch-async.js';
 export {
   defineCookieCsrfProtection,
   type CookieCsrfProtection,
@@ -11,4 +10,7 @@ export {
   sendValidatedApiResult,
   sendValidatedApiValue,
 } from './safe-response.js';
-export { defineRequestBoundary, validateRequest } from './validate-request.js';
+export {
+  defineValidatedController,
+  type ValidatedController,
+} from './validated-controller.js';

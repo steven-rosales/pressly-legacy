@@ -7,7 +7,7 @@ import { invariantViolationError } from '@pressly/errors/factories';
 import { result } from '@pressly/kernel';
 import { withProductionDatabaseError } from '../../../foundations/adapters/postgres/commands/production-database-error.adapter.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { RemainingDayForecastDecision } from '../../../foundations/language/scheduling/remaining-day-forecast.model.ts';
 import type {
   ProductionForecastCapacityReason,
@@ -453,8 +453,3 @@ export const makeLoadRemainingDayForecast =
       },
     });
   };
-
-export type {
-  LoadRemainingDayForecast,
-  LoadRemainingDayForecastRepository,
-} from './load-remaining-day-forecast.port.ts';

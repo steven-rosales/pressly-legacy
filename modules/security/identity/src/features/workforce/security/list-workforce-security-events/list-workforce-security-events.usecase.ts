@@ -7,7 +7,7 @@ import {
 } from '../../../../foundations/language/workforce-failure/workforce-failure.failure.ts';
 import { decodeWorkforceCursor } from '../../../../foundations/language/workforce-pagination/workforce-cursor.value.ts';
 import type { WorkforceActorRef } from '../../../../foundations/language/workforce/workforce.model.ts';
-import type { WorkforceSecurityStore } from '../../../../foundations/ports/workforce-security-store/workforce-security-store.port.ts';
+import type { ListWorkforceSecurityEventsStore } from './list-workforce-security-events.port.ts';
 
 export type ListWorkforceSecurityEvents = (command: {
   actor: WorkforceActorRef;
@@ -32,7 +32,7 @@ export type ListWorkforceSecurityEvents = (command: {
 
 export const makeListWorkforceSecurityEvents =
   (deps: {
-    store: WorkforceSecurityStore;
+    store: ListWorkforceSecurityEventsStore;
     clock: Clock;
   }): ListWorkforceSecurityEvents =>
   async (command) => {

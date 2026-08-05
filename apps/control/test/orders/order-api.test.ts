@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
+import type { ControlOrderDetail } from "@pressly/contracts/orders"
 import { makeControlHttpClient } from "@/api/control-http-client"
 import { makeControlOrderApi } from "@/features/orders/order-api"
-import type { ControlOrderDetail } from "@/features/orders/order-model"
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {

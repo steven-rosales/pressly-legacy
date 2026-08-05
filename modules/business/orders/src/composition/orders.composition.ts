@@ -1,15 +1,11 @@
 import type { Database } from '@pressly/db/client';
 import type { Clock } from '@pressly/time';
-import { makePostgresChangeOrderLifecycleRepository } from '../features/lifecycle/change-order-lifecycle/change-order-lifecycle.repo.ts';
-import {
-  makeCancelOrder,
-  makeCompleteOrder,
-} from '../features/lifecycle/change-order-lifecycle/change-order-lifecycle.usecase.ts';
-import { makePostgresChangeFulfillmentReleaseRepository } from '../features/fulfillment/change-fulfillment-release/change-fulfillment-release.repo.ts';
-import {
-  makeReleaseFulfillment,
-  makeWithdrawFulfillment,
-} from '../features/fulfillment/change-fulfillment-release/change-fulfillment-release.usecase.ts';
+import { makeCancelOrder } from '../features/lifecycle/cancel-order/cancel-order.usecase.ts';
+import { makeCompleteOrder } from '../features/lifecycle/complete-order/complete-order.usecase.ts';
+import { makeReleaseFulfillment } from '../features/fulfillment/release-fulfillment/release-fulfillment.usecase.ts';
+import { makeWithdrawFulfillment } from '../features/fulfillment/withdraw-fulfillment/withdraw-fulfillment.usecase.ts';
+import { makePostgresOrderLifecycleTransaction } from '../foundations/adapters/postgres/order-lifecycle-transaction/order-lifecycle-transaction.repo.ts';
+import { makePostgresFulfillmentReleaseTransaction } from '../foundations/adapters/postgres/fulfillment-release-transaction/fulfillment-release-transaction.repo.ts';
 import { makePostgresClaimOrderOutboxRepository } from '../features/outbox/claim-order-outbox/claim-order-outbox.repo.ts';
 import { makeClaimOrderOutbox } from '../features/outbox/claim-order-outbox/claim-order-outbox.usecase.ts';
 import { makePostgresCompleteOrderOutboxRepository } from '../features/outbox/complete-order-outbox/complete-order-outbox.repo.ts';
@@ -35,11 +31,10 @@ import { makePostgresRestoreIncomingOrderProposalRepository } from '../features/
 import { makeRestoreIncomingOrderProposal } from '../features/intake/restore-incoming-order-proposal/restore-incoming-order-proposal.usecase.ts';
 import { makePostgresRetryOrderOutboxRepository } from '../features/outbox/retry-order-outbox/retry-order-outbox.repo.ts';
 import { makeRetryOrderOutbox } from '../features/outbox/retry-order-outbox/retry-order-outbox.usecase.ts';
-import { makePostgresReadOrdersRepository } from '../features/queries/read-orders/read-orders.repo.ts';
-import {
-  makeGetCanonicalOrder,
-  makeListCanonicalOrders,
-} from '../features/queries/read-orders/read-orders.usecase.ts';
+import { makePostgresGetCanonicalOrderRepository } from '../features/queries/get-canonical-order/get-canonical-order.repo.ts';
+import { makeGetCanonicalOrder } from '../features/queries/get-canonical-order/get-canonical-order.usecase.ts';
+import { makePostgresListCanonicalOrdersRepository } from '../features/queries/list-canonical-orders/list-canonical-orders.repo.ts';
+import { makeListCanonicalOrders } from '../features/queries/list-canonical-orders/list-canonical-orders.usecase.ts';
 
 export type OrdersApplicationDeps = Readonly<{
   db: Database;
@@ -78,7 +73,7 @@ const makePostgresOrderOutboxApplication = (deps: OrdersPersistenceDeps) => {
 export const makePostgresOrdersApplication = (deps: OrdersApplicationDeps) => {
   const createRepo = makePostgresCreateOrderRepository(deps.db);
   const correctRepo = makePostgresCorrectOrderRepository(deps.db);
-  const lifecycleRepo = makePostgresChangeOrderLifecycleRepository(deps.db);
+  const lifecycleRepo = makePostgresOrderLifecycleTransaction(deps.db);
   const proposeIncomingOrderRepo = makePostgresProposeIncomingOrderRepository(
     deps.db,
   );
@@ -93,8 +88,7 @@ export const makePostgresOrdersApplication = (deps: OrdersApplicationDeps) => {
     makePostgresRejectIncomingOrderProposalRepository(deps.db);
   const restoreIncomingOrderProposalRepo =
     makePostgresRestoreIncomingOrderProposalRepository(deps.db);
-  const releaseRepo = makePostgresChangeFulfillmentReleaseRepository(deps.db);
-  const readRepo = makePostgresReadOrdersRepository(deps.db);
+  const releaseRepo = makePostgresFulfillmentReleaseTransaction(deps.db);
 
   return {
     proposeIncomingOrder: makeProposeIncomingOrder(proposeIncomingOrderRepo),
@@ -131,8 +125,12 @@ export const makePostgresOrdersApplication = (deps: OrdersApplicationDeps) => {
       repo: releaseRepo,
       clock: deps.clock,
     }),
-    listCanonicalOrders: makeListCanonicalOrders(readRepo),
-    getCanonicalOrder: makeGetCanonicalOrder(readRepo),
+    listCanonicalOrders: makeListCanonicalOrders(
+      makePostgresListCanonicalOrdersRepository(deps.db),
+    ),
+    getCanonicalOrder: makeGetCanonicalOrder(
+      makePostgresGetCanonicalOrderRepository(deps.db),
+    ),
     ...makePostgresOrderOutboxApplication(deps),
   };
 };
@@ -166,39 +164,3 @@ export const makePostgresOrdersWorkerApplication = (
 export type OrdersWorkerApplication = ReturnType<
   typeof makePostgresOrdersWorkerApplication
 >;
-
-// Runtime policy exports remain part of the established package surface. They
-// flow through the module root so public.ts stays a declaration boundary.
-export {
-  decideFulfillmentRelease,
-  mayTransitionFulfillment,
-  releaseFulfillmentReasonCodes,
-  withdrawFulfillmentReasonCodes,
-} from '../features/fulfillment/change-fulfillment-release/change-fulfillment-release.policy.ts';
-export type {
-  FulfillmentReleaseDecision,
-  FulfillmentReleaseEvent,
-} from '../features/fulfillment/change-fulfillment-release/change-fulfillment-release.policy.ts';
-export {
-  cancelOrderReasonCodes,
-  completeOrderReasonCodes,
-  decideOrderLifecycle,
-  mayTransitionOrder,
-} from '../features/lifecycle/change-order-lifecycle/change-order-lifecycle.policy.ts';
-export type {
-  OrderLifecycleDecision,
-  OrderLifecycleEvent,
-} from '../features/lifecycle/change-order-lifecycle/change-order-lifecycle.policy.ts';
-export { correctOrderReasonCodes } from '../features/lifecycle/correct-order/correct-order.policy.ts';
-export { createOrderReasonCodes } from '../features/lifecycle/create-order/create-order.policy.ts';
-export {
-  allowedIncomingOrderProposalEvents,
-  decideIncomingOrderProposal,
-  incomingOrderProposalGraph,
-} from '../foundations/language/incoming-order-proposal/incoming-order-proposal.lifecycle.ts';
-export type { IncomingOrderProposalDecision } from '../foundations/language/incoming-order-proposal/incoming-order-proposal.lifecycle.ts';
-export { fulfillmentDemandEvent } from '../foundations/language/order-outbox/order-outbox.policy.ts';
-export {
-  decodeOrderCursor,
-  encodeOrderCursor,
-} from '../features/queries/read-orders/order-pagination.policy.ts';

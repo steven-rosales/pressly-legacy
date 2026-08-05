@@ -48,17 +48,17 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  WorkspaceSectionHeading,
 } from "@/components/ui"
+import { WorkspaceSectionHeading } from "@/components/layout/workspace-section-heading"
 import { controlErrorMessage } from "@/i18n/control-error-message"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
-import type { ControlCustomerApi } from "./customer-api"
-import { CustomerForm } from "./customer-form"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
 import type {
   ControlCustomer,
-  ControlCustomerPage,
-  CustomerProfile,
-} from "./customer-model"
+  ControlCustomerList as ControlCustomerPage,
+  UserProfile as CustomerProfile,
+} from "@pressly/contracts/users"
+import type { ControlCustomerApi } from "./customer-api"
+import { CustomerForm } from "./customer-form"
 
 type CustomerStatusFilter = "all" | "active" | "inactive"
 type Drawer = { mode: "create" } | { mode: "detail"; customerId: string } | null

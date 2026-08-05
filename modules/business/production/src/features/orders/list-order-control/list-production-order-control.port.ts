@@ -1,4 +1,4 @@
-import type { ListProductionOrderControlFailure } from './list-production-order-control.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   ListProductionOrderControlCommand,
@@ -8,7 +8,7 @@ import type {
 export type ListProductionOrderControl = (
   command: ListProductionOrderControlCommand,
 ) => Promise<
-  Result<ListProductionOrderControlResult, ListProductionOrderControlFailure>
+  Result<ListProductionOrderControlResult, ProductionFeatureFailure>
 >;
 
 export type ListProductionOrderControlRepositoryResult =

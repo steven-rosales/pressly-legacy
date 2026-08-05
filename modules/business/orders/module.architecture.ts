@@ -12,6 +12,20 @@ const canonicalOrderCommandFoundations = [
   'adapters/postgres/order-store',
 ] as const;
 
+const orderLifecycleFoundations = [
+  'language/command-execution',
+  'language/order',
+  'language/order-lifecycle',
+  'ports/order-lifecycle-transaction',
+] as const;
+
+const fulfillmentReleaseFoundations = [
+  'language/command-execution',
+  'language/order',
+  'language/fulfillment-release',
+  'ports/fulfillment-release-transaction',
+] as const;
+
 const incomingOrderFoundations = [
   'language/incoming-order-proposal',
   'adapters/postgres/incoming-order-proposal-store',
@@ -25,16 +39,22 @@ export default defineModule({
       'create-order': defineFeature.headlessCommand({
         dependsOn: canonicalOrderCommandFoundations,
       }),
-      'change-order-lifecycle': defineFeature.headlessCommand({
-        dependsOn: canonicalOrderCommandFoundations,
+      'complete-order': defineFeature.headlessCommand({
+        dependsOn: orderLifecycleFoundations,
+      }),
+      'cancel-order': defineFeature.headlessCommand({
+        dependsOn: orderLifecycleFoundations,
       }),
       'correct-order': defineFeature.headlessCommand({
         dependsOn: canonicalOrderCommandFoundations,
       }),
     }),
     fulfillment: defineNamespace({
-      'change-fulfillment-release': defineFeature.headlessCommand({
-        dependsOn: canonicalOrderCommandFoundations,
+      'release-fulfillment': defineFeature.headlessCommand({
+        dependsOn: fulfillmentReleaseFoundations,
+      }),
+      'withdraw-fulfillment': defineFeature.headlessCommand({
+        dependsOn: fulfillmentReleaseFoundations,
       }),
     }),
     intake: defineNamespace({
@@ -71,8 +91,11 @@ export default defineModule({
       }),
     }),
     queries: defineNamespace({
-      'read-orders': defineFeature.headlessQuery({
-        dependsOn: ['language/order'],
+      'list-canonical-orders': defineFeature.headlessQuery({
+        dependsOn: ['language/canonical-order-read', 'language/order'],
+      }),
+      'get-canonical-order': defineFeature.headlessQuery({
+        dependsOn: ['language/canonical-order-read', 'language/order'],
       }),
     }),
     outbox: defineNamespace({
@@ -97,6 +120,15 @@ export default defineModule({
     language: defineNamespace({
       'command-execution': defineFoundation.language(),
       order: defineFoundation.language(),
+      'order-lifecycle': defineFoundation.language({
+        dependsOn: ['language/order'],
+      }),
+      'fulfillment-release': defineFoundation.language({
+        dependsOn: ['language/order'],
+      }),
+      'canonical-order-read': defineFoundation.language({
+        dependsOn: ['language/order'],
+      }),
       'incoming-order-proposal': defineFoundation.language({
         dependsOn: ['language/order'],
       }),
@@ -107,6 +139,12 @@ export default defineModule({
     ports: defineNamespace({
       'order-command-store': defineFoundation.port({
         dependsOn: ['language/command-execution'],
+      }),
+      'order-lifecycle-transaction': defineFoundation.port({
+        dependsOn: ['language/order', 'ports/order-command-store'],
+      }),
+      'fulfillment-release-transaction': defineFoundation.port({
+        dependsOn: ['language/order', 'ports/order-command-store'],
       }),
     }),
     adapters: defineNamespace({
@@ -123,6 +161,15 @@ export default defineModule({
             'language/order-outbox',
             'adapters/outbox/fulfillment-demand-codec',
           ],
+          implements: 'ports/order-command-store',
+        }),
+        'order-lifecycle-transaction': defineFoundation.adapter({
+          dependsOn: ['language/order', 'adapters/postgres/order-store'],
+          implements: 'ports/order-lifecycle-transaction',
+        }),
+        'fulfillment-release-transaction': defineFoundation.adapter({
+          dependsOn: ['language/order', 'adapters/postgres/order-store'],
+          implements: 'ports/fulfillment-release-transaction',
         }),
         'incoming-order-proposal-store': defineFoundation.adapter({
           dependsOn: [

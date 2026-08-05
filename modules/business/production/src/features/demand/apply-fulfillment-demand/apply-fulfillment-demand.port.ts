@@ -1,4 +1,4 @@
-import type { ApplyFulfillmentDemandFailure } from './apply-fulfillment-demand.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -35,9 +35,7 @@ export type ApplyFulfillmentDemandResult = Readonly<{
 
 export type ApplyFulfillmentDemand = (
   command: ApplyFulfillmentDemandCommand,
-) => Promise<
-  Result<ApplyFulfillmentDemandResult, ApplyFulfillmentDemandFailure>
->;
+) => Promise<Result<ApplyFulfillmentDemandResult, ProductionFeatureFailure>>;
 
 export type StoredFulfillmentDemand = Readonly<{
   orderDemandId: string;

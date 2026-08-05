@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { OnlinePlacementProposal } from '../../../../src/foundations/language/scheduling/online-placement.model.ts';
-import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.model.ts';
 import type { ProductionAlgorithmRegistry } from '../../../../src/foundations/algorithms/approved-production/production-algorithm-registry.factory.ts';
 import type { StoredWorkEvent } from '../../../../src/foundations/language/commands/production-command.model.ts';
 import type {
   PlaceProductionOrderRepository,
-  PlacementContext,
   StoredOvertimeProposal,
 } from '../../../../src/features/scheduling/place-order/place-production-order.port.ts';
+import type { ProductionOrderPlacementContext } from '../../../../src/foundations/language/scheduling/online-placement.model.ts';
 import { makePlaceProductionOrder } from '../../../../src/features/scheduling/place-order/place-production-order.usecase.ts';
 import { allowPolicy } from '../../../support/production.fake.ts';
 import type { ProductionOrderPlacedResult } from '../../../../src/foundations/language/scheduling/production-placement.model.ts';
@@ -38,7 +38,7 @@ const stages = (startsAt: string) =>
     }),
   );
 
-const makeContext = (queueVersion = 4): PlacementContext => ({
+const makeContext = (queueVersion = 4): ProductionOrderPlacementContext => ({
   input: {
     order: {
       id: ids.newOrder,
@@ -176,7 +176,7 @@ const makeScheduler = (
 
 const makeRepository = (
   input: {
-    context?: PlacementContext;
+    context?: ProductionOrderPlacementContext;
     overtime?: StoredOvertimeProposal | null;
     proposal?: OnlinePlacementProposal;
   } = {},

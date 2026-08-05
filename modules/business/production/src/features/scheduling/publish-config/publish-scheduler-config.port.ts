@@ -1,4 +1,4 @@
-import type { PublishSchedulerConfigFailure } from './publish-scheduler-config.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -22,7 +22,7 @@ export type PublishSchedulerConfigCommand = Readonly<{
 
 export type PublishSchedulerConfig = (
   command: PublishSchedulerConfigCommand,
-) => Promise<Result<SchedulerConfig, PublishSchedulerConfigFailure>>;
+) => Promise<Result<SchedulerConfig, ProductionFeatureFailure>>;
 
 export type PublishSchedulerConfigRepository = UnitOfWork<
   Readonly<{

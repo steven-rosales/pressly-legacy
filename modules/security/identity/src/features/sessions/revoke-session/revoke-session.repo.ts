@@ -2,8 +2,8 @@ import { type Database } from '@pressly/db/client';
 import { and, eq, gt, isNull } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
 import type { RevokeSessionStore } from './revoke-session.port.ts';
-import { recordAuthAuditEvent } from '../../../foundations/adapters/postgres/identity-store/auth-audit.repo.ts';
-import { runDatabaseOperation } from '../../../foundations/adapters/postgres/identity-store/database-result.adapter.ts';
+import { recordAuthAuditEvent } from '../../../foundations/adapters/postgres/auth-audit/auth-audit.repo.ts';
+import { runDatabaseOperation } from '../../../foundations/adapters/postgres/database-operation/database-operation.adapter.ts';
 
 export const makeRevokeSessionStore = (db: Database): RevokeSessionStore => ({
   revokeByTokenHash: async (tokenHash, revokedAt) =>

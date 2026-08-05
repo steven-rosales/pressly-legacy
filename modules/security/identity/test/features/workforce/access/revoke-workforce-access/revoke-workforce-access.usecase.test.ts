@@ -1,7 +1,7 @@
 import { result } from '@pressly/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { makeRevokeWorkforceAccess } from '../../../../../src/features/workforce/access/revoke-workforce-access/revoke-workforce-access.usecase.ts';
-import type { AccessGrantStore } from '../../../../../src/foundations/ports/workforce-access-store/workforce-access-store.port.ts';
+import type { RevokeWorkforceAccessStore } from '../../../../../src/features/workforce/access/revoke-workforce-access/revoke-workforce-access.port.ts';
 
 const now = new Date('2026-07-29T12:00:00.000Z');
 const actor = { identityId: 'owner-id', sessionId: 'owner-session' };
@@ -21,8 +21,7 @@ const grant = {
 
 describe('revoke workforce access', () => {
   it('returns the atomic session-revocation count after access reduction', async () => {
-    const store: AccessGrantStore = {
-      grant: vi.fn(async () => ({ status: 'applied' as const, value: grant })),
+    const store: RevokeWorkforceAccessStore = {
       revoke: vi.fn(async () => ({
         status: 'applied' as const,
         value: {

@@ -316,6 +316,29 @@ describe('incoming Order proposal routes', () => {
     expect(orders.listIncomingOrderProposals).not.toHaveBeenCalled();
   });
 
+  it('authorizes proposal scope before parsing a malformed command body', async () => {
+    const orders = applications();
+    const base = await start(
+      makeApp({
+        orders,
+        authorize: (_request, response) => {
+          response.status(403).json({ code: 'forbidden' });
+        },
+      }),
+    );
+    const response = await fetch(
+      `${base}/order-management/locations/east/incoming-orders/${id(1)}/accept`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(orders.acceptIncomingOrderProposal).not.toHaveBeenCalled();
+  });
+
   it('preserves typed stale-version failures from Orders', async () => {
     const orders = applications();
     orders.acceptIncomingOrderProposal.mockResolvedValueOnce({

@@ -5,59 +5,102 @@ import {
   defineNamespace,
 } from '../../../tooling/architecture/architecture-definition.factory.ts';
 
+const customerDependencies = [
+  'language/control-context',
+  'language/control-customer',
+] as const;
+const orderDependencies = [
+  'language/control-context',
+  'language/control-order',
+] as const;
+const workforceDependencies = [
+  'language/control-context',
+  'language/control-workforce',
+] as const;
+
 export default defineModule({
   id: 'experience/control',
   packageName: '@pressly/control-experience',
   features: defineNamespace({
     session: defineNamespace({
       'resolve-control-access': defineFeature.headlessQuery({
-        dependsOn: ['language/control-access', 'ports/control-access-store'],
+        dependsOn: ['language/control-access'],
       }),
     }),
     customers: defineNamespace({
-      'manage-control-customers': defineFeature.headlessCommand({
-        dependsOn: [
-          'language/control-context',
-          'language/control-customer',
-          'ports/control-customers',
-        ],
+      'list-control-customers': defineFeature.headlessQuery({
+        dependsOn: customerDependencies,
+      }),
+      'get-control-customer': defineFeature.headlessQuery({
+        dependsOn: customerDependencies,
+      }),
+      'create-control-customer': defineFeature.headlessCommand({
+        dependsOn: customerDependencies,
+      }),
+      'update-control-customer': defineFeature.headlessCommand({
+        dependsOn: customerDependencies,
       }),
     }),
     orders: defineNamespace({
-      'manage-control-orders': defineFeature.headlessCommand({
-        dependsOn: [
-          'language/control-access',
-          'language/control-context',
-          'language/control-order',
-          'ports/control-orders',
-        ],
+      'list-control-orders': defineFeature.headlessQuery({
+        dependsOn: orderDependencies,
+      }),
+      'get-control-order': defineFeature.headlessQuery({
+        dependsOn: [...orderDependencies, 'ports/control-order-reader'],
+      }),
+      'create-control-order': defineFeature.headlessCommand({
+        dependsOn: orderDependencies,
+      }),
+      'correct-control-order': defineFeature.headlessCommand({
+        dependsOn: [...orderDependencies, 'ports/control-order-reader'],
       }),
     }),
     workforce: defineNamespace({
-      'manage-control-workforce': defineFeature.headlessCommand({
-        dependsOn: [
-          'language/control-context',
-          'language/control-workforce',
-          'ports/control-workforce',
-        ],
+      'list-control-members': defineFeature.headlessQuery({
+        dependsOn: workforceDependencies,
+      }),
+      'get-control-member': defineFeature.headlessQuery({
+        dependsOn: workforceDependencies,
+      }),
+      'list-control-member-sessions': defineFeature.headlessQuery({
+        dependsOn: workforceDependencies,
+      }),
+      'revoke-control-member-sessions': defineFeature.headlessCommand({
+        dependsOn: workforceDependencies,
+      }),
+      'transition-control-membership': defineFeature.headlessCommand({
+        dependsOn: workforceDependencies,
+      }),
+      'grant-control-access': defineFeature.headlessCommand({
+        dependsOn: workforceDependencies,
+      }),
+      'revoke-control-access': defineFeature.headlessCommand({
+        dependsOn: workforceDependencies,
       }),
     }),
     invitations: defineNamespace({
-      'manage-control-invitations': defineFeature.headlessCommand({
-        dependsOn: [
-          'language/control-context',
-          'language/control-workforce',
-          'ports/control-workforce',
-        ],
+      'list-control-invitations': defineFeature.headlessQuery({
+        dependsOn: workforceDependencies,
+      }),
+      'issue-control-invitation': defineFeature.headlessCommand({
+        dependsOn: workforceDependencies,
+      }),
+      'reissue-control-invitation': defineFeature.headlessCommand({
+        dependsOn: workforceDependencies,
+      }),
+      'revoke-control-invitation': defineFeature.headlessCommand({
+        dependsOn: workforceDependencies,
+      }),
+      'preview-control-invitation': defineFeature.headlessQuery({
+        dependsOn: ['language/control-workforce'],
+      }),
+      'accept-control-invitation': defineFeature.headlessCommand({
+        dependsOn: ['language/control-workforce'],
       }),
     }),
     security: defineNamespace({
       'read-control-security-events': defineFeature.headlessQuery({
-        dependsOn: [
-          'language/control-context',
-          'language/control-workforce',
-          'ports/control-workforce',
-        ],
+        dependsOn: workforceDependencies,
       }),
     }),
   }),
@@ -68,28 +111,14 @@ export default defineModule({
         dependsOn: ['language/control-access'],
       }),
       'control-customer': defineFoundation.language(),
-      'control-order': defineFoundation.language(),
+      'control-order': defineFoundation.language({
+        dependsOn: ['language/control-access'],
+      }),
       'control-workforce': defineFoundation.language(),
     }),
     ports: defineNamespace({
-      'control-access-store': defineFoundation.port({
-        dependsOn: ['language/control-access'],
-      }),
-      'control-customers': defineFoundation.port({
-        dependsOn: ['language/control-context', 'language/control-customer'],
-      }),
-      'control-orders': defineFoundation.port({
-        dependsOn: ['language/control-context', 'language/control-order'],
-      }),
-      'control-workforce': defineFoundation.port({
-        dependsOn: ['language/control-workforce'],
-      }),
-    }),
-    adapters: defineNamespace({
-      postgres: defineNamespace({
-        'control-access-store': defineFoundation.adapter({
-          dependsOn: ['ports/control-access-store'],
-        }),
+      'control-order-reader': defineFoundation.port({
+        dependsOn: ['language/control-order'],
       }),
     }),
   },

@@ -9,8 +9,7 @@ import {
   type BootstrapOwnerFailure,
 } from './bootstrap-owner.failure.ts';
 import type { BootstrapOwnerStore } from './bootstrap-owner.port.ts';
-
-export const BOOTSTRAP_OWNER_CONFIRMATION = 'bootstrap-first-owner';
+import { BOOTSTRAP_OWNER_CONFIRMATION } from './bootstrap-owner.policy.ts';
 
 export type BootstrapOwnerCommand = Readonly<{
   businessId: string;

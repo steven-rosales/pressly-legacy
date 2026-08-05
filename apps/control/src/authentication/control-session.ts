@@ -136,9 +136,3 @@ export const controlLoginResultSchema =
       context.addIssue(issue),
     )
   })
-
-export { logoutResultSchema } from "@pressly/contracts/auth"
-export type {
-  ControlAuthenticatedSession,
-  ControlLoginResult,
-} from "@pressly/contracts/auth"

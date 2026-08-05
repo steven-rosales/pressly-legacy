@@ -2,8 +2,6 @@ import { Router, type RequestHandler } from 'express';
 import {
   makeRevokeAllIdentitySessionsController,
   makeRevokeIdentitySessionController,
-  revokeAllIdentitySessionsBoundary,
-  revokeIdentitySessionBoundary,
   type ReadPrincipalIdentityId,
 } from './revoke-identity-sessions.controller.ts';
 import type { RevokeIdentitySessions } from './revoke-identity-sessions.usecase.ts';
@@ -15,19 +13,21 @@ export const makeRevokeIdentitySessionsRouter = (input: {
   readPrincipalIdentityId: ReadPrincipalIdentityId;
 }): Router => {
   const router = Router();
+  const revokeAllController = makeRevokeAllIdentitySessionsController(input);
+  const revokeOneController = makeRevokeIdentitySessionController(input);
   router.post(
     '/identities/:identityId/sessions/revoke-all',
-    revokeAllIdentitySessionsBoundary.validate,
+    revokeAllController.validate,
     input.authenticate,
     input.authorize,
-    makeRevokeAllIdentitySessionsController(input),
+    revokeAllController.handle,
   );
   router.post(
     '/identities/:identityId/sessions/:sessionId/revoke',
-    revokeIdentitySessionBoundary.validate,
+    revokeOneController.validate,
     input.authenticate,
     input.authorize,
-    makeRevokeIdentitySessionController(input),
+    revokeOneController.handle,
   );
   return router;
 };

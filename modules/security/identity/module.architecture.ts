@@ -7,34 +7,60 @@ import {
 
 const workforceFeatureFoundations = [
   'language/workforce',
+  'language/workforce-authority',
   'language/workforce-command',
   'language/workforce-failure',
 ] as const;
 
-const workforceInvitationFoundations = [
-  ...workforceFeatureFoundations,
-  'language/workforce-invitation',
-  'language/workforce-pagination',
-  'ports/workforce-invitation-store',
+const workforceCoreFoundations = [
+  'language/workforce',
+  'language/workforce-command',
+  'language/workforce-failure',
 ] as const;
 
-const workforceMembershipFoundations = [
+const workforceInvitationCommandFoundations = [
+  ...workforceFeatureFoundations,
+  'language/workforce-invitation',
+] as const;
+
+const workforceInvitationListFoundations = [
+  ...workforceCoreFoundations,
+  'language/workforce-invitation',
+  'language/workforce-pagination',
+] as const;
+
+const workforceInvitationPreviewFoundations = [
+  ...workforceCoreFoundations,
+  'language/workforce-invitation',
+] as const;
+
+const workforceMembershipCommandFoundations = [
   ...workforceFeatureFoundations,
   'language/workforce-membership',
+] as const;
+
+const workforceMembershipListFoundations = [
+  ...workforceCoreFoundations,
+  'language/workforce-membership',
   'language/workforce-pagination',
-  'ports/workforce-membership-store',
 ] as const;
 
 const workforceSecurityFoundations = [
-  ...workforceFeatureFoundations,
+  ...workforceCoreFoundations,
   'language/workforce-pagination',
-  'ports/workforce-security-store',
 ] as const;
 
 const mfaHttpFoundations = [
   'language/mfa',
-  'ports/mfa-store',
   'adapters/http/mfa-request',
+  'adapters/postgres/database-operation',
+] as const;
+
+const workforceCommandPersistence = [
+  'adapters/postgres/database-operation',
+  'adapters/postgres/workforce-audit',
+  'adapters/postgres/workforce-business-lock',
+  'adapters/postgres/workforce-command-receipt',
 ] as const;
 
 export default defineModule({
@@ -43,12 +69,16 @@ export default defineModule({
   features: defineNamespace({
     bootstrap: defineNamespace({
       'bootstrap-owner': defineFeature.headlessCommand({
-        dependsOn: ['adapters/postgres/identity-store'],
+        dependsOn: ['adapters/postgres/database-operation'],
       }),
     }),
     mfa: defineNamespace({
       'complete-mfa-challenge': defineFeature.httpCommand({
-        dependsOn: [...mfaHttpFoundations, 'language/authentication-session'],
+        dependsOn: [
+          ...mfaHttpFoundations,
+          'language/authentication-session',
+          'adapters/postgres/role-read',
+        ],
       }),
       'begin-mfa-enrollment': defineFeature.httpCommand({
         dependsOn: mfaHttpFoundations,
@@ -60,32 +90,38 @@ export default defineModule({
         dependsOn: mfaHttpFoundations,
       }),
       'remove-mfa': defineFeature.httpCommand({
-        dependsOn: ['ports/mfa-store', 'adapters/http/mfa-request'],
+        dependsOn: [
+          'adapters/http/mfa-request',
+          'adapters/postgres/database-operation',
+        ],
       }),
     }),
     sessions: defineNamespace({
       'list-identity-sessions': defineFeature.httpQuery({
-        dependsOn: ['ports/identity-session-store'],
+        dependsOn: ['adapters/postgres/database-operation'],
       }),
       'revoke-identity-sessions': defineFeature.httpCommand({
-        dependsOn: ['ports/identity-session-store'],
+        dependsOn: ['adapters/postgres/database-operation'],
       }),
       'load-session': defineFeature.httpQuery({
         dependsOn: [
           'adapters/http/authentication-request',
-          'adapters/postgres/identity-store',
+          'adapters/postgres/database-operation',
         ],
       }),
       login: defineFeature.httpCommand({
         dependsOn: [
           'language/authentication-session',
-          'adapters/postgres/identity-store',
+          'adapters/postgres/auth-audit',
+          'adapters/postgres/database-operation',
+          'adapters/postgres/role-read',
         ],
       }),
       'revoke-session': defineFeature.httpCommand({
         dependsOn: [
           'adapters/http/authentication-request',
-          'adapters/postgres/identity-store',
+          'adapters/postgres/auth-audit',
+          'adapters/postgres/database-operation',
         ],
       }),
     }),
@@ -95,56 +131,132 @@ export default defineModule({
           dependsOn: [
             ...workforceFeatureFoundations,
             'language/access-grant',
-            'ports/workforce-access-store',
+            ...workforceCommandPersistence,
+            'adapters/postgres/access-grant-read',
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-location-read',
+            'adapters/postgres/workforce-member-read',
           ],
         }),
         'revoke-workforce-access': defineFeature.headlessCommand({
           dependsOn: [
             ...workforceFeatureFoundations,
-            'ports/workforce-access-store',
+            'language/access-grant',
+            ...workforceCommandPersistence,
+            'adapters/postgres/access-grant-read',
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-member-read',
+            'adapters/postgres/workforce-transition',
           ],
         }),
       }),
       invitations: defineNamespace({
         'accept-workforce-invitation': defineFeature.headlessCommand({
-          dependsOn: workforceInvitationFoundations,
+          dependsOn: [
+            ...workforceInvitationCommandFoundations,
+            'ports/workforce-invitation-token',
+            ...workforceCommandPersistence,
+            'adapters/postgres/workforce-invitation-read',
+            'adapters/postgres/workforce-transition',
+          ],
         }),
         'issue-workforce-invitation': defineFeature.headlessCommand({
-          dependsOn: workforceInvitationFoundations,
+          dependsOn: [
+            ...workforceInvitationCommandFoundations,
+            'ports/workforce-invitation-token',
+            ...workforceCommandPersistence,
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-invitation-read',
+            'adapters/postgres/workforce-location-read',
+          ],
         }),
         'list-workforce-invitations': defineFeature.headlessQuery({
-          dependsOn: workforceInvitationFoundations,
+          dependsOn: [
+            ...workforceInvitationListFoundations,
+            'adapters/postgres/database-operation',
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-invitation-read',
+          ],
         }),
         'preview-workforce-invitation': defineFeature.headlessQuery({
-          dependsOn: workforceInvitationFoundations,
+          dependsOn: [
+            ...workforceInvitationPreviewFoundations,
+            'ports/workforce-invitation-token',
+            'adapters/postgres/database-operation',
+            'adapters/postgres/workforce-business-lock',
+            'adapters/postgres/workforce-transition',
+          ],
         }),
         'reissue-workforce-invitation': defineFeature.headlessCommand({
-          dependsOn: workforceInvitationFoundations,
+          dependsOn: [
+            ...workforceInvitationCommandFoundations,
+            'ports/workforce-invitation-token',
+            ...workforceCommandPersistence,
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-invitation-read',
+            'adapters/postgres/workforce-transition',
+          ],
         }),
         'revoke-workforce-invitation': defineFeature.headlessCommand({
-          dependsOn: workforceInvitationFoundations,
+          dependsOn: [
+            ...workforceInvitationCommandFoundations,
+            ...workforceCommandPersistence,
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-invitation-read',
+            'adapters/postgres/workforce-transition',
+          ],
         }),
       }),
       memberships: defineNamespace({
         'get-workforce-member': defineFeature.headlessQuery({
-          dependsOn: workforceMembershipFoundations,
+          dependsOn: [
+            ...workforceMembershipCommandFoundations,
+            'adapters/postgres/database-operation',
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-member-read',
+          ],
         }),
         'list-workforce': defineFeature.headlessQuery({
-          dependsOn: workforceMembershipFoundations,
+          dependsOn: [
+            ...workforceMembershipListFoundations,
+            'adapters/postgres/database-operation',
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-member-read',
+          ],
         }),
         'transition-workforce-membership': defineFeature.headlessCommand({
-          dependsOn: workforceMembershipFoundations,
+          dependsOn: [
+            ...workforceMembershipCommandFoundations,
+            ...workforceCommandPersistence,
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-member-read',
+            'adapters/postgres/workforce-transition',
+          ],
         }),
       }),
       security: defineNamespace({
         'list-workforce-member-sessions': defineFeature.headlessQuery({
-          dependsOn: workforceSecurityFoundations,
+          dependsOn: [
+            ...workforceFeatureFoundations,
+            'adapters/postgres/database-operation',
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-member-read',
+          ],
         }),
         'revoke-workforce-member-sessions': defineFeature.headlessCommand({
-          dependsOn: workforceSecurityFoundations,
+          dependsOn: [
+            ...workforceFeatureFoundations,
+            ...workforceCommandPersistence,
+            'adapters/postgres/workforce-actor-read',
+            'adapters/postgres/workforce-member-read',
+          ],
         }),
         'list-workforce-security-events': defineFeature.headlessQuery({
-          dependsOn: workforceSecurityFoundations,
+          dependsOn: [
+            ...workforceSecurityFoundations,
+            'adapters/postgres/database-operation',
+            'adapters/postgres/workforce-actor-read',
+          ],
         }),
       }),
     }),
@@ -177,28 +289,7 @@ export default defineModule({
       }),
     }),
     ports: defineNamespace({
-      'identity-session-store': defineFoundation.port(),
-      'mfa-store': defineFoundation.port(),
-      'workforce-access-store': defineFoundation.port({
-        dependsOn: ['language/access-grant', 'language/workforce'],
-      }),
-      'workforce-invitation-store': defineFoundation.port({
-        dependsOn: [
-          'language/workforce',
-          'language/workforce-invitation',
-          'language/workforce-pagination',
-        ],
-      }),
-      'workforce-membership-store': defineFoundation.port({
-        dependsOn: [
-          'language/workforce',
-          'language/workforce-membership',
-          'language/workforce-pagination',
-        ],
-      }),
-      'workforce-security-store': defineFoundation.port({
-        dependsOn: ['language/workforce', 'language/workforce-pagination'],
-      }),
+      'workforce-invitation-token': defineFoundation.port(),
     }),
     adapters: defineNamespace({
       http: defineNamespace({
@@ -208,60 +299,33 @@ export default defineModule({
         }),
       }),
       postgres: defineNamespace({
-        'identity-store': defineFoundation.adapter({
-          dependsOn: [
-            'language/access-grant',
-            'language/workforce',
-            'language/workforce-authority',
-            'language/workforce-membership',
-          ],
+        'access-grant-read': defineFoundation.adapter({
+          dependsOn: ['language/access-grant', 'language/workforce'],
         }),
-        'identity-session-store': defineFoundation.adapter({
-          dependsOn: [
-            'ports/identity-session-store',
-            'adapters/postgres/identity-store',
-          ],
+        'auth-audit': defineFoundation.adapter({
+          dependsOn: ['adapters/postgres/database-operation'],
         }),
-        'mfa-store': defineFoundation.adapter({
-          dependsOn: ['ports/mfa-store', 'adapters/postgres/identity-store'],
+        'database-operation': defineFoundation.adapter(),
+        'role-read': defineFoundation.adapter(),
+        'workforce-actor-read': defineFoundation.adapter({
+          dependsOn: ['language/workforce', 'language/workforce-authority'],
         }),
-        'workforce-access-store': defineFoundation.adapter({
-          dependsOn: [
-            'language/access-grant',
-            'language/workforce-authority',
-            'ports/workforce-access-store',
-            'adapters/postgres/identity-store',
-          ],
+        'workforce-audit': defineFoundation.adapter(),
+        'workforce-business-lock': defineFoundation.adapter(),
+        'workforce-command-receipt': defineFoundation.adapter(),
+        'workforce-invitation-read': defineFoundation.adapter({
+          dependsOn: ['language/workforce-invitation'],
         }),
-        'workforce-invitation-store': defineFoundation.adapter({
+        'workforce-location-read': defineFoundation.adapter(),
+        'workforce-member-read': defineFoundation.adapter({
           dependsOn: [
             'language/workforce',
             'language/workforce-authority',
-            'language/workforce-command',
-            'language/workforce-invitation',
-            'language/workforce-pagination',
-            'ports/workforce-invitation-store',
-            'adapters/postgres/identity-store',
-          ],
-        }),
-        'workforce-membership-store': defineFoundation.adapter({
-          dependsOn: [
-            'language/workforce-authority',
             'language/workforce-membership',
-            'language/workforce-pagination',
-            'ports/workforce-membership-store',
-            'adapters/postgres/identity-store',
+            'adapters/postgres/access-grant-read',
           ],
         }),
-        'workforce-security-store': defineFoundation.adapter({
-          dependsOn: [
-            'language/workforce-authority',
-            'language/workforce-membership',
-            'language/workforce-pagination',
-            'ports/workforce-security-store',
-            'adapters/postgres/identity-store',
-          ],
-        }),
+        'workforce-transition': defineFoundation.adapter(),
       }),
     }),
   },

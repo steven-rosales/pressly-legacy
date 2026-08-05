@@ -1,0 +1,155 @@
+work_id: symbol-ownership-relay-removal
+title: Remove internal symbol relays and enforce semantic ownership
+status: complete
+
+goal:
+  - Make symbol provenance directly traversable from every internal module consumer.
+  - Remove ceremonial aliases and pass-through exports without changing behavior.
+  - Reject future internal relays through executable architecture rules.
+
+invariants:
+  - A symbol has one semantic declaration owner.
+  - Feature, foundation, mapper, adapter, use-case, and composition files do not curate compatibility surfaces.
+  - Module main.ts and public.ts remain the canonical explicit module boundaries.
+  - Package entrypoints may explicitly curate their published API.
+  - Expected failures, dependency direction, serialized contracts, and runtime behavior remain unchanged.
+  - Existing unrelated worktree changes are preserved.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Characterize symbol relays and boundary exceptions
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo:modules
+      - repo:apps
+      - repo:packages
+      - repo:tooling/architecture
+      - repo:docs/module-architecture.md
+    writes:
+      - repo:stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+    action:
+      - Inventory direct re-exports, imported-symbol exports, identity type aliases, identity value aliases, and empty extension aliases.
+      - Distinguish semantic owners from explicit public API surfaces.
+      - Record the dirty-worktree boundary before editing.
+    verifier:
+      - Every removal class and every retained exception has an ownership reason.
+    rollback: No rollback is required for read-only characterization.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+
+  - id: T1
+    title: Enforce direct symbol ownership
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:tooling/architecture
+      - repo:eslint.config.mjs
+    writes:
+      - repo:tooling/architecture
+      - repo:tooling/test
+      - repo:eslint.config.mjs
+    action:
+      - Reject module-internal direct re-exports and imported-symbol exports.
+      - Reject identity aliases that merely rename an imported value or type.
+      - Preserve explicit module public surfaces.
+    verifier:
+      - Architecture lint fixtures fail for every relay form and pass for semantic declarations and root public surfaces.
+    rollback: Revert the rule and its tests together.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+
+  - id: T2
+    title: Redirect consumers to semantic owners
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1]
+    reads:
+      - repo:modules
+      - repo:apps
+      - repo:packages
+    writes:
+      - repo:modules
+      - repo:apps
+      - repo:packages
+    action:
+      - Replace imports from internal relays with imports from declaration owners.
+      - Remove ceremonial relay declarations and empty files.
+      - Keep public entrypoints explicit and canonical.
+    verifier:
+      - No module-internal relay violation remains.
+      - Affected typechecks and tests preserve behavior.
+    rollback: Revert each owner-consumer migration atomically.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+
+  - id: T3
+    title: Publish the symbol-ownership rule
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T2]
+    reads:
+      - repo:AGENTS.md
+      - repo:docs/architecture.md
+      - repo:docs/module-architecture.md
+    writes:
+      - repo:AGENTS.md
+      - repo:docs/architecture.md
+      - repo:docs/module-architecture.md
+      - repo:stateworks/work/done/symbol-ownership-relay-removal
+    action:
+      - Document the direct-owner import rule and explicit-surface exception.
+      - Record exact migration and proof evidence.
+    verifier:
+      - Documentation, agent guidance, and executable lint agree.
+    rollback: Revert documentation with the executable rule.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+
+  - id: V1
+    title: Prove architecture and behavior
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T3]
+    reads:
+      - repo
+    writes:
+      - repo:stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+      - repo:stateworks/work/done/symbol-ownership-relay-removal/final-report.md
+    action:
+      - Run Stateworks, architecture, formatting, lint, type, affected tests, build, and diff-hygiene gates with bounded concurrency.
+    verifier:
+      - All required gates pass and evidence records exact commands and results.
+    rollback: Keep the work active and report repeated verifier failure without claiming completion.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+      - stateworks/work/done/symbol-ownership-relay-removal/final-report.md

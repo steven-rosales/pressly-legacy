@@ -131,5 +131,3 @@ export const defineProductionRules = () =>
   });
 
 export const productionRules = defineProductionRules();
-
-export type { ProductionRules } from './production-rules.model.ts';

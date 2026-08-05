@@ -5,7 +5,7 @@ import { makeAcceptSchedule } from '../../../src/features/scheduling/accept-sche
 import type { CreateScheduleRepository } from '../../../src/features/scheduling/create-schedule/create-schedule.port.ts';
 import { makeCreateSchedule } from '../../../src/features/scheduling/create-schedule/create-schedule.usecase.ts';
 import { defineWorkEventCommand } from '../../../src/foundations/language/commands/production-idempotency.policy.ts';
-import type { ProductionRules } from '../../../src/foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../src/foundations/language/rules/production-rules.model.ts';
 import type { StoredWorkEvent } from '../../../src/foundations/language/commands/production-command.model.ts';
 import type { ScheduleProposal } from '../../../src/foundations/language/scheduling/schedule-proposal.entity.ts';
 import type { StartScheduleResult } from '../../../src/features/scheduling/start-schedule/start-schedule.model.ts';

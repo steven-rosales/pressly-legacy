@@ -1,8 +1,5 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  confirmMfaEnrollmentBoundary,
-  makeConfirmMfaEnrollmentController,
-} from './confirm-mfa-enrollment.controller.ts';
+import { makeConfirmMfaEnrollmentController } from './confirm-mfa-enrollment.controller.ts';
 import type { ConfirmMfaEnrollment } from './confirm-mfa-enrollment.usecase.ts';
 
 export const makeConfirmMfaEnrollmentRouter = (input: {
@@ -11,12 +8,15 @@ export const makeConfirmMfaEnrollmentRouter = (input: {
   authorize: RequestHandler;
 }): Router => {
   const router = Router();
+  const controller = makeConfirmMfaEnrollmentController(
+    input.confirmMfaEnrollment,
+  );
   router.post(
     '/enrollment/confirm',
-    confirmMfaEnrollmentBoundary.validate,
+    controller.validate,
     input.authenticate,
     input.authorize,
-    makeConfirmMfaEnrollmentController(input.confirmMfaEnrollment),
+    controller.handle,
   );
   return router;
 };

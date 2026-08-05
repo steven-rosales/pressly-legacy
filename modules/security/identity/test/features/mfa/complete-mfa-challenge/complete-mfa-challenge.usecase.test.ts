@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { makeCompleteMfaChallenge } from '../../../../src/features/mfa/complete-mfa-challenge/complete-mfa-challenge.usecase.ts';
-import type { CompleteMfaChallengeStore } from '../../../../src/foundations/ports/mfa-store/mfa-challenge-store.port.ts';
+import type { CompleteMfaChallengeStore } from '../../../../src/features/mfa/complete-mfa-challenge/complete-mfa-challenge.port.ts';
 
 const now = new Date('2026-06-29T12:00:00.000Z');
 const identityId = '11111111-1111-4111-8111-111111111111';

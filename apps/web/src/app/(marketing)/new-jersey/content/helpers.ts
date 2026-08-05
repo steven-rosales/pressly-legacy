@@ -1,26 +1,9 @@
-import { LOCATIONS, findLocation, allParamsForState } from './locations';
+import { findLocation, allParamsForState } from './locations';
 import {
-  DRY_CLEANING_CONFIG,
-  WASH_AND_FOLD_CONFIG,
   getCityFromSlug,
   getServiceConfig,
   getServiceTypeFromSlug,
 } from './service-configs';
-import type { ServiceType } from './service-configs';
-import { COUNTY_CITIES } from './county-cities';
-
-export {
-  LOCATIONS,
-  findLocation,
-  allParamsForState,
-  DRY_CLEANING_CONFIG,
-  WASH_AND_FOLD_CONFIG,
-  getCityFromSlug,
-  getServiceConfig,
-  getServiceTypeFromSlug,
-  COUNTY_CITIES,
-  type ServiceType,
-};
 
 export function buildCityServiceParams() {
   const base = allParamsForState();

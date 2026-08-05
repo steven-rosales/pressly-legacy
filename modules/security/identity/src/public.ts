@@ -24,10 +24,7 @@ export type { LoginFailure } from './features/sessions/login/login.failure.ts';
 export type { AccessGrantEntity } from './foundations/language/access-grant/access-grant.entity.ts';
 export type { AccessGrantSummary } from './foundations/language/access-grant/access-grant.model.ts';
 export type { WorkforceInvitationEntity } from './foundations/language/workforce-invitation/workforce-invitation.entity.ts';
-export type {
-  WorkforceInvitationPreview,
-  WorkforceInvitationSummary,
-} from './foundations/language/workforce-invitation/workforce-invitation.model.ts';
+export type { WorkforceInvitationPreview } from './foundations/language/workforce-invitation/workforce-invitation.model.ts';
 export type { WorkforceMembershipEntity } from './foundations/language/workforce-membership/workforce-membership.entity.ts';
 export type {
   WorkforceMemberDetail,

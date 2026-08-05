@@ -1,32 +1,11 @@
 import type {
   OperationalOrderAuditEntry,
+  OperationalOrderIdentity,
   OperationalOrderIdentityReference,
+  OperationalOrderIdentityResolution,
+  ProductionOrderIdentitySource,
 } from './operational-order.model.ts';
-
-const cleanNamePart = (value: string | null): string | null => {
-  const normalized = value?.trim().replace(/\s+/g, ' ') ?? '';
-  return normalized.length === 0 ? null : normalized;
-};
-
-export const canonicalCustomerDisplayName = (input: {
-  businessName: string | null;
-  firstName: string | null;
-  lastName: string | null;
-}): string | null => {
-  const businessName = cleanNamePart(input.businessName);
-  if (businessName !== null) return businessName;
-  const personalName = [input.firstName, input.lastName]
-    .map(cleanNamePart)
-    .filter((part): part is string => part !== null)
-    .join(' ');
-  return personalName.length === 0 ? null : personalName;
-};
-
-export const productionOrderReferenceId = (productionOrderId: string): string =>
-  `production:${productionOrderId}`;
-
-export const orderDemandReferenceId = (orderDemandId: string): string =>
-  `demand:${orderDemandId}`;
+import { productionOrderReferenceId } from './operational-order.value.ts';
 
 export const uniqueOperationalOrderReferences = (
   references: readonly OperationalOrderIdentityReference[],
@@ -35,6 +14,25 @@ export const uniqueOperationalOrderReferences = (
     references.map((reference) => [reference.referenceId, reference]),
   ).values(),
 ];
+
+export const productionOrderIdentityReference = (
+  order: ProductionOrderIdentitySource,
+): OperationalOrderIdentityReference => ({
+  referenceId: productionOrderReferenceId(order.id),
+  productionOrderId: order.id,
+  orderDemandId: null,
+  fallbackDisplayNumber: order.externalOrderId,
+});
+
+export const operationalOrderIdentityValues = (
+  resolutions: ReadonlyMap<string, OperationalOrderIdentityResolution>,
+): ReadonlyMap<string, OperationalOrderIdentity> =>
+  new Map(
+    [...resolutions.entries()].map(([referenceId, value]) => [
+      referenceId,
+      value.identity,
+    ]),
+  );
 
 const auditSort = (
   left: OperationalOrderAuditEntry,

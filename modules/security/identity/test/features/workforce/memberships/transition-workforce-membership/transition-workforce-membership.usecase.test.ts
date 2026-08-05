@@ -1,11 +1,7 @@
 import { result } from '@pressly/kernel';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  makeEndWorkforceMembership,
-  makeReactivateWorkforceMembership,
-  makeSuspendWorkforceMembership,
-} from '../../../../../src/features/workforce/memberships/transition-workforce-membership/transition-workforce-membership.usecase.ts';
-import type { WorkforceMembershipStore } from '../../../../../src/foundations/ports/workforce-membership-store/workforce-membership-store.port.ts';
+import { makeTransitionWorkforceMembership } from '../../../../../src/features/workforce/memberships/transition-workforce-membership/transition-workforce-membership.usecase.ts';
+import type { TransitionWorkforceMembershipStore } from '../../../../../src/features/workforce/memberships/transition-workforce-membership/transition-workforce-membership.port.ts';
 
 const now = new Date('2026-07-29T12:00:00.000Z');
 const actor = { identityId: 'owner-id', sessionId: 'owner-session' };
@@ -41,13 +37,8 @@ const member = {
 };
 
 const makeMembershipStore = (
-  overrides: Partial<WorkforceMembershipStore> = {},
-): WorkforceMembershipStore => ({
-  list: vi.fn(async () => ({
-    status: 'found' as const,
-    page: { members: [member], nextCursor: null },
-  })),
-  detail: vi.fn(async () => ({ status: 'found' as const, member })),
+  overrides: Partial<TransitionWorkforceMembershipStore> = {},
+): TransitionWorkforceMembershipStore => ({
   transition: vi.fn(async () => ({
     status: 'applied' as const,
     value: { member, revokedSessionCount: 3 },
@@ -56,15 +47,15 @@ const makeMembershipStore = (
 });
 
 describe('transition workforce membership', () => {
-  it.each([
-    ['suspend', makeSuspendWorkforceMembership],
-    ['reactivate', makeReactivateWorkforceMembership],
-    ['end', makeEndWorkforceMembership],
-  ] as const)(
+  it.each(['suspend', 'reactivate', 'end'] as const)(
     'sends a versioned, idempotent %s graph event',
-    async (event, make) => {
+    async (event) => {
       const store = makeMembershipStore();
-      const transition = make({ store, clock: { now: () => now } });
+      const transition = makeTransitionWorkforceMembership({
+        store,
+        clock: { now: () => now },
+        event,
+      });
       const response = await transition({
         actor,
         businessId: 'business-id',
@@ -94,9 +85,10 @@ describe('transition workforce membership', () => {
         currentVersion: 4,
       })),
     });
-    const suspend = makeSuspendWorkforceMembership({
+    const suspend = makeTransitionWorkforceMembership({
       store,
       clock: { now: () => now },
+      event: 'suspend',
     });
     const response = await suspend({
       actor,
@@ -120,9 +112,10 @@ describe('transition workforce membership', () => {
         reason: 'last_owner' as const,
       })),
     });
-    const end = makeEndWorkforceMembership({
+    const end = makeTransitionWorkforceMembership({
       store,
       clock: { now: () => now },
+      event: 'end',
     });
     const response = await end({
       actor,

@@ -1,8 +1,3 @@
-export {
-  changeProductionAdmissionRequestSchema,
-  changeProductionAdmissionResultSchema,
-  productionOrderParamsSchema,
-} from '@pressly/contracts/production';
 import type { ChangeProductionAdmissionResult as ChangeProductionAdmissionWireResult } from '@pressly/contracts/production';
 import type { ChangeProductionAdmissionResult } from './change-production-admission.model.ts';
 

@@ -7,8 +7,6 @@ type EligibilityDemandPhase =
   | 'post_production'
   | 'withdrawn';
 
-export type ProductionPolicyRejection = CodedFailure;
-
 export type EligibilityInput = Readonly<{
   phase: EligibilityDemandPhase;
   derivedWeightLbs: number;
@@ -19,7 +17,7 @@ export const evaluateIntakeAdmission = (
   input: EligibilityInput,
 ): Result<
   Readonly<{ status: 'release_pending' | 'eligible' }>,
-  ProductionPolicyRejection
+  CodedFailure
 > => {
   if (input.phase === 'withdrawn')
     return result.err({

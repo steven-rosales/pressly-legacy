@@ -2,15 +2,10 @@ import type { Result } from '@pressly/kernel';
 import type { Clock } from '@pressly/time';
 import { makePostgresCreateUserRepository } from '../features/users/create-user/create-user.repo.ts';
 import { makeCreateUser } from '../features/users/create-user/create-user.usecase.ts';
-import { makePostgresReadUsersRepository } from '../features/users/read-users/read-users.repo.ts';
-import {
-  makeGetUser,
-  makeListUsers,
-} from '../features/users/read-users/read-users.usecase.ts';
-import {
-  decodeUserCursor,
-  encodeUserCursor,
-} from '../features/users/read-users/user-pagination.policy.ts';
+import { makePostgresGetUserRepository } from '../features/users/get-user/get-user.repo.ts';
+import { makeGetUser } from '../features/users/get-user/get-user.usecase.ts';
+import { makePostgresListUsersRepository } from '../features/users/list-users/list-users.repo.ts';
+import { makeListUsers } from '../features/users/list-users/list-users.usecase.ts';
 import { makePostgresUpdateUserRepository } from '../features/users/update-user/update-user.repo.ts';
 import { makeUpdateUser } from '../features/users/update-user/update-user.usecase.ts';
 import type { ResolveCanonicalSourceUserFailure } from '../features/sources/resolve-canonical-source-user/resolve-canonical-source-user.failure.ts';
@@ -35,9 +30,8 @@ export const makePostgresUsersApplication = (deps: UsersApplicationDeps) => {
     repo: makePostgresUpdateUserRepository(deps.db),
     clock: deps.clock,
   });
-  const readUsers = makePostgresReadUsersRepository(deps.db);
-  const listUsers = makeListUsers(readUsers);
-  const getUser = makeGetUser(readUsers);
+  const listUsers = makeListUsers(makePostgresListUsersRepository(deps.db));
+  const getUser = makeGetUser(makePostgresGetUserRepository(deps.db));
 
   return Object.freeze({
     createUser,
@@ -57,18 +51,12 @@ type CanonicalSourceUserExecutor = Parameters<
   typeof makePostgresResolveCanonicalSourceUserRepository
 >[0];
 
-export type CanonicalSourceUserAcceptanceInput =
-  ResolveCanonicalSourceUserCommand;
-export type CanonicalSourceUserAcceptanceResult = ResolvedCanonicalSourceUser;
 export type CanonicalSourceUserAcceptanceAdapter = Readonly<{
   resolveOrCreate: (
     db: CanonicalSourceUserExecutor,
-    input: CanonicalSourceUserAcceptanceInput,
+    input: ResolveCanonicalSourceUserCommand,
   ) => Promise<
-    Result<
-      CanonicalSourceUserAcceptanceResult,
-      ResolveCanonicalSourceUserFailure
-    >
+    Result<ResolvedCanonicalSourceUser, ResolveCanonicalSourceUserFailure>
   >;
 }>;
 
@@ -82,5 +70,3 @@ export const makePostgresCanonicalSourceUserAcceptanceAdapter =
         return resolveCanonicalSourceUser(input);
       },
     });
-
-export { decodeUserCursor, encodeUserCursor };

@@ -11,6 +11,8 @@ const command = [
   'adapters/postgres/commands',
 ] as const;
 
+const query = ['language/failures', 'adapters/postgres/commands'] as const;
+
 const httpFailure = ['adapters/errors'] as const;
 
 export default defineModule({
@@ -44,13 +46,27 @@ export default defineModule({
           'language/rules',
         ],
       }),
-      'review-order-backlog': defineFeature.httpCommand({
+      'commit-production-order-backlog': defineFeature.httpCommand({
         dependsOn: [
           ...command,
           ...httpFailure,
           'language/execution',
+          'language/production-order-backlog',
           'language/resolution',
-          'adapters/postgres/orders',
+          'ports/production-order-backlog-cursor',
+          'ports/production-order-backlog-snapshot',
+          'adapters/postgres/production-order-backlog-snapshot',
+        ],
+      }),
+      'preview-production-order-backlog': defineFeature.httpQuery({
+        dependsOn: [
+          ...httpFailure,
+          'language/failures',
+          'language/production-order-backlog',
+          'language/resolution',
+          'ports/production-order-backlog-cursor',
+          'ports/production-order-backlog-snapshot',
+          'adapters/postgres/production-order-backlog-snapshot',
         ],
       }),
       'set-order-priority': defineFeature.httpCommand({
@@ -99,7 +115,7 @@ export default defineModule({
     history: defineNamespace({
       'list-activity': defineFeature.httpQuery({
         dependsOn: [
-          ...command,
+          ...query,
           ...httpFailure,
           'language/history',
           'adapters/postgres/history',
@@ -107,7 +123,7 @@ export default defineModule({
       }),
       'list-plans': defineFeature.httpQuery({
         dependsOn: [
-          ...command,
+          ...query,
           ...httpFailure,
           'language/history',
           'adapters/postgres/history',
@@ -115,7 +131,7 @@ export default defineModule({
       }),
       'list-runs': defineFeature.httpQuery({
         dependsOn: [
-          ...command,
+          ...query,
           ...httpFailure,
           'language/history',
           'adapters/postgres/history',
@@ -123,7 +139,7 @@ export default defineModule({
       }),
       'load-run': defineFeature.httpQuery({
         dependsOn: [
-          ...command,
+          ...query,
           ...httpFailure,
           'language/history',
           'adapters/postgres/history',
@@ -133,7 +149,7 @@ export default defineModule({
     orders: defineNamespace({
       'list-order-control': defineFeature.httpQuery({
         dependsOn: [
-          ...command,
+          ...query,
           ...httpFailure,
           'language/due-dates',
           'language/execution',
@@ -145,7 +161,7 @@ export default defineModule({
         ],
       }),
       'list-orders': defineFeature.httpQuery({
-        dependsOn: [...command, ...httpFailure, 'language/orders'],
+        dependsOn: [...query, ...httpFailure, 'language/orders'],
       }),
       'route-order': defineFeature.httpCommand({
         dependsOn: [
@@ -161,7 +177,7 @@ export default defineModule({
     queries: defineNamespace({
       'load-board': defineFeature.httpQuery({
         dependsOn: [
-          ...command,
+          ...query,
           ...httpFailure,
           'language/board',
           'language/rules',
@@ -170,7 +186,7 @@ export default defineModule({
       }),
       'load-remaining-day-forecast': defineFeature.httpQuery({
         dependsOn: [
-          ...command,
+          ...query,
           ...httpFailure,
           'language/rules',
           'language/scheduling',
@@ -179,7 +195,7 @@ export default defineModule({
       }),
       'load-workspace': defineFeature.httpQuery({
         dependsOn: [
-          ...command,
+          ...query,
           ...httpFailure,
           'language/board',
           'language/due-dates',
@@ -195,12 +211,21 @@ export default defineModule({
     }),
     resources: defineNamespace({
       'list-locations': defineFeature.httpQuery({
-        dependsOn: [...command, ...httpFailure],
+        dependsOn: [...query, ...httpFailure],
       }),
       'manage-resources': defineFeature.headlessCommand({
         dependsOn: command,
       }),
-      'manage-shift': defineFeature.httpCommand({
+      'create-production-shift': defineFeature.httpCommand({
+        dependsOn: [
+          ...command,
+          ...httpFailure,
+          'language/rules',
+          'language/shifts',
+          'adapters/postgres/scheduling',
+        ],
+      }),
+      'update-production-shift': defineFeature.httpCommand({
         dependsOn: [
           ...command,
           ...httpFailure,
@@ -318,6 +343,9 @@ export default defineModule({
       }),
       placement: defineFoundation.language(),
       'progress-reconciliation': defineFoundation.language(),
+      'production-order-backlog': defineFoundation.language({
+        dependsOn: ['language/execution', 'language/resolution'],
+      }),
       resolution: defineFoundation.language({
         dependsOn: ['language/execution', 'language/rules'],
       }),
@@ -367,6 +395,12 @@ export default defineModule({
       'remaining-day-forecast-v1': defineFoundation.algorithm(),
     }),
     ports: defineNamespace({
+      'production-order-backlog-cursor': defineFoundation.port({
+        dependsOn: ['language/production-order-backlog'],
+      }),
+      'production-order-backlog-snapshot': defineFoundation.port({
+        dependsOn: ['language/production-order-backlog'],
+      }),
       signals: defineFoundation.port({
         dependsOn: ['language/execution'],
       }),
@@ -377,6 +411,13 @@ export default defineModule({
       }),
       signals: defineFoundation.adapter({
         dependsOn: ['ports/signals'],
+        implements: 'ports/signals',
+      }),
+      contracts: defineNamespace({
+        'production-order-backlog-cursor': defineFoundation.adapter({
+          dependsOn: ['language/production-order-backlog'],
+          implements: 'ports/production-order-backlog-cursor',
+        }),
       }),
       postgres: defineNamespace({
         board: defineFoundation.adapter({
@@ -392,6 +433,13 @@ export default defineModule({
           dependsOn: ['language/history'],
         }),
         orders: defineFoundation.adapter(),
+        'production-order-backlog-snapshot': defineFoundation.adapter({
+          dependsOn: [
+            'language/production-order-backlog',
+            'adapters/postgres/orders',
+          ],
+          implements: 'ports/production-order-backlog-snapshot',
+        }),
         scheduling: defineFoundation.adapter({
           dependsOn: ['language/scheduling', 'language/shifts'],
         }),

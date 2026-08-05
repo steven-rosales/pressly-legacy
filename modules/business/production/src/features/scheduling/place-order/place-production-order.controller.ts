@@ -7,8 +7,8 @@ import {
   placeProductionOrderExactlyRequestSchema,
   productionIdSchema,
   productionRunParamsSchema,
-} from './place-production-order.contract.mapper.ts';
-import { defineRequestBoundary } from '@pressly/http/express';
+} from '@pressly/contracts/production';
+import { defineValidatedController } from '@pressly/http/express';
 import { sendValidatedProductionResult } from '../../../foundations/adapters/errors/production-api-result.adapter.ts';
 import type { RequestHandler } from 'express';
 import {
@@ -33,21 +33,6 @@ const runBatchOrderParamsSchema = runOrderParamsSchema
   .extend({ productionBatchId: productionIdSchema })
   .strict();
 
-export const placeProductionOrderBoundaries = {
-  automatic: defineRequestBoundary({
-    params: runOrderParamsSchema,
-    body: placeProductionOrderAutomaticallyRequestSchema,
-  }),
-  exact: defineRequestBoundary({
-    params: runBatchOrderParamsSchema,
-    body: placeProductionOrderExactlyRequestSchema,
-  }),
-  confirmOvertime: defineRequestBoundary({
-    params: runOrderParamsSchema,
-    body: confirmProductionOrderOvertimeRequestSchema,
-  }),
-} as const;
-
 type ControllerInput = Readonly<{
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }>;
@@ -56,9 +41,13 @@ export const makePlaceProductionOrderAutomaticallyController = (
   input: ControllerInput & {
     place: PlaceProductionOrderAutomatically;
   },
-): RequestHandler =>
-  placeProductionOrderBoundaries.automatic.handler(
-    async ({ body, params }, { response }) => {
+) =>
+  defineValidatedController({
+    request: {
+      params: runOrderParamsSchema,
+      body: placeProductionOrderAutomaticallyRequestSchema,
+    },
+    handle: async ({ body, params }, { response }) => {
       sendValidatedProductionResult(
         response,
         await input.place(
@@ -79,13 +68,17 @@ export const makePlaceProductionOrderAutomaticallyController = (
         },
       );
     },
-  );
+  });
 
 export const makePlaceProductionOrderExactlyController = (
   input: ControllerInput & { place: PlaceProductionOrderExactly },
-): RequestHandler =>
-  placeProductionOrderBoundaries.exact.handler(
-    async ({ body, params }, { response }) => {
+) =>
+  defineValidatedController({
+    request: {
+      params: runBatchOrderParamsSchema,
+      body: placeProductionOrderExactlyRequestSchema,
+    },
+    handle: async ({ body, params }, { response }) => {
       sendValidatedProductionResult(
         response,
         await input.place(
@@ -107,13 +100,17 @@ export const makePlaceProductionOrderExactlyController = (
         },
       );
     },
-  );
+  });
 
 export const makeConfirmProductionOrderOvertimeController = (
   input: ControllerInput & { confirm: ConfirmProductionOrderOvertime },
-): RequestHandler =>
-  placeProductionOrderBoundaries.confirmOvertime.handler(
-    async ({ body, params }, { response }) => {
+) =>
+  defineValidatedController({
+    request: {
+      params: runOrderParamsSchema,
+      body: confirmProductionOrderOvertimeRequestSchema,
+    },
+    handle: async ({ body, params }, { response }) => {
       sendValidatedProductionResult(
         response,
         await input.confirm(
@@ -134,4 +131,4 @@ export const makeConfirmProductionOrderOvertimeController = (
         },
       );
     },
-  );
+  });

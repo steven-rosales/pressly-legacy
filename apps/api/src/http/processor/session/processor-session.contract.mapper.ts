@@ -1,10 +1,10 @@
 import type { ProcessorAuthenticatedSession } from '@pressly/contracts/auth';
 import { invariantViolationError } from '@pressly/errors/factories';
+import type { ProcessorAccess } from '@pressly/processor-experience';
 import type { Request, Response } from 'express';
 import { deriveProcessorCsrfToken } from './processor-csrf.adapter.ts';
 import type {
   LoadedProcessorSession,
-  ProcessorAccess,
   ProcessorSessionOptions,
 } from './processor-session.port.ts';
 

@@ -12,8 +12,6 @@ import {
   type LocationPageModel,
 } from './_shared/model';
 
-export type { LocationPageModel } from './_shared/model';
-
 export const getNewJerseyPageModel = async (
   loadPricing: PricingCatalogLoader,
 ): Promise<LocationPageModel> => {

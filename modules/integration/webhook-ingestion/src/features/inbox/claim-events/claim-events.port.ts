@@ -5,3 +5,10 @@ export type ClaimWebhookEvents = (input: {
   leaseMs: number;
   limit: number;
 }) => Promise<readonly ClaimedWebhookEvent[]>;
+
+export type ClaimWebhookEventsRepository = (input: {
+  workerId: string;
+  now: Date;
+  leaseMs: number;
+  limit: number;
+}) => Promise<readonly ClaimedWebhookEvent[]>;

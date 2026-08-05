@@ -12,7 +12,7 @@ import {
   resolveWorkEventReplay,
 } from '../../../foundations/language/commands/production-idempotency.policy.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { ScheduleSupersessionDecision } from '../../../foundations/language/execution/production-lifecycle.model.ts';
 import type { ProductionSignalsPort } from '../../../foundations/ports/signals/production-signals.port.ts';
 import type {
@@ -20,8 +20,6 @@ import type {
   ReplaceShiftOrderSelectionRepository,
 } from './replace-shift-order-selection.port.ts';
 import type { ReplaceShiftOrderSelectionResult } from './replace-shift-order-selection.model.ts';
-
-export type { ReplaceShiftOrderSelection } from './replace-shift-order-selection.port.ts';
 
 const sorted = (values: readonly string[]): string[] =>
   [...values].sort((left, right) => left.localeCompare(right));

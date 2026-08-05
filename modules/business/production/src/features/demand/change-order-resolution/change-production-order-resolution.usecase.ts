@@ -12,7 +12,7 @@ import {
   resolveWorkEventReplay,
 } from '../../../foundations/language/commands/production-idempotency.policy.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type {
   ChangeProductionOrderResolutionResult,
   RestoredProductionOrderSourceProjection,
@@ -21,7 +21,6 @@ import type {
   ChangeProductionOrderResolution,
   ChangeProductionOrderResolutionRepository,
 } from './change-production-order-resolution.port.ts';
-export type { ChangeProductionOrderResolution } from './change-production-order-resolution.port.ts';
 
 type ChangeProductionOrderResolutionPolicy = Pick<
   ProductionRules,

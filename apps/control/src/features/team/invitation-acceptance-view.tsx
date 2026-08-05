@@ -47,10 +47,10 @@ import {
   Spinner,
 } from "@/components/ui"
 import type {
-  ControlInvitationApi,
-  InvitationAcceptanceResult,
-  InvitationPreview,
-} from "./invitation-api"
+  ControlInvitationAcceptance as InvitationAcceptanceResult,
+  ControlInvitationPreview as InvitationPreview,
+} from "@pressly/contracts/auth"
+import type { ControlInvitationApi } from "./invitation-api"
 
 type InvitationState =
   | { status: "loading" }

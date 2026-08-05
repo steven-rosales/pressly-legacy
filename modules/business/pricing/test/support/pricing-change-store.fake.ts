@@ -9,10 +9,13 @@ import type {
   PublishedPricingChange,
 } from '../../src/foundations/language/pricing-change/pricing-change.model.ts';
 import type {
-  CommitPricingChangeInput,
   LoadCurrentPricingInput,
-  PricingChangeStore,
-} from '../../src/foundations/ports/pricing-change-store/pricing-change-store.port.ts';
+  CurrentPricingReader,
+} from '../../src/foundations/ports/current-pricing-reader/current-pricing-reader.port.ts';
+import type {
+  CommitPricingChangeInput,
+  PricingChangePublisher,
+} from '../../src/features/pricebook/publish-pricing-change/publish-pricing-change.port.ts';
 import {
   makeCurrentPricingItems,
   makeCurrentPricingSet,
@@ -47,17 +50,15 @@ export const makeFakePricingChangeStore = (
     changeItemCount: 1,
   };
 
-  const store: PricingChangeStore = {
-    loadCurrentPricing: async (command) => {
-      calls.load.push(command);
-      return input.loadResult ?? result.ok(current);
-    },
-
-    commitPricingChange: async (command) => {
-      calls.commit.push(command);
-      return input.commitResult ?? result.ok(publishResult);
-    },
+  const loadCurrentPricing: CurrentPricingReader = async (command) => {
+    calls.load.push(command);
+    return input.loadResult ?? result.ok(current);
   };
 
-  return { store, calls };
+  const publishPricingChange: PricingChangePublisher = async (command) => {
+    calls.commit.push(command);
+    return input.commitResult ?? result.ok(publishResult);
+  };
+
+  return { loadCurrentPricing, publishPricingChange, calls };
 };

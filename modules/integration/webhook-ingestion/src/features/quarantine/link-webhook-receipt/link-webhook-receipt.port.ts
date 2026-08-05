@@ -5,3 +5,9 @@ export type LinkWebhookReceipt = (command: {
   receiptId: string;
   eventId: string;
 }) => Promise<Result<Readonly<{ linked: boolean }>, LinkWebhookReceiptFailure>>;
+
+export type LinkWebhookReceiptRepository = (input: {
+  receiptId: string;
+  eventId: string;
+  linkedAt: Date;
+}) => Promise<'linked' | 'already_linked' | 'missing' | 'conflict'>;

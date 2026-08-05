@@ -23,7 +23,7 @@ import type {
   OrderRoutingDecision,
   OrderRoutingStage,
 } from '../../../foundations/language/order-routing/order-routing.policy.ts';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { ProductionOrderStageAttemptMutation } from '../../../foundations/language/execution/production-lifecycle.model.ts';
 import type { ProductionSignalsPort } from '../../../foundations/ports/signals/production-signals.port.ts';
 import type {
@@ -38,7 +38,7 @@ import type {
   PreviewProductionOrderRouteCommand,
   ProductionOrderRouteProposal,
 } from './route-production-order.model.ts';
-import type { RouteProductionOrderFailure } from './route-production-order.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 
 const asBatchStatus = (
   value: string,
@@ -84,7 +84,7 @@ const proposalHash = (
 
 type ProposalEvaluation = Result<
   ProductionOrderRouteProposal,
-  RouteProductionOrderFailure
+  ProductionFeatureFailure
 >;
 
 type RouteProductionOrderPolicy = Pick<
@@ -97,7 +97,7 @@ type RouteProductionOrderPolicy = Pick<
 >;
 
 const failedRouteStatus = (
-  error: RouteProductionOrderFailure,
+  error: ProductionFeatureFailure,
 ): 'rejected' | 'conflict' =>
   error.kind === 'conflict' ? 'conflict' : 'rejected';
 
@@ -403,7 +403,7 @@ export const makeRouteProductionOrder = (deps: {
   commit: async (command) => {
     let outcome: Result<
       CommitProductionOrderRouteResult,
-      RouteProductionOrderFailure
+      ProductionFeatureFailure
     >;
     try {
       outcome = await deps.repo.transaction(async (repo) => {
@@ -566,8 +566,3 @@ export const makeRouteProductionOrder = (deps: {
 });
 
 export type RouteProductionOrder = ReturnType<typeof makeRouteProductionOrder>;
-
-export type {
-  CommitProductionOrderRoute,
-  PreviewProductionOrderRoute,
-} from './route-production-order.port.ts';

@@ -1,45 +1,30 @@
 export {
-  canonicalCustomerDisplayName,
-  makeLoadOperationalOrderControlContexts,
-  makeLoadOperationalOrderContexts,
   makeOperationalOrderIdentityQueries,
   makePostgresProcessorExperience,
-  makeResolveOperationalOrderIdentities,
-  makeResolveProcessorAccess,
-  orderDemandReferenceId,
-  productionOrderReferenceId,
-  recentOperationalOrderAudit,
-  resolveProcessorAccess,
-  uniqueOperationalOrderReferences,
 } from './main.ts';
 
 export type {
-  CanonicalOrderContext,
-  LoadOperationalOrderContexts,
-  LoadOperationalOrderControlContexts,
-  OperationalOrderAuditEntry,
-  OperationalOrderAuditFacts,
-  OperationalOrderAuditPort,
+  OperationalOrderIdentityQueries,
+  PostgresProcessorExperienceDeps,
+  ProcessorExperience,
+} from './main.ts';
+
+export type { LoadOperationalOrderControlContexts } from './features/orders/load-operational-order-contexts/load-operational-order-contexts.port.ts';
+export {
+  canonicalCustomerDisplayName,
+  orderDemandReferenceId,
+  productionOrderReferenceId,
+} from './foundations/language/operational-order/operational-order.value.ts';
+export type {
   OperationalOrderContext,
   OperationalOrderContextResolution,
   OperationalOrderIdentity,
-  OperationalOrderIdentityQueries,
-  OperationalOrderIdentityPort,
-  OperationalOrderIdentityReference,
-  OperationalOrderIdentityResolution,
-  PostgresProcessorExperienceDeps,
+} from './foundations/language/operational-order/operational-order.model.ts';
+export type { OperationalOrderIdentityPort } from './foundations/ports/operational-order-identity/operational-order-identity.port.ts';
+export { resolveProcessorAccess } from './features/session/resolve-processor-access/resolve-processor-access.policy.ts';
+export type {
   ProcessorAccess,
-  ProcessorAccessLocationsPort,
-  ProcessorApplication,
-  ProcessorCapability,
-  ProcessorExperience,
   ProcessorLocationAuthority,
-  ProcessorRole,
-  ProcessorRoleAssignment,
-  ProcessorScope,
   ProcessorSession,
-  ProductionCapabilitiesPort,
-  ResolveOperationalOrderIdentities,
-  ResolveProcessorAccess,
-  ResolveProductionCapabilities,
-} from './main.ts';
+} from './features/session/resolve-processor-access/resolve-processor-access.model.ts';
+export type { ResolveProcessorAccess } from './features/session/resolve-processor-access/resolve-processor-access.usecase.ts';

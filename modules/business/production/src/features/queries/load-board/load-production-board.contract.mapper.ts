@@ -1,7 +1,3 @@
-export {
-  productionBoardSchema,
-  productionRunBoardParamsSchema,
-} from '@pressly/contracts/production';
 import type {
   ProductionBoard as ProductionBoardResult,
   ProductionPendingPlacement as ProductionPendingPlacementResult,

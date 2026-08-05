@@ -1,4 +1,4 @@
-import type { ListProductionHistoryPlansFailure } from './list-production-history-plans.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type { ProductionHistoryPageReadResult } from '../../../foundations/language/history/production-history.model.ts';
 import type {
@@ -8,9 +8,7 @@ import type {
 
 export type ListProductionHistoryPlans = (
   command: ListProductionHistoryPlansCommand,
-) => Promise<
-  Result<ProductionHistoryPlansPage, ListProductionHistoryPlansFailure>
->;
+) => Promise<Result<ProductionHistoryPlansPage, ProductionFeatureFailure>>;
 
 export type ListProductionHistoryPlansRepository = Readonly<{
   list: (

@@ -474,4 +474,37 @@ describe('canonical command routes', () => {
     expect(response.status).toBe(403);
     expect(apps.completeOrder).not.toHaveBeenCalled();
   });
+
+  it('authorizes valid route scope before parsing malformed command bodies', async () => {
+    const apps = applications();
+    const guards = security();
+    guards.authorizeOrders.mockImplementation((_request, response) => {
+      response.sendStatus(403);
+    });
+    const base = await start(makeApp({ applications: apps, security: guards }));
+    const commands = [
+      ['POST', '/order-management/locations/east/orders'],
+      ['PATCH', `/order-management/locations/east/orders/${id(2)}`],
+      ['POST', `/order-management/locations/east/orders/${id(2)}/complete`],
+      [
+        'POST',
+        `/order-management/locations/east/fulfillments/${id(3)}/release`,
+      ],
+    ] as const;
+
+    for (const [method, path] of commands) {
+      const response = await fetch(`${base}${path}`, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      });
+
+      expect(response.status).toBe(403);
+    }
+
+    expect(apps.createOrder).not.toHaveBeenCalled();
+    expect(apps.correctOrder).not.toHaveBeenCalled();
+    expect(apps.completeOrder).not.toHaveBeenCalled();
+    expect(apps.releaseFulfillment).not.toHaveBeenCalled();
+  });
 });

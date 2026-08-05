@@ -1,5 +1,7 @@
-import type { ControlCapability } from '@pressly/contracts/auth';
-import { catchAsync } from '@pressly/http/express';
+import type {
+  ControlAccess,
+  ControlCapability,
+} from '@pressly/control-experience';
 import type { Request, Response, RequestHandler } from 'express';
 import {
   clearControlCookie,
@@ -16,7 +18,6 @@ import {
 } from './control-session.error.ts';
 import {
   isControlResultError,
-  type ControlAccess,
   type ControlAuthApplication,
   type ControlSessionOptions,
   type LoadedControlSession,
@@ -88,10 +89,10 @@ export const makeControlSessionAuthentication = (input: {
     return { loaded: loaded.value, access, sessionToken };
   };
 
-  const authenticate = catchAsync(async (request, response, next) => {
+  const authenticate: RequestHandler = async (request, response, next) => {
     await loadCookieSession(request, response);
     next();
-  });
+  };
 
   const readAccess = (response: Response): ControlAccess => {
     const access = response.locals['controlAccess'] as

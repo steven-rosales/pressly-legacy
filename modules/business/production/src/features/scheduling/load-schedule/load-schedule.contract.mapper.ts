@@ -1,16 +1,10 @@
-export {
-  productionScheduleParamsSchema,
-  scheduleProposalSchema,
-} from '@pressly/contracts/production';
 import type {
   ScheduleProposal as ScheduleProposalWireResult,
   ScheduleRunParams,
 } from '@pressly/contracts/production';
 import { toScheduleProposalRepresentation } from '../../../foundations/language/scheduling/schedule-proposal.projection.ts';
-import type {
-  LoadScheduleCommand,
-  LoadScheduleResult,
-} from './load-schedule.model.ts';
+import type { LoadScheduleCommand } from './load-schedule.model.ts';
+import type { ScheduleProposal } from '../../../foundations/language/scheduling/schedule-proposal.entity.ts';
 
 export const toLoadScheduleCommand = (
   params: ScheduleRunParams,
@@ -20,5 +14,5 @@ export const toLoadScheduleCommand = (
 });
 
 export const toLoadScheduleResult = (
-  schedule: LoadScheduleResult,
+  schedule: ScheduleProposal,
 ): ScheduleProposalWireResult => toScheduleProposalRepresentation(schedule);

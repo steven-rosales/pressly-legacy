@@ -13,7 +13,7 @@ import {
   validationError,
 } from '@pressly/errors/factories';
 import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
 import { Router, type RequestHandler, type Response } from 'express';
 import {
   clearControlCookie,
@@ -174,25 +174,19 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       destination,
     };
   };
-
-  routes.post(
-    '/preview',
-    input.requireOrigin,
-    validateRequest({ body: controlInvitationPreviewRequestSchema }),
-    catchAsync(async (request, response) => {
+  const previewController = defineValidatedController({
+    request: { body: controlInvitationPreviewRequestSchema },
+    handle: async ({ body }, { response }) => {
       const preview = controlResultValue(
-        await input.application.preview(request.body.acceptanceToken),
+        await input.application.preview(body.acceptanceToken),
       );
       response.json(apiSuccess(preview));
-    }),
-  );
-
-  routes.post(
-    '/accept/new',
-    input.requireOrigin,
-    validateRequest({ body: acceptWorkforceInvitationRequestSchema }),
-    catchAsync(async (request, response) => {
-      if (request.body.identityMode !== 'new_identity')
+    },
+  });
+  const acceptNewController = defineValidatedController({
+    request: { body: acceptWorkforceInvitationRequestSchema },
+    handle: async ({ body }, { response }) => {
+      if (body.identityMode !== 'new_identity')
         throw validationError({
           code: 'invitation_identity_mode_invalid',
           message: 'New identity acceptance requires new_identity mode.',
@@ -202,28 +196,23 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
 
       const accepted = controlResultValue(
         await input.application.accept({
-          acceptanceToken: request.body.acceptanceToken,
-          idempotencyKey: request.body.idempotencyKey,
+          acceptanceToken: body.acceptanceToken,
+          idempotencyKey: body.idempotencyKey,
           acceptance: {
             kind: 'new_identity',
-            password: request.body.password,
+            password: body.password,
           },
         }),
       );
 
       response.status(201).json(apiSuccess(acceptanceSummary(accepted)));
-    }),
-  );
-
-  routes.post(
-    '/accept/existing/password',
-    input.requireOrigin,
-    validateRequest({
-      body: controlExistingInvitationPasswordRequestSchema,
-    }),
-    catchAsync(async (request, response) => {
+    },
+  });
+  const acceptExistingPasswordController = defineValidatedController({
+    request: { body: controlExistingInvitationPasswordRequestSchema },
+    handle: async ({ body }, { request, response }) => {
       const preview = controlResultValue(
-        await input.application.preview(request.body.acceptanceToken),
+        await input.application.preview(body.acceptanceToken),
       );
       if (!preview.existingIdentity)
         throw validationError({
@@ -236,7 +225,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
 
       const authenticated = await input.authApplication.login({
         email: preview.email,
-        password: request.body.password,
+        password: body.password,
         ...controlRequestMetadata(request, response),
       });
       if (isControlResultError(authenticated)) throw authenticated.error;
@@ -262,21 +251,18 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       response.status(200).json(
         apiSuccess(
           await acceptAndEstablish(response, {
-            acceptanceToken: request.body.acceptanceToken,
-            idempotencyKey: request.body.idempotencyKey,
+            acceptanceToken: body.acceptanceToken,
+            idempotencyKey: body.idempotencyKey,
             accessToken: authenticated.value.accessToken,
             expiresAt: authenticated.value.expiresAt,
           }),
         ),
       );
-    }),
-  );
-
-  routes.post(
-    '/accept/existing/mfa',
-    input.requireOrigin,
-    validateRequest({ body: controlExistingInvitationMfaRequestSchema }),
-    catchAsync(async (request, response) => {
+    },
+  });
+  const acceptExistingMfaController = defineValidatedController({
+    request: { body: controlExistingInvitationMfaRequestSchema },
+    handle: async ({ body }, { request, response }) => {
       const challengeToken = readControlCookie(
         request.header('cookie'),
         input.names.mfa,
@@ -288,8 +274,8 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
         });
 
       const completed = await input.authApplication.completeMfaChallenge({
-        method: request.body.method,
-        code: request.body.code,
+        method: body.method,
+        code: body.code,
         challengeToken,
         ...(controlRequestId(response) === undefined
           ? {}
@@ -300,23 +286,19 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       response.status(200).json(
         apiSuccess(
           await acceptAndEstablish(response, {
-            acceptanceToken: request.body.acceptanceToken,
-            idempotencyKey: request.body.idempotencyKey,
+            acceptanceToken: body.acceptanceToken,
+            idempotencyKey: body.idempotencyKey,
             accessToken: completed.value.accessToken,
             expiresAt: completed.value.expiresAt,
           }),
         ),
       );
-    }),
-  );
-
-  routes.post(
-    '/accept/existing',
-    input.authenticateExisting,
-    input.limitExistingIdentity,
-    validateRequest({ body: acceptWorkforceInvitationRequestSchema }),
-    catchAsync(async (request, response) => {
-      if (request.body.identityMode !== 'existing_identity')
+    },
+  });
+  const acceptExistingController = defineValidatedController({
+    request: { body: acceptWorkforceInvitationRequestSchema },
+    handle: async ({ body }, { response }) => {
+      if (body.identityMode !== 'existing_identity')
         throw validationError({
           code: 'invitation_identity_mode_invalid',
           message:
@@ -327,8 +309,8 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
 
       const accepted = controlResultValue(
         await input.application.accept({
-          acceptanceToken: request.body.acceptanceToken,
-          idempotencyKey: request.body.idempotencyKey,
+          acceptanceToken: body.acceptanceToken,
+          idempotencyKey: body.idempotencyKey,
           acceptance: {
             kind: 'existing_identity',
             ...existingActor(response),
@@ -337,7 +319,43 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       );
 
       response.json(apiSuccess(acceptanceSummary(accepted)));
-    }),
+    },
+  });
+
+  routes.post(
+    '/preview',
+    input.requireOrigin,
+    previewController.validate,
+    previewController.handle,
+  );
+
+  routes.post(
+    '/accept/new',
+    input.requireOrigin,
+    acceptNewController.validate,
+    acceptNewController.handle,
+  );
+
+  routes.post(
+    '/accept/existing/password',
+    input.requireOrigin,
+    acceptExistingPasswordController.validate,
+    acceptExistingPasswordController.handle,
+  );
+
+  routes.post(
+    '/accept/existing/mfa',
+    input.requireOrigin,
+    acceptExistingMfaController.validate,
+    acceptExistingMfaController.handle,
+  );
+
+  routes.post(
+    '/accept/existing',
+    input.authenticateExisting,
+    input.limitExistingIdentity,
+    acceptExistingController.validate,
+    acceptExistingController.handle,
   );
 
   return routes;

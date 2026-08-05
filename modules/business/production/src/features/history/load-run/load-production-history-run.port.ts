@@ -1,4 +1,4 @@
-import type { LoadProductionHistoryRunFailure } from './load-production-history-run.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   ProductionHistoryRunDetail,
@@ -8,9 +8,7 @@ import type { LoadProductionHistoryRunCommand } from './load-production-history-
 
 export type LoadProductionHistoryRun = (
   command: LoadProductionHistoryRunCommand,
-) => Promise<
-  Result<ProductionHistoryRunDetail, LoadProductionHistoryRunFailure>
->;
+) => Promise<Result<ProductionHistoryRunDetail, ProductionFeatureFailure>>;
 
 export type LoadProductionHistoryRunRepository = Readonly<{
   load: (

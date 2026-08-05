@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import type { LoadProductionBoard } from './load-production-board.usecase.ts';
-import {
-  loadProductionBoardBoundary,
-  makeLoadProductionBoardController,
-} from './load-production-board.controller.ts';
+import type { LoadProductionBoard } from './load-production-board.port.ts';
+import { makeLoadProductionBoardController } from './load-production-board.controller.ts';
 
 export const makeLoadProductionBoardRoute = (input: {
   loadBoard: LoadProductionBoard;
@@ -11,12 +8,13 @@ export const makeLoadProductionBoardRoute = (input: {
   authorize: RequestHandler;
 }): Router => {
   const router = Router();
+  const controller = makeLoadProductionBoardController(input.loadBoard);
   router.get(
     '/production/locations/:locationId/runs/:productionRunId/board',
     input.authenticate,
-    loadProductionBoardBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeLoadProductionBoardController(input.loadBoard),
+    controller.handle,
   );
   return router;
 };

@@ -5,7 +5,7 @@ import {
   type ListProductionOrderControlQuery,
 } from '@pressly/contracts/production';
 import { apiSuccess } from '@pressly/http';
-import { defineRequestBoundary } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
 import type { ProductionApplication } from '@pressly/production';
 import { Router, type RequestHandler } from 'express';
 import type { ProcessorOrderControlAdapter } from './order-control.adapter.ts';
@@ -36,11 +36,6 @@ const toListProductionOrderControlCommand = (
   limit: query.limit,
 });
 
-const listProductionOrderControlBoundary = defineRequestBoundary({
-  params: productionLocationParamsSchema,
-  query: listProductionOrderControlQuerySchema,
-});
-
 export const makeProcessorOrderControlRoutes = (input: {
   production: Pick<ProductionApplication, 'listProductionOrderControl'>;
   orderControlAdapter: ProcessorOrderControlAdapter;
@@ -48,26 +43,31 @@ export const makeProcessorOrderControlRoutes = (input: {
   authorize: RequestHandler;
 }): Router => {
   const routes = Router();
+  const controller = defineValidatedController({
+    request: {
+      params: productionLocationParamsSchema,
+      query: listProductionOrderControlQuerySchema,
+    },
+    handle: async ({ params, query }, { response }) => {
+      const result = await input.production.listProductionOrderControl(
+        toListProductionOrderControlCommand(params.locationId, query),
+      );
+      if (result.tag === 'err') throw result.error;
+      response.json(
+        apiSuccess(
+          listProcessorOrderControlResultSchema.parse(
+            await input.orderControlAdapter.compose(result.value),
+          ),
+        ),
+      );
+    },
+  });
   routes.get(
     '/production/locations/:locationId/order-control',
     input.authenticate,
-    listProductionOrderControlBoundary.validate,
+    controller.validate,
     input.authorize,
-    listProductionOrderControlBoundary.handler(
-      async ({ params, query }, { response }) => {
-        const result = await input.production.listProductionOrderControl(
-          toListProductionOrderControlCommand(params.locationId, query),
-        );
-        if (result.tag === 'err') throw result.error;
-        response.json(
-          apiSuccess(
-            listProcessorOrderControlResultSchema.parse(
-              await input.orderControlAdapter.compose(result.value),
-            ),
-          ),
-        );
-      },
-    ),
+    controller.handle,
   );
   return routes;
 };

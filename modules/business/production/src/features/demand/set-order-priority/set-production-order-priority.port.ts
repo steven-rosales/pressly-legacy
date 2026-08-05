@@ -1,4 +1,4 @@
-import type { SetProductionOrderPriorityFailure } from './set-production-order-priority.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -18,9 +18,7 @@ export type SetProductionOrderPriorityCommand = Readonly<{
 
 export type SetProductionOrderPriority = (
   command: SetProductionOrderPriorityCommand,
-) => Promise<
-  Result<ProductionMutationResult, SetProductionOrderPriorityFailure>
->;
+) => Promise<Result<ProductionMutationResult, ProductionFeatureFailure>>;
 
 export type SetProductionOrderPriorityRepository = UnitOfWork<
   Readonly<{

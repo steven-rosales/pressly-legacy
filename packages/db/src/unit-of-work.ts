@@ -12,8 +12,6 @@ export type TransactionRunner<Transaction> = Readonly<{
   ) => Promise<Value>;
 }>;
 
-export type { ResultUnitOfWork, UnitOfWork } from '@pressly/kernel';
-
 /**
  * Adapts a transaction runner into an application-shaped unit of work.
  * The caller owns the operations vocabulary; this factory owns only the

@@ -1,4 +1,4 @@
-import { catchAsync, sendValidatedApiValue } from '@pressly/http/express';
+import { sendValidatedApiValue } from '@pressly/http/express';
 import type { RequestHandler } from 'express';
 import {
   readMfaPrincipal,
@@ -10,8 +10,9 @@ import {
 } from './remove-mfa.contract.mapper.ts';
 import type { RemoveMfa } from './remove-mfa.usecase.ts';
 
-export const makeRemoveMfaController = (remove: RemoveMfa): RequestHandler =>
-  catchAsync(async (_request, response) => {
+export const makeRemoveMfaController =
+  (remove: RemoveMfa): RequestHandler =>
+  async (_request, response) => {
     const principal = readMfaPrincipal(response);
     const requestId = readMfaRequestId(response);
     const removed = await remove({
@@ -24,4 +25,4 @@ export const makeRemoveMfaController = (remove: RemoveMfa): RequestHandler =>
       schema: removeMfaContract.response,
       present: toMfaMutationResult,
     });
-  });
+  };

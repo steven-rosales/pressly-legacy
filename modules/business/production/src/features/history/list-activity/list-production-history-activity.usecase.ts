@@ -27,8 +27,3 @@ export const makeListProductionHistoryActivity =
       return result.err(productionHistoryCursorInvalid());
     return result.ok(loaded.value);
   };
-
-export type {
-  ListProductionHistoryActivity,
-  ListProductionHistoryActivityRepository,
-} from './list-production-history-activity.port.ts';

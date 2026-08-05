@@ -12,14 +12,13 @@ import {
   resolveWorkEventReplay,
 } from '../../../foundations/language/commands/production-idempotency.policy.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { ProductionSignalsPort } from '../../../foundations/ports/signals/production-signals.port.ts';
 import type {
   ManageBatchMembership,
   ManageBatchMembershipRepository,
 } from './manage-batch-membership.port.ts';
 import type { ProductionBatchMembershipMutationResult } from './manage-batch-membership.model.ts';
-export type { ManageBatchMembership } from './manage-batch-membership.port.ts';
 
 const eventFor = (action: 'freeze' | 'unfreeze') =>
   action === 'freeze' ? 'batch_membership_frozen' : 'batch_membership_unfrozen';

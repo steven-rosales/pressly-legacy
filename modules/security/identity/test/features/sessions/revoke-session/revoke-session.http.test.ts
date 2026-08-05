@@ -2,7 +2,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { LogoutResult } from '@pressly/contracts/auth';
 import { makeAppError } from '@pressly/errors/app-error';
-import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
+import { makeHttpResponse } from '@pressly/testkit/http';
 import { makeRevokeSessionController } from '../../../../src/features/sessions/revoke-session/revoke-session.controller.ts';
 import { makeRevokeSessionRouter } from '../../../../src/features/sessions/revoke-session/revoke-session.route.ts';
 import type { RevokeSession } from '../../../../src/features/sessions/revoke-session/revoke-session.usecase.ts';
@@ -40,13 +40,15 @@ const runHandler = async (input: {
   res: TestResponse;
   next: ReturnType<typeof vi.fn>;
 }): Promise<void> => {
-  input.handler(
-    input.req,
-    input.res as unknown as Response,
-    input.next as NextFunction,
-  );
-  await waitForController();
-  await waitForController();
+  try {
+    await input.handler(
+      input.req,
+      input.res as unknown as Response,
+      input.next as NextFunction,
+    );
+  } catch (error) {
+    (input.next as NextFunction)(error);
+  }
 };
 
 const invalidSessionError = () =>

@@ -17,12 +17,9 @@ const deadEvent = {
 
 describe('dead webhook event listing', () => {
   it('lists bounded metadata without payloads or error messages', async () => {
-    const store = {
-      list: vi.fn(async () => [deadEvent]),
-      replay: vi.fn(async () => 'queued' as const),
-    };
+    const repo = vi.fn(async () => [deadEvent]);
     const list = makeListDeadWebhookEvents({
-      store,
+      repo,
       clock: { now: () => new Date('2026-07-10T14:00:00.000Z') },
     });
 

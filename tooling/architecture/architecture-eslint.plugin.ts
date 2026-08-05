@@ -1,3 +1,4 @@
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import type { ArchitectureRole } from './architecture-definition.factory.ts';
 import type {
@@ -21,10 +22,21 @@ type AstNode = Readonly<{
   property?: AstNode;
   name?: string;
   id?: AstNode | null;
+  declarations?: readonly AstNode[];
+  init?: AstNode | null;
   computed?: boolean;
   arguments?: readonly AstNode[];
   async?: boolean;
-  body?: readonly AstNode[];
+  body?: readonly AstNode[] | AstNode;
+  members?: readonly AstNode[];
+  typeAnnotation?: AstNode;
+  typeArguments?: AstNode;
+  typeParameters?: AstNode;
+  params?: readonly AstNode[];
+  types?: readonly AstNode[];
+  typeName?: AstNode;
+  extends?: readonly AstNode[];
+  expression?: AstNode;
   superClass?: AstNode | null;
 }>;
 
@@ -163,11 +175,131 @@ const runtimeDeclarationTypes = new Set([
   'VariableDeclaration',
 ]);
 
+const declarationNames = (
+  node: AstNode | null | undefined,
+): readonly string[] => {
+  if (node === null || node === undefined) return Object.freeze([]);
+  if (node.type === 'VariableDeclaration')
+    return Object.freeze(
+      (node.declarations ?? [])
+        .map((declaration) => identifierName(declaration.id ?? undefined))
+        .filter((name): name is string => name !== null),
+    );
+
+  const name = identifierName(node.id ?? undefined);
+  return Object.freeze(name === null ? [] : [name]);
+};
+
+const typeMembers = (
+  node: AstNode | readonly AstNode[] | null | undefined,
+): readonly AstNode[] => {
+  if (node === null || node === undefined) return Object.freeze([]);
+  if (Array.isArray(node)) return Object.freeze([...node]);
+
+  const current = node as AstNode;
+  if (
+    current.type === 'TSTypeAnnotation' ||
+    current.type === 'TSParenthesizedType'
+  )
+    return typeMembers(current.typeAnnotation);
+  if (current.type === 'TSTypeLiteral')
+    return Object.freeze([...(current.members ?? [])]);
+  if (current.type === 'TSInterfaceBody') return typeMembers(current.body);
+  if (current.type === 'TSTypeReference')
+    return Object.freeze(
+      [
+        ...(current.typeArguments?.params ?? []),
+        ...(current.typeParameters?.params ?? []),
+      ].flatMap((argument) => typeMembers(argument)),
+    );
+  if (current.type === 'TSIntersectionType')
+    return Object.freeze(
+      (current.types ?? []).flatMap((member) => typeMembers(member)),
+    );
+  return Object.freeze([]);
+};
+
+const isCallableType = (node: AstNode | null | undefined): boolean => {
+  if (node === null || node === undefined) return false;
+  if (node.type === 'TSFunctionType') return true;
+  if (node.type === 'TSTypeAnnotation' || node.type === 'TSParenthesizedType')
+    return isCallableType(node.typeAnnotation);
+  return false;
+};
+
+const callableMemberCount = (node: AstNode): number => {
+  const shape =
+    node.type === 'TSTypeAliasDeclaration'
+      ? node.typeAnnotation
+      : node.type === 'TSInterfaceDeclaration'
+        ? node.body !== undefined && 'type' in node.body
+          ? node.body
+          : undefined
+        : undefined;
+
+  return typeMembers(shape).filter(
+    (member) =>
+      member.type === 'TSMethodSignature' ||
+      member.type === 'TSCallSignatureDeclaration' ||
+      (member.type === 'TSPropertySignature' &&
+        isCallableType(member.typeAnnotation)),
+  ).length;
+};
+
+const exportedPackageSourceEntrypoints = (
+  repositoryRoot: string,
+): ReadonlySet<string> => {
+  const packagesRoot = path.join(repositoryRoot, 'packages');
+  if (!existsSync(packagesRoot)) return new Set<string>();
+
+  const entrypoints = new Set<string>();
+  for (const entry of readdirSync(packagesRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const packageRoot = path.join(packagesRoot, entry.name);
+    const manifestPath = path.join(packageRoot, 'package.json');
+    if (!existsSync(manifestPath)) continue;
+
+    const manifest = JSON.parse(
+      readFileSync(manifestPath, 'utf8'),
+    ) as Readonly<{
+      exports?: Readonly<Record<string, unknown>>;
+    }>;
+    for (const exported of Object.values(manifest.exports ?? {})) {
+      const typesTarget =
+        typeof exported === 'string'
+          ? exported
+          : typeof exported === 'object' &&
+              exported !== null &&
+              'types' in exported
+            ? (exported as Readonly<{ types?: unknown }>).types
+            : undefined;
+      if (typeof typesTarget !== 'string' || !typesTarget.startsWith('./dist/'))
+        continue;
+
+      const sourceRelative = typesTarget
+        .slice('./dist/'.length)
+        .replace(/\.d\.(?:cts|mts|ts)$/, '.ts');
+      entrypoints.add(path.resolve(packageRoot, 'src', sourceRelative));
+    }
+  }
+
+  return entrypoints;
+};
+
 export const makeArchitectureEslintPlugin = ({
   architecture,
   repositoryRoot,
 }: ArchitectureEslintPluginOptions): ArchitectureEslintPlugin => {
   const modulesRoot = path.join(repositoryRoot, 'modules');
+  const appsRoot = path.join(repositoryRoot, 'apps');
+  const packagesRoot = path.join(repositoryRoot, 'packages');
+  const declaredSymbolSurfaces = new Set(
+    architecture.symbolSurfaces.map((surface) =>
+      path.resolve(repositoryRoot, surface),
+    ),
+  );
+  const packageSourceEntrypoints =
+    exportedPackageSourceEntrypoints(repositoryRoot);
 
   const ownedV2File = (filename: string): OwnedModuleFile | null => {
     const absolutePath = path.resolve(filename);
@@ -282,7 +414,7 @@ export const makeArchitectureEslintPlugin = ({
         httpDependency:
           'HTTP mechanisms are allowed only in routes, controllers, middleware, and adapters.',
         publicRuntimeDependency:
-          'public.ts may expose selected inward roles only through type-only imports or exports; runtime construction belongs in main.ts.',
+          'public.ts may expose runtime declarations directly only from semantic pure roles or intentional outer adapters; application construction belongs in main.ts.',
       },
     },
     create(context) {
@@ -321,12 +453,27 @@ export const makeArchitectureEslintPlugin = ({
               owned.moduleKey,
               targetRelative,
             );
+            const publicRuntimeRoles = new Set<ArchitectureRole>([
+              'adapter',
+              'algorithm',
+              'command',
+              'entity',
+              'error',
+              'factory',
+              'event',
+              'lifecycle',
+              'policy',
+              'projection',
+              'value',
+            ]);
             if (
               owned.location.zone === 'root' &&
               owned.location.file === 'public.ts' &&
               (targetLocation.zone === 'feature' ||
                 targetLocation.zone === 'foundation') &&
-              !isTypeOnlyEdge(node)
+              !isTypeOnlyEdge(node) &&
+              (targetLocation.role === null ||
+                !publicRuntimeRoles.has(targetLocation.role))
             )
               context.report({
                 node,
@@ -340,6 +487,7 @@ export const makeArchitectureEslintPlugin = ({
           (specifier === '@pressly/contracts' ||
             specifier.startsWith('@pressly/contracts/')) &&
           role !== 'route' &&
+          role !== 'controller' &&
           role !== 'contract.mapper'
         )
           context.report({ node, messageId: 'contractDependency' });
@@ -633,6 +781,272 @@ export const makeArchitectureEslintPlugin = ({
     },
   };
 
+  const usecaseShapeRule: RuleModule = {
+    meta: {
+      type: 'problem',
+      schema: [],
+      messages: {
+        multipleFactories:
+          'A *.usecase.ts file may export one independently named make* operation; found {{names}}. Split these operations into sibling verb-object feature leaves.',
+        operationFacade:
+          'Exported use-case type "{{name}}" exposes {{count}} callable operations. A feature leaf owns one operation; split the facade into sibling features and compose them at the module boundary.',
+        unexpectedRuntimeExport:
+          'A *.usecase.ts file may export only its single make* constructor at runtime; "{{name}}" is an additional runtime export. Move pure data and transformations to their owning policy, model, or other semantic role.',
+      },
+    },
+    create(context) {
+      const owned = ownedV2File(context.filename);
+      if (owned === null || fileRole(owned) !== 'usecase') return {};
+
+      const typeDeclarations = new Map<
+        string,
+        Readonly<{ node: AstNode; callableCount: number }>
+      >();
+      const exportedTypes = new Set<string>();
+      const exportedFactories = new Map<string, AstNode>();
+      const unexpectedRuntimeExports = new Map<string, AstNode>();
+
+      const rememberType = (node: AstNode): void => {
+        const name = identifierName(node.id ?? undefined);
+        if (name !== null)
+          typeDeclarations.set(
+            name,
+            Object.freeze({ node, callableCount: callableMemberCount(node) }),
+          );
+      };
+
+      const rememberRuntimeExport = (name: string, node: AstNode): void => {
+        if (/^make[A-Z0-9]/.test(name)) exportedFactories.set(name, node);
+        else unexpectedRuntimeExports.set(name, node);
+      };
+
+      const rememberExport = (node: AstNode): void => {
+        const declaration = node.declaration;
+        if (declaration !== null && declaration !== undefined) {
+          if (
+            declaration.type === 'TSTypeAliasDeclaration' ||
+            declaration.type === 'TSInterfaceDeclaration'
+          ) {
+            rememberType(declaration);
+            for (const name of declarationNames(declaration))
+              exportedTypes.add(name);
+          } else
+            for (const name of declarationNames(declaration))
+              rememberRuntimeExport(name, declaration);
+        }
+
+        for (const specifier of node.specifiers ?? []) {
+          const local = exportedName(specifier.local);
+          if (local === null) continue;
+          const exported = exportedName(specifier.exported) ?? local;
+          if (node.exportKind === 'type' || specifier.exportKind === 'type')
+            exportedTypes.add(local);
+          else rememberRuntimeExport(exported, specifier);
+        }
+      };
+
+      const rememberDefaultExport = (node: AstNode): void => {
+        const declaration = node.declaration;
+        if (
+          declaration?.type === 'TSTypeAliasDeclaration' ||
+          declaration?.type === 'TSInterfaceDeclaration'
+        ) {
+          rememberType(declaration);
+          for (const name of declarationNames(declaration))
+            exportedTypes.add(name);
+          return;
+        }
+
+        unexpectedRuntimeExports.set('default', node);
+      };
+
+      return {
+        TSTypeAliasDeclaration: rememberType,
+        TSInterfaceDeclaration: rememberType,
+        ExportNamedDeclaration: rememberExport,
+        ExportDefaultDeclaration: rememberDefaultExport,
+        ExportAllDeclaration(node) {
+          if (node.exportKind !== 'type')
+            unexpectedRuntimeExports.set('*', node);
+        },
+        'Program:exit'(node) {
+          const factoryNames = [...exportedFactories.keys()].sort();
+          if (factoryNames.length > 1)
+            context.report({
+              node,
+              messageId: 'multipleFactories',
+              data: { names: factoryNames.join(', ') },
+            });
+
+          for (const [name, exportNode] of [...unexpectedRuntimeExports].sort(
+            ([left], [right]) => (left < right ? -1 : left > right ? 1 : 0),
+          ))
+            context.report({
+              node: exportNode,
+              messageId: 'unexpectedRuntimeExport',
+              data: { name },
+            });
+
+          for (const name of [...exportedTypes].sort()) {
+            const declaration = typeDeclarations.get(name);
+            if (declaration !== undefined && declaration.callableCount > 1)
+              context.report({
+                node: declaration.node,
+                messageId: 'operationFacade',
+                data: {
+                  name,
+                  count: String(declaration.callableCount),
+                },
+              });
+          }
+        },
+      };
+    },
+  };
+
+  const symbolOwnershipRule: RuleModule = {
+    meta: {
+      type: 'problem',
+      schema: [],
+      messages: {
+        directRelay:
+          'Internal files cannot re-export from "{{target}}". Import the symbol from its semantic owner at the consumer; only declared module, package, and app surfaces curate APIs.',
+        importedRelay:
+          'Internal files cannot re-export imported symbol "{{name}}". Import it from its semantic owner at the consumer.',
+        identityAlias:
+          'Export "{{name}}" only renames imported symbol "{{source}}". Use the canonical symbol directly or define a shape that adds an invariant or transformation.',
+      },
+    },
+    create(context) {
+      const owned = ownedV2File(context.filename);
+      const absolutePath = path.resolve(context.filename);
+      const isInsideSourceRoot = (sourceRoot: string): boolean => {
+        const relative = path.relative(sourceRoot, absolutePath);
+        return (
+          relative !== '' &&
+          !relative.startsWith(`..${path.sep}`) &&
+          !path.isAbsolute(relative) &&
+          relative.split(path.sep)[1] === 'src'
+        );
+      };
+      const isDeclaredSurface =
+        declaredSymbolSurfaces.has(absolutePath) ||
+        packageSourceEntrypoints.has(absolutePath);
+      const enforce =
+        owned !== null
+          ? owned.location.zone !== 'root'
+          : (isInsideSourceRoot(appsRoot) ||
+              isInsideSourceRoot(packagesRoot)) &&
+            !isDeclaredSurface;
+      if (!enforce) return {};
+
+      const importedNames = new Set<string>();
+      const rememberImports = (node: AstNode): void => {
+        for (const specifier of node.specifiers ?? []) {
+          const local = identifierName(specifier.local);
+          if (local !== null) importedNames.add(local);
+        }
+      };
+      const importedReferenceName = (
+        node: AstNode | null | undefined,
+      ): string | null => {
+        const name = identifierName(node ?? undefined);
+        return name !== null && importedNames.has(name) ? name : null;
+      };
+      const reportIdentityAlias = (
+        node: AstNode,
+        exported: string | null,
+        source: string,
+      ): void =>
+        context.report({
+          node,
+          messageId: 'identityAlias',
+          data: { name: exported ?? 'anonymous', source },
+        });
+
+      return {
+        ImportDeclaration: rememberImports,
+        ExportAllDeclaration(node) {
+          const target = importSpecifier(node) ?? 'another module';
+          context.report({ node, messageId: 'directRelay', data: { target } });
+        },
+        ExportNamedDeclaration(node) {
+          const target = importSpecifier(node);
+          if (target !== null) {
+            context.report({
+              node,
+              messageId: 'directRelay',
+              data: { target },
+            });
+            return;
+          }
+
+          for (const specifier of node.specifiers ?? []) {
+            const local = identifierName(specifier.local);
+            if (local !== null && importedNames.has(local))
+              context.report({
+                node: specifier,
+                messageId: 'importedRelay',
+                data: { name: local },
+              });
+          }
+
+          const declaration = node.declaration;
+          if (declaration === null || declaration === undefined) return;
+
+          if (
+            declaration.type === 'TSTypeAliasDeclaration' &&
+            declaration.typeAnnotation?.type === 'TSTypeReference' &&
+            (declaration.typeAnnotation.typeArguments?.params?.length ?? 0) ===
+              0
+          ) {
+            const source = importedReferenceName(
+              declaration.typeAnnotation.typeName,
+            );
+            if (source !== null)
+              reportIdentityAlias(
+                declaration,
+                identifierName(declaration.id ?? undefined),
+                source,
+              );
+            return;
+          }
+
+          if (declaration.type === 'VariableDeclaration') {
+            for (const variable of declaration.declarations ?? []) {
+              const source = importedReferenceName(variable.init);
+              const exported = identifierName(variable.id ?? undefined);
+              const isNextMetadataBinding =
+                exported === 'metadata' &&
+                /\/(?:layout|page)\.[cm]?[jt]sx?$/.test(
+                  absolutePath.replaceAll(path.sep, '/'),
+                );
+              if (source !== null && !isNextMetadataBinding)
+                reportIdentityAlias(variable, exported, source);
+            }
+            return;
+          }
+
+          if (
+            declaration.type === 'TSInterfaceDeclaration' &&
+            typeMembers(declaration.body).length === 0 &&
+            declaration.extends?.length === 1
+          ) {
+            const source = importedReferenceName(
+              declaration.extends[0]?.expression,
+            );
+            if (source !== null)
+              reportIdentityAlias(
+                declaration,
+                identifierName(declaration.id ?? undefined),
+                source,
+              );
+          }
+        },
+      };
+    },
+  };
+
   const modulePublicSurfaceRule: RuleModule = {
     meta: {
       type: 'problem',
@@ -755,6 +1169,8 @@ export const makeArchitectureEslintPlugin = ({
       'module-v2-pure-role': pureRoleRule,
       'module-v2-port-shape': portShapeRule,
       'module-v2-semantic-role': semanticRoleRule,
+      'symbol-ownership': symbolOwnershipRule,
+      'module-v2-usecase-shape': usecaseShapeRule,
       'module-public-surface': modulePublicSurfaceRule,
       'owned-throwable': ownedThrowableRule,
       'qualified-mapper-role': qualifiedMapperRoleRule,

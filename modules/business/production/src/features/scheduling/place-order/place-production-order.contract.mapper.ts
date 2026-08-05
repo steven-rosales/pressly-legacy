@@ -1,13 +1,3 @@
-export {
-  automaticProductionOrderPlacementResultSchema,
-  confirmProductionOrderOvertimeRequestSchema,
-  confirmProductionOrderOvertimeResultSchema,
-  exactProductionOrderPlacementResultSchema,
-  placeProductionOrderAutomaticallyRequestSchema,
-  placeProductionOrderExactlyRequestSchema,
-  productionIdSchema,
-  productionRunParamsSchema,
-} from '@pressly/contracts/production';
 import type {
   AutomaticProductionOrderPlacementResult as AutomaticProductionOrderPlacementWireResult,
   ConfirmProductionOrderOvertimeCommand as ConfirmProductionOrderOvertimeWireCommand,

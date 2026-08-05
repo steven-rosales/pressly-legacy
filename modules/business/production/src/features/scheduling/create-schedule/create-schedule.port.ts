@@ -1,4 +1,4 @@
-import type { CreateScheduleFailure } from './create-schedule.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   SchedulingInput,
@@ -11,14 +11,11 @@ import type {
 } from '../../../foundations/language/commands/production-command.model.ts';
 import type { UnitOfWork } from '@pressly/kernel';
 import type { ScheduleProposal } from '../../../foundations/language/scheduling/schedule-proposal.entity.ts';
-import type {
-  CreateScheduleCommand,
-  CreateScheduleResult,
-} from './create-schedule.model.ts';
+import type { CreateScheduleCommand } from './create-schedule.model.ts';
 
 export type CreateSchedule = (
   command: CreateScheduleCommand,
-) => Promise<Result<CreateScheduleResult, CreateScheduleFailure>>;
+) => Promise<Result<ScheduleProposal, ProductionFeatureFailure>>;
 
 export type CreateScheduleRepository = UnitOfWork<
   Readonly<{

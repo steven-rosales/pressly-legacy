@@ -2,25 +2,27 @@ import type { WorkforceApplication, WorkforceFailure } from '@pressly/identity';
 import { isJsonObject, type JsonObject } from '@pressly/codec';
 import type {
   ControlCustomerRejection,
-  ControlCustomersPort,
+  ControlCustomerCapabilities,
   ControlOrderDetailSnapshot,
   ControlOrderItem,
-  ControlOrdersPort,
-  ControlWorkforcePort,
+  ControlOrderCapabilities,
+  ControlWorkforceCapabilities,
 } from '@pressly/control-experience';
 import { invariantViolationError } from '@pressly/errors/factories';
 import type {
   CanonicalOrderDetail,
   CorrectOrderFailure,
   CreateOrderFailure,
+  GetCanonicalOrderFailure,
+  ListCanonicalOrdersFailure,
   OrdersApplication,
-  ReadOrdersFailure,
 } from '@pressly/orders';
 import type { Result } from '@pressly/kernel';
 import { result } from '@pressly/kernel';
 import type {
   CreateUserFailure,
-  ReadUsersFailure,
+  GetUserFailure,
+  ListUsersFailure,
   UpdateUserFailure,
   UsersApplication,
 } from '@pressly/users';
@@ -61,7 +63,11 @@ const adaptWorkforceResult = async <Value>(
   });
 };
 
-type CustomerFailure = CreateUserFailure | UpdateUserFailure | ReadUsersFailure;
+type CustomerFailure =
+  | CreateUserFailure
+  | UpdateUserFailure
+  | ListUsersFailure
+  | GetUserFailure;
 
 const customerFailureMessage = (failure: CustomerFailure): string => {
   switch (failure.kind) {
@@ -91,7 +97,8 @@ const adaptCustomerResult = async <Value>(
 };
 
 type OrderFailure =
-  | ReadOrdersFailure
+  | GetCanonicalOrderFailure
+  | ListCanonicalOrdersFailure
   | CreateOrderFailure
   | CorrectOrderFailure;
 
@@ -147,7 +154,7 @@ export const adaptControlCustomers = (
     UsersApplication,
     'listUsers' | 'getUser' | 'createUser' | 'updateUser'
   >,
-): ControlCustomersPort => ({
+): ControlCustomerCapabilities => ({
   list: (input) => adaptCustomerResult(users.listUsers(input)),
   get: (input) => adaptCustomerResult(users.getUser(input)),
   create: (input) => adaptCustomerResult(users.createUser(input)),
@@ -159,7 +166,7 @@ export const adaptControlOrders = (
     OrdersApplication,
     'listCanonicalOrders' | 'getCanonicalOrder' | 'createOrder' | 'correctOrder'
   >,
-): ControlOrdersPort => ({
+): ControlOrderCapabilities => ({
   list: (input) => adaptOrderResult(orders.listCanonicalOrders(input)),
   get: async (input) => {
     const order = await adaptOrderResult(orders.getCanonicalOrder(input));
@@ -192,7 +199,7 @@ export const adaptControlOrders = (
 
 export const adaptControlWorkforce = (
   workforce: WorkforceApplication,
-): ControlWorkforcePort => ({
+): ControlWorkforceCapabilities => ({
   listMembers: (input) => adaptWorkforceResult(workforce.listWorkforce(input)),
   getMember: (input) =>
     adaptWorkforceResult(workforce.getWorkforceMember(input)),

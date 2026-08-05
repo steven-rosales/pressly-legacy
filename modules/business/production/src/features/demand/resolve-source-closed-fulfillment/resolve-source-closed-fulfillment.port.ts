@@ -1,5 +1,5 @@
 import type { Result } from '@pressly/kernel';
-import type { ResolveSourceClosedFulfillmentFailure } from './resolve-source-closed-fulfillment.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type {
   ProductionOrderResolutionCandidate,
   ResolveProductionOrderWithoutProductionCommand,
@@ -11,10 +11,7 @@ import type {
 export type ResolveSourceClosedFulfillment = (
   command: ResolveSourceClosedFulfillmentCommand,
 ) => Promise<
-  Result<
-    ResolveSourceClosedFulfillmentResult,
-    ResolveSourceClosedFulfillmentFailure
-  >
+  Result<ResolveSourceClosedFulfillmentResult, ProductionFeatureFailure>
 >;
 
 export type ResolveSourceClosedFulfillmentRepository = Readonly<{
@@ -29,6 +26,6 @@ export type ResolveProductionOrderWithoutProduction = (
 ) => Promise<
   Result<
     ResolveProductionOrderWithoutProductionResult,
-    ResolveSourceClosedFulfillmentFailure
+    ProductionFeatureFailure
   >
 >;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mapStoredAssignments } from '../../../../src/features/sessions/load-session/stored-assignments.persistence.mapper.ts';
-import { mapStoredRoles } from '../../../../src/foundations/adapters/postgres/identity-store/stored-roles.persistence.mapper.ts';
+import { mapStoredRoles } from '../../../../src/foundations/adapters/postgres/role-read/stored-roles.persistence.mapper.ts';
 
 describe('mapStoredRoles', () => {
   it('keeps valid stored roles and filters unknown values', () => {

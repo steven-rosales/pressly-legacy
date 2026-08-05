@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  loadProductionWorkspaceBoundary,
-  makeLoadProductionWorkspaceController,
-} from './load-production-workspace.controller.ts';
-import type { LoadProductionWorkspace } from './load-production-workspace.usecase.ts';
+import { makeLoadProductionWorkspaceController } from './load-production-workspace.controller.ts';
+import type { LoadProductionWorkspace } from './load-production-workspace.port.ts';
 
 export const makeLoadProductionWorkspaceRoute = (input: {
   loadWorkspace: LoadProductionWorkspace;
@@ -11,12 +8,13 @@ export const makeLoadProductionWorkspaceRoute = (input: {
   authorize: RequestHandler;
 }): Router => {
   const router = Router();
+  const controller = makeLoadProductionWorkspaceController(input.loadWorkspace);
   router.get(
     '/production/locations/:locationId/workspace',
     input.authenticate,
-    loadProductionWorkspaceBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeLoadProductionWorkspaceController(input.loadWorkspace),
+    controller.handle,
   );
   return router;
 };

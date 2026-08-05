@@ -13,6 +13,7 @@ import type {
 import { fulfillmentDemandEvent } from '../../../language/order-outbox/order-outbox.policy.ts';
 import { toSerializedFulfillmentDemandEvent } from '../../outbox/fulfillment-demand-codec/fulfillment-demand.contract.mapper.ts';
 import type { OrderAggregate } from '../../../language/order/order.entity.ts';
+import type { OrderCommandOperations } from '../../../ports/order-command-store/order-command-store.port.ts';
 import { orderPersistenceInvariant } from './order-store.error.ts';
 import {
   customerColumns,
@@ -231,6 +232,14 @@ export const saveOrderCommandReceipt = async (
     createdAt: input.now,
   });
 };
+
+export const makeOrderCommandOperations = (
+  db: DatabaseExecutor,
+): OrderCommandOperations => ({
+  lockCommand: (key) => lockOrderKey(db, `orders:command:${key}`),
+  loadCommandReceipt: (key) => loadOrderCommandReceipt(db, key),
+  saveCommandReceipt: (input) => saveOrderCommandReceipt(db, input),
+});
 
 export const loadOrderAggregate = async (
   db: DatabaseExecutor,

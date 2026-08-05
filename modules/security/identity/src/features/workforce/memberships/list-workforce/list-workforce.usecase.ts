@@ -8,7 +8,7 @@ import { requireIdentifier } from '../../../../foundations/language/workforce-co
 import { decodeWorkforceCursor } from '../../../../foundations/language/workforce-pagination/workforce-cursor.value.ts';
 import type { WorkforceActorRef } from '../../../../foundations/language/workforce/workforce.model.ts';
 import type { WorkforcePage } from '../../../../foundations/language/workforce-membership/workforce-membership.model.ts';
-import type { WorkforceMembershipStore } from '../../../../foundations/ports/workforce-membership-store/workforce-membership-store.port.ts';
+import type { ListWorkforceStore } from './list-workforce.port.ts';
 
 export type ListWorkforceCommand = Readonly<{
   actor: WorkforceActorRef;
@@ -24,7 +24,7 @@ export type ListWorkforce = (
 ) => Promise<Result<WorkforcePage, WorkforceFailure>>;
 
 export const makeListWorkforce =
-  (deps: { store: WorkforceMembershipStore; clock: Clock }): ListWorkforce =>
+  (deps: { store: ListWorkforceStore; clock: Clock }): ListWorkforce =>
   async (command) => {
     const businessId = requireIdentifier(command.businessId, 'business_id');
     if (result.isErr(businessId)) return businessId;

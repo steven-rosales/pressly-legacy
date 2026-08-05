@@ -14,7 +14,7 @@ import {
 import * as laundryProduction from '@pressly/db/schema/laundry-production';
 import { invariantViolationError } from '@pressly/errors/factories';
 import type { Database } from '@pressly/db/client';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import { mapProductionOrderListItem } from '../../../foundations/language/orders/production-order-list-item.projection.ts';
 import { hasAnyProductionOrderSelectionEvidence } from '../../../foundations/adapters/postgres/orders/production-order-scheduling-evidence.adapter.ts';
 import { productionDueFilter } from '../../../foundations/language/due-dates/production-due-bucket.policy.ts';

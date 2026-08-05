@@ -5,8 +5,8 @@ import {
   nullAnalyticsTracker,
   nullErrorReporter,
 } from '@pressly/observability';
+import { systemClock } from '@pressly/time';
 import { webEnv } from '@/common/config/env';
-import { systemClock } from '@/common/core/runtime/clock';
 import { createWebCore, type WebCore } from '@/common/core/runtime/core';
 import type {
   ContextProvider,

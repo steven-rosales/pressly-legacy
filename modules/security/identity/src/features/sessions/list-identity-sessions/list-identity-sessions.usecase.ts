@@ -1,12 +1,12 @@
-import type { IdentitySessionStore } from '../../../foundations/ports/identity-session-store/identity-session-store.port.ts';
 import type { SessionInventory } from './list-identity-sessions.model.ts';
+import type { ListIdentitySessionsStore } from './list-identity-sessions.port.ts';
 
 export type ListIdentitySessions = (
   identityId: string,
 ) => Promise<SessionInventory>;
 
 export const makeListIdentitySessions =
-  (store: IdentitySessionStore): ListIdentitySessions =>
+  (store: ListIdentitySessionsStore): ListIdentitySessions =>
   async (identityId) => {
     const found = await store.listIdentitySessions(identityId);
     return {

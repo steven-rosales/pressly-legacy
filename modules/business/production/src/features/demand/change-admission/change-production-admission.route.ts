@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  changeProductionAdmissionBoundary,
-  makeChangeProductionAdmissionController,
-} from './change-production-admission.controller.ts';
-import type { ChangeProductionAdmission } from './change-production-admission.usecase.ts';
+import { makeChangeProductionAdmissionController } from './change-production-admission.controller.ts';
+import type { ChangeProductionAdmission } from './change-production-admission.port.ts';
 
 export const makeChangeProductionAdmissionRoute = (input: {
   changeAdmission: ChangeProductionAdmission;
@@ -12,12 +9,13 @@ export const makeChangeProductionAdmissionRoute = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const controller = makeChangeProductionAdmissionController(input);
   router.put(
     '/production/locations/:locationId/orders/:productionOrderId/admission',
     input.authenticate,
-    changeProductionAdmissionBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeChangeProductionAdmissionController(input),
+    controller.handle,
   );
   return router;
 };

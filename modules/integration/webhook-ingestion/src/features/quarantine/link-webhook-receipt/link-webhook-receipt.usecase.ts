@@ -2,9 +2,11 @@ import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
 import { result } from '@pressly/kernel';
 import type { Clock } from '@pressly/time';
-import type { WebhookReceiptQuarantineStore } from '../../../foundations/ports/webhook-receipt-quarantine-store/webhook-receipt-quarantine-store.port.ts';
 import { linkWebhookReceiptFailure } from './link-webhook-receipt.failure.ts';
-import type { LinkWebhookReceipt } from './link-webhook-receipt.port.ts';
+import type {
+  LinkWebhookReceipt,
+  LinkWebhookReceiptRepository,
+} from './link-webhook-receipt.port.ts';
 
 const quarantineLinkFailure = (cause: unknown): AppError =>
   mapUnknownError(cause, (unknownCause) =>
@@ -19,12 +21,12 @@ const quarantineLinkFailure = (cause: unknown): AppError =>
 
 export const makeLinkWebhookReceipt =
   (deps: {
-    store: WebhookReceiptQuarantineStore;
+    repo: LinkWebhookReceiptRepository;
     clock: Clock;
   }): LinkWebhookReceipt =>
   async (command) => {
     try {
-      const outcome = await deps.store.link({
+      const outcome = await deps.repo({
         ...command,
         linkedAt: deps.clock.now(),
       });

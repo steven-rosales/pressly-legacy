@@ -17,10 +17,8 @@ import {
 } from '../../../shell/session-store.ts';
 import type { PricingClient } from '../application/ports.ts';
 
-export type PricingCliEnv = ApiClientEnv;
-
 export const makeApiPricingClient = (
-  env: PricingCliEnv,
+  env: ApiClientEnv,
   store: SessionStore = makeSessionStore(),
 ): Result<PricingClient, AppError> => {
   const apiUrl = readApiUrl(env);

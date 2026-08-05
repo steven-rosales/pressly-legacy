@@ -5,7 +5,7 @@ import {
   orderMutationResultSchema,
 } from '@pressly/contracts/orders';
 import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
 import type { OrdersApplication } from '@pressly/orders';
 import type { LocationAncestryPort } from '@pressly/authorization';
 import { Router, type RequestHandler } from 'express';
@@ -23,48 +23,57 @@ export const makeOrderLifecycleRoutes = (input: {
   resolveBusinessId: LocationAncestryPort['resolveBusinessId'];
 }): Router => {
   const routes = Router();
-  const security = [
-    input.authenticate,
-    validateRequest({ params: canonicalOrderParamsSchema }),
-    input.authorize,
-  ] as const;
-
-  routes.post(
-    '/order-management/locations/:locationId/orders/:orderId/complete',
-    ...security,
-    validateRequest({ body: completeOrderRequestSchema }),
-    catchAsync(async (request, response) => {
+  const completeController = defineValidatedController({
+    request: {
+      params: canonicalOrderParamsSchema,
+      body: completeOrderRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
       const outcome = await input.orders.completeOrder({
-        ...request.body,
-        businessId: await input.resolveBusinessId(
-          request.params['locationId'] as string,
-        ),
+        ...body,
+        businessId: await input.resolveBusinessId(params.locationId),
         context: orderManagementCommandContext(response, input.readPrincipal),
-        locationId: request.params['locationId'] as string,
-        orderId: request.params['orderId'] as string,
+        locationId: params.locationId,
+        orderId: params.orderId,
       });
       const value = orderManagementResultValue(outcome);
       response.json(apiSuccess(orderMutationResultSchema.parse(value)));
-    }),
+    },
+  });
+  const cancelController = defineValidatedController({
+    request: {
+      params: canonicalOrderParamsSchema,
+      body: cancelOrderRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
+      const outcome = await input.orders.cancelOrder({
+        ...body,
+        businessId: await input.resolveBusinessId(params.locationId),
+        context: orderManagementCommandContext(response, input.readPrincipal),
+        locationId: params.locationId,
+        orderId: params.orderId,
+      });
+      const value = orderManagementResultValue(outcome);
+      response.json(apiSuccess(orderMutationResultSchema.parse(value)));
+    },
+  });
+
+  routes.post(
+    '/order-management/locations/:locationId/orders/:orderId/complete',
+    input.authenticate,
+    completeController.validators.params,
+    input.authorize,
+    completeController.validators.body,
+    completeController.handle,
   );
 
   routes.post(
     '/order-management/locations/:locationId/orders/:orderId/cancel',
-    ...security,
-    validateRequest({ body: cancelOrderRequestSchema }),
-    catchAsync(async (request, response) => {
-      const outcome = await input.orders.cancelOrder({
-        ...request.body,
-        businessId: await input.resolveBusinessId(
-          request.params['locationId'] as string,
-        ),
-        context: orderManagementCommandContext(response, input.readPrincipal),
-        locationId: request.params['locationId'] as string,
-        orderId: request.params['orderId'] as string,
-      });
-      const value = orderManagementResultValue(outcome);
-      response.json(apiSuccess(orderMutationResultSchema.parse(value)));
-    }),
+    input.authenticate,
+    cancelController.validators.params,
+    input.authorize,
+    cancelController.validators.body,
+    cancelController.handle,
   );
 
   return routes;

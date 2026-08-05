@@ -18,7 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui"
-import type { ControlCustomer, CustomerProfile } from "./customer-model"
+import type {
+  ControlCustomer,
+  UserProfile as CustomerProfile,
+} from "@pressly/contracts/users"
 
 type CustomerFormValue = CustomerProfile & { active?: boolean }
 

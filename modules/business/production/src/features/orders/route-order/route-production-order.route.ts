@@ -1,14 +1,12 @@
 import { Router, type RequestHandler } from 'express';
 import {
-  commitProductionOrderRouteBoundary,
   makeCommitProductionOrderRouteController,
   makePreviewProductionOrderRouteController,
-  previewProductionOrderRouteBoundary,
 } from './route-production-order.controller.ts';
 import type {
   CommitProductionOrderRoute,
   PreviewProductionOrderRoute,
-} from './route-production-order.usecase.ts';
+} from './route-production-order.port.ts';
 
 const orderRoutePath =
   '/production/locations/:locationId/runs/:productionRunId/orders/:productionOrderId/route';
@@ -21,19 +19,21 @@ export const makeRouteProductionOrderRoutes = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const previewController = makePreviewProductionOrderRouteController(input);
+  const commitController = makeCommitProductionOrderRouteController(input);
   router.post(
     `${orderRoutePath}/preview`,
     input.authenticate,
-    previewProductionOrderRouteBoundary.validate,
+    previewController.validate,
     input.authorize,
-    makePreviewProductionOrderRouteController(input),
+    previewController.handle,
   );
   router.post(
     orderRoutePath,
     input.authenticate,
-    commitProductionOrderRouteBoundary.validate,
+    commitController.validate,
     input.authorize,
-    makeCommitProductionOrderRouteController(input),
+    commitController.handle,
   );
   return router;
 };

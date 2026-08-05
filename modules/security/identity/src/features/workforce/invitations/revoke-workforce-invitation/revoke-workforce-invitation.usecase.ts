@@ -10,8 +10,8 @@ import {
   requireIdentifier,
 } from '../../../../foundations/language/workforce-command/workforce-command.policy.ts';
 import type { WorkforceActorRef } from '../../../../foundations/language/workforce/workforce.model.ts';
-import type { WorkforceInvitationSummary } from '../../../../foundations/language/workforce-invitation/workforce-invitation.model.ts';
-import type { WorkforceInvitationStore } from '../../../../foundations/ports/workforce-invitation-store/workforce-invitation-store.port.ts';
+import type { WorkforceInvitationEntity } from '../../../../foundations/language/workforce-invitation/workforce-invitation.entity.ts';
+import type { RevokeWorkforceInvitationStore } from './revoke-workforce-invitation.port.ts';
 
 export type RevokeWorkforceInvitationCommand = Readonly<{
   actor: WorkforceActorRef;
@@ -24,11 +24,11 @@ export type RevokeWorkforceInvitationCommand = Readonly<{
 
 export type RevokeWorkforceInvitation = (
   command: RevokeWorkforceInvitationCommand,
-) => Promise<Result<WorkforceInvitationSummary, WorkforceFailure>>;
+) => Promise<Result<WorkforceInvitationEntity, WorkforceFailure>>;
 
 export const makeRevokeWorkforceInvitation =
   (deps: {
-    store: WorkforceInvitationStore;
+    store: RevokeWorkforceInvitationStore;
     clock: Clock;
   }): RevokeWorkforceInvitation =>
   async (command) => {

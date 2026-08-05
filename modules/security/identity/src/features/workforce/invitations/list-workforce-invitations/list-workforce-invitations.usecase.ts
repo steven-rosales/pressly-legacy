@@ -7,8 +7,8 @@ import {
 import { requireIdentifier } from '../../../../foundations/language/workforce-command/workforce-command.policy.ts';
 import { decodeWorkforceCursor } from '../../../../foundations/language/workforce-pagination/workforce-cursor.value.ts';
 import type { WorkforceActorRef } from '../../../../foundations/language/workforce/workforce.model.ts';
-import type { WorkforceInvitationSummary } from '../../../../foundations/language/workforce-invitation/workforce-invitation.model.ts';
-import type { WorkforceInvitationStore } from '../../../../foundations/ports/workforce-invitation-store/workforce-invitation-store.port.ts';
+import type { WorkforceInvitationEntity } from '../../../../foundations/language/workforce-invitation/workforce-invitation.entity.ts';
+import type { ListWorkforceInvitationsStore } from './list-workforce-invitations.port.ts';
 
 export type ListWorkforceInvitationsCommand = Readonly<{
   actor: WorkforceActorRef;
@@ -19,7 +19,7 @@ export type ListWorkforceInvitationsCommand = Readonly<{
 }>;
 
 export type ListWorkforceInvitationsResult = Readonly<{
-  invitations: readonly WorkforceInvitationSummary[];
+  invitations: readonly WorkforceInvitationEntity[];
   nextCursor: string | null;
 }>;
 
@@ -29,7 +29,7 @@ export type ListWorkforceInvitations = (
 
 export const makeListWorkforceInvitations =
   (deps: {
-    store: WorkforceInvitationStore;
+    store: ListWorkforceInvitationsStore;
     clock: Clock;
   }): ListWorkforceInvitations =>
   async (command) => {

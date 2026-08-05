@@ -10,6 +10,17 @@ export type OperationalOrderIdentityReference = Readonly<{
   fallbackDisplayNumber: string;
 }>;
 
+export type ProductionOrderIdentitySource = Readonly<{
+  id: string;
+  externalOrderId: string;
+}>;
+
+export type ProductionBoardIdentitySource = Readonly<{
+  batches: readonly Readonly<{
+    orders: readonly ProductionOrderIdentitySource[];
+  }>[];
+}>;
+
 export type CanonicalOrderContext = Readonly<{
   canonicalOrderId: string;
   canonicalFulfillmentId: string;

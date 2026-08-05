@@ -10,11 +10,9 @@ import {
   requireIdentifier,
 } from '../../../../foundations/language/workforce-command/workforce-command.policy.ts';
 import type { WorkforceActorRef } from '../../../../foundations/language/workforce/workforce.model.ts';
-import type { WorkforceInvitationSummary } from '../../../../foundations/language/workforce-invitation/workforce-invitation.model.ts';
-import type {
-  InvitationTokenService,
-  WorkforceInvitationStore,
-} from '../../../../foundations/ports/workforce-invitation-store/workforce-invitation-store.port.ts';
+import type { WorkforceInvitationEntity } from '../../../../foundations/language/workforce-invitation/workforce-invitation.entity.ts';
+import type { InvitationTokenService } from '../../../../foundations/ports/workforce-invitation-token/workforce-invitation-token.port.ts';
+import type { ReissueWorkforceInvitationStore } from './reissue-workforce-invitation.port.ts';
 import { requireWorkforceInvitationTtlMinutes } from '../../../../foundations/language/workforce-invitation/workforce-invitation-config.policy.ts';
 
 export type ReissueWorkforceInvitationCommand = Readonly<{
@@ -28,12 +26,12 @@ export type ReissueWorkforceInvitationCommand = Readonly<{
 export type ReissueWorkforceInvitationResult =
   | Readonly<{
       status: 'issued';
-      invitation: WorkforceInvitationSummary;
+      invitation: WorkforceInvitationEntity;
       token: string;
     }>
   | Readonly<{
       status: 'replayed';
-      invitation: WorkforceInvitationSummary;
+      invitation: WorkforceInvitationEntity;
     }>;
 
 export type ReissueWorkforceInvitation = (
@@ -41,7 +39,7 @@ export type ReissueWorkforceInvitation = (
 ) => Promise<Result<ReissueWorkforceInvitationResult, WorkforceFailure>>;
 
 export const makeReissueWorkforceInvitation = (deps: {
-  store: WorkforceInvitationStore;
+  store: ReissueWorkforceInvitationStore;
   tokenService: InvitationTokenService;
   clock: Clock;
   invitationTtlMinutes: number;

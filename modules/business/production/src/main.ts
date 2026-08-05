@@ -3,7 +3,6 @@ export {
   makePostgresProductionApplication,
   makePostgresProductionModule,
   makeProductionRoutes,
-  productionFailureToAppError,
 } from './composition/production.composition.ts';
 export type {
   ProductionApplication,
@@ -11,5 +10,4 @@ export type {
   ProductionHttpApplication,
   ProductionRepositories,
   ProductionRouteSecurity,
-  ProductionFeatureFailure,
 } from './composition/production.composition.ts';

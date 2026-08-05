@@ -9,7 +9,7 @@ import {
 import type {
   WorkspaceNavigationItem,
   WorkspaceNavigationSection,
-} from "@/components/ui"
+} from "@/components/layout/workspace-shell"
 
 export type ControlView =
   | "home"

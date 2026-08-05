@@ -9,7 +9,7 @@ import {
   IconSearch,
 } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
-import { SectionHeading } from "@/components/layout/workspace-primitives"
+import { WorkspaceSectionHeading as SectionHeading } from "@/components/layout/workspace-section-heading"
 import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
 import { DelayedLoadingRows } from "@/components/ui/delayed-loading-rows"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -624,10 +624,3 @@ export function OrderControlWorkspace({
     </div>
   )
 }
-
-export type {
-  OrderControlCallbacks,
-  OrderControlFilters,
-  OrderControlOrder,
-  OrderControlViewModel,
-} from "./order-control.model"

@@ -1,8 +1,3 @@
-export {
-  listProductionHistoryActivityQuerySchema,
-  listProductionHistoryActivityResultSchema,
-  productionHistoryLocationParamsSchema,
-} from '@pressly/contracts/production';
 import type { ListProductionHistoryActivityResult } from '@pressly/contracts/production';
 import { utcIsoFromDate } from '@pressly/time';
 import { copyProductionHistoryActivityDetails } from '../../../foundations/adapters/postgres/history/production-history-activity.persistence.mapper.ts';

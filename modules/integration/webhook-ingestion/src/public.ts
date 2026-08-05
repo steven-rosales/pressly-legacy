@@ -20,8 +20,8 @@ export type {
 export type { LinkWebhookReceipt } from './features/quarantine/link-webhook-receipt/link-webhook-receipt.port.ts';
 export type { LinkWebhookReceiptFailure } from './features/quarantine/link-webhook-receipt/link-webhook-receipt.failure.ts';
 export type { PurgeExpiredWebhookReceipts } from './features/quarantine/purge-expired-webhook-receipts/purge-expired-webhook-receipts.port.ts';
-export type { WebhookReceiptNormalization } from './foundations/language/quarantine-receipts/webhook-receipt-quarantine.model.ts';
-export type { DeadWebhookEvent } from './foundations/language/dead-events/dead-webhook-event.model.ts';
+export type { WebhookReceiptNormalization } from './features/quarantine/capture-webhook-receipt/capture-webhook-receipt.model.ts';
+export type { DeadWebhookEvent } from './features/inbox/list-dead-events/list-dead-events.model.ts';
 export type {
   DeadWebhookEventsResult,
   ListDeadWebhookEventsQuery,
@@ -31,7 +31,7 @@ export type {
   ReplayDeadWebhookEventResult,
 } from './features/inbox/replay-dead-event/replay-dead-event.model.ts';
 export type { ReplayDeadWebhookEventFailure } from './features/inbox/replay-dead-event/replay-dead-event.failure.ts';
-export type { SourceLocationBinding } from './foundations/language/source-location-bindings/source-location-binding.entity.ts';
+export type { SourceLocationBinding } from './features/bindings/reconcile-source-location-bindings/source-location-binding.entity.ts';
 export type {
   ReconcileSourceLocationBindingsResult,
   SourceLocationBindingChange,

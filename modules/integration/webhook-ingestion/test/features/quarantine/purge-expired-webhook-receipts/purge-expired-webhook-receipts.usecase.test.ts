@@ -7,11 +7,7 @@ describe('expired webhook receipt purge', () => {
   it('purges only through the current retention boundary', async () => {
     const purgeExpired = vi.fn(async () => 3);
     const purge = makePurgeExpiredWebhookReceipts({
-      store: {
-        capture: vi.fn(),
-        link: vi.fn(),
-        purgeExpired,
-      },
+      repo: purgeExpired,
       clock: { now: () => now },
     });
 

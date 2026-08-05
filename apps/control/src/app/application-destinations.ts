@@ -1,4 +1,4 @@
-import type { WorkspaceApplicationDestination } from "@/components/ui"
+import type { WorkspaceApplicationDestination } from "@/components/layout/workspace-shell"
 
 type ApplicationDestinationCopy = Readonly<
   Record<

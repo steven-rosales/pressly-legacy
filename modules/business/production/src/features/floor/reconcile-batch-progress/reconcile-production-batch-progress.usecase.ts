@@ -22,7 +22,7 @@ import type {
   ProductionOrderTerminalExecutionMutation,
   ProductionTerminalLifecycleDecisions,
 } from '../../../foundations/language/execution/production-lifecycle.model.ts';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { ProductionSignalsPort } from '../../../foundations/ports/signals/production-signals.port.ts';
 import {
   makeProgressReconciliationConfirmationRequired,
@@ -37,7 +37,6 @@ import type {
   ReconcileProductionBatchProgress,
   ReconcileProductionBatchProgressRepository,
 } from './reconcile-production-batch-progress.port.ts';
-export type { ReconcileProductionBatchProgress } from './reconcile-production-batch-progress.port.ts';
 
 type ReconcileProductionBatchProgressPolicy = Pick<
   ProductionRules,

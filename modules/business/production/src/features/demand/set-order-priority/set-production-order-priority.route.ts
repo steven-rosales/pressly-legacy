@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import type { SetProductionOrderPriority } from './set-production-order-priority.usecase.ts';
-import {
-  makeSetProductionOrderPriorityController,
-  setProductionOrderPriorityBoundary,
-} from './set-production-order-priority.controller.ts';
+import type { SetProductionOrderPriority } from './set-production-order-priority.port.ts';
+import { makeSetProductionOrderPriorityController } from './set-production-order-priority.controller.ts';
 
 export const makeSetProductionOrderPriorityRoute = (input: {
   setPriority: SetProductionOrderPriority;
@@ -12,12 +9,13 @@ export const makeSetProductionOrderPriorityRoute = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const controller = makeSetProductionOrderPriorityController(input);
   router.patch(
     '/production/locations/:locationId/orders/:productionOrderId/priority',
     input.authenticate,
-    setProductionOrderPriorityBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeSetProductionOrderPriorityController(input),
+    controller.handle,
   );
   return router;
 };

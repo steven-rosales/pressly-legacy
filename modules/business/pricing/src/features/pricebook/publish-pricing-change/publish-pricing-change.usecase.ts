@@ -8,22 +8,24 @@ import {
   makePricingChangePlan,
   validatePricingChangeCommand,
 } from '../../../foundations/language/pricing-change/pricing-change.policy.ts';
-import type { PricingChangeStore } from '../../../foundations/ports/pricing-change-store/pricing-change-store.port.ts';
+import type { CurrentPricingReader } from '../../../foundations/ports/current-pricing-reader/current-pricing-reader.port.ts';
 import type { PublishPricingChangeFailure } from './publish-pricing-change.failure.ts';
+import type { PricingChangePublisher } from './publish-pricing-change.port.ts';
 
 export type PublishPricingChange = (
   command: PricingChangeCommand,
 ) => Promise<Result<PublishedPricingChange, PublishPricingChangeFailure>>;
 
-export const makePublishPricingChange = (
-  store: PricingChangeStore,
-  clock: Clock,
-): PublishPricingChange =>
+export const makePublishPricingChange = (deps: {
+  loadCurrentPricing: CurrentPricingReader;
+  publishPricingChange: PricingChangePublisher;
+  clock: Clock;
+}): PublishPricingChange =>
   async function publishPricingChange(command) {
     const validCommand = validatePricingChangeCommand(command);
     if (result.isErr(validCommand)) return result.err(validCommand.error);
 
-    const current = await store.loadCurrentPricing({
+    const current = await deps.loadCurrentPricing({
       serviceSlug: command.serviceSlug,
     });
     if (result.isErr(current)) return result.err(current.error);
@@ -35,9 +37,9 @@ export const makePublishPricingChange = (
     });
     if (result.isErr(plan)) return result.err(plan.error);
 
-    return store.commitPricingChange({
+    return deps.publishPricingChange({
       command: validCommand.value,
       plan: plan.value,
-      publishedAt: clock.now(),
+      publishedAt: deps.clock.now(),
     });
   };

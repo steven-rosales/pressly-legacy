@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  loadRemainingDayForecastBoundary,
-  makeLoadRemainingDayForecastController,
-} from './load-remaining-day-forecast.controller.ts';
-import type { LoadRemainingDayForecast } from './load-remaining-day-forecast.usecase.ts';
+import { makeLoadRemainingDayForecastController } from './load-remaining-day-forecast.controller.ts';
+import type { LoadRemainingDayForecast } from './load-remaining-day-forecast.port.ts';
 
 export const makeLoadRemainingDayForecastRoute = (input: {
   loadForecast: LoadRemainingDayForecast;
@@ -11,12 +8,13 @@ export const makeLoadRemainingDayForecastRoute = (input: {
   authorize: RequestHandler;
 }): Router => {
   const router = Router();
+  const controller = makeLoadRemainingDayForecastController(input.loadForecast);
   router.get(
     '/production/locations/:locationId/forecast',
     input.authenticate,
-    loadRemainingDayForecastBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeLoadRemainingDayForecastController(input.loadForecast),
+    controller.handle,
   );
   return router;
 };

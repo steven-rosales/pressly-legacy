@@ -1,20 +1,17 @@
-import type { ControlHttpClient } from "@/api/control-http-client"
 import {
-  isControlApiError,
-  makeControlApiError,
   makeControlHttpClient,
+  type ControlHttpClient,
 } from "@/api/control-http-client"
+import {
+  logoutResultSchema,
+  type ControlAuthenticatedSession,
+  type ControlLoginResult,
+} from "@pressly/contracts/auth"
 import type { ZodType } from "zod"
 import {
   controlAuthenticatedSessionSchema,
   controlLoginResultSchema,
-  logoutResultSchema,
-  type ControlAuthenticatedSession,
-  type ControlLoginResult,
 } from "./control-session"
-
-export { isControlApiError, makeControlApiError }
-export type { ControlApiError } from "@/api/control-http-client"
 
 export type ControlAuthenticationApi = Readonly<{
   restore: () => Promise<ControlAuthenticatedSession>

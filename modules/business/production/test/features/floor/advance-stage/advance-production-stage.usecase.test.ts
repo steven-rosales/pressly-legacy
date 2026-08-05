@@ -4,7 +4,7 @@ import type {
   ProductionStageStartConfirmationRequiredResult,
 } from '../../../../src/features/floor/advance-stage/advance-production-stage.model.ts';
 import { describe, expect, it, vi } from 'vitest';
-import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.model.ts';
 import type { StageTransitionContext } from '../../../../src/foundations/language/execution/stage-transition.model.ts';
 import type {
   StoredWorkEvent,

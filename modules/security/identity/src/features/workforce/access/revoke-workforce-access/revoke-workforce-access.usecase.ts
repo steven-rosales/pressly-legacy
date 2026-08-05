@@ -10,8 +10,10 @@ import {
   requireIdentifier,
 } from '../../../../foundations/language/workforce-command/workforce-command.policy.ts';
 import type { WorkforceActorRef } from '../../../../foundations/language/workforce/workforce.model.ts';
-import type { AccessGrantStore } from '../../../../foundations/ports/workforce-access-store/workforce-access-store.port.ts';
-import type { RevokedAccess } from '../../../../foundations/ports/workforce-access-store/workforce-access-store.port.ts';
+import type {
+  RevokedAccess,
+  RevokeWorkforceAccessStore,
+} from './revoke-workforce-access.port.ts';
 
 export type RevokeWorkforceAccessCommand = Readonly<{
   actor: WorkforceActorRef;
@@ -27,7 +29,10 @@ export type RevokeWorkforceAccess = (
 ) => Promise<Result<RevokedAccess, WorkforceFailure>>;
 
 export const makeRevokeWorkforceAccess =
-  (deps: { store: AccessGrantStore; clock: Clock }): RevokeWorkforceAccess =>
+  (deps: {
+    store: RevokeWorkforceAccessStore;
+    clock: Clock;
+  }): RevokeWorkforceAccess =>
   async (command) => {
     const businessId = requireIdentifier(command.businessId, 'business_id');
     if (result.isErr(businessId)) return businessId;

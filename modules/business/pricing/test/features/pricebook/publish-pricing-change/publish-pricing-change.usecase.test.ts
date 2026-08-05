@@ -11,8 +11,16 @@ const fixedClock = {
 
 describe('publish pricing change usecase', () => {
   it('loads current pricing, creates a plan, and commits it', async () => {
-    const { store, calls } = makeFakePricingChangeStore();
-    const publishPricingChange = makePublishPricingChange(store, fixedClock);
+    const {
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      calls,
+    } = makeFakePricingChangeStore();
+    const publishPricingChange = makePublishPricingChange({
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      clock: fixedClock,
+    });
 
     const actual = await publishPricingChange(makePricingChangeCommand());
 
@@ -47,8 +55,16 @@ describe('publish pricing change usecase', () => {
   });
 
   it('allows publishing free delivery', async () => {
-    const { store, calls } = makeFakePricingChangeStore();
-    const publishPricingChange = makePublishPricingChange(store, fixedClock);
+    const {
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      calls,
+    } = makeFakePricingChangeStore();
+    const publishPricingChange = makePublishPricingChange({
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      clock: fixedClock,
+    });
 
     const actual = await publishPricingChange(
       makePricingChangeCommand({
@@ -70,8 +86,16 @@ describe('publish pricing change usecase', () => {
   });
 
   it('rejects invalid commands before loading pricing', async () => {
-    const { store, calls } = makeFakePricingChangeStore();
-    const publishPricingChange = makePublishPricingChange(store, fixedClock);
+    const {
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      calls,
+    } = makeFakePricingChangeStore();
+    const publishPricingChange = makePublishPricingChange({
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      clock: fixedClock,
+    });
 
     const actual = await publishPricingChange(
       makePricingChangeCommand({
@@ -89,10 +113,18 @@ describe('publish pricing change usecase', () => {
       code: 'active_pricing_set_not_found',
       serviceSlug: 'wash-fold',
     } as const;
-    const { store, calls } = makeFakePricingChangeStore({
+    const {
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      calls,
+    } = makeFakePricingChangeStore({
       loadResult: result.err(loadFailure),
     });
-    const publishPricingChange = makePublishPricingChange(store, fixedClock);
+    const publishPricingChange = makePublishPricingChange({
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      clock: fixedClock,
+    });
 
     const actual = await publishPricingChange(makePricingChangeCommand());
 
@@ -102,8 +134,16 @@ describe('publish pricing change usecase', () => {
   });
 
   it('rejects no-op pricing changes without committing', async () => {
-    const { store, calls } = makeFakePricingChangeStore();
-    const publishPricingChange = makePublishPricingChange(store, fixedClock);
+    const {
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      calls,
+    } = makeFakePricingChangeStore();
+    const publishPricingChange = makePublishPricingChange({
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      clock: fixedClock,
+    });
 
     const actual = await publishPricingChange(
       makePricingChangeCommand({
@@ -122,10 +162,18 @@ describe('publish pricing change usecase', () => {
       expectedPricingSetId: 'set_1',
       actualPricingSetId: 'set_2',
     } as const;
-    const { store, calls } = makeFakePricingChangeStore({
+    const {
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      calls,
+    } = makeFakePricingChangeStore({
       commitResult: result.err(commitFailure),
     });
-    const publishPricingChange = makePublishPricingChange(store, fixedClock);
+    const publishPricingChange = makePublishPricingChange({
+      loadCurrentPricing,
+      publishPricingChange: publish,
+      clock: fixedClock,
+    });
 
     const actual = await publishPricingChange(makePricingChangeCommand());
 

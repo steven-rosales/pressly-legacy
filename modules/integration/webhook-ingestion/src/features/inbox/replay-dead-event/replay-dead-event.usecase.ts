@@ -2,9 +2,11 @@ import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
 import { result } from '@pressly/kernel';
 import type { Clock } from '@pressly/time';
-import type { DeadWebhookEventStore } from '../../../foundations/ports/dead-webhook-event-store/dead-webhook-event-store.port.ts';
 import { replayDeadWebhookEventFailure } from './replay-dead-event.failure.ts';
-import type { ReplayDeadWebhookEvent } from './replay-dead-event.port.ts';
+import type {
+  ReplayDeadWebhookEvent,
+  ReplayDeadWebhookEventRepository,
+} from './replay-dead-event.port.ts';
 
 const deadEventReplayFailure = (cause: unknown): AppError =>
   mapUnknownError(cause, (unknownCause) =>
@@ -19,13 +21,13 @@ const deadEventReplayFailure = (cause: unknown): AppError =>
 
 export const makeReplayDeadWebhookEvent =
   (deps: {
-    store: DeadWebhookEventStore;
+    repo: ReplayDeadWebhookEventRepository;
     clock: Clock;
   }): ReplayDeadWebhookEvent =>
   async ({ eventId }) => {
-    let replayed: Awaited<ReturnType<DeadWebhookEventStore['replay']>>;
+    let replayed: Awaited<ReturnType<ReplayDeadWebhookEventRepository>>;
     try {
-      replayed = await deps.store.replay(eventId, deps.clock.now());
+      replayed = await deps.repo(eventId, deps.clock.now());
     } catch (error) {
       throw deadEventReplayFailure(error);
     }

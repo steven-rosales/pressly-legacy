@@ -7,11 +7,9 @@ import {
   emitFulfillmentDemand,
   insertOrderItems,
   loadOrderAggregate,
-  loadOrderCommandReceipt,
-  lockOrderKey,
   lockStoredFulfillment,
   lockStoredOrder,
-  saveOrderCommandReceipt,
+  makeOrderCommandOperations,
 } from '../../../foundations/adapters/postgres/order-store/order-store.repo.ts';
 import { orderInvariantError } from '../../../foundations/language/order/order-invariant.error.ts';
 import { customerColumns } from '../../../foundations/adapters/postgres/order-store/order-store.persistence.mapper.ts';
@@ -125,9 +123,7 @@ const applyOrderCorrection = async (
 };
 
 const operations = (tx: DatabaseExecutor): CorrectOrderOperations => ({
-  lockCommand: (key) => lockOrderKey(tx, `orders:command:${key}`),
-  loadCommandReceipt: (key) => loadOrderCommandReceipt(tx, key),
-  saveCommandReceipt: (input) => saveOrderCommandReceipt(tx, input),
+  ...makeOrderCommandOperations(tx),
   lockOrder: (businessId, orderId) => lockStoredOrder(tx, businessId, orderId),
   lockFulfillment: (businessId, fulfillmentId) =>
     lockStoredFulfillment(tx, businessId, fulfillmentId),

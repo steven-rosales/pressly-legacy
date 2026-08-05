@@ -1,5 +1,4 @@
 import type { Clock } from '@pressly/time';
-import type { IdentitySessionStore } from '../../../foundations/ports/identity-session-store/identity-session-store.port.ts';
 import {
   nullSecurityEventSink,
   type SecurityEventSink,
@@ -8,6 +7,7 @@ import type {
   RevokeIdentitySessionsCommand,
   RevokeIdentitySessionsOutcome,
 } from './revoke-identity-sessions.model.ts';
+import type { RevokeIdentitySessionsStore } from './revoke-identity-sessions.port.ts';
 
 export type RevokeIdentitySessions = (
   command: RevokeIdentitySessionsCommand,
@@ -15,7 +15,7 @@ export type RevokeIdentitySessions = (
 
 export const makeRevokeIdentitySessions =
   (input: {
-    store: IdentitySessionStore;
+    store: RevokeIdentitySessionsStore;
     clock: Clock;
     securityEvents?: SecurityEventSink;
   }): RevokeIdentitySessions =>

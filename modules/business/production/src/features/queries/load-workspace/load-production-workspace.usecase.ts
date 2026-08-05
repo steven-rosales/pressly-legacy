@@ -5,7 +5,7 @@ import {
 import { result } from '@pressly/kernel';
 import { withProductionDatabaseError } from '../../../foundations/adapters/postgres/commands/production-database-error.adapter.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { ProductionAlgorithmRegistry } from '../../../foundations/algorithms/approved-production/production-algorithm-registry.factory.ts';
 import { projectLiveRunChanges } from './live-run-changes.policy.ts';
 import { evaluateProductionBoardProjection } from '../../../foundations/language/board/production-board-read.policy.ts';
@@ -114,8 +114,3 @@ export const makeLoadProductionWorkspace =
             ),
     });
   };
-
-export type {
-  LoadProductionWorkspace,
-  LoadProductionWorkspaceRepository,
-} from './load-production-workspace.port.ts';

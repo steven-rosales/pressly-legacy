@@ -1,8 +1,3 @@
-export {
-  productionBatchProgressReconciliationParamsSchema,
-  productionBatchProgressReconciliationResultSchema,
-  reconcileProductionBatchProgressRequestSchema,
-} from '@pressly/contracts/production';
 import type {
   ProductionBatchProgressReconciliationResult as ProductionBatchProgressReconciliationWireResult,
   ReconcileProductionBatchProgressCommand as ReconcileProductionBatchProgressWireCommand,

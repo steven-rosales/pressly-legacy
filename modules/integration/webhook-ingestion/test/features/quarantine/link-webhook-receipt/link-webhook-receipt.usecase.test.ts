@@ -6,11 +6,7 @@ const now = new Date('2026-07-19T14:00:00.000Z');
 describe('webhook receipt linking', () => {
   it('returns a typed conflict when the receipt belongs to another event', async () => {
     const link = makeLinkWebhookReceipt({
-      store: {
-        capture: vi.fn(),
-        link: vi.fn(async () => 'conflict' as const),
-        purgeExpired: vi.fn(),
-      },
+      repo: vi.fn(async () => 'conflict' as const),
       clock: { now: () => now },
     });
 

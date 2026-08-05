@@ -1,6 +1,5 @@
 import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
-import type { WebhookEventFailureStore } from '../../../foundations/ports/webhook-event-failure-store/webhook-event-failure-store.port.ts';
 import type { RetryWebhookEvent } from './retry-event.port.ts';
 
 const retryStoreFailure = (cause: unknown): AppError =>
@@ -15,10 +14,10 @@ const retryStoreFailure = (cause: unknown): AppError =>
   );
 
 export const makeRetryWebhookEvent =
-  (store: WebhookEventFailureStore): RetryWebhookEvent =>
+  (repo: RetryWebhookEvent): RetryWebhookEvent =>
   async (command) => {
     try {
-      return await store.retry(command);
+      return await repo(command);
     } catch (error) {
       throw retryStoreFailure(error);
     }

@@ -1,8 +1,10 @@
 import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
 import type { Clock } from '@pressly/time';
-import type { WebhookInboxQueueStore } from '../../../foundations/ports/webhook-inbox-queue-store/webhook-inbox-queue-store.port.ts';
-import type { MeasureWebhookBacklog } from './measure-webhook-backlog.port.ts';
+import type {
+  MeasureWebhookBacklog,
+  MeasureWebhookBacklogRepository,
+} from './measure-webhook-backlog.port.ts';
 
 const backlogMeasurementFailure = (cause: unknown): AppError =>
   mapUnknownError(cause, (unknownCause) =>
@@ -17,12 +19,12 @@ const backlogMeasurementFailure = (cause: unknown): AppError =>
 
 export const makeMeasureWebhookBacklog =
   (deps: {
-    store: WebhookInboxQueueStore;
+    repo: MeasureWebhookBacklogRepository;
     clock: Clock;
   }): MeasureWebhookBacklog =>
   async () => {
     try {
-      return await deps.store.measureBacklog(deps.clock.now());
+      return await deps.repo(deps.clock.now());
     } catch (error) {
       throw backlogMeasurementFailure(error);
     }

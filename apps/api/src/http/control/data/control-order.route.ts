@@ -8,7 +8,7 @@ import {
 } from '@pressly/contracts/orders';
 import type { ControlExperience } from '@pressly/control-experience';
 import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
 import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { controlResultValue } from '../control-experience.error.ts';
@@ -34,19 +34,9 @@ export const makeControlOrderRoutes = (input: {
     input.limitIdentity,
     input.requireWrite,
   ] as const;
-
-  routes.get(
-    '/orders',
-    ...read,
-    validateRequest({ query: controlOrderListQuerySchema }),
-    catchAsync(async (request, response) => {
-      const query = request.query as unknown as {
-        query?: string;
-        state?: 'open' | 'completed' | 'canceled';
-        locationId?: string;
-        cursor?: string;
-        limit: number;
-      };
+  const listController = defineValidatedController({
+    request: { query: controlOrderListQuerySchema },
+    handle: async ({ query }, { response }) => {
       const page = controlResultValue(
         await input.application.list({
           context: readControlRequestContext(response),
@@ -67,63 +57,122 @@ export const makeControlOrderRoutes = (input: {
           }),
         ),
       );
-    }),
-  );
-
-  routes.get(
-    '/orders/:orderId',
-    ...read,
-    validateRequest({ params: orderParamsSchema }),
-    catchAsync(async (request, response) => {
+    },
+  });
+  const getController = defineValidatedController({
+    request: { params: orderParamsSchema },
+    handle: async ({ params }, { response }) => {
       const order = controlResultValue(
         await input.application.get({
           context: readControlRequestContext(response),
-          orderId: request.params['orderId'] as string,
+          orderId: params.orderId,
         }),
       );
       response.json(apiSuccess(controlOrderDetailSchema.parse(order)));
-    }),
-  );
-
-  routes.post(
-    '/orders',
-    ...write,
-    validateRequest({ body: controlCreateOrderRequestSchema }),
-    catchAsync(async (request, response) => {
+    },
+  });
+  const createController = defineValidatedController({
+    request: { body: controlCreateOrderRequestSchema },
+    handle: async ({ body }, { response }) => {
       const outcome = controlResultValue(
         await input.application.create({
-          ...request.body,
+          ...body,
           context: readControlRequestContext(response),
         }),
       );
       response
         .status(201)
         .json(apiSuccess(orderMutationResultSchema.parse(outcome)));
-    }),
-  );
-
-  routes.patch(
-    '/orders/:orderId',
-    ...write,
-    validateRequest({ params: orderParamsSchema }),
-    validateRequest({ body: controlCorrectOrderRequestSchema }),
-    catchAsync(async (request, response) => {
-      const orderId = request.params['orderId'] as string;
-      const body = request.body;
+    },
+  });
+  const correctController = defineValidatedController({
+    request: {
+      params: orderParamsSchema,
+      body: controlCorrectOrderRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
       const outcome = controlResultValue(
         await input.application.correct({
-          orderId,
+          orderId: params.orderId,
           idempotencyKey: body.idempotencyKey,
           context: readControlRequestContext(response),
           reasonCode: body.reasonCode,
           reasonNote: body.reasonNote,
           expectedOrderVersion: body.expectedOrderVersion,
           expectedFulfillmentVersion: body.expectedFulfillmentVersion,
-          changes: body.changes,
+          changes: {
+            ...(body.changes.customer === undefined
+              ? {}
+              : { customer: body.changes.customer }),
+            ...(body.changes.displayNumber === undefined
+              ? {}
+              : { displayNumber: body.changes.displayNumber }),
+            ...(body.changes.dueAt === undefined
+              ? {}
+              : { dueAt: body.changes.dueAt }),
+            ...(body.changes.currency === undefined
+              ? {}
+              : { currency: body.changes.currency }),
+            ...(body.changes.totalAmountCents === undefined
+              ? {}
+              : { totalAmountCents: body.changes.totalAmountCents }),
+            ...(body.changes.balanceDueCents === undefined
+              ? {}
+              : { balanceDueCents: body.changes.balanceDueCents }),
+            ...(body.changes.items === undefined
+              ? {}
+              : { items: body.changes.items }),
+            ...(body.changes.fulfillment === undefined
+              ? {}
+              : {
+                  fulfillment: {
+                    ...(body.changes.fulfillment.typeCode === undefined
+                      ? {}
+                      : { typeCode: body.changes.fulfillment.typeCode }),
+                    ...(body.changes.fulfillment.locationId === undefined
+                      ? {}
+                      : { locationId: body.changes.fulfillment.locationId }),
+                    ...(body.changes.fulfillment.estimatedWeight === undefined
+                      ? {}
+                      : {
+                          estimatedWeight:
+                            body.changes.fulfillment.estimatedWeight,
+                        }),
+                  },
+                }),
+          },
         }),
       );
       response.json(apiSuccess(orderMutationResultSchema.parse(outcome)));
-    }),
+    },
+  });
+
+  routes.get(
+    '/orders',
+    ...read,
+    listController.validate,
+    listController.handle,
+  );
+
+  routes.get(
+    '/orders/:orderId',
+    ...read,
+    getController.validate,
+    getController.handle,
+  );
+
+  routes.post(
+    '/orders',
+    ...write,
+    createController.validate,
+    createController.handle,
+  );
+
+  routes.patch(
+    '/orders/:orderId',
+    ...write,
+    correctController.validate,
+    correctController.handle,
   );
 
   return routes;

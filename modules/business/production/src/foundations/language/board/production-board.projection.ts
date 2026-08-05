@@ -17,8 +17,6 @@ import type {
 import { productionDueBucket } from '../due-dates/production-due-bucket.policy.ts';
 import { mapProductionOrderListItem } from '../orders/production-order-list-item.projection.ts';
 
-export { mapProductionOrderListItem } from '../orders/production-order-list-item.projection.ts';
-
 export type ProductionBoardShiftRow = Readonly<{
   id: string;
   locationId: string;

@@ -1,8 +1,8 @@
 import {
-  defineRequestBoundary,
+  defineValidatedController,
   sendValidatedApiValue,
 } from '@pressly/http/express';
-import type { RequestHandler, Response } from 'express';
+import type { Response } from 'express';
 import {
   revokeIdentitySessionsContract,
   toRevokeIdentitySessionsResult,
@@ -10,14 +10,6 @@ import {
 import type { RevokeIdentitySessions } from './revoke-identity-sessions.usecase.ts';
 
 export type ReadPrincipalIdentityId = (response: Response) => string;
-
-export const revokeAllIdentitySessionsBoundary = defineRequestBoundary({
-  params: revokeIdentitySessionsContract.allParams,
-});
-
-export const revokeIdentitySessionBoundary = defineRequestBoundary({
-  params: revokeIdentitySessionsContract.oneParams,
-});
 
 const requestMetadata = (response: Response) => {
   const requestId = response.locals?.['requestId'] as string | undefined;
@@ -27,9 +19,10 @@ const requestMetadata = (response: Response) => {
 export const makeRevokeAllIdentitySessionsController = (input: {
   revokeIdentitySessions: RevokeIdentitySessions;
   readPrincipalIdentityId: ReadPrincipalIdentityId;
-}): RequestHandler =>
-  revokeAllIdentitySessionsBoundary.handler(
-    async ({ params }, { response }) => {
+}) =>
+  defineValidatedController({
+    request: { params: revokeIdentitySessionsContract.allParams },
+    handle: async ({ params }, { response }) => {
       const revoked = await input.revokeIdentitySessions({
         principalIdentityId: input.readPrincipalIdentityId(response),
         identityId: params.identityId,
@@ -41,22 +34,25 @@ export const makeRevokeAllIdentitySessionsController = (input: {
         present: toRevokeIdentitySessionsResult,
       });
     },
-  );
+  });
 
 export const makeRevokeIdentitySessionController = (input: {
   revokeIdentitySessions: RevokeIdentitySessions;
   readPrincipalIdentityId: ReadPrincipalIdentityId;
-}): RequestHandler =>
-  revokeIdentitySessionBoundary.handler(async ({ params }, { response }) => {
-    const revoked = await input.revokeIdentitySessions({
-      principalIdentityId: input.readPrincipalIdentityId(response),
-      identityId: params.identityId,
-      sessionId: params.sessionId,
-      ...requestMetadata(response),
-    });
+}) =>
+  defineValidatedController({
+    request: { params: revokeIdentitySessionsContract.oneParams },
+    handle: async ({ params }, { response }) => {
+      const revoked = await input.revokeIdentitySessions({
+        principalIdentityId: input.readPrincipalIdentityId(response),
+        identityId: params.identityId,
+        sessionId: params.sessionId,
+        ...requestMetadata(response),
+      });
 
-    sendValidatedApiValue(response, revoked, {
-      schema: revokeIdentitySessionsContract.response,
-      present: toRevokeIdentitySessionsResult,
-    });
+      sendValidatedApiValue(response, revoked, {
+        schema: revokeIdentitySessionsContract.response,
+        present: toRevokeIdentitySessionsResult,
+      });
+    },
   });

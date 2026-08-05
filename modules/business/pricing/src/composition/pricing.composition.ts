@@ -16,7 +16,8 @@ import {
 } from '../features/pricebook/plan-pricing-change/plan-pricing-change.usecase.ts';
 import { makePublishPricingChangeRoute } from '../features/pricebook/publish-pricing-change/publish-pricing-change.route.ts';
 import { makePublishPricingChange } from '../features/pricebook/publish-pricing-change/publish-pricing-change.usecase.ts';
-import { makePostgresPricingChangeStore } from '../foundations/adapters/postgres/pricing-change-store/pricing-change-store.repo.ts';
+import { makePostgresPricingChangePublisher } from '../features/pricebook/publish-pricing-change/publish-pricing-change.repo.ts';
+import { makePostgresCurrentPricingReader } from '../foundations/adapters/postgres/current-pricing-reader/current-pricing-reader.repo.ts';
 
 export type ReadPricingChangeAuthor = (
   response: Response,
@@ -42,7 +43,7 @@ export type PricingModule = Readonly<{
 export const makePricingModule = (deps: PricingModuleDeps): PricingModule => {
   const routes = Router();
 
-  const pricingChangeStore = makePostgresPricingChangeStore({ db: deps.db });
+  const loadCurrentPricing = makePostgresCurrentPricingReader(deps.db);
 
   const loadPricingCatalog = makeLoadPricingCatalog(
     makeEffectivePricingCatalogFinder(deps.db),
@@ -53,7 +54,7 @@ export const makePricingModule = (deps: PricingModuleDeps): PricingModule => {
   routes.use(
     '/',
     makePlanPricingChangeRoute({
-      planPricingChange: makePlanPricingChange(pricingChangeStore),
+      planPricingChange: makePlanPricingChange(loadCurrentPricing),
       security: {
         authenticate: deps.auth.authenticate,
         authorize: deps.auth.planPricingChange,
@@ -65,10 +66,11 @@ export const makePricingModule = (deps: PricingModuleDeps): PricingModule => {
   routes.use(
     '/',
     makePublishPricingChangeRoute({
-      publishPricingChange: makePublishPricingChange(
-        pricingChangeStore,
-        deps.clock,
-      ),
+      publishPricingChange: makePublishPricingChange({
+        loadCurrentPricing,
+        publishPricingChange: makePostgresPricingChangePublisher(deps.db),
+        clock: deps.clock,
+      }),
       security: {
         authenticate: deps.auth.authenticate,
         authorize: deps.auth.publishPricingChange,

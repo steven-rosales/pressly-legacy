@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from '@pressly/db/query';
 import * as pricing from '@pressly/db/schema/pricing';
-import { makePostgresPricingChangeStore } from '../../src/foundations/adapters/postgres/pricing-change-store/pricing-change-store.repo.ts';
+import { makePostgresCurrentPricingReader } from '../../src/foundations/adapters/postgres/current-pricing-reader/current-pricing-reader.repo.ts';
+import { makePostgresPricingChangePublisher } from '../../src/features/pricebook/publish-pricing-change/publish-pricing-change.repo.ts';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import { makePricingChangeAuthor } from '../support/pricing-change.builder.ts';
 import { createPricingTestDatabase } from '../support/database.ts';
@@ -37,9 +38,9 @@ describe('pricing change repo', () => {
         },
       ],
     });
-    const store = makePostgresPricingChangeStore({ db: testDb.db });
+    const loadCurrentPricing = makePostgresCurrentPricingReader(testDb.db);
 
-    const actual = await store.loadCurrentPricing({
+    const actual = await loadCurrentPricing({
       serviceSlug: 'wash-fold',
     });
 
@@ -87,10 +88,10 @@ describe('pricing change repo', () => {
         },
       ],
     });
-    const store = makePostgresPricingChangeStore({ db: testDb.db });
+    const publishPricingChange = makePostgresPricingChangePublisher(testDb.db);
     const publishedAt = new Date('2026-05-21T12:00:00.000Z');
 
-    const actual = await store.commitPricingChange({
+    const actual = await publishPricingChange({
       publishedAt,
       command: {
         serviceSlug: 'wash-fold',
@@ -179,9 +180,9 @@ describe('pricing change repo', () => {
       serviceId: service.id,
       effectiveFrom: new Date('2000-01-01T00:00:00.000Z'),
     });
-    const store = makePostgresPricingChangeStore({ db: testDb.db });
+    const loadCurrentPricing = makePostgresCurrentPricingReader(testDb.db);
 
-    const missingService = await store.loadCurrentPricing({
+    const missingService = await loadCurrentPricing({
       serviceSlug: 'dry-cleaning',
     });
 
@@ -195,9 +196,9 @@ describe('pricing change repo', () => {
       effectiveFrom: new Date('2000-01-01T00:00:00.000Z'),
       items: [{ code: 'delivery_fee', priceCents: 495 }],
     });
-    const store = makePostgresPricingChangeStore({ db: testDb.db });
+    const publishPricingChange = makePostgresPricingChangePublisher(testDb.db);
 
-    const actual = await store.commitPricingChange({
+    const actual = await publishPricingChange({
       publishedAt: new Date('2026-05-21T12:00:00.000Z'),
       command: {
         serviceSlug: 'wash-fold',

@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  makeReplaceShiftOrderSelectionController,
-  replaceShiftOrderSelectionBoundary,
-} from './replace-shift-order-selection.controller.ts';
-import type { ReplaceShiftOrderSelection } from './replace-shift-order-selection.usecase.ts';
+import { makeReplaceShiftOrderSelectionController } from './replace-shift-order-selection.controller.ts';
+import type { ReplaceShiftOrderSelection } from './replace-shift-order-selection.port.ts';
 
 export const makeReplaceShiftOrderSelectionRoute = (input: {
   replace: ReplaceShiftOrderSelection;
@@ -12,12 +9,13 @@ export const makeReplaceShiftOrderSelectionRoute = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const controller = makeReplaceShiftOrderSelectionController(input);
   router.put(
     '/production/locations/:locationId/shifts/:productionShiftId/selection',
     input.authenticate,
-    replaceShiftOrderSelectionBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeReplaceShiftOrderSelectionController(input),
+    controller.handle,
   );
   return router;
 };

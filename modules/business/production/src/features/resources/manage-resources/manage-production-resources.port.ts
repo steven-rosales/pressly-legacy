@@ -1,4 +1,4 @@
-import type { ManageProductionResourcesFailure } from './manage-production-resources.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -20,9 +20,7 @@ export type StoredProductionResources = Readonly<{
 
 export type ManageProductionResources = (
   command: ProductionBootstrapCommand,
-) => Promise<
-  Result<ProductionBootstrapResult, ManageProductionResourcesFailure>
->;
+) => Promise<Result<ProductionBootstrapResult, ProductionFeatureFailure>>;
 
 export type ManageProductionResourcesRepository = UnitOfWork<
   Readonly<{

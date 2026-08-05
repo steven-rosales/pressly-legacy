@@ -8,14 +8,10 @@ import type {
   IncomingOrderProposalEvent,
   IncomingOrderProposalState,
 } from '../../src/foundations/language/incoming-order-proposal/incoming-order-proposal.model.ts';
-import {
-  decideFulfillmentRelease,
-  mayTransitionFulfillment,
-} from '../../src/features/fulfillment/change-fulfillment-release/change-fulfillment-release.policy.ts';
-import {
-  decideOrderLifecycle,
-  mayTransitionOrder,
-} from '../../src/features/lifecycle/change-order-lifecycle/change-order-lifecycle.policy.ts';
+import { decideFulfillmentRelease } from '../../src/foundations/language/fulfillment-release/fulfillment-release.lifecycle.ts';
+import { mayTransitionFulfillment } from '../../src/foundations/language/fulfillment-release/fulfillment-release.policy.ts';
+import { decideOrderLifecycle } from '../../src/foundations/language/order-lifecycle/order-lifecycle.lifecycle.ts';
+import { mayTransitionOrder } from '../../src/foundations/language/order-lifecycle/order-lifecycle.policy.ts';
 import { isOrderInputValid } from '../../src/foundations/language/order/order-input.policy.ts';
 import type {
   FulfillmentReleaseState,

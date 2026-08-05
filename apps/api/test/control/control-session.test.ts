@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { IdentityModule } from '@pressly/identity';
+import type { ControlAccess } from '@pressly/control-experience';
 import { isAppError } from '@pressly/errors/app-error';
 import express, { type ErrorRequestHandler } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +10,6 @@ import { deriveControlCsrfToken } from '../../src/http/control/session/control-c
 import { makeControlSessionAuthentication } from '../../src/http/control/session/control-session.middleware.ts';
 import { makeControlSessionRoutes } from '../../src/http/control/session/control-session.route.ts';
 import type {
-  ControlAccess,
   ControlAuthApplication,
   ControlSessionOptions,
   ResolveControlAccess,

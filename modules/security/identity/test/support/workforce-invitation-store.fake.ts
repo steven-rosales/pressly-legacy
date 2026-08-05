@@ -1,5 +1,17 @@
 import { vi } from 'vitest';
-import type { WorkforceInvitationStore } from '../../src/foundations/ports/workforce-invitation-store/workforce-invitation-store.port.ts';
+import type { AcceptWorkforceInvitationStore } from '../../src/features/workforce/invitations/accept-workforce-invitation/accept-workforce-invitation.port.ts';
+import type { IssueWorkforceInvitationStore } from '../../src/features/workforce/invitations/issue-workforce-invitation/issue-workforce-invitation.port.ts';
+import type { ListWorkforceInvitationsStore } from '../../src/features/workforce/invitations/list-workforce-invitations/list-workforce-invitations.port.ts';
+import type { PreviewWorkforceInvitationStore } from '../../src/features/workforce/invitations/preview-workforce-invitation/preview-workforce-invitation.port.ts';
+import type { ReissueWorkforceInvitationStore } from '../../src/features/workforce/invitations/reissue-workforce-invitation/reissue-workforce-invitation.port.ts';
+import type { RevokeWorkforceInvitationStore } from '../../src/features/workforce/invitations/revoke-workforce-invitation/revoke-workforce-invitation.port.ts';
+
+type WorkforceInvitationStoreFake = AcceptWorkforceInvitationStore &
+  IssueWorkforceInvitationStore &
+  ListWorkforceInvitationsStore &
+  PreviewWorkforceInvitationStore &
+  ReissueWorkforceInvitationStore &
+  RevokeWorkforceInvitationStore;
 
 export const workforceInvitationNow = new Date('2026-07-29T12:00:00.000Z');
 export const workforceActor = {
@@ -20,8 +32,8 @@ export const workforceInvitation = {
 };
 
 export const makeWorkforceInvitationStoreFake = (
-  overrides: Partial<WorkforceInvitationStore> = {},
-): WorkforceInvitationStore => ({
+  overrides: Partial<WorkforceInvitationStoreFake> = {},
+): WorkforceInvitationStoreFake => ({
   issue: vi.fn(async () => ({
     status: 'applied' as const,
     value: workforceInvitation,

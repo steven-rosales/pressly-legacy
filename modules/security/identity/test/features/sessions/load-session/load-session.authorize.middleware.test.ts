@@ -12,7 +12,7 @@ import {
   type PrincipalAttributes,
   type Role,
 } from '@pressly/auth/authorization';
-import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
+import { makeHttpResponse } from '@pressly/testkit/http';
 import type { SecurityEventSink } from '@pressly/logging';
 import { makeAuthorizeMiddleware } from '../../../../src/foundations/adapters/http/authentication-request/authorize-request.adapter.ts';
 import type { AuthHttpContext as AuthLocals } from '../../../../src/foundations/adapters/http/authentication-request/auth-context.adapter.ts';
@@ -113,13 +113,15 @@ const runHandler = async (input: {
   res: TestResponse;
   next: ReturnType<typeof vi.fn>;
 }): Promise<void> => {
-  input.handler(
-    input.req,
-    input.res as unknown as Response,
-    input.next as NextFunction,
-  );
-  await waitForController();
-  await waitForController();
+  try {
+    await input.handler(
+      input.req,
+      input.res as unknown as Response,
+      input.next as NextFunction,
+    );
+  } catch (error) {
+    (input.next as NextFunction)(error);
+  }
 };
 
 const expectNextErrorCode = (
@@ -186,16 +188,16 @@ describe('authorize middleware', () => {
     const res = makeResponse(makeAuthLocals());
     const next = vi.fn();
 
-    authorize(req, res as unknown as Response, next as NextFunction);
-    await waitForController();
+    const pendingAuthorization = Promise.resolve(
+      authorize(req, res as unknown as Response, next as NextFunction),
+    );
 
     expect(readResource).toHaveBeenCalledWith(req, res);
     expect(next).not.toHaveBeenCalled();
     expect(res.locals['authorization']).toBeUndefined();
 
     deferred.resolve?.(routeResource);
-    await waitForController();
-    await waitForController();
+    await pendingAuthorization;
 
     expect(next.mock.calls).toEqual([[]]);
     expect(res.locals['authorization']).toMatchObject({

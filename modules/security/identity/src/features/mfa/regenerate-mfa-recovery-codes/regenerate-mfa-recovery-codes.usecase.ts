@@ -5,8 +5,8 @@ import {
 } from '@pressly/logging';
 import type { Clock } from '@pressly/time';
 import type { MfaRecoveryCodes } from '../../../foundations/language/mfa/mfa.model.ts';
-import type { MfaManagementStore } from '../../../foundations/ports/mfa-store/mfa-management-store.port.ts';
 import type { RegenerateMfaRecoveryCodesCommand } from './regenerate-mfa-recovery-codes.model.ts';
+import type { RegenerateMfaRecoveryCodesStore } from './regenerate-mfa-recovery-codes.port.ts';
 
 export type RegenerateMfaRecoveryCodes = (
   command: RegenerateMfaRecoveryCodesCommand,
@@ -14,7 +14,7 @@ export type RegenerateMfaRecoveryCodes = (
 
 export const makeRegenerateMfaRecoveryCodes =
   (deps: {
-    store: MfaManagementStore;
+    store: RegenerateMfaRecoveryCodesStore;
     recoveryCodes: RecoveryCodeService;
     clock: Clock;
     securityEvents?: SecurityEventSink;

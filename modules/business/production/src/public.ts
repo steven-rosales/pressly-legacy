@@ -8,9 +8,9 @@ export {
   type ProductionHttpApplication,
   type ProductionRepositories,
   type ProductionRouteSecurity,
-  productionFailureToAppError,
 } from './main.ts';
-export type { ProductionFeatureFailure } from './main.ts';
+export { productionFailureToAppError } from './foundations/adapters/errors/production-failure.adapter.ts';
+export type { ProductionFeatureFailure } from './foundations/language/failures/production-feature.failure.ts';
 export type { ProductionSignalsPort } from './foundations/ports/signals/production-signals.port.ts';
 export type { ProductionHistoryActivityPage } from './features/history/list-activity/list-production-history-activity.model.ts';
 export type { ProductionHistoryRunDetail } from './foundations/language/history/production-history.model.ts';
@@ -37,11 +37,9 @@ export type {
   ResolveSourceClosedFulfillmentResult,
   SourceClosedFulfillmentReviewReason,
 } from './features/demand/resolve-source-closed-fulfillment/resolve-source-closed-fulfillment.model.ts';
-export type {
-  CommitProductionOrderBacklog,
-  PreviewProductionOrderBacklog,
-} from './features/demand/review-order-backlog/review-production-order-backlog.port.ts';
-export type { ProductionOrderBacklogPreview } from './features/demand/review-order-backlog/review-production-order-backlog.model.ts';
+export type { PreviewProductionOrderBacklog } from './features/demand/preview-production-order-backlog/preview-production-order-backlog.port.ts';
+export type { ProductionOrderBacklogPreview } from './features/demand/preview-production-order-backlog/preview-production-order-backlog.model.ts';
+export type { CommitProductionOrderBacklog } from './features/demand/commit-production-order-backlog/commit-production-order-backlog.port.ts';
 export type {
   AutomaticProductionOrderPlacementResult,
   ConfirmProductionOrderOvertimeResult,

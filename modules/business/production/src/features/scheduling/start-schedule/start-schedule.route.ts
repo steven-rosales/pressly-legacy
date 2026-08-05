@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  makeStartScheduleController,
-  startScheduleBoundary,
-} from './start-schedule.controller.ts';
-import type { StartSchedule } from './start-schedule.usecase.ts';
+import { makeStartScheduleController } from './start-schedule.controller.ts';
+import type { StartSchedule } from './start-schedule.port.ts';
 
 export const makeStartScheduleRoute = (input: {
   startSchedule: StartSchedule;
@@ -12,13 +9,14 @@ export const makeStartScheduleRoute = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const controller = makeStartScheduleController(input);
 
   router.post(
     '/production/locations/:locationId/schedules/:scheduleRunId/start',
     input.authenticate,
-    startScheduleBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeStartScheduleController(input),
+    controller.handle,
   );
 
   return router;

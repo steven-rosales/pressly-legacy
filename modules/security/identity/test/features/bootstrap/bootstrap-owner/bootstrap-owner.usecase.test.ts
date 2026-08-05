@@ -7,10 +7,8 @@ import type {
 } from '../../../../src/features/bootstrap/bootstrap-owner/bootstrap-owner.port.ts';
 import { expectErrCode, expectOk } from '@pressly/testkit/result';
 import type { BootstrapOwnerStore } from '../../../../src/features/bootstrap/bootstrap-owner/bootstrap-owner.port.ts';
-import {
-  BOOTSTRAP_OWNER_CONFIRMATION,
-  makeBootstrapOwner,
-} from '../../../../src/features/bootstrap/bootstrap-owner/bootstrap-owner.usecase.ts';
+import { makeBootstrapOwner } from '../../../../src/features/bootstrap/bootstrap-owner/bootstrap-owner.usecase.ts';
+import { BOOTSTRAP_OWNER_CONFIRMATION } from '../../../../src/features/bootstrap/bootstrap-owner/bootstrap-owner.policy.ts';
 
 const dependencyError = (code: string): AppError =>
   makeAppError({

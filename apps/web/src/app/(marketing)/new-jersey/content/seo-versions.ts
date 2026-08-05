@@ -482,8 +482,6 @@ export const CombinedVersions = {
   hiwDescriptionDeliver: CombinedHIWDescriptionDeliver,
 };
 
-export const Titles = WashAndFoldVersions;
-
 type AllVersionKeys =
   | keyof typeof WashAndFoldVersions
   | keyof typeof DryCleaningVersions

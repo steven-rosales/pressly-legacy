@@ -1,4 +1,4 @@
-import { catchAsync, sendValidatedApiResult } from '@pressly/http/express';
+import { sendValidatedApiResult } from '@pressly/http/express';
 import type { RequestHandler } from 'express';
 import { mfaFailureToAppError } from '../../../foundations/adapters/http/mfa-request/mfa-failure.adapter.ts';
 import {
@@ -11,10 +11,9 @@ import {
 } from './begin-mfa-enrollment.contract.mapper.ts';
 import type { BeginMfaEnrollment } from './begin-mfa-enrollment.usecase.ts';
 
-export const makeBeginMfaEnrollmentController = (
-  begin: BeginMfaEnrollment,
-): RequestHandler =>
-  catchAsync(async (_request, response) => {
+export const makeBeginMfaEnrollmentController =
+  (begin: BeginMfaEnrollment): RequestHandler =>
+  async (_request, response) => {
     const principal = readMfaPrincipal(response);
     const requestId = readMfaRequestId(response);
     const enrollment = await begin({
@@ -28,4 +27,4 @@ export const makeBeginMfaEnrollmentController = (
       present: toMfaEnrollmentResult,
       mapFailure: mfaFailureToAppError,
     });
-  });
+  };

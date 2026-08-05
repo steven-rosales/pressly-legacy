@@ -7,7 +7,7 @@ import {
   makePricingChangePlan,
   validatePricingChangeCommand,
 } from '../../../foundations/language/pricing-change/pricing-change.policy.ts';
-import type { PricingChangeStore } from '../../../foundations/ports/pricing-change-store/pricing-change-store.port.ts';
+import type { CurrentPricingReader } from '../../../foundations/ports/current-pricing-reader/current-pricing-reader.port.ts';
 import type { PlanPricingChangeFailure } from './plan-pricing-change.failure.ts';
 
 export type PlanPricingChange = (
@@ -15,13 +15,13 @@ export type PlanPricingChange = (
 ) => Promise<Result<PricingChangePlan, PlanPricingChangeFailure>>;
 
 export const makePlanPricingChange = (
-  store: PricingChangeStore,
+  loadCurrentPricing: CurrentPricingReader,
 ): PlanPricingChange =>
   async function planPricingChange(command) {
     const validCommand = validatePricingChangeCommand(command);
     if (result.isErr(validCommand)) return result.err(validCommand.error);
 
-    const current = await store.loadCurrentPricing({
+    const current = await loadCurrentPricing({
       serviceSlug: command.serviceSlug,
     });
     if (result.isErr(current)) return result.err(current.error);

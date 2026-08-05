@@ -8,7 +8,7 @@ import {
 } from "@tabler/icons-react"
 import { useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { SectionHeading } from "@/components/layout/workspace-primitives"
+import { WorkspaceSectionHeading as SectionHeading } from "@/components/layout/workspace-section-heading"
 import {
   AlertDialog,
   AlertDialogAction,

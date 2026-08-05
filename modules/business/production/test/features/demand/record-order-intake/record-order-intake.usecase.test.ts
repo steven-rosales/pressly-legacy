@@ -1,4 +1,4 @@
-import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.model.ts';
 import type {
   LockedIntakeOrder,
   RecordOrderIntakeRepository,

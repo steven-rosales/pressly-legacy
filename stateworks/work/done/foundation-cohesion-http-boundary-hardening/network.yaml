@@ -1,0 +1,233 @@
+work_id: foundation-cohesion-http-boundary-hardening
+title: Feature-owned persistence and canonical HTTP request boundaries
+status: complete
+
+goal:
+  - Make semantic feature ownership and shared-foundation fan-in mechanically visible and enforceable.
+  - Replace layered asynchronous error wrappers with native Express 5 promise propagation and one typed request boundary.
+  - Preserve all current application behavior while improving traversal and change isolation.
+
+invariants:
+  - File size is never used as an architectural ownership criterion.
+  - A feature-local transaction remains atomic after its repository moves into the owning feature.
+  - Foundations are justified by exact semantic reuse or explicit module-owned language continuity, never by a shared table alone.
+  - One feature leaf owns at most one independently named application operation.
+  - Expected failures remain typed Result data and unexpected failures propagate as AppError throwables to one process edge.
+  - Each configured request location is parsed once; replacement or mutation before handling is detected and fails closed.
+  - Existing product behavior, security posture, LPMS invariants, and serialized contracts remain unchanged.
+  - Existing unrelated worktree changes are preserved.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Prove the semantic ownership and HTTP baseline
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo:modules
+      - repo:apps/api
+      - repo:packages/http
+      - repo:tooling/architecture
+      - repo:docs/module-architecture.md
+    writes:
+      - repo:stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md
+    action:
+      - Build the method-to-feature consumer matrix for suspect foundations.
+      - Inventory asynchronous handler and request-validation forms.
+      - Record the exact dirty-worktree boundary.
+    verifier:
+      - Evidence distinguishes file-size signals from semantic ownership defects.
+      - Evidence identifies the canonical Express 5 error and request flow.
+    rollback: No rollback is required for read-only characterization.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t0---baseline
+
+  - id: T1
+    title: Compile and report foundation cohesion
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:tooling/architecture
+      - repo:modules/*/*/module.architecture.ts
+    writes:
+      - repo:tooling/architecture
+      - repo:tooling/test
+      - repo:eslint.config.mjs
+      - repo:package.json
+      - repo:modules/*/*/module.architecture.ts
+    action:
+      - Encode formal reuse and continuity bases in immutable architecture definitions.
+      - Compute direct and transitive feature consumers for foundations.
+      - Reject unearned shared ports, invalid adapter ownership, multiple foundation port files, and multi-operation use-case facades.
+      - Expose a deterministic cohesion report for review and CI.
+    verifier:
+      - Architecture unit tests prove one-consumer rejection, two-consumer qualification, continuity constraints, adapter ownership, and port-leaf topology.
+      - Architecture lint rejects independently callable use-case facades.
+    rollback: Revert the compiler, lint, manifest, and test changes together.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t1---foundation-cohesion-compiler
+
+  - id: T2
+    title: Establish one HTTP request and unexpected-error boundary
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:packages/http
+      - repo:apps/api
+      - repo:modules
+    writes:
+      - repo:packages/http
+      - repo:apps/api
+      - repo:modules
+      - repo:stateworks/tooling/memory-model.ts
+    action:
+      - Remove catchAsync and return asynchronous handlers directly to Express 5.
+      - Replace legacy validateRequest and separate boundary/controller pairing with one validated-controller construction form.
+      - Parse synchronously and preserve fail-closed typed-input mutation detection.
+      - Preserve location-specific validation response contracts through declarative failure descriptors.
+      - Keep one final API unexpected-error middleware.
+    verifier:
+      - Package tests prove typed parsing, coercion, mutation rejection, and missing or mismatched boundary rejection.
+      - API tests prove synchronous throws, asynchronous rejection, and validation rejection reach the final error boundary once.
+      - No live catchAsync or validateRequest references remain.
+    rollback: Restore the HTTP package API and all callers as one atomic migration.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t2---canonical-http-boundary
+
+  - id: T3
+    title: Move Identity persistence to feature owners
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:modules/security/identity
+      - repo:stateworks/work/active/pressly-control-workforce-identity
+    writes:
+      - repo:modules/security/identity
+    action:
+      - Split MFA, invitation, membership, access, security, and session umbrella stores by owning feature.
+      - Preserve genuinely shared Identity language and transactional primitives as narrow foundations.
+      - Remove fabricated cross-feature persistence result shapes.
+    verifier:
+      - Identity unit and integration tests preserve behavior and transactionality.
+      - The Identity manifest and imports pass architecture gates without one-consumer store foundations.
+    rollback: Revert each feature family with its composition and manifest changes.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t3---identity-feature-ownership
+
+  - id: T4
+    title: Move remaining one-consumer effects and operations to feature owners
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1, T3]
+    reads:
+      - repo:modules/business/orders
+      - repo:modules/business/pricing
+      - repo:modules/business/production
+      - repo:modules/business/users
+      - repo:modules/integration/webhook-ingestion
+      - repo:modules/experience/control
+      - repo:modules/experience/processor
+    writes:
+      - repo:modules/business/orders
+      - repo:modules/business/pricing
+      - repo:modules/business/production
+      - repo:modules/business/users
+      - repo:modules/integration/webhook-ingestion
+      - repo:modules/experience/control
+      - repo:modules/experience/processor
+    action:
+      - Keep the shared Pricing reader foundational and move publish-only commit persistence into publish-pricing-change.
+      - Split Users and Orders read facades into independent list and get features with feature-owned persistence.
+      - Split paired Orders lifecycle and fulfillment commands into independent feature leaves.
+      - Split paired Production shift and backlog operations into independent feature leaves.
+      - Split table-oriented Webhook stores by application feature.
+      - Split Control multi-operation manage facades into verb-object features and narrow ports.
+      - Move one-consumer Processor effects to their owning leaves while preserving earned shared identity capability.
+    verifier:
+      - A generated cohesion report contains no unexplained one-consumer foundation.
+      - Affected module tests and public-surface tests pass.
+    rollback: Revert each module slice independently with its composition and manifest updates.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t4---remaining-module-ownership
+
+  - id: T5
+    title: Publish the durable architecture rules
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1, T2, T3, T4]
+    reads:
+      - repo:docs/architecture.md
+      - repo:docs/module-architecture.md
+    writes:
+      - repo:docs/architecture.md
+      - repo:docs/module-architecture.md
+      - repo:docs/security/application-controls.md
+      - repo:docs/plan/lpms-state-transitions.md
+      - repo:AGENTS.md
+      - repo:stateworks/work/done/foundation-cohesion-http-boundary-hardening
+    action:
+      - Document the consumer-set placement rule, continuity exception, feature operation rule, and canonical HTTP algebra.
+      - Record exact implementation and verification evidence.
+    verifier:
+      - Documentation, agent guidance, and executable rules agree.
+    rollback: Revert documentation with the executable rule it describes.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#t5---durable-rules
+
+  - id: V1
+    title: Prove repository behavior and architecture
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T5]
+    reads:
+      - repo
+    writes:
+      - repo:stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md
+      - repo:stateworks/work/done/foundation-cohesion-http-boundary-hardening/final-report.md
+    action:
+      - Run formatting, type, architecture, lint, targeted module, package, integration, and repository test gates with bounded concurrency.
+      - Repair regressions without weakening the new constraints.
+    verifier:
+      - Every required gate passes and evidence records exact commands and results.
+    rollback: Preserve the active work item and report any repeated verifier failure without claiming completion.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/evidence.md#v1---repository-verification
+      - stateworks/work/done/foundation-cohesion-http-boundary-hardening/final-report.md

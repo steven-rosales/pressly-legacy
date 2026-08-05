@@ -28,7 +28,7 @@ describe('resolve Control access', () => {
       ]),
     };
     const resolve = makeResolveControlAccess({
-      store,
+      repo: store,
       clock: { now: () => now },
       controlOrigin: 'https://control.example.com',
       processorOrigin: 'https://processor.example.com',
@@ -53,7 +53,7 @@ describe('resolve Control access', () => {
 
   it('fails closed when Control grants span businesses', async () => {
     const resolve = makeResolveControlAccess({
-      store: {
+      repo: {
         loadEffectiveGrants: async () => [
           {
             businessId: 'business-1',

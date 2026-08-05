@@ -1,4 +1,4 @@
-import type { ReplaceShiftOrderSelectionFailure } from './replace-shift-order-selection.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -14,7 +14,7 @@ import type {
 export type ReplaceShiftOrderSelection = (
   command: ReplaceShiftOrderSelectionCommand & Readonly<{ actorId: string }>,
 ) => Promise<
-  Result<ReplaceShiftOrderSelectionResult, ReplaceShiftOrderSelectionFailure>
+  Result<ReplaceShiftOrderSelectionResult, ProductionFeatureFailure>
 >;
 
 export type LockedShiftOrderSelection = Readonly<{

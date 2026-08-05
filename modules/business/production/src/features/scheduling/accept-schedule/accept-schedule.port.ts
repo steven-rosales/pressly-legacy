@@ -1,4 +1,4 @@
-import type { AcceptScheduleFailure } from './accept-schedule.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -20,7 +20,7 @@ export type ScheduleAcceptanceRecord = Readonly<{
 
 export type AcceptSchedule = (
   command: AcceptScheduleCommand,
-) => Promise<Result<AcceptScheduleResult, AcceptScheduleFailure>>;
+) => Promise<Result<AcceptScheduleResult, ProductionFeatureFailure>>;
 
 export type AcceptScheduleRepository = UnitOfWork<
   Readonly<{

@@ -1,15 +1,13 @@
 import type { RequestHandler } from 'express';
 import { result } from '@pressly/kernel';
-import { catchAsync } from '@pressly/http/express';
 import type { LoadSession } from './load-session.usecase.ts';
 import { readBearerToken } from '../../../foundations/adapters/http/authentication-request/read-bearer.adapter.ts';
 import type { AuthHttpContext } from '../../../foundations/adapters/http/authentication-request/auth-context.adapter.ts';
 import { toLoadSessionHttpError } from './load-session.contract.mapper.ts';
 
-export const makeAuthenticateMiddleware = (
-  loadSession: LoadSession,
-): RequestHandler =>
-  catchAsync(async (req, res, next) => {
+export const makeAuthenticateMiddleware =
+  (loadSession: LoadSession): RequestHandler =>
+  async (req, res, next) => {
     const token = readBearerToken(req.header('authorization') ?? undefined);
     const loadedSession = await loadSession({ bearerToken: token });
 
@@ -19,4 +17,4 @@ export const makeAuthenticateMiddleware = (
     res.locals['auth'] = loadedSession.value satisfies AuthHttpContext;
 
     next();
-  });
+  };

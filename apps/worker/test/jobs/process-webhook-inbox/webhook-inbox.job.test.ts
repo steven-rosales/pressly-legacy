@@ -15,9 +15,9 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 import {
   makeWebhookInboxJob,
-  retryDelayMs,
   type WebhookEventConsumer,
 } from '../../../src/jobs/process-webhook-inbox/webhook-inbox.job.ts';
+import { retryDelayMs } from '../../../src/runtime/retry.ts';
 
 const claimedEvent = (
   overrides: Partial<ClaimedWebhookEvent> = {},

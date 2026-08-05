@@ -1,8 +1,3 @@
-export {
-  listProductionHistoryPlansQuerySchema,
-  listProductionHistoryPlansResultSchema,
-  productionHistoryLocationParamsSchema,
-} from '@pressly/contracts/production';
 import type { ListProductionHistoryPlansResult } from '@pressly/contracts/production';
 import { utcIsoFromDate } from '@pressly/time';
 import type { ProductionHistoryPlansPage } from './list-production-history-plans.model.ts';

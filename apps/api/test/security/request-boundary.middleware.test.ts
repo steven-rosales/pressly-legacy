@@ -1,8 +1,12 @@
 import { createServer, type Server } from 'node:http';
-import express, { type Express } from 'express';
+import express, { type ErrorRequestHandler, type Express } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { makeAppError } from '@pressly/errors/app-error';
-import { requireJsonContentType } from '@pressly/http/express';
+import {
+  defineValidatedController,
+  requireJsonContentType,
+} from '@pressly/http/express';
 import { makeErrorHandler } from '../../src/http/middleware/error.middleware.ts';
 import { makeRequestContext } from '../../src/http/middleware/request-context.middleware.ts';
 import { makeWebhookIngestionRoutes } from '../../src/http/webhook-ingestion/dead-letters/dead-letter.route.ts';
@@ -204,7 +208,116 @@ const makeApplicationFailureApp = (
   return app;
 };
 
+const makeExpressPromiseBoundaryApp = (): Readonly<{
+  app: Express;
+  boundaryCalls: unknown[];
+}> => {
+  const app = express();
+  const boundaryCalls: unknown[] = [];
+  const synchronousFailure = makeAppError({
+    kind: 'DatabaseError',
+    code: 'synchronous_route_failure',
+    message: 'A synchronous route failed.',
+    safeMessage: 'The request failed.',
+    status: 503,
+  });
+  const asynchronousFailure = makeAppError({
+    kind: 'DatabaseError',
+    code: 'asynchronous_route_failure',
+    message: 'An asynchronous route failed.',
+    safeMessage: 'The request failed.',
+    status: 503,
+  });
+  const validatedController = defineValidatedController({
+    request: {
+      body: z.object({ count: z.number().int().positive() }).strict(),
+    },
+    handle: (_input, { response }) => {
+      response.status(204).end();
+    },
+  });
+  const finalBoundary = makeErrorHandler({
+    logger,
+    securityEvents: { emit: (event: unknown) => securityEntries.push(event) },
+    observability: {
+      errors: {
+        capture: (error: unknown, context: unknown) =>
+          capturedErrors.push({ error, context }),
+        shutdown: async () => undefined,
+      },
+      counters: {
+        increment: (name: string, labels?: Readonly<Record<string, string>>) =>
+          counterEntries.push({ name, labels }),
+      },
+    },
+  } as never);
+  const observeFinalBoundary: ErrorRequestHandler = (
+    error,
+    request,
+    response,
+    next,
+  ) => {
+    boundaryCalls.push(error);
+    return finalBoundary(error, request, response, next);
+  };
+
+  app.use(makeRequestContext());
+  app.get('/sync', () => {
+    throw synchronousFailure;
+  });
+  app.get('/async', async () => Promise.reject(asynchronousFailure));
+  app.post(
+    '/validation',
+    express.json(),
+    validatedController.validate,
+    validatedController.handle,
+  );
+  app.use(observeFinalBoundary);
+
+  return { app, boundaryCalls };
+};
+
 describe('API request boundary', () => {
+  it('delivers synchronous route throws to the final boundary once', async () => {
+    const { app, boundaryCalls } = makeExpressPromiseBoundaryApp();
+    const response = await fetch(`${await start(app)}/sync`);
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'synchronous_route_failure' },
+    });
+    expect(boundaryCalls).toHaveLength(1);
+  });
+
+  it('delivers asynchronous route rejections to the final boundary once', async () => {
+    const { app, boundaryCalls } = makeExpressPromiseBoundaryApp();
+    const response = await fetch(`${await start(app)}/async`);
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'asynchronous_route_failure' },
+    });
+    expect(boundaryCalls).toHaveLength(1);
+  });
+
+  it('delivers synchronous validation rejection to the final boundary once', async () => {
+    const { app, boundaryCalls } = makeExpressPromiseBoundaryApp();
+    const response = await fetch(`${await start(app)}/validation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count: 'not-a-number' }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid_body_type' },
+    });
+    expect(boundaryCalls).toHaveLength(1);
+  });
+
   it('generates a request ID and ignores a caller-supplied ID', async () => {
     const response = await fetch(await start(makeBoundaryApp()), {
       method: 'POST',

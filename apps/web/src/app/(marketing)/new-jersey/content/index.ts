@@ -1,17 +1,13 @@
+export { LOCATIONS, findLocation, allParamsForState } from './locations';
 export {
-  LOCATIONS,
-  findLocation,
-  allParamsForState,
   DRY_CLEANING_CONFIG,
   WASH_AND_FOLD_CONFIG,
   getCityFromSlug,
   getServiceConfig,
   getServiceTypeFromSlug,
-  COUNTY_CITIES,
-  buildCityServiceParams,
-  resolveCityService,
-} from './helpers';
-export { COUNTIES } from './county-cities';
+} from './service-configs';
+export type { ServiceType } from './service-configs';
+export { COUNTIES, COUNTY_CITIES } from './county-cities';
+export { buildCityServiceParams, resolveCityService } from './helpers';
 export { makeTitle } from './seo-versions';
 export { getLocalProof } from './local-proof';
-export type { ServiceType } from './helpers';

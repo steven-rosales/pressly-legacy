@@ -11,15 +11,41 @@ export default defineModule({
   features: defineNamespace({
     session: defineNamespace({
       'resolve-processor-access': defineFeature.headlessQuery({
-        dependsOn: [
-          'language/processor-access',
-          'ports/processor-access-locations',
-          'ports/production-capabilities',
-        ],
+        dependsOn: [],
       }),
     }),
     orders: defineNamespace({
-      'resolve-operational-order-identities': defineFeature.headlessQuery({
+      'resolve-board-order-identities': defineFeature.headlessQuery({
+        dependsOn: [
+          'language/operational-order',
+          'ports/operational-order-identity',
+        ],
+      }),
+      'resolve-workspace-order-identities': defineFeature.headlessQuery({
+        dependsOn: [
+          'language/operational-order',
+          'ports/operational-order-identity',
+        ],
+      }),
+      'resolve-forecast-order-identities': defineFeature.headlessQuery({
+        dependsOn: [
+          'language/operational-order',
+          'ports/operational-order-identity',
+        ],
+      }),
+      'resolve-history-run-order-identities': defineFeature.headlessQuery({
+        dependsOn: [
+          'language/operational-order',
+          'ports/operational-order-identity',
+        ],
+      }),
+      'resolve-backlog-order-identities': defineFeature.headlessQuery({
+        dependsOn: [
+          'language/operational-order',
+          'ports/operational-order-identity',
+        ],
+      }),
+      'resolve-history-activity-order-identities': defineFeature.headlessQuery({
         dependsOn: [
           'language/operational-order',
           'ports/operational-order-identity',
@@ -29,43 +55,27 @@ export default defineModule({
         dependsOn: [
           'language/operational-order',
           'ports/operational-order-identity',
-          'ports/operational-order-audit',
         ],
       }),
     }),
   }),
   foundations: {
     language: defineNamespace({
-      'processor-access': defineFoundation.language(),
       'operational-order': defineFoundation.language(),
     }),
     ports: defineNamespace({
-      'processor-access-locations': defineFoundation.port({
-        dependsOn: ['language/processor-access'],
-      }),
-      'production-capabilities': defineFoundation.port({
-        dependsOn: ['language/processor-access'],
-      }),
       'operational-order-identity': defineFoundation.port({
-        dependsOn: ['language/operational-order'],
-      }),
-      'operational-order-audit': defineFoundation.port({
         dependsOn: ['language/operational-order'],
       }),
     }),
     adapters: defineNamespace({
       postgres: defineNamespace({
-        'processor-access-locations': defineFoundation.adapter({
-          dependsOn: ['ports/processor-access-locations'],
-        }),
         'operational-order-identity': defineFoundation.adapter({
+          implements: 'ports/operational-order-identity',
           dependsOn: [
             'language/operational-order',
             'ports/operational-order-identity',
           ],
-        }),
-        'operational-order-audit': defineFoundation.adapter({
-          dependsOn: ['ports/operational-order-audit'],
         }),
       }),
     }),

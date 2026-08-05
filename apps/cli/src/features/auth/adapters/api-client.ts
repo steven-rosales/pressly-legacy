@@ -24,10 +24,8 @@ import {
 } from '../../../shell/session-store.ts';
 import type { AuthCliClient } from '../application/ports.ts';
 
-export type AuthCliEnv = ApiClientEnv;
-
 export const makeApiAuthClient = (
-  env: AuthCliEnv,
+  env: ApiClientEnv,
   store: SessionStore = makeSessionStore(),
 ): Result<AuthCliClient, AppError> => {
   const apiUrl = readApiUrl(env);

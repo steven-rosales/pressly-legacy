@@ -5,7 +5,6 @@ import type {
   LoadSchedule,
   LoadScheduleRepository,
 } from './load-schedule.port.ts';
-export type { LoadSchedule } from './load-schedule.port.ts';
 
 export const makeLoadSchedule =
   (repo: LoadScheduleRepository): LoadSchedule =>

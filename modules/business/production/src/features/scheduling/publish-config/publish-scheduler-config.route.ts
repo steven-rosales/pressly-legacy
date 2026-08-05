@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import type { PublishSchedulerConfig } from './publish-scheduler-config.usecase.ts';
-import {
-  makePublishSchedulerConfigController,
-  publishSchedulerConfigBoundary,
-} from './publish-scheduler-config.controller.ts';
+import type { PublishSchedulerConfig } from './publish-scheduler-config.port.ts';
+import { makePublishSchedulerConfigController } from './publish-scheduler-config.controller.ts';
 
 export const makePublishSchedulerConfigRoute = (input: {
   publish: PublishSchedulerConfig;
@@ -12,12 +9,13 @@ export const makePublishSchedulerConfigRoute = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const controller = makePublishSchedulerConfigController(input);
   router.post(
     '/production/locations/:locationId/scheduler-configs',
     input.authenticate,
-    publishSchedulerConfigBoundary.validate,
+    controller.validate,
     input.authorize,
-    makePublishSchedulerConfigController(input),
+    controller.handle,
   );
   return router;
 };

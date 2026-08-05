@@ -1,6 +1,5 @@
 import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
-import type { WebhookEventFailureStore } from '../../../foundations/ports/webhook-event-failure-store/webhook-event-failure-store.port.ts';
 import type { DeadLetterWebhookEvent } from './dead-letter-event.port.ts';
 
 const deadLetterStoreFailure = (cause: unknown): AppError =>
@@ -15,10 +14,10 @@ const deadLetterStoreFailure = (cause: unknown): AppError =>
   );
 
 export const makeDeadLetterWebhookEvent =
-  (store: WebhookEventFailureStore): DeadLetterWebhookEvent =>
+  (repo: DeadLetterWebhookEvent): DeadLetterWebhookEvent =>
   async (command) => {
     try {
-      return await store.deadLetter(command);
+      return await repo(command);
     } catch (error) {
       throw deadLetterStoreFailure(error);
     }

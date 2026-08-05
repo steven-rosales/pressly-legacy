@@ -22,9 +22,3 @@ export const makeListProductionLocations =
       asOf: deps.clock.now(),
     });
   };
-
-export type {
-  ListProductionLocations,
-  ListProductionLocationsCommand,
-  ListProductionLocationsRepository,
-} from './list-production-locations.port.ts';

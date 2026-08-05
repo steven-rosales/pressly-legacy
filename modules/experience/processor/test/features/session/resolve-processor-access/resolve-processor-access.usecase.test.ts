@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { makeResolveProcessorAccess } from '../../../../src/features/session/resolve-processor-access/resolve-processor-access.usecase.ts';
-import type { ProcessorSession } from '../../../../src/foundations/language/processor-access/processor-access.model.ts';
+import type { ProcessorSession } from '../../../../src/features/session/resolve-processor-access/resolve-processor-access.model.ts';
 
 const now = new Date('2026-08-03T16:00:00.000Z');
 const session: ProcessorSession = {
@@ -43,8 +43,8 @@ describe('resolve Processor access', () => {
         : ([] as const),
     );
     const resolveAccess = makeResolveProcessorAccess({
-      locations: { listActive },
-      capabilities: { resolveForLocation },
+      listLocations: listActive,
+      resolveCapabilities: resolveForLocation,
       origins: {
         processor: 'https://processor.trypressly.com',
         control: 'https://control.trypressly.com',
@@ -75,17 +75,15 @@ describe('resolve Processor access', () => {
 
   it('returns no access when authorization exposes no readable location', async () => {
     const resolveAccess = makeResolveProcessorAccess({
-      locations: {
-        listActive: async () => [
-          {
-            id: 'location-1',
-            businessId: 'business-1',
-            name: 'Pressly One',
-            timezone: 'America/New_York',
-          },
-        ],
-      },
-      capabilities: { resolveForLocation: () => [] },
+      listLocations: async () => [
+        {
+          id: 'location-1',
+          businessId: 'business-1',
+          name: 'Pressly One',
+          timezone: 'America/New_York',
+        },
+      ],
+      resolveCapabilities: () => [],
       origins: {
         processor: 'https://processor.trypressly.com',
         control: 'https://control.trypressly.com',

@@ -1,11 +1,8 @@
 import { result } from '@pressly/kernel';
-import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
-import {
-  loadPricingCatalogBoundary,
-  makeLoadPricingCatalogController,
-} from '../../../../src/features/catalog/load-pricing-catalog/load-pricing-catalog.controller.ts';
+import { makeHttpResponse } from '@pressly/testkit/http';
+import { makeLoadPricingCatalogController } from '../../../../src/features/catalog/load-pricing-catalog/load-pricing-catalog.controller.ts';
 import { makeLoadPricingCatalogRoute } from '../../../../src/features/catalog/load-pricing-catalog/load-pricing-catalog.route.ts';
 import type { LoadPricingCatalog } from '../../../../src/features/catalog/load-pricing-catalog/load-pricing-catalog.usecase.ts';
 
@@ -56,13 +53,8 @@ describe('load pricing catalog http controller', () => {
     const res = makeHttpResponse();
     const next = vi.fn();
 
-    await runMiddleware(
-      loadPricingCatalogBoundary.validate,
-      req,
-      res as unknown as Response,
-    );
-    controller(req, res as unknown as Response, next as NextFunction);
-    await waitForController();
+    await runMiddleware(controller.validate, req, res as unknown as Response);
+    await controller.handle(req, res as unknown as Response, next);
 
     expect(loadPricingCatalog).toHaveBeenCalledWith({
       serviceSlug: 'wash-fold',
@@ -98,15 +90,10 @@ describe('load pricing catalog http controller', () => {
     const res = makeHttpResponse();
     const next = vi.fn();
 
-    await runMiddleware(
-      loadPricingCatalogBoundary.validate,
-      req,
-      res as unknown as Response,
-    );
-    controller(req, res as unknown as Response, next as NextFunction);
-    await vi.waitFor(() => expect(next).toHaveBeenCalledOnce());
-
-    expect(next.mock.calls[0]?.[0]).toMatchObject({
+    await runMiddleware(controller.validate, req, res as unknown as Response);
+    await expect(
+      controller.handle(req, res as unknown as Response, next),
+    ).rejects.toMatchObject({
       tag: 'AppError',
       kind: 'NotFoundError',
       code: 'pricing_not_found',

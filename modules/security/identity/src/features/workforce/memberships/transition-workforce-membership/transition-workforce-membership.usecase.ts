@@ -11,8 +11,10 @@ import {
 } from '../../../../foundations/language/workforce-command/workforce-command.policy.ts';
 import type { WorkforceActorRef } from '../../../../foundations/language/workforce/workforce.model.ts';
 import type { WorkforceMembershipEvent } from '../../../../foundations/language/workforce-membership/workforce-membership.lifecycle.ts';
-import type { WorkforceMembershipStore } from '../../../../foundations/ports/workforce-membership-store/workforce-membership-store.port.ts';
-import type { TransitionedMembership } from '../../../../foundations/ports/workforce-membership-store/workforce-membership-store.port.ts';
+import type {
+  TransitionedMembership,
+  TransitionWorkforceMembershipStore,
+} from './transition-workforce-membership.port.ts';
 
 export type TransitionWorkforceMembershipCommand = Readonly<{
   actor: WorkforceActorRef;
@@ -29,7 +31,7 @@ export type TransitionWorkforceMembership = (
 
 export const makeTransitionWorkforceMembership =
   (deps: {
-    store: WorkforceMembershipStore;
+    store: TransitionWorkforceMembershipStore;
     clock: Clock;
     event: WorkforceMembershipEvent;
   }): TransitionWorkforceMembership =>
@@ -73,21 +75,3 @@ export const makeTransitionWorkforceMembership =
 
     return result.ok(transitioned.value);
   };
-
-export const makeSuspendWorkforceMembership = (deps: {
-  store: WorkforceMembershipStore;
-  clock: Clock;
-}): TransitionWorkforceMembership =>
-  makeTransitionWorkforceMembership({ ...deps, event: 'suspend' });
-
-export const makeReactivateWorkforceMembership = (deps: {
-  store: WorkforceMembershipStore;
-  clock: Clock;
-}): TransitionWorkforceMembership =>
-  makeTransitionWorkforceMembership({ ...deps, event: 'reactivate' });
-
-export const makeEndWorkforceMembership = (deps: {
-  store: WorkforceMembershipStore;
-  clock: Clock;
-}): TransitionWorkforceMembership =>
-  makeTransitionWorkforceMembership({ ...deps, event: 'end' });

@@ -9,7 +9,6 @@ import {
   type AuthResource,
   type PolicyRule,
 } from '@pressly/auth/authorization';
-import { catchAsync } from '@pressly/http/express';
 import { permissionError } from '@pressly/errors/factories';
 import type { Clock } from '@pressly/time';
 import {
@@ -60,61 +59,61 @@ export const makeAuthorizeMiddleware =
     }>,
   ): AuthorizeMiddlewareFactory =>
   <R extends AuthResource>(input: AuthorizeMiddlewareInput<R>) =>
-    catchAsync(async (req, res, next) => {
-      const auth = readAuthContext(res);
-      const resource = await input.readResource(req, res);
-      const environment = environmentFromRequest(
-        req,
-        auth.principal,
-        deps.clock.now(),
-      );
+  async (req, res, next) => {
+    const auth = readAuthContext(res);
+    const resource = await input.readResource(req, res);
+    const environment = environmentFromRequest(
+      req,
+      auth.principal,
+      deps.clock.now(),
+    );
 
-      const decision = authorize({
-        principal: auth.principal,
-        principalAttributes: auth.principalAttributes,
+    const decision = authorize({
+      principal: auth.principal,
+      principalAttributes: auth.principalAttributes,
+      action: input.action,
+      resource,
+      environment,
+      policies: input.policies,
+    });
+
+    if (isDenied(decision)) {
+      (deps.securityEvents ?? nullSecurityEventSink).emit({
+        name: 'authorization.denied',
+        occurredAt: environment.now.toISOString(),
+        outcome: 'denied',
+        ...((res.locals['requestId'] as string | undefined) === undefined
+          ? {}
+          : { requestId: res.locals['requestId'] as string }),
+        principalId: auth.principal.identityId,
+        ...(auth.principal.sessionId === undefined
+          ? {}
+          : { sessionId: auth.principal.sessionId }),
         action: input.action,
-        resource,
-        environment,
-        policies: input.policies,
+        resourceType: resource.kind,
+        ...(resource.id === undefined ? {} : { resourceId: resource.id }),
+        reason: decision.reason,
       });
 
-      if (isDenied(decision)) {
-        (deps.securityEvents ?? nullSecurityEventSink).emit({
-          name: 'authorization.denied',
-          occurredAt: environment.now.toISOString(),
-          outcome: 'denied',
-          ...((res.locals['requestId'] as string | undefined) === undefined
-            ? {}
-            : { requestId: res.locals['requestId'] as string }),
-          principalId: auth.principal.identityId,
-          ...(auth.principal.sessionId === undefined
-            ? {}
-            : { sessionId: auth.principal.sessionId }),
+      throw permissionError({
+        code: decision.reason,
+        message: decision.safeMessage,
+        safeMessage: decision.safeMessage,
+        details: {
+          ...(decision.details ?? ({} as Record<string, unknown>)),
           action: input.action,
-          resourceType: resource.kind,
-          ...(resource.id === undefined ? {} : { resourceId: resource.id }),
-          reason: decision.reason,
-        });
+          resource: resource.kind,
+          scope: resource.scope,
+          policyId: decision.policyId,
+        },
+      });
+    }
 
-        throw permissionError({
-          code: decision.reason,
-          message: decision.safeMessage,
-          safeMessage: decision.safeMessage,
-          details: {
-            ...(decision.details ?? ({} as Record<string, unknown>)),
-            action: input.action,
-            resource: resource.kind,
-            scope: resource.scope,
-            policyId: decision.policyId,
-          },
-        });
-      }
+    res.locals['authorization'] = {
+      action: input.action,
+      resource,
+      decision,
+    };
 
-      res.locals['authorization'] = {
-        action: input.action,
-        resource,
-        decision,
-      };
-
-      next();
-    });
+    next();
+  };

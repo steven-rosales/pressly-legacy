@@ -9,7 +9,7 @@ import {
   restoreIncomingOrderProposalResultSchema,
 } from '@pressly/contracts/orders';
 import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
 import type {
   IncomingOrderProposalListResult,
   OrdersApplication,
@@ -53,21 +53,17 @@ export const makeIncomingOrderProposalRoutes = (input: {
   readPrincipal: ReadOrderManagementPrincipal;
 }): Router => {
   const routes = Router();
-
-  routes.get(
-    '/order-management/locations/:locationId/incoming-orders',
-    input.authenticate,
-    validateRequest({
+  const listController = defineValidatedController({
+    request: {
       params: incomingOrderProposalParamsSchema.omit({ proposalId: true }),
       query: incomingOrderProposalListQuerySchema,
-    }),
-    input.authorize,
-    catchAsync(async (request, response) => {
+    },
+    handle: async ({ params, query }, { response }) => {
       const outcome = await input.orders.listIncomingOrderProposals({
-        locationId: request.params['locationId'] as string,
-        limit: request.query['limit'] as unknown as number,
-        cursor: (request.query['cursor'] as string | undefined) ?? null,
-        view: request.query['view'] as 'needs_review' | 'source_closed',
+        locationId: params.locationId,
+        limit: query.limit,
+        cursor: query.cursor ?? null,
+        view: query.view,
       });
       const value = orderManagementResultValue(outcome);
       response.json(
@@ -75,67 +71,96 @@ export const makeIncomingOrderProposalRoutes = (input: {
           incomingOrderProposalListSchema.parse(serializeProposalPage(value)),
         ),
       );
-    }),
-  );
-
-  const proposalSecurity = [
-    input.authenticate,
-    validateRequest({ params: incomingOrderProposalParamsSchema }),
-    input.authorize,
-  ] as const;
-
-  routes.post(
-    '/order-management/locations/:locationId/incoming-orders/:proposalId/accept',
-    ...proposalSecurity,
-    validateRequest({ body: acceptIncomingOrderProposalRequestSchema }),
-    catchAsync(async (request, response) => {
+    },
+  });
+  const acceptController = defineValidatedController({
+    request: {
+      params: incomingOrderProposalParamsSchema,
+      body: acceptIncomingOrderProposalRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
       const outcome = await input.orders.acceptIncomingOrderProposal({
-        ...request.body,
-        proposalId: request.params['proposalId'] as string,
-        locationId: request.params['locationId'] as string,
+        ...body,
+        proposalId: params.proposalId,
+        locationId: params.locationId,
         context: orderManagementCommandContext(response, input.readPrincipal),
       });
       const value = orderManagementResultValue(outcome);
       response.json(
         apiSuccess(incomingOrderProposalDecisionResultSchema.parse(value)),
       );
-    }),
-  );
-
-  routes.post(
-    '/order-management/locations/:locationId/incoming-orders/:proposalId/reject',
-    ...proposalSecurity,
-    validateRequest({ body: rejectIncomingOrderProposalRequestSchema }),
-    catchAsync(async (request, response) => {
+    },
+  });
+  const rejectController = defineValidatedController({
+    request: {
+      params: incomingOrderProposalParamsSchema,
+      body: rejectIncomingOrderProposalRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
       const outcome = await input.orders.rejectIncomingOrderProposal({
-        ...request.body,
-        proposalId: request.params['proposalId'] as string,
-        locationId: request.params['locationId'] as string,
+        ...body,
+        proposalId: params.proposalId,
+        locationId: params.locationId,
         context: orderManagementCommandContext(response, input.readPrincipal),
       });
       const value = orderManagementResultValue(outcome);
       response.json(
         apiSuccess(incomingOrderProposalDecisionResultSchema.parse(value)),
       );
-    }),
-  );
-
-  routes.post(
-    '/order-management/locations/:locationId/incoming-orders/:proposalId/restore',
-    ...proposalSecurity,
-    validateRequest({ body: restoreIncomingOrderProposalRequestSchema }),
-    catchAsync(async (request, response) => {
+    },
+  });
+  const restoreController = defineValidatedController({
+    request: {
+      params: incomingOrderProposalParamsSchema,
+      body: restoreIncomingOrderProposalRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
       const outcome = await input.orders.restoreIncomingOrderProposal({
-        ...request.body,
-        proposalId: request.params['proposalId'] as string,
-        locationId: request.params['locationId'] as string,
+        ...body,
+        proposalId: params.proposalId,
+        locationId: params.locationId,
         context: orderManagementCommandContext(response, input.readPrincipal),
       });
       const value = orderManagementResultValue(outcome);
       response.json(
         apiSuccess(restoreIncomingOrderProposalResultSchema.parse(value)),
       );
-    }),
+    },
+  });
+
+  routes.get(
+    '/order-management/locations/:locationId/incoming-orders',
+    input.authenticate,
+    listController.validate,
+    input.authorize,
+    listController.handle,
+  );
+
+  routes.post(
+    '/order-management/locations/:locationId/incoming-orders/:proposalId/accept',
+    input.authenticate,
+    acceptController.validators.params,
+    input.authorize,
+    acceptController.validators.body,
+    acceptController.handle,
+  );
+
+  routes.post(
+    '/order-management/locations/:locationId/incoming-orders/:proposalId/reject',
+    input.authenticate,
+    rejectController.validators.params,
+    input.authorize,
+    rejectController.validators.body,
+    rejectController.handle,
+  );
+
+  routes.post(
+    '/order-management/locations/:locationId/incoming-orders/:proposalId/restore',
+    input.authenticate,
+    restoreController.validators.params,
+    input.authorize,
+    restoreController.validators.body,
+    restoreController.handle,
   );
 
   return routes;

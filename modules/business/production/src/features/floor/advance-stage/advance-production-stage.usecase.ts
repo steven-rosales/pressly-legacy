@@ -23,7 +23,7 @@ import type {
   ProductionStageStartTiming,
   ProductionTerminalLifecycleDecisions,
 } from '../../../foundations/language/execution/production-lifecycle.model.ts';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { ProductionSignalsPort } from '../../../foundations/ports/signals/production-signals.port.ts';
 import type {
   AdvanceProductionStageCommand,
@@ -41,7 +41,6 @@ import {
   makeStageStartConfirmationRequired,
   matchesStageStartConfirmation,
 } from './stage-start-confirmation.policy.ts';
-export type { AdvanceProductionStage } from './advance-production-stage.port.ts';
 
 type AdvanceProductionStagePolicy = Pick<
   ProductionRules,

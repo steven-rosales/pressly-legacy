@@ -12,13 +12,12 @@ import {
   resolveWorkEventReplay,
 } from '../../../foundations/language/commands/production-idempotency.policy.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type {
   RecordOrderIntake,
   RecordOrderIntakeRepository,
 } from './record-order-intake.port.ts';
 import type { RecordOrderIntakeResult } from './record-order-intake.model.ts';
-export type { RecordOrderIntake } from './record-order-intake.port.ts';
 
 type RecordOrderIntakePolicy = Pick<
   ProductionRules,

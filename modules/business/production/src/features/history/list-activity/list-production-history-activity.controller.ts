@@ -2,23 +2,21 @@ import {
   listProductionHistoryActivityQuerySchema,
   listProductionHistoryActivityResultSchema,
   productionHistoryLocationParamsSchema,
-} from './list-production-history-activity.contract.mapper.ts';
-import { defineRequestBoundary } from '@pressly/http/express';
+} from '@pressly/contracts/production';
+import { defineValidatedController } from '@pressly/http/express';
 import { sendValidatedProductionResult } from '../../../foundations/adapters/errors/production-api-result.adapter.ts';
-import type { RequestHandler } from 'express';
 import { toListProductionHistoryActivityResult } from './list-production-history-activity.contract.mapper.ts';
 import type { ListProductionHistoryActivity } from './list-production-history-activity.port.ts';
 
-export const listProductionHistoryActivityBoundary = defineRequestBoundary({
-  params: productionHistoryLocationParamsSchema,
-  query: listProductionHistoryActivityQuerySchema,
-});
-
 export const makeListProductionHistoryActivityController = (input: {
   listActivity: ListProductionHistoryActivity;
-}): RequestHandler =>
-  listProductionHistoryActivityBoundary.handler(
-    async ({ params, query }, { response }) => {
+}) =>
+  defineValidatedController({
+    request: {
+      params: productionHistoryLocationParamsSchema,
+      query: listProductionHistoryActivityQuerySchema,
+    },
+    handle: async ({ params, query }, { response }) => {
       const {
         cursor,
         limit,
@@ -50,4 +48,4 @@ export const makeListProductionHistoryActivityController = (input: {
         },
       );
     },
-  );
+  });

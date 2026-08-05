@@ -6,25 +6,27 @@ import {
   mfaFailure,
   type MfaFailure,
 } from '../../../foundations/language/mfa/mfa.failure.ts';
-import type { MfaEnrollmentStore } from '../../../foundations/ports/mfa-store/mfa-enrollment-store.port.ts';
 import type {
   BeginMfaEnrollmentCommand,
   MfaEnrollment,
 } from './begin-mfa-enrollment.model.ts';
+import type { BeginMfaEnrollmentStore } from './begin-mfa-enrollment.port.ts';
+
+type MakeBeginMfaEnrollmentDeps = {
+  store: BeginMfaEnrollmentStore;
+  totp: TotpAuthenticator;
+  secretBox: SecretBox;
+  clock: Clock;
+  issuer: string;
+  securityEvents?: SecurityEventSink;
+};
 
 export type BeginMfaEnrollment = (
   command: BeginMfaEnrollmentCommand,
 ) => Promise<Result<MfaEnrollment, MfaFailure>>;
 
 export const makeBeginMfaEnrollment =
-  (deps: {
-    store: MfaEnrollmentStore;
-    totp: TotpAuthenticator;
-    secretBox: SecretBox;
-    clock: Clock;
-    issuer: string;
-    securityEvents?: SecurityEventSink;
-  }): BeginMfaEnrollment =>
+  (deps: MakeBeginMfaEnrollmentDeps): BeginMfaEnrollment =>
   async ({ identityId, label }) => {
     const secret = deps.totp.generateSecret();
     const started = await deps.store.beginEnrollment({

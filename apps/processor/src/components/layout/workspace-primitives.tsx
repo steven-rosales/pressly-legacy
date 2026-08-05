@@ -1,5 +1,3 @@
-export { WorkspaceSectionHeading as SectionHeading } from "./workspace-section-heading"
-
 export type MetricStripItem = Readonly<{
   label: string
   value: string

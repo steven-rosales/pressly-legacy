@@ -1,8 +1,3 @@
-export {
-  acceptScheduleRequestSchema,
-  acceptScheduleResultSchema,
-  productionScheduleParamsSchema,
-} from '@pressly/contracts/production';
 import type {
   AcceptScheduleCommand as AcceptScheduleWireCommand,
   AcceptScheduleResult as AcceptScheduleWireResult,

@@ -14,7 +14,7 @@ import {
 import type { IdSource } from '@pressly/kernel';
 import type { Clock } from '@pressly/time';
 import { projectScheduleProposalJson } from '../../../foundations/language/scheduling/schedule-proposal-json.projection.ts';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { ProductionSignalsPort } from '../../../foundations/ports/signals/production-signals.port.ts';
 import type { ProductionAlgorithmRegistry } from '../../../foundations/algorithms/approved-production/production-algorithm-registry.factory.ts';
 import type { ScheduleSupersessionDecision } from '../../../foundations/language/execution/production-lifecycle.model.ts';
@@ -22,8 +22,7 @@ import type {
   CreateSchedule,
   CreateScheduleRepository,
 } from './create-schedule.port.ts';
-import type { CreateScheduleResult } from './create-schedule.model.ts';
-export type { CreateSchedule } from './create-schedule.port.ts';
+import type { ScheduleProposal } from '../../../foundations/language/scheduling/schedule-proposal.entity.ts';
 
 type CreateSchedulePolicy = Pick<
   ProductionRules,
@@ -55,7 +54,7 @@ export const makeCreateSchedule =
             schedulerConfigId: command.schedulerConfigId,
           },
         });
-        const replay = resolveWorkEventReplay<CreateScheduleResult>(
+        const replay = resolveWorkEventReplay<ScheduleProposal>(
           await repo.findWorkEvent(command.idempotencyKey),
           idempotency,
         );
@@ -64,7 +63,7 @@ export const makeCreateSchedule =
         if (replay.tag === 'replay') return result.ok(replay.result);
 
         await repo.lockLocationScheduling(command.locationId);
-        const lockedReplay = resolveWorkEventReplay<CreateScheduleResult>(
+        const lockedReplay = resolveWorkEventReplay<ScheduleProposal>(
           await repo.findWorkEvent(command.idempotencyKey),
           idempotency,
         );

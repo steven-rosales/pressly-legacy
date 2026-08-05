@@ -1,9 +1,7 @@
+import type { ControlAccess } from '@pressly/control-experience';
 import type { ControlAuthenticatedSession } from '@pressly/contracts/auth';
 import { invariantViolationError } from '@pressly/errors/factories';
-import type {
-  ControlAccess,
-  LoadedControlSession,
-} from './control-session.port.ts';
+import type { LoadedControlSession } from './control-session.port.ts';
 
 export const controlBrowserSession = (
   loaded: LoadedControlSession,

@@ -8,7 +8,7 @@ import type {
   OperationalOrderIdentityReference,
   OperationalOrderIdentityResolution,
 } from '../../../language/operational-order/operational-order.model.ts';
-import { canonicalCustomerDisplayName } from '../../../language/operational-order/operational-order.policy.ts';
+import { canonicalCustomerDisplayName } from '../../../language/operational-order/operational-order.value.ts';
 import type { OperationalOrderIdentityPort } from '../../../ports/operational-order-identity/operational-order-identity.port.ts';
 import {
   admissionStateFromPersistence,

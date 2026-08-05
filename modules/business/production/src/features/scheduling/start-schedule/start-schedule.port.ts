@@ -1,4 +1,4 @@
-import type { StartScheduleFailure } from './start-schedule.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   FindWorkEvent,
@@ -22,7 +22,7 @@ export type ScheduleStartRecord = Readonly<{
 
 export type StartSchedule = (
   command: StartScheduleCommand,
-) => Promise<Result<StartScheduleResult, StartScheduleFailure>>;
+) => Promise<Result<StartScheduleResult, ProductionFeatureFailure>>;
 
 export type ScheduleStartOrder = Readonly<{
   id: string;
@@ -30,8 +30,6 @@ export type ScheduleStartOrder = Readonly<{
   executionStatus: string;
   version: number;
 }>;
-
-export type ScheduleStartOrderLifecycle = ProductionOrderSchedulingMutation;
 
 export type StartScheduleRepository = UnitOfWork<
   Readonly<{
@@ -58,7 +56,7 @@ export type StartScheduleRepository = UnitOfWork<
       record: ScheduleStartRecord;
       actorId: string;
       productionRunStatus: 'started';
-      orderLifecycles: readonly ScheduleStartOrderLifecycle[];
+      orderLifecycles: readonly ProductionOrderSchedulingMutation[];
       initialBatchState: 'queued';
       initialStageState: 'planned';
       initialAttemptState: 'assigned';

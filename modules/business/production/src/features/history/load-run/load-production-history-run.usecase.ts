@@ -27,8 +27,3 @@ export const makeLoadProductionHistoryRun =
       return result.err(productionHistoryRunNotFound());
     return result.ok(loaded.value);
   };
-
-export type {
-  LoadProductionHistoryRun,
-  LoadProductionHistoryRunRepository,
-} from './load-production-history-run.port.ts';

@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { parse, stringify } from 'yaml';
+import { toolingError } from '@pressly/errors/tooling-error';
 
 export const memoryStatuses = [
   'draft',
@@ -201,7 +202,10 @@ export const resolveDomainMemoryPaths = async (
   const domain = index.domains?.find((entry) => entry.id === domainId);
 
   if (!domain) {
-    throw new Error(`memory domain not found: ${domainId}`);
+    throw toolingError({
+      code: 'memory_domain_not_found',
+      message: `memory domain not found: ${domainId}`,
+    });
   }
 
   const result: { memoryPath: string; contextPackPath?: string } = {
@@ -334,13 +338,17 @@ export const applyAcceptedMemoryDelta = (
   delta: MemoryDelta,
 ): StateworksDomainMemory => {
   if (delta.domain_id !== memory.domain_id) {
-    throw new Error(
-      `delta domain ${delta.domain_id} does not match memory domain ${memory.domain_id}`,
-    );
+    throw toolingError({
+      code: 'memory_delta_domain_mismatch',
+      message: `delta domain ${delta.domain_id} does not match memory domain ${memory.domain_id}`,
+    });
   }
 
   if (delta.status !== 'accepted') {
-    throw new Error('only accepted memory deltas can be applied');
+    throw toolingError({
+      code: 'memory_delta_not_accepted',
+      message: 'only accepted memory deltas can be applied',
+    });
   }
 
   const next = cloneMemory(memory);
@@ -886,7 +894,10 @@ const applyDescribedChange = (
   }
 
   if (!change.description) {
-    throw new Error(`${change.kind} change ${change.id} requires description`);
+    throw toolingError({
+      code: 'memory_change_description_required',
+      message: `${change.kind} change ${change.id} requires description`,
+    });
   }
 
   const nextEntry: DescribedEntry = {
@@ -915,7 +926,10 @@ const applyWorkflowChange = (
   }
 
   if (!change.steps || change.steps.length === 0) {
-    throw new Error(`workflow change ${change.id} requires steps`);
+    throw toolingError({
+      code: 'memory_workflow_steps_required',
+      message: `workflow change ${change.id} requires steps`,
+    });
   }
 
   const nextEntry: WorkflowEntry = {
@@ -950,7 +964,10 @@ const applyStatementChange = (
   }
 
   if (!change.statement) {
-    throw new Error(`${kind} change ${change.id} requires statement`);
+    throw toolingError({
+      code: 'memory_statement_required',
+      message: `${kind} change ${change.id} requires statement`,
+    });
   }
 
   const nextEntry: StatementEntry = {
@@ -983,7 +1000,10 @@ const applyQuestionChange = (
   }
 
   if (!change.question) {
-    throw new Error(`open_question change ${change.id} requires question`);
+    throw toolingError({
+      code: 'memory_question_required',
+      message: `open_question change ${change.id} requires question`,
+    });
   }
 
   const nextEntry: QuestionEntry = {
@@ -1005,7 +1025,10 @@ const deprecateEntry = <T extends { id: string; status?: MemoryEntryStatus }>(
   const existing = entries[index];
 
   if (!existing) {
-    throw new Error(`cannot deprecate missing memory entry ${id}`);
+    throw toolingError({
+      code: 'memory_entry_missing_for_deprecation',
+      message: `cannot deprecate missing memory entry ${id}`,
+    });
   }
 
   entries[index] = { ...existing, status: 'deprecated' };
@@ -1028,9 +1051,10 @@ const upsertEntry = <T extends { id: string; sources?: string[] }>(
     op === 'assert' &&
     JSON.stringify(existing) !== JSON.stringify(nextEntry)
   ) {
-    throw new Error(
-      `memory entry ${nextEntry.id} already exists; use update or deprecate`,
-    );
+    throw toolingError({
+      code: 'memory_entry_assert_conflict',
+      message: `memory entry ${nextEntry.id} already exists; use update or deprecate`,
+    });
   }
 
   entries[index] = {

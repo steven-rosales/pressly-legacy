@@ -23,7 +23,7 @@ const webhookIngestionFailed = (cause: unknown): AppError =>
     }),
   );
 
-export const hashWebhookPayload = (payload: JsonValue): string | null => {
+const hashWebhookPayload = (payload: JsonValue): string | null => {
   if (payload === null) return null;
 
   try {

@@ -2,12 +2,12 @@ import { type Database } from '@pressly/db/client';
 import { and, eq, gt, isNull, lte, ne, or, sql } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
 import type { LoginStore } from './login.port.ts';
-import { recordAuthAuditEvent } from '../../../foundations/adapters/postgres/identity-store/auth-audit.repo.ts';
+import { recordAuthAuditEvent } from '../../../foundations/adapters/postgres/auth-audit/auth-audit.repo.ts';
 import {
   databaseFailure,
   runDatabaseOperation,
-} from '../../../foundations/adapters/postgres/identity-store/database-result.adapter.ts';
-import { mapStoredRoles } from '../../../foundations/adapters/postgres/identity-store/stored-roles.persistence.mapper.ts';
+} from '../../../foundations/adapters/postgres/database-operation/database-operation.adapter.ts';
+import { mapStoredRoles } from '../../../foundations/adapters/postgres/role-read/stored-roles.persistence.mapper.ts';
 
 export const makeLoginStore = (db: Database): LoginStore => ({
   findIdentityByEmail: async (emailNormalized) =>

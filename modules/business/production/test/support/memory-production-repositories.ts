@@ -216,7 +216,8 @@ type MemoryProductionOperations = OperationsOf<'acceptSchedule'> &
     ) => Promise<UnevaluatedProductionBoard | null>;
   }> &
   OperationsOf<'manageProductionResources'> &
-  OperationsOf<'manageProductionShift'> &
+  OperationsOf<'createProductionShift'> &
+  OperationsOf<'updateProductionShift'> &
   OperationsOf<'applyFulfillmentDemand'> &
   OperationsOf<'publishSchedulerConfig'> &
   OperationsOf<'recordOrderIntake'> &
@@ -2173,24 +2174,25 @@ export const makeMemoryProductionRepositories = (deps: {
     },
     manageProductionResources:
       transactional<OperationsOf<'manageProductionResources'>>(allOperations),
-    manageProductionShift:
-      transactional<OperationsOf<'manageProductionShift'>>(allOperations),
+    createProductionShift:
+      transactional<OperationsOf<'createProductionShift'>>(allOperations),
+    updateProductionShift:
+      transactional<OperationsOf<'updateProductionShift'>>(allOperations),
     manageBatchMembership: unsupportedTransactional(),
     placeProductionOrder: unsupportedTransactional(),
     publishSchedulerConfig:
       transactional<OperationsOf<'publishSchedulerConfig'>>(allOperations),
     recordOrderIntake:
       transactional<OperationsOf<'recordOrderIntake'>>(allOperations),
-    reviewProductionOrderBacklog: {
-      ...unsupportedTransactional<
-        OperationsOf<'reviewProductionOrderBacklog'>
-      >(),
+    previewProductionOrderBacklog: {
       loadSnapshot: async () => {
         throw new Error(
           'The memory backlog-review repository is not supported.',
         );
       },
     },
+    commitProductionOrderBacklog:
+      unsupportedTransactional<OperationsOf<'commitProductionOrderBacklog'>>(),
     replaceShiftOrderSelection:
       transactional<OperationsOf<'replaceShiftOrderSelection'>>(allOperations),
     routeProductionOrder: unsupportedTransactional(),

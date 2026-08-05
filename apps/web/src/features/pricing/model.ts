@@ -1,6 +1,5 @@
 import type {
   PricingCatalogResult,
-  PricingItemResult,
   PricingParamsRequestSchema,
 } from '@pressly/contracts/pricing';
 
@@ -55,5 +54,3 @@ export type DryCleaningPricingModel = Readonly<{
 export type PricingCatalogLoader = (
   input: PricingParamsRequestSchema,
 ) => Promise<PricingCatalogViewModel>;
-
-export type PricingCatalogItem = PricingItemResult;

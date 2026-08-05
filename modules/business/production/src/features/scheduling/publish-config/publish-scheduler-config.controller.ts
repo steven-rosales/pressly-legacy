@@ -2,24 +2,23 @@ import {
   productionLocationParamsSchema,
   publishSchedulerConfigRequestSchema,
   schedulerConfigSchema,
-} from './publish-scheduler-config.contract.mapper.ts';
+} from '@pressly/contracts/production';
 import type { RequestHandler } from 'express';
-import { defineRequestBoundary } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
 import { sendValidatedProductionResult } from '../../../foundations/adapters/errors/production-api-result.adapter.ts';
 import { toSchedulerConfigResult } from './publish-scheduler-config.contract.mapper.ts';
 import type { PublishSchedulerConfig } from './publish-scheduler-config.port.ts';
 
-export const publishSchedulerConfigBoundary = defineRequestBoundary({
-  params: productionLocationParamsSchema,
-  body: publishSchedulerConfigRequestSchema,
-});
-
 export const makePublishSchedulerConfigController = (input: {
   publish: PublishSchedulerConfig;
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
-}): RequestHandler =>
-  publishSchedulerConfigBoundary.handler(
-    async ({ body, params }, { response }) => {
+}) =>
+  defineValidatedController({
+    request: {
+      params: productionLocationParamsSchema,
+      body: publishSchedulerConfigRequestSchema,
+    },
+    handle: async ({ body, params }, { response }) => {
       sendValidatedProductionResult(
         response,
         await input.publish({
@@ -37,4 +36,4 @@ export const makePublishSchedulerConfigController = (input: {
         },
       );
     },
-  );
+  });

@@ -5,7 +5,7 @@ import { makeAdvanceProductionStageRepository } from '../../../../src/features/f
 import { makeAdvanceProductionStage } from '../../../../src/features/floor/advance-stage/advance-production-stage.usecase.ts';
 import { makeManageBatchMembershipRepository } from '../../../../src/features/floor/manage-batch-membership/manage-batch-membership.repo.ts';
 import { makeManageBatchMembership } from '../../../../src/features/floor/manage-batch-membership/manage-batch-membership.usecase.ts';
-import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.model.ts';
 import { createProductionTestDatabase } from '../../../support/database.ts';
 import { allowPolicy, makeIds } from '../../../support/production.fake.ts';
 import { nullProductionSignals } from '../../../../src/foundations/adapters/signals/null-production-signals.adapter.ts';

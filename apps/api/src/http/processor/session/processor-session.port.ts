@@ -1,9 +1,5 @@
 import type { IdentityModule } from '@pressly/identity';
 import { result } from '@pressly/kernel';
-import type {
-  ProcessorAccess,
-  ResolveProcessorAccess,
-} from '@pressly/processor-experience';
 import type { Router, RequestHandler } from 'express';
 
 export type ProcessorAuthApplication = IdentityModule['application'];
@@ -16,8 +12,6 @@ export type LoadedProcessorSession = ResultValue<
 >;
 
 export const isResultError = result.isErr;
-
-export type { ProcessorAccess, ResolveProcessorAccess };
 
 export type ProcessorSessionOptions = Readonly<{
   origin: string;

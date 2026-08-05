@@ -1,6 +1,5 @@
 import { mapUnknownError, type AppError } from '@pressly/errors/app-error';
 import { databaseError } from '@pressly/errors/factories';
-import type { SourceLocationBindingStore } from '../../../foundations/ports/source-location-binding-store/source-location-binding-store.port.ts';
 import type { ResolveSourceLocation } from './resolve-source-location.port.ts';
 
 const sourceLocationResolutionFailure = (cause: unknown): AppError =>
@@ -15,10 +14,10 @@ const sourceLocationResolutionFailure = (cause: unknown): AppError =>
   );
 
 export const makeResolveSourceLocation =
-  (store: SourceLocationBindingStore): ResolveSourceLocation =>
+  (repo: ResolveSourceLocation): ResolveSourceLocation =>
   async (query) => {
     try {
-      return await store.resolve(query);
+      return await repo(query);
     } catch (error) {
       throw sourceLocationResolutionFailure(error);
     }

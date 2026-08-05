@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  makeReconcileProductionBatchProgressController,
-  reconcileProductionBatchProgressBoundary,
-} from './reconcile-production-batch-progress.controller.ts';
-import type { ReconcileProductionBatchProgress } from './reconcile-production-batch-progress.usecase.ts';
+import { makeReconcileProductionBatchProgressController } from './reconcile-production-batch-progress.controller.ts';
+import type { ReconcileProductionBatchProgress } from './reconcile-production-batch-progress.port.ts';
 
 export const makeReconcileProductionBatchProgressRoute = (input: {
   reconcile: ReconcileProductionBatchProgress;
@@ -12,12 +9,13 @@ export const makeReconcileProductionBatchProgressRoute = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const controller = makeReconcileProductionBatchProgressController(input);
   router.post(
     '/production/locations/:locationId/runs/:productionRunId/batches/:productionBatchId/progress-reconciliation',
     input.authenticate,
-    reconcileProductionBatchProgressBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeReconcileProductionBatchProgressController(input),
+    controller.handle,
   );
   return router;
 };

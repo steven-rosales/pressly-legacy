@@ -13,8 +13,7 @@ const setup = (existing: readonly (typeof binding)[] = []) => {
   return {
     insert,
     reconcile: makeReconcileSourceLocationBindings({
-      store: {
-        resolve: vi.fn(async () => null),
+      repo: {
         loadAll: vi.fn(async () => existing),
         insert,
       },

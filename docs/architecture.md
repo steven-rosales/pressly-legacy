@@ -112,6 +112,7 @@ module composition -> its own features and adapters
 feature -> its declared foundations
 adapter/repository -> the port it implements
 contract mapper -> an explicit Contracts subpath
+internal consumer -> the symbol's semantic declaration owner
 ```
 
 Forbidden dependencies include:
@@ -159,15 +160,35 @@ A foundation is a proven shared dependency with a narrow semantic owner. Empty
 ceremonial files and generic `common`, `shared`, `utils`, `services`, or
 `platform` directories are forbidden.
 
+Feature ownership is the default. Reuse-based foundations must have at least
+two independent feature consumers, counting source-observed transitive
+dependencies; continuity-based foundations are explicit identity-bearing
+domain language.
+An adapter names the precise port it implements when a genuine shared
+replacement axis exists; reusable concrete primitives do not require
+ceremonial ports. A table-oriented store is not promoted merely because
+several SQL operations can fit in one object.
+
 `module.architecture.ts` is immutable formal data. It declares namespaces,
-feature profiles, foundation profiles, and dependency edges. The compiler
-checks the filesystem and ESLint checks source dependencies and pure roles.
+feature profiles, foundation profiles, and an exact owner-dependency allowlist.
+The compiler checks the filesystem, source-observed edges, and earned
+foundation fan-in; ESLint checks local dependency direction and pure roles.
 
 Each feature leaf owns at most one `*.usecase.ts`. Independently named
 operations are independently named verb-object features and are connected by
 narrow injected ports, never sibling imports. Module `main.ts` and `public.ts`
 enumerate canonical exports explicitly; export-star and aliased compatibility
 surfaces are forbidden.
+
+A non-surface source file exports only declarations it owns. It does not
+re-export an import or give an imported type or value a second identity.
+Consumers import from the semantic declaration owner, so go-to-definition and
+text search reach behavior without crossing ceremonial files. Direct named
+re-exports are reserved for formal API surfaces: module roots, package targets
+declared in `package.json#exports`, and the small set of app entrypoints
+declared by the repository architecture. `main.ts` publishes construction
+owned by composition; `public.ts` may curate canonical declarations directly
+from their semantic owners.
 
 See [Module architecture](./module-architecture.md) for the complete placement
 decision tree, role vocabulary, Entity-versus-Model rule, failure grammar,
@@ -365,6 +386,22 @@ to disguise it as an expected business failure.
 Private `details` and `cause` never cross a client boundary; reviewed
 `publicDetails` is a strict `JsonValue` and is the only structured diagnostic
 context eligible for serialization.
+
+Express endpoints use the factory-shaped request boundary from
+`@pressly/http/express`: synchronous parsing of each configured location
+exactly once followed by a directly returned controller promise. Routes
+normally register its paired `validate` and `handle` functions. A route that
+must authorize validated scope before parsing a command body composes the same
+controller's typed per-location validators around authorization. Express 5
+forwards unexpected rejections to the single outer error middleware.
+`catchAsync` and repeated route/controller promise wrappers are forbidden
+because they create competing error boundaries without adding application
+meaning.
+
+When a location has an established non-default validation response, declare
+its code, safe message, and status through the same controller's
+`invalidRequest` data. Do not restore route-local parsing helpers or throwable
+callbacks to customize that response.
 
 API controllers, Worker jobs, and CLI commands translate expected module
 failures into `AppError` only at the edge that owns HTTP or retry semantics.

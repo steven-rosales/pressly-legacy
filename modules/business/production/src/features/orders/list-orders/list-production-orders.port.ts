@@ -1,4 +1,4 @@
-import type { ListProductionOrdersFailure } from './list-production-orders.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type {
   ListProductionOrdersCommand,
@@ -7,7 +7,7 @@ import type {
 
 export type ListProductionOrders = (
   command: ListProductionOrdersCommand,
-) => Promise<Result<ProductionOrderPage, ListProductionOrdersFailure>>;
+) => Promise<Result<ProductionOrderPage, ProductionFeatureFailure>>;
 
 export type ListProductionOrdersRepositoryResult =
   | Readonly<{ tag: 'found'; value: ProductionOrderPage }>
@@ -20,5 +20,3 @@ export type ListProductionOrdersRepository = Readonly<{
     now: Date,
   ) => Promise<ListProductionOrdersRepositoryResult>;
 }>;
-
-export type { ListProductionOrdersCommand } from './list-production-orders.model.ts';

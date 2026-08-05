@@ -7,11 +7,9 @@ import express, {
   type RequestHandler,
 } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  deriveProcessorCsrfToken,
-  makeProcessorBrowserBoundary,
-  processorCookieNames,
-} from '../../src/http/processor/session/processor-session.composition.ts';
+import { processorCookieNames } from '../../src/http/processor/session/processor-cookie.adapter.ts';
+import { deriveProcessorCsrfToken } from '../../src/http/processor/session/processor-csrf.adapter.ts';
+import { makeProcessorBrowserBoundary } from '../../src/http/processor/session/processor-session.composition.ts';
 
 const origin = 'http://processor.test';
 const csrfSecret = 'test-processor-csrf-secret-at-least-32-bytes';

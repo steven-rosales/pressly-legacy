@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import type { LoadSchedule } from './load-schedule.usecase.ts';
-import {
-  loadScheduleBoundary,
-  makeLoadScheduleController,
-} from './load-schedule.controller.ts';
+import type { LoadSchedule } from './load-schedule.port.ts';
+import { makeLoadScheduleController } from './load-schedule.controller.ts';
 
 export const makeLoadScheduleRoute = (input: {
   loadSchedule: LoadSchedule;
@@ -11,12 +8,13 @@ export const makeLoadScheduleRoute = (input: {
   authorize: RequestHandler;
 }): Router => {
   const router = Router();
+  const controller = makeLoadScheduleController(input.loadSchedule);
   router.get(
     '/production/locations/:locationId/schedules/:scheduleRunId',
     input.authenticate,
-    loadScheduleBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeLoadScheduleController(input.loadSchedule),
+    controller.handle,
   );
   return router;
 };

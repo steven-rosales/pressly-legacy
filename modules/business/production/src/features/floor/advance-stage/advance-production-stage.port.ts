@@ -1,4 +1,4 @@
-import type { AdvanceProductionStageFailure } from './advance-production-stage.failure.ts';
+import type { ProductionFeatureFailure } from '../../../foundations/language/failures/production-feature.failure.ts';
 import type { Result } from '@pressly/kernel';
 import type { StageTransitionContext } from '../../../foundations/language/execution/stage-transition.model.ts';
 import type {
@@ -22,14 +22,10 @@ import type {
 export type AdvanceProductionStage = {
   (
     command: StartProductionStageCommand,
-  ): Promise<
-    Result<AdvanceProductionStageResult, AdvanceProductionStageFailure>
-  >;
+  ): Promise<Result<AdvanceProductionStageResult, ProductionFeatureFailure>>;
   (
     command: CompleteProductionStageCommand,
-  ): Promise<
-    Result<AdvanceProductionStageResult, AdvanceProductionStageFailure>
-  >;
+  ): Promise<Result<AdvanceProductionStageResult, ProductionFeatureFailure>>;
 };
 
 export type AdvanceProductionStageRepository = UnitOfWork<

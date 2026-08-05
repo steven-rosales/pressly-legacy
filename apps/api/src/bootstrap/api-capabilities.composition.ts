@@ -102,16 +102,14 @@ export const makeApiCapabilities = (input: {
       processor: input.runtime.env.processor.origin,
       control: input.runtime.env.control.origin,
     },
-    productionCapabilities: {
-      resolveForLocation: ({ session, location, now }) =>
-        authorizationModule.productionCapabilitiesForLocation({
-          principal: session.principal,
-          principalAttributes: session.principalAttributes,
-          locationId: location.id,
-          businessId: location.businessId,
-          now,
-        }),
-    },
+    resolveProductionCapabilities: ({ session, location, now }) =>
+      authorizationModule.productionCapabilitiesForLocation({
+        principal: session.principal,
+        principalAttributes: session.principalAttributes,
+        locationId: location.id,
+        businessId: location.businessId,
+        now,
+      }),
   });
 
   const processorBoundary = makeProcessorBrowserBoundary({

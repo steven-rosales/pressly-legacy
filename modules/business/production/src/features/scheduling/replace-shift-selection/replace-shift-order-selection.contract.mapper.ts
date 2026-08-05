@@ -1,8 +1,3 @@
-export {
-  productionShiftParamsSchema,
-  replaceProductionShiftSelectionRequestSchema,
-  replaceProductionShiftSelectionResultSchema,
-} from '@pressly/contracts/production';
 import type { ReplaceProductionShiftSelectionResult as ReplaceProductionShiftSelectionWireResult } from '@pressly/contracts/production';
 import type { ReplaceShiftOrderSelectionResult } from './replace-shift-order-selection.model.ts';
 

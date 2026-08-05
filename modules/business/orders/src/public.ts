@@ -1,39 +1,43 @@
 export {
   decideFulfillmentRelease,
-  mayTransitionFulfillment,
-  releaseFulfillmentReasonCodes,
   type FulfillmentReleaseDecision,
   type FulfillmentReleaseEvent,
-  withdrawFulfillmentReasonCodes,
-} from './main.ts';
-export type { ChangeFulfillmentReleaseFailure } from './features/fulfillment/change-fulfillment-release/change-fulfillment-release.failure.ts';
+} from './foundations/language/fulfillment-release/fulfillment-release.lifecycle.ts';
+export { mayTransitionFulfillment } from './foundations/language/fulfillment-release/fulfillment-release.policy.ts';
+export { releaseFulfillmentReasonCodes } from './features/fulfillment/release-fulfillment/release-fulfillment.policy.ts';
+export { withdrawFulfillmentReasonCodes } from './features/fulfillment/withdraw-fulfillment/withdraw-fulfillment.policy.ts';
+export type { FulfillmentReleaseFailure } from './foundations/language/fulfillment-release/fulfillment-release.failure.ts';
 export type {
   ReleaseFulfillment,
   ReleaseFulfillmentCommand,
   ReleaseFulfillmentReasonCode,
+} from './features/fulfillment/release-fulfillment/release-fulfillment.port.ts';
+export type {
   WithdrawFulfillment,
   WithdrawFulfillmentCommand,
   WithdrawFulfillmentReasonCode,
-} from './features/fulfillment/change-fulfillment-release/change-fulfillment-release.port.ts';
+} from './features/fulfillment/withdraw-fulfillment/withdraw-fulfillment.port.ts';
+export { cancelOrderReasonCodes } from './features/lifecycle/cancel-order/cancel-order.policy.ts';
+export { completeOrderReasonCodes } from './features/lifecycle/complete-order/complete-order.policy.ts';
 export {
-  cancelOrderReasonCodes,
-  completeOrderReasonCodes,
   decideOrderLifecycle,
-  mayTransitionOrder,
   type OrderLifecycleDecision,
   type OrderLifecycleEvent,
-} from './main.ts';
-export type { ChangeOrderLifecycleFailure } from './features/lifecycle/change-order-lifecycle/change-order-lifecycle.failure.ts';
+} from './foundations/language/order-lifecycle/order-lifecycle.lifecycle.ts';
+export { mayTransitionOrder } from './foundations/language/order-lifecycle/order-lifecycle.policy.ts';
+export type { OrderLifecycleFailure } from './foundations/language/order-lifecycle/order-lifecycle.failure.ts';
 export type {
   CancelOrder,
   CancelOrderCommand,
   CancelOrderReasonCode,
+} from './features/lifecycle/cancel-order/cancel-order.port.ts';
+export type {
   CompleteOrder,
   CompleteOrderCommand,
   CompleteOrderReasonCode,
-} from './features/lifecycle/change-order-lifecycle/change-order-lifecycle.port.ts';
+} from './features/lifecycle/complete-order/complete-order.port.ts';
 export type { OrderMutationResult } from './foundations/language/command-execution/order-command.model.ts';
-export { correctOrderReasonCodes } from './main.ts';
+export { correctOrderReasonCodes } from './features/lifecycle/correct-order/correct-order.policy.ts';
 export type { CorrectOrderFailure } from './features/lifecycle/correct-order/correct-order.failure.ts';
 export type {
   CorrectOrder,
@@ -42,7 +46,7 @@ export type {
   FulfillmentDescriptionCorrection,
   OrderDescriptionCorrection,
 } from './features/lifecycle/correct-order/correct-order.port.ts';
-export { createOrderReasonCodes } from './main.ts';
+export { createOrderReasonCodes } from './features/lifecycle/create-order/create-order.policy.ts';
 export type { CreateOrderFailure } from './features/lifecycle/create-order/create-order.failure.ts';
 export type {
   CreateOrder,
@@ -54,7 +58,7 @@ export {
   decideIncomingOrderProposal,
   incomingOrderProposalGraph,
   type IncomingOrderProposalDecision,
-} from './main.ts';
+} from './foundations/language/incoming-order-proposal/incoming-order-proposal.lifecycle.ts';
 export type {
   IncomingOrderProposalCustomer,
   IncomingOrderProposalDecisionResult,
@@ -119,7 +123,7 @@ export type {
   OrderItemInput,
   OrderState,
 } from './foundations/language/order/order.model.ts';
-export { fulfillmentDemandEvent } from './main.ts';
+export { fulfillmentDemandEvent } from './foundations/language/order-outbox/order-outbox.policy.ts';
 export type {
   ClaimOrderOutboxCommand,
   CompleteOrderOutboxCommand,
@@ -134,24 +138,26 @@ export type { CompleteOrderOutbox } from './features/outbox/complete-order-outbo
 export type { DeadLetterOrderOutbox } from './features/outbox/dead-letter-order-outbox/dead-letter-order-outbox.port.ts';
 export type { DeadLetterOrderOutboxFailure } from './features/outbox/dead-letter-order-outbox/dead-letter-order-outbox.failure.ts';
 export type { RetryOrderOutbox } from './features/outbox/retry-order-outbox/retry-order-outbox.port.ts';
-export { decodeOrderCursor, encodeOrderCursor } from './main.ts';
+export {
+  decodeOrderCursor,
+  encodeOrderCursor,
+} from './features/queries/list-canonical-orders/order-pagination.policy.ts';
 export type {
   CanonicalOrderDetail,
-  CanonicalOrderListResult,
   CanonicalOrderSummary,
-  GetCanonicalOrder,
-  ListCanonicalOrders,
+} from './foundations/language/canonical-order-read/canonical-order-read.model.ts';
+export type { GetCanonicalOrder } from './features/queries/get-canonical-order/get-canonical-order.usecase.ts';
+export type { GetCanonicalOrderFailure } from './features/queries/get-canonical-order/get-canonical-order.failure.ts';
+export type {
+  CanonicalOrderListResult,
   ListCanonicalOrdersQuery,
-} from './features/queries/read-orders/read-orders.port.ts';
-export type { ReadOrdersFailure } from './features/queries/read-orders/read-orders.failure.ts';
-import type {
-  ReleaseFulfillmentCommand,
-  WithdrawFulfillmentCommand,
-} from './features/fulfillment/change-fulfillment-release/change-fulfillment-release.port.ts';
-import type {
-  CancelOrderCommand,
-  CompleteOrderCommand,
-} from './features/lifecycle/change-order-lifecycle/change-order-lifecycle.port.ts';
+} from './features/queries/list-canonical-orders/list-canonical-orders.model.ts';
+export type { ListCanonicalOrders } from './features/queries/list-canonical-orders/list-canonical-orders.usecase.ts';
+export type { ListCanonicalOrdersFailure } from './features/queries/list-canonical-orders/list-canonical-orders.failure.ts';
+import type { ReleaseFulfillmentCommand } from './features/fulfillment/release-fulfillment/release-fulfillment.port.ts';
+import type { WithdrawFulfillmentCommand } from './features/fulfillment/withdraw-fulfillment/withdraw-fulfillment.port.ts';
+import type { CancelOrderCommand } from './features/lifecycle/cancel-order/cancel-order.port.ts';
+import type { CompleteOrderCommand } from './features/lifecycle/complete-order/complete-order.port.ts';
 import type { CorrectOrderCommand } from './features/lifecycle/correct-order/correct-order.port.ts';
 import type { CreateOrderCommand } from './features/lifecycle/create-order/create-order.port.ts';
 

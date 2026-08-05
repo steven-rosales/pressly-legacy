@@ -2,7 +2,7 @@ import { type Database } from '@pressly/db/client';
 import { and, eq, gt, isNull, lte, ne, or, sql } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
 import type { LoadSessionStore } from './load-session.port.ts';
-import { runDatabaseOperation } from '../../../foundations/adapters/postgres/identity-store/database-result.adapter.ts';
+import { runDatabaseOperation } from '../../../foundations/adapters/postgres/database-operation/database-operation.adapter.ts';
 import { mapStoredAssignments } from './stored-assignments.persistence.mapper.ts';
 
 export const makeLoadSessionStore = (db: Database): LoadSessionStore => ({

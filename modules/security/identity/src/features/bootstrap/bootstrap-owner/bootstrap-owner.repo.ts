@@ -6,7 +6,7 @@ import type { BootstrapOwnerStore } from './bootstrap-owner.port.ts';
 import {
   databaseFailure,
   runDatabaseOperation,
-} from '../../../foundations/adapters/postgres/identity-store/database-result.adapter.ts';
+} from '../../../foundations/adapters/postgres/database-operation/database-operation.adapter.ts';
 
 export const makeBootstrapOwnerStore = (db: Database): BootstrapOwnerStore => ({
   createFirstOwner: async (input) =>

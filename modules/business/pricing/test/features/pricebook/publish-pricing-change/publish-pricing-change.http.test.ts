@@ -1,12 +1,9 @@
 import { databaseError } from '@pressly/errors/factories';
 import { result } from '@pressly/kernel';
-import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
-import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import { makeHttpResponse } from '@pressly/testkit/http';
+import type { Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  makePublishPricingChangeController,
-  publishPricingChangeBoundary,
-} from '../../../../src/features/pricebook/publish-pricing-change/publish-pricing-change.controller.ts';
+import { makePublishPricingChangeController } from '../../../../src/features/pricebook/publish-pricing-change/publish-pricing-change.controller.ts';
 import { makePublishPricingChangeRoute } from '../../../../src/features/pricebook/publish-pricing-change/publish-pricing-change.route.ts';
 import type { PublishPricingChange } from '../../../../src/features/pricebook/publish-pricing-change/publish-pricing-change.usecase.ts';
 import {
@@ -64,12 +61,11 @@ describe('publish pricing change http boundary', () => {
     const next = vi.fn();
 
     await runMiddleware(
-      publishPricingChangeBoundary.validate,
+      controller.validate,
       request,
       response as unknown as Response,
     );
-    controller(request, response as unknown as Response, next as NextFunction);
-    await waitForController();
+    await controller.handle(request, response as unknown as Response, next);
 
     expect(publishPricingChange).toHaveBeenCalledWith(command);
     expect(response.status).toHaveBeenCalledWith(200);
@@ -110,14 +106,13 @@ describe('publish pricing change http boundary', () => {
     const next = vi.fn();
 
     await runMiddleware(
-      publishPricingChangeBoundary.validate,
+      controller.validate,
       request,
       response as unknown as Response,
     );
-    controller(request, response as unknown as Response, next as NextFunction);
-
-    await vi.waitFor(() => expect(next).toHaveBeenCalledOnce());
-    expect(next.mock.calls[0]?.[0]).toMatchObject({
+    await expect(
+      controller.handle(request, response as unknown as Response, next),
+    ).rejects.toMatchObject({
       tag: 'AppError',
       kind: 'ConflictError',
       code: 'pricing_state_changed',
@@ -149,13 +144,13 @@ describe('publish pricing change http boundary', () => {
     const next = vi.fn();
 
     await runMiddleware(
-      publishPricingChangeBoundary.validate,
+      controller.validate,
       request,
       response as unknown as Response,
     );
-    controller(request, response as unknown as Response, next as NextFunction);
-
-    await vi.waitFor(() => expect(next).toHaveBeenCalledWith(error));
+    await expect(
+      controller.handle(request, response as unknown as Response, next),
+    ).rejects.toBe(error);
   });
 
   it('registers only the protected publish route', () => {

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 import { TeamWorkspace } from "@/features/team/team-workspace"
 import type { ControlTeamApi } from "@/features/team/team-api"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
 import { controlApiErrorFixture } from "../support/control-api-error.fixture"
 
 const session = (

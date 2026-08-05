@@ -2,12 +2,22 @@ import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  architectureOwnerDependencyKey,
+  declaredOwnerDependencies,
+  hasImplementationBindingEvidence,
+  implementationOwnerDependencies,
+  reportFoundationCohesion,
   roleForFileName,
+  type FoundationCohesion,
   type CompiledV2Module,
   type RepositoryArchitecture,
 } from './architecture-compiler.ts';
 import { presslyRepositoryRoot } from './architecture-discovery.ts';
 import { presslyModuleArchitecture } from './pressly-module-architecture.ts';
+import {
+  observeRepositoryOwnerDependencies,
+  type ObservedArchitectureOwnerDependency,
+} from './architecture-source-graph.ts';
 
 const directoriesIn = (directory: string): readonly string[] =>
   existsSync(directory)
@@ -60,6 +70,7 @@ const auditV2Leaf = (
     allowedRoles: ReadonlySet<string>;
     requiredRoles?: readonly string[];
     requiredAnyRole?: readonly string[];
+    exactRoleCounts?: Readonly<Partial<Record<string, number>>>;
   }>,
 ): readonly string[] => {
   const violations: string[] = [];
@@ -71,7 +82,7 @@ const auditV2Leaf = (
       `${displayRoot} is declared but owns no source files. Remove the declaration or implement the owner.`,
     ]);
 
-  const roles = new Set<string>();
+  const roleCounts = new Map<string, number>();
   let usecaseCount = 0;
   for (const filePath of files) {
     if (!filePath.endsWith('.ts')) {
@@ -89,7 +100,7 @@ const auditV2Leaf = (
       continue;
     }
 
-    roles.add(role);
+    roleCounts.set(role, (roleCounts.get(role) ?? 0) + 1);
     if (role === 'usecase') usecaseCount += 1;
     if (!owner.allowedRoles.has(role))
       violations.push(
@@ -103,19 +114,29 @@ const auditV2Leaf = (
     );
 
   for (const requiredRole of owner.requiredRoles ?? [])
-    if (!roles.has(requiredRole))
+    if (!roleCounts.has(requiredRole))
       violations.push(`${displayRoot} requires a *.${requiredRole}.ts file.`);
 
   const requiredAnyRole = owner.requiredAnyRole ?? [];
   if (
     requiredAnyRole.length > 0 &&
-    !requiredAnyRole.some((role) => roles.has(role))
+    !requiredAnyRole.some((role) => roleCounts.has(role))
   )
     violations.push(
       `${displayRoot} requires at least one of: ${requiredAnyRole
         .map((role) => `*.${role}.ts`)
         .join(', ')}.`,
     );
+
+  for (const [role, expectedCount] of Object.entries(
+    owner.exactRoleCounts ?? {},
+  )) {
+    const actualCount = roleCounts.get(role) ?? 0;
+    if (actualCount !== expectedCount)
+      violations.push(
+        `${displayRoot} requires exactly ${expectedCount} *.${role}.ts file${expectedCount === 1 ? '' : 's'}; found ${actualCount}.`,
+      );
+  }
 
   return Object.freeze(violations);
 };
@@ -231,7 +252,12 @@ const auditV2Module = (
         path.join(sourceRoot, 'foundations', foundation.path),
         {
           allowedRoles: foundation.allowedRoles,
-          requiredAnyRole: foundation.requiredAnyRole,
+          ...(foundation.profile === 'port'
+            ? { exactRoleCounts: { port: 1 } }
+            : { requiredAnyRole: foundation.requiredAnyRole }),
+          ...(foundation.basis === 'continuity'
+            ? { requiredRoles: ['lifecycle'] }
+            : {}),
         },
       ),
     );
@@ -247,9 +273,64 @@ const auditV2Module = (
   return Object.freeze(violations);
 };
 
+export const auditOwnerDependencyExactness = (
+  architecture: RepositoryArchitecture,
+  observedDependencies: readonly ObservedArchitectureOwnerDependency[],
+): readonly string[] => {
+  const violations: string[] = [];
+  const declaredDependencies = declaredOwnerDependencies(architecture);
+  const implementationDependencies =
+    implementationOwnerDependencies(architecture);
+  const observedByKey = new Map(
+    observedDependencies.map((dependency) => [
+      architectureOwnerDependencyKey(dependency),
+      dependency,
+    ]),
+  );
+  const allowedKeys = new Set([
+    ...declaredDependencies.map(architectureOwnerDependencyKey),
+    ...implementationDependencies.map(architectureOwnerDependencyKey),
+  ]);
+
+  for (const dependency of observedDependencies) {
+    const key = architectureOwnerDependencyKey(dependency);
+    if (allowedKeys.has(key)) continue;
+    const evidence = dependency.evidence[0];
+    const evidenceSuffix =
+      evidence === undefined
+        ? ''
+        : ` First observed at ${evidence.file} as a ${evidence.kind} dependency on "${evidence.specifier}".`;
+    violations.push(
+      `modules/${dependency.moduleId}/module.architecture.ts does not declare observed owner dependency ${dependency.sourceZone}:${dependency.sourceOwner} -> ${dependency.targetZone}:${dependency.targetOwner}.${evidenceSuffix}`,
+    );
+  }
+
+  for (const dependency of declaredDependencies) {
+    const key = architectureOwnerDependencyKey(dependency);
+    if (observedByKey.has(key)) continue;
+    violations.push(
+      `modules/${dependency.moduleId}/module.architecture.ts declares unused owner dependency ${dependency.sourceZone}:${dependency.sourceOwner} -> ${dependency.targetZone}:${dependency.targetOwner}. Remove the declaration unless source in that owner genuinely imports the target.`,
+    );
+  }
+
+  for (const dependency of implementationDependencies) {
+    const key = architectureOwnerDependencyKey(dependency);
+    if (hasImplementationBindingEvidence(observedByKey.get(key))) continue;
+    violations.push(
+      `modules/${dependency.moduleId}/src/foundations/${dependency.sourceOwner} declares that it implements ${dependency.targetOwner} but has no source-level type conformance evidence. Bind the imported port type directly in an implementation variable, property, function signature, class implements clause, or satisfies expression; otherwise remove the implements declaration.`,
+    );
+  }
+
+  return Object.freeze(violations.sort());
+};
+
 export const auditRepositoryArchitecture = (
   repositoryRoot: string,
   architecture: RepositoryArchitecture,
+  observedDependencies: readonly ObservedArchitectureOwnerDependency[] = observeRepositoryOwnerDependencies(
+    repositoryRoot,
+    architecture,
+  ),
 ): readonly string[] => {
   const violations: string[] = [];
 
@@ -265,8 +346,66 @@ export const auditRepositoryArchitecture = (
     );
   }
 
+  violations.push(
+    ...auditOwnerDependencyExactness(architecture, observedDependencies),
+  );
+
+  for (const foundation of reportFoundationCohesion(
+    architecture,
+    observedDependencies,
+  ))
+    if (foundation.status === 'unearned-reuse') {
+      const consumerKind =
+        foundation.profile === 'port' ? 'direct' : 'transitive';
+      const consumers =
+        consumerKind === 'direct'
+          ? foundation.directConsumers
+          : foundation.transitiveConsumers;
+      const adapterImplementation =
+        foundation.implementsPort === null
+          ? ''
+          : ` Its implemented port is ${foundation.implementsPort}.`;
+      violations.push(
+        `modules/${foundation.moduleId}/src/foundations/${foundation.path} is declared for reuse but has ${consumers.length} ${consumerKind} feature consumer${consumers.length === 1 ? '' : 's'} (${consumers.join(', ') || 'none'}). Move single-consumer behavior into its feature leaf; foundations require earned sharing.${adapterImplementation}`,
+      );
+    }
+
   return Object.freeze(violations.sort());
 };
+
+export const formatFoundationCohesionReport = (
+  foundations: readonly FoundationCohesion[],
+): string =>
+  [
+    [
+      'module',
+      'foundation',
+      'profile',
+      'basis',
+      'status',
+      'implements-port',
+      'implementation-evidence',
+      'declared-direct-consumers',
+      'direct-consumers',
+      'declared-transitive-consumers',
+      'transitive-consumers',
+    ].join('\t'),
+    ...foundations.map((foundation) =>
+      [
+        foundation.moduleId,
+        foundation.path,
+        foundation.profile,
+        foundation.basis,
+        foundation.status,
+        foundation.implementsPort ?? '-',
+        foundation.implementationEvidence,
+        foundation.declaredDirectConsumers.join(',') || '-',
+        foundation.directConsumers.join(',') || '-',
+        foundation.declaredTransitiveConsumers.join(',') || '-',
+        foundation.transitiveConsumers.join(',') || '-',
+      ].join('\t'),
+    ),
+  ].join('\n');
 
 export const runArchitectureCheck = (): readonly string[] =>
   auditRepositoryArchitecture(presslyRepositoryRoot, presslyModuleArchitecture);
@@ -276,7 +415,25 @@ if (
   invokedPath !== undefined &&
   path.resolve(invokedPath) === fileURLToPath(import.meta.url)
 ) {
-  const violations = runArchitectureCheck();
+  const observedDependencies = observeRepositoryOwnerDependencies(
+    presslyRepositoryRoot,
+    presslyModuleArchitecture,
+  );
+  if (process.argv.includes('--report-cohesion'))
+    console.log(
+      formatFoundationCohesionReport(
+        reportFoundationCohesion(
+          presslyModuleArchitecture,
+          observedDependencies,
+        ),
+      ),
+    );
+
+  const violations = auditRepositoryArchitecture(
+    presslyRepositoryRoot,
+    presslyModuleArchitecture,
+    observedDependencies,
+  );
   if (violations.length > 0) {
     for (const violation of violations) console.error(`- ${violation}`);
     process.exitCode = 1;

@@ -4,6 +4,7 @@ import { expect, test } from 'vitest';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../..');
 const liveToolingRoots = [
+  'stateworks/tooling',
   'tooling/architecture',
   'tooling/browser-e2e',
   'tooling/scripts',

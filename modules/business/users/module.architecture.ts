@@ -19,8 +19,11 @@ export default defineModule({
       'create-user': defineFeature.headlessCommand({
         dependsOn: userFeatureDependencies,
       }),
-      'read-users': defineFeature.headlessQuery({
-        dependsOn: ['language/users'],
+      'list-users': defineFeature.headlessQuery({
+        dependsOn: ['language/user-summary'],
+      }),
+      'get-user': defineFeature.headlessQuery({
+        dependsOn: ['language/user-summary'],
       }),
       'update-user': defineFeature.headlessCommand({
         dependsOn: userFeatureDependencies,
@@ -35,6 +38,9 @@ export default defineModule({
   foundations: {
     language: defineNamespace({
       users: defineFoundation.language(),
+      'user-summary': defineFoundation.language({
+        dependsOn: ['language/users'],
+      }),
       'command-identity': defineFoundation.language(),
     }),
     adapters: defineNamespace({

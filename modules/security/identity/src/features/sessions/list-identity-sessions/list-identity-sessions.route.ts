@@ -1,8 +1,5 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  listIdentitySessionsBoundary,
-  makeListIdentitySessionsController,
-} from './list-identity-sessions.controller.ts';
+import { makeListIdentitySessionsController } from './list-identity-sessions.controller.ts';
 import type { ListIdentitySessions } from './list-identity-sessions.usecase.ts';
 
 export const makeListIdentitySessionsRouter = (input: {
@@ -11,12 +8,15 @@ export const makeListIdentitySessionsRouter = (input: {
   authorize: RequestHandler;
 }): Router => {
   const router = Router();
+  const controller = makeListIdentitySessionsController(
+    input.listIdentitySessions,
+  );
   router.get(
     '/identities/:identityId/sessions',
-    listIdentitySessionsBoundary.validate,
+    controller.validate,
     input.authenticate,
     input.authorize,
-    makeListIdentitySessionsController(input.listIdentitySessions),
+    controller.handle,
   );
   return router;
 };

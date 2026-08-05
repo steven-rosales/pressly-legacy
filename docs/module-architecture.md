@@ -129,6 +129,25 @@ aliased compatibility re-exports are forbidden: they hide surface growth and
 make the canonical application name ambiguous. Rename a symbol at its
 semantic owner, then publish that name explicitly.
 
+Every other source file exports only declarations it owns. These forms are
+forbidden outside a declared surface:
+
+```ts
+export { Thing } from './thing.ts';
+
+import type { Thing } from './thing.ts';
+export type { Thing };
+
+import type { Thing } from './thing.ts';
+export type RenamedThing = Thing;
+```
+
+The consumer imports `Thing` from `thing.ts`, its semantic owner. If a local
+shape adds an invariant or performs a real transformation, it is a new
+declaration rather than a relay. Formal module, package, and app entrypoints
+may use direct named re-exports because curating an external API is their
+function; they still publish canonical names rather than compatibility aliases.
+
 ### Production reference authority
 
 Production is the scale reference for a large authority. Its feature tree is
@@ -142,7 +161,8 @@ features/
     change-order-resolution/
     resolve-source-closed-fulfillment/
     record-order-intake/
-    review-order-backlog/
+    preview-production-order-backlog/
+    commit-production-order-backlog/
     set-order-priority/
   floor/
     advance-stage/
@@ -152,7 +172,11 @@ features/
   history/{list-activity,list-plans,list-runs,load-run}/
   orders/{list-order-control,list-orders,route-order}/
   queries/{load-board,load-remaining-day-forecast,load-workspace}/
-  resources/{list-locations,manage-resources,manage-shift}/
+  resources/
+    list-locations/
+    manage-resources/
+    create-production-shift/
+    update-production-shift/
   scheduling/
     accept-schedule/
     create-schedule/
@@ -218,6 +242,42 @@ A foundation is promoted only after reuse or domain continuity is proven. It
 must be narrowly named and may never become a local junk drawer. Foundations
 do not import their consumers. Foundation-to-foundation dependencies are
 directed and declared in `module.architecture.ts`.
+
+Promotion is formal data, not reviewer intuition:
+
+```text
+feature-owned by default
+  |
+  +-- imported by two or more independent feature leaves
+  |     -> basis: reuse
+  |
+  +-- one continuity-bearing domain concept is intentionally stable even
+  |   before a second feature exists
+  |     -> basis: continuity
+  |
+  +-- neither proof exists
+        -> keep the port, repository, mapper, and transformation in the leaf
+```
+
+The architecture compiler counts both direct feature consumers and consumers
+reached through source-observed foundation imports. A reuse-based foundation
+with fewer than two feature consumers is rejected. Continuity is reserved for
+identity-bearing domain language and must be declared explicitly; it is not a
+way to exempt a technical store or helper from the reuse rule.
+
+When an adapter foundation implements a shared replacement axis, it names that
+exact port with manifest `implements` metadata. Reused concrete persistence
+primitives do not acquire a fake port solely to satisfy topology. A repository
+that exists for one use case stays beside that use case, even when it queries a
+large table or uses the same database client as other repositories. Table
+ownership does not imply application ownership, and a collection of unrelated
+CRUD methods is not a capability.
+
+The manifest is an exact allowlist, not a claim about imports. Every declared
+owner edge must have source evidence, every observed owner edge must be
+declared, and an `implements` edge must have real type conformance evidence in
+the adapter. This prevents a stale or embellished manifest from manufacturing
+foundation reuse.
 
 Not every feature needs every role. Empty controller, repository, policy, or
 model files are forbidden. A headless query may only need a port and use case;
@@ -396,6 +456,58 @@ back an expected rejection; use the result-aware unit-of-work factory instead.
 API controllers, Worker jobs, and CLI commands map a module failure into an
 `AppError` only where that process needs transport or retry semantics.
 
+### The HTTP request/error algebra
+
+Express has one promise boundary and one unexpected-error observer. Do not add
+`catchAsync`, `Promise.resolve(handler(...)).catch(next)`, or local catch-and-
+rethrow wrappers in routes, controllers, or middleware. Express 5 forwards a
+rejected handler promise to the registered outer error middleware.
+
+Validated endpoints use `defineValidatedController` from
+`@pressly/http/express`:
+
+```text
+unknown request value
+  -> controller.validate parses synchronously exactly once
+  -> fingerprint-protected typed boundary input
+  -> controller.handle returns the application promise directly
+  -> expected Result is presented by the controller
+  -> unexpected rejection reaches the single API error middleware
+```
+
+Routes normally register the returned `validate` and `handle` pair in that
+order. When authorization needs validated route scope but must precede command
+body parsing, the same factory exposes typed per-location validators:
+
+```text
+authenticate
+  -> controller.validators.params
+  -> authorize
+  -> controller.validators.body
+  -> controller.handle
+```
+
+An established location-specific validation response is declared as
+`invalidRequest` data on the same factory definition. It may select the error
+code, safe message, and supported validation status; it must not become a
+route-local parser, callback-based throwable hook, or second validation
+boundary.
+
+All configured locations must be validated exactly once. The boundary is
+deliberately request-bound: incomplete or duplicate validation, mixing
+handlers from different definitions, or mutating parsed request data before
+handling fails closed as an invariant error. Request schemas are synchronous,
+pure wire parsers; asynchronous authorization or lookup belongs after parsing
+in middleware or the use case. The controller receives its validated input
+explicitly; application code does not recover types by casting `req.body`,
+`req.query`, or `req.params` later.
+
+This is primarily a correctness and ownership rule. Removing redundant promise
+wrappers also avoids adding gratuitous microtasks, but ordinary promise
+forwarding is not itself a starvation hazard. Starvation comes from unbounded
+promise production or CPU work without yielding, which belongs in workload
+and process design rather than error-wrapper folklore.
+
 ## 9. Contracts and Unknown Values
 
 `@pressly/contracts` owns wire formats, not application language.
@@ -543,8 +655,17 @@ export default defineModule({
 ```
 
 The manifest is not descriptive documentation. It is compiled into filesystem
-and import constraints. New feature profiles, roles, or dependency edges
-require an intentional architecture change with compiler tests.
+and import constraints, then checked for exact agreement with source-observed
+type and runtime imports. New feature profiles, roles, or dependency edges
+require an intentional architecture change with compiler tests. Unused
+declarations and undeclared observed edges both fail the architecture gate.
+
+Run `pnpm architecture:cohesion` to inspect the deterministic foundation
+report. It shows each foundation's basis, implemented port when present,
+implementation evidence, declared and observed direct consumers, declared and
+observed transitive consumers, and whether reuse is earned.
+`pnpm architecture:check` fails on unearned promotions and manifest/source
+drift.
 
 ## 14. Review Checklist
 
@@ -563,7 +684,9 @@ Before accepting a new file or feature, verify:
 10. Tests mirror the same ownership tree.
 11. Each feature leaf has at most one use-case file, and module root surfaces
     use explicit canonical exports.
-12. `module.architecture.ts`, architecture lint, typecheck, tests, and build
+12. Every internal import resolves to the semantic declaration owner; only a
+    declared API surface re-exports symbols.
+13. `module.architecture.ts`, architecture lint, typecheck, tests, and build
     all pass.
 
 If a proposed placement needs an exception to this decision tree, change the

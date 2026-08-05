@@ -1,12 +1,10 @@
 import { result } from '@pressly/kernel';
-import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import type { ValidatedController } from '@pressly/http/express';
+import type { NextFunction, Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { LoginResult } from '@pressly/contracts/auth';
-import { makeHttpResponse, waitForController } from '@pressly/testkit/http';
-import {
-  loginBoundary,
-  makeLoginController,
-} from '../../../../src/features/sessions/login/login.controller.ts';
+import { makeHttpResponse } from '@pressly/testkit/http';
+import { makeLoginController } from '../../../../src/features/sessions/login/login.controller.ts';
 import { makeLoginRoute } from '../../../../src/features/sessions/login/login.route.ts';
 import type { LoginOutcome } from '../../../../src/features/sessions/login/login.model.ts';
 import { loginFailure } from '../../../../src/features/sessions/login/login.failure.ts';
@@ -57,23 +55,26 @@ const makeLoginRequest = (input?: {
 };
 
 const runLoginController = async (input: {
-  controller: RequestHandler;
+  controller: ValidatedController;
   req: Request;
   res: ReturnType<typeof makeHttpResponse>;
   next: NextFunction;
 }): Promise<void> => {
-  loginBoundary.validate(
+  await new Promise<void>((resolve, reject) => {
+    input.controller.validate(
+      input.req,
+      input.res as unknown as Response,
+      (error?: unknown) => {
+        if (error === undefined) resolve();
+        else reject(error);
+      },
+    );
+  });
+  await input.controller.handle(
     input.req,
     input.res as unknown as Response,
-    (error?: unknown) => {
-      if (error !== undefined) {
-        input.next(error);
-        return;
-      }
-      input.controller(input.req, input.res as unknown as Response, input.next);
-    },
+    input.next,
   );
-  for (let turn = 0; turn < 4; turn += 1) await waitForController();
 };
 
 describe('login http controller', () => {
@@ -157,13 +158,15 @@ describe('login http controller', () => {
     const res = makeHttpResponse();
     const next = vi.fn() as NextFunction;
 
-    await runLoginController({ controller: loginController, req, res, next });
+    await expect(
+      runLoginController({ controller: loginController, req, res, next }),
+    ).rejects.toMatchObject(error);
 
     expect(login).toHaveBeenCalledWith({
       email: 'admin@pressly.com',
       password: 'MyStrong@0000',
     });
-    expect(next).toHaveBeenCalledWith(error);
+    expect(next).not.toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).not.toHaveBeenCalled();
   });
@@ -176,9 +179,11 @@ describe('login http controller', () => {
     const res = makeHttpResponse();
     const next = vi.fn() as NextFunction;
 
-    await runLoginController({ controller: loginController, req, res, next });
+    await expect(
+      runLoginController({ controller: loginController, req, res, next }),
+    ).rejects.toBe(error);
 
-    expect(next).toHaveBeenCalledWith(error);
+    expect(next).not.toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).not.toHaveBeenCalled();
   });

@@ -80,16 +80,14 @@ import type { ManageBatchMembershipRepository } from '../features/floor/manage-b
 import { makeManageProductionResources } from '../features/resources/manage-resources/manage-production-resources.usecase.ts';
 import { makeManageProductionResourcesRepository } from '../features/resources/manage-resources/manage-production-resources.repo.ts';
 import type { ManageProductionResourcesRepository } from '../features/resources/manage-resources/manage-production-resources.port.ts';
-import {
-  makeCreateProductionShift,
-  makeUpdateProductionShift,
-} from '../features/resources/manage-shift/manage-production-shift.usecase.ts';
-import {
-  makeCreateProductionShiftRoute,
-  makeUpdateProductionShiftRoute,
-} from '../features/resources/manage-shift/manage-production-shift.route.ts';
-import { makeManageProductionShiftRepository } from '../features/resources/manage-shift/manage-production-shift.repo.ts';
-import type { ManageProductionShiftRepository } from '../features/resources/manage-shift/manage-production-shift.port.ts';
+import { makeCreateProductionShift } from '../features/resources/create-production-shift/create-production-shift.usecase.ts';
+import { makeCreateProductionShiftRoute } from '../features/resources/create-production-shift/create-production-shift.route.ts';
+import { makeCreateProductionShiftRepository } from '../features/resources/create-production-shift/create-production-shift.repo.ts';
+import type { CreateProductionShiftRepository } from '../features/resources/create-production-shift/create-production-shift.port.ts';
+import { makeUpdateProductionShift } from '../features/resources/update-production-shift/update-production-shift.usecase.ts';
+import { makeUpdateProductionShiftRoute } from '../features/resources/update-production-shift/update-production-shift.route.ts';
+import { makeUpdateProductionShiftRepository } from '../features/resources/update-production-shift/update-production-shift.repo.ts';
+import type { UpdateProductionShiftRepository } from '../features/resources/update-production-shift/update-production-shift.port.ts';
 import { makePlaceProductionOrder } from '../features/scheduling/place-order/place-production-order.usecase.ts';
 import { makePlaceProductionOrderRoutes } from '../features/scheduling/place-order/place-production-order.route.ts';
 import { makePlaceProductionOrderRepository } from '../features/scheduling/place-order/place-production-order.repo.ts';
@@ -107,13 +105,15 @@ import { makeRecordOrderIntake } from '../features/demand/record-order-intake/re
 import { makeRecordOrderIntakeRoute } from '../features/demand/record-order-intake/record-order-intake.route.ts';
 import { makeRecordOrderIntakeRepository } from '../features/demand/record-order-intake/record-order-intake.repo.ts';
 import type { RecordOrderIntakeRepository } from '../features/demand/record-order-intake/record-order-intake.port.ts';
-import { makeReviewProductionOrderBacklogRepository } from '../features/demand/review-order-backlog/review-production-order-backlog.repo.ts';
-import { makeReviewProductionOrderBacklogRoutes } from '../features/demand/review-order-backlog/review-production-order-backlog.route.ts';
-import {
-  makeCommitProductionOrderBacklog,
-  makePreviewProductionOrderBacklog,
-} from '../features/demand/review-order-backlog/review-production-order-backlog.usecase.ts';
-import type { ReviewProductionOrderBacklogRepository } from '../features/demand/review-order-backlog/review-production-order-backlog.port.ts';
+import { makePreviewProductionOrderBacklogRepository } from '../features/demand/preview-production-order-backlog/preview-production-order-backlog.repo.ts';
+import { makePreviewProductionOrderBacklogRoute } from '../features/demand/preview-production-order-backlog/preview-production-order-backlog.route.ts';
+import { makePreviewProductionOrderBacklog } from '../features/demand/preview-production-order-backlog/preview-production-order-backlog.usecase.ts';
+import type { PreviewProductionOrderBacklogRepository } from '../features/demand/preview-production-order-backlog/preview-production-order-backlog.port.ts';
+import { makeCommitProductionOrderBacklogRepository } from '../features/demand/commit-production-order-backlog/commit-production-order-backlog.repo.ts';
+import { makeCommitProductionOrderBacklogRoute } from '../features/demand/commit-production-order-backlog/commit-production-order-backlog.route.ts';
+import { makeCommitProductionOrderBacklog } from '../features/demand/commit-production-order-backlog/commit-production-order-backlog.usecase.ts';
+import type { CommitProductionOrderBacklogRepository } from '../features/demand/commit-production-order-backlog/commit-production-order-backlog.port.ts';
+import { productionOrderBacklogCursor } from '../foundations/adapters/contracts/production-order-backlog-cursor/production-order-backlog-cursor.contract.mapper.ts';
 import { makeReplaceShiftOrderSelection } from '../features/scheduling/replace-shift-selection/replace-shift-order-selection.usecase.ts';
 import { makeReplaceShiftOrderSelectionRoute } from '../features/scheduling/replace-shift-selection/replace-shift-order-selection.route.ts';
 import { makeReplaceShiftOrderSelectionRepository } from '../features/scheduling/replace-shift-selection/replace-shift-order-selection.repo.ts';
@@ -162,11 +162,13 @@ export type ProductionRepositories = Readonly<{
   loadProductionWorkspace: LoadProductionWorkspaceRepository;
   manageBatchMembership: ManageBatchMembershipRepository;
   manageProductionResources: ManageProductionResourcesRepository;
-  manageProductionShift: ManageProductionShiftRepository;
+  createProductionShift: CreateProductionShiftRepository;
+  updateProductionShift: UpdateProductionShiftRepository;
   placeProductionOrder: PlaceProductionOrderRepository;
   publishSchedulerConfig: PublishSchedulerConfigRepository;
   recordOrderIntake: RecordOrderIntakeRepository;
-  reviewProductionOrderBacklog: ReviewProductionOrderBacklogRepository;
+  previewProductionOrderBacklog: PreviewProductionOrderBacklogRepository;
+  commitProductionOrderBacklog: CommitProductionOrderBacklogRepository;
   replaceShiftOrderSelection: ReplaceShiftOrderSelectionRepository;
   routeProductionOrder: RouteProductionOrderRepository;
   reconcileProductionBatchProgress: ReconcileProductionBatchProgressRepository;
@@ -230,13 +232,13 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
       ids: deps.ids,
     }),
     createProductionShift: makeCreateProductionShift({
-      repo: deps.repositories.manageProductionShift,
+      repo: deps.repositories.createProductionShift,
       clock: deps.clock,
       ids: deps.ids,
       policy: productionRules,
     }),
     updateProductionShift: makeUpdateProductionShift({
-      repo: deps.repositories.manageProductionShift,
+      repo: deps.repositories.updateProductionShift,
       clock: deps.clock,
       policy: productionRules,
       signals,
@@ -323,13 +325,15 @@ export const makeProductionApplication = (deps: ProductionApplicationDeps) => {
       clock: deps.clock,
     }),
     previewProductionOrderBacklog: makePreviewProductionOrderBacklog({
-      repo: deps.repositories.reviewProductionOrderBacklog,
+      repo: deps.repositories.previewProductionOrderBacklog,
       policy: productionRules,
+      cursor: productionOrderBacklogCursor,
       clock: deps.clock,
     }),
     commitProductionOrderBacklog: makeCommitProductionOrderBacklog({
-      repo: deps.repositories.reviewProductionOrderBacklog,
+      repo: deps.repositories.commitProductionOrderBacklog,
       policy: productionRules,
+      cursor: productionOrderBacklogCursor,
       clock: deps.clock,
       ids: deps.ids,
     }),
@@ -519,8 +523,14 @@ export const makeProductionRoutes = (input: {
     }),
   );
   routes.use(
-    makeReviewProductionOrderBacklogRoutes({
+    makePreviewProductionOrderBacklogRoute({
       preview: input.application.previewProductionOrderBacklog,
+      authenticate: input.security.authenticate,
+      authorize: input.security.override,
+    }),
+  );
+  routes.use(
+    makeCommitProductionOrderBacklogRoute({
       commit: input.application.commitProductionOrderBacklog,
       authenticate: input.security.authenticate,
       authorize: input.security.override,
@@ -673,12 +683,15 @@ export const makePostgresProductionApplication = (
       loadProductionWorkspace: makeLoadProductionWorkspaceRepository(deps.db),
       manageBatchMembership: makeManageBatchMembershipRepository(deps),
       manageProductionResources: makeManageProductionResourcesRepository(deps),
-      manageProductionShift: makeManageProductionShiftRepository(deps),
+      createProductionShift: makeCreateProductionShiftRepository(deps),
+      updateProductionShift: makeUpdateProductionShiftRepository(deps),
       placeProductionOrder: makePlaceProductionOrderRepository(deps),
       publishSchedulerConfig: makePublishSchedulerConfigRepository(deps),
       recordOrderIntake: makeRecordOrderIntakeRepository(deps),
-      reviewProductionOrderBacklog:
-        makeReviewProductionOrderBacklogRepository(deps),
+      previewProductionOrderBacklog:
+        makePreviewProductionOrderBacklogRepository(deps.db),
+      commitProductionOrderBacklog:
+        makeCommitProductionOrderBacklogRepository(deps),
       replaceShiftOrderSelection:
         makeReplaceShiftOrderSelectionRepository(deps),
       routeProductionOrder: makeRouteProductionOrderRepository(deps),
@@ -711,6 +724,3 @@ export const makePostgresProductionModule = (
     routes: makeProductionRoutes({ application, security: deps.security }),
   };
 };
-
-export { productionFailureToAppError } from '../foundations/adapters/errors/production-failure.adapter.ts';
-export type { ProductionFeatureFailure } from '../foundations/language/failures/production-feature.failure.ts';

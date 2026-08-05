@@ -3,7 +3,7 @@ import type {
   ControlAccess,
   ControlAccessPrincipal,
 } from '../../../foundations/language/control-access/control-access.model.ts';
-import type { ControlAccessStore } from '../../../foundations/ports/control-access-store/control-access-store.port.ts';
+import type { ResolveControlAccessRepository } from './resolve-control-access.port.ts';
 import { controlApplicationManifest } from './control-application.projection.ts';
 import {
   controlCapabilitiesFor,
@@ -16,13 +16,13 @@ export type ResolveControlAccess = (
 
 export const makeResolveControlAccess =
   (deps: {
-    store: ControlAccessStore;
+    repo: ResolveControlAccessRepository;
     clock: Clock;
     controlOrigin: string;
     processorOrigin: string;
   }): ResolveControlAccess =>
   async (principal) => {
-    const effectiveGrants = await deps.store.loadEffectiveGrants({
+    const effectiveGrants = await deps.repo.loadEffectiveGrants({
       identityId: principal.identityId,
       now: deps.clock.now(),
     });
@@ -45,7 +45,7 @@ export const makeResolveControlAccess =
         .filter((grant) => grant.scopeKind === 'location')
         .map((grant) => grant.scopeId),
     );
-    const allLocations = await deps.store.listActiveLocations(businessId);
+    const allLocations = await deps.repo.listActiveLocations(businessId);
     const locations = hasBusinessScope
       ? allLocations
       : allLocations.filter((location) => allowedLocationIds.has(location.id));

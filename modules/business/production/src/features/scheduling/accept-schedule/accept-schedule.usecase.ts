@@ -12,13 +12,12 @@ import {
   resolveWorkEventReplay,
 } from '../../../foundations/language/commands/production-idempotency.policy.ts';
 import type { Clock } from '@pressly/time';
-import type { ProductionRules } from '../../../foundations/language/rules/production-rules.factory.ts';
+import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type {
   AcceptSchedule,
   AcceptScheduleRepository,
 } from './accept-schedule.port.ts';
 import type { AcceptScheduleResult } from './accept-schedule.model.ts';
-export type { AcceptSchedule } from './accept-schedule.port.ts';
 
 type AcceptSchedulePolicy = Pick<
   ProductionRules,

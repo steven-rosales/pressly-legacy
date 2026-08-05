@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  listProductionOrdersBoundary,
-  makeListProductionOrdersController,
-} from './list-production-orders.controller.ts';
-import type { ListProductionOrders } from './list-production-orders.usecase.ts';
+import { makeListProductionOrdersController } from './list-production-orders.controller.ts';
+import type { ListProductionOrders } from './list-production-orders.port.ts';
 
 export const makeListProductionOrdersRoute = (input: {
   listOrders: ListProductionOrders;
@@ -11,12 +8,13 @@ export const makeListProductionOrdersRoute = (input: {
   authorize: RequestHandler;
 }): Router => {
   const router = Router();
+  const controller = makeListProductionOrdersController(input.listOrders);
   router.get(
     '/production/locations/:locationId/orders',
     input.authenticate,
-    listProductionOrdersBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeListProductionOrdersController(input.listOrders),
+    controller.handle,
   );
   return router;
 };

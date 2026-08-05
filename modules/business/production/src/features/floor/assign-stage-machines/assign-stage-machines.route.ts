@@ -1,9 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import type { AssignStageMachines } from './assign-stage-machines.usecase.ts';
-import {
-  assignStageMachinesBoundary,
-  makeAssignStageMachinesController,
-} from './assign-stage-machines.controller.ts';
+import type { AssignStageMachines } from './assign-stage-machines.port.ts';
+import { makeAssignStageMachinesController } from './assign-stage-machines.controller.ts';
 
 export const makeAssignStageMachinesRoute = (input: {
   assign: AssignStageMachines;
@@ -12,12 +9,13 @@ export const makeAssignStageMachinesRoute = (input: {
   readActorId: (response: Parameters<RequestHandler>[1]) => string;
 }): Router => {
   const router = Router();
+  const controller = makeAssignStageMachinesController(input);
   router.put(
     '/production/locations/:locationId/stages/:stageRunId/machines',
     input.authenticate,
-    assignStageMachinesBoundary.validate,
+    controller.validate,
     input.authorize,
-    makeAssignStageMachinesController(input),
+    controller.handle,
   );
   return router;
 };

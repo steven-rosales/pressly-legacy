@@ -1,8 +1,3 @@
-export {
-  productionLocationParamsSchema,
-  publishSchedulerConfigRequestSchema,
-  schedulerConfigSchema,
-} from '@pressly/contracts/production';
 import type { SchedulerConfig as SchedulerConfigResult } from '@pressly/contracts/production';
 import type { SchedulerConfig } from '../../../foundations/language/scheduling/scheduler-config.model.ts';
 

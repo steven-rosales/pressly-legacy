@@ -1,8 +1,3 @@
-export {
-  changeProductionOrderResolutionRequestSchema,
-  changeProductionOrderResolutionResultSchema,
-  productionOrderParamsSchema,
-} from '@pressly/contracts/production';
 import type {
   ChangeProductionOrderResolutionRequest,
   ChangeProductionOrderResolutionResult as ChangeProductionOrderResolutionWireResult,

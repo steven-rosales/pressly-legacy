@@ -18,14 +18,14 @@ export default defineModule({
       'plan-pricing-change': defineFeature.httpCommand({
         dependsOn: [
           'language/pricing-change',
-          'ports/pricing-change-store',
+          'ports/current-pricing-reader',
           'adapters/http/pricing-change-failure',
         ],
       }),
       'publish-pricing-change': defineFeature.httpCommand({
         dependsOn: [
           'language/pricing-change',
-          'ports/pricing-change-store',
+          'ports/current-pricing-reader',
           'adapters/http/pricing-change-failure',
         ],
       }),
@@ -39,7 +39,7 @@ export default defineModule({
       }),
     }),
     ports: defineNamespace({
-      'pricing-change-store': defineFoundation.port({
+      'current-pricing-reader': defineFoundation.port({
         dependsOn: ['language/pricing-change'],
       }),
     }),
@@ -50,8 +50,12 @@ export default defineModule({
         }),
       }),
       postgres: defineNamespace({
-        'pricing-change-store': defineFoundation.adapter({
-          dependsOn: ['language/pricing-change', 'ports/pricing-change-store'],
+        'current-pricing-reader': defineFoundation.adapter({
+          implements: 'ports/current-pricing-reader',
+          dependsOn: [
+            'language/pricing-change',
+            'ports/current-pricing-reader',
+          ],
         }),
       }),
     }),

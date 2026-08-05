@@ -7,3 +7,10 @@ import type {
 export type CaptureWebhookReceipt = (
   command: CaptureWebhookReceiptCommand,
 ) => Promise<Ok<CaptureWebhookReceiptResult>>;
+
+export type CaptureWebhookReceiptRepository = (input: {
+  receiptId: string;
+  receipt: CaptureWebhookReceiptCommand;
+  receivedAt: Date;
+  expiresAt: Date;
+}) => Promise<CaptureWebhookReceiptResult>;

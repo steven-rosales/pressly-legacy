@@ -19,6 +19,7 @@ const repository = defineRepository({
   moduleFamilies: ['business'],
   moduleRootFiles: ['main.ts', 'public.ts'],
   packageKinds: {},
+  symbolSurfaces: ['apps/example/src/index.ts'],
 });
 const moduleDefinition = defineModule({
   id: 'business/pricing',
@@ -71,6 +72,8 @@ const lint = (relativeFilePath, source) =>
           'architecture/module-v2-pure-role': 'error',
           'architecture/module-v2-port-shape': 'error',
           'architecture/module-v2-semantic-role': 'error',
+          'architecture/symbol-ownership': 'error',
+          'architecture/module-v2-usecase-shape': 'error',
           'architecture/module-public-surface': 'error',
           'architecture/qualified-mapper-role': 'error',
         },
@@ -117,12 +120,30 @@ const lintMapper = (relativeFilePath, source) =>
     },
   );
 
+const lintSymbolOwnership = (relativeFilePath, source) =>
+  linter.verify(
+    source,
+    [
+      {
+        files: ['**/*.{ts,tsx}'],
+        languageOptions: {
+          ecmaVersion: 'latest',
+          sourceType: 'module',
+          parser: tseslint.parser,
+        },
+        plugins: { architecture: architecturePlugin },
+        rules: { 'architecture/symbol-ownership': 'error' },
+      },
+    ],
+    { filename: path.join(repositoryRoot, relativeFilePath) },
+  );
+
 describe('architecture compiler v2 ESLint adapter', () => {
   it('allows a v2 feature to import its explicitly declared foundation', () => {
     expect(
       lint(
         'features/catalog/load-pricing/load-pricing.usecase.ts',
-        `import { pricing } from '../../../foundations/language/pricing/pricing.model.ts'; export const load = () => pricing;`,
+        `import { pricing } from '../../../foundations/language/pricing/pricing.model.ts'; export const makeLoadPricing = () => () => pricing;`,
       ),
     ).toEqual([]);
   });
@@ -141,6 +162,88 @@ describe('architecture compiler v2 ESLint adapter', () => {
     expect(ruleIds(undeclaredFoundation)).toContain(
       'architecture/module-v2-dependencies',
     );
+  });
+
+  it('rejects module-internal symbol relays while preserving explicit root surfaces', () => {
+    const directRelay = lint(
+      'features/catalog/load-pricing/load-pricing.model.ts',
+      `export type { Pricing } from '../../../foundations/language/pricing/pricing.model.ts';`,
+    );
+    const importedRelay = lint(
+      'features/catalog/load-pricing/load-pricing.model.ts',
+      `import type { Pricing } from '../../../foundations/language/pricing/pricing.model.ts'; export type { Pricing };`,
+    );
+    const identityTypeAlias = lint(
+      'features/catalog/load-pricing/load-pricing.model.ts',
+      `import type { Pricing } from '../../../foundations/language/pricing/pricing.model.ts'; export type PricingResult = Pricing;`,
+    );
+    const identityValueAlias = lint(
+      'features/catalog/load-pricing/load-pricing.model.ts',
+      `import { pricing } from '../../../foundations/language/pricing/pricing.model.ts'; export const pricingResult = pricing;`,
+    );
+    const emptyInterfaceAlias = lint(
+      'features/catalog/load-pricing/load-pricing.model.ts',
+      `import type { Pricing } from '../../../foundations/language/pricing/pricing.model.ts'; export interface PricingResult extends Pricing {}`,
+    );
+
+    for (const messages of [
+      directRelay,
+      importedRelay,
+      identityTypeAlias,
+      identityValueAlias,
+      emptyInterfaceAlias,
+    ])
+      expect(ruleIds(messages)).toContain('architecture/symbol-ownership');
+
+    expect(
+      lint(
+        'features/catalog/load-pricing/load-pricing.model.ts',
+        `import type { Pricing } from '../../../foundations/language/pricing/pricing.model.ts'; export type PricingResult = Readonly<{ pricing: Pricing }>;`,
+      ),
+    ).toEqual([]);
+    expect(
+      lint(
+        'public.ts',
+        `export type { Pricing } from './foundations/language/pricing/pricing.model.ts';`,
+      ),
+    ).toEqual([]);
+  });
+
+  it('applies symbol ownership to app and package internals while preserving declared surfaces', () => {
+    expect(
+      ruleIds(
+        lintSymbolOwnership(
+          'apps/example/src/internal.ts',
+          `import type { Result } from '@pressly/kernel'; export type ExampleResult = Result;`,
+        ),
+      ),
+    ).toContain('architecture/symbol-ownership');
+    expect(
+      lintSymbolOwnership(
+        'apps/example/src/index.ts',
+        `export type { Example } from './example.ts';`,
+      ),
+    ).toEqual([]);
+    expect(
+      lintSymbolOwnership(
+        'packages/time/src/index.ts',
+        `export { systemClock } from './clock.ts';`,
+      ),
+    ).toEqual([]);
+    expect(
+      ruleIds(
+        lintSymbolOwnership(
+          'packages/time/src/new-york.ts',
+          `import { instantFromUtcIso } from './convert.ts'; export const parseUtcIso = instantFromUtcIso;`,
+        ),
+      ),
+    ).toContain('architecture/symbol-ownership');
+    expect(
+      lintSymbolOwnership(
+        'apps/web/src/app/example/page.tsx',
+        `import { pageMetadata } from './metadata.ts'; export const metadata = pageMetadata;`,
+      ),
+    ).toEqual([]);
   });
 
   it('rejects bare mappers and feature-local factories while allowing qualified mapper roles', () => {
@@ -268,6 +371,71 @@ describe('architecture compiler v2 ESLint adapter', () => {
     ).toEqual([]);
   });
 
+  it('allows one exported use-case operation and its callable type', () => {
+    expect(
+      lint(
+        'features/catalog/load-pricing/load-pricing.usecase.ts',
+        `export type LoadPricing = (id: string) => Promise<string>; export const makeLoadPricing = (): LoadPricing => async (id) => id;`,
+      ),
+    ).toEqual([]);
+  });
+
+  it('allows type-only use-case exports alongside the constructor', () => {
+    expect(
+      lint(
+        'features/catalog/load-pricing/load-pricing.usecase.ts',
+        `export type LoadPricingInput = Readonly<{ id: string }>; export const makeLoadPricing = () => async (id: string) => id;`,
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    [
+      'constant',
+      `export const pricingHash = 'hash'; export const makeLoadPricing = () => async () => pricingHash;`,
+    ],
+    [
+      'helper function',
+      `export function hashPricing(value: string) { return value; } export const makeLoadPricing = () => async () => hashPricing('pricing');`,
+    ],
+    [
+      'runtime re-export',
+      `export { pricingPolicy } from './load-pricing.policy.ts'; export const makeLoadPricing = () => async () => 'pricing';`,
+    ],
+    [
+      'default export',
+      `const loadPricing = () => 'pricing'; export default loadPricing; export const makeLoadPricing = () => async () => loadPricing();`,
+    ],
+  ])('rejects an additional %s from a use-case shell', (_label, source) => {
+    expect(
+      lint('features/catalog/load-pricing/load-pricing.usecase.ts', source).map(
+        (message) => message.messageId,
+      ),
+    ).toContain('unexpectedRuntimeExport');
+  });
+
+  it('rejects multiple exported make operations in one use-case file', () => {
+    expect(
+      ruleIds(
+        lint(
+          'features/catalog/load-pricing/load-pricing.usecase.ts',
+          `export const makeLoadPricing = () => async () => 'loaded'; export const makePreviewPricing = () => async () => 'previewed';`,
+        ),
+      ),
+    ).toContain('architecture/module-v2-usecase-shape');
+  });
+
+  it('rejects an exported multi-operation application facade', () => {
+    expect(
+      ruleIds(
+        lint(
+          'features/catalog/load-pricing/load-pricing.usecase.ts',
+          `export type PricingApplication = Readonly<{ list: () => Promise<string[]>; get: (id: string) => Promise<string> }>; export const makePricingApplication = (): PricingApplication => ({ list: async () => [], get: async (id) => id });`,
+        ),
+      ),
+    ).toContain('architecture/module-v2-usecase-shape');
+  });
+
   it('rejects anonymous native Error construction in v2 module source', () => {
     for (const throwable of [
       'AggregateError',
@@ -372,10 +540,20 @@ describe('architecture compiler v2 ESLint adapter', () => {
     ).toEqual([]);
   });
 
-  it('allows public type exposure but rejects runtime reach-through', () => {
-    const target = './features/catalog/load-pricing/load-pricing.model.ts';
+  it('allows direct public policy exposure but rejects use-case construction reach-through', () => {
     expect(
-      ruleIds(lint('public.ts', `export { value } from '${target}';`)),
+      lint(
+        'public.ts',
+        `export { decidePricing } from './features/catalog/load-pricing/load-pricing.policy.ts';`,
+      ),
+    ).toEqual([]);
+    expect(
+      ruleIds(
+        lint(
+          'public.ts',
+          `export { makeLoadPricing } from './features/catalog/load-pricing/load-pricing.usecase.ts';`,
+        ),
+      ),
     ).toContain('architecture/module-v2-dependencies');
   });
 
