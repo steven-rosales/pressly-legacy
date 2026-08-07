@@ -20,6 +20,14 @@ const processorDockerfile = await readFile(
   new URL('../../apps/processor/Dockerfile', import.meta.url),
   'utf8',
 );
+const processorBuildConfig = await readFile(
+  new URL('../../apps/processor/vite.config.ts', import.meta.url),
+  'utf8',
+);
+const webBuildConfig = await readFile(
+  new URL('../../apps/web/next.config.ts', import.meta.url),
+  'utf8',
+);
 const restoreRunbook = await readFile(
   new URL('../../infra/aws/docs/restore-postgres.md', import.meta.url),
   'utf8',
@@ -278,6 +286,28 @@ describe('five-image CI release', () => {
     );
     expect(processorDockerfile).not.toMatch(/ARG SENTRY_AUTH_TOKEN/);
     expect(processorDockerfile).not.toMatch(/ENV SENTRY_AUTH_TOKEN/);
+    expect(processorDockerfile).toContain(
+      'pnpm exec turbo build --filter=@pressly/processor^... --concurrency=2',
+    );
+    expect(processorDockerfile).toContain(
+      'pnpm --filter @pressly/processor build',
+    );
+    expect(processorDockerfile).not.toContain(
+      'pnpm exec turbo build --filter=@pressly/processor... --concurrency=2',
+    );
+    expect(
+      processorDockerfile.indexOf('export SENTRY_AUTH_TOKEN='),
+    ).toBeLessThan(
+      processorDockerfile.indexOf('pnpm --filter @pressly/processor build'),
+    );
+  });
+
+  it('fails Web and Processor release builds when Sentry upload fails', () => {
+    for (const buildConfig of [webBuildConfig, processorBuildConfig]) {
+      expect(buildConfig).toMatch(
+        /errorHandler: \(error\) => \{\s+throw error;?\s+\}/,
+      );
+    }
   });
 
   it('exposes one stable required check covering browser and every branch-specific image path', () => {

@@ -229,6 +229,10 @@ export default withSentryConfig(nextConfig, {
 
   project: 'pressly-web',
 
+  errorHandler: (error) => {
+    throw error;
+  },
+
   silent: !process.env['CI'],
 
   widenClientFileUpload: true,
