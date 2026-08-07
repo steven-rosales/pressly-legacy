@@ -51,6 +51,11 @@ const captureSecurityAlert = (
   );
 };
 
+/**
+ * Creates the security event sink which is the destination boundary for observability
+ * @param input Contains `alerts` which is the main Sentry reporter. It can both capture (send event) or shutdown (flush)
+ * @returns Emits the events and attempts the observation
+ */
 export const makeSecurityEventSink = (input: {
   alerts: ErrorReporter;
   counters: CounterSink;
@@ -93,6 +98,7 @@ export const makeSecurityEventSink = (input: {
         : current;
     entry.count += 1;
     alertCounts.set(key, entry);
+
     return entry.count === threshold;
   };
 
