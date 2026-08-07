@@ -262,6 +262,13 @@ const parseRequestLocation = (
   }
 };
 
+/**
+ * The function goes over all schemas for each location (e.g., body, params, query). If successful, then it will return the parsed input record; otherwise it will throw a validation error.
+ * @param request The request stream from express
+ * @param schemas The schemas that will be used to parse
+ * @param invalidRequest The invalid request hash map that stores the data from the error of the location
+ * @returns Succesful parsed input
+ */
 const parseRequestInput = (
   request: Request,
   schemas: SchemaConfig,
@@ -372,6 +379,7 @@ export const defineValidatedController = <
     };
 
   const validate = validatorFor(schemas);
+
   const validators = Object.freeze(
     Object.fromEntries(
       requestLocations.flatMap((location) => {
