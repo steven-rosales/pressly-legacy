@@ -16,6 +16,7 @@ const deployScript = resolve(root, 'infra/aws/lightsail/deploy.sh');
 const rollbackScript = resolve(root, 'infra/aws/lightsail/rollback.sh');
 const sha = 'a'.repeat(40);
 const currentSha = 'b'.repeat(40);
+const unverifiedSha = 'c'.repeat(40);
 const deployedAt = '2026-07-12T16:00:00Z';
 const image = (name, digest) =>
   `ghcr.io/example/pressly/${name}@sha256:${digest.repeat(64)}`;
@@ -46,6 +47,27 @@ const fiveImageMetadata = ({
   processorImage: releaseImages.PRESSLY_PROCESSOR_IMAGE,
   controlImage: releaseImages.PRESSLY_CONTROL_IMAGE,
   deployedAt,
+});
+
+const fiveImageDeploymentState = ({
+  sourceSha = sha,
+  releaseImages = images,
+  phase = 'running_unverified',
+  outcome = 'failed',
+  exitCode = 1,
+} = {}) => ({
+  schemaVersion: 1,
+  releaseFormat: 'five-image-v1',
+  sourceSha,
+  apiImage: releaseImages.PRESSLY_API_IMAGE,
+  webImage: releaseImages.PRESSLY_WEB_IMAGE,
+  workerImage: releaseImages.PRESSLY_WORKER_IMAGE,
+  processorImage: releaseImages.PRESSLY_PROCESSOR_IMAGE,
+  controlImage: releaseImages.PRESSLY_CONTROL_IMAGE,
+  phase,
+  outcome,
+  exitCode,
+  updatedAt: deployedAt,
 });
 
 const fourImageMetadata = ({ sourceSha = sha } = {}) => ({
@@ -103,13 +125,17 @@ const writeCommandStubs = (directory) => {
   );
   writeFileSync(
     join(binDirectory, 'docker'),
-    '#!/bin/sh\nset -eu\nprintf "docker %s\\n" "$*" >> "$COMMAND_LOG"\ncase " $* " in *" pull "*) if [ "${FAIL_DOCKER:-false}" = "true" ]; then exit 23; fi;; esac\nif [ "${1:-}" = image ] && [ "${2:-}" = inspect ]; then printf "%s\\n" "${IMAGE_REVISION_OVERRIDE:-$EXPECTED_TARGET_SHA}"; fi\n',
+    '#!/bin/sh\nset -eu\nprintf "docker %s\\n" "$*" >> "$COMMAND_LOG"\ncase " $* " in *" pull "*) if [ "${FAIL_DOCKER:-false}" = "true" ]; then exit 23; fi;; *" up -d "*) if [ -n "${STATE_AT_COMPOSE_UP_FILE:-}" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_COMPOSE_UP_FILE"; fi; if [ "${FAIL_COMPOSE_UP:-false}" = "true" ]; then exit 29; fi;; esac\nif [ "${1:-}" = image ] && [ "${2:-}" = inspect ]; then printf "%s\\n" "${IMAGE_REVISION_OVERRIDE:-$EXPECTED_TARGET_SHA}"; fi\n',
   );
   writeFileSync(
     join(binDirectory, 'curl'),
-    '#!/bin/sh\nset -eu\nprintf "curl %s\\n" "$*" >> "$COMMAND_LOG"\nif [ -n "${CURL_FAILURE_COUNTER_FILE:-}" ]; then count=0; if [ -f "$CURL_FAILURE_COUNTER_FILE" ]; then count="$(cat "$CURL_FAILURE_COUNTER_FILE")"; fi; count=$((count + 1)); printf "%s\\n" "$count" > "$CURL_FAILURE_COUNTER_FILE"; if [ "$count" -le "${FAIL_CURL_ATTEMPTS:-0}" ]; then exit 35; fi; fi\n',
+    '#!/bin/sh\nset -eu\nprintf "curl %s\\n" "$*" >> "$COMMAND_LOG"\nif [ -n "${STATE_AT_FIRST_HEALTH_FILE:-}" ] && [ ! -f "$STATE_AT_FIRST_HEALTH_FILE" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_FIRST_HEALTH_FILE"; fi\nif [ -n "${CURL_FAILURE_COUNTER_FILE:-}" ]; then count=0; if [ -f "$CURL_FAILURE_COUNTER_FILE" ]; then count="$(cat "$CURL_FAILURE_COUNTER_FILE")"; fi; count=$((count + 1)); printf "%s\\n" "$count" > "$CURL_FAILURE_COUNTER_FILE"; if [ "$count" -le "${FAIL_CURL_ATTEMPTS:-0}" ]; then exit 35; fi; fi\n',
   );
-  for (const command of ['git', 'docker', 'curl'])
+  writeFileSync(
+    join(binDirectory, 'getent'),
+    '#!/bin/sh\nset -eu\nprintf "getent %s\\n" "$*" >> "$COMMAND_LOG"\nif [ -n "${STATE_AT_FIRST_DNS_FILE:-}" ] && [ ! -f "$STATE_AT_FIRST_DNS_FILE" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_FIRST_DNS_FILE"; fi\nif [ "${FAIL_DNS_HOST:-}" = "${2:-}" ]; then exit 2; fi\nprintf "%s STREAM %s\\n" "${DNS_ADDRESS_OVERRIDE:-127.0.0.1}" "${2:-}"\n',
+  );
+  for (const command of ['git', 'docker', 'curl', 'getent'])
     chmodSync(join(binDirectory, command), 0o700);
   return { binDirectory, commandLog };
 };
@@ -153,6 +179,11 @@ const deploymentEnv = (fixture, overrides = {}) => ({
   PRESSLY_WEB_HEALTH_URL: 'https://web.example.test/health',
   PRESSLY_PROCESSOR_HEALTH_URL: 'https://processor.example.test/health',
   PRESSLY_CONTROL_HEALTH_URL: 'https://control.example.test/health',
+  PRESSLY_EXPECTED_PUBLIC_IP: '127.0.0.1',
+  PRESSLY_DEPLOYMENT_STATE_FILE: join(
+    fixture.directory,
+    'deployment-state.json',
+  ),
   COMMAND_LOG: fixture.commandLog,
   EXPECTED_TARGET_SHA: sha,
   PATH: `${fixture.binDirectory}:${process.env.PATH}`,
@@ -177,6 +208,7 @@ describe('release deployment identity', () => {
       'PRESSLY_WORKER_IMAGE',
       'PRESSLY_PROCESSOR_IMAGE',
       'PRESSLY_CONTROL_IMAGE',
+      'PRESSLY_EXPECTED_PUBLIC_IP',
     ])
       expect(workflow).toContain(field);
 
@@ -266,7 +298,20 @@ describe('release deployment identity', () => {
     });
     const fixture = createHostFixture(current);
     const previous = `${JSON.stringify({ sentinel: 'unchanged' })}\n`;
+    const deploymentState = `${JSON.stringify(
+      fiveImageDeploymentState({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+        phase: 'verified',
+        outcome: 'succeeded',
+        exitCode: 0,
+      }),
+    )}\n`;
     writeFileSync(join(fixture.directory, 'previous-release.json'), previous);
+    writeFileSync(
+      join(fixture.directory, 'deployment-state.json'),
+      deploymentState,
+    );
 
     const result = spawnSync('bash', [deployScript, '--preflight-only'], {
       encoding: 'utf8',
@@ -285,14 +330,119 @@ describe('release deployment identity', () => {
         readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
       ),
     ).toEqual(current);
+    expect(
+      readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+    ).toBe(deploymentState);
 
     const commands = readFileSync(fixture.commandLog, 'utf8');
     expect(commands).toContain('docker compose version');
+    expect(commands.match(/^getent ahostsv4 /gm)).toHaveLength(4);
+    expect(commands).toContain('getent ahostsv4 api.example.test');
+    expect(commands).toContain('getent ahostsv4 web.example.test');
+    expect(commands).toContain('getent ahostsv4 processor.example.test');
+    expect(commands).toContain('getent ahostsv4 control.example.test');
     expect(commands).toContain(`git cat-file -e ${sha}^{commit}`);
     expect(commands).toContain('config --quiet');
     expect(commands).not.toMatch(/git (fetch|checkout)/);
     expect(commands).not.toMatch(/docker .*\b(pull|run|up)\b/);
     expect(commands).not.toContain('curl ');
+  });
+
+  it('fails DNS preflight before release snapshots or target mutation', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const previous = `${JSON.stringify({ sentinel: 'unchanged' })}\n`;
+    writeFileSync(join(fixture.directory, 'previous-release.json'), previous);
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        FAIL_DNS_HOST: 'control.example.test',
+      }),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Control DNS preflight failed for control.example.test.',
+    );
+    expect(result.stderr).toContain('"event":"deployment.failed"');
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      schemaVersion: 1,
+      releaseFormat: 'five-image-v1',
+      sourceSha: sha,
+      phase: 'failed_before_running',
+      outcome: 'failed',
+      exitCode: 1,
+    });
+    expect(
+      readFileSync(join(fixture.directory, 'previous-release.json'), 'utf8'),
+    ).toBe(previous);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toEqual(current);
+
+    const commands = readFileSync(fixture.commandLog, 'utf8');
+    expect(commands).not.toMatch(/git (fetch|checkout)/);
+    expect(commands).not.toMatch(/docker .*\b(pull|run|up)\b/);
+  });
+
+  it('fails before mutation when DNS resolves to a different host', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        DNS_ADDRESS_OVERRIDE: '192.0.2.44',
+      }),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'API DNS preflight did not resolve api.example.test exclusively to the expected production IP.',
+    );
+    const commands = readFileSync(fixture.commandLog, 'utf8');
+    expect(commands).not.toMatch(/git (fetch|checkout)/);
+    expect(commands).not.toMatch(/docker .*\b(pull|run|up)\b/);
+  });
+
+  it('uses current-release JSON as authority when the derived SHA pointer lags', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    writeFileSync(
+      join(fixture.directory, 'current-release'),
+      `${unverifiedSha}\n`,
+    );
+
+    const result = spawnSync('bash', [deployScript, '--preflight-only'], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+
+    expect(result.status).toBe(0);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toEqual(current);
+    expect(
+      readFileSync(join(fixture.directory, 'current-release'), 'utf8').trim(),
+    ).toBe(unverifiedSha);
   });
 
   it('preflight-only requires the mode-600 backup environment file', () => {
@@ -340,39 +490,34 @@ describe('release deployment identity', () => {
   });
 
   it('rejects different images for an already recorded source SHA', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'pressly-deploy-'));
-    const envDirectory = writeMode600Env(directory);
-    const compose = join(directory, 'compose.yml');
-    writeFileSync(compose, 'services: {}\n');
-    writeFileSync(join(directory, 'current-release'), `${sha}\n`);
-    writeFileSync(
-      join(directory, 'current-release.json'),
-      `${JSON.stringify(
-        fiveImageMetadata({
-          releaseImages: {
-            ...images,
-            PRESSLY_PROCESSOR_IMAGE: image('processor', 'e'),
-          },
-        }),
-      )}\n`,
+    const fixture = createHostFixture(
+      fiveImageMetadata({
+        sourceSha: sha,
+        releaseImages: {
+          ...images,
+          PRESSLY_PROCESSOR_IMAGE: image('processor', 'e'),
+        },
+      }),
     );
 
     const result = spawnSync('bash', [deployScript], {
       encoding: 'utf8',
-      env: {
-        ...process.env,
-        DEPLOY_SHA: sha,
-        ...images,
-        PRESSLY_APP_ROOT: directory,
-        PRESSLY_ENV_DIR: envDirectory,
-        PRESSLY_COMPOSE_FILE: compose,
-      },
+      env: deploymentEnv(fixture),
     });
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain(
       'the source SHA is already associated with a different release',
     );
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'failed_before_running',
+      outcome: 'failed',
+    });
   });
 
   it('snapshots the immediate five-image release before a failed upgrade', () => {
@@ -406,6 +551,16 @@ describe('release deployment identity', () => {
         readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
       ),
     ).toEqual(current);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'failed_before_running',
+      outcome: 'failed',
+      exitCode: 23,
+    });
 
     const commands = readFileSync(fixture.commandLog, 'utf8');
     expect(commands).toContain(`git checkout --detach ${sha}`);
@@ -473,6 +628,247 @@ describe('release deployment identity', () => {
         /^docker image inspect /gm,
       ),
     ).toHaveLength(5);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      schemaVersion: 1,
+      releaseFormat: 'five-image-v1',
+      sourceSha: sha,
+      apiImage: images.PRESSLY_API_IMAGE,
+      webImage: images.PRESSLY_WEB_IMAGE,
+      workerImage: images.PRESSLY_WORKER_IMAGE,
+      processorImage: images.PRESSLY_PROCESSOR_IMAGE,
+      controlImage: images.PRESSLY_CONTROL_IMAGE,
+      phase: 'verified',
+      outcome: 'succeeded',
+      exitCode: 0,
+    });
+  });
+
+  it('exposes attempted, running-unverified, and verified states at their boundaries', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const atComposeUp = join(fixture.directory, 'state-at-compose-up.json');
+    const atFirstHealth = join(fixture.directory, 'state-at-first-health.json');
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        STATE_AT_COMPOSE_UP_FILE: atComposeUp,
+        STATE_AT_FIRST_HEALTH_FILE: atFirstHealth,
+      }),
+    });
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(readFileSync(atComposeUp, 'utf8'))).toMatchObject({
+      sourceSha: sha,
+      phase: 'running_unverified',
+      outcome: 'in_progress',
+      exitCode: null,
+    });
+    expect(JSON.parse(readFileSync(atFirstHealth, 'utf8'))).toMatchObject({
+      sourceSha: sha,
+      phase: 'running_unverified',
+      outcome: 'in_progress',
+      exitCode: null,
+    });
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'verified',
+      outcome: 'succeeded',
+      exitCode: 0,
+    });
+  });
+
+  it('refuses a new target while a running-unverified release is unresolved', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const unresolved = `${JSON.stringify(
+      fiveImageDeploymentState({
+        sourceSha: unverifiedSha,
+        releaseImages: currentImages,
+      }),
+    )}\n`;
+    writeFileSync(join(fixture.directory, 'deployment-state.json'), unresolved);
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Deployment state is running_unverified; use --resume-unverified',
+    );
+    expect(
+      readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+    ).toBe(unresolved);
+
+    const commands = readFileSync(fixture.commandLog, 'utf8');
+    expect(commands).not.toContain('getent ');
+    expect(commands).not.toMatch(/git (fetch|checkout)/);
+    expect(commands).not.toMatch(/docker .*\b(pull|run|up)\b/);
+  });
+
+  it('resumes only the exact running-unverified release identity', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const unresolved = fiveImageDeploymentState();
+    writeFileSync(
+      join(fixture.directory, 'deployment-state.json'),
+      `${JSON.stringify(unresolved)}\n`,
+    );
+    const atFirstDns = join(fixture.directory, 'state-at-first-dns.json');
+    const atComposeUp = join(fixture.directory, 'state-at-compose-up.json');
+
+    const result = spawnSync('bash', [deployScript, '--resume-unverified'], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        STATE_AT_FIRST_DNS_FILE: atFirstDns,
+        STATE_AT_COMPOSE_UP_FILE: atComposeUp,
+      }),
+    });
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(readFileSync(atFirstDns, 'utf8'))).toEqual(unresolved);
+    expect(JSON.parse(readFileSync(atComposeUp, 'utf8'))).toMatchObject({
+      releaseFormat: 'five-image-v1',
+      sourceSha: sha,
+      apiImage: images.PRESSLY_API_IMAGE,
+      webImage: images.PRESSLY_WEB_IMAGE,
+      workerImage: images.PRESSLY_WORKER_IMAGE,
+      processorImage: images.PRESSLY_PROCESSOR_IMAGE,
+      controlImage: images.PRESSLY_CONTROL_IMAGE,
+      phase: 'running_unverified',
+      outcome: 'in_progress',
+      exitCode: null,
+    });
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      releaseFormat: 'five-image-v1',
+      sourceSha: sha,
+      apiImage: images.PRESSLY_API_IMAGE,
+      webImage: images.PRESSLY_WEB_IMAGE,
+      workerImage: images.PRESSLY_WORKER_IMAGE,
+      processorImage: images.PRESSLY_PROCESSOR_IMAGE,
+      controlImage: images.PRESSLY_CONTROL_IMAGE,
+      phase: 'verified',
+      outcome: 'succeeded',
+      exitCode: 0,
+    });
+  });
+
+  it('refuses a resume whose immutable image identity differs', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const unresolved = `${JSON.stringify(
+      fiveImageDeploymentState({ releaseImages: currentImages }),
+    )}\n`;
+    writeFileSync(join(fixture.directory, 'deployment-state.json'), unresolved);
+
+    const result = spawnSync('bash', [deployScript, '--resume-unverified'], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      '--resume-unverified target does not exactly match the recorded',
+    );
+    expect(
+      readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+    ).toBe(unresolved);
+    expect(readFileSync(fixture.commandLog, 'utf8')).not.toContain('getent ');
+  });
+
+  it('preserves running-unverified truth when a resume fails before Compose', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    writeFileSync(
+      join(fixture.directory, 'deployment-state.json'),
+      `${JSON.stringify(fiveImageDeploymentState())}\n`,
+    );
+
+    const result = spawnSync('bash', [deployScript, '--resume-unverified'], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, { FAIL_DOCKER: 'true' }),
+    });
+
+    expect(result.status).toBe(23);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      releaseFormat: 'five-image-v1',
+      sourceSha: sha,
+      apiImage: images.PRESSLY_API_IMAGE,
+      webImage: images.PRESSLY_WEB_IMAGE,
+      workerImage: images.PRESSLY_WORKER_IMAGE,
+      processorImage: images.PRESSLY_PROCESSOR_IMAGE,
+      controlImage: images.PRESSLY_CONTROL_IMAGE,
+      phase: 'running_unverified',
+      outcome: 'failed',
+      exitCode: 23,
+    });
+    expect(readFileSync(fixture.commandLog, 'utf8')).not.toContain(
+      'up -d --remove-orphans --wait',
+    );
+  });
+
+  it('records a failed Compose replacement as running-unverified', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, { FAIL_COMPOSE_UP: 'true' }),
+    });
+
+    expect(result.status).toBe(29);
+    expect(result.stderr).toContain('"event":"deployment.failed"');
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'running_unverified',
+      outcome: 'failed',
+      exitCode: 29,
+    });
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toEqual(current);
   });
 
   it('retries transient public readiness before committing release metadata', () => {
@@ -548,6 +944,16 @@ describe('release deployment identity', () => {
         readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
       ),
     ).toEqual(current);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'running_unverified',
+      outcome: 'failed',
+      exitCode: 1,
+    });
     expect(
       readFileSync(fixture.commandLog, 'utf8').match(
         /https:\/\/api\.example\.test\/health\/ready/g,

@@ -8,7 +8,8 @@ not reverse a destructive migration.
 - Obtain owner approval and record the expected data-loss window.
 - Choose an object whose checksum and isolated restore drill passed.
 - Record the current release manifest and incident request IDs.
-- Stop application writers before changing data.
+- Stop every database writer before changing data. API and Worker are the
+  current database-writing services.
 
 ## Quickest Step By Step For Recovery
 
@@ -22,12 +23,14 @@ cd /opt/pressly/backups/postgres
 sha256sum --check pressly-<timestamp>.dump.gpg.sha256
 ```
 
-2. Stop API and web writers.
+2. Put Web, Processor, and Control into maintenance if operator-facing
+   availability matters during recovery. They are frontends, not database
+   writers. Then stop both database writers: API and Worker.
 
 ```bash
 cd /opt/pressly/repo
 docker compose --env-file /opt/pressly/env/compose.env \
-  -f infra/aws/lightsail/docker-compose.production.yml stop api web
+  -f infra/aws/lightsail/docker-compose.production.yml stop api worker
 ```
 
 3. Drop the damaged public schema as the migration role.

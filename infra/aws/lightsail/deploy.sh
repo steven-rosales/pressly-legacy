@@ -2,11 +2,13 @@
 set -euo pipefail
 
 preflight_only=false
+resume_unverified=false
 case "${1:-}" in
   '') ;;
   --preflight-only) preflight_only=true ;;
+  --resume-unverified) resume_unverified=true ;;
   *)
-    echo "Usage: deploy.sh [--preflight-only]" >&2
+    echo "Usage: deploy.sh [--preflight-only|--resume-unverified]" >&2
     exit 2
     ;;
 esac
@@ -30,6 +32,7 @@ API_HEALTH_URL="${PRESSLY_API_HEALTH_URL:-https://api.trypressly.com/health/read
 WEB_HEALTH_URL="${PRESSLY_WEB_HEALTH_URL:-https://trypressly.com/health}"
 PROCESSOR_HEALTH_URL="${PRESSLY_PROCESSOR_HEALTH_URL:-https://processor.trypressly.com/health}"
 CONTROL_HEALTH_URL="${PRESSLY_CONTROL_HEALTH_URL:-https://control.trypressly.com/health}"
+EXPECTED_PUBLIC_IP="${PRESSLY_EXPECTED_PUBLIC_IP:-}"
 HEALTH_MAX_ATTEMPTS="${PRESSLY_HEALTH_MAX_ATTEMPTS:-30}"
 HEALTH_RETRY_DELAY_SECONDS="${PRESSLY_HEALTH_RETRY_DELAY_SECONDS:-2}"
 HEALTH_REQUEST_TIMEOUT_SECONDS="${PRESSLY_HEALTH_REQUEST_TIMEOUT_SECONDS:-10}"
@@ -37,6 +40,7 @@ CURRENT_RELEASE_FILE="${PRESSLY_CURRENT_RELEASE_FILE:-$APP_ROOT/current-release}
 PREVIOUS_RELEASE_FILE="${PRESSLY_PREVIOUS_RELEASE_FILE:-$APP_ROOT/previous-release}"
 CURRENT_RELEASE_METADATA_FILE="${PRESSLY_CURRENT_RELEASE_METADATA_FILE:-$APP_ROOT/current-release.json}"
 PREVIOUS_RELEASE_METADATA_FILE="${PRESSLY_PREVIOUS_RELEASE_METADATA_FILE:-$APP_ROOT/previous-release.json}"
+DEPLOYMENT_STATE_FILE="${PRESSLY_DEPLOYMENT_STATE_FILE:-$APP_ROOT/deployment-state.json}"
 PRESSLY_API_IMAGE="${PRESSLY_API_IMAGE:-}"
 PRESSLY_WEB_IMAGE="${PRESSLY_WEB_IMAGE:-}"
 PRESSLY_WORKER_IMAGE="${PRESSLY_WORKER_IMAGE:-}"
@@ -45,6 +49,8 @@ PRESSLY_CONTROL_IMAGE="${PRESSLY_CONTROL_IMAGE:-}"
 TARGET_RELEASE_FORMAT="${PRESSLY_TARGET_RELEASE_FORMAT:-five-image-v1}"
 LEGACY_ROLLBACK_MANIFEST_FILE="${PRESSLY_LEGACY_ROLLBACK_MANIFEST_FILE:-}"
 deployment_completed=false
+deployment_state_tracking_started=false
+target_runtime_mutation_started=false
 release_snapshot_tmp=""
 
 emit_deployment_event() {
@@ -59,6 +65,391 @@ emit_deployment_event() {
     "${DEPLOY_SHA:-unknown}" \
     "$exit_code" \
     "$occurred_at"
+}
+
+deployment_state_operation() {
+  local action="$1"
+  local invocation_mode="$2"
+  local phase="$3"
+  local outcome="$4"
+  local exit_code="$5"
+
+  python3 - \
+    "$DEPLOYMENT_STATE_FILE" \
+    "$action" \
+    "$invocation_mode" \
+    "$TARGET_RELEASE_FORMAT" \
+    "${DEPLOY_SHA,,}" \
+    "$PRESSLY_API_IMAGE" \
+    "$PRESSLY_WEB_IMAGE" \
+    "$PRESSLY_WORKER_IMAGE" \
+    "$PRESSLY_PROCESSOR_IMAGE" \
+    "$PRESSLY_CONTROL_IMAGE" \
+    "$phase" \
+    "$outcome" \
+    "$exit_code" <<'PY'
+import datetime
+import json
+import os
+import re
+import sys
+import tempfile
+
+(
+    path,
+    action,
+    invocation_mode,
+    release_format,
+    source_sha,
+    api_image,
+    web_image,
+    worker_image,
+    processor_image,
+    control_image,
+    phase,
+    outcome,
+    raw_exit_code,
+) = sys.argv[1:]
+
+sha_pattern = re.compile(r'[0-9a-f]{40}')
+image_pattern = re.compile(r'ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}')
+timestamp_pattern = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z')
+image_fields_by_format = {
+    'five-image-v1': (
+        'apiImage',
+        'webImage',
+        'workerImage',
+        'processorImage',
+        'controlImage',
+    ),
+    'four-image-v1': (
+        'apiImage',
+        'webImage',
+        'workerImage',
+        'processorImage',
+    ),
+    'legacy-two-image-v1': ('apiImage', 'webImage'),
+}
+allowed_states = {
+    ('attempted', 'in_progress', None),
+    ('running_unverified', 'in_progress', None),
+    ('running_unverified', 'failed', 'nonzero'),
+    ('failed_before_running', 'failed', 'nonzero'),
+    ('verified', 'succeeded', 0),
+}
+common_fields = {
+    'schemaVersion',
+    'releaseFormat',
+    'sourceSha',
+    'phase',
+    'outcome',
+    'exitCode',
+    'updatedAt',
+}
+
+
+def unique_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f'duplicate field {key!r}')
+        value[key] = item
+    return value
+
+
+def load_state():
+    try:
+        with open(path, encoding='utf-8') as handle:
+            value = json.load(handle, object_pairs_hook=unique_object)
+    except (OSError, ValueError) as error:
+        raise ValueError(f'cannot read deployment state: {error}') from error
+    if not isinstance(value, dict):
+        raise ValueError('deployment state must be a JSON object')
+    return value
+
+
+def state_key(value):
+    exit_code = value.get('exitCode')
+    if isinstance(exit_code, bool) or (
+        exit_code is not None and not isinstance(exit_code, int)
+    ):
+        raise ValueError('exitCode must be null or an integer')
+    if isinstance(exit_code, int) and not 0 <= exit_code <= 255:
+        raise ValueError('exitCode must be between 0 and 255')
+    if exit_code is not None and exit_code != 0:
+        exit_code = 'nonzero'
+    return (value.get('phase'), value.get('outcome'), exit_code)
+
+
+def validate_state(value):
+    stored_format = value.get('releaseFormat')
+    if stored_format not in image_fields_by_format:
+        raise ValueError('releaseFormat is invalid')
+    image_fields = image_fields_by_format[stored_format]
+    if set(value) != common_fields | set(image_fields):
+        raise ValueError('deployment state fields are incomplete or unknown')
+    if value.get('schemaVersion') != 1:
+        raise ValueError('schemaVersion is invalid')
+    if not sha_pattern.fullmatch(value.get('sourceSha', '')):
+        raise ValueError('sourceSha is invalid')
+    images = [value.get(field, '') for field in image_fields]
+    if not all(image_pattern.fullmatch(image) for image in images):
+        raise ValueError('every image must be an immutable GHCR digest')
+    if len(set(images)) != len(images):
+        raise ValueError('image references must be distinct')
+    if state_key(value) not in allowed_states:
+        raise ValueError('phase, outcome, and exitCode are inconsistent')
+    if not timestamp_pattern.fullmatch(value.get('updatedAt', '')):
+        raise ValueError('updatedAt is invalid')
+
+
+def release_identity(value):
+    stored_format = value['releaseFormat']
+    fields = ('releaseFormat', 'sourceSha', *image_fields_by_format[stored_format])
+    return tuple(value[field] for field in fields)
+
+
+if release_format not in image_fields_by_format:
+    raise SystemExit('Deployment state target release format is invalid.')
+if not sha_pattern.fullmatch(source_sha):
+    raise SystemExit('Deployment state target source SHA is invalid.')
+
+target_images = {
+    'apiImage': api_image,
+    'webImage': web_image,
+    'workerImage': worker_image,
+    'processorImage': processor_image,
+    'controlImage': control_image,
+}
+target = {
+    'releaseFormat': release_format,
+    'sourceSha': source_sha,
+    **{
+        field: target_images[field]
+        for field in image_fields_by_format[release_format]
+    },
+}
+target_image_values = [
+    target[field] for field in image_fields_by_format[release_format]
+]
+if not all(image_pattern.fullmatch(image) for image in target_image_values):
+    raise SystemExit('Deployment state target image identity is invalid.')
+if len(set(target_image_values)) != len(target_image_values):
+    raise SystemExit('Deployment state target images must be distinct.')
+
+if action == 'guard':
+    if invocation_mode not in {'normal', 'resume'}:
+        raise SystemExit('Deployment state invocation mode is invalid.')
+    if not os.path.exists(path):
+        if invocation_mode == 'resume':
+            raise SystemExit(
+                '--resume-unverified requires an existing running_unverified '
+                'deployment state.'
+            )
+        raise SystemExit(0)
+    try:
+        existing = load_state()
+        validate_state(existing)
+    except ValueError as error:
+        raise SystemExit(f'Deployment state is invalid: {error}.') from error
+
+    if invocation_mode == 'normal':
+        if existing['phase'] == 'running_unverified':
+            raise SystemExit(
+                'Deployment state is running_unverified; use '
+                '--resume-unverified with the exact recorded target or '
+                'reconcile it before a new deployment.'
+            )
+        raise SystemExit(0)
+
+    if existing['phase'] != 'running_unverified':
+        raise SystemExit(
+            '--resume-unverified requires an existing running_unverified '
+            'deployment state.'
+        )
+    if release_identity(existing) != release_identity(target):
+        raise SystemExit(
+            '--resume-unverified target does not exactly match the recorded '
+            'running_unverified release identity.'
+        )
+    raise SystemExit(0)
+
+if action != 'write':
+    raise SystemExit('Deployment state operation is invalid.')
+
+if raw_exit_code == '-':
+    parsed_exit_code = None
+else:
+    try:
+        parsed_exit_code = int(raw_exit_code)
+    except ValueError as error:
+        raise SystemExit('Deployment state exit code is invalid.') from error
+
+updated_at = datetime.datetime.now(datetime.timezone.utc).strftime(
+    '%Y-%m-%dT%H:%M:%SZ'
+)
+state = {
+    'schemaVersion': 1,
+    **target,
+    'phase': phase,
+    'outcome': outcome,
+    'exitCode': parsed_exit_code,
+    'updatedAt': updated_at,
+}
+try:
+    validate_state(state)
+except ValueError as error:
+    raise SystemExit(f'Deployment state is invalid: {error}.') from error
+
+directory = os.path.dirname(os.path.abspath(path))
+prefix = f'.{os.path.basename(path)}.tmp.'
+file_descriptor, temporary_path = tempfile.mkstemp(dir=directory, prefix=prefix)
+try:
+    os.fchmod(file_descriptor, 0o600)
+    with os.fdopen(file_descriptor, 'w', encoding='utf-8') as handle:
+        json.dump(state, handle, separators=(',', ':'))
+        handle.write('\n')
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary_path, path)
+    directory_descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
+except BaseException:
+    try:
+        os.close(file_descriptor)
+    except OSError:
+        pass
+    try:
+        os.unlink(temporary_path)
+    except FileNotFoundError:
+        pass
+    raise
+PY
+}
+
+guard_deployment_state() {
+  if [[ "$resume_unverified" == true ]]; then
+    deployment_state_operation "guard" "resume" "-" "-" "-"
+  else
+    deployment_state_operation "guard" "normal" "-" "-" "-"
+  fi
+}
+
+write_deployment_state() {
+  deployment_state_operation "write" "-" "$1" "$2" "$3"
+}
+
+preflight_health_hostname() {
+  local application="$1"
+  local url="$2"
+  local hostname
+
+  if ! hostname="$(
+    python3 - "$url" <<'PY'
+import sys
+import urllib.parse
+
+url = sys.argv[1]
+try:
+    parsed = urllib.parse.urlsplit(url)
+    port = parsed.port
+except ValueError as error:
+    raise SystemExit(f'invalid health URL: {error}') from error
+
+if parsed.scheme.lower() != 'https':
+    raise SystemExit('health URL must use HTTPS')
+if not parsed.hostname or parsed.username is not None or parsed.password is not None:
+    raise SystemExit('health URL must contain an unauthenticated hostname')
+if port not in (None, 443):
+    raise SystemExit('health URL must use the default HTTPS port')
+
+print(parsed.hostname)
+PY
+  )"; then
+    echo "$application health URL preflight failed: $url" >&2
+    return 1
+  fi
+
+  local resolved_addresses
+  if ! resolved_addresses="$(getent ahostsv4 "$hostname")" || \
+    [[ -z "$resolved_addresses" ]]; then
+    echo "$application DNS preflight failed for $hostname." >&2
+    return 1
+  fi
+
+  if [[ -n "$EXPECTED_PUBLIC_IP" ]]; then
+    local address
+    local expected_address_found=false
+    local unexpected_address_found=false
+    while read -r address _; do
+      if [[ "$address" == "$EXPECTED_PUBLIC_IP" ]]; then
+        expected_address_found=true
+      else
+        unexpected_address_found=true
+      fi
+    done <<< "$resolved_addresses"
+    if [[
+      "$expected_address_found" != true ||
+      "$unexpected_address_found" == true
+    ]]; then
+      echo "$application DNS preflight did not resolve $hostname exclusively to the expected production IP." >&2
+      return 1
+    fi
+  fi
+
+  echo "$application DNS preflight passed for $hostname."
+}
+
+preflight_health_hostnames() {
+  preflight_health_hostname "API" "$API_HEALTH_URL"
+  preflight_health_hostname "Web" "$WEB_HEALTH_URL"
+  if [[
+    "$TARGET_RELEASE_FORMAT" == "five-image-v1" ||
+    "$TARGET_RELEASE_FORMAT" == "four-image-v1"
+  ]]; then
+    preflight_health_hostname "Processor" "$PROCESSOR_HEALTH_URL"
+  fi
+  if [[ "$TARGET_RELEASE_FORMAT" == "five-image-v1" ]]; then
+    preflight_health_hostname "Control" "$CONTROL_HEALTH_URL"
+  fi
+}
+
+durably_install_current_release() {
+  local release_tmp="$1"
+  local release_path="$2"
+  local metadata_tmp="$3"
+  local metadata_path="$4"
+
+  python3 - \
+    "$release_tmp" \
+    "$release_path" \
+    "$metadata_tmp" \
+    "$metadata_path" <<'PY'
+import os
+import sys
+
+release_tmp, release_path, metadata_tmp, metadata_path = sys.argv[1:]
+
+for path in (release_tmp, metadata_tmp):
+    with open(path, 'rb') as handle:
+        os.fsync(handle.fileno())
+
+os.replace(release_tmp, release_path)
+os.replace(metadata_tmp, metadata_path)
+
+for directory in {
+    os.path.dirname(os.path.abspath(release_path)),
+    os.path.dirname(os.path.abspath(metadata_path)),
+}:
+    directory_descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
+PY
 }
 
 require_positive_integer() {
@@ -120,6 +511,15 @@ on_exit() {
     "$deployment_completed" != true &&
     "$exit_code" -ne 0
   ]]; then
+    if [[ "$deployment_state_tracking_started" == true ]]; then
+      if [[ "$target_runtime_mutation_started" == true ]]; then
+        if ! write_deployment_state "running_unverified" "failed" "$exit_code"; then
+          echo "Failed to persist the running-but-unverified deployment outcome." >&2
+        fi
+      elif ! write_deployment_state "failed_before_running" "failed" "$exit_code"; then
+        echo "Failed to persist the pre-running deployment outcome." >&2
+      fi
+    fi
     emit_deployment_event "failed" "$exit_code" >&2
   fi
 }
@@ -222,16 +622,43 @@ case "$TARGET_RELEASE_FORMAT" in
     ;;
 esac
 
-for required_command in git docker curl python3 stat mktemp sha256sum; do
+for required_command in git docker curl getent python3 stat mktemp sha256sum; do
   if ! command -v "$required_command" >/dev/null; then
     echo "Missing deployment prerequisite: $required_command" >&2
     exit 1
   fi
 done
 
+if [[ -n "$EXPECTED_PUBLIC_IP" ]]; then
+  python3 - "$EXPECTED_PUBLIC_IP" <<'PY'
+import ipaddress
+import sys
+
+try:
+    address = ipaddress.ip_address(sys.argv[1])
+except ValueError as error:
+    raise SystemExit('PRESSLY_EXPECTED_PUBLIC_IP must be an IPv4 address.') from error
+if address.version != 4:
+    raise SystemExit('PRESSLY_EXPECTED_PUBLIC_IP must be an IPv4 address.')
+PY
+fi
+
 if ! docker compose version >/dev/null; then
   echo "Docker Compose v2 is required." >&2
   exit 1
+fi
+
+if [[ "$preflight_only" != true ]]; then
+  guard_deployment_state
+  if [[ "$resume_unverified" == true ]]; then
+    # The exact target was already admitted to runtime mutation by the prior
+    # attempt. Any resume failure must retain that truth, even before Compose.
+    target_runtime_mutation_started=true
+    deployment_state_tracking_started=true
+  else
+    write_deployment_state "attempted" "in_progress" "-"
+    deployment_state_tracking_started=true
+  fi
 fi
 
 required_env_files=(
@@ -265,6 +692,11 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "Missing compose file: $COMPOSE_FILE" >&2
   exit 1
 fi
+
+# Public DNS is a release prerequisite, not a post-migration discovery. Check
+# every hostname that this release format will probe before snapshotting the
+# verified release or allowing checkout, migrations, or Compose mutation.
+preflight_health_hostnames
 
 # previous-release.json is the authoritative rollback target. Normalize and
 # atomically replace it before checkout, migrations, or Compose can mutate the
@@ -519,19 +951,13 @@ try:
     validate_target_manifest()
     current_sha_exists = os.path.isfile(current_sha_path)
     current_metadata_exists = os.path.isfile(current_metadata_path)
-    if current_sha_exists != current_metadata_exists:
+    if current_sha_exists and not current_metadata_exists:
         raise ValueError(
-            'current release SHA and metadata must either both exist or both be absent'
+            'current release metadata is missing for the derived SHA pointer'
         )
 
     if current_metadata_exists:
-        with open(current_sha_path, encoding='utf-8') as handle:
-            current_sha = handle.read().strip()
-        if not sha_pattern.fullmatch(current_sha):
-            raise ValueError('current release SHA file is invalid')
         current = normalize_current(load_object(current_metadata_path))
-        if current['sourceSha'] != current_sha:
-            raise ValueError('current release SHA and metadata disagree')
         if (
             current['sourceSha'] == target_sha
             and current_identity(current) != target_identity()
@@ -639,6 +1065,9 @@ docker compose \
   run --rm --workdir /repo/packages/db migrate \
   node node_modules/drizzle-kit/bin.cjs migrate --config drizzle.config.ts
 
+write_deployment_state "running_unverified" "in_progress" "-"
+target_runtime_mutation_started=true
+
 docker compose \
   --env-file "$COMPOSE_ENV_FILE" \
   -f "$COMPOSE_FILE" \
@@ -689,8 +1118,14 @@ else
     "$PRESSLY_WEB_IMAGE" \
     "$deployed_at" > "$current_metadata_tmp"
 fi
-mv "$current_metadata_tmp" "$CURRENT_RELEASE_METADATA_FILE"
-mv "$current_release_tmp" "$CURRENT_RELEASE_FILE"
+durably_install_current_release \
+  "$current_release_tmp" \
+  "$CURRENT_RELEASE_FILE" \
+  "$current_metadata_tmp" \
+  "$CURRENT_RELEASE_METADATA_FILE"
+
+write_deployment_state "verified" "succeeded" "0"
+deployment_completed=true
 
 echo "Deployed source SHA: $target_sha"
 echo "API image: $PRESSLY_API_IMAGE"
@@ -708,5 +1143,4 @@ elif [[ "$TARGET_RELEASE_FORMAT" == "legacy-two-image-v1" ]]; then
   echo "Release format: transitional legacy two-image rollback"
 fi
 echo "Deployment time: $deployed_at"
-deployment_completed=true
 emit_deployment_event "succeeded" 0

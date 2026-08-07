@@ -1,9 +1,9 @@
 # Pressly Lightsail Runtime
 
-Production runs Caddy, Web, API, Worker, Processor, and Postgres on one private
-Compose network. Only Caddy publishes host ports. CI builds and scans the four
-application images; the server pulls immutable GHCR digests and never rebuilds
-application source.
+Production runs Caddy, Web, API, Worker, Processor, Control, and Postgres on one
+private Compose network. Only Caddy publishes host ports. CI builds and scans
+the five application images; the server pulls immutable GHCR digests and never
+rebuilds application source.
 
 ## Server Layout
 
@@ -13,6 +13,7 @@ application source.
   repo/                      deployment tooling checkout
   backups/postgres/          short-lived encrypted local copies
   backup-passphrase.txt      mode 600; retain an offline recovery copy
+  deployment-state.json     exact attempted or unverified release identity
   current-release.json       active release format, SHA, and image digests
   previous-release.json      immediate rollback release identity
 ```
@@ -56,27 +57,36 @@ deployment SHA as `SENTRY_RELEASE` from `deploy.sh`; do not maintain that value
 manually in their env files. The static Processor env contains no browser
 credential or API secret.
 
-Configure these GitHub repository values for the Processor image:
+Configure release build telemetry in the main-only GitHub environment
+`release-production`:
 
 ```text
+secret NEXT_PUBLIC_SENTRY_DSN
 secret PROCESSOR_SENTRY_DSN
 secret SENTRY_AUTH_TOKEN       source-map upload only; project-scoped
 variable SENTRY_ORG
 variable PROCESSOR_SENTRY_PROJECT
+variable NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE
 variable PROCESSOR_SENTRY_TRACES_SAMPLE_RATE
 ```
 
-The browser DSN is public configuration compiled into the JavaScript bundle.
-The auth token is mounted only as a BuildKit secret and never enters an image
-layer. CI compiles the exact Git SHA and `production` environment into the
-Processor and removes source maps after uploading them. See
-`docs/observability.md` for dashboard, alert, and incident-response setup.
+Both browser DSNs are public configuration compiled into their JavaScript
+bundles. The auth token is mounted only as a BuildKit secret and never enters
+an image layer. CI fails before building production images when any required
+telemetry value is absent. It compiles the exact Git SHA and `production`
+environment into the Processor and removes source maps after uploading them.
+See `docs/observability.md` for dashboard, alert, and incident-response setup.
 
 Deployment is driven by `.github/workflows/deploy-production.yml`. The workflow
 supplies one exact source SHA and the API, Web, Worker, Processor, and Control
 image digests to `deploy.sh`. It stages and verifies `deploy.sh` from that exact
 target checkout before execution; it does not trust the deployment logic from
 the currently checked-out host release during the first cutover.
+
+The workflow also supplies the verified Lightsail static IPv4 address. Before
+any release snapshot, checkout, migration, or Compose mutation, deploy requires
+every applicable public hostname to resolve to that address. This catches a
+missing or stale GoDaddy record before the database or runtime changes.
 
 Before `deploy.sh` checks out another commit, runs migrations, or changes
 Compose, it validates the active release and atomically writes that exact
@@ -85,11 +95,21 @@ immediately preceding release as its rollback target instead of an older
 N-minus-one release. Successful normal deploys write a `five-image-v1` current
 record containing all five immutable digests from one source SHA.
 
+Every mutating attempt also writes a mode-600 `deployment-state.json` with its
+phase and complete immutable image identity. If Compose mutation begins but
+public verification fails, a different release is refused so it cannot erase
+the identity that may still be running. After correcting the external failure,
+an operator may rerun only that exact release with `--resume-unverified`; use
+rollback and incident reconciliation instead when the intended target changed.
+`current-release.json` is authoritative; the plain `current-release` SHA file
+is a derived compatibility pointer and is replaced before the authoritative
+JSON so an interrupted two-file update cannot falsely declare a release active.
+
 After Compose reports the private services healthy, deploy polls the public
-API, Web, Processor, and Control routes with bounded timeouts and retries. This absorbs
-the normal TLS-certificate convergence window after Caddy restarts without
-declaring an unverified release successful. Current release metadata is written
-only after every public route passes.
+API, Web, Processor, and Control routes with bounded timeouts and retries. This
+absorbs the normal TLS-certificate convergence window after Caddy restarts
+without declaring an unverified release successful. Current release metadata
+is written only after every public route passes.
 
 The first five-image cutover can snapshot and restore a complete
 `four-image-v1` release without inventing a Control image. The older first
@@ -106,6 +126,7 @@ five digest-qualified image references:
 
 ```bash
 DEPLOY_SHA='<40-character-main-commit-sha>' \
+PRESSLY_EXPECTED_PUBLIC_IP='<Lightsail-static-IPv4>' \
 PRESSLY_API_IMAGE='ghcr.io/<owner>/<api-image>@sha256:<64-hex-digest>' \
 PRESSLY_WEB_IMAGE='ghcr.io/<owner>/<web-image>@sha256:<64-hex-digest>' \
 PRESSLY_WORKER_IMAGE='ghcr.io/<owner>/<worker-image>@sha256:<64-hex-digest>' \
@@ -115,11 +136,11 @@ PRESSLY_CONTROL_IMAGE='ghcr.io/<owner>/<control-image>@sha256:<64-hex-digest>' \
 ```
 
 Preflight validates the full SHA, immutable and distinct image identities,
-current release metadata, the locally available target commit, deployment
-prerequisites, every required mode-600 env file—including `backup.env`—and the
-rendered production Compose config. It does not fetch, check out, pull, migrate,
-start, stop, or recreate anything, and it does not rewrite current or previous
-release metadata.
+public DNS against the expected static IPv4 address, current release metadata,
+the locally available target commit, deployment prerequisites, every required
+mode-600 env file—including `backup.env`—and the rendered production Compose
+config. It does not fetch, check out, pull, migrate, start, stop, or recreate
+anything, and it does not rewrite current or previous release metadata.
 
 ## Production Facility Bootstrap
 

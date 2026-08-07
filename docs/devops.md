@@ -135,6 +135,7 @@ For a non-mutating host check, the same target script supports:
 
 ```txt
 DEPLOY_SHA=<full-sha> \
+PRESSLY_EXPECTED_PUBLIC_IP=<Lightsail-static-IPv4> \
 PRESSLY_API_IMAGE=<digest-reference> \
 PRESSLY_WEB_IMAGE=<digest-reference> \
 PRESSLY_WORKER_IMAGE=<digest-reference> \
@@ -143,16 +144,18 @@ PRESSLY_CONTROL_IMAGE=<digest-reference> \
   ./infra/aws/lightsail/deploy.sh --preflight-only
 ```
 
-That mode validates prerequisites, every required mode-600 runtime env file
-including `backup.env`, immutable release identity, the locally available
-commit, and rendered Compose configuration. It performs no checkout, pull,
-migration, service mutation, or release-metadata rotation.
+That mode validates prerequisites, public DNS against the expected static IPv4
+address, every required mode-600 runtime env file including `backup.env`,
+immutable release identity, the locally available commit, and rendered Compose
+configuration. It performs no checkout, pull, migration, service mutation, or
+release-metadata rotation.
 
 The deploy script:
 
 ```txt
 validates the source SHA and five immutable image digests
-snapshots the immediately active release before changing deployment state
+records the exact attempted release and preflights public DNS
+snapshots the immediately active release before checkout or runtime mutation
 checks out the selected commit without building application images
 pulls the API, Web, Worker, Processor, and Control release set
 runs migrations
@@ -161,6 +164,11 @@ checks private API, Web, Processor, Control, and Worker health
 polls public API, Web, Processor, and Control readiness with bounded retries
 records current release metadata only after public readiness passes
 ```
+
+An unverified runtime records every applicable digest and blocks a different
+target. `--resume-unverified` accepts only that exact identity. The JSON release
+record is authoritative; the plain SHA pointer is derived and replaced first so
+an interruption cannot falsely declare a new release active.
 
 Host release metadata is discriminated. Normal current and rollback records use
 `five-image-v1` and require all five distinct digest-qualified images from one
@@ -197,8 +205,8 @@ the key with `openssl rand -base64 32`; do not reuse
 `AUTH_MFA_ENCRYPTION_KEY`. A release that includes the quarantine schema will
 fail API startup in production until this value is present.
 
-The deploy workflow needs only its SSH boundary credentials; image-building
-telemetry configuration is separate and documented below:
+The main-only GitHub `Production` environment owns only the deploy workflow's
+SSH boundary credentials:
 
 ```txt
 LIGHTSAIL_HOST
@@ -206,6 +214,12 @@ LIGHTSAIL_USER
 LIGHTSAIL_SSH_KEY
 LIGHTSAIL_SSH_KNOWN_HOSTS
 ```
+
+The separate main-only `release-production` environment owns Web and Processor
+Sentry DSNs, the source-map upload token, Sentry project coordinates, and trace
+sample rates. Production image builds fail closed when a required telemetry
+value is missing. Keeping release credentials separate prevents image builds
+from receiving deployment SSH access.
 
 ## Runtime
 
@@ -345,6 +359,27 @@ authentication cases.
 Local Docker is for development and integration testing.
 
 Production Docker is composed by the Lightsail files under `infra/aws/lightsail`.
+
+## Host Maintenance
+
+Use this pilot cadence for the production Lightsail host:
+
+- Review instance status, CPU, burst capacity, disk, memory, automatic snapshot,
+  and public health once a week.
+- Apply critical Ubuntu, OpenSSH, kernel, and Docker security updates within 72
+  hours. Use one scheduled maintenance window each month for all other updates
+  and a reboot when `/var/run/reboot-required` exists.
+- Before mutation, require a recent available instance snapshot, record the
+  current release SHA, and confirm all four public health endpoints return 200.
+- After reboot, require Docker Compose health plus Web, API, Processor, and
+  Control public health before closing the window.
+
+Use `df -h / /var/lib/docker`, `free -h`, `docker system df`,
+`docker stats --no-stream`, and `timedatectl status` for the weekly host review.
+Remove old Docker data only after confirming that current and previous release
+digests are recorded and still pullable from GHCR. Do not delete the rollback
+host or its retained snapshot until database restore evidence meets the agreed
+recovery window.
 
 ## Backups
 

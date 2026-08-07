@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
@@ -19,9 +20,14 @@ const processorDockerfile = await readFile(
   new URL('../../apps/processor/Dockerfile', import.meta.url),
   'utf8',
 );
+const restoreRunbook = await readFile(
+  new URL('../../infra/aws/docs/restore-postgres.md', import.meta.url),
+  'utf8',
+);
 const workflow = parse(workflowSource);
 const production = workflow.jobs['production-artifacts'];
 const productionSteps = production.steps;
+const required = workflow.jobs.required;
 
 const applications = {
   api: {
@@ -59,6 +65,15 @@ const step = (name) => {
 
 const stepIndex = (name) =>
   productionSteps.findIndex((candidate) => candidate.name === name);
+
+const runBash = (source, environment) =>
+  spawnSync('bash', ['-c', source], {
+    encoding: 'utf8',
+    env: {
+      PATH: process.env.PATH,
+      ...environment,
+    },
+  });
 
 const runtimeStage = (dockerfile) => {
   const runnerMarker = dockerfile.lastIndexOf(' AS runner');
@@ -163,7 +178,86 @@ describe('five-image CI release', () => {
     );
   });
 
-  it('builds Processor telemetry for the release without embedding the upload token', () => {
+  it('requires a dedicated release environment and validates telemetry before any image build', () => {
+    expect(production.environment).toBe('release-production');
+
+    const validation = step('Validate release telemetry configuration');
+    expect(validation.env).toEqual({
+      NEXT_PUBLIC_SENTRY_DSN: '${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}',
+      PROCESSOR_SENTRY_DSN: '${{ secrets.PROCESSOR_SENTRY_DSN }}',
+      SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}',
+      SENTRY_ORG: '${{ vars.SENTRY_ORG }}',
+      PROCESSOR_SENTRY_PROJECT: '${{ vars.PROCESSOR_SENTRY_PROJECT }}',
+    });
+    expect(stepIndex(validation.name)).toBeLessThan(
+      Math.min(
+        ...Object.values(applications).map(({ build }) => stepIndex(build)),
+      ),
+    );
+    expect(workflowSource).not.toContain(
+      "vars.SENTRY_ORG || 'pressly-laundry-service-dry-cl'",
+    );
+    expect(workflowSource).not.toContain(
+      "vars.PROCESSOR_SENTRY_PROJECT || 'pressly-processor'",
+    );
+
+    const validEnvironment = {
+      NEXT_PUBLIC_SENTRY_DSN:
+        'https://web-private-key@o123.ingest.us.sentry.io/123',
+      PROCESSOR_SENTRY_DSN:
+        'https://processor-private-key@o123.ingest.us.sentry.io/456',
+      SENTRY_AUTH_TOKEN: 'sntrys_valid_release_upload_token',
+      SENTRY_ORG: 'pressly-laundry-service-dry-cl',
+      PROCESSOR_SENTRY_PROJECT: 'pressly-processor',
+    };
+    const valid = runBash(validation.run, validEnvironment);
+    expect(valid.status, valid.stderr).toBe(0);
+    expect(valid.stdout).toBe('');
+    expect(valid.stderr).toBe('');
+
+    for (const name of Object.keys(validEnvironment)) {
+      const missing = runBash(validation.run, {
+        ...validEnvironment,
+        [name]: ' ',
+      });
+      expect(missing.status, name).not.toBe(0);
+      expect(missing.stderr, name).toContain(name);
+      for (const value of Object.values(validEnvironment))
+        expect(`${missing.stdout}${missing.stderr}`, name).not.toContain(value);
+    }
+
+    const invalidDsn = runBash(validation.run, {
+      ...validEnvironment,
+      PROCESSOR_SENTRY_DSN:
+        'https://processor-private-key@o123.ingest.us.sentry.io/not-a-project',
+    });
+    expect(invalidDsn.status).not.toBe(0);
+    expect(invalidDsn.stderr).toContain('PROCESSOR_SENTRY_DSN');
+    expect(invalidDsn.stderr).not.toContain('processor-private-key');
+  });
+
+  it('builds Web and Processor telemetry without embedding the upload token', () => {
+    const webBuild = step('Build web image once').with;
+    expect(webBuild['build-args']).toContain('NEXT_PUBLIC_SENTRY_DSN=');
+    expect(webBuild['build-args']).toContain(
+      'SENTRY_RELEASE=${{ github.sha }}',
+    );
+    expect(webBuild.secrets).toContain(
+      'sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}',
+    );
+    expect(webBuild['build-args']).not.toContain('SENTRY_AUTH_TOKEN=');
+    expect(nodeRuntimeDockerfiles.web).toContain(
+      '--mount=type=secret,id=sentry_auth_token',
+    );
+    expect(nodeRuntimeDockerfiles.web).not.toMatch(/ARG SENTRY_AUTH_TOKEN/);
+    expect(nodeRuntimeDockerfiles.web).not.toMatch(/ENV SENTRY_AUTH_TOKEN/);
+    expect(
+      nodeRuntimeDockerfiles.web.match(/ARG SENTRY_RELEASE/g),
+    ).toHaveLength(2);
+    expect(
+      nodeRuntimeDockerfiles.web.match(/ENV SENTRY_RELEASE=\$SENTRY_RELEASE/g),
+    ).toHaveLength(2);
+
     const processorBuild = step('Build Processor image once').with;
     expect(processorBuild['build-args']).toContain(
       'VITE_SENTRY_RELEASE=${{ github.sha }}',
@@ -184,6 +278,80 @@ describe('five-image CI release', () => {
     );
     expect(processorDockerfile).not.toMatch(/ARG SENTRY_AUTH_TOKEN/);
     expect(processorDockerfile).not.toMatch(/ENV SENTRY_AUTH_TOKEN/);
+  });
+
+  it('exposes one stable required check covering browser and every branch-specific image path', () => {
+    expect(required.name).toBe('ci required');
+    expect(required.if).toBe('always()');
+    expect(required.needs).toEqual([
+      'quality',
+      'integration-tests',
+      'browser-e2e',
+      'web-docker-build',
+      'api-docker-build',
+      'lpms-docker-build',
+      'production-artifacts',
+    ]);
+
+    const gate = required.steps.find(
+      (candidate) => candidate.name === 'Verify required CI paths',
+    );
+    expect(gate.env.BROWSER_RESULT).toBe('${{ needs.browser-e2e.result }}');
+    expect(gate.env.LPMS_BUILD_RESULT).toBe(
+      '${{ needs.lpms-docker-build.result }}',
+    );
+
+    const baseResults = {
+      QUALITY_RESULT: 'success',
+      INTEGRATION_RESULT: 'success',
+      BROWSER_RESULT: 'success',
+    };
+    const mainPush = runBash(gate.run, {
+      ...baseResults,
+      EVENT_NAME: 'push',
+      REF: 'refs/heads/main',
+      WEB_BUILD_RESULT: 'skipped',
+      API_BUILD_RESULT: 'skipped',
+      LPMS_BUILD_RESULT: 'skipped',
+      PRODUCTION_RESULT: 'success',
+    });
+    expect(mainPush.status, mainPush.stderr).toBe(0);
+
+    const pullRequest = runBash(gate.run, {
+      ...baseResults,
+      EVENT_NAME: 'pull_request',
+      REF: 'refs/pull/31/merge',
+      WEB_BUILD_RESULT: 'success',
+      API_BUILD_RESULT: 'success',
+      LPMS_BUILD_RESULT: 'success',
+      PRODUCTION_RESULT: 'skipped',
+    });
+    expect(pullRequest.status, pullRequest.stderr).toBe(0);
+
+    const skippedControlMatrix = runBash(gate.run, {
+      ...baseResults,
+      EVENT_NAME: 'pull_request',
+      REF: 'refs/pull/31/merge',
+      WEB_BUILD_RESULT: 'success',
+      API_BUILD_RESULT: 'success',
+      LPMS_BUILD_RESULT: 'skipped',
+      PRODUCTION_RESULT: 'skipped',
+    });
+    expect(skippedControlMatrix.status).not.toBe(0);
+    expect(skippedControlMatrix.stderr).toContain('lpms-docker-build');
+
+    const failedBrowser = runBash(gate.run, {
+      ...baseResults,
+      EVENT_NAME: 'pull_request',
+      REF: 'refs/pull/31/merge',
+      BROWSER_RESULT: 'failure',
+      WEB_BUILD_RESULT: 'skipped',
+      API_BUILD_RESULT: 'skipped',
+      LPMS_BUILD_RESULT: 'skipped',
+      PRODUCTION_RESULT: 'skipped',
+    });
+    expect(failedBrowser.status).not.toBe(0);
+    expect(failedBrowser.stderr).toContain('browser-e2e');
   });
 
   it('keeps build-only package managers out of every Node runtime image', () => {
@@ -290,6 +458,22 @@ describe('five-image CI release', () => {
     });
     expect(workflowSource.match(/artifacts\/[a-z]+\.spdx\.json/g)).toHaveLength(
       5,
+    );
+  });
+});
+
+describe('production restore runbook', () => {
+  it('stops every current database writer without misclassifying frontends', () => {
+    expect(restoreRunbook).toContain('current database-writing services');
+    expect(restoreRunbook).toContain('API and Worker');
+    expect(restoreRunbook).toMatch(
+      /They are frontends, not database\s+writers\./,
+    );
+    expect(restoreRunbook).toContain(
+      'docker-compose.production.yml stop api worker',
+    );
+    expect(restoreRunbook).not.toContain(
+      'docker-compose.production.yml stop api web',
     );
   });
 });
