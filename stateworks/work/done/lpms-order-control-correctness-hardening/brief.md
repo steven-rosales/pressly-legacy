@@ -1,16 +1,17 @@
-# LPMS Order-Control Correctness Hardening
+# LPMS Order-Control Correctness Hardening - Complete
 
 ## Status
 
-Active hardening. Complete this before treating whole-order routing, History
-pagination, or the new staging observability boundary as release-ready.
+Complete on `2026-08-06`. Whole-order routing, History pagination, local LPMS,
+the production topology, and server-side staging observability are verified.
+Browser source-map and production/pilot proof remain separate release gates.
 
 ## Current Rebaseline - 2026-08-06
 
-The architecture migration is complete on this branch and the four findings
-still reproduce against the current Production authority. This active pass
-keeps the repairs independent: stage-gap semantics, assigned machine capacity,
-route idempotency, and exact History ordering each receive their own proof.
+The architecture migration was complete on this branch and the four findings
+reproduced against the current Production authority. This pass kept the repairs
+independent: stage-gap semantics, assigned machine capacity, route idempotency,
+and exact History ordering each received their own proof.
 
 The branch also contains the cross-runtime Sentry observability work. That work
 does not change Production policy, but V1 must verify its staging-facing API,

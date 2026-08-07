@@ -1,6 +1,6 @@
 work_id: lpms-order-control-correctness-hardening
-title: LPMS order-control correctness hardening
-status: active
+title: LPMS order-control correctness hardening - complete
+status: complete
 
 goal:
   - Close four post-checkpoint correctness gaps in whole-order routing and History keyset pagination.
@@ -36,7 +36,7 @@ tasks:
       - memory:domain:laundry-production/context-pack
       - repo:stateworks/work/done/lpms-order-control-history
       - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast
-      - repo:stateworks/work/active/lpms-order-control-correctness-hardening/brief.md
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening/brief.md
       - repo:docs/plan/lpms-state-transitions.md
       - repo:modules/business/production/src/features/orders/route-order
       - repo:modules/business/production/src/features/floor/advance-stage
@@ -45,7 +45,7 @@ tasks:
       - repo:modules/business/production/src/foundations/language/stage-transition
       - repo:packages/db/src/schema/laundry-production.schema.ts
     writes:
-      - repo:stateworks/work/active/lpms-order-control-correctness-hardening/evidence.md
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md
     action:
       - Reproduce or prove each of the four audit findings against the post-operational-authority worktree and contracts.
       - Record exact failing tests or source-level proofs before implementation.
@@ -57,8 +57,9 @@ tasks:
     rollback:
       - No rollback is needed for read-only reconciliation.
     secret_handling: none
-    status: pending
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t0---reconcile-the-current-failures
 
   - id: T1
     title: Repair between-stage routing semantics
@@ -72,11 +73,13 @@ tasks:
       - repo:modules/business/production/src/foundations/language/order-routing
       - repo:modules/business/production/src/foundations/language/stage-transition
       - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/orders/list-order-control
       - repo:modules/business/production/src/features/floor/advance-stage
     writes:
       - repo:modules/business/production/src/foundations/language/order-routing
       - repo:modules/business/production/src/foundations/language/stage-transition
       - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/orders/list-order-control
       - repo:modules/business/production/test/features/orders/route-order
     action:
       - Model the between-stage milestone without creating another execution state machine.
@@ -87,8 +90,9 @@ tasks:
     rollback:
       - Revert the focused repair and retain the route rejection rather than weakening stage authority.
     secret_handling: none
-    status: pending
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t1---repair-between-stage-routing-semantics
 
   - id: T2
     title: Fence routing against assigned machine under-capacity
@@ -102,13 +106,15 @@ tasks:
       - repo:modules/business/production/src/features/orders/route-order
       - repo:modules/business/production/src/features/floor/advance-stage
       - repo:modules/business/production/src/foundations/adapters/postgres
+      - repo:packages/contracts/src/production/production-order-control.contracts.ts
       - repo:packages/db/src/schema/laundry-production.schema.ts
     writes:
       - repo:modules/business/production/src/features/orders/route-order
       - repo:modules/business/production/src/features/floor/advance-stage
       - repo:modules/business/production/test/features/orders/route-order
       - repo:modules/business/production/test/features/floor/advance-stage
-      - repo:modules/business/production/test/integration
+      - repo:modules/business/production/test/integration/order-control
+      - repo:packages/contracts/src/production/production-order-control.contracts.ts
     action:
       - Make the effective capacity of the actual planned machine assignments authoritative at route and start boundaries.
       - Reject, repair, or invalidate a mutation that would leave an affected stage startable below the routed batch weight.
@@ -120,8 +126,9 @@ tasks:
     rollback:
       - Revert the focused repair and retain route rejection rather than weakening assigned or pulse capacity.
     secret_handling: none
-    status: pending
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t2---fence-assigned-machine-capacity
 
   - id: T3
     title: Fence route idempotency under lock
@@ -140,7 +147,7 @@ tasks:
     writes:
       - repo:modules/business/production/src/features/orders/route-order
       - repo:modules/business/production/test/features/orders/route-order
-      - repo:modules/business/production/test/integration/concurrency
+      - repo:modules/business/production/test/integration/order-control
       - repo:packages/contracts/test/production-order-control.contracts.test.ts
     action:
       - Recheck replay after the run-first aggregate lock and before mutable-version rejection.
@@ -153,8 +160,9 @@ tasks:
     rollback:
       - Revert the idempotency repair without changing route policy or persisted production history.
     secret_handling: none
-    status: pending
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t3---fence-route-idempotency-under-lock
 
   - id: T4
     title: Preserve exact History cursor ordering
@@ -170,6 +178,7 @@ tasks:
       - repo:modules/business/production/src/foundations/language/history
       - repo:modules/business/production/src/foundations/adapters/postgres/history
       - repo:packages/db/src/query.ts
+      - repo:packages/db/src/schema/laundry-production.schema.ts
     writes:
       - repo:packages/contracts/src/production/production-history.contracts.ts
       - repo:packages/contracts/test/production-history.contracts.test.ts
@@ -179,6 +188,9 @@ tasks:
       - repo:modules/business/production/src/foundations/adapters/postgres/history
       - repo:modules/business/production/test/foundations/language/history
       - repo:modules/business/production/test/foundations/adapters/postgres/history
+      - repo:packages/db/src/migrations/0040_flashy_colossus.sql
+      - repo:packages/db/src/migrations/meta/0040_snapshot.json
+      - repo:packages/db/src/schema/laundry-production.schema.ts
     action:
       - Preserve the exact database ordering key across cursor encode and decode.
       - Keep cursors filter-bound, opaque, bounded, and backward-incompatible only if required for correctness.
@@ -189,8 +201,9 @@ tasks:
     rollback:
       - Revert the cursor change and keep the affected History surface non-release-ready rather than accepting row loss.
     secret_handling: none
-    status: pending
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t4---preserve-exact-history-cursor-ordering
 
   - id: V1
     title: Run full LPMS and staging observability proof
@@ -209,10 +222,12 @@ tasks:
       - repo:apps/processor
       - repo:apps/api
       - repo:apps/worker
+      - repo:apps/web
       - repo:docs/observability.md
-      - repo:stateworks/work/active/lpms-order-control-correctness-hardening
+      - repo:tooling/scripts/production-topology-smoke.sh
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening
     writes:
-      - repo:stateworks/work/active/lpms-order-control-correctness-hardening/evidence.md
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md
     action:
       - Run focused and repository-wide policy, contract, Production, database, Processor, LPMS integration, and LPMS end-to-end gates.
       - Reverify the Processor loading-state checkpoint and local Docker path without resetting the development database.
@@ -231,11 +246,18 @@ tasks:
       - pnpm typecheck
       - pnpm lint
       - pnpm build
+      - pnpm format:check
+      - pnpm architecture:check
+      - pnpm lint:architecture
+      - pnpm docker:production:smoke
+      - pnpm stateworks:validate stateworks/work/done/lpms-order-control-correctness-hardening/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-order-control-correctness-hardening/network.yaml --state stateworks/work/done/lpms-order-control-correctness-hardening/state.yaml
     rollback:
       - Keep the work active and the production-readiness gate stopped until every correctness verifier passes.
     secret_handling: none
-    status: pending
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#v1---full-lpms-and-staging-observability-proof
 
   - id: T5
     title: Close evidence and memory impact
@@ -246,10 +268,10 @@ tasks:
     deps:
       - V1
     reads:
-      - repo:stateworks/work/active/lpms-order-control-correctness-hardening/evidence.md
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md
       - memory:domain:laundry-production/context-pack
     writes:
-      - repo:stateworks/work/active/lpms-order-control-correctness-hardening/final-report.md
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening/final-report.md
       - repo:stateworks/memory/domains/laundry-production/deltas
       - repo:stateworks/memory/domains/laundry-production/memory.yaml
       - repo:stateworks/memory/domains/laundry-production/context-pack.md
@@ -264,5 +286,7 @@ tasks:
     rollback:
       - Leave any unsupported memory delta proposed and keep the work active.
     secret_handling: none
-    status: pending
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t5---close-evidence-and-memory-impact
+      - stateworks/work/done/lpms-order-control-correctness-hardening/final-report.md
