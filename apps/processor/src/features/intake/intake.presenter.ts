@@ -1,8 +1,6 @@
 import type { TFunction } from "i18next"
-import type {
-  ProcessorOrderControlItem,
-  ProductionOrderListItem,
-} from "@pressly/contracts"
+import type { ProcessorOrderControlItem } from "@pressly/contracts/processor"
+import type { ProductionOrderListItem } from "@pressly/contracts/production"
 
 export type IntakeSourcePresentation = Readonly<{
   label: string

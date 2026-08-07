@@ -3,21 +3,42 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+    "./abort-reason": {
+      "types": "./dist/abort-reason.d.ts",
+      "import": "./dist/abort-reason.js",
+      "default": "./dist/abort-reason.js"
+    },
+    "./app-error": {
+      "types": "./dist/app-error.d.ts",
+      "import": "./dist/app-error.js",
+      "default": "./dist/app-error.js"
+    },
+    "./factories": {
+      "types": "./dist/factories.d.ts",
+      "import": "./dist/factories.js",
+      "default": "./dist/factories.js"
+    },
+    "./presentation": {
+      "types": "./dist/presentation.d.ts",
+      "import": "./dist/presentation.js",
+      "default": "./dist/presentation.js"
+    },
+    "./tooling-error": {
+      "types": "./src/tooling-error.d.mts",
+      "import": "./src/tooling-error.mjs",
+      "default": "./src/tooling-error.mjs"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
-    "test": "vitest run --dir test",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --dir test",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pressly/codec": "workspace:*"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",

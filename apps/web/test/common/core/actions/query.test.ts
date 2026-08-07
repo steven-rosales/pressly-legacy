@@ -1,5 +1,6 @@
 import { result } from '@pressly/kernel';
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
+import { nullLogger } from '@pressly/logging';
 import { z } from 'zod';
 import { makeTestWebCore } from '@/common/testing/make-test-web-core';
 import type { RequestClient } from '@/common/core/requests/request-client';
@@ -7,6 +8,47 @@ import type { RequestClient } from '@/common/core/requests/request-client';
 describe('core.query', () => {
   it('returns result.ok(value) on success', async () => {
     const core = makeTestWebCore();
+
+    const actual = await core.query.run({
+      meta: { action: 'loading_pricing', rail: 'query', criticality: 'low' },
+      work: async () => ({ price: 10 }),
+    });
+
+    expect(actual).toEqual({ tag: 'ok', value: { price: 10 } });
+  });
+
+  it('keeps successful work authoritative when success observation fails', async () => {
+    const core = makeTestWebCore(
+      {},
+      {
+        logger: {
+          ...nullLogger,
+          debug: () => {
+            throw new Error('logger unavailable');
+          },
+        },
+      },
+    );
+
+    const actual = await core.query.run({
+      meta: { action: 'loading_pricing', rail: 'query', criticality: 'low' },
+      work: async () => ({ price: 10 }),
+    });
+
+    expect(actual).toEqual({ tag: 'ok', value: { price: 10 } });
+  });
+
+  it('keeps successful work authoritative when observation timing fails', async () => {
+    const core = makeTestWebCore(
+      {},
+      {
+        clock: {
+          now: () => {
+            throw new Error('clock unavailable');
+          },
+        },
+      },
+    );
 
     const actual = await core.query.run({
       meta: { action: 'loading_pricing', rail: 'query', criticality: 'low' },
@@ -64,6 +106,35 @@ describe('core.query', () => {
     });
 
     expect(core.calls.errors).toHaveLength(1);
+  });
+
+  it('preserves the primary failure when failure context is unavailable', async () => {
+    const appError = makeAppError({
+      kind: 'ExternalServiceError',
+      code: 'api_unavailable',
+      message: 'API unavailable.',
+      safeMessage: 'Could not load account.',
+      status: 503,
+    });
+    const core = makeTestWebCore(
+      {},
+      {
+        contextProvider: {
+          get: () => {
+            throw new Error('context unavailable');
+          },
+        },
+      },
+    );
+
+    const actual = await core.query.run({
+      meta: { action: 'local_account', rail: 'query', criticality: 'high' },
+      work: async () => {
+        throw appError;
+      },
+    });
+
+    expect(actual).toEqual({ tag: 'err', error: appError });
   });
 
   it('suppresses high-criticality routine client query failures', async () => {

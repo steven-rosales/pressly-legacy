@@ -1,7 +1,8 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { AuthModule, WorkforceApplication } from '@pressly/auth-module';
-import { isAppError, makeAppError } from '@pressly/errors';
+import type { IdentityModule, WorkforceApplication } from '@pressly/identity';
+import type { ControlAccess } from '@pressly/control-experience';
+import { isAppError, makeAppError } from '@pressly/errors/app-error';
 import express, {
   type ErrorRequestHandler,
   type RequestHandler,
@@ -9,11 +10,11 @@ import express, {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { controlCookieNames } from '../../src/http/control/session/control-cookie.adapter.ts';
 import type {
-  ControlAccess,
   ControlAuthApplication,
   ControlSessionOptions,
 } from '../../src/http/control/session/control-session.port.ts';
 import { makeControlInvitationAcceptanceRoutes } from '../../src/http/control/workforce/control-invitation.route.ts';
+import { makeTestControlExperience } from './control-experience.fixture.ts';
 
 const origin = 'http://control.test';
 const businessId = '00000000-0000-4000-8000-000000000100';
@@ -25,6 +26,7 @@ const sessionToken = 'opaque-session-token-at-least-32-characters';
 const challengeToken = 'opaque-challenge-token-at-least-32-characters';
 const acceptanceToken = 'one-time-invitation-token-that-is-long-enough';
 const expiresAt = '2026-08-01T20:00:00.000Z';
+const expiresAtDate = new Date(expiresAt);
 const options: ControlSessionOptions = {
   origin,
   csrfSecret: 'test-control-csrf-secret-at-least-32-bytes',
@@ -142,13 +144,11 @@ const makeWorkforce = (
       acceptError
         ? {
             tag: 'err' as const,
-            error: makeAppError({
-              kind: 'ConflictError',
+            error: {
+              kind: 'conflict' as const,
               code: 'expired_token',
-              message: 'Invitation expired.',
-              safeMessage: 'This invitation is no longer available.',
-              status: 409,
-            }),
+              message: 'This invitation is no longer available.',
+            },
           }
         : {
             tag: 'ok' as const,
@@ -172,11 +172,11 @@ const makeAuth = (mfaRequired = false): ControlAuthApplication =>
         ? {
             status: 'mfa_required' as const,
             challengeToken,
-            expiresAt,
+            expiresAt: expiresAtDate,
           }
         : {
             accessToken: sessionToken,
-            expiresAt,
+            expiresAt: expiresAtDate,
             principal: {
               identityId,
               displayName: 'Manager One',
@@ -189,7 +189,7 @@ const makeAuth = (mfaRequired = false): ControlAuthApplication =>
       tag: 'ok' as const,
       value: {
         accessToken: sessionToken,
-        expiresAt,
+        expiresAt: expiresAtDate,
         principal: {
           identityId,
           displayName: 'Manager One',
@@ -206,7 +206,7 @@ const makeAuth = (mfaRequired = false): ControlAuthApplication =>
       tag: 'ok' as const,
       value: { revoked: true as const },
     })),
-  }) as unknown as AuthModule['application'];
+  }) as unknown as IdentityModule['application'];
 
 const makeApp = (input: {
   workforce: WorkforceApplication;
@@ -214,11 +214,14 @@ const makeApp = (input: {
   resolveAccess?: () => Promise<ControlAccess | null>;
 }) => {
   const app = express();
+  const experience = makeTestControlExperience({
+    workforce: input.workforce,
+  });
   app.use(express.json());
   app.use(
     '/control/invitations',
     makeControlInvitationAcceptanceRoutes({
-      application: input.workforce,
+      application: experience.invitations,
       authApplication: input.auth,
       authenticateExisting: pass,
       limitExistingIdentity: pass,

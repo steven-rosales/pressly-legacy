@@ -24,14 +24,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
-import type { ControlCustomer } from "@/features/customers/customer-model"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
+import type { ControlOrderDetail } from "@pressly/contracts/orders"
+import type { ControlCustomer } from "@pressly/contracts/users"
 import { controlErrorMessage } from "@/i18n/control-error-message"
 import type {
   CorrectControlOrderInput,
   CreateControlOrderInput,
 } from "./order-api"
-import type { ControlOrderDetail } from "./order-model"
 import { DueDateField } from "./due-date-field"
 
 type OrderFormSubmission =

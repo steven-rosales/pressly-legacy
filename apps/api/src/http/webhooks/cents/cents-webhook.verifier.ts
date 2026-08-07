@@ -1,6 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { RequestHandler } from 'express';
-import { makeAppError } from '@pressly/errors';
+import {
+  authError,
+  externalServiceError,
+  validationError,
+} from '@pressly/errors/factories';
+import type { Clock } from '@pressly/time';
 
 const sha256Bytes = 32;
 const minimumKeyBytes = 32;
@@ -26,7 +31,7 @@ export type CentsWebhookVerifier = (
 export type CentsWebhookHmacVerifierOptions = Readonly<{
   currentKey?: string;
   previousKey?: string;
-  clock: Readonly<{ now: () => Date }>;
+  clock: Clock;
   clockWindowSeconds?: number;
 }>;
 
@@ -129,22 +134,20 @@ export const makeCentsWebhookHmacVerifier = (
   };
 };
 
-const unavailable = () =>
-  makeAppError({
-    kind: 'ExternalServiceError',
+const unavailable = (cause?: unknown) =>
+  externalServiceError({
     code: 'cents_webhook_verification_unavailable',
     message: 'Cents webhook verification is not configured or could not run.',
     safeMessage: 'Vendor webhook receipt is not configured.',
     status: 503,
+    ...(cause === undefined ? {} : { cause }),
   });
 
 const invalidAuthentication = () =>
-  makeAppError({
-    kind: 'AuthError',
+  authError({
     code: 'invalid_cents_webhook_authentication',
     message: 'Cents webhook authentication failed.',
     safeMessage: 'Vendor webhook authentication failed.',
-    status: 401,
   });
 
 export const rejectUnverifiedCentsWebhook: CentsWebhookVerifier = () =>
@@ -171,8 +174,8 @@ export const makeCentsWebhookBoundary =
         rawBody: request.body,
         headers: request.headers,
       });
-    } catch {
-      next(unavailable());
+    } catch (cause) {
+      next(unavailable(cause));
       return;
     }
 
@@ -190,14 +193,14 @@ export const makeCentsWebhookBoundary =
       request.body = JSON.parse(rawBody.toString('utf8')) as unknown;
       response.locals['centsWebhookRawBody'] = rawBody;
       next();
-    } catch {
+    } catch (cause) {
       next(
-        makeAppError({
-          kind: 'ValidationError',
+        validationError({
           code: 'invalid_cents_webhook_body',
           message: 'Cents webhook body was not valid JSON.',
           safeMessage: 'The vendor webhook body is invalid.',
           status: 400,
+          cause,
         }),
       );
     }

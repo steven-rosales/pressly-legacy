@@ -1,12 +1,14 @@
 import {
-  listProductionHistoryActivityQuerySchema,
-  previewProductionOrderBacklogRequestSchema,
   processorListProductionHistoryActivityResultSchema,
   processorProductionOrderBacklogPreviewSchema,
   processorProductionBoardSchema,
   processorProductionHistoryRunDetailSchema,
   processorProductionWorkspaceSchema,
   processorRemainingDayForecastSchema,
+} from '@pressly/contracts/processor';
+import {
+  listProductionHistoryActivityQuerySchema,
+  previewProductionOrderBacklogRequestSchema,
   productionHistoryLocationParamsSchema,
   productionHistoryRunParamsSchema,
   productionLocationParamsSchema,
@@ -15,27 +17,21 @@ import {
   productionRunBoardParamsSchema,
   productionWorkspaceParamsSchema,
   productionWorkspaceQuerySchema,
-  type ListProductionHistoryActivityQuery,
-  type PreviewProductionOrderBacklogCommand,
-  type ProductionRemainingDayForecast,
-} from '@pressly/contracts';
-import { apiFailure, apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
-import type { ProductionApplication } from '@pressly/production';
+} from '@pressly/contracts/production';
+import { apiSuccess } from '@pressly/http';
+import { defineValidatedController } from '@pressly/http/express';
+import type {
+  ProductionApplication,
+  ProductionHttpApplication,
+} from '@pressly/production';
 import { Router, type RequestHandler } from 'express';
-import type { ProcessorOperationalOrderReadModel } from './operational-order-identity.read-model.ts';
+import type { ProcessorOperationalOrderIdentityAdapter } from './operational-order-identity.adapter.ts';
 
 type ProcessorProductionReadApplication = Readonly<{
   loadProductionWorkspace: ProductionApplication['loadProductionWorkspace'];
   loadProductionBoard: ProductionApplication['loadProductionBoard'];
   previewProductionOrderBacklog: ProductionApplication['previewProductionOrderBacklog'];
-  loadRemainingDayForecast: (query: {
-    locationId: string;
-    serviceDay: string;
-  }) => Promise<
-    | Readonly<{ tag: 'ok'; value: ProductionRemainingDayForecast }>
-    | Readonly<{ tag: 'err'; error: unknown }>
-  >;
+  loadRemainingDayForecast: ProductionHttpApplication['loadRemainingDayForecast'];
   productionHistory: Pick<
     ProductionApplication['productionHistory'],
     'listActivity' | 'loadRun'
@@ -44,164 +40,196 @@ type ProcessorProductionReadApplication = Readonly<{
 
 export const makeProcessorOperationalOrderRoutes = (input: {
   production: ProcessorProductionReadApplication;
-  readModel: ProcessorOperationalOrderReadModel;
+  operationalOrderAdapter: ProcessorOperationalOrderIdentityAdapter;
   authenticate: RequestHandler;
   authorizeRead: RequestHandler;
   authorizeOverride: RequestHandler;
 }): Router => {
   const routes = Router();
-
-  routes.get(
-    '/production/locations/:locationId/runs/:productionRunId/board',
-    input.authenticate,
-    validateRequest({ params: productionRunBoardParamsSchema }),
-    input.authorizeRead,
-    catchAsync(async (request, response) => {
+  const boardController = defineValidatedController({
+    request: { params: productionRunBoardParamsSchema },
+    handle: async ({ params }, { response }) => {
       const result = await input.production.loadProductionBoard({
-        locationId: request.params['locationId'] as string,
-        productionRunId: request.params['productionRunId'] as string,
+        locationId: params.locationId,
+        productionRunId: params.productionRunId,
       });
-      if (result.tag === 'err') {
-        response.status(result.error.status).json(apiFailure(result.error));
-        return;
-      }
+      if (result.tag === 'err') throw result.error;
       response.json(
         apiSuccess(
           processorProductionBoardSchema.parse(
-            await input.readModel.composeBoard(result.value),
+            await input.operationalOrderAdapter.composeBoard(result.value),
           ),
         ),
       );
-    }),
-  );
-
-  routes.post(
-    '/production/locations/:locationId/order-backlog/preview',
-    input.authenticate,
-    validateRequest({
+    },
+  });
+  const backlogController = defineValidatedController({
+    request: {
       params: productionLocationParamsSchema,
       body: previewProductionOrderBacklogRequestSchema,
-    }),
-    input.authorizeOverride,
-    catchAsync(async (request, response) => {
-      const body = request.body as Omit<
-        PreviewProductionOrderBacklogCommand,
-        'locationId'
-      >;
+    },
+    handle: async ({ body, params }, { response }) => {
       const preview = await input.production.previewProductionOrderBacklog({
-        ...body,
-        locationId: request.params['locationId'] as string,
+        locationId: params.locationId,
+        filter: body.filter,
+        cutoff: body.cutoff,
+        reason: body.reason,
+        cursor: body.cursor,
+        maxOrders: body.maxOrders,
       });
-      if (preview.tag === 'err') {
-        response.status(preview.error.status).json(apiFailure(preview.error));
-        return;
-      }
+      if (preview.tag === 'err') throw preview.error;
       response.json(
         apiSuccess(
           processorProductionOrderBacklogPreviewSchema.parse(
-            await input.readModel.composeBacklogPreview(preview.value),
+            await input.operationalOrderAdapter.composeBacklogPreview(
+              preview.value,
+            ),
           ),
         ),
       );
-    }),
-  );
-
-  routes.get(
-    '/production/locations/:locationId/workspace',
-    input.authenticate,
-    validateRequest({
+    },
+  });
+  const workspaceController = defineValidatedController({
+    request: {
       params: productionWorkspaceParamsSchema,
       query: productionWorkspaceQuerySchema,
-    }),
-    input.authorizeRead,
-    catchAsync(async (request, response) => {
+    },
+    handle: async ({ params, query }, { response }) => {
       const result = await input.production.loadProductionWorkspace({
-        locationId: request.params['locationId'] as string,
-        ...(typeof request.query['shiftId'] === 'string'
-          ? { shiftId: request.query['shiftId'] }
-          : {}),
+        locationId: params.locationId,
+        ...(query.shiftId === undefined ? {} : { shiftId: query.shiftId }),
       });
       if (result.tag === 'err') throw result.error;
       response.json(
         apiSuccess(
           processorProductionWorkspaceSchema.parse(
-            await input.readModel.composeWorkspace(result.value),
+            await input.operationalOrderAdapter.composeWorkspace(result.value),
           ),
         ),
       );
-    }),
-  );
-
-  routes.get(
-    '/production/locations/:locationId/forecast',
-    input.authenticate,
-    validateRequest({
+    },
+  });
+  const forecastController = defineValidatedController({
+    request: {
       params: productionRemainingDayForecastParamsSchema,
       query: productionRemainingDayForecastQuerySchema,
-    }),
-    input.authorizeRead,
-    catchAsync(async (request, response) => {
+    },
+    handle: async ({ params, query }, { response }) => {
       const result = await input.production.loadRemainingDayForecast({
-        locationId: request.params['locationId'] as string,
-        serviceDay: request.query['serviceDay'] as string,
+        locationId: params.locationId,
+        serviceDay: query.serviceDay,
       });
       if (result.tag === 'err') throw result.error;
       response.json(
         apiSuccess(
           processorRemainingDayForecastSchema.parse(
-            await input.readModel.composeForecast(result.value),
+            await input.operationalOrderAdapter.composeForecast(result.value),
           ),
         ),
       );
-    }),
-  );
-
-  routes.get(
-    '/production/locations/:locationId/history/activity',
-    input.authenticate,
-    validateRequest({
+    },
+  });
+  const activityController = defineValidatedController({
+    request: {
       params: productionHistoryLocationParamsSchema,
       query: listProductionHistoryActivityQuerySchema,
-    }),
-    input.authorizeRead,
-    catchAsync(async (request, response) => {
+    },
+    handle: async ({ params, query }, { response }) => {
       const activity = await input.production.productionHistory.listActivity({
-        ...(request.query as unknown as ListProductionHistoryActivityQuery),
-        locationId: request.params['locationId'] as string,
+        locationId: params.locationId,
+        limit: query.limit,
+        ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+        ...(query.runId === undefined ? {} : { runId: query.runId }),
+        ...(query.entityType === undefined
+          ? {}
+          : { entityType: query.entityType }),
+        ...(query.eventType === undefined
+          ? {}
+          : { eventType: query.eventType }),
+        ...(query.orderResolution === undefined
+          ? {}
+          : { orderResolution: query.orderResolution }),
+        ...(query.search === undefined ? {} : { search: query.search }),
+        ...(query.occurredAfter === undefined
+          ? {}
+          : { occurredAfter: new Date(query.occurredAfter) }),
       });
-      if (activity.tag === 'err') {
-        response.status(activity.error.status).json(apiFailure(activity.error));
-        return;
-      }
+      if (activity.tag === 'err') throw activity.error;
       response.json(
         apiSuccess(
           processorListProductionHistoryActivityResultSchema.parse(
-            await input.readModel.composeHistoryActivity(activity.value),
+            await input.operationalOrderAdapter.composeHistoryActivity(
+              activity.value,
+            ),
           ),
         ),
       );
-    }),
-  );
-
-  routes.get(
-    '/production/locations/:locationId/history/runs/:productionRunId',
-    input.authenticate,
-    validateRequest({ params: productionHistoryRunParamsSchema }),
-    input.authorizeRead,
-    catchAsync(async (request, response) => {
+    },
+  });
+  const runController = defineValidatedController({
+    request: { params: productionHistoryRunParamsSchema },
+    handle: async ({ params }, { response }) => {
       const result = await input.production.productionHistory.loadRun({
-        locationId: request.params['locationId'] as string,
-        productionRunId: request.params['productionRunId'] as string,
+        locationId: params.locationId,
+        productionRunId: params.productionRunId,
       });
       if (result.tag === 'err') throw result.error;
       response.json(
         apiSuccess(
           processorProductionHistoryRunDetailSchema.parse(
-            await input.readModel.composeHistoryRun(result.value),
+            await input.operationalOrderAdapter.composeHistoryRun(result.value),
           ),
         ),
       );
-    }),
+    },
+  });
+
+  routes.get(
+    '/production/locations/:locationId/runs/:productionRunId/board',
+    input.authenticate,
+    boardController.validate,
+    input.authorizeRead,
+    boardController.handle,
+  );
+
+  routes.post(
+    '/production/locations/:locationId/order-backlog/preview',
+    input.authenticate,
+    backlogController.validate,
+    input.authorizeOverride,
+    backlogController.handle,
+  );
+
+  routes.get(
+    '/production/locations/:locationId/workspace',
+    input.authenticate,
+    workspaceController.validate,
+    input.authorizeRead,
+    workspaceController.handle,
+  );
+
+  routes.get(
+    '/production/locations/:locationId/forecast',
+    input.authenticate,
+    forecastController.validate,
+    input.authorizeRead,
+    forecastController.handle,
+  );
+
+  routes.get(
+    '/production/locations/:locationId/history/activity',
+    input.authenticate,
+    activityController.validate,
+    input.authorizeRead,
+    activityController.handle,
+  );
+
+  routes.get(
+    '/production/locations/:locationId/history/runs/:productionRunId',
+    input.authenticate,
+    runController.validate,
+    input.authorizeRead,
+    runController.handle,
   );
 
   return routes;

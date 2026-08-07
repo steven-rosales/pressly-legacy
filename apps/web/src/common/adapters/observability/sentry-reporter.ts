@@ -1,7 +1,14 @@
 import * as Sentry from '@sentry/nextjs';
-import { normalizeUnknownError, type AppError } from '@pressly/errors';
+import {
+  normalizeUnknownError,
+  type AppError,
+} from '@pressly/errors/app-error';
 import { redactLogFields } from '@pressly/logging';
-import type { ErrorReporter, ErrorReportContext } from '@pressly/metrics';
+import {
+  attemptObservation,
+  type ErrorReporter,
+  type ErrorReportContext,
+} from '@pressly/observability';
 
 const toSentryContext = (value: unknown): Record<string, unknown> => {
   const redacted = redactLogFields(value);
@@ -55,15 +62,17 @@ const setReportContext = (
 
 export const makeSentryErrorReporter = (): ErrorReporter => ({
   capture: (error, context) => {
-    const appError = normalizeUnknownError(error);
+    attemptObservation(() => {
+      const appError = normalizeUnknownError(error);
 
-    Sentry.withScope((scope) => {
-      setReportContext(scope, context);
-      setAppErrorContext(scope, appError);
+      Sentry.withScope((scope) => {
+        setReportContext(scope, context);
+        setAppErrorContext(scope, appError);
 
-      scope.setLevel(appError.status >= 500 ? 'error' : 'warning');
+        scope.setLevel(appError.status >= 500 ? 'error' : 'warning');
 
-      Sentry.captureException(appError);
+        Sentry.captureException(appError);
+      });
     });
   },
 

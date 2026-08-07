@@ -2,11 +2,9 @@ import {
   loginRequestSchema,
   processorCompleteMfaChallengeRequestSchema,
   type ControlAuthenticatedSession,
-  type ProcessorCompleteMfaChallengeRequest,
-} from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
-import { apiFailure, apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+} from '@pressly/contracts/auth';
+import { apiSuccess } from '@pressly/http';
+import { defineValidatedController } from '@pressly/http/express';
 import { Router, type Response } from 'express';
 import {
   clearControlCookie,
@@ -14,16 +12,20 @@ import {
   setControlCookie,
   type ControlCookieNames,
 } from './control-cookie.adapter.ts';
-import { requireControlOrigin } from './control-csrf.policy.ts';
+import {
+  deriveControlCsrfToken,
+  requireControlOrigin,
+} from './control-csrf.adapter.ts';
 import {
   controlForbidden,
+  controlSessionFailureToAppError,
   controlUnauthorized,
 } from './control-session.error.ts';
 import {
-  controlBrowserSession,
   controlRequestId,
   controlRequestMetadata,
-} from './control-session.mapper.ts';
+} from './control-request-metadata.adapter.ts';
+import { controlBrowserSession } from './control-session.contract.mapper.ts';
 import type { LoadControlCookieSession } from './control-session.middleware.ts';
 import {
   isControlResultError,
@@ -32,10 +34,6 @@ import {
   type ResolveControlAccess,
 } from './control-session.port.ts';
 
-const sendFailure = (response: Response, error: AppError): void => {
-  response.status(error.status).json(apiFailure(error));
-};
-
 export const establishControlBrowserSession = async (input: {
   response: Response;
   application: ControlAuthApplication;
@@ -43,12 +41,13 @@ export const establishControlBrowserSession = async (input: {
   names: ControlCookieNames;
   options: ControlSessionOptions;
   accessToken: string;
-  expiresAt: string;
+  expiresAt: Date;
 }): Promise<ControlAuthenticatedSession> => {
   const loaded = await input.application.loadSession({
     bearerToken: input.accessToken,
   });
-  if (isControlResultError(loaded)) throw loaded.error;
+  if (isControlResultError(loaded))
+    throw controlSessionFailureToAppError(loaded.error);
 
   const access = await input.resolveAccess(loaded.value);
   if (access === null) {
@@ -58,7 +57,9 @@ export const establishControlBrowserSession = async (input: {
         ? {}
         : { requestId: controlRequestId(input.response)! }),
     });
+
     clearControlCookie(input.response, input.names.session, input.options);
+
     throw controlForbidden({
       code: 'control_access_unavailable',
       message:
@@ -74,11 +75,11 @@ export const establishControlBrowserSession = async (input: {
     input.expiresAt,
     input.options,
   );
+
   return controlBrowserSession(
     loaded.value,
     access,
-    input.accessToken,
-    input.options,
+    deriveControlCsrfToken(input.accessToken, input.options.csrfSecret),
   );
 };
 
@@ -90,6 +91,7 @@ export const makeControlSessionRoutes = (input: {
   options: ControlSessionOptions;
 }): Router => {
   const routes = Router();
+
   routes.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Pragma', 'no-cache');
@@ -109,20 +111,15 @@ export const makeControlSessionRoutes = (input: {
       next(error);
     }
   };
-
-  routes.post(
-    '/login',
-    requireOrigin,
-    validateRequest({ body: loginRequestSchema }),
-    catchAsync(async (request, response) => {
+  const loginController = defineValidatedController({
+    request: { body: loginRequestSchema },
+    handle: async ({ body }, { request, response }) => {
       const authenticated = await input.application.login({
-        ...(request.body as { email: string; password: string }),
+        ...body,
         ...controlRequestMetadata(request, response),
       });
-      if (isControlResultError(authenticated)) {
-        sendFailure(response, authenticated.error);
-        return;
-      }
+      if (isControlResultError(authenticated))
+        throw controlSessionFailureToAppError(authenticated.error);
 
       if ('challengeToken' in authenticated.value) {
         clearControlCookie(response, input.names.session, input.options);
@@ -153,14 +150,11 @@ export const makeControlSessionRoutes = (input: {
         expiresAt: authenticated.value.expiresAt,
       });
       response.status(200).json(apiSuccess(session));
-    }),
-  );
-
-  routes.post(
-    '/mfa/challenge',
-    requireOrigin,
-    validateRequest({ body: processorCompleteMfaChallengeRequestSchema }),
-    catchAsync(async (request, response) => {
+    },
+  });
+  const challengeController = defineValidatedController({
+    request: { body: processorCompleteMfaChallengeRequestSchema },
+    handle: async ({ body }, { request, response }) => {
       const challengeToken = readControlCookie(
         request.header('cookie'),
         input.names.mfa,
@@ -171,7 +165,6 @@ export const makeControlSessionRoutes = (input: {
           message: 'Control MFA challenge cookie is missing.',
         });
 
-      const body = request.body as ProcessorCompleteMfaChallengeRequest;
       const completed = await input.application.completeMfaChallenge({
         ...body,
         challengeToken,
@@ -179,12 +172,11 @@ export const makeControlSessionRoutes = (input: {
           ? {}
           : { requestId: controlRequestId(response)! }),
       });
-      if (isControlResultError(completed)) {
-        sendFailure(response, completed.error);
-        return;
-      }
+      if (isControlResultError(completed))
+        throw controlSessionFailureToAppError(completed.error);
 
       clearControlCookie(response, input.names.mfa, input.options);
+
       const session = await establishControlBrowserSession({
         response,
         application: input.application,
@@ -194,49 +186,58 @@ export const makeControlSessionRoutes = (input: {
         accessToken: completed.value.accessToken,
         expiresAt: completed.value.expiresAt,
       });
-      response.status(200).json(apiSuccess(session));
-    }),
-  );
 
-  routes.get(
-    '/session',
-    catchAsync(async (request, response) => {
-      const session = await input.loadCookieSession(request, response);
-      response
-        .status(200)
-        .json(
-          apiSuccess(
-            controlBrowserSession(
-              session.loaded,
-              session.access,
-              session.sessionToken,
-              input.options,
-            ),
-          ),
-        );
-    }),
+      response.status(200).json(apiSuccess(session));
+    },
+  });
+
+  routes.post(
+    '/login',
+    requireOrigin,
+    loginController.validate,
+    loginController.handle,
   );
 
   routes.post(
-    '/logout',
-    catchAsync(async (request, response) => {
-      const session = await input.loadCookieSession(request, response);
-      const revoked = await input.application.revokeSession({
-        bearerToken: session.sessionToken,
-        ...(controlRequestId(response) === undefined
-          ? {}
-          : { requestId: controlRequestId(response)! }),
-      });
-      if (isControlResultError(revoked)) {
-        sendFailure(response, revoked.error);
-        return;
-      }
-
-      clearControlCookie(response, input.names.session, input.options);
-      clearControlCookie(response, input.names.mfa, input.options);
-      response.status(200).json(apiSuccess(revoked.value));
-    }),
+    '/mfa/challenge',
+    requireOrigin,
+    challengeController.validate,
+    challengeController.handle,
   );
+
+  routes.get('/session', async (request, response) => {
+    const session = await input.loadCookieSession(request, response);
+
+    response
+      .status(200)
+      .json(
+        apiSuccess(
+          controlBrowserSession(
+            session.loaded,
+            session.access,
+            deriveControlCsrfToken(
+              session.sessionToken,
+              input.options.csrfSecret,
+            ),
+          ),
+        ),
+      );
+  });
+
+  routes.post('/logout', async (request, response) => {
+    const session = await input.loadCookieSession(request, response);
+    const revoked = await input.application.revokeSession({
+      bearerToken: session.sessionToken,
+      ...(controlRequestId(response) === undefined
+        ? {}
+        : { requestId: controlRequestId(response)! }),
+    });
+
+    clearControlCookie(response, input.names.session, input.options);
+    clearControlCookie(response, input.names.mfa, input.options);
+
+    response.status(200).json(apiSuccess(revoked));
+  });
 
   return routes;
 };

@@ -1,4 +1,4 @@
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { observeNextRequestError } from '@/common/adapters/observability/next-request-error';
 
 describe('observeNextRequestError', () => {
@@ -60,5 +60,19 @@ describe('observeNextRequestError', () => {
       reason: 'routine_client_failure',
     });
     expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('does not let reporter failure replace the framework recovery path', () => {
+    expect(() =>
+      observeNextRequestError({
+        error: new Error('render failed'),
+        reporter: {
+          capture: () => {
+            throw new Error('reporter unavailable');
+          },
+          shutdown: async () => undefined,
+        },
+      }),
+    ).not.toThrow();
   });
 });

@@ -1,22 +1,16 @@
 import { result, type Result } from '@pressly/kernel';
-import { makeAppError, validationError, type AppError } from '@pressly/errors';
-
-type ApiSuccess<T> = Readonly<{
-  ok: true;
-  data: T;
-}>;
-
-type ApiFailure = Readonly<{
-  ok: false;
-  error: Readonly<{
-    code: string;
-    message: string;
-    traceId?: string;
-    details?: unknown;
-  }>;
-}>;
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
+import { type AppError } from '@pressly/errors/app-error';
+import {
+  externalServiceError,
+  validationError,
+} from '@pressly/errors/factories';
+import {
+  appErrorFromApiFailure,
+  decodeApiResponse,
+  encodeJsonBody,
+  responseTraceId,
+} from '@pressly/http';
+import type { ZodType } from 'zod';
 
 export type ApiClientEnv = NodeJS.ProcessEnv;
 
@@ -25,76 +19,63 @@ export const readApiUrl = (env: ApiClientEnv): Result<URL, AppError> => {
 
   try {
     return result.ok(new URL(raw));
-  } catch {
+  } catch (cause) {
     return result.err(
       validationError({
         code: 'invalid_api_url',
         message: `Invalid PRESSLY_API_URL: ${raw}.`,
         safeMessage: 'PRESSLY_API_URL must be a valid URL.',
         details: { value: raw },
+        cause,
       }),
     );
   }
 };
 
-const statusToKind = (status: number): AppError['kind'] => {
-  if (status === 401 || status === 403) return 'PermissionError';
-  if (status === 404) return 'NotFoundError';
-  if (status === 409) return 'ConflictError';
-  if (status === 429) return 'RateLimitError';
-  if (status >= 500) return 'ExternalServiceError';
+const invalidApiResponse = (input: {
+  response: Response;
+  url: URL;
+  cause: unknown;
+}): AppError => {
+  const traceId = responseTraceId(input.response.headers);
 
-  return 'ValidationError';
-};
-
-const statusToHttpStatus = (status: number): AppError['status'] => {
-  if (
-    status === 400 ||
-    status === 401 ||
-    status === 403 ||
-    status === 404 ||
-    status === 409 ||
-    status === 422 ||
-    status === 429 ||
-    status === 500 ||
-    status === 502 ||
-    status === 503
-  )
-    return status;
-
-  return status >= 500 ? 502 : 400;
-};
-
-const isApiResponse = <T>(value: unknown): value is ApiResponse<T> => {
-  if (typeof value !== 'object' || value === null) return false;
-
-  const candidate = value as { ok?: unknown };
-  return candidate.ok === true || candidate.ok === false;
-};
-
-const apiFailureToError = (response: Response, failure: ApiFailure): AppError =>
-  makeAppError({
-    kind: statusToKind(response.status),
-    code: failure.error.code,
-    message: failure.error.message,
-    safeMessage: failure.error.message,
-    status: statusToHttpStatus(response.status),
-    ...(failure.error.details === undefined
-      ? {}
-      : { details: failure.error.details }),
-    ...(failure.error.traceId === undefined
-      ? {}
-      : { traceId: failure.error.traceId }),
+  return externalServiceError({
+    code: 'invalid_api_response',
+    message: `API returned an invalid response for ${input.url.toString()}.`,
+    safeMessage: 'Pressly API returned an invalid response.',
+    status: 502,
+    cause: input.cause,
+    details: {
+      status: input.response.status,
+      url: input.url.toString(),
+    },
+    ...(traceId === undefined ? {} : { traceId }),
   });
+};
 
 export const requestApi = async <T>(input: {
   apiUrl: URL;
   path: string;
   method: 'GET' | 'POST';
+  dataSchema: ZodType<T>;
   bearerToken?: string;
   body?: unknown;
 }): Promise<Result<T, AppError>> => {
   const url = new URL(input.path, input.apiUrl);
+  const encodedBody =
+    input.body === undefined ? undefined : encodeJsonBody(input.body);
+  if (encodedBody?.tag === 'rejected')
+    return result.err(
+      validationError({
+        code: 'cli_request_body_not_serializable',
+        message: 'The CLI request body cannot be encoded as JSON.',
+        safeMessage: 'The request contains unsupported data.',
+        details: { reason: encodedBody.reason },
+        ...(encodedBody.cause === undefined
+          ? {}
+          : { cause: encodedBody.cause }),
+      }),
+    );
 
   let response: Response;
 
@@ -103,43 +84,63 @@ export const requestApi = async <T>(input: {
       method: input.method,
       headers: {
         accept: 'application/json',
-        ...(input.body === undefined
+        ...(encodedBody === undefined
           ? {}
           : { 'content-type': 'application/json' }),
         ...(input.bearerToken === undefined
           ? {}
           : { authorization: `Bearer ${input.bearerToken}` }),
       },
-      ...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
+      ...(encodedBody?.tag === 'encoded' ? { body: encodedBody.body } : {}),
     });
   } catch (cause) {
     return result.err(
-      makeAppError({
-        kind: 'ExternalServiceError',
+      externalServiceError({
         code: 'api_request_failed',
         message: `Could not reach API at ${url.toString()}.`,
         safeMessage: 'Could not reach the Pressly API.',
         status: 502,
         cause,
+        details: { url: url.toString() },
       }),
     );
   }
 
-  const body = (await response.json().catch(() => undefined)) as unknown;
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch (cause) {
+    return result.err(invalidApiResponse({ response, url, cause }));
+  }
 
-  if (!isApiResponse<T>(body))
+  const decoded = decodeApiResponse(body, input.dataSchema);
+  if (!decoded.success)
     return result.err(
-      makeAppError({
-        kind: 'ExternalServiceError',
-        code: 'invalid_api_response',
-        message: `API returned an invalid response for ${url.toString()}.`,
-        safeMessage: 'Pressly API returned an invalid response.',
-        status: 502,
-        details: { status: response.status },
+      invalidApiResponse({ response, url, cause: decoded.error }),
+    );
+
+  if (!decoded.data.ok)
+    return result.err(
+      appErrorFromApiFailure({
+        failure: decoded.data,
+        responseStatus: response.status,
+        headers: response.headers,
       }),
     );
 
-  if (!body.ok) return result.err(apiFailureToError(response, body));
+  if (!response.ok) {
+    const traceId = responseTraceId(response.headers);
+    return result.err(
+      externalServiceError({
+        code: 'api_status_envelope_mismatch',
+        message: `API returned HTTP ${response.status} with a success envelope for ${url.toString()}.`,
+        safeMessage: 'Pressly API returned an invalid response.',
+        status: 502,
+        details: { status: response.status, url: url.toString() },
+        ...(traceId === undefined ? {} : { traceId }),
+      }),
+    );
+  }
 
-  return result.ok(body.data);
+  return result.ok(decoded.data.data);
 };

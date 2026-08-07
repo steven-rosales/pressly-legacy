@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { isAppError } from '@pressly/errors';
+import { isAppError } from '@pressly/errors/app-error';
 import type { OrdersApplication } from '@pressly/orders';
 import type { UsersApplication } from '@pressly/users';
 import express, {
@@ -10,6 +10,7 @@ import express, {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeControlCustomerRoutes } from '../../src/http/control/data/control-customer.route.ts';
 import { makeControlOrderRoutes } from '../../src/http/control/data/control-order.route.ts';
+import { makeTestControlExperience } from './control-experience.fixture.ts';
 
 const businessId = '00000000-0000-4000-8000-000000000100';
 const identityId = '00000000-0000-4000-8000-000000000001';
@@ -20,7 +21,11 @@ const now = new Date('2026-07-29T16:00:00.000Z');
 const pass: RequestHandler = (_request, _response, next) => next();
 const authenticate: RequestHandler = (_request, response, next) => {
   response.locals['auth'] = {
-    principal: { identityId, kind: 'human' },
+    principal: {
+      identityId,
+      sessionId: '00000000-0000-4000-8000-000000000002',
+      kind: 'human',
+    },
   };
   response.locals['controlAccess'] = {
     business: { id: businessId, name: 'Pressly One' },
@@ -128,11 +133,12 @@ const orders = {
 
 const app = () => {
   const value = express();
+  const experience = makeTestControlExperience({ users, orders });
   value.use(express.json());
   value.use(
     '/control',
     makeControlCustomerRoutes({
-      users,
+      application: experience.customers,
       authenticate,
       limitIdentity: pass,
       requireRead: pass,
@@ -142,7 +148,7 @@ const app = () => {
   value.use(
     '/control',
     makeControlOrderRoutes({
-      orders,
+      application: experience.orders,
       authenticate,
       limitIdentity: pass,
       requireRead: pass,

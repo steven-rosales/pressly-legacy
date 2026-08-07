@@ -50,15 +50,15 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  WorkspaceSectionHeading,
 } from "@/components/ui"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
-import { controlErrorMessage } from "@/i18n/control-error-message"
+import { WorkspaceSectionHeading } from "@/components/layout/workspace-section-heading"
 import type {
-  ControlSecurityApi,
-  MfaEnrollment,
-  SecurityEvent,
-} from "./security-api"
+  ControlAuthenticatedSession,
+  ControlSecurityEvent as SecurityEvent,
+  MfaEnrollmentResult as MfaEnrollment,
+} from "@pressly/contracts/auth"
+import { controlErrorMessage } from "@/i18n/control-error-message"
+import type { ControlSecurityApi } from "./security-api"
 
 const dateLocale = (language: string) =>
   language.toLowerCase().startsWith("es") ? "es-US" : "en-US"

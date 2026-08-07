@@ -14,15 +14,15 @@ import { presentPendingPlacementMessage } from "@/features/production-board/prod
 import { presentSchedulingError } from "@/features/scheduling/scheduling.error.presenter"
 import { presentScheduleWarning } from "@/features/scheduling/scheduling.presenter"
 import { presentSettingsError } from "@/features/settings/settings.error.presenter"
-import { RequestFailure, type RequestFailureKind } from "@/ports/request.error"
+import { requestFailure, type RequestFailureKind } from "@/ports/request.error"
 
 const diagnosticId = "90ed1925-f197-46f4-8d41-3a3347544ddf"
 const t = ((key: string) => key) as TFunction
 
 const failure = (code: string, kind: RequestFailureKind = "unexpected") =>
-  new RequestFailure({
+  requestFailure({
     code,
-    kind,
+    requestKind: kind,
     message: "Server-safe detail",
     traceId: diagnosticId,
   })

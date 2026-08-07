@@ -14,16 +14,17 @@ COPY apps/cli/package.json apps/cli/package.json
 COPY apps/processor/package.json apps/processor/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
-COPY modules/business/auth/package.json modules/business/auth/package.json
+COPY modules/security/identity/package.json modules/security/identity/package.json
+COPY modules/experience/control/package.json modules/experience/control/package.json
+COPY modules/experience/processor/package.json modules/experience/processor/package.json
 COPY modules/business/orders/package.json modules/business/orders/package.json
 COPY modules/business/pricing/package.json modules/business/pricing/package.json
 COPY modules/business/production/package.json modules/business/production/package.json
 COPY modules/business/users/package.json modules/business/users/package.json
-COPY modules/business/webhook-ingestion/package.json modules/business/webhook-ingestion/package.json
-COPY modules/computation/scheduling/package.json modules/computation/scheduling/package.json
-COPY modules/policy/access-control/package.json modules/policy/access-control/package.json
-COPY modules/policy/production/package.json modules/policy/production/package.json
+COPY modules/integration/webhook-ingestion/package.json modules/integration/webhook-ingestion/package.json
+COPY modules/security/authorization/package.json modules/security/authorization/package.json
 COPY packages/auth/package.json packages/auth/package.json
+COPY packages/codec/package.json packages/codec/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/db/package.json packages/db/package.json
@@ -31,7 +32,7 @@ COPY packages/errors/package.json packages/errors/package.json
 COPY packages/http/package.json packages/http/package.json
 COPY packages/kernel/package.json packages/kernel/package.json
 COPY packages/logging/package.json packages/logging/package.json
-COPY packages/metrics/package.json packages/metrics/package.json
+COPY packages/observability/package.json packages/observability/package.json
 COPY packages/money/package.json packages/money/package.json
 COPY packages/testkit/package.json packages/testkit/package.json
 COPY packages/time/package.json packages/time/package.json
@@ -41,7 +42,7 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS builder
 COPY . .
-RUN pnpm turbo build --filter=@pressly/worker...
+RUN pnpm turbo build --filter=@pressly/worker... --concurrency=2
 
 FROM builder AS runner
 ENV NODE_ENV=production
@@ -65,4 +66,4 @@ RUN rm -rf \
 USER pressly
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 CMD ["node", "apps/worker/dist/runtime/healthcheck.js"]
-CMD ["node", "apps/worker/dist/main.js"]
+CMD ["node", "--import", "./apps/worker/dist/runtime/observability/instrument.js", "apps/worker/dist/main.js"]

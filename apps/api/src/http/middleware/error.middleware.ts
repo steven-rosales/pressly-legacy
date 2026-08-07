@@ -2,8 +2,11 @@ import {
   makeAppError,
   normalizeUnknownError,
   type AppError,
-} from '@pressly/errors';
+} from '@pressly/errors/app-error';
+import { validationError } from '@pressly/errors/factories';
 import { apiFailure } from '@pressly/http';
+import { attemptObservation } from '@pressly/observability';
+import { systemClock } from '@pressly/time';
 import type { ErrorRequestHandler } from 'express';
 import type { ApiRuntime } from '../../runtime/api-runtime.ts';
 import { observeApiError } from './api-error-observability.ts';
@@ -18,8 +21,7 @@ const normalizeParserError = (error: unknown): unknown => {
   const parserError = error as ExpressParserError;
 
   if (parserError?.type === 'entity.too.large')
-    return makeAppError({
-      kind: 'ValidationError',
+    return validationError({
       code: 'request_body_too_large',
       message: parserError.message,
       safeMessage: 'The request body is too large.',
@@ -28,8 +30,7 @@ const normalizeParserError = (error: unknown): unknown => {
     });
 
   if (parserError?.type === 'entity.parse.failed')
-    return makeAppError({
-      kind: 'ValidationError',
+    return validationError({
       code: 'malformed_json',
       message: parserError.message,
       safeMessage: 'The request body contains malformed JSON.',
@@ -46,17 +47,15 @@ const responseError = (
 ): AppError => {
   const traceId = appError.traceId ?? requestId;
 
-  if (appError.status < 500 && traceId === appError.traceId) return appError;
-
   return makeAppError({
     kind: appError.kind,
     code: appError.code,
     message: appError.message,
     safeMessage: appError.safeMessage,
     status: appError.status,
-    ...(appError.status < 500 && appError.details !== undefined
-      ? { details: appError.details }
-      : {}),
+    ...(appError.publicDetails === undefined
+      ? {}
+      : { publicDetails: appError.publicDetails }),
     ...(appError.cause === undefined ? {} : { cause: appError.cause }),
     ...(traceId === undefined ? {} : { traceId }),
   });
@@ -72,29 +71,35 @@ export const makeErrorHandler = (runtime: ApiRuntime): ErrorRequestHandler => {
     const appError = normalizeUnknownError(normalizeParserError(err));
     const requestId = res.locals['requestId'] as string | undefined;
 
-    observeApiError(runtime, { appError, request: req, requestId });
+    attemptObservation(() =>
+      observeApiError(runtime, { appError, request: req, requestId }),
+    );
 
     if (
       res.locals['webhookSource'] === 'cents' &&
       appError.status >= 400 &&
       appError.status < 500
     )
-      runtime.observability.counters.increment('api.webhook_rejections', {
-        source: 'cents',
-        reason: appError.code,
-        status: String(appError.status),
-      });
+      attemptObservation(() =>
+        runtime.observability.counters.increment('api.webhook_rejections', {
+          source: 'cents',
+          reason: appError.code,
+          status: String(appError.status),
+        }),
+      );
 
     if (appError.code === 'invalid_cents_webhook_authentication')
-      runtime.securityEvents.emit({
-        name: 'vendor.webhook_authentication_failed',
-        occurredAt: new Date().toISOString(),
-        outcome: 'denied',
-        ...(requestId === undefined ? {} : { requestId }),
-        resourceType: 'http.route',
-        resourceId: req.path,
-        reason: appError.code,
-      });
+      attemptObservation(() =>
+        runtime.securityEvents.emit({
+          name: 'vendor.webhook_authentication_failed',
+          occurredAt: systemClock.now().toISOString(),
+          outcome: 'denied',
+          ...(requestId === undefined ? {} : { requestId }),
+          resourceType: 'http.route',
+          resourceId: req.path,
+          reason: appError.code,
+        }),
+      );
 
     if (
       appError.kind === 'ValidationError' ||
@@ -102,15 +107,17 @@ export const makeErrorHandler = (runtime: ApiRuntime): ErrorRequestHandler => {
       appError.status === 415 ||
       appError.status === 422
     )
-      runtime.securityEvents.emit({
-        name: 'request.validation_rejected',
-        occurredAt: new Date().toISOString(),
-        outcome: 'denied',
-        ...(requestId === undefined ? {} : { requestId }),
-        resourceType: 'http.route',
-        resourceId: req.path,
-        reason: appError.code,
-      });
+      attemptObservation(() =>
+        runtime.securityEvents.emit({
+          name: 'request.validation_rejected',
+          occurredAt: systemClock.now().toISOString(),
+          outcome: 'denied',
+          ...(requestId === undefined ? {} : { requestId }),
+          resourceType: 'http.route',
+          resourceId: req.path,
+          reason: appError.code,
+        }),
+      );
 
     res
       .status(appError.status)

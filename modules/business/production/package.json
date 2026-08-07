@@ -21,16 +21,18 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint src test vitest.config.ts --max-warnings=0",
-    "test": "vitest run --exclude 'test/**/*.int.test.ts'",
-    "test:integration": "vitest run test/**/*.int.test.ts --no-file-parallelism",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --exclude 'test/**/*.int.test.ts'",
+    "test:integration": "vitest run .int.test.ts --no-file-parallelism",
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@pressly/codec": "workspace:*",
     "@pressly/contracts": "workspace:*",
     "@pressly/db": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/http": "workspace:*",
     "@pressly/kernel": "workspace:*",
+    "@pressly/observability": "workspace:*",
     "@pressly/time": "workspace:*",
     "express": "^5.2.1"
   },

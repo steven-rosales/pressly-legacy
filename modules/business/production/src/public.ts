@@ -5,38 +5,46 @@ export {
   makeProductionRoutes,
   type ProductionApplication,
   type ProductionApplicationDeps,
+  type ProductionHttpApplication,
   type ProductionRepositories,
   type ProductionRouteSecurity,
 } from './main.ts';
-export type {
-  ClockPort,
-  DemandForecastInput,
-  IdPort,
-  OrderDemandPhase,
-  PolicyDecision,
-  ProductionPolicyPort,
-  ProductionSignalsPort,
-  ProductionSchedulerPort,
-  SchedulingInput,
-  SchedulingOutput,
-  Transactional,
-} from './production.port.ts';
+export { productionFailureToAppError } from './foundations/adapters/errors/production-failure.adapter.ts';
+export type { ProductionFeatureFailure } from './foundations/language/failures/production-feature.failure.ts';
+export type { ProductionSignalsPort } from './foundations/ports/signals/production-signals.port.ts';
+export type { ProductionHistoryActivityPage } from './features/history/list-activity/list-production-history-activity.model.ts';
+export type { ProductionHistoryRunDetail } from './foundations/language/history/production-history.model.ts';
+export type { ProductionBoard } from './foundations/language/board/production-board-read.model.ts';
+export type { ProductionWorkspaceModel } from './features/queries/load-workspace/load-production-workspace.model.ts';
+export type { ListProductionOrderControlResult } from './features/orders/list-order-control/list-production-order-control.model.ts';
+export type { ProductionRemainingDayForecast } from './features/queries/load-remaining-day-forecast/load-remaining-day-forecast.model.ts';
 export type {
   ApplyFulfillmentDemand,
   ApplyFulfillmentDemandCommand,
   ApplyFulfillmentDemandResult,
   FulfillmentAdmissionState,
   FulfillmentCommercialState,
-} from './apply-fulfillment-demand/apply-fulfillment-demand.port.ts';
-export type { ChangeProductionAdmission } from './change-production-admission/change-production-admission.port.ts';
+} from './features/demand/apply-fulfillment-demand/apply-fulfillment-demand.port.ts';
+export type { ChangeProductionAdmission } from './features/demand/change-admission/change-production-admission.port.ts';
 export type {
-  ResolveSourceClosedFulfillment,
+  ProductionBootstrapCommand,
+  ProductionBootstrapManifest,
+  ProductionBootstrapResult,
+} from './features/resources/manage-resources/manage-production-resources.model.ts';
+export type { ResolveSourceClosedFulfillment } from './features/demand/resolve-source-closed-fulfillment/resolve-source-closed-fulfillment.port.ts';
+export type {
   ResolveSourceClosedFulfillmentCommand,
   ResolveSourceClosedFulfillmentResult,
   SourceClosedFulfillmentReviewReason,
-} from './change-production-order-resolution/resolve-source-closed-fulfillment.port.ts';
+} from './features/demand/resolve-source-closed-fulfillment/resolve-source-closed-fulfillment.model.ts';
+export type { PreviewProductionOrderBacklog } from './features/demand/preview-production-order-backlog/preview-production-order-backlog.port.ts';
+export type { ProductionOrderBacklogPreview } from './features/demand/preview-production-order-backlog/preview-production-order-backlog.model.ts';
+export type { CommitProductionOrderBacklog } from './features/demand/commit-production-order-backlog/commit-production-order-backlog.port.ts';
 export type {
-  CommitProductionOrderBacklog,
-  PreviewProductionOrderBacklog,
-} from './review-production-order-backlog/review-production-order-backlog.port.ts';
-export type { ReplaceShiftOrderSelection } from './replace-shift-order-selection/replace-shift-order-selection.port.ts';
+  AutomaticProductionOrderPlacementResult,
+  ConfirmProductionOrderOvertimeResult,
+  ExactProductionOrderPlacementResult,
+  ProductionOrderPlacedResult,
+  ProductionOrderPlacementResult,
+} from './foundations/language/scheduling/production-placement.model.ts';
+export type { ReplaceShiftOrderSelection } from './features/scheduling/replace-shift-selection/replace-shift-order-selection.port.ts';

@@ -1,0 +1,38 @@
+work_id: lpms-order-control-correctness-hardening
+status: complete
+updated: 2026-08-06T22:27:00-04:00
+
+current_focus:
+  - complete
+  - Routing, assigned capacity, route replay, exact History ordering, LPMS proof, and server-side staging observability are verified.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t0---reconcile-the-current-failures
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t1---repair-between-stage-routing-semantics
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t2---fence-assigned-machine-capacity
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t3---fence-route-idempotency-under-lock
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t4---preserve-exact-history-cursor-ordering
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#v1---full-lpms-and-staging-observability-proof
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t5---close-evidence-and-memory-impact
+      - stateworks/work/done/lpms-order-control-correctness-hardening/final-report.md

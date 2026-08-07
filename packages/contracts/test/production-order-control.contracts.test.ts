@@ -4,7 +4,7 @@ import {
   previewProductionOrderRouteRequestSchema,
   productionOrderCommandCapabilitiesSchema,
   productionOrderRouteProposalSchema,
-} from '../src/index.ts';
+} from '../src/production/index.ts';
 import { describe, expect, it } from 'vitest';
 
 const id = (value: number): string =>
@@ -142,6 +142,44 @@ describe('production order-control contracts', () => {
         ],
       },
     });
+
+    expect(
+      productionOrderCommandCapabilitiesSchema.parse({
+        queuedMove: {
+          status: 'blocked',
+          code: 'NO_FEASIBLE_TARGET',
+          targets: [
+            {
+              ...target,
+              capacityLbs: 0,
+              feasibility: {
+                status: 'blocked',
+                code: 'TARGET_STAGE_GRAPH_INVALID',
+              },
+            },
+          ],
+        },
+        routeException: {
+          status: 'blocked',
+          code: 'EXCEPTION_SOURCE_NOT_IN_FLIGHT',
+        },
+      }),
+    ).toMatchObject({
+      queuedMove: { targets: [{ capacityLbs: 0 }] },
+    });
+    expect(
+      productionOrderCommandCapabilitiesSchema.safeParse({
+        queuedMove: {
+          status: 'blocked',
+          code: 'NO_FEASIBLE_TARGET',
+          targets: [{ ...target, capacityLbs: -1 }],
+        },
+        routeException: {
+          status: 'blocked',
+          code: 'EXCEPTION_SOURCE_NOT_IN_FLIGHT',
+        },
+      }).success,
+    ).toBe(false);
 
     expect(
       productionOrderCommandCapabilitiesSchema.safeParse({

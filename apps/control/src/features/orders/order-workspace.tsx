@@ -49,20 +49,21 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  WorkspaceSectionHeading,
 } from "@/components/ui"
+import { WorkspaceSectionHeading } from "@/components/layout/workspace-section-heading"
 import { controlErrorMessage } from "@/i18n/control-error-message"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
-import type { ControlCustomerApi } from "@/features/customers/customer-api"
-import type { ControlCustomer } from "@/features/customers/customer-model"
-import type { ControlOrderApi } from "./order-api"
-import { OrderForm } from "./order-form"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
 import type {
   ControlOrder,
   ControlOrderDetail,
-  ControlOrderPage,
-  OrderState,
-} from "./order-model"
+  ControlOrderList as ControlOrderPage,
+} from "@pressly/contracts/orders"
+import type { ControlCustomer } from "@pressly/contracts/users"
+import type { ControlCustomerApi } from "@/features/customers/customer-api"
+import type { ControlOrderApi } from "./order-api"
+import { OrderForm } from "./order-form"
+
+type OrderState = ControlOrder["state"]
 
 type StateFilter = "all" | OrderState
 type Drawer = { mode: "create" } | { mode: "detail"; orderId: string } | null
@@ -189,6 +190,7 @@ export function OrderWorkspace({
   useEffect(() => {
     if (drawer?.mode !== "detail") return
     let active = true
+
     void api
       .get(drawer.orderId)
       .then((order) => {
@@ -208,6 +210,7 @@ export function OrderWorkspace({
       .finally(() => {
         if (active) setDetailLoading(false)
       })
+
     return () => {
       active = false
     }

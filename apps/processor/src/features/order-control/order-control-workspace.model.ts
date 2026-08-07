@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import type { ProcessorOrderControlItem } from "@pressly/contracts/processor"
 import type {
   ChangeProductionOrderResolutionCommand,
   ListProductionOrderControlQuery,
-  ProcessorOrderControlItem,
   ProductionBoard,
   ProductionOrderRouteProposal,
   ProductionOrderRouteReason,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import { presentOrderControlError } from "./order-control.error.presenter"
@@ -120,16 +120,22 @@ export const useOrderControlWorkspaceModel = (
 
   const load = useCallback(async () => {
     const sequence = ++refreshSequence.current
+
     setLoading(true)
     setError(null)
+
     try {
       const result = await production.listOrderControl({ locationId, query })
+
       if (sequence !== refreshSequence.current) return
+
       setItems(result.items)
       setCounts(result.counts)
       setNextCursor(result.nextCursor)
       setAsOf(result.asOf)
+
       const selectedId = selectedOrderIdRef.current
+
       if (
         selectedId !== null &&
         !result.items.some((item) => item.order.id === selectedId)
@@ -225,16 +231,20 @@ export const useOrderControlWorkspaceModel = (
   const startMove = useCallback(
     (orderId: string) => {
       const item = items.find((candidate) => candidate.order.id === orderId)
+
       if (
         item?.currentPlacement === null ||
         item === undefined ||
         item.commands.queuedMove.status === "blocked"
       )
         return
+
       setSelectedOrderId(orderId)
       setProposal(null)
+
       const targets = presentOrderMoveTargets(item, locale, t)
       const first = targets.find((target) => !target.disabled)?.batchId ?? ""
+
       setAction({
         kind: "move",
         selectedBatchId: first,
@@ -251,6 +261,7 @@ export const useOrderControlWorkspaceModel = (
     (orderId: string) => {
       const item = items.find((candidate) => candidate.order.id === orderId)
       const presented = orders.find((candidate) => candidate.id === orderId)
+
       if (
         item === undefined ||
         item.resolutionAction.status !== "allowed" ||
@@ -304,6 +315,7 @@ export const useOrderControlWorkspaceModel = (
         ? { ...current, busy: true, error: null }
         : current
     )
+
     try {
       const normalizedNote =
         action.draft.note.trim().length === 0 ? null : action.draft.note.trim()
@@ -334,6 +346,7 @@ export const useOrderControlWorkspaceModel = (
         >,
         "action" | "reason" | "note" | "confirmReviewedFacts"
       >
+
       await production.changeOrderResolution({
         locationId,
         productionOrderId: selectedItem.order.id,
@@ -343,9 +356,11 @@ export const useOrderControlWorkspaceModel = (
           idempotencyKey,
         },
       })
+
       setSelectedOrderId(null)
       setAction({ kind: "none" })
       setProposal(null)
+
       await Promise.all([load(), onMutated()])
     } catch (cause) {
       setAction((current) =>
@@ -373,16 +388,19 @@ export const useOrderControlWorkspaceModel = (
     async (kind: "move" | "exception") => {
       if (selectedItem?.currentPlacement === null || selectedItem === null)
         return
+
       const capability =
         kind === "move"
           ? selectedItem.commands.queuedMove
           : selectedItem.commands.routeException
       if (capability.status === "blocked") return
+
       setAction((current) =>
         current.kind === "none"
           ? current
           : { ...current, busy: true, error: null }
       )
+
       try {
         const placement = selectedItem.currentPlacement
         const request =

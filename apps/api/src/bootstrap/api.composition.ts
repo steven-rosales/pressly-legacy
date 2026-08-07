@@ -1,9 +1,14 @@
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
-import { randomUUID } from 'node:crypto';
 import { revealSecret } from '@pressly/config';
-import { nullMeasurementSink } from '@pressly/metrics';
+import type { IdSource } from '@pressly/kernel';
+import { uuidIdSource } from '@pressly/kernel/node';
+import {
+  attemptObservation,
+  nullMeasurementSink,
+} from '@pressly/observability';
+import { systemClock, type Clock } from '@pressly/time';
 import { makeErrorHandler } from '../http/middleware/error.middleware.ts';
 import { makeNotFoundHandler } from '../http/middleware/not-found.middleware.ts';
 import { makeRequestContext } from '../http/middleware/request-context.middleware.ts';
@@ -30,9 +35,8 @@ import { makeWebhookIngestionRoutes } from '../http/webhook-ingestion/dead-lette
 import { makeProductionChangeRoutes } from '../http/production/live/production-change.route.ts';
 import { makeOrderManagementRoutes } from '../http/order-management/order-management.route.ts';
 import { makeProcessorOrderControlRoutes } from '../http/processor/order-control/order-control.route.ts';
-import { makeProcessorOrderControlReadModel } from '../http/processor/order-control/order-control.query.ts';
-import { makeProcessorOperationalOrderIdentityResolver } from '../http/processor/operational-order-identity/operational-order-identity.query.ts';
-import { makeProcessorOperationalOrderReadModel } from '../http/processor/operational-order-identity/operational-order-identity.read-model.ts';
+import { makeProcessorOrderControlAdapter } from '../http/processor/order-control/order-control.adapter.ts';
+import { makeProcessorOperationalOrderIdentityAdapter } from '../http/processor/operational-order-identity/operational-order-identity.adapter.ts';
 import { makeProcessorOperationalOrderRoutes } from '../http/processor/operational-order-identity/operational-order-identity.route.ts';
 import { makeApiCapabilities } from './api-capabilities.composition.ts';
 import { makeControlWorkforceRoutes } from '../http/control/workforce/control-workforce.route.ts';
@@ -43,8 +47,8 @@ import { makeControlOrderRoutes } from '../http/control/data/control-order.route
 
 export type ApiCompositionOverrides = Readonly<{
   centsWebhookVerifier?: CentsWebhookVerifier;
-  clock?: Readonly<{ now: () => Date }>;
-  ids?: Readonly<{ next: () => string }>;
+  clock?: Clock;
+  ids?: IdSource;
   productionChanges?: ProductionChangeFeed;
 }>;
 
@@ -54,8 +58,9 @@ export const makeApiApp = (
 ): express.Express => {
   const app = express();
   const rateLimitStore = makeMemoryRateLimitStore();
-  const clock = overrides.clock ?? { now: () => new Date() };
-  const ids = overrides.ids ?? { next: () => randomUUID() };
+  const clock = overrides.clock ?? systemClock;
+  const ids = overrides.ids ?? uuidIdSource;
+
   const controlIdentityRateLimit = makeIdentityRateLimiter({
     name: 'control_identity',
     ...runtime.env.rateLimits.controlMutation,
@@ -63,33 +68,40 @@ export const makeApiApp = (
     logger: runtime.logger,
     securityEvents: runtime.securityEvents,
   });
+
   const {
-    accessControlModule,
-    authModule,
+    accessControl,
+    identityModule,
     controlBoundary,
+    controlExperience,
     locationAncestry,
     orders,
     pricingModule,
     processorBoundary,
+    processorExperience,
     productionModule,
-    users,
     webhookIngestion,
   } = makeApiCapabilities({
     runtime,
     clock,
     ids,
   });
-  const operationalOrderIdentities =
-    makeProcessorOperationalOrderIdentityResolver(runtime.database.db);
-  const operationalOrderReadModel = makeProcessorOperationalOrderReadModel(
-    operationalOrderIdentities,
+
+  const operationalOrderAdapter = makeProcessorOperationalOrderIdentityAdapter(
+    processorExperience.operationalOrderIdentities,
   );
+
+  const orderControlAdapter = makeProcessorOrderControlAdapter(
+    processorExperience.loadOperationalOrderControlContexts,
+  );
+
   const centsWebhookPayloadCipher =
     runtime.env.centsWebhook.quarantine.encryptionKey === undefined
       ? undefined
       : makeCentsWebhookPayloadCipher(
           revealSecret(runtime.env.centsWebhook.quarantine.encryptionKey),
         );
+
   const configuredCentsWebhookVerifier =
     runtime.env.centsWebhook.authMode === 'unsigned'
       ? acceptUnsignedCentsWebhook
@@ -116,9 +128,11 @@ export const makeApiApp = (
     overrides.centsWebhookVerifier === undefined &&
     runtime.env.centsWebhook.authMode === 'unsigned'
   )
-    runtime.logger.warn(
-      'Cents webhook authentication is disabled by configuration.',
-      { route: '/webhooks/cents', authMode: 'unsigned' },
+    attemptObservation(() =>
+      runtime.logger.warn(
+        'Cents webhook authentication is disabled by configuration.',
+        { route: '/webhooks/cents', authMode: 'unsigned' },
+      ),
     );
 
   app.disable('x-powered-by');
@@ -126,7 +140,7 @@ export const makeApiApp = (
 
   app.use(helmet());
   app.use(cors(makeCorsOptions(runtime.env.corsOrigin, runtime.env.nodeEnv)));
-  app.use(makeRequestContext(runtime.logger));
+  app.use(makeRequestContext());
   app.use(
     makeApiRequestMetrics({
       counters: runtime.observability.counters,
@@ -262,7 +276,7 @@ export const makeApiApp = (
   app.use(
     '/control',
     makeControlCustomerRoutes({
-      users,
+      application: controlExperience.customers,
       authenticate: controlBoundary.authenticate,
       limitIdentity: controlIdentityRateLimit,
       requireRead: controlBoundary.requireCapability('customers:read'),
@@ -273,7 +287,7 @@ export const makeApiApp = (
   app.use(
     '/control',
     makeControlOrderRoutes({
-      orders,
+      application: controlExperience.orders,
       authenticate: controlBoundary.authenticate,
       limitIdentity: controlIdentityRateLimit,
       requireRead: controlBoundary.requireCapability('orders:read'),
@@ -283,7 +297,7 @@ export const makeApiApp = (
 
   app.use(express.json({ limit: '64kb' }));
 
-  app.use('/auth', authModule.routes);
+  app.use('/auth', identityModule.routes);
 
   app.use('/processor/auth', processorBoundary.routes);
 
@@ -292,8 +306,8 @@ export const makeApiApp = (
   app.use(
     '/control/invitations',
     makeControlInvitationAcceptanceRoutes({
-      application: authModule.application.workforce,
-      authApplication: authModule.application,
+      application: controlExperience.invitations,
+      authApplication: identityModule.application,
       authenticateExisting: controlBoundary.authenticate,
       limitExistingIdentity: controlIdentityRateLimit,
       requireOrigin: controlBoundary.requireOrigin,
@@ -306,7 +320,7 @@ export const makeApiApp = (
   app.use(
     '/control',
     makeControlWorkforceRoutes({
-      application: authModule.application.workforce,
+      application: controlExperience,
       authenticate: controlBoundary.authenticate,
       limitIdentity: controlIdentityRateLimit,
       requireRead: controlBoundary.requireCapability('team:read'),
@@ -317,7 +331,7 @@ export const makeApiApp = (
   app.use(
     '/control',
     makeControlSecurityRoutes({
-      application: authModule.application.workforce,
+      application: controlExperience.security,
       authenticate: controlBoundary.authenticate,
       limitIdentity: controlIdentityRateLimit,
       requireRead: controlBoundary.requireCapability('security:read'),
@@ -326,21 +340,21 @@ export const makeApiApp = (
 
   app.use(
     '/auth',
-    authModule.makeAdministrationRoutes({
-      sessions: accessControlModule.authSessions,
-      mfa: accessControlModule.mfa,
+    identityModule.makeAdministrationRoutes({
+      sessions: accessControl.authSessions,
+      mfa: accessControl.mfa,
     }),
   );
 
   app.use(
     '/control/auth',
-    authModule.makeAdministrationRoutes({
+    identityModule.makeAdministrationRoutes({
       sessions: {
-        ...accessControlModule.authSessions,
+        ...accessControl.authSessions,
         authenticate: controlBoundary.authenticate,
       },
       mfa: {
-        ...accessControlModule.mfa,
+        ...accessControl.mfa,
         authenticate: controlBoundary.authenticate,
       },
     }),
@@ -352,7 +366,7 @@ export const makeApiApp = (
     makeWebhookIngestionRoutes({
       application: webhookIngestion,
       authenticate: processorBoundary.authenticate,
-      authorize: accessControlModule.production.resources,
+      authorize: accessControl.production.resources,
     }),
   );
 
@@ -361,7 +375,7 @@ export const makeApiApp = (
       makeProductionChangeRoutes({
         feed: overrides.productionChanges,
         authenticate: processorBoundary.authenticate,
-        authorize: accessControlModule.production.read,
+        authorize: accessControl.production.read,
         counters: runtime.observability.counters,
         measurements: runtime.observability.measurements ?? nullMeasurementSink,
       }),
@@ -371,8 +385,8 @@ export const makeApiApp = (
     makeOrderManagementRoutes({
       orders,
       authenticate: processorBoundary.authenticate,
-      authorizeOrders: accessControlModule.orderManagement.writeOrders,
-      readPrincipal: authModule.guards.readPrincipal,
+      authorizeOrders: accessControl.orderManagement.writeOrders,
+      readPrincipal: identityModule.guards.readPrincipal,
       resolveBusinessId: locationAncestry.resolveBusinessId,
     }),
   );
@@ -380,22 +394,19 @@ export const makeApiApp = (
   app.use(
     makeProcessorOrderControlRoutes({
       production: productionModule.application,
-      readModel: makeProcessorOrderControlReadModel({
-        db: runtime.database.db,
-        identities: operationalOrderIdentities,
-      }),
+      orderControlAdapter,
       authenticate: processorBoundary.authenticate,
-      authorize: accessControlModule.production.read,
+      authorize: accessControl.production.read,
     }),
   );
 
   app.use(
     makeProcessorOperationalOrderRoutes({
       production: productionModule.application,
-      readModel: operationalOrderReadModel,
+      operationalOrderAdapter,
       authenticate: processorBoundary.authenticate,
-      authorizeRead: accessControlModule.production.read,
-      authorizeOverride: accessControlModule.production.override,
+      authorizeRead: accessControl.production.read,
+      authorizeOverride: accessControl.production.override,
     }),
   );
 

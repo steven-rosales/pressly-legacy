@@ -1,13 +1,19 @@
-import type { WorkforceApplication } from '@pressly/auth-module';
+import type {
+  ControlExperience,
+  ControlInvitationAcceptance,
+} from '@pressly/control-experience';
 import {
   acceptWorkforceInvitationRequestSchema,
   controlExistingInvitationMfaRequestSchema,
   controlExistingInvitationPasswordRequestSchema,
   controlInvitationPreviewRequestSchema,
-} from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
+} from '@pressly/contracts/auth';
+import {
+  invariantViolationError,
+  validationError,
+} from '@pressly/errors/factories';
 import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
 import { Router, type RequestHandler, type Response } from 'express';
 import {
   clearControlCookie,
@@ -15,55 +21,35 @@ import {
   setControlCookie,
   type ControlCookieNames,
 } from '../session/control-cookie.adapter.ts';
+import { deriveControlCsrfToken } from '../session/control-csrf.adapter.ts';
 import { controlUnauthorized } from '../session/control-session.error.ts';
 import {
-  controlBrowserSession,
   controlRequestId,
   controlRequestMetadata,
-} from '../session/control-session.mapper.ts';
+} from '../session/control-request-metadata.adapter.ts';
+import { controlBrowserSession } from '../session/control-session.contract.mapper.ts';
 import {
   isControlResultError,
   type ControlAuthApplication,
   type ControlSessionOptions,
-  type LoadedControlSession,
   type ResolveControlAccess,
 } from '../session/control-session.port.ts';
-import { controlInvitationPreview } from './control-workforce.mapper.ts';
-
-const resultValue = <Value>(
-  outcome:
-    | Readonly<{ tag: 'ok'; value: Value }>
-    | Readonly<{ tag: 'err'; error: unknown }>,
-): Value => {
-  if (outcome.tag === 'err') throw outcome.error;
-  return outcome.value;
-};
+import {
+  controlFailureToAppError,
+  controlResultValue,
+} from '../control-experience.error.ts';
+import { readControlRequestContext } from '../control-request-context.adapter.ts';
 
 const existingActor = (response: Response) => {
-  const auth = response.locals['auth'] as LoadedControlSession;
-  if (auth.principal.sessionId === undefined)
-    throw makeAppError({
-      kind: 'InvariantViolationError',
-      code: 'control_session_id_missing',
-      message: 'Authenticated Control principal is missing a session ID.',
-      safeMessage: 'Session could not be loaded.',
-      status: 500,
-    });
+  const actor = readControlRequestContext(response).actor;
   return {
-    authenticatedIdentityId: auth.principal.identityId,
-    authenticatedSessionId: auth.principal.sessionId,
+    authenticatedIdentityId: actor.identityId,
+    authenticatedSessionId: actor.sessionId,
   };
 };
 
-const acceptanceSummary = (accepted: {
-  invitation: Readonly<{ id: string }>;
-  membershipId: string;
-  identityId: string;
-  identityCreated: boolean;
-  privilegedAccessEffective: boolean;
-  replayed: boolean;
-}) => ({
-  invitationId: accepted.invitation.id,
+const acceptanceSummary = (accepted: ControlInvitationAcceptance) => ({
+  invitationId: accepted.invitationId,
   membershipId: accepted.membershipId,
   identityId: accepted.identityId,
   identityCreated: accepted.identityCreated,
@@ -72,7 +58,7 @@ const acceptanceSummary = (accepted: {
 });
 
 export const makeControlInvitationAcceptanceRoutes = (input: {
-  application: WorkforceApplication;
+  application: ControlExperience['invitations'];
   authApplication: ControlAuthApplication;
   authenticateExisting: RequestHandler;
   limitExistingIdentity: RequestHandler;
@@ -93,6 +79,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
         ? {}
         : { requestId: controlRequestId(response)! }),
     });
+
     clearControlCookie(response, input.names.session, input.sessionOptions);
   };
 
@@ -102,7 +89,7 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       acceptanceToken: string;
       idempotencyKey: string;
       accessToken: string;
-      expiresAt: string;
+      expiresAt: Date;
     },
   ) => {
     const loaded = await input.authApplication.loadSession({
@@ -114,17 +101,15 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
     }
     if (loaded.value.principal.sessionId === undefined) {
       await revokeBootstrapSession(response, command.accessToken);
-      throw makeAppError({
-        kind: 'InvariantViolationError',
+      throw invariantViolationError({
         code: 'invitation_bootstrap_session_id_missing',
         message: 'Invitation bootstrap session has no session identifier.',
         safeMessage: 'Invitation could not be accepted.',
-        status: 500,
       });
     }
 
-    const accepted = await input.application.acceptInvitation({
-      rawToken: command.acceptanceToken,
+    const accepted = await input.application.accept({
+      acceptanceToken: command.acceptanceToken,
       idempotencyKey: command.idempotencyKey,
       acceptance: {
         kind: 'existing_identity',
@@ -134,12 +119,12 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
     });
     if (isControlResultError(accepted)) {
       await revokeBootstrapSession(response, command.accessToken);
-      throw accepted.error;
+      throw controlFailureToAppError(accepted.error);
     }
 
     const postAcceptanceAccess = await input.resolveAccess(loaded.value);
     const destination =
-      accepted.value.invitation.intendedRole === 'operator'
+      accepted.value.destination === 'processor'
         ? {
             id: 'processor' as const,
             label: 'Pressly Processor',
@@ -175,8 +160,10 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
     const session = controlBrowserSession(
       loaded.value,
       postAcceptanceAccess,
-      command.accessToken,
-      input.sessionOptions,
+      deriveControlCsrfToken(
+        command.accessToken,
+        input.sessionOptions.csrfSecret,
+      ),
     );
     clearControlCookie(response, input.names.mfa, input.sessionOptions);
 
@@ -187,59 +174,48 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       destination,
     };
   };
-
-  routes.post(
-    '/preview',
-    input.requireOrigin,
-    validateRequest({ body: controlInvitationPreviewRequestSchema }),
-    catchAsync(async (request, response) => {
-      const preview = resultValue(
-        await input.application.previewInvitation(request.body.acceptanceToken),
+  const previewController = defineValidatedController({
+    request: { body: controlInvitationPreviewRequestSchema },
+    handle: async ({ body }, { response }) => {
+      const preview = controlResultValue(
+        await input.application.preview(body.acceptanceToken),
       );
-      response.json(apiSuccess(controlInvitationPreview(preview)));
-    }),
-  );
-
-  routes.post(
-    '/accept/new',
-    input.requireOrigin,
-    validateRequest({ body: acceptWorkforceInvitationRequestSchema }),
-    catchAsync(async (request, response) => {
-      if (request.body.identityMode !== 'new_identity')
-        throw makeAppError({
-          kind: 'ValidationError',
+      response.json(apiSuccess(preview));
+    },
+  });
+  const acceptNewController = defineValidatedController({
+    request: { body: acceptWorkforceInvitationRequestSchema },
+    handle: async ({ body }, { response }) => {
+      if (body.identityMode !== 'new_identity')
+        throw validationError({
           code: 'invitation_identity_mode_invalid',
           message: 'New identity acceptance requires new_identity mode.',
           safeMessage: 'Choose the correct invitation acceptance option.',
           status: 422,
         });
-      const accepted = resultValue(
-        await input.application.acceptInvitation({
-          rawToken: request.body.acceptanceToken,
-          idempotencyKey: request.body.idempotencyKey,
+
+      const accepted = controlResultValue(
+        await input.application.accept({
+          acceptanceToken: body.acceptanceToken,
+          idempotencyKey: body.idempotencyKey,
           acceptance: {
             kind: 'new_identity',
-            password: request.body.password,
+            password: body.password,
           },
         }),
       );
-      response.status(201).json(apiSuccess(acceptanceSummary(accepted)));
-    }),
-  );
 
-  routes.post(
-    '/accept/existing/password',
-    input.requireOrigin,
-    validateRequest({
-      body: controlExistingInvitationPasswordRequestSchema,
-    }),
-    catchAsync(async (request, response) => {
-      const preview = resultValue(
-        await input.application.previewInvitation(request.body.acceptanceToken),
+      response.status(201).json(apiSuccess(acceptanceSummary(accepted)));
+    },
+  });
+  const acceptExistingPasswordController = defineValidatedController({
+    request: { body: controlExistingInvitationPasswordRequestSchema },
+    handle: async ({ body }, { request, response }) => {
+      const preview = controlResultValue(
+        await input.application.preview(body.acceptanceToken),
       );
       if (!preview.existingIdentity)
-        throw makeAppError({
-          kind: 'ValidationError',
+        throw validationError({
           code: 'invitation_existing_identity_required',
           message:
             'Credential bootstrap was requested for a new invitation identity.',
@@ -248,8 +224,8 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
         });
 
       const authenticated = await input.authApplication.login({
-        email: preview.emailNormalized,
-        password: request.body.password,
+        email: preview.email,
+        password: body.password,
         ...controlRequestMetadata(request, response),
       });
       if (isControlResultError(authenticated)) throw authenticated.error;
@@ -275,21 +251,18 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       response.status(200).json(
         apiSuccess(
           await acceptAndEstablish(response, {
-            acceptanceToken: request.body.acceptanceToken,
-            idempotencyKey: request.body.idempotencyKey,
+            acceptanceToken: body.acceptanceToken,
+            idempotencyKey: body.idempotencyKey,
             accessToken: authenticated.value.accessToken,
             expiresAt: authenticated.value.expiresAt,
           }),
         ),
       );
-    }),
-  );
-
-  routes.post(
-    '/accept/existing/mfa',
-    input.requireOrigin,
-    validateRequest({ body: controlExistingInvitationMfaRequestSchema }),
-    catchAsync(async (request, response) => {
+    },
+  });
+  const acceptExistingMfaController = defineValidatedController({
+    request: { body: controlExistingInvitationMfaRequestSchema },
+    handle: async ({ body }, { request, response }) => {
       const challengeToken = readControlCookie(
         request.header('cookie'),
         input.names.mfa,
@@ -301,8 +274,8 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
         });
 
       const completed = await input.authApplication.completeMfaChallenge({
-        method: request.body.method,
-        code: request.body.code,
+        method: body.method,
+        code: body.code,
         challengeToken,
         ...(controlRequestId(response) === undefined
           ? {}
@@ -313,43 +286,76 @@ export const makeControlInvitationAcceptanceRoutes = (input: {
       response.status(200).json(
         apiSuccess(
           await acceptAndEstablish(response, {
-            acceptanceToken: request.body.acceptanceToken,
-            idempotencyKey: request.body.idempotencyKey,
+            acceptanceToken: body.acceptanceToken,
+            idempotencyKey: body.idempotencyKey,
             accessToken: completed.value.accessToken,
             expiresAt: completed.value.expiresAt,
           }),
         ),
       );
-    }),
-  );
-
-  routes.post(
-    '/accept/existing',
-    input.authenticateExisting,
-    input.limitExistingIdentity,
-    validateRequest({ body: acceptWorkforceInvitationRequestSchema }),
-    catchAsync(async (request, response) => {
-      if (request.body.identityMode !== 'existing_identity')
-        throw makeAppError({
-          kind: 'ValidationError',
+    },
+  });
+  const acceptExistingController = defineValidatedController({
+    request: { body: acceptWorkforceInvitationRequestSchema },
+    handle: async ({ body }, { response }) => {
+      if (body.identityMode !== 'existing_identity')
+        throw validationError({
           code: 'invitation_identity_mode_invalid',
           message:
             'Existing identity acceptance requires existing_identity mode.',
           safeMessage: 'Choose the correct invitation acceptance option.',
           status: 422,
         });
-      const accepted = resultValue(
-        await input.application.acceptInvitation({
-          rawToken: request.body.acceptanceToken,
-          idempotencyKey: request.body.idempotencyKey,
+
+      const accepted = controlResultValue(
+        await input.application.accept({
+          acceptanceToken: body.acceptanceToken,
+          idempotencyKey: body.idempotencyKey,
           acceptance: {
             kind: 'existing_identity',
             ...existingActor(response),
           },
         }),
       );
+
       response.json(apiSuccess(acceptanceSummary(accepted)));
-    }),
+    },
+  });
+
+  routes.post(
+    '/preview',
+    input.requireOrigin,
+    previewController.validate,
+    previewController.handle,
+  );
+
+  routes.post(
+    '/accept/new',
+    input.requireOrigin,
+    acceptNewController.validate,
+    acceptNewController.handle,
+  );
+
+  routes.post(
+    '/accept/existing/password',
+    input.requireOrigin,
+    acceptExistingPasswordController.validate,
+    acceptExistingPasswordController.handle,
+  );
+
+  routes.post(
+    '/accept/existing/mfa',
+    input.requireOrigin,
+    acceptExistingMfaController.validate,
+    acceptExistingMfaController.handle,
+  );
+
+  routes.post(
+    '/accept/existing',
+    input.authenticateExisting,
+    input.limitExistingIdentity,
+    acceptExistingController.validate,
+    acceptExistingController.handle,
   );
 
   return routes;

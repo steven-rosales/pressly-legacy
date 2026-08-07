@@ -1,13 +1,12 @@
-import type { AuthModule } from '@pressly/auth-module';
+import type { IdentityModule } from '@pressly/identity';
 import type {
-  ControlAuthenticatedSession,
+  ControlAccess,
   ControlCapability,
-  PresslyApplication,
-} from '@pressly/contracts';
+} from '@pressly/control-experience';
 import type { Response, Router, RequestHandler } from 'express';
 import type { ControlCookieNames } from './control-cookie.adapter.ts';
 
-export type ControlAuthApplication = AuthModule['application'];
+export type ControlAuthApplication = IdentityModule['application'];
 
 type ResultValue<T> = T extends { tag: 'ok'; value: infer Value }
   ? Value
@@ -16,20 +15,6 @@ type ResultValue<T> = T extends { tag: 'ok'; value: infer Value }
 export type LoadedControlSession = ResultValue<
   Awaited<ReturnType<ControlAuthApplication['loadSession']>>
 >;
-
-export type ControlLocationAccess = Readonly<{
-  id: string;
-  name: string;
-  timezone: string;
-}>;
-
-export type ControlAccess = Readonly<{
-  business: Readonly<{ id: string; name: string }>;
-  locations: readonly ControlLocationAccess[];
-  selectedLocationId: string | null;
-  capabilities: readonly ControlCapability[];
-  applications: readonly PresslyApplication[];
-}>;
 
 export type ResolveControlAccess = (
   session: LoadedControlSession,
@@ -54,8 +39,6 @@ export type ControlBrowserBoundary = Readonly<{
     resolveAccess: ResolveControlAccess;
   }>;
 }>;
-
-export type ControlBrowserSession = ControlAuthenticatedSession;
 
 export type ResultLike<Value, Error> =
   | Readonly<{ tag: 'ok'; value: Value }>

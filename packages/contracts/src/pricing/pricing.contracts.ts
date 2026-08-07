@@ -27,11 +27,12 @@ export const pricingCatalogSchema = z.object({
   updatedAt: utcIsoStringSchema,
 });
 
-export const loadPricingCatalogCommandSchema = z.object({
+export const pricingParamsRequestSchema = z.object({
   serviceSlug: pricingServiceSlugSchema,
 });
 
-export const pricingParamsRequestSchema = loadPricingCatalogCommandSchema;
+/** @deprecated Use pricingParamsRequestSchema for serialized route parameters. */
+export const loadPricingCatalogCommandSchema = pricingParamsRequestSchema;
 
 export const publishPricingChangeItemSchema = z
   .object({
@@ -45,5 +46,33 @@ export const pricingChangeRequestSchema = z
     serviceSlug: pricingServiceSlugSchema,
     reason: z.string().min(1),
     items: z.array(publishPricingChangeItemSchema).min(1),
+  })
+  .strict();
+
+export const pricingChangeDiffItemSchema = z
+  .object({
+    code: z.string().min(1),
+    name: z.string().min(1),
+    oldPriceCents: z.number().int().nonnegative(),
+    newPriceCents: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const pricingChangePlanSchema = z
+  .object({
+    serviceSlug: pricingServiceSlugSchema,
+    reason: z.string().min(1),
+    oldPricingSetId: z.string().min(1),
+    currency: z.string().min(1),
+    changes: z.array(pricingChangeDiffItemSchema),
+  })
+  .strict();
+
+export const publishPricingChangeResultSchema = z
+  .object({
+    oldPricingSetId: z.string().min(1),
+    newPricingSetId: z.string().min(1),
+    auditEventId: z.string().min(1),
+    changeItemCount: z.number().int().nonnegative(),
   })
   .strict();

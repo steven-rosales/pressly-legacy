@@ -1,11 +1,13 @@
-import { makeAppError } from '@pressly/errors';
+import { unexpectedError } from '@pressly/errors/factories';
 import type { SecurityEvent, SecurityEventSink } from '@pressly/logging';
 import {
+  attemptObservation,
   decideObservation,
   type CounterSink,
   type ErrorReporter,
   type ObservationDecision,
-} from '@pressly/metrics';
+} from '@pressly/observability';
+import { systemClock } from '@pressly/time';
 
 const alertCode = (event: SecurityEvent): string =>
   `security_alert_${event.name.replaceAll('.', '_')}`;
@@ -19,12 +21,10 @@ const captureSecurityAlert = (
   decision: ObservationDecision,
 ): void => {
   alerts.capture(
-    makeAppError({
-      kind: 'UnexpectedError',
+    unexpectedError({
       code: alertCode(event),
       message: `Security alert observed: ${event.name}.`,
       safeMessage: 'Security alert observed.',
-      status: 500,
       details: {
         event: event.name,
         outcome: event.outcome,
@@ -59,7 +59,7 @@ export const makeSecurityEventSink = (input: {
   alertWindowMs?: number;
 }): SecurityEventSink => {
   const alertCounts = new Map<string, { count: number; resetAtMs: number }>();
-  const nowMs = input.nowMs ?? Date.now;
+  const nowMs = input.nowMs ?? (() => systemClock.now().getTime());
   const threshold = input.alertThreshold ?? 5;
   const windowMs = input.alertWindowMs ?? 5 * 60_000;
 
@@ -108,14 +108,20 @@ export const makeSecurityEventSink = (input: {
         thresholdReached,
       });
 
-      if (decision.alert) captureSecurityAlert(input.alerts, event, decision);
+      if (decision.alert)
+        attemptObservation(() =>
+          captureSecurityAlert(input.alerts, event, decision),
+        );
 
-      if (decision.counter !== undefined)
-        input.counters.increment(decision.counter, {
-          event: event.name,
-          outcome: event.outcome,
-          reason: decision.reason,
-        });
+      const counter = decision.counter;
+      if (counter !== undefined)
+        attemptObservation(() =>
+          input.counters.increment(counter, {
+            event: event.name,
+            outcome: event.outcome,
+            reason: decision.reason,
+          }),
+        );
     },
   };
 };

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { jsonObjectSchema } from '@pressly/codec/zod';
 import { utcIsoStringSchema } from '../utc-iso.contracts.ts';
 
 export const canonicalOrderParamsSchema = z
@@ -40,7 +41,7 @@ export const orderItemInputSchema = z
     unit: z.string().min(1),
     unitPriceCents: z.number().int().nonnegative(),
     totalAmountCents: z.number().int().nonnegative(),
-    sourceMetadata: z.unknown(),
+    sourceMetadata: jsonObjectSchema,
   })
   .strict();
 

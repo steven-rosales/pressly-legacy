@@ -3,7 +3,7 @@ import {
   acceptWorkforceInvitationRequestSchema,
   issueWorkforceInvitationRequestSchema,
   issueWorkforceInvitationResultSchema,
-} from '../src/index.ts';
+} from '../src/auth/index.ts';
 
 const invitation = {
   id: '10000000-0000-4000-8000-000000000001',

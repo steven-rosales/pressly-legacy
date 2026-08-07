@@ -18,10 +18,10 @@ Your current code still selects one highest role in auth middleware. That is the
 
 ```txt id="qv7q06"
 apps/api
-  composes business/auth + policy/access-control + business/pricing
+  composes security/identity + policy/access-control + business/pricing
   does not define authorization policy
 
-modules/business/auth
+modules/security/identity
   authenticates credentials/sessions
   loads trusted principal + principal attributes
   provides generic HTTP authentication/authorization middleware
@@ -50,7 +50,7 @@ packages/db
   storage schema + migrations
 ```
 
-One boundary correction: `PricingModuleAuthorizationInput` and `AuthorizeMiddlewareInput` should not live in `@pressly/contracts`. They are internal module/middleware ports, not external protocol contracts. Right now they are exported from contracts. Keep request/response schemas in contracts. Move generic authorization middleware types into `modules/business/auth` or `@pressly/auth`, and move route-specific policy composition into `modules/policy/access-control`.
+One boundary correction: `PricingModuleAuthorizationInput` and `AuthorizeMiddlewareInput` should not live in `@pressly/contracts`. They are internal module/middleware ports, not external protocol contracts. Right now they are exported from contracts. Keep request/response schemas in contracts. Move generic authorization middleware types into `modules/security/identity` or `@pressly/auth`, and move route-specific policy composition into `modules/policy/access-control`.
 
 One implementation correction: `packages/auth` already exists and is not purely authorization-only today. Do not block this hardening pass on purifying the whole package. Add a pure `authorization/` core inside it, export the primitives from `@pressly/auth`, and convert denied authorization decisions into `AppError` only at module/HTTP adapter edges.
 
@@ -77,7 +77,7 @@ packages/auth/src/
       same-identity.ts
   index.ts
 
-modules/business/auth/src/
+modules/security/identity/src/
   features/load-session/
     load-session.usecase.ts
     load-session.port.ts
@@ -724,7 +724,7 @@ Small hygiene note: the identity table spelling has been corrected with a dedica
 
 The auth module should load a principal and authority-relevant attributes. The current load-session result returns roles. Change that to return `principal + principalAttributes`.
 
-## `modules/business/auth/src/features/load-session/load-session.port.ts`
+## `modules/security/identity/src/features/sessions/load-session/load-session.port.ts`
 
 Move storage-only types here. `StoredSessionPrincipal` should leave `@pressly/contracts`; it is persistence adapter language, not an HTTP/API contract.
 
@@ -760,7 +760,7 @@ export type TokenHasher = Readonly<{ hash: (rawToken: string) => string }>;
 export type Clock = Readonly<{ now: () => Date }>;
 ```
 
-## `modules/business/auth/src/features/load-session/load-session.usecase.ts`
+## `modules/security/identity/src/features/sessions/load-session/load-session.usecase.ts`
 
 ```ts id="adrryr"
 import { result, type Result } from '@pressly/kernel';
@@ -835,7 +835,7 @@ export const makeLoadSession =
 
 # 6. Persistence mapping
 
-## `modules/business/auth/src/adapters/common/assignments.ts`
+## `modules/security/identity/src/features/sessions/load-session/stored-assignments.persistence.mapper.ts`
 
 ```ts id="s8m99s"
 import {
@@ -888,7 +888,7 @@ export const mapStoredAssignments = (
   });
 ```
 
-## `modules/business/auth/src/adapters/load-session/persistence/load-session.repo.ts`
+## `modules/security/identity/src/features/sessions/load-session/load-session.repo.ts`
 
 Change the role query to assignment query.
 
@@ -949,7 +949,7 @@ export const makeLoadSessionStore = (db: Database): LoadSessionStore => ({
 
 # 7. Auth HTTP middleware
 
-## `modules/business/auth/src/adapters/load-session/http/authenticate.middleware.ts`
+## `modules/security/identity/src/features/sessions/load-session/authenticate.middleware.ts`
 
 No highest-role selection.
 
@@ -984,7 +984,7 @@ export const makeAuthenticateMiddleware = (
   });
 ```
 
-## `modules/business/auth/src/adapters/load-session/http/authorize.middleware.ts`
+## `modules/security/identity/src/foundations/adapters/http/authentication-request/authorize-request.adapter.ts`
 
 This middleware stays generic. Pricing passes action, policies, and a resource reader.
 

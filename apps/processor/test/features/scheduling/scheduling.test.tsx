@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { SchedulingWorkspace } from "@/features/scheduling/scheduling.view"
-import { RequestFailure } from "@/ports/request.error"
+import { requestFailure } from "@/ports/request.error"
 import {
   makeTestProductionPort,
   testConfig,
@@ -516,11 +516,11 @@ describe("scheduling workspace", () => {
     const user = userEvent.setup()
     const createSchedule = vi.fn()
     const updateShift = vi.fn(async () => {
-      throw new RequestFailure({
-        kind: "conflict",
+      throw requestFailure({
+        requestKind: "conflict",
         code: "PRODUCTION_SHIFT_VERSION_CONFLICT",
         message: "The shift changed. Refresh and try again.",
-        status: 409,
+        responseStatus: 409,
       })
     })
     render(

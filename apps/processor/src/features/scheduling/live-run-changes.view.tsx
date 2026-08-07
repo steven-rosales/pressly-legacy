@@ -12,13 +12,13 @@ import type { TFunction } from "i18next"
 import type {
   ProcessorProductionLiveRunChangeOrder,
   ProcessorProductionLiveRunChanges,
+} from "@pressly/contracts/processor"
+import type {
   ProductionRunSummary,
   ProductionShift,
-} from "@pressly/contracts"
-import {
-  MetricStrip,
-  SectionHeading,
-} from "@/components/layout/workspace-primitives"
+} from "@pressly/contracts/production"
+import { MetricStrip } from "@/components/layout/workspace-primitives"
+import { WorkspaceSectionHeading as SectionHeading } from "@/components/layout/workspace-section-heading"
 import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"

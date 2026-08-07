@@ -1,17 +1,19 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type {
-  ListProductionHistoryActivityResult,
+  ProductionApplication,
   ProductionOrderBacklogPreview,
-} from '@pressly/contracts';
-import type { ProductionApplication } from '@pressly/production';
+} from '@pressly/production';
+import {
+  makeOperationalOrderIdentityQueries,
+  type OperationalOrderIdentityPort,
+} from '@pressly/processor-experience';
 import express, {
   type ErrorRequestHandler,
   type RequestHandler,
 } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ProcessorOperationalOrderIdentityResolver } from '../../src/http/processor/operational-order-identity/operational-order-identity.query.ts';
-import { makeProcessorOperationalOrderReadModel } from '../../src/http/processor/operational-order-identity/operational-order-identity.read-model.ts';
+import { makeProcessorOperationalOrderIdentityAdapter } from '../../src/http/processor/operational-order-identity/operational-order-identity.adapter.ts';
 import { makeProcessorOperationalOrderRoutes } from '../../src/http/processor/operational-order-identity/operational-order-identity.route.ts';
 
 const servers: Server[] = [];
@@ -88,7 +90,14 @@ const preview: ProductionOrderBacklogPreview = {
   },
 };
 
-const activity: ListProductionHistoryActivityResult = {
+type ProductionHistoryActivityPage = Extract<
+  Awaited<
+    ReturnType<ProductionApplication['productionHistory']['listActivity']>
+  >,
+  Readonly<{ tag: 'ok' }>
+>['value'];
+
+const activity: ProductionHistoryActivityPage = {
   items: [
     {
       id: id(10),
@@ -117,11 +126,11 @@ const activity: ListProductionHistoryActivityResult = {
         releasedStages: [],
         assignedStages: [],
       },
-      occurredAt: '2026-07-27T12:00:00.000Z',
+      occurredAt: new Date('2026-07-27T12:00:00.000Z'),
     },
   ],
   nextCursor: null,
-  asOf: '2026-07-27T12:01:00.000Z',
+  asOf: new Date('2026-07-27T12:01:00.000Z'),
 };
 
 const makeApp = () => {
@@ -129,7 +138,7 @@ const makeApp = () => {
     tag: 'ok' as const,
     value: preview,
   }));
-  const resolve = vi.fn<ProcessorOperationalOrderIdentityResolver['resolve']>(
+  const resolve = vi.fn<OperationalOrderIdentityPort['resolve']>(
     async (references) =>
       new Map(
         references.map((reference) => [
@@ -178,7 +187,9 @@ const makeApp = () => {
           },
         },
       },
-      readModel: makeProcessorOperationalOrderReadModel({ resolve }),
+      operationalOrderAdapter: makeProcessorOperationalOrderIdentityAdapter(
+        makeOperationalOrderIdentityQueries({ resolve }),
+      ),
       authenticate,
       authorizeRead,
       authorizeOverride,

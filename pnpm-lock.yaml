@@ -27,6 +27,9 @@ importers:
       '@pressly/contracts':
         specifier: workspace:*
         version: link:packages/contracts
+      '@pressly/errors':
+        specifier: workspace:*
+        version: link:packages/errors
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
@@ -69,18 +72,24 @@ importers:
 
   apps/api:
     dependencies:
-      '@pressly/access-control':
+      '@pressly/auth':
         specifier: workspace:*
-        version: link:../../modules/policy/access-control
-      '@pressly/auth-module':
+        version: link:../../packages/auth
+      '@pressly/authorization':
         specifier: workspace:*
-        version: link:../../modules/business/auth
+        version: link:../../modules/security/authorization
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../../packages/codec
       '@pressly/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@pressly/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@pressly/control-experience':
+        specifier: workspace:*
+        version: link:../../modules/experience/control
       '@pressly/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -90,33 +99,39 @@ importers:
       '@pressly/http':
         specifier: workspace:*
         version: link:../../packages/http
+      '@pressly/identity':
+        specifier: workspace:*
+        version: link:../../modules/security/identity
+      '@pressly/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
       '@pressly/logging':
         specifier: workspace:*
         version: link:../../packages/logging
-      '@pressly/metrics':
+      '@pressly/observability':
         specifier: workspace:*
-        version: link:../../packages/metrics
+        version: link:../../packages/observability
       '@pressly/orders':
         specifier: workspace:*
         version: link:../../modules/business/orders
       '@pressly/pricing':
         specifier: workspace:*
         version: link:../../modules/business/pricing
+      '@pressly/processor-experience':
+        specifier: workspace:*
+        version: link:../../modules/experience/processor
       '@pressly/production':
         specifier: workspace:*
         version: link:../../modules/business/production
-      '@pressly/production-policy':
+      '@pressly/time':
         specifier: workspace:*
-        version: link:../../modules/policy/production
-      '@pressly/production-scheduling':
-        specifier: workspace:*
-        version: link:../../modules/computation/scheduling
+        version: link:../../packages/time
       '@pressly/users':
         specifier: workspace:*
         version: link:../../modules/business/users
       '@pressly/webhook-ingestion':
         specifier: workspace:*
-        version: link:../../modules/business/webhook-ingestion
+        version: link:../../modules/integration/webhook-ingestion
       '@sentry/node':
         specifier: ^10.50.0
         version: 10.50.0
@@ -169,6 +184,12 @@ importers:
       '@pressly/errors':
         specifier: workspace:*
         version: link:../../packages/errors
+      '@pressly/http':
+        specifier: workspace:*
+        version: link:../../packages/http
+      '@pressly/identity':
+        specifier: workspace:*
+        version: link:../../modules/security/identity
       '@pressly/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
@@ -178,15 +199,12 @@ importers:
       '@pressly/production':
         specifier: workspace:*
         version: link:../../modules/business/production
-      '@pressly/production-policy':
+      '@pressly/time':
         specifier: workspace:*
-        version: link:../../modules/policy/production
-      '@pressly/production-scheduling':
-        specifier: workspace:*
-        version: link:../../modules/computation/scheduling
+        version: link:../../packages/time
       '@pressly/webhook-ingestion':
         specifier: workspace:*
-        version: link:../../modules/business/webhook-ingestion
+        version: link:../../modules/integration/webhook-ingestion
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -230,6 +248,12 @@ importers:
       '@pressly/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@pressly/errors':
+        specifier: workspace:*
+        version: link:../../packages/errors
+      '@pressly/http':
+        specifier: workspace:*
+        version: link:../../packages/http
       '@pressly/time':
         specifier: workspace:*
         version: link:../../packages/time
@@ -354,9 +378,18 @@ importers:
       '@fontsource-variable/inter':
         specifier: ^5.2.8
         version: 5.2.8
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../../packages/codec
       '@pressly/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@pressly/errors':
+        specifier: workspace:*
+        version: link:../../packages/errors
+      '@pressly/http':
+        specifier: workspace:*
+        version: link:../../packages/http
       '@pressly/time':
         specifier: workspace:*
         version: link:../../packages/time
@@ -514,15 +547,21 @@ importers:
       '@pressly/errors':
         specifier: workspace:*
         version: link:../../packages/errors
+      '@pressly/http':
+        specifier: workspace:*
+        version: link:../../packages/http
       '@pressly/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
       '@pressly/logging':
         specifier: workspace:*
         version: link:../../packages/logging
-      '@pressly/metrics':
+      '@pressly/observability':
         specifier: workspace:*
-        version: link:../../packages/metrics
+        version: link:../../packages/observability
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -632,6 +671,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../../packages/codec
       '@pressly/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -644,27 +686,27 @@ importers:
       '@pressly/errors':
         specifier: workspace:*
         version: link:../../packages/errors
+      '@pressly/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
       '@pressly/logging':
         specifier: workspace:*
         version: link:../../packages/logging
-      '@pressly/metrics':
+      '@pressly/observability':
         specifier: workspace:*
-        version: link:../../packages/metrics
+        version: link:../../packages/observability
       '@pressly/orders':
         specifier: workspace:*
         version: link:../../modules/business/orders
       '@pressly/production':
         specifier: workspace:*
         version: link:../../modules/business/production
-      '@pressly/production-policy':
+      '@pressly/time':
         specifier: workspace:*
-        version: link:../../modules/policy/production
-      '@pressly/production-scheduling':
-        specifier: workspace:*
-        version: link:../../modules/computation/scheduling
+        version: link:../../packages/time
       '@pressly/webhook-ingestion':
         specifier: workspace:*
-        version: link:../../modules/business/webhook-ingestion
+        version: link:../../modules/integration/webhook-ingestion
       '@sentry/node':
         specifier: ^10.50.0
         version: 10.50.0
@@ -691,11 +733,11 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0))
 
-  modules/business/auth:
+  modules/business/orders:
     dependencies:
-      '@pressly/auth':
+      '@pressly/codec':
         specifier: workspace:*
-        version: link:../../../packages/auth
+        version: link:../../../packages/codec
       '@pressly/contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
@@ -705,52 +747,15 @@ importers:
       '@pressly/errors':
         specifier: workspace:*
         version: link:../../../packages/errors
-      '@pressly/http':
-        specifier: workspace:*
-        version: link:../../../packages/http
       '@pressly/kernel':
         specifier: workspace:*
         version: link:../../../packages/kernel
-      '@pressly/logging':
+      '@pressly/observability':
         specifier: workspace:*
-        version: link:../../../packages/logging
+        version: link:../../../packages/observability
       '@pressly/time':
         specifier: workspace:*
         version: link:../../../packages/time
-      express:
-        specifier: ^5.2.1
-        version: 5.2.1
-    devDependencies:
-      '@pressly/testkit':
-        specifier: workspace:*
-        version: link:../../../packages/testkit
-      '@pressly/tsconfig':
-        specifier: workspace:*
-        version: link:../../../packages/tsconfig
-      '@types/express':
-        specifier: ^5.0.6
-        version: 5.0.6
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
-
-  modules/business/orders:
-    dependencies:
-      '@pressly/contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@pressly/db':
-        specifier: workspace:*
-        version: link:../../../packages/db
-      '@pressly/errors':
-        specifier: workspace:*
-        version: link:../../../packages/errors
-      '@pressly/kernel':
-        specifier: workspace:*
-        version: link:../../../packages/kernel
     devDependencies:
       '@pressly/testkit':
         specifier: workspace:*
@@ -810,6 +815,9 @@ importers:
 
   modules/business/production:
     dependencies:
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../../../packages/codec
       '@pressly/contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
@@ -825,6 +833,9 @@ importers:
       '@pressly/kernel':
         specifier: workspace:*
         version: link:../../../packages/kernel
+      '@pressly/observability':
+        specifier: workspace:*
+        version: link:../../../packages/observability
       '@pressly/time':
         specifier: workspace:*
         version: link:../../../packages/time
@@ -850,6 +861,9 @@ importers:
 
   modules/business/users:
     dependencies:
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../../../packages/codec
       '@pressly/db':
         specifier: workspace:*
         version: link:../../../packages/db
@@ -859,6 +873,9 @@ importers:
       '@pressly/kernel':
         specifier: workspace:*
         version: link:../../../packages/kernel
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../../../packages/time
     devDependencies:
       '@pressly/testkit':
         specifier: workspace:*
@@ -873,11 +890,64 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
-  modules/business/webhook-ingestion:
+  modules/experience/control:
     dependencies:
-      '@pressly/contracts':
+      '@pressly/codec':
         specifier: workspace:*
-        version: link:../../../packages/contracts
+        version: link:../../../packages/codec
+      '@pressly/db':
+        specifier: workspace:*
+        version: link:../../../packages/db
+      '@pressly/kernel':
+        specifier: workspace:*
+        version: link:../../../packages/kernel
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../../../packages/time
+    devDependencies:
+      '@pressly/testkit':
+        specifier: workspace:*
+        version: link:../../../packages/testkit
+      '@pressly/tsconfig':
+        specifier: workspace:*
+        version: link:../../../packages/tsconfig
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
+
+  modules/experience/processor:
+    dependencies:
+      '@pressly/db':
+        specifier: workspace:*
+        version: link:../../../packages/db
+      '@pressly/errors':
+        specifier: workspace:*
+        version: link:../../../packages/errors
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../../../packages/time
+    devDependencies:
+      '@pressly/testkit':
+        specifier: workspace:*
+        version: link:../../../packages/testkit
+      '@pressly/tsconfig':
+        specifier: workspace:*
+        version: link:../../../packages/tsconfig
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
+
+  modules/integration/webhook-ingestion:
+    dependencies:
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../../../packages/codec
       '@pressly/db':
         specifier: workspace:*
         version: link:../../../packages/db
@@ -887,6 +957,9 @@ importers:
       '@pressly/kernel':
         specifier: workspace:*
         version: link:../../../packages/kernel
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../../../packages/time
     devDependencies:
       '@pressly/testkit':
         specifier: workspace:*
@@ -904,36 +977,64 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
-  modules/computation/scheduling:
-    devDependencies:
-      '@pressly/tsconfig':
-        specifier: workspace:*
-        version: link:../../../packages/tsconfig
-      '@types/node':
-        specifier: ^25.6.0
-        version: 25.6.0
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
-
-  modules/policy/access-control:
+  modules/security/authorization:
     dependencies:
       '@pressly/auth':
         specifier: workspace:*
         version: link:../../../packages/auth
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../../../packages/time
+    devDependencies:
+      '@pressly/tsconfig':
+        specifier: workspace:*
+        version: link:../../../packages/tsconfig
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
+
+  modules/security/identity:
+    dependencies:
+      '@pressly/auth':
+        specifier: workspace:*
+        version: link:../../../packages/auth
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../../../packages/codec
       '@pressly/contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@pressly/db':
+        specifier: workspace:*
+        version: link:../../../packages/db
       '@pressly/errors':
         specifier: workspace:*
         version: link:../../../packages/errors
+      '@pressly/http':
+        specifier: workspace:*
+        version: link:../../../packages/http
+      '@pressly/kernel':
+        specifier: workspace:*
+        version: link:../../../packages/kernel
+      '@pressly/logging':
+        specifier: workspace:*
+        version: link:../../../packages/logging
+      '@pressly/observability':
+        specifier: workspace:*
+        version: link:../../../packages/observability
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../../../packages/time
       express:
         specifier: ^5.2.1
         version: 5.2.1
     devDependencies:
+      '@pressly/testkit':
+        specifier: workspace:*
+        version: link:../../../packages/testkit
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../../../packages/tsconfig
@@ -947,30 +1048,11 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
-  modules/policy/production:
-    dependencies:
-      '@pressly/kernel':
-        specifier: workspace:*
-        version: link:../../../packages/kernel
-    devDependencies:
-      '@pressly/tsconfig':
-        specifier: workspace:*
-        version: link:../../../packages/tsconfig
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
-
   packages/auth:
     dependencies:
       '@pressly/errors':
         specifier: workspace:*
         version: link:../errors
-      '@pressly/kernel':
-        specifier: workspace:*
-        version: link:../kernel
       argon2:
         specifier: ^0.44.0
         version: 0.44.0
@@ -981,6 +1063,25 @@ importers:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/codec:
+    dependencies:
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@pressly/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -1009,6 +1110,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../codec
       '@pressly/time':
         specifier: workspace:*
         version: link:../time
@@ -1028,6 +1132,12 @@ importers:
 
   packages/db:
     dependencies:
+      '@pressly/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@pressly/kernel':
+        specifier: workspace:*
+        version: link:../kernel
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -1064,6 +1174,10 @@ importers:
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/errors:
+    dependencies:
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../codec
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
@@ -1077,9 +1191,18 @@ importers:
 
   packages/http:
     dependencies:
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../codec
       '@pressly/errors':
         specifier: workspace:*
         version: link:../errors
+      '@pressly/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
@@ -1101,10 +1224,17 @@ importers:
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/kernel:
+    dependencies:
+      '@pressly/errors':
+        specifier: workspace:*
+        version: link:../errors
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -1113,18 +1243,13 @@ importers:
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/logging:
-    devDependencies:
-      '@pressly/tsconfig':
+    dependencies:
+      '@pressly/errors':
         specifier: workspace:*
-        version: link:../tsconfig
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
-
-  packages/metrics:
+        version: link:../errors
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../time
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
@@ -1137,6 +1262,26 @@ importers:
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/money:
+    dependencies:
+      '@pressly/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+    devDependencies:
+      '@pressly/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(jsdom@28.1.0(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.6.0)(typescript@6.0.3))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/observability:
+    dependencies:
+      '@pressly/kernel':
+        specifier: workspace:*
+        version: link:../kernel
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*
@@ -1159,6 +1304,9 @@ importers:
       '@pressly/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@pressly/time':
+        specifier: workspace:*
+        version: link:../time
     devDependencies:
       '@pressly/tsconfig':
         specifier: workspace:*

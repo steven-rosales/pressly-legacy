@@ -1,26 +1,35 @@
 import { readFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import {
   lpmsBootstrapManifestSchema,
-  productionBootstrapManifestSchema,
   type LpmsBootstrapManifest,
-  type ManageSourceLocationBindingsResult,
-  type ProductionBootstrapResult,
-} from '@pressly/contracts';
-import { createDatabaseRuntime } from '@pressly/db';
-import { makeAppError, normalizeUnknownError } from '@pressly/errors';
+} from '@pressly/contracts/lpms';
+import {
+  productionBootstrapManifestSchema,
+  type ProductionBootstrapResult as ProductionBootstrapWireResult,
+} from '@pressly/contracts/production';
+import { type ManageSourceLocationBindingsResult as ManageSourceLocationBindingsWireResult } from '@pressly/contracts/webhook-ingestion';
+import { createDatabaseRuntime } from '@pressly/db/client';
+import { uuidIdSource } from '@pressly/kernel/node';
+import { normalizeUnknownError } from '@pressly/errors/app-error';
+import { configError, validationError } from '@pressly/errors/factories';
 import {
   makePostgresProductionApplication,
+  productionFailureToAppError,
   type ProductionApplication,
 } from '@pressly/production';
-import { makeProductionPolicy } from '@pressly/production-policy';
-import { makeProductionScheduler } from '@pressly/production-scheduling';
 import {
   makePostgresWebhookIngestionApplication,
   type WebhookIngestionApplication,
 } from '@pressly/webhook-ingestion';
+import { systemClock } from '@pressly/time';
 import { z } from 'zod';
+import {
+  toManageSourceLocationBindingsWireResult,
+  toProductionBootstrapManifest,
+  toProductionBootstrapWireResult,
+  toSourceLocationBindingsManifest,
+} from './bootstrap-production.contract.mapper.ts';
 
 const commandInputSchema = z
   .object({
@@ -39,12 +48,10 @@ const valueAfter = (args: readonly string[], flag: string): string => {
   const index = args.indexOf(flag);
   const value = index === -1 ? undefined : args[index + 1];
   if (value === undefined || value.startsWith('--'))
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'production_bootstrap_argument_missing',
       message: `${flag} requires a value.`,
       safeMessage: `${flag} requires a value.`,
-      status: 400,
       details: { flag },
     });
   return value;
@@ -59,22 +66,18 @@ export const parseProductionBootstrapArgs = (
   for (let index = 0; index < normalized.length; index += 1) {
     const argument = normalized[index]!;
     if (!allowed.has(argument))
-      throw makeAppError({
-        kind: 'ValidationError',
+      throw validationError({
         code: 'production_bootstrap_argument_unknown',
         message: `Unknown production bootstrap argument: ${argument}.`,
         safeMessage: `Unknown production bootstrap argument: ${argument}.`,
-        status: 400,
       });
     if (valueFlags.includes(argument)) index += 1;
   }
   if (normalized.includes('--dry-run') && normalized.includes('--apply'))
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'production_bootstrap_mode_conflict',
       message: 'Choose either --dry-run or --apply.',
       safeMessage: 'Choose either --dry-run or --apply.',
-      status: 400,
     });
 
   return commandInputSchema.parse({
@@ -90,35 +93,29 @@ export const readProductionBootstrapManifest = async (
 ): Promise<LpmsBootstrapManifest> => {
   const source = await readFile(file, { encoding: 'utf8' });
   if (Buffer.byteLength(source, 'utf8') > 1_048_576)
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'production_bootstrap_file_too_large',
       message: 'Production bootstrap input exceeds one MiB.',
       safeMessage: 'Production bootstrap input exceeds one MiB.',
-      status: 400,
     });
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(source);
   } catch (error) {
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'production_bootstrap_json_invalid',
       message: 'Production bootstrap input is not valid JSON.',
       safeMessage: 'Production bootstrap input is not valid JSON.',
-      status: 400,
       cause: error,
     });
   }
   const manifest = lpmsBootstrapManifestSchema.safeParse(parsed);
   if (!manifest.success)
-    throw makeAppError({
-      kind: 'ValidationError',
+    throw validationError({
       code: 'production_bootstrap_manifest_invalid',
       message: 'Production bootstrap manifest violates its contract.',
       safeMessage: 'Production bootstrap manifest is invalid.',
-      status: 400,
       details: {
         issues: manifest.error.issues.map((issue) => ({
           path: issue.path.map(String).join('.'),
@@ -134,13 +131,16 @@ export const executeProductionBootstrap = async (input: {
   manageResources: ProductionApplication['manageProductionResources'];
   manageSourceLocationBindings: WebhookIngestionApplication['manageSourceLocationBindings'];
 }): Promise<{
-  production: ProductionBootstrapResult;
-  sourceLocationBindings: ManageSourceLocationBindingsResult;
+  production: ProductionBootstrapWireResult;
+  sourceLocationBindings: ManageSourceLocationBindingsWireResult;
 }> => {
   const manifest = await readProductionBootstrapManifest(input.command.file);
   const { sourceLocationBindings, ...productionManifestInput } = manifest;
-  const productionManifest = productionBootstrapManifestSchema.parse(
-    productionManifestInput,
+  const bindingsManifest = toSourceLocationBindingsManifest(
+    sourceLocationBindings,
+  );
+  const productionManifest = toProductionBootstrapManifest(
+    productionBootstrapManifestSchema.parse(productionManifestInput),
   );
   const productionPreview = await input.manageResources({
     manifest: productionManifest,
@@ -148,12 +148,12 @@ export const executeProductionBootstrap = async (input: {
     actorId: input.command.actorId,
     idempotencyKey: input.command.idempotencyKey,
   });
-  if (productionPreview.tag === 'err') throw productionPreview.error;
+  if (productionPreview.tag === 'err')
+    throw productionFailureToAppError(productionPreview.error);
   const bindingsPreview = await input.manageSourceLocationBindings({
-    manifest: { sourceLocationBindings },
+    manifest: bindingsManifest,
     dryRun: true,
   });
-  if (bindingsPreview.tag === 'err') throw bindingsPreview.error;
 
   if (
     input.command.dryRun ||
@@ -161,8 +161,10 @@ export const executeProductionBootstrap = async (input: {
     bindingsPreview.value.status === 'rejected'
   )
     return {
-      production: productionPreview.value,
-      sourceLocationBindings: bindingsPreview.value,
+      production: toProductionBootstrapWireResult(productionPreview.value),
+      sourceLocationBindings: toManageSourceLocationBindingsWireResult(
+        bindingsPreview.value,
+      ),
     };
 
   const production = await input.manageResources({
@@ -171,27 +173,27 @@ export const executeProductionBootstrap = async (input: {
     actorId: input.command.actorId,
     idempotencyKey: input.command.idempotencyKey,
   });
-  if (production.tag === 'err') throw production.error;
+  if (production.tag === 'err')
+    throw productionFailureToAppError(production.error);
   const bindings = await input.manageSourceLocationBindings({
-    manifest: { sourceLocationBindings },
+    manifest: bindingsManifest,
     dryRun: false,
   });
-  if (bindings.tag === 'err') throw bindings.error;
   return {
-    production: production.value,
-    sourceLocationBindings: bindings.value,
+    production: toProductionBootstrapWireResult(production.value),
+    sourceLocationBindings: toManageSourceLocationBindingsWireResult(
+      bindings.value,
+    ),
   };
 };
 
 const requiredEnv = (key: string): string => {
   const value = process.env[key];
   if (value !== undefined && value.trim() !== '') return value;
-  throw makeAppError({
-    kind: 'ConfigError',
+  throw configError({
     code: 'production_bootstrap_env_missing',
     message: `${key} is required for production bootstrap.`,
     safeMessage: `${key} is required.`,
-    status: 500,
     details: { key },
   });
 };
@@ -205,15 +207,13 @@ const main = async (): Promise<void> => {
   try {
     const application = makePostgresProductionApplication({
       db: database.db,
-      policy: makeProductionPolicy(),
-      scheduler: makeProductionScheduler(),
-      clock: { now: () => new Date() },
-      ids: { next: randomUUID },
+      clock: systemClock,
+      ids: uuidIdSource,
     });
     const webhookIngestion = makePostgresWebhookIngestionApplication({
       db: database.db,
-      clock: { now: () => new Date() },
-      ids: { next: randomUUID },
+      clock: systemClock,
+      ids: uuidIdSource,
     });
     const outcome = await executeProductionBootstrap({
       command,

@@ -5,7 +5,7 @@ import {
   processorOrderContextSchema,
   processorProductionBatchOrderSchema,
   processorProductionOrderBacklogPreviewSchema,
-} from '../src/index.ts';
+} from '../src/processor/index.ts';
 import { describe, expect, it } from 'vitest';
 
 const id = (value: number) =>

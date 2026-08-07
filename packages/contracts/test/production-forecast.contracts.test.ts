@@ -4,7 +4,7 @@ import {
   productionRemainingDayForecastSchema,
   productionServiceDaySchema,
   type ProductionRemainingDayForecast,
-} from '../src/index.ts';
+} from '../src/production/index.ts';
 
 const id = (suffix: number): string =>
   `00000000-0000-4000-8000-${suffix.toString().padStart(12, '0')}`;

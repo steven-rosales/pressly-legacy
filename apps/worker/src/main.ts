@@ -1,25 +1,19 @@
-import { makeJsonLogger } from '@pressly/logging';
+import './runtime/observability/instrument.js';
 import { runWorker } from './bootstrap/worker-runtime.js';
 import { workerEnv } from './runtime/env.js';
 import {
-  initializeWorkerSentry,
+  makeWorkerRuntimeLogger,
   makeWorkerSentryReporter,
   makeWorkerSignalSinks,
+  makeWorkerTraceSink,
   reportWorkerFailure,
+  reportWorkerTelemetryFailure,
 } from './runtime/observability/worker-observability.js';
 
-initializeWorkerSentry({
+const logger = makeWorkerRuntimeLogger({
   ...workerEnv.observability.sentry,
   environment: workerEnv.nodeEnv,
 });
-
-const logger = makeJsonLogger({
-  service: 'pressly-worker',
-  environment: workerEnv.nodeEnv,
-  ...(workerEnv.observability.sentry.release === undefined
-    ? {}
-    : { release: workerEnv.observability.sentry.release }),
-}).child({ runtime: 'worker' });
 
 const errors = makeWorkerSentryReporter(workerEnv.observability.sentry.enabled);
 
@@ -28,18 +22,20 @@ const signals = makeWorkerSignalSinks({
   measurementLogIntervalMs: workerEnv.jobs.metricLogIntervalMs,
   sentryEnabled: workerEnv.observability.sentry.enabled,
 });
+const trace = makeWorkerTraceSink(workerEnv.observability.sentry.enabled);
 
-runWorker({
-  config: workerEnv,
-  logger,
-  counters: signals.counters,
-  measurements: signals.measurements,
-  errors,
-})
-  .then(async () => {
-    await errors.shutdown();
-  })
-  .catch(async (error: unknown) => {
+const main = async (): Promise<void> => {
+  try {
+    await runWorker({
+      config: workerEnv,
+      logger,
+      counters: signals.counters,
+      measurements: signals.measurements,
+      errors,
+      trace,
+    });
+  } catch (error: unknown) {
+    process.exitCode = 1;
     reportWorkerFailure({
       error,
       operation: 'worker_runtime',
@@ -49,6 +45,36 @@ runWorker({
       level: 'fatal',
       tags: { phase: 'fatal' },
     });
+  }
+
+  try {
     await errors.shutdown();
+  } catch {
     process.exitCode = 1;
-  });
+    reportWorkerTelemetryFailure('worker.telemetry.flush_failed');
+  }
+};
+
+void main().catch(async (error: unknown) => {
+  process.exitCode = 1;
+
+  try {
+    reportWorkerFailure({
+      error,
+      operation: 'worker_main',
+      logger,
+      errors,
+      counters: signals.counters,
+      level: 'fatal',
+      tags: { phase: 'uncaught' },
+    });
+  } catch {
+    // The process exit code is already set. There is no safer sink left.
+  }
+
+  try {
+    await errors.shutdown();
+  } catch {
+    reportWorkerTelemetryFailure('worker.telemetry.flush_failed');
+  }
+});

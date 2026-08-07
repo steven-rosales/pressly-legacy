@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { cache } from 'react';
-import type { PricingServiceSlug } from '@pressly/contracts';
+import type { PricingServiceSlug } from '@pressly/contracts/pricing';
 
 import { makeServerWebCore } from '@/common/adapters/runtime/server-web-core';
 import type { PricingCatalogLoader } from './model';

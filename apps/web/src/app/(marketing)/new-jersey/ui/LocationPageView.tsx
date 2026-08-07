@@ -1,7 +1,7 @@
 import { JsonLd } from '@/app/_components/JsonLd';
 import { SchedulePickupButton } from '@/features/order-entry/ui/SchedulePickupButton';
 
-import type { LocationPageModel } from '../model';
+import type { LocationPageModel } from '../_shared/model';
 import { LocationsBottomSection } from './LocationsBottomSection';
 import LocationsDryCleaning from './LocationsDryCleaning';
 import { LocationsHero } from './LocationsHero';

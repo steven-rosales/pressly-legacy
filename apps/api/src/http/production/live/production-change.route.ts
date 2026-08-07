@@ -1,7 +1,13 @@
-import { productionLocationParamsSchema } from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
-import { catchAsync, validateRequest } from '@pressly/http/express';
-import type { CounterSink, MeasurementSink } from '@pressly/metrics';
+import { productionLocationParamsSchema } from '@pressly/contracts/production';
+import { notFoundError } from '@pressly/errors/factories';
+import { defineValidatedController } from '@pressly/http/express';
+import {
+  isolateCounterSink,
+  isolateMeasurementSink,
+  type CounterSink,
+  type MeasurementSink,
+} from '@pressly/observability';
+import { systemClock } from '@pressly/time';
 import { Router, type RequestHandler, type Response } from 'express';
 import type {
   ProductionChange,
@@ -47,14 +53,13 @@ export const makeProductionChangeRoutes = (input: {
   const heartbeatIntervalMs = input.heartbeatIntervalMs ?? 20_000;
   const reauthorizeIntervalMs = input.reauthorizeIntervalMs ?? 5 * 60_000;
   let activeConnections = 0;
+  const { increment } = isolateCounterSink(input.counters);
+  const { observe: measure } = isolateMeasurementSink(input.measurements);
 
-  router.get(
-    '/production/locations/:locationId/events',
-    input.authenticate,
-    validateRequest({ params: productionLocationParamsSchema }),
-    input.authorize,
-    catchAsync(async (request, response) => {
-      const locationId = request.params['locationId'] as string;
+  const changeController = defineValidatedController({
+    request: { params: productionLocationParamsSchema },
+    handle: async ({ params }, { request, response }) => {
+      const { locationId } = params;
       let bufferedRevision: number | null = null;
       let bufferedResync = false;
       let ready = false;
@@ -73,11 +78,8 @@ export const makeProductionChangeRoutes = (input: {
         if (!counted) return;
         counted = false;
         activeConnections = Math.max(0, activeConnections - 1);
-        input.counters.increment('api.sse_connections', { outcome: 'closed' });
-        input.measurements.observe(
-          'api.sse_active_connections',
-          activeConnections,
-        );
+        increment('api.sse_connections', { outcome: 'closed' });
+        measure('api.sse_active_connections', activeConnections);
       };
 
       response.once('close', close);
@@ -109,11 +111,11 @@ export const makeProductionChangeRoutes = (input: {
               { revision: change.revision },
               change.revision,
             );
-            input.counters.increment('api.sse_events', { type: 'change' });
+            increment('api.sse_events', { type: 'change' });
             return;
           }
           writeEvent(response, 'resync', { reason: 'upstream_reconnected' });
-          input.counters.increment('api.sse_events', { type: 'resync' });
+          increment('api.sse_events', { type: 'resync' });
         } catch {
           close();
         }
@@ -130,12 +132,10 @@ export const makeProductionChangeRoutes = (input: {
       if (closed) return;
       if (revision === null) {
         close();
-        throw makeAppError({
-          kind: 'NotFoundError',
+        throw notFoundError({
           code: 'production_location_not_found',
           message: `Production location ${locationId} was not found.`,
           safeMessage: 'The production location was not found.',
-          status: 404,
         });
       }
 
@@ -152,14 +152,11 @@ export const makeProductionChangeRoutes = (input: {
 
       activeConnections += 1;
       counted = true;
-      input.counters.increment('api.sse_connections', { outcome: 'opened' });
-      input.measurements.observe(
-        'api.sse_active_connections',
-        activeConnections,
-      );
+      increment('api.sse_connections', { outcome: 'opened' });
+      measure('api.sse_active_connections', activeConnections);
       ready = true;
       writeEvent(response, 'ready', { revision }, revision);
-      input.counters.increment('api.sse_events', { type: 'ready' });
+      increment('api.sse_events', { type: 'ready' });
       if (bufferedResync) send({ kind: 'resync' });
       else if (bufferedRevision !== null && bufferedRevision > revision)
         send({ kind: 'revision', revision: bufferedRevision });
@@ -178,7 +175,7 @@ export const makeProductionChangeRoutes = (input: {
       const untilExpiry =
         absoluteExpiry === null
           ? reauthorizeIntervalMs
-          : Math.max(1, absoluteExpiry - Date.now());
+          : Math.max(1, absoluteExpiry - systemClock.now().getTime());
       reauthorize = setTimeout(
         () => {
           if (!closed) response.end();
@@ -186,7 +183,15 @@ export const makeProductionChangeRoutes = (input: {
         Math.min(reauthorizeIntervalMs, untilExpiry),
       );
       reauthorize.unref();
-    }),
+    },
+  });
+
+  router.get(
+    '/production/locations/:locationId/events',
+    input.authenticate,
+    changeController.validate,
+    input.authorize,
+    changeController.handle,
   );
 
   return router;

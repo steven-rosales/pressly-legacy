@@ -10,7 +10,7 @@ import {
   within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { ProcessorAuthenticatedSession } from "@pressly/contracts"
+import type { ProcessorAuthenticatedSession } from "@pressly/contracts/auth"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import App from "@/app/app"
 import {

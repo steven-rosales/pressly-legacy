@@ -17,14 +17,17 @@ import {
   Spinner,
 } from "@/components/ui"
 import { controlErrorMessage } from "@/i18n/control-error-message"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
+import type {
+  ControlAuthenticatedSession,
+  ControlWorkforceMemberDetailProjection as WorkforceMemberDetail,
+  ControlWorkforceSession as WorkforceSession,
+} from "@pressly/contracts/auth"
 import type { ControlTeamApi } from "./team-api"
 import {
   MemberAccessControls,
   MemberLifecycleControls,
   MemberSessionControls,
 } from "./team-member-controls"
-import type { WorkforceMemberDetail, WorkforceSession } from "./team-model"
 
 const formatDate = (value: string, locale: "en-US" | "es-US") =>
   new Intl.DateTimeFormat(locale, {

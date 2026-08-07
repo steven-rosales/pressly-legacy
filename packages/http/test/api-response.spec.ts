@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { apiFailure, apiSuccess } from '../src/api-response.js';
 
 describe('api response', () => {
@@ -20,6 +20,8 @@ describe('api response', () => {
       safeMessage: 'Invalid request.',
       status: 400,
       traceId: 'trace_123',
+      details: { databaseColumn: 'private_value' },
+      publicDetails: { field: 'email' },
     });
 
     expect(apiFailure(error)).toEqual({
@@ -28,7 +30,10 @@ describe('api response', () => {
         code: 'invalid_request',
         message: 'Invalid request.',
         traceId: 'trace_123',
+        details: { field: 'email' },
       },
     });
+
+    expect(JSON.stringify(apiFailure(error))).not.toContain('databaseColumn');
   });
 });

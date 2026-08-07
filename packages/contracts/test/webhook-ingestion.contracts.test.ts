@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  deadWebhookEventsResultSchema,
   ingestWebhookEventCommandSchema,
   sourceLocationBindingsManifestSchema,
 } from '../src/webhook-ingestion/webhook-ingestion.contracts.ts';
@@ -50,6 +51,35 @@ describe('webhook ingestion contracts', () => {
       ingestWebhookEventCommandSchema.safeParse({
         ...event,
         vendor: 'cents',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('keeps dead-letter timestamps serialized at the wire boundary', () => {
+    const result = {
+      items: [
+        {
+          eventId: '00000000-0000-4000-8000-000000000001',
+          source: 'cents',
+          eventType: 'order.updated',
+          subjectType: 'order',
+          subjectId: 'order-1',
+          sourceLocationId: 'store-1',
+          sourceOccurredAt: '2026-07-12T14:00:00.000Z',
+          attempts: 3,
+          lastErrorCode: 'source_location_unmapped',
+          receivedAt: '2026-07-12T14:00:01.000Z',
+        },
+      ],
+      nextCursor: null,
+      asOf: '2026-07-12T15:00:00.000Z',
+    };
+
+    expect(deadWebhookEventsResultSchema.parse(result)).toEqual(result);
+    expect(
+      deadWebhookEventsResultSchema.safeParse({
+        ...result,
+        asOf: new Date(result.asOf),
       }).success,
     ).toBe(false);
   });

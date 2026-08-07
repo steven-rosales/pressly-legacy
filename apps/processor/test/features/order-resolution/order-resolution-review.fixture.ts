@@ -1,7 +1,5 @@
-import type {
-  ProcessorProductionOrderBacklogPreview,
-  ProductionOrderBacklogCommitResult,
-} from "@pressly/contracts"
+import type { ProcessorProductionOrderBacklogPreview } from "@pressly/contracts/processor"
+import type { ProductionOrderBacklogCommitResult } from "@pressly/contracts/production"
 import type {
   OrderResolutionReviewCopy,
   OrderResolutionReviewScope,

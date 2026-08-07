@@ -2,11 +2,11 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import i18next from "i18next"
 import { describe, expect, it, vi } from "vitest"
-import { ControlApiError } from "@/api/control-http-client"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
+import type { ControlCustomer } from "@pressly/contracts/users"
 import type { ControlCustomerApi } from "@/features/customers/customer-api"
+import { controlApiErrorFixture } from "../support/control-api-error.fixture"
 import { CustomerWorkspace } from "@/features/customers/customer-workspace"
-import type { ControlCustomer } from "@/features/customers/customer-model"
 
 const customer: ControlCustomer = {
   id: "5e03eb58-bfa3-435b-9c68-1f0ffc9bcb2a",
@@ -163,7 +163,7 @@ describe("Customer workspace", () => {
   it("keeps a stale correction open with a safe refresh instruction", async () => {
     const update = vi
       .fn<ControlCustomerApi["update"]>()
-      .mockRejectedValue(new ControlApiError(409, "conflict"))
+      .mockRejectedValue(controlApiErrorFixture("conflict", { status: 409 }))
     const user = userEvent.setup()
     const { container } = render(
       <CustomerWorkspace

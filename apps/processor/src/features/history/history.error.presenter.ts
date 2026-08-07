@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next"
-import { RequestFailure } from "@/ports/request.error"
+import { isRequestFailure } from "@/ports/request.error"
 
 export type HistoryErrorOperation = "list" | "detail" | "restore"
 
@@ -18,7 +18,7 @@ export const presentHistoryError = (
   operation: HistoryErrorOperation,
   t: TFunction
 ): string => {
-  if (!(cause instanceof RequestFailure)) return fallbackMessage(operation, t)
+  if (!isRequestFailure(cause)) return fallbackMessage(operation, t)
 
   switch (cause.code.toLowerCase()) {
     case "production_history_cursor_invalid":
@@ -35,10 +35,12 @@ export const presentHistoryError = (
       return t("orderResolution.history.restore.staleDescription")
   }
 
-  if (cause.kind === "unauthorized") return t("history.errors.unauthorized")
-  if (cause.kind === "forbidden") return t("history.errors.forbidden")
-  if (cause.kind === "unavailable") return t("history.errors.unavailable")
-  if (cause.kind === "invalid_response")
+  if (cause.requestKind === "unauthorized")
+    return t("history.errors.unauthorized")
+  if (cause.requestKind === "forbidden") return t("history.errors.forbidden")
+  if (cause.requestKind === "unavailable")
+    return t("history.errors.unavailable")
+  if (cause.requestKind === "invalid_response")
     return t("history.errors.invalidResponse")
   return fallbackMessage(operation, t)
 }

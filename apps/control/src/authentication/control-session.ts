@@ -3,7 +3,7 @@ import {
   controlLoginResultSchema as sharedControlLoginResultSchema,
   presslyApplicationSchema,
   type PresslyApplication,
-} from "@pressly/contracts"
+} from "@pressly/contracts/auth"
 
 const expectedProductionOrigins: Readonly<
   Record<PresslyApplication["id"], string>
@@ -136,9 +136,3 @@ export const controlLoginResultSchema =
       context.addIssue(issue),
     )
   })
-
-export { logoutResultSchema } from "@pressly/contracts"
-export type {
-  ControlAuthenticatedSession,
-  ControlLoginResult,
-} from "@pressly/contracts"

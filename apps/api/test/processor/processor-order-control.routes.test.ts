@@ -1,9 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type {
-  ListProcessorOrderControlResult,
-  ListProductionOrderControlResult,
-} from '@pressly/contracts';
+import type { ListProcessorOrderControlResult } from '@pressly/contracts/processor';
+import type { ListProductionOrderControlResult } from '@pressly/production';
 import express, { type RequestHandler } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeProcessorOrderControlRoutes } from '../../src/http/processor/order-control/order-control.route.ts';
@@ -40,7 +38,7 @@ describe('Processor Order control route', () => {
             id: id(1),
             locationId: 'east',
             externalOrderId: 'fulfillment:legacy',
-            dueAt: '2026-07-22T20:00:00.000Z',
+            dueAt: new Date('2026-07-22T20:00:00.000Z'),
             dueBucket: 'tomorrow',
             priority: false,
             status: 'release_pending',
@@ -81,13 +79,42 @@ describe('Processor Order control route', () => {
       ],
       counts: { attention: 0, active: 0, all: 1 },
       nextCursor: 'next-page',
-      asOf: '2026-07-21T16:00:00.000Z',
+      asOf: new Date('2026-07-21T16:00:00.000Z'),
     };
     const composed: ListProcessorOrderControlResult = {
-      ...base,
+      counts: { ...base.counts },
+      nextCursor: base.nextCursor,
+      asOf: base.asOf.toISOString(),
       items: [
         {
           ...base.items[0]!,
+          order: {
+            ...base.items[0]!.order,
+            dueAt: base.items[0]!.order.dueAt.toISOString(),
+          },
+          admission: {
+            ...base.items[0]!.admission,
+            allowedActions: [...base.items[0]!.admission.allowedActions],
+          },
+          attention: null,
+          currentPlacement: null,
+          nextRequiredStage: null,
+          routeAttempts: [],
+          commands: {
+            queuedMove: {
+              ...base.items[0]!.commands.queuedMove,
+              targets: [],
+            },
+            routeException: {
+              ...base.items[0]!.commands.routeException,
+            },
+          },
+          resolutionAction: {
+            status: 'allowed',
+            expectedVersion: 1,
+            requiresExplicitReview: false,
+            reviewReasons: [],
+          },
           identity: {
             displayNumber: 'fulfillment:legacy',
             customerDisplayName: null,
@@ -141,7 +168,7 @@ describe('Processor Order control route', () => {
     app.use(
       makeProcessorOrderControlRoutes({
         production: { listProductionOrderControl },
-        readModel: { compose },
+        orderControlAdapter: { compose },
         authenticate,
         authorize,
       }),

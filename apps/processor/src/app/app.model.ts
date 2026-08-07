@@ -3,15 +3,19 @@ import { useTranslation } from "react-i18next"
 import type {
   ProcessorAuthenticatedSession,
   ProcessorCapability,
+} from "@pressly/contracts/auth"
+import type {
   ProcessorProductionOrderListItem,
   ProcessorProductionOrderSummary,
   ProcessorProductionWorkspace,
+} from "@pressly/contracts/processor"
+import type {
   ProductionLocation,
   ProductionRunSummary,
   ProductionShift,
   ScheduleProposal,
-} from "@pressly/contracts"
-import { RequestFailure } from "@/ports/request.error"
+} from "@pressly/contracts/production"
+import { isRequestFailure } from "@/ports/request.error"
 import { presentAuthenticationError } from "@/features/authentication/authentication.error.presenter"
 import { englishAppMessages, spanishAppMessages } from "@/i18n"
 import type { ProcessorRuntime } from "./app.composition"
@@ -51,11 +55,13 @@ export const resolveLocationSelection = (input: {
     available.has(input.currentLocationId)
   )
     return input.currentLocationId
+
   if (
     input.preferredLocationId !== null &&
     available.has(input.preferredLocationId)
   )
     return input.preferredLocationId
+
   return input.locations.length === 1 ? input.locations[0]!.id : null
 }
 
@@ -68,6 +74,7 @@ const errorMessagesForLanguage = (
 
 const roundUp = (date: Date, intervalMinutes: number): Date => {
   const interval = intervalMinutes * 60_000
+
   return new Date(Math.ceil(date.getTime() / interval) * interval)
 }
 
@@ -82,6 +89,7 @@ export const derivePlanningDefaults = (input: {
   const endsAt =
     shift?.endsAt ??
     new Date(Date.parse(startsAt) + 6 * 60 * 60_000).toISOString()
+
   return {
     pulseMinutes: input.workspace.currentSchedulerConfig?.pulseMinutes ?? 0,
     foldLbsPerFolderMinute:
@@ -212,6 +220,7 @@ export function useProcessorAppModel(
 ) {
   const { t, i18n } = useTranslation()
   const errorMessages = errorMessagesForLanguage(i18n.resolvedLanguage)
+
   const [authStatus, setAuthStatus] = useState<ProcessorAuthStatus>("restoring")
   const [session, setSession] = useState<ProcessorAuthenticatedSession | null>(
     null
@@ -301,6 +310,7 @@ export function useProcessorAppModel(
         location.capabilities.includes("processor:view") &&
         location.capabilities.includes("production:read")
     )
+
     setSession(next)
     setAuthError(null)
     setAuthStatus(hasProcessorAccess ? "authenticated" : "forbidden")
@@ -343,6 +353,7 @@ export function useProcessorAppModel(
 
   useEffect(() => {
     let active = true
+
     void runtime.authentication
       .restore()
       .then((restored) => {
@@ -351,11 +362,12 @@ export function useProcessorAppModel(
       .catch((cause: unknown) => {
         if (!active) return
         resetSession(
-          cause instanceof RequestFailure && cause.kind === "unauthorized"
+          isRequestFailure(cause) && cause.requestKind === "unauthorized"
             ? undefined
             : presentAuthenticationError(cause, "restore", t)
         )
       })
+
     return () => {
       active = false
     }
@@ -363,6 +375,7 @@ export function useProcessorAppModel(
 
   useEffect(() => {
     if (session === null) return
+
     return scheduleSessionExpiry(session.expiresAt, () =>
       resetSession(t("authentication.sessionExpired"))
     )

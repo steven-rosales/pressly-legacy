@@ -5,7 +5,7 @@ import i18next from "i18next"
 import ControlApp, { type ControlRuntime } from "@/app/control-app"
 import { localizeApplicationDestination } from "@/app/application-destinations"
 import { ThemeProvider } from "@/app/theme-provider"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
 
 const applications: ControlAuthenticatedSession["access"]["applications"] = [
   {

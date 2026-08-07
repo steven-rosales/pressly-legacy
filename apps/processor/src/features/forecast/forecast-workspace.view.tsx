@@ -1,4 +1,5 @@
 import type { ProductionPort } from "@/ports/production.port"
+import type { Clock } from "@pressly/time"
 import { useRemainingDayForecastModel } from "./forecast.model"
 import type { ForecastNavigationTarget } from "./forecast.presenter"
 import { ForecastSummaryView } from "./forecast-summary.view"
@@ -19,7 +20,7 @@ export function ForecastWorkspaceContainer({
   locationId: string
   timezone: string
   revision: string
-  now: () => Date
+  now: Clock["now"]
   variant: "full" | "home" | "schedule"
   onNavigate: (target: ForecastNavigationTarget) => void
   canNavigate?: (target: ForecastNavigationTarget) => boolean

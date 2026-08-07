@@ -1,7 +1,5 @@
-import type {
-  ChangeProductionOrderResolutionCommand,
-  ProcessorOperationalOrderIdentity,
-} from "@pressly/contracts"
+import type { ProcessorOperationalOrderIdentity } from "@pressly/contracts/processor"
+import type { ChangeProductionOrderResolutionCommand } from "@pressly/contracts/production"
 
 type RestoreProductionOrderCommand = Extract<
   ChangeProductionOrderResolutionCommand,

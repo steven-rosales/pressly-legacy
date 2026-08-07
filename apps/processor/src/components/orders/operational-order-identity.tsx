@@ -1,4 +1,4 @@
-import type { ProcessorOperationalOrderIdentity } from "@pressly/contracts"
+import type { ProcessorOperationalOrderIdentity } from "@pressly/contracts/processor"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/components/ui/class-names"

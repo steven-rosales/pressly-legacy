@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next"
 import {
-  ControlApiError,
+  isControlApiError,
   type ControlApiErrorKind,
 } from "@/api/control-http-client"
 
@@ -28,12 +28,10 @@ export const controlErrorMessage = (
     codeMessages?: Readonly<Record<string, string>>
   }> = {},
 ) => {
-  if (!(error instanceof ControlApiError)) return fallback
-  if (error.code !== null) {
-    const codeMessage = options.codeMessages?.[error.code]
-    if (codeMessage !== undefined) return codeMessage
-  }
-  if (error.kind === "conflict" && options.conflict !== undefined)
+  if (!isControlApiError(error)) return fallback
+  const codeMessage = options.codeMessages?.[error.code]
+  if (codeMessage !== undefined) return codeMessage
+  if (error.controlKind === "conflict" && options.conflict !== undefined)
     return options.conflict
-  return t(messageKeyByKind[error.kind])
+  return t(messageKeyByKind[error.controlKind])
 }

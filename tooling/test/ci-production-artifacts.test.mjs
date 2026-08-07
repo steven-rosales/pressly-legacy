@@ -68,6 +68,12 @@ const runtimeStage = (dockerfile) => {
 };
 
 describe('five-image CI release', () => {
+  it('builds the process-owned bootstrap commands into the API tools image', () => {
+    expect(nodeRuntimeDockerfiles.api).toContain(
+      'pnpm turbo build --filter=@pressly/api... --filter=@pressly/cli...',
+    );
+  });
+
   it('keeps branch CI build-only for all five application images', () => {
     const branchJobs = [
       workflow.jobs['web-docker-build'],

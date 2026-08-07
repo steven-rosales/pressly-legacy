@@ -3,11 +3,9 @@ import {
   getTestDatabaseUrl,
   type TestDatabaseRuntime,
 } from '@pressly/testkit/database';
-import {
-  laundryProduction,
-  orders as orderSchema,
-  type Database,
-} from '@pressly/db';
+import { type Database } from '@pressly/db/client';
+import * as laundryProduction from '@pressly/db/schema/laundry-production';
+import * as orderSchema from '@pressly/db/schema/orders';
 import { createHash } from 'node:crypto';
 
 export const productionTestBusinessId = '00000000-0000-4000-8000-000000000100';

@@ -1,9 +1,9 @@
-import type { AppError } from '@pressly/errors';
+import type { AppError } from '@pressly/errors/app-error';
 import {
   pricingCatalogSchema,
   type PricingCatalogResult,
   type PricingParamsRequestSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/pricing';
 import { result, type Result } from '@pressly/kernel';
 
 import type { QueryRuntime } from '@/common/core/actions/query';
@@ -42,18 +42,16 @@ export async function loadPricingCatalogViewModel(
   input: PricingParamsRequestSchema,
   options: Readonly<{ staticOnly?: boolean }> = {},
 ): Promise<PricingCatalogViewModel> {
-  if (options.staticOnly === true) {
+  if (options.staticOnly === true)
     return {
       source: 'static-fallback',
       catalog: buildStaticCatalog(input.serviceSlug),
     };
-  }
 
   const pricing = await queries.loadCatalog(input);
 
-  if (result.isOk(pricing) && hasRequiredPricing(pricing.value)) {
+  if (result.isOk(pricing) && hasRequiredPricing(pricing.value))
     return { source: 'api', catalog: pricing.value };
-  }
 
   return {
     source: 'static-fallback',

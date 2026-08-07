@@ -1,4 +1,4 @@
-import type { WorkspaceApplicationDestination } from "@/components/ui"
+import type { WorkspaceApplicationDestination } from "@/components/layout/workspace-shell"
 
 type ApplicationDestinationCopy = Readonly<
   Record<
@@ -13,5 +13,6 @@ export function localizeApplicationDestination(
 ): WorkspaceApplicationDestination {
   if (application.id !== "processor" && application.id !== "control")
     return application
+
   return { ...application, ...copy[application.id] }
 }

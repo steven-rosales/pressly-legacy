@@ -2,7 +2,7 @@ import {
   logoutResultSchema,
   processorAuthenticatedSessionSchema,
   processorLoginResultSchema,
-} from "@pressly/contracts"
+} from "@pressly/contracts/auth"
 import type { AuthenticationPort } from "@/ports/authentication.port"
 import type { RequestPort } from "@/ports/request.port"
 
@@ -24,6 +24,7 @@ export const makeApiAuthenticationAdapter = (input: {
           processorAuthenticatedSessionSchema
         )
       ),
+
     login: async (credentials) => {
       const outcome = await input.request(
         { method: "POST", path: "/processor/auth/login", body: credentials },
@@ -33,6 +34,7 @@ export const makeApiAuthenticationAdapter = (input: {
       else input.clearCsrfToken()
       return outcome
     },
+
     completeMfa: async (body) =>
       accept(
         await input.request(
@@ -40,6 +42,7 @@ export const makeApiAuthenticationAdapter = (input: {
           processorAuthenticatedSessionSchema
         )
       ),
+
     logout: async () => {
       await input.request(
         { method: "POST", path: "/processor/auth/logout" },

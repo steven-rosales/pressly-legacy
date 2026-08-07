@@ -116,6 +116,7 @@ describe('offline production topology smoke harness', () => {
       'offline-smoke-live-placement-v1',
       'processor_csrf_rejected',
       'invalid_session',
+      'apps/cli/dist/commands/bootstrap-owner.command.js',
       'docker stats --no-stream',
     ])
       expect(script).toContain(proofRail);
@@ -123,6 +124,9 @@ describe('offline production topology smoke harness', () => {
     expect(script).not.toMatch(/\bgit\s+(?:fetch|checkout|switch|reset)\b/);
     expect(script).not.toMatch(/\bgh\s/);
     expect(script).not.toContain('trypressly.com');
+    expect(script).not.toContain(
+      'modules/security/identity/dist/composition/bootstrap-owner.composition.js',
+    );
     expect(script).not.toContain('OfflineSmoke!Passphrase2026');
     expect(script).not.toContain("demand_key in ('cents:order");
     expect(script).toContain("randomBytes(24).toString('base64url') + 'Aa1!'");
@@ -176,7 +180,8 @@ describe('offline production topology smoke harness', () => {
       PROCESSOR_ORIGIN: `https://processor.pressly.test:${port}`,
       CONTROL_ORIGIN: `https://control.pressly.test:${port}`,
       FEATURE_METRICS_ENABLED: 'false',
-      SENTRY_ENABLED: 'false',
+      SENTRY_ENABLED: 'true',
+      SENTRY_DSN: 'http://offlinesmoke@127.0.0.1:9/1',
       CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY: expect.any(String),
     });
     expect(config.services.web.build.args).toMatchObject({

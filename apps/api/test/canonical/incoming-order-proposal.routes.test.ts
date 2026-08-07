@@ -1,6 +1,5 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { makeAppError } from '@pressly/errors';
 import type { OrdersApplication } from '@pressly/orders';
 import express, {
   type ErrorRequestHandler,
@@ -317,17 +316,38 @@ describe('incoming Order proposal routes', () => {
     expect(orders.listIncomingOrderProposals).not.toHaveBeenCalled();
   });
 
+  it('authorizes proposal scope before parsing a malformed command body', async () => {
+    const orders = applications();
+    const base = await start(
+      makeApp({
+        orders,
+        authorize: (_request, response) => {
+          response.status(403).json({ code: 'forbidden' });
+        },
+      }),
+    );
+    const response = await fetch(
+      `${base}/order-management/locations/east/incoming-orders/${id(1)}/accept`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(orders.acceptIncomingOrderProposal).not.toHaveBeenCalled();
+  });
+
   it('preserves typed stale-version failures from Orders', async () => {
     const orders = applications();
     orders.acceptIncomingOrderProposal.mockResolvedValueOnce({
       tag: 'err',
-      error: makeAppError({
-        kind: 'ConflictError',
-        code: 'INCOMING_ORDER_PROPOSAL_VERSION_CONFLICT',
-        message: 'stale',
-        safeMessage: 'This incoming order changed.',
-        status: 409,
-      }),
+      error: {
+        kind: 'conflict',
+        code: 'incoming_order_proposal_version_conflict',
+        message: 'This incoming order changed.',
+      },
     });
     const base = await start(makeApp({ orders }));
     const response = await fetch(
@@ -346,7 +366,7 @@ describe('incoming Order proposal routes', () => {
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
-      code: 'INCOMING_ORDER_PROPOSAL_VERSION_CONFLICT',
+      code: 'incoming_order_proposal_version_conflict',
     });
   });
 });

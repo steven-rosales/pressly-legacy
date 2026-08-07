@@ -30,6 +30,13 @@ export default defineConfig([
     },
   },
   {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "architecture/owned-throwable": "error",
+      "architecture/qualified-mapper-role": "error",
+    },
+  },
+  {
     files: ["src/components/ui/**/*.{ts,tsx}"],
     rules: {
       "react-refresh/only-export-components": "off",
@@ -38,9 +45,9 @@ export default defineConfig([
         {
           patterns: [
             {
-              regex: "^@pressly/",
+              regex: "^@pressly/(?!errors/factories$)",
               message:
-                "Processor UI primitives cannot depend on product protocols or application packages.",
+                "Processor UI primitives may only depend on the pure error factory package, not product protocols or application packages.",
             },
             {
               regex: "^(?:i18next|react-i18next)$",

@@ -1,11 +1,13 @@
-import { makeAppError } from '@pressly/errors';
+import { makeAppError } from '@pressly/errors/app-error';
 import { nullLogger } from '@pressly/logging';
 import {
   nullCounterSink,
   nullErrorReporter,
   nullMeasurementSink,
+  type ErrorReporter,
   type MeasurementSink,
-} from '@pressly/metrics';
+} from '@pressly/observability';
+import type { Clock } from '@pressly/time';
 import type {
   ClaimedWebhookEvent,
   WebhookIngestionApplication,
@@ -13,9 +15,9 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 import {
   makeWebhookInboxJob,
-  retryDelayMs,
   type WebhookEventConsumer,
 } from '../../../src/jobs/process-webhook-inbox/webhook-inbox.job.ts';
+import { retryDelayMs } from '../../../src/runtime/retry.ts';
 
 const claimedEvent = (
   overrides: Partial<ClaimedWebhookEvent> = {},
@@ -28,8 +30,8 @@ const claimedEvent = (
   subjectType: 'order',
   subjectId: 'order-1',
   sourceLocationId: 'store-1',
-  sourceOccurredAt: '2026-07-10T13:00:00.000Z',
-  receivedAt: '2026-07-10T13:00:01.000Z',
+  sourceOccurredAt: new Date('2026-07-10T13:00:00.000Z'),
+  receivedAt: new Date('2026-07-10T13:00:01.000Z'),
   payload: {},
   payloadHash: 'a'.repeat(64),
   recoveredLease: false,
@@ -68,8 +70,10 @@ const ingestion = (
 const processor = (input: {
   ingestion: WorkerIngestion;
   consume: WebhookEventConsumer;
-  clock?: Readonly<{ now: () => Date }>;
+  clock?: Clock;
+  nowNanoseconds?: () => bigint;
   measurements?: MeasurementSink;
+  errors?: ErrorReporter;
   backlogMeasurementIntervalMs?: number;
 }) =>
   makeWebhookInboxJob({
@@ -78,11 +82,14 @@ const processor = (input: {
     clock:
       input.clock ??
       ({ now: () => new Date('2026-07-10T14:00:00.000Z') } as const),
+    ...(input.nowNanoseconds === undefined
+      ? {}
+      : { nowNanoseconds: input.nowNanoseconds }),
     random: () => 0.5,
     logger: nullLogger,
     counters: nullCounterSink,
     measurements: input.measurements ?? nullMeasurementSink,
-    errors: nullErrorReporter,
+    errors: input.errors ?? nullErrorReporter,
     config: {
       workerId: 'worker-1',
       leaseMs: 30_000,
@@ -131,19 +138,19 @@ describe('generic webhook inbox processor', () => {
   });
 
   it('samples two backlog gauges without changing the claim cadence', async () => {
-    let now = new Date('2026-07-10T14:00:00.000Z');
+    let nowNanoseconds = 0n;
     const store = ingestion([]);
     const observe = vi.fn();
     const inbox = processor({
       ingestion: store,
       consume: vi.fn(async () => ({ tag: 'ok' as const })),
-      clock: { now: () => now },
+      nowNanoseconds: () => nowNanoseconds,
       measurements: { observe },
     });
 
     await inbox.runOnce();
     await inbox.runOnce();
-    now = new Date('2026-07-10T14:01:00.000Z');
+    nowNanoseconds = 60_000_000_000n;
     await inbox.runOnce();
 
     expect(store.claimEvents).toHaveBeenCalledTimes(3);
@@ -163,6 +170,26 @@ describe('generic webhook inbox processor', () => {
       ],
       ['worker.inbox_pending_count', 0, { job: 'webhook_ingestion' }],
     ]);
+  });
+
+  it('samples backlog after claim failure without replacing the primary error', async () => {
+    const claimFailure = new Error('claim unavailable');
+    const measureBacklog = vi.fn(async () => {
+      throw new Error('measurement unavailable');
+    });
+    const store = ingestion([], {
+      claimEvents: vi.fn(async () => Promise.reject(claimFailure)),
+      measureBacklog,
+    });
+    const inbox = processor({
+      ingestion: store,
+      consume: vi.fn(async () => ({ tag: 'ok' as const })),
+      nowNanoseconds: () => 0n,
+    });
+
+    await expect(inbox.runOnce()).rejects.toBe(claimFailure);
+    expect(measureBacklog).toHaveBeenCalledOnce();
+    expect(store.purgeExpiredReceipts).toHaveBeenCalledOnce();
   });
 
   it('does not let backlog telemetry failure block claimed work', async () => {
@@ -203,6 +230,56 @@ describe('generic webhook inbox processor', () => {
       expect.objectContaining({ eventId: 'permanent', code: 'invalid_order' }),
     );
     expect(store.completeEvent).not.toHaveBeenCalled();
+  });
+
+  it('isolates an unexpected consumer failure and continues the claimed batch', async () => {
+    const failed = claimedEvent({ eventId: 'failed' });
+    const succeeded = claimedEvent({ eventId: 'succeeded' });
+    const store = ingestion([failed, succeeded]);
+    const consume = vi
+      .fn<WebhookEventConsumer>()
+      .mockRejectedValueOnce(new Error('consumer crashed'))
+      .mockResolvedValueOnce({ tag: 'ok' });
+
+    await expect(
+      processor({ ingestion: store, consume }).runOnce(),
+    ).resolves.toBe(2);
+
+    expect(store.retryEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'failed',
+        code: 'unexpected_error',
+      }),
+    );
+    expect(store.deadLetterEvent).not.toHaveBeenCalled();
+    expect(store.completeEvent).toHaveBeenCalledWith(succeeded);
+  });
+
+  it('does not let dead-letter reporting strand later claimed work', async () => {
+    const failed = claimedEvent({ eventId: 'failed' });
+    const succeeded = claimedEvent({ eventId: 'succeeded' });
+    const store = ingestion([failed, succeeded]);
+    const consume = vi.fn(async (event: ClaimedWebhookEvent) =>
+      event.eventId === 'failed' ? failure(false) : { tag: 'ok' as const },
+    );
+
+    await expect(
+      processor({
+        ingestion: store,
+        consume,
+        errors: {
+          capture: () => {
+            throw new Error('reporter unavailable');
+          },
+          shutdown: async () => undefined,
+        },
+      }).runOnce(),
+    ).resolves.toBe(2);
+
+    expect(store.deadLetterEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: 'failed' }),
+    );
+    expect(store.completeEvent).toHaveBeenCalledWith(succeeded);
   });
 
   it('leaves the claim processing when completion crashes after domain commit', async () => {

@@ -1,13 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import {
-  auth,
-  business,
-  getTableConfig,
-  getTableName,
-  orders,
-  users,
-} from '../src/index.ts';
+import { getTableConfig, getTableName } from '../src/query.ts';
+import * as auth from '../src/schema/auth.schema.ts';
+import * as business from '../src/schema/business.schema.ts';
+import * as orders from '../src/schema/orders.schema.ts';
+import * as users from '../src/schema/users.schema.ts';
 
 describe('business ancestry and workforce authority schema', () => {
   it('exports separate business, membership, invitation, and grant roots', () => {

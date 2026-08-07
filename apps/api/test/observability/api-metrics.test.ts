@@ -7,7 +7,95 @@ import {
   normalizedApiRoute,
   unmatchedApiRoute,
 } from '../../src/http/middleware/api-route.ts';
-import { makeApiSignalSinks } from '../../src/runtime/observability/sentry.ts';
+import {
+  initializeSentry,
+  makeApiSignalSinks,
+  requireApiSentryInitialization,
+} from '../../src/runtime/observability/sentry.ts';
+
+describe('API Sentry initialization', () => {
+  it('initializes only when the SDK creates a DSN-backed client', () => {
+    const initialize = vi.fn();
+
+    const initialized = initializeSentry(
+      {
+        enabled: true,
+        dsn: 'https://public@example.com/1',
+        environment: 'test',
+        release: 'api-test',
+        traceSampleRate: 0,
+      },
+      { initialize, hasInitializedDsn: () => true },
+    );
+
+    expect(initialized).toBe(true);
+    expect(initialize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enableLogs: true,
+        enableMetrics: true,
+        sendDefaultPii: false,
+      }),
+    );
+  });
+
+  it('rejects an invalid DSN before initializing the SDK', () => {
+    const initialize = vi.fn();
+    const emergencyLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    const initialized = initializeSentry(
+      {
+        enabled: true,
+        dsn: 'https://example.com',
+        environment: 'test',
+        release: undefined,
+        traceSampleRate: 0,
+      },
+      { initialize },
+    );
+
+    expect(initialized).toBe(false);
+    expect(initialize).not.toHaveBeenCalled();
+    expect(emergencyLog).toHaveBeenCalledWith(
+      expect.stringContaining('api.telemetry.initialization_failed'),
+    );
+
+    emergencyLog.mockRestore();
+  });
+
+  it('remains unavailable when the SDK creates no DSN-backed client', () => {
+    const emergencyLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    const initialized = initializeSentry(
+      {
+        enabled: true,
+        dsn: 'https://public@example.com/1',
+        environment: 'test',
+        release: undefined,
+        traceSampleRate: 0,
+      },
+      { initialize: vi.fn(), hasInitializedDsn: () => false },
+    );
+
+    expect(initialized).toBe(false);
+    expect(emergencyLog).toHaveBeenCalledWith(
+      expect.stringContaining('api.telemetry.initialization_failed'),
+    );
+
+    emergencyLog.mockRestore();
+  });
+
+  it('fails startup when enabled Sentry did not initialize', () => {
+    expect(() => requireApiSentryInitialization(true, false)).toThrow(
+      expect.objectContaining({ code: 'api_sentry_initialization_failed' }),
+    );
+    expect(() => requireApiSentryInitialization(true, true)).not.toThrow();
+    expect(() => requireApiSentryInitialization(false, false)).not.toThrow();
+  });
+});
 
 describe('API request metrics', () => {
   it('uses the route template and records count plus duration', () => {
@@ -111,7 +199,7 @@ describe('API request metrics', () => {
     ).toBe(unmatchedApiRoute);
   });
 
-  it('exports bounded Sentry metrics without high-volume log noise', () => {
+  it('maps count metrics to Sentry unitless and seconds to second', () => {
     const info = vi.fn();
     const warn = vi.fn();
     const count = vi.fn();
@@ -125,6 +213,7 @@ describe('API request metrics', () => {
     });
 
     sinks.counters.increment('api.http_requests', {
+      runtime: 'worker',
       method: 'GET',
       route: '/production/locations/:locationId/workspace',
       status: '2xx',
@@ -132,6 +221,7 @@ describe('API request metrics', () => {
       callerSupplied: 'not-exported',
     });
     sinks.measurements.observe('api.http_request_duration_seconds', 0.125, {
+      runtime: 'worker',
       method: 'GET',
       route: '/production/locations/:locationId/workspace',
       status: '2xx',
@@ -149,6 +239,7 @@ describe('API request metrics', () => {
         outcome: 'completed',
       },
     });
+    expect(count.mock.calls[0]?.[2]).not.toHaveProperty('unit');
     expect(distribution).toHaveBeenCalledWith(
       'api.http_request_duration_seconds',
       0.125,
@@ -205,7 +296,7 @@ describe('API request metrics', () => {
     expect(warn).toHaveBeenCalledOnce();
   });
 
-  it('exports only bounded order-route metadata to logs and Sentry', () => {
+  it('exports only bounded order-route metadata to Sentry', () => {
     const info = vi.fn();
     const count = vi.fn();
     const sinks = makeApiSignalSinks({
@@ -226,16 +317,7 @@ describe('API request metrics', () => {
       reason: 'needs_more_drying',
     });
 
-    expect(info).toHaveBeenCalledWith('api counter incremented', {
-      metric: 'production.order_route_outcomes',
-      labels: {
-        operation: 'preview',
-        status: 'conflict',
-        kind: 'exception',
-        reason: 'needs_more_drying',
-      },
-      value: 1,
-    });
+    expect(info).not.toHaveBeenCalled();
     expect(count).toHaveBeenCalledWith('production.order_route_outcomes', 1, {
       attributes: {
         runtime: 'api',

@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import {
-  productionServiceDaySchema,
-  type ProcessorRemainingDayForecast,
-} from "@pressly/contracts"
+import { type ProcessorRemainingDayForecast } from "@pressly/contracts/processor"
+import { productionServiceDaySchema } from "@pressly/contracts/production"
+import type { Clock } from "@pressly/time"
 import type { ProductionPort } from "@/ports/production.port"
 import { presentForecastError } from "./forecast.error.presenter"
 import { serviceDayAt } from "./forecast.presenter"
@@ -32,7 +31,7 @@ export const useRemainingDayForecastModel = ({
   locationId: string
   timezone: string
   revision: string
-  now: () => Date
+  now: Clock["now"]
 }>): RemainingDayForecastModel => {
   const { t } = useTranslation()
   const [serviceDay, setServiceDay] = useState(() =>

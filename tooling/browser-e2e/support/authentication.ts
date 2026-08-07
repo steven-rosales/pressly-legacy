@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { Secret, TOTP } from 'otpauth';
 import type { Page } from '@playwright/test';
+import { toolingError } from '@pressly/errors/tooling-error';
 import { browserEnvironment } from './environment';
 
 type SyntheticCredential = Readonly<{ email: string; password: string }>;
@@ -29,7 +30,10 @@ export const readSyntheticCredential = async () => {
     typeof credential.email !== 'string' ||
     typeof credential.password !== 'string'
   ) {
-    throw new Error('The synthetic credential file is malformed.');
+    throw toolingError({
+      code: 'malformed_synthetic_credential',
+      message: 'The synthetic credential file is malformed.',
+    });
   }
   return credential;
 };
@@ -57,7 +61,10 @@ export const enableMfa = async (
     .getByRole('textbox', { name: 'Setup key', exact: true })
     .inputValue();
   if (!/^[A-Z2-7]+=*$/.test(secret)) {
-    throw new Error('Control returned an invalid synthetic MFA setup key.');
+    throw toolingError({
+      code: 'invalid_synthetic_mfa_setup_key',
+      message: 'Control returned an invalid synthetic MFA setup key.',
+    });
   }
   await page.getByLabel('Six-digit code').fill(currentTotp(secret));
   await page.getByRole('button', { name: 'Verify and enable' }).click();
@@ -72,7 +79,10 @@ export const enableMfa = async (
       .textContent()
   )?.trim();
   if (recoveryCode === undefined || recoveryCode.length < 16) {
-    throw new Error('Control did not return a usable synthetic recovery code.');
+    throw toolingError({
+      code: 'invalid_synthetic_recovery_code',
+      message: 'Control did not return a usable synthetic recovery code.',
+    });
   }
   await page.getByRole('button', { name: 'I saved these codes' }).click();
   await page.getByText('Your current session is MFA verified.').waitFor();

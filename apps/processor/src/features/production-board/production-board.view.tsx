@@ -22,11 +22,9 @@ import {
   IconScale,
   IconStack2,
 } from "@tabler/icons-react"
-import type { ProductionMachine, StageRun } from "@pressly/contracts"
-import {
-  MetricStrip,
-  SectionHeading,
-} from "@/components/layout/workspace-primitives"
+import type { ProductionMachine, StageRun } from "@pressly/contracts/production"
+import { MetricStrip } from "@/components/layout/workspace-primitives"
+import { WorkspaceSectionHeading as SectionHeading } from "@/components/layout/workspace-section-heading"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   AlertDialog,

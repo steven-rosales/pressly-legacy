@@ -1,4 +1,4 @@
-import { defineEvent } from '@pressly/metrics';
+import { defineEvent } from '@pressly/observability';
 
 import { makeTestWebCore } from '@/common/testing/make-test-web-core';
 import { trackPublicEvent } from '@/common/core/analytics/track';

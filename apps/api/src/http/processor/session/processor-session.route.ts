@@ -1,11 +1,10 @@
 import {
   loginRequestSchema,
   processorCompleteMfaChallengeRequestSchema,
-  type ProcessorCompleteMfaChallengeRequest,
-} from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
-import { apiFailure, apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+} from '@pressly/contracts/auth';
+import { apiSuccess } from '@pressly/http';
+import { defineValidatedController } from '@pressly/http/express';
+import type { ResolveProcessorAccess } from '@pressly/processor-experience';
 import { Router, type Response } from 'express';
 import {
   clearProcessorCookie,
@@ -13,27 +12,23 @@ import {
   setProcessorCookie,
   type ProcessorCookieNames,
 } from './processor-cookie.adapter.ts';
-import { requireProcessorOrigin } from './processor-csrf.policy.ts';
+import { requireProcessorOrigin } from './processor-csrf.adapter.ts';
 import {
   processorForbidden,
+  processorSessionFailureToAppError,
   processorUnauthorized,
 } from './processor-session.error.ts';
 import {
   processorBrowserSession,
   processorRequestId,
   processorRequestMetadata,
-} from './processor-session.mapper.ts';
+} from './processor-session.contract.mapper.ts';
 import type { LoadProcessorCookieSession } from './processor-session.middleware.ts';
 import {
   isResultError,
   type ProcessorAuthApplication,
-  type ResolveProcessorAccess,
   type ProcessorSessionOptions,
 } from './processor-session.port.ts';
-
-const sendFailure = (response: Response, error: AppError): void => {
-  response.status(error.status).json(apiFailure(error));
-};
 
 export const makeProcessorSessionRoutes = (input: {
   application: ProcessorAuthApplication;
@@ -53,15 +48,13 @@ export const makeProcessorSessionRoutes = (input: {
   const establishBrowserSession = async (
     response: Response,
     accessToken: string,
-    expiresAt: string,
+    expiresAt: Date,
   ): Promise<void> => {
     const loaded = await input.application.loadSession({
       bearerToken: accessToken,
     });
-    if (isResultError(loaded)) {
-      sendFailure(response, loaded.error);
-      return;
-    }
+    if (isResultError(loaded))
+      throw processorSessionFailureToAppError(loaded.error);
     const access = await input.resolveAccess(loaded.value);
     if (access === null) {
       await input.application.revokeSession({
@@ -99,27 +92,15 @@ export const makeProcessorSessionRoutes = (input: {
         ),
       );
   };
-
-  routes.post(
-    '/login',
-    (request, _response, next) => {
-      try {
-        requireProcessorOrigin(request, input.options);
-        next();
-      } catch (error) {
-        next(error);
-      }
-    },
-    validateRequest({ body: loginRequestSchema }),
-    catchAsync(async (request, response) => {
+  const loginController = defineValidatedController({
+    request: { body: loginRequestSchema },
+    handle: async ({ body }, { request, response }) => {
       const authenticated = await input.application.login({
-        ...(request.body as { email: string; password: string }),
+        ...body,
         ...processorRequestMetadata(request, response),
       });
-      if (isResultError(authenticated)) {
-        sendFailure(response, authenticated.error);
-        return;
-      }
+      if (isResultError(authenticated))
+        throw processorSessionFailureToAppError(authenticated.error);
 
       if ('challengeToken' in authenticated.value) {
         clearProcessorCookie(response, input.names.session, input.options);
@@ -133,7 +114,7 @@ export const makeProcessorSessionRoutes = (input: {
         response.status(200).json(
           apiSuccess({
             status: 'mfa_required' as const,
-            expiresAt: authenticated.value.expiresAt,
+            expiresAt: authenticated.value.expiresAt.toISOString(),
           }),
         );
         return;
@@ -145,7 +126,52 @@ export const makeProcessorSessionRoutes = (input: {
         authenticated.value.accessToken,
         authenticated.value.expiresAt,
       );
-    }),
+    },
+  });
+  const challengeController = defineValidatedController({
+    request: { body: processorCompleteMfaChallengeRequestSchema },
+    handle: async ({ body }, { request, response }) => {
+      const challengeToken = readProcessorCookie(
+        request.header('cookie'),
+        input.names.mfa,
+      );
+      if (challengeToken === null)
+        throw processorUnauthorized({
+          code: 'processor_mfa_challenge_missing',
+          message: 'Processor MFA challenge cookie is missing.',
+        });
+
+      const completed = await input.application.completeMfaChallenge({
+        ...body,
+        challengeToken,
+        ...(processorRequestId(response) === undefined
+          ? {}
+          : { requestId: processorRequestId(response)! }),
+      });
+      if (isResultError(completed))
+        throw processorSessionFailureToAppError(completed.error);
+
+      clearProcessorCookie(response, input.names.mfa, input.options);
+      await establishBrowserSession(
+        response,
+        completed.value.accessToken,
+        completed.value.expiresAt,
+      );
+    },
+  });
+
+  routes.post(
+    '/login',
+    (request, _response, next) => {
+      try {
+        requireProcessorOrigin(request, input.options);
+        next();
+      } catch (error) {
+        next(error);
+      }
+    },
+    loginController.validate,
+    loginController.handle,
   );
 
   routes.post(
@@ -158,79 +184,38 @@ export const makeProcessorSessionRoutes = (input: {
         next(error);
       }
     },
-    validateRequest({ body: processorCompleteMfaChallengeRequestSchema }),
-    catchAsync(async (request, response) => {
-      const challengeToken = readProcessorCookie(
-        request.header('cookie'),
-        input.names.mfa,
-      );
-      if (challengeToken === null)
-        throw processorUnauthorized({
-          code: 'processor_mfa_challenge_missing',
-          message: 'Processor MFA challenge cookie is missing.',
-        });
-
-      const body = request.body as ProcessorCompleteMfaChallengeRequest;
-      const completed = await input.application.completeMfaChallenge({
-        ...body,
-        challengeToken,
-        ...(processorRequestId(response) === undefined
-          ? {}
-          : { requestId: processorRequestId(response)! }),
-      });
-      if (isResultError(completed)) {
-        sendFailure(response, completed.error);
-        return;
-      }
-
-      clearProcessorCookie(response, input.names.mfa, input.options);
-      await establishBrowserSession(
-        response,
-        completed.value.accessToken,
-        completed.value.expiresAt,
-      );
-    }),
+    challengeController.validate,
+    challengeController.handle,
   );
 
-  routes.get(
-    '/session',
-    catchAsync(async (request, response) => {
-      const session = await input.loadCookieSession(request, response);
-      response
-        .status(200)
-        .json(
-          apiSuccess(
-            processorBrowserSession(
-              session.loaded,
-              session.access,
-              session.sessionToken,
-              input.options,
-            ),
+  routes.get('/session', async (request, response) => {
+    const session = await input.loadCookieSession(request, response);
+    response
+      .status(200)
+      .json(
+        apiSuccess(
+          processorBrowserSession(
+            session.loaded,
+            session.access,
+            session.sessionToken,
+            input.options,
           ),
-        );
-    }),
-  );
+        ),
+      );
+  });
 
-  routes.post(
-    '/logout',
-    catchAsync(async (request, response) => {
-      const session = await input.loadCookieSession(request, response);
-      const revoked = await input.application.revokeSession({
-        bearerToken: session.sessionToken,
-        ...(processorRequestId(response) === undefined
-          ? {}
-          : { requestId: processorRequestId(response)! }),
-      });
-      if (isResultError(revoked)) {
-        sendFailure(response, revoked.error);
-        return;
-      }
-
-      clearProcessorCookie(response, input.names.session, input.options);
-      clearProcessorCookie(response, input.names.mfa, input.options);
-      response.status(200).json(apiSuccess(revoked.value));
-    }),
-  );
+  routes.post('/logout', async (request, response) => {
+    const session = await input.loadCookieSession(request, response);
+    const revoked = await input.application.revokeSession({
+      bearerToken: session.sessionToken,
+      ...(processorRequestId(response) === undefined
+        ? {}
+        : { requestId: processorRequestId(response)! }),
+    });
+    clearProcessorCookie(response, input.names.session, input.options);
+    clearProcessorCookie(response, input.names.mfa, input.options);
+    response.status(200).json(apiSuccess(revoked));
+  });
 
   return routes;
 };

@@ -13,14 +13,14 @@ import {
   EmptyHeader,
   EmptyTitle,
   Spinner,
-  WorkspaceSectionHeading,
-  type WorkspaceNavigationSection,
 } from "@/components/ui"
+import { WorkspaceSectionHeading } from "@/components/layout/workspace-section-heading"
+import type { WorkspaceNavigationSection } from "@/components/layout/workspace-shell"
 import { IconArrowRight } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import type { ControlView } from "./control-navigation"
 import type { ControlRuntime } from "./control-app"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
 
 const TeamWorkspace = lazy(() =>
   import("@/features/team/team-workspace").then((module) => ({
@@ -182,6 +182,7 @@ export function WorkspaceContent({
         <ConfigurationWorkspace />
       </Suspense>
     )
+
   return (
     <Suspense
       fallback={<WorkspaceLoading label={t("workspace.loading.orders")} />}

@@ -9,7 +9,7 @@ import {
 import type {
   WorkspaceNavigationItem,
   WorkspaceNavigationSection,
-} from "@/components/ui"
+} from "@/components/layout/workspace-shell"
 
 export type ControlView =
   | "home"
@@ -113,6 +113,7 @@ export function mayOpenControlView(
 ) {
   if (view === "home" || view === "configuration") return true
   const granted = new Set(capabilities)
+
   return (requiredCapability[view] ?? []).some((capability) =>
     granted.has(capability),
   )

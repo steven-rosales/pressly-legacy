@@ -7,8 +7,8 @@ import type {
   LoginRequest,
   LogoutResult,
   SessionResult,
-} from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
+} from '@pressly/contracts/auth';
+import type { AppError } from '@pressly/errors/app-error';
 
 export type AuthCliClient = Readonly<{
   login: (

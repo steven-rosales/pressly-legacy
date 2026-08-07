@@ -1,0 +1,50 @@
+work_id: scalable-functional-module-architecture
+status: complete
+updated: 2026-08-03T16:16:13-04:00
+
+current_focus:
+  - complete
+  - The universal module grammar, package boundaries, failure doctrine, experience authorities, tooling ownership, and bounded verification are locally proven.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t0---baseline-behavior-and-migration-inventory
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t1---compile-architecture-compiler-v2
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t2---establish-shared-technical-package-owners
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t3---prove-the-universal-module-grammar-through-pricing
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t4---migrate-business-and-integration-modules
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t5---reassign-security-policy-and-scheduling-authority
+  T6:
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t6---extract-experience-applications-and-thin-api
+  T7:
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t7---normalize-contracts-db-errors-and-public-surfaces
+  T8:
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#t8---enforce-and-document-the-placement-system
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/scalable-functional-module-architecture/evidence.md#v1---prove-repository-architecture-and-behavior
+      - stateworks/work/done/scalable-functional-module-architecture/final-report.md

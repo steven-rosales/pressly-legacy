@@ -3,7 +3,6 @@ import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import { makeProductionDomainSignals } from '../../src/bootstrap/production-signals.adapter.ts';
 import { makeProductionSignals } from '../../src/http/middleware/production-signals.middleware.ts';
-import { makeLoggingCounterSink } from '../../src/runtime/observability/logging-counter.adapter.ts';
 
 const run = (
   originalUrl: string,
@@ -31,20 +30,6 @@ const run = (
 };
 
 describe('LPMS operational signals', () => {
-  it('writes counters through the structured runtime logger', () => {
-    const info = vi.fn();
-    makeLoggingCounterSink({ info } as never).increment(
-      'security.webhook_authentication_failures',
-      { route: '/webhooks/cents' },
-    );
-
-    expect(info).toHaveBeenCalledWith('api counter incremented', {
-      metric: 'security.webhook_authentication_failures',
-      labels: { route: '/webhooks/cents' },
-      value: 1,
-    });
-  });
-
   it('counts durable Cents receipts after successful responses', () => {
     const { increment, next } = run(
       '/webhooks/cents',

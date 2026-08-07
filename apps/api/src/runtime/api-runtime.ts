@@ -1,10 +1,11 @@
-import type { DatabaseRuntime } from '@pressly/db';
+import type { DatabaseRuntime } from '@pressly/db/client';
 import type { Logger, SecurityEventSink } from '@pressly/logging';
 import type {
   CounterSink,
   ErrorReporter,
   MeasurementSink,
-} from '@pressly/metrics';
+  TraceSink,
+} from '@pressly/observability';
 import type { apiEnv } from './env.ts';
 
 export type ApiEnv = typeof apiEnv;
@@ -13,6 +14,7 @@ export type ApiObservability = Readonly<{
   errors: ErrorReporter;
   counters: CounterSink;
   measurements?: MeasurementSink;
+  trace?: TraceSink;
 }>;
 
 export type ApiRuntime = Readonly<{

@@ -6,6 +6,9 @@ const srcPath = fileURLToPath(new URL('./src', import.meta.url));
 const kernelSource = fileURLToPath(
   new URL('../../packages/kernel/src/index.ts', import.meta.url),
 );
+const timeSource = fileURLToPath(
+  new URL('../../packages/time/src/index.ts', import.meta.url),
+);
 
 export default defineConfig({
   plugins: [react()],
@@ -13,6 +16,7 @@ export default defineConfig({
     alias: {
       '@': srcPath,
       '@pressly/kernel': kernelSource,
+      '@pressly/time': timeSource,
     },
   },
   test: {

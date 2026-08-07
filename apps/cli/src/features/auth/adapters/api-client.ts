@@ -1,15 +1,17 @@
 import { result, type Result } from '@pressly/kernel';
-import type {
-  AuthenticatedLoginResult,
-  LoginRequest,
-  LoginResult,
-  LogoutResult,
-  MfaEnrollmentResult,
-  MfaMutationResult,
-  MfaRecoveryCodesResult,
-  SessionResult,
-} from '@pressly/contracts';
-import { makeAppError, type AppError } from '@pressly/errors';
+import {
+  authenticatedLoginResultSchema,
+  loginResultSchema,
+  logoutResultSchema,
+  mfaEnrollmentResultSchema,
+  mfaMutationResultSchema,
+  mfaRecoveryCodesResultSchema,
+  sessionResultSchema,
+  type AuthenticatedLoginResult,
+  type LoginRequest,
+} from '@pressly/contracts/auth';
+import { type AppError } from '@pressly/errors/app-error';
+import { authError } from '@pressly/errors/factories';
 import {
   readApiUrl,
   requestApi,
@@ -22,10 +24,8 @@ import {
 } from '../../../shell/session-store.ts';
 import type { AuthCliClient } from '../application/ports.ts';
 
-export type AuthCliEnv = ApiClientEnv;
-
 export const makeApiAuthClient = (
-  env: AuthCliEnv,
+  env: ApiClientEnv,
   store: SessionStore = makeSessionStore(),
 ): Result<AuthCliClient, AppError> => {
   const apiUrl = readApiUrl(env);
@@ -41,10 +41,11 @@ export const makeApiAuthClient = (
 
   return result.ok({
     login: async (request: LoginRequest, secondFactor) => {
-      const loginResult = await requestApi<LoginResult>({
+      const loginResult = await requestApi({
         apiUrl: apiUrl.value,
         path: '/auth/login',
         method: 'POST',
+        dataSchema: loginResultSchema,
         body: request,
       });
 
@@ -54,20 +55,19 @@ export const makeApiAuthClient = (
       if ('status' in loginResult.value) {
         if (secondFactor === undefined)
           return result.err(
-            makeAppError({
-              kind: 'AuthError',
+            authError({
               code: 'mfa_code_required',
               message: 'Privileged login requires an MFA or recovery code.',
               safeMessage:
                 'MFA is required. Use --mfa-code or --recovery-code.',
-              status: 401,
             }),
           );
 
-        authenticated = await requestApi<AuthenticatedLoginResult>({
+        authenticated = await requestApi({
           apiUrl: apiUrl.value,
           path: '/auth/mfa/challenge',
           method: 'POST',
+          dataSchema: authenticatedLoginResultSchema,
           body: {
             challengeToken: loginResult.value.challengeToken,
             method: secondFactor.method,
@@ -90,10 +90,11 @@ export const makeApiAuthClient = (
       const session = await readSession();
       if (result.isErr(session)) return session;
 
-      return requestApi<SessionResult>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: '/auth/session',
         method: 'GET',
+        dataSchema: sessionResultSchema,
         bearerToken: session.value.accessToken,
       });
     },
@@ -109,10 +110,11 @@ export const makeApiAuthClient = (
         return result.ok({ revoked: true });
       }
 
-      const logoutResult = await requestApi<LogoutResult>({
+      const logoutResult = await requestApi({
         apiUrl: apiUrl.value,
         path: '/auth/logout',
         method: 'POST',
+        dataSchema: logoutResultSchema,
         bearerToken: session.value.accessToken,
       });
 
@@ -127,10 +129,11 @@ export const makeApiAuthClient = (
     beginMfaEnrollment: async () => {
       const session = await readSession();
       if (result.isErr(session)) return session;
-      return requestApi<MfaEnrollmentResult>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: '/auth/mfa/enrollment',
         method: 'POST',
+        dataSchema: mfaEnrollmentResultSchema,
         bearerToken: session.value.accessToken,
       });
     },
@@ -138,10 +141,11 @@ export const makeApiAuthClient = (
     confirmMfaEnrollment: async (code) => {
       const session = await readSession();
       if (result.isErr(session)) return session;
-      return requestApi<MfaRecoveryCodesResult>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: '/auth/mfa/enrollment/confirm',
         method: 'POST',
+        dataSchema: mfaRecoveryCodesResultSchema,
         bearerToken: session.value.accessToken,
         body: { code },
       });
@@ -150,10 +154,11 @@ export const makeApiAuthClient = (
     regenerateMfaRecoveryCodes: async () => {
       const session = await readSession();
       if (result.isErr(session)) return session;
-      return requestApi<MfaRecoveryCodesResult>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: '/auth/mfa/recovery-codes/regenerate',
         method: 'POST',
+        dataSchema: mfaRecoveryCodesResultSchema,
         bearerToken: session.value.accessToken,
       });
     },
@@ -161,10 +166,11 @@ export const makeApiAuthClient = (
     removeMfa: async () => {
       const session = await readSession();
       if (result.isErr(session)) return session;
-      return requestApi<MfaMutationResult>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: '/auth/mfa/remove',
         method: 'POST',
+        dataSchema: mfaMutationResultSchema,
         bearerToken: session.value.accessToken,
       });
     },

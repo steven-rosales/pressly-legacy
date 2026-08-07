@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event"
 import i18next from "i18next"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ProductionBoardWorkspace } from "@/features/production-board/production-board.view"
-import { RequestFailure } from "@/ports/request.error"
+import { requestFailure } from "@/ports/request.error"
 import {
   makeTestProductionPort,
   testBoard,
@@ -478,11 +478,11 @@ describe("production floor board", () => {
   it("keeps the machine sheet open when the server rejects a stale assignment", async () => {
     const user = userEvent.setup()
     const assignStageMachines = vi.fn().mockRejectedValue(
-      new RequestFailure({
-        kind: "conflict",
+      requestFailure({
+        requestKind: "conflict",
         code: "PRODUCTION_VERSION_CONFLICT",
         message: "stale",
-        status: 409,
+        responseStatus: 409,
       })
     )
     render(
@@ -708,11 +708,11 @@ describe("production floor board", () => {
     const user = userEvent.setup()
     const conflicting = makeTestProductionPort({
       advanceStage: vi.fn().mockRejectedValue(
-        new RequestFailure({
-          kind: "conflict",
+        requestFailure({
+          requestKind: "conflict",
           code: "PRODUCTION_VERSION_CONFLICT",
           message: "stale",
-          status: 409,
+          responseStatus: 409,
         })
       ),
       loadBoard: vi.fn(async () => testBoard),

@@ -9,7 +9,7 @@ goal:
 
 invariants:
   - No module imports, calls, or declares a package dependency on another module; apps remain the only composition roots.
-  - Policy and computation modules remain headless and expose no HTTP routes.
+  - Intrinsic Production policy and approved algorithm foundations remain headless and expose no HTTP routes.
   - Production writes remain strongly consistent, versioned, idempotent, and atomically recorded with work events.
   - Cents ingress mode is explicit: hmac verifies exact raw body bytes before JSON parsing, while unsigned intentionally matches the vendor's documented sender without claiming authenticity.
   - In hmac mode, the shared Cents secret is used only as an HMAC key and is never transmitted as a raw header value, logged, committed, or placed in Stateworks.
@@ -56,8 +56,8 @@ tasks:
       - repo:apps/worker
       - repo:apps/processor
       - repo:modules/business/production
-      - repo:modules/policy/production
-      - repo:modules/computation/scheduling
+      - repo:modules/business/production/src/foundations/language
+      - repo:modules/business/production/src/foundations/algorithms
       - repo:packages/contracts/src/cents
       - repo:packages/db/src/schema/laundry-production.schema.ts
       - repo:.github/workflows
@@ -103,15 +103,15 @@ tasks:
     reads:
       - repo:packages/contracts/src/cents
       - repo:packages/contracts/test
-      - repo:apps/api/src/common/security/cents-webhook.ts
-      - repo:modules/business/production/src/receive-cents-event
-      - repo:modules/business/production/src/project-cents-order
+      - repo:apps/api/src/http/webhooks/cents/cents-webhook.verifier.ts
+      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents/cents-order.handler.ts
       - repo:docs/plan/lpms.md
       - external:https://chathelp.trycents.com/en/articles/12083443-cents-webhooks
     writes:
       - repo:packages/contracts/src/cents
       - repo:packages/contracts/test
-      - repo:apps/api/src/vendors/cents
+      - repo:apps/api/src/http/webhooks/cents
       - repo:apps/api/test/cents
     preconditions:
       - T0 confirms the current documented and implemented contract mismatch.
@@ -149,23 +149,23 @@ tasks:
     deps:
       - T1
     reads:
-      - repo:apps/api/src/app.ts
-      - repo:apps/api/src/common/config/env.ts
-      - repo:apps/api/src/common/security/cents-webhook.ts
-      - repo:apps/api/src/vendors/cents
-      - repo:modules/business/production/src/receive-cents-event
+      - repo:apps/api/src/bootstrap/api.composition.ts
+      - repo:apps/api/src/runtime/env.ts
+      - repo:apps/api/src/http/webhooks/cents/cents-webhook.verifier.ts
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event
       - repo:packages/db/src/schema/laundry-production.schema.ts
       - repo:packages/config
       - repo:packages/logging
-      - repo:packages/metrics
+      - repo:packages/observability
     writes:
-      - repo:apps/api/src/vendors/cents
-      - repo:apps/api/src/common/config/env.ts
-      - repo:apps/api/src/app.ts
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:apps/api/src/runtime/env.ts
+      - repo:apps/api/src/bootstrap/api.composition.ts
       - repo:apps/api/.env.example
       - repo:apps/api/test/cents
-      - repo:modules/business/production/src/receive-cents-event
-      - repo:modules/business/production/test/receive-cents-event
+      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event
+      - repo:modules/integration/webhook-ingestion/test/features/inbox/ingest-event
       - repo:packages/db/src/schema/laundry-production.schema.ts
       - repo:packages/db/src/migrations
       - repo:packages/db/test
@@ -211,19 +211,25 @@ tasks:
     reads:
       - repo:packages/db/src/schema/laundry-production.schema.ts
       - repo:packages/db/src/migrations
-      - repo:modules/business/production/src/project-cents-order
-      - repo:modules/business/production/src/create-schedule
-      - repo:modules/business/production/src/persistence
-      - repo:modules/policy/production
+      - repo:modules/integration/webhook-ingestion/src/features/bindings/resolve-source-location
+      - repo:modules/business/orders/src/features/intake/propose-incoming-order
+      - repo:apps/worker/src/jobs/project-fulfillment-demand
+      - repo:modules/business/production/src/features/demand/apply-fulfillment-demand
+      - repo:modules/business/production/src/features/scheduling/create-schedule
+      - repo:modules/business/production/src/foundations/adapters/postgres
+      - repo:modules/business/production/src/foundations/language
       - repo:docs/plan/lpms.md
     writes:
       - repo:packages/db/src/schema/laundry-production.schema.ts
       - repo:packages/db/src/migrations
       - repo:packages/db/src/migrations/meta
       - repo:packages/db/test
-      - repo:modules/business/production/src/project-cents-order
-      - repo:modules/business/production/src/create-schedule
-      - repo:modules/business/production/src/persistence
+      - repo:modules/integration/webhook-ingestion/src/features/bindings/resolve-source-location
+      - repo:modules/business/orders/src/features/intake/propose-incoming-order
+      - repo:apps/worker/src/jobs/project-fulfillment-demand
+      - repo:modules/business/production/src/features/demand/apply-fulfillment-demand
+      - repo:modules/business/production/src/features/scheduling/create-schedule
+      - repo:modules/business/production/src/foundations/adapters/postgres
       - repo:modules/business/production/test
     preconditions:
       - Migration tests use an isolated clean database and a representative pre-migration fixture.
@@ -266,22 +272,22 @@ tasks:
     reads:
       - repo:packages/contracts/src/production
       - repo:modules/business/production
-      - repo:modules/policy/access-control
-      - repo:apps/api/src/app.ts
+      - repo:modules/security/authorization
+      - repo:apps/api/src/bootstrap/api.composition.ts
       - repo:packages/db/src/schema/laundry-production.schema.ts
       - repo:infra/aws/docs
     writes:
       - repo:packages/contracts/src/production
       - repo:packages/contracts/test
-      - repo:modules/business/production/src/list-production-locations
-      - repo:modules/business/production/src/list-production-orders
-      - repo:modules/business/production/src/record-order-intake
-      - repo:modules/business/production/src/load-production-workspace
-      - repo:modules/business/production/src/manage-production-resources
+      - repo:modules/business/production/src/features/resources/list-locations
+      - repo:modules/business/production/src/features/orders/list-orders
+      - repo:modules/business/production/src/features/demand/record-order-intake
+      - repo:modules/business/production/src/features/queries/load-workspace
+      - repo:modules/business/production/src/features/resources/manage-resources
       - repo:modules/business/production/test
-      - repo:modules/policy/access-control/src/production
-      - repo:modules/policy/access-control/test/production
-      - repo:apps/api/src/commands
+      - repo:modules/security/authorization/src/features/operations/authorize-production
+      - repo:modules/security/authorization/test/features/operations/authorize-production
+      - repo:apps/cli/src/commands
       - repo:apps/api/test/lpms
       - repo:infra/aws/docs/lpms-bootstrap.example.json
     preconditions:
@@ -293,7 +299,7 @@ tasks:
       - Expose the existing machine-assignment happy-path command through the processor contract if it is not already fully reachable.
       - Add one idempotent API composition-root bootstrap command that reads an operator-owned JSON file and invokes production-owned capabilities for location, store mapping, stations, machines, and initial scheduler config.
       - Make bootstrap converge on natural keys, report create/update/no-op results, support dry-run, and reject destructive inventory changes.
-      - Keep policy and computation headless and compose their ports only in the API command or runtime root.
+      - Keep intrinsic Production policies and approved algorithms headless; expose them through Production features and let apps inject only explicit effects and module capabilities.
       - Add authorization, version conflict, idempotency, resume-after-restart, unknown-location, and cross-location tests.
     postconditions:
       - A production environment can be initialized without hardcoded seed data or direct ad hoc SQL.
@@ -302,7 +308,7 @@ tasks:
     verifier:
       - pnpm --filter @pressly/contracts test
       - pnpm --filter @pressly/production test
-      - pnpm --filter @pressly/access-control test
+      - pnpm --filter @pressly/authorization test
       - pnpm --filter @pressly/api test
       - pnpm --filter @pressly/api typecheck
       - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
@@ -325,25 +331,25 @@ tasks:
       - repo:apps/processor
       - repo:packages/contracts/src/auth
       - repo:packages/contracts/src/production
-      - repo:modules/business/auth
-      - repo:apps/api/src/app.ts
-      - repo:docs/agents/10
+      - repo:modules/security/identity
+      - repo:apps/api/src/bootstrap/api.composition.ts
+      - repo:docs/agents/07/10
       - repo:apps/web/src/styles/globals.css
     writes:
       - repo:apps/processor/src/app
       - repo:apps/processor/src/adapters
       - repo:apps/processor/src/features/authentication
-      - repo:apps/processor/src/features/locations
+      - repo:apps/processor/src/features/location-selection
       - repo:apps/processor/src/features/intake
       - repo:apps/processor/src/features/scheduling
       - repo:apps/processor/src/features/production-board
       - repo:apps/processor/src/ports
       - repo:apps/processor/test
       - repo:apps/processor/README.md
-      - repo:apps/api/src/common/security
+      - repo:apps/api/src/http/processor/session
       - repo:apps/api/test/security
-      - repo:modules/business/auth
-      - repo:modules/business/auth/test
+      - repo:modules/security/identity
+      - repo:modules/security/identity/test
     preconditions:
       - Location discovery, workspace resume, intake, scheduling, board, and machine-assignment contracts are stable.
       - The existing opaque session remains the source of truth.
@@ -389,7 +395,7 @@ tasks:
     reads:
       - repo:apps/worker
       - repo:packages/logging
-      - repo:packages/metrics
+      - repo:packages/observability
       - repo:packages/db
       - repo:modules/business/production
       - repo:docs/plan/lpms.md
@@ -398,9 +404,9 @@ tasks:
       - repo:apps/worker/test
       - repo:apps/worker/.env.example
       - repo:apps/worker/README.md
-      - repo:apps/api/src/commands
+      - repo:apps/cli/src/commands
       - repo:packages/logging
-      - repo:packages/metrics
+      - repo:packages/observability
     preconditions:
       - Durable receipt and projection semantics from T2 and T3 are stable.
       - Reconciliation support is not claimed until an authoritative Cents read API is proven.
@@ -673,7 +679,7 @@ tasks:
     deps:
       - V2
     reads:
-      - repo:apps/api/src/vendors
+      - repo:apps/api/src/http/webhooks
       - repo:apps/worker/src
       - repo:modules/business/production
       - repo:packages/contracts/src/cents
@@ -681,10 +687,10 @@ tasks:
       - repo:docs/architecture.md
       - repo:docs/plan/lpms.md
     writes:
-      - repo:apps/api/src/vendors/cents
-      - repo:apps/api/src/routes/webhook-ingestion.routes.ts
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:apps/api/src/http/webhook-ingestion/dead-letters/dead-letter.route.ts
       - repo:apps/worker/src
-      - repo:modules/business/webhook-ingestion
+      - repo:modules/integration/webhook-ingestion
       - repo:modules/business/production
       - repo:packages/contracts/src/webhook-ingestion
       - repo:packages/contracts/src/lpms
@@ -699,7 +705,7 @@ tasks:
       - Existing V2 proof is retained as historical evidence but is not treated as proof of the refactored module boundary.
       - No exception workflow or live vendor, cloud, DNS, secret, or production state is added or changed.
     action:
-      - Move durable inbox, claims, leases, retries, dead letters, replay, and source-location bindings into a generic webhook-ingestion business module.
+      - Move durable inbox, claims, leases, retries, dead letters, replay, and source-location bindings into the generic webhook-ingestion integration module.
       - Keep Cents HMAC verification and wire normalization in the API vendor adapter.
       - Compose an application-owned Worker dispatcher whose Cents consumer translates a claimed event into Production's canonical ApplyOrderDemand command.
       - Make Production own only source-neutral order demand, planning, and physical execution; remove all Cents, webhook, receipt, lease, and CRM concepts from Production source.
@@ -736,7 +742,7 @@ tasks:
       - R1
     reads:
       - repo:stateworks/work/active/lpms-production-readiness/evidence.md
-      - repo:modules/business/webhook-ingestion
+      - repo:modules/integration/webhook-ingestion
       - repo:modules/business/production
       - repo:apps/api
       - repo:apps/worker

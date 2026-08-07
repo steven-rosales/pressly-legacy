@@ -4,6 +4,7 @@ import { config as loadEnv } from 'dotenv';
 
 import {
   envPort,
+  envSentryDsn,
   envUrl,
   featureFlag,
   nodeEnvSchema,
@@ -98,7 +99,7 @@ const apiEnvSchema = z
     FEATURE_JOBS_ENABLED: featureFlag,
 
     SENTRY_ENABLED: featureFlag,
-    SENTRY_DSN: z.url().optional(),
+    SENTRY_DSN: envSentryDsn.optional(),
     SENTRY_RELEASE: z.string().min(1).optional(),
     SENTRY_TRACES_SAMPLE_RATE: envSampleRate.default(0.1),
   })
@@ -108,6 +109,13 @@ const apiEnvSchema = z
         code: 'custom',
         path: ['SENTRY_DSN'],
         message: 'SENTRY_DSN is required when SENTRY_ENABLED is true',
+      });
+
+    if (env.NODE_ENV === 'production' && !env.SENTRY_ENABLED)
+      context.addIssue({
+        code: 'custom',
+        path: ['SENTRY_ENABLED'],
+        message: 'SENTRY_ENABLED must be true in production.',
       });
 
     if (

@@ -1,4 +1,4 @@
-import type { ProductEvent } from '@pressly/metrics';
+import type { ProductEvent } from '@pressly/observability';
 import type { WebCorePorts } from '../runtime/ports';
 
 export type TrackPublicEvent = (event: ProductEvent) => void;

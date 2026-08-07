@@ -2,6 +2,8 @@ import * as Sentry from '@sentry/nextjs';
 import posthog from 'posthog-js';
 import { filterPolicyReportedSentryEvent } from '../sentry-event-filter';
 
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+
 const sentryDsn = process.env['NEXT_PUBLIC_SENTRY_DSN'];
 const sentryTraceSampleRate = Number(
   process.env['NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE'] ?? '0.1',

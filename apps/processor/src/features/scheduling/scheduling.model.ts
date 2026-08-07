@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import type { ProcessorProductionOrderSummary } from "@pressly/contracts/processor"
 import type {
-  ProcessorProductionOrderSummary,
   ProductionShift,
   ProductionShiftSelection,
   ScheduleProposal,
   SchedulerConfig,
   StartScheduleResult,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import type { ProductionPort } from "@/ports/production.port"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import { presentSchedulingError } from "./scheduling.error.presenter"

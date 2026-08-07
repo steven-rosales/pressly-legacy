@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type {
-  ProductionLiveExactBatchTarget,
   ProcessorProductionLiveRunChangeOrder,
   ProcessorProductionLiveRunChanges,
+} from "@pressly/contracts/processor"
+import type {
+  ProductionLiveExactBatchTarget,
   ProductionOrderPlacementResult,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import {

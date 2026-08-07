@@ -1,9 +1,9 @@
+import type { ProcessorOrderControlItem } from "@pressly/contracts/processor"
 import type {
-  ProcessorOrderControlItem,
   ProductionOrderRouteCommandDenialCode,
   ProductionOrderRouteProposal,
   ProductionQueuedMoveTargetDenialCode,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import type { TFunction } from "i18next"
 import type {
   OrderActionPreview,

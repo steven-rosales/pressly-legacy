@@ -7,9 +7,9 @@ import {
   centsOrderWireSchema,
   centsWebhookWireEnvelopeSchema,
   type CentsIngressDecision,
-  type IngestWebhookEventCommand,
   type centsWireMoneySchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/cents';
+import { type IngestWebhookEventCommand as IngestWebhookEventWireCommand } from '@pressly/contracts/webhook-ingestion';
 import { z } from 'zod';
 
 export const CENTS_WEBHOOK_MAX_BODY_BYTES = 256 * 1024;
@@ -38,7 +38,7 @@ export type CentsWebhookNormalizationResult =
 
 export const toCentsWebhookEventCommand = (
   decision: CentsIngressDecision,
-): IngestWebhookEventCommand => {
+): IngestWebhookEventWireCommand => {
   const processable = decision.disposition !== 'ignore';
   const order = processable ? decision.order : null;
 
@@ -406,12 +406,14 @@ export const normalizeCentsWebhook = (input: {
 
   if (centsOrderWebhookEventKindSchema.safeParse(eventKind).success) {
     const disposition = classifyOrderObservation(parsedEnvelope.data);
+
     if (disposition === 'candidate')
       return normalizeSubmittedOrderCandidate({
         envelope: parsedEnvelope.data,
         eventKind,
         rawBodySha256,
       });
+
     if (disposition === 'terminal_close')
       return normalizeTerminalOrderClose({
         envelope: parsedEnvelope.data,

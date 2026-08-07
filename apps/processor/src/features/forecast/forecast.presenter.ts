@@ -3,7 +3,7 @@ import type {
   ProcessorForecastInProductionItem,
   ProcessorForecastNeedsShiftItem,
   ProcessorForecastReadyToPlaceItem,
-} from "@pressly/contracts"
+} from "@pressly/contracts/processor"
 
 export type ForecastItem =
   | ProcessorForecastInProductionItem

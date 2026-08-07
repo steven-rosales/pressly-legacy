@@ -1,4 +1,13 @@
 import type {
+  ProcessorListProductionHistoryActivityResult,
+  ListProcessorOrderControlResult,
+  ProcessorProductionHistoryRunDetail,
+  ProcessorProductionOrderBacklogPreview,
+  ProcessorProductionBoard,
+  ProcessorProductionWorkspace,
+  ProcessorRemainingDayForecast,
+} from "@pressly/contracts/processor"
+import type {
   AcceptScheduleResult,
   AdvanceProductionStageResult,
   AutomaticProductionOrderPlacementResult,
@@ -13,20 +22,13 @@ import type {
   CommitProductionOrderRouteRequest,
   CommitProductionOrderRouteResult,
   ListProductionHistoryActivityQuery,
-  ProcessorListProductionHistoryActivityResult,
   ListProductionHistoryPlansQuery,
   ListProductionHistoryPlansResult,
   ListProductionHistoryRunsQuery,
   ListProductionHistoryRunsResult,
   ListProductionOrderControlQuery,
-  ListProcessorOrderControlResult,
   ListProductionLocationsResult,
   ListProductionOrdersResult,
-  ProcessorProductionHistoryRunDetail,
-  ProcessorProductionOrderBacklogPreview,
-  ProcessorProductionBoard,
-  ProcessorProductionWorkspace,
-  ProcessorRemainingDayForecast,
   PreviewProductionOrderBacklogCommand,
   ProductionBatchMembershipMutationResult,
   ProductionBatchProgressReconciliationResult,
@@ -42,7 +44,7 @@ import type {
   StartScheduleResult,
   StartStageCommand,
   UpdateProductionShiftResult,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 
 export type ProductionPort = Readonly<{
   listLocations: () => Promise<ListProductionLocationsResult>

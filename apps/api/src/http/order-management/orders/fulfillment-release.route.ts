@@ -3,16 +3,17 @@ import {
   orderMutationResultSchema,
   releaseFulfillmentRequestSchema,
   withdrawFulfillmentRequestSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/orders';
 import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
 import type { OrdersApplication } from '@pressly/orders';
-import type { LocationAncestryPort } from '@pressly/access-control';
+import type { LocationAncestryPort } from '@pressly/authorization';
 import { Router, type RequestHandler } from 'express';
 import {
   orderManagementCommandContext,
   type ReadOrderManagementPrincipal,
-} from '../command-context.mapper.ts';
+} from '../command-context.adapter.ts';
+import { orderManagementResultValue } from './order-management.error.ts';
 
 export const makeFulfillmentReleaseRoutes = (input: {
   orders: Pick<OrdersApplication, 'releaseFulfillment' | 'withdrawFulfillment'>;
@@ -22,49 +23,57 @@ export const makeFulfillmentReleaseRoutes = (input: {
   resolveBusinessId: LocationAncestryPort['resolveBusinessId'];
 }): Router => {
   const routes = Router();
-
-  const security = [
-    input.authenticate,
-    validateRequest({ params: canonicalFulfillmentParamsSchema }),
-    input.authorize,
-  ] as const;
+  const releaseController = defineValidatedController({
+    request: {
+      params: canonicalFulfillmentParamsSchema,
+      body: releaseFulfillmentRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
+      const outcome = await input.orders.releaseFulfillment({
+        ...body,
+        businessId: await input.resolveBusinessId(params.locationId),
+        context: orderManagementCommandContext(response, input.readPrincipal),
+        fulfillmentId: params.fulfillmentId,
+        locationId: params.locationId,
+      });
+      const value = orderManagementResultValue(outcome);
+      response.json(apiSuccess(orderMutationResultSchema.parse(value)));
+    },
+  });
+  const withdrawController = defineValidatedController({
+    request: {
+      params: canonicalFulfillmentParamsSchema,
+      body: withdrawFulfillmentRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
+      const outcome = await input.orders.withdrawFulfillment({
+        ...body,
+        businessId: await input.resolveBusinessId(params.locationId),
+        context: orderManagementCommandContext(response, input.readPrincipal),
+        fulfillmentId: params.fulfillmentId,
+        locationId: params.locationId,
+      });
+      const value = orderManagementResultValue(outcome);
+      response.json(apiSuccess(orderMutationResultSchema.parse(value)));
+    },
+  });
 
   routes.post(
     '/order-management/locations/:locationId/fulfillments/:fulfillmentId/release',
-    ...security,
-    validateRequest({ body: releaseFulfillmentRequestSchema }),
-    catchAsync(async (request, response) => {
-      const outcome = await input.orders.releaseFulfillment({
-        ...request.body,
-        businessId: await input.resolveBusinessId(
-          request.params['locationId'] as string,
-        ),
-        context: orderManagementCommandContext(response, input.readPrincipal),
-        fulfillmentId: request.params['fulfillmentId'] as string,
-        locationId: request.params['locationId'] as string,
-      });
-      if (outcome.tag === 'err') throw outcome.error;
-      response.json(apiSuccess(orderMutationResultSchema.parse(outcome.value)));
-    }),
+    input.authenticate,
+    releaseController.validators.params,
+    input.authorize,
+    releaseController.validators.body,
+    releaseController.handle,
   );
 
   routes.post(
     '/order-management/locations/:locationId/fulfillments/:fulfillmentId/withdraw',
-    ...security,
-    validateRequest({ body: withdrawFulfillmentRequestSchema }),
-    catchAsync(async (request, response) => {
-      const outcome = await input.orders.withdrawFulfillment({
-        ...request.body,
-        businessId: await input.resolveBusinessId(
-          request.params['locationId'] as string,
-        ),
-        context: orderManagementCommandContext(response, input.readPrincipal),
-        fulfillmentId: request.params['fulfillmentId'] as string,
-        locationId: request.params['locationId'] as string,
-      });
-      if (outcome.tag === 'err') throw outcome.error;
-      response.json(apiSuccess(orderMutationResultSchema.parse(outcome.value)));
-    }),
+    input.authenticate,
+    withdrawController.validators.params,
+    input.authorize,
+    withdrawController.validators.body,
+    withdrawController.handle,
   );
 
   return routes;

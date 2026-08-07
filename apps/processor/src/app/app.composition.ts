@@ -14,6 +14,7 @@ import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { OrderManagementPort } from "@/ports/order-management.port"
 import type { ProductionPort } from "@/ports/production.port"
 import type { ProductionChangePort } from "@/ports/production-change.port"
+import { systemClock, type Clock } from "@pressly/time"
 import { initializeProcessorLocalization } from "@/i18n"
 import { observeProcessorRequestFailure } from "./processor-observability"
 
@@ -25,7 +26,7 @@ export type ProcessorRuntime = Readonly<{
   locationPreference: LocationPreferencePort
   idempotency: IdempotencyPort
   subscribeToUnauthorized: (listener: () => void) => () => void
-  now: () => Date
+  now: Clock["now"]
 }>
 
 export const makeProcessorRuntime = (input: {
@@ -33,14 +34,16 @@ export const makeProcessorRuntime = (input: {
   storage: Storage
   fetch?: typeof globalThis.fetch
   eventSourceFactory?: EventSourceFactory
-  now?: () => Date
+  now?: Clock["now"]
 }): ProcessorRuntime => {
   initializeProcessorLocalization(input.storage)
+
   let csrfToken: string | null = null
   const unauthorizedListeners = new Set<() => void>()
   const clearCsrfToken = () => {
     csrfToken = null
   }
+
   const request = makeFetchRequestAdapter({
     baseUrl: input.apiBaseUrl,
     readCsrfToken: () => csrfToken,
@@ -60,22 +63,27 @@ export const makeProcessorRuntime = (input: {
       },
       clearCsrfToken,
     }),
+
     orderManagement: makeApiOrderManagementAdapter(request),
     production: makeApiProductionAdapter(request),
+
     productionChanges: makeBrowserProductionChangeAdapter({
       apiBaseUrl: input.apiBaseUrl,
       ...(input.eventSourceFactory === undefined
         ? {}
         : { eventSourceFactory: input.eventSourceFactory }),
     }),
+
     locationPreference: makeBrowserLocationPreferenceAdapter(input.storage),
     idempotency: makeWebCryptoIdempotencyAdapter(),
+
     subscribeToUnauthorized: (listener) => {
       unauthorizedListeners.add(listener)
       return () => {
         unauthorizedListeners.delete(listener)
       }
     },
-    now: input.now ?? (() => new Date()),
+
+    now: input.now ?? systemClock.now,
   }
 }

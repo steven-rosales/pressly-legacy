@@ -1,4 +1,4 @@
-import { defineEvent } from '@pressly/metrics';
+import { defineEvent } from '@pressly/observability';
 
 export const contactEvents = {
   clicked: (input: { method: 'phone' | 'email' }) => {

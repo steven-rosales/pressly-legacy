@@ -8,7 +8,7 @@ import {
   IconPackage,
   IconPackageImport,
 } from "@tabler/icons-react"
-import type { ProcessorCapability } from "@pressly/contracts"
+import type { ProcessorCapability } from "@pressly/contracts/auth"
 
 export type WorkspaceView =
   | "home"
@@ -158,6 +158,7 @@ const decodeSegment = (segment: string | undefined): string | null => {
  */
 export const readWorkspaceRoute = (pathname: string): WorkspaceRoute | null => {
   const segments = pathname.split("/").filter(Boolean)
+
   if (segments.length === 0) return { view: "home", shiftId: null, runId: null }
   if (segments.length === 1 && segments[0] === "history")
     return { view: "history", shiftId: null, runId: null }

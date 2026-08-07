@@ -87,7 +87,8 @@ Pressly code owns the policy decision: which origins, methods, and headers are a
 
 ## Browser Security Headers
 
-The API applies `helmet()` before all routes in `apps/api/src/app.ts`.
+The API applies `helmet()` before all routes from
+`apps/api/src/bootstrap/api.composition.ts`.
 It removes the Express disclosure header and adds baseline browser defenses such as content-type sniffing protection, frame restrictions, transport security, and referrer policy.
 
 The web application owns the meaningful browser execution policy because it serves executable pages.
@@ -243,9 +244,21 @@ policy first.
 HTTP input is untrusted even when TypeScript gives the handler a static type.
 Runtime parsing must establish the type before a controller or use case consumes the value.
 
-`packages/http/src/express/validate-request.ts` validates body, query, and path parameters against schemas from `packages/contracts`.
-On success, it replaces the Express value with parsed data.
-On failure, it returns a structured `400` response without invoking the use case.
+`defineValidatedController` from `@pressly/http/express` binds the body, query,
+and path schemas from `packages/contracts` to the one controller allowed to
+consume their output. Its synchronous `validate` handler parses once and its
+`handle` function receives the typed, fingerprint-protected value explicitly.
+When route
+scope must be authorized before a command body is inspected, its typed
+`validators.params` and `validators.body` handlers preserve that order while
+still assembling one controller input. Missing, repeated, mixed, or mutated
+validation fails closed. A failed parse throws the standard validation
+`AppError`, which the single outer API error middleware presents as a
+structured `400` response without invoking the use case.
+
+Request schemas are synchronous and pure. Async lookup, authorization, or
+other effects belong in middleware or the application use case, not a Zod
+refinement or transform.
 
 Boundary schemas for mutable commands use strict objects so unknown properties are rejected rather than silently accepted.
 
@@ -270,7 +283,10 @@ Smaller route-specific parsers run before the global parser, so a sensitive endp
 Every new HTTP route must:
 
 1. Define its boundary schema in `packages/contracts` when the payload crosses an application boundary.
-2. Apply `validateRequest` before authentication-dependent controller logic or the use case.
+2. Construct one `defineValidatedController` and register its `validate`
+   function before its paired `handle` function. If authorization depends on
+   route params and must hide body validity, use `validators.params`, then
+   authorize, then `validators.body`, then `handle`.
 3. Add a route-specific body limit when `64kb` is unnecessarily large.
 4. Reject undeclared fields for state-changing commands.
 5. Test malformed values, unknown properties, boundary sizes, and valid parsed output.
@@ -291,8 +307,10 @@ The error boundary:
 - Emits a request ID for server-side correlation.
 - Emits security events for rejected validation and server failures.
 
-Error `details` are public whenever attached to an `AppError`.
-They may contain field-level validation issues, but they must never contain credentials, tokens, secrets, SQL text, internal paths, or dependency responses.
+Error `details` are private diagnostics. Only explicitly reviewed
+`publicDetails` may cross the response boundary. Public validation details may
+contain field-level issues, but neither field may contain credentials, tokens,
+secrets, SQL text, internal paths, or dependency responses.
 
 JSON response envelopes do not make arbitrary HTML safe.
 The rendering client must still treat values as text unless the feature explicitly passes through the rich-HTML sanitizer.

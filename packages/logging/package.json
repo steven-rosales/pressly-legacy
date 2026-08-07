@@ -16,8 +16,12 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test --no-error-on-unmatched-pattern --max-warnings=0",
-    "test": "vitest run --dir test",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --dir test",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pressly/errors": "workspace:*",
+    "@pressly/time": "workspace:*"
   },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",

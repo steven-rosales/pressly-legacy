@@ -48,7 +48,7 @@ describe('API rate limiting', () => {
   it('recovers when the fixed window expires', () => {
     let nowMs = 1_000;
     const store = makeMemoryRateLimitStore({
-      clock: { nowMs: () => nowMs },
+      clock: { now: () => new Date(nowMs) },
     });
 
     expect(store.consume('ip', 2, 10_000).allowed).toBe(true);

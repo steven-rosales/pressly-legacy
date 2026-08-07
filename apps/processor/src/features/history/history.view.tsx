@@ -13,7 +13,7 @@ import {
 } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
-import { SectionHeading } from "@/components/layout/workspace-primitives"
+import { WorkspaceSectionHeading as SectionHeading } from "@/components/layout/workspace-section-heading"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -799,10 +799,3 @@ export function HistoryWorkspace({
     </div>
   )
 }
-
-export type {
-  HistoryCallbacks,
-  HistoryFilters,
-  HistoryRunDetail,
-  HistoryViewModel,
-} from "./history.model"

@@ -2,8 +2,8 @@ import type {
   PricingCatalogResult,
   PricingItemResult,
   PricingServiceSlug,
-} from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
+} from '@pressly/contracts/pricing';
+import { invariantViolationError } from '@pressly/errors/factories';
 
 export const PRICING = {
   washFoldPerLbCents: 167,
@@ -86,12 +86,10 @@ const parseDisplayPriceCents = (price: string): number => {
   const match = price.match(/^\$(\d+)\.(\d{2})(?:\s*\/\s*sqft)?$/);
 
   if (match === null) {
-    throw makeAppError({
-      kind: 'InvariantViolationError',
+    throw invariantViolationError({
       code: 'invalid_static_pricing_display',
       message: `Invalid pricing display value: ${price}`,
       safeMessage: 'Pricing configuration is invalid.',
-      status: 500,
       details: { price },
     });
   }
@@ -206,11 +204,10 @@ export const buildStaticCatalog = (
     : buildDryCleaningStaticCatalog();
 
 export const hasRequiredPricing = (catalog: PricingCatalogResult): boolean => {
-  if (catalog.serviceSlug === 'wash-fold') {
+  if (catalog.serviceSlug === 'wash-fold')
     return catalog.items.some(
       (item) => item.service === 'wash_fold' && item.category === 'Base',
     );
-  }
 
   return catalog.items.some(
     (item) =>

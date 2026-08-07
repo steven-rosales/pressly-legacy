@@ -43,21 +43,21 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  WorkspaceSectionHeading,
 } from "@/components/ui"
+import { WorkspaceSectionHeading } from "@/components/layout/workspace-section-heading"
 import { controlErrorMessage } from "@/i18n/control-error-message"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
+import type {
+  ControlAuthenticatedSession,
+  ControlWorkforceInvitationProjection as WorkforceInvitation,
+  ControlWorkforceMemberProjection as WorkforceMember,
+  WorkforceRole,
+} from "@pressly/contracts/auth"
 import {
   InviteTeamMemberSheet,
   OneTimeInvitationSheet,
 } from "./team-invitation-workflow"
 import type { ControlTeamApi } from "./team-api"
 import { MemberDetailSheet } from "./team-member-detail-sheet"
-import type {
-  WorkforceInvitation,
-  WorkforceMember,
-  WorkforceRole,
-} from "./team-model"
 
 type TeamState =
   | { status: "loading"; members: readonly []; invitations: readonly [] }

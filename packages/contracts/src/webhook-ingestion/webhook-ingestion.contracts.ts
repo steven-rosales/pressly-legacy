@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { jsonValueSchema } from '@pressly/codec/zod';
+import type { JsonValue } from '@pressly/codec';
 import { utcIsoStringSchema } from '../utc-iso.contracts.ts';
 
 export const sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -17,28 +19,42 @@ export const webhookSubjectTypeSchema = z
   .max(100)
   .regex(/^[a-z][a-z0-9_-]*$/);
 
-export const ingestWebhookEventCommandSchema = z
-  .object({
-    source: webhookSourceSchema,
-    eventType: z.string().trim().min(1).max(200),
-    deduplicationKey: sha256HexSchema,
-    subjectType: webhookSubjectTypeSchema,
-    subjectId: z.string().trim().min(1).max(200).nullable(),
-    sourceLocationId: z.string().trim().min(1).max(200).nullable(),
-    sourceOccurredAt: utcIsoStringSchema.nullable(),
-    payload: z.json().nullable(),
-    rawBodySha256: sha256HexSchema,
-    disposition: z.enum(['process', 'ignore']),
-  })
-  .strict()
-  .superRefine((event, context) => {
-    if (event.disposition === 'process' && event.payload === null)
-      context.addIssue({
-        code: 'custom',
-        path: ['payload'],
-        message: 'A processable event requires a canonical payload.',
-      });
-  });
+type IngestWebhookEventContract = Readonly<{
+  source: string;
+  eventType: string;
+  deduplicationKey: string;
+  subjectType: string;
+  subjectId: string | null;
+  sourceLocationId: string | null;
+  sourceOccurredAt: string | null;
+  payload: JsonValue | null;
+  rawBodySha256: string;
+  disposition: 'process' | 'ignore';
+}>;
+
+export const ingestWebhookEventCommandSchema: z.ZodType<IngestWebhookEventContract> =
+  z
+    .object({
+      source: webhookSourceSchema,
+      eventType: z.string().trim().min(1).max(200),
+      deduplicationKey: sha256HexSchema,
+      subjectType: webhookSubjectTypeSchema,
+      subjectId: z.string().trim().min(1).max(200).nullable(),
+      sourceLocationId: z.string().trim().min(1).max(200).nullable(),
+      sourceOccurredAt: utcIsoStringSchema.nullable(),
+      payload: jsonValueSchema.nullable(),
+      rawBodySha256: sha256HexSchema,
+      disposition: z.enum(['process', 'ignore']),
+    })
+    .strict()
+    .superRefine((event, context) => {
+      if (event.disposition === 'process' && event.payload === null)
+        context.addIssue({
+          code: 'custom',
+          path: ['payload'],
+          message: 'A processable event requires a canonical payload.',
+        });
+    });
 
 export const ingestWebhookEventResultSchema = z
   .object({

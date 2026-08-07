@@ -1,4 +1,5 @@
 import type { Logger } from '@pressly/logging';
+import { attemptObservation } from '@pressly/observability';
 
 export type WorkerLifecycle = Readonly<{
   signal: AbortSignal;
@@ -8,7 +9,9 @@ export type WorkerLifecycle = Readonly<{
 export const startWorkerLifecycle = (logger: Logger): WorkerLifecycle => {
   const controller = new AbortController();
   const stop = (signal: 'SIGINT' | 'SIGTERM'): void => {
-    logger.info('worker shutdown requested', { signal });
+    attemptObservation(() =>
+      logger.info('worker shutdown requested', { signal }),
+    );
     controller.abort();
   };
   const stopOnSigint = (): void => stop('SIGINT');

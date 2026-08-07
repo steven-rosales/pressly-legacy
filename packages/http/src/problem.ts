@@ -1,4 +1,4 @@
-import type { AppError, HttpStatusCode } from '@pressly/errors';
+import type { AppError, HttpStatusCode } from '@pressly/errors/app-error';
 import { apiFailure, type ApiFailure } from './api-response.js';
 
 export type HttpFailure = Readonly<{

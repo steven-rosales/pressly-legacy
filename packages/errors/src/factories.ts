@@ -1,58 +1,121 @@
-import { makeAppError, type AppError } from './app-error.js';
+import {
+  makeAppError,
+  type AppError,
+  type MakeAppErrorInput,
+} from './app-error.js';
+import type { JsonValue } from '@pressly/codec';
 
-export const validationError = (input: {
+export type AppErrorFactoryInput = Readonly<{
   code: string;
   message: string;
   safeMessage?: string;
+  cause?: unknown;
   details?: unknown;
-}): AppError =>
+  publicDetails?: JsonValue;
+  traceId?: string;
+}>;
+
+export type ValidationErrorStatus = 400 | 413 | 415 | 422;
+export type ExternalServiceErrorStatus = 408 | 500 | 502 | 503 | 504;
+export type DatabaseErrorStatus = 500 | 503;
+
+const errorFields = (
+  input: AppErrorFactoryInput,
+  defaultSafeMessage: string,
+): Omit<MakeAppErrorInput, 'kind' | 'status'> => ({
+  code: input.code,
+  message: input.message,
+  safeMessage: input.safeMessage ?? defaultSafeMessage,
+  ...(input.cause === undefined ? {} : { cause: input.cause }),
+  ...(input.details === undefined ? {} : { details: input.details }),
+  ...(input.publicDetails === undefined
+    ? {}
+    : { publicDetails: input.publicDetails }),
+  ...(input.traceId === undefined ? {} : { traceId: input.traceId }),
+});
+
+export const configError = (input: AppErrorFactoryInput): AppError =>
+  makeAppError({
+    kind: 'ConfigError',
+    status: 500,
+    ...errorFields(input, 'Server configuration is invalid.'),
+  });
+
+export const validationError = (
+  input: AppErrorFactoryInput & Readonly<{ status?: ValidationErrorStatus }>,
+): AppError =>
   makeAppError({
     kind: 'ValidationError',
-    code: input.code,
-    message: input.message,
-    safeMessage: input.safeMessage ?? 'Invalid request input.',
-    status: 400,
-    ...(input.details === undefined ? {} : { details: input.details }),
+    status: input.status ?? 400,
+    ...errorFields(input, 'Invalid request input.'),
   });
 
-export const notFoundError = (input: {
-  code: string;
-  message: string;
-  safeMessage: string;
-}): AppError =>
+export const authError = (input: AppErrorFactoryInput): AppError =>
   makeAppError({
-    kind: 'NotFoundError',
-    code: input.code,
-    message: input.message,
-    safeMessage: input.safeMessage ?? 'The requested resource was not found.',
-    status: 404,
+    kind: 'AuthError',
+    status: 401,
+    ...errorFields(input, 'Authentication is required.'),
   });
 
-export const permissionError = (input: {
-  code: string;
-  message: string;
-  safeMessage?: string;
-}): AppError =>
+export const permissionError = (input: AppErrorFactoryInput): AppError =>
   makeAppError({
     kind: 'PermissionError',
-    code: input.code,
-    message: input.message,
-    safeMessage: input.safeMessage ?? 'You do not have permission to do this.',
     status: 403,
+    ...errorFields(input, 'You do not have permission to do this.'),
   });
 
-export const conflictError = (input: {
-  code: string;
-  message: string;
-  safeMessage?: string;
-  details?: unknown;
-}): AppError =>
+export const notFoundError = (input: AppErrorFactoryInput): AppError =>
+  makeAppError({
+    kind: 'NotFoundError',
+    status: 404,
+    ...errorFields(input, 'The requested resource was not found.'),
+  });
+
+export const conflictError = (input: AppErrorFactoryInput): AppError =>
   makeAppError({
     kind: 'ConflictError',
-    code: input.code,
-    message: input.message,
-    safeMessage:
-      input.safeMessage ?? 'The request conflicts with current state.',
     status: 409,
-    ...(input.details === undefined ? {} : { details: input.details }),
+    ...errorFields(input, 'The request conflicts with current state.'),
+  });
+
+export const rateLimitError = (input: AppErrorFactoryInput): AppError =>
+  makeAppError({
+    kind: 'RateLimitError',
+    status: 429,
+    ...errorFields(input, 'Too many requests. Please try again later.'),
+  });
+
+export const externalServiceError = (
+  input: AppErrorFactoryInput &
+    Readonly<{ status?: ExternalServiceErrorStatus }>,
+): AppError =>
+  makeAppError({
+    kind: 'ExternalServiceError',
+    status: input.status ?? 503,
+    ...errorFields(input, 'A required service is unavailable.'),
+  });
+
+export const databaseError = (
+  input: AppErrorFactoryInput & Readonly<{ status?: DatabaseErrorStatus }>,
+): AppError =>
+  makeAppError({
+    kind: 'DatabaseError',
+    status: input.status ?? 500,
+    ...errorFields(input, 'The service could not complete the request.'),
+  });
+
+export const invariantViolationError = (
+  input: AppErrorFactoryInput,
+): AppError =>
+  makeAppError({
+    kind: 'InvariantViolationError',
+    status: 500,
+    ...errorFields(input, 'An unexpected error occurred.'),
+  });
+
+export const unexpectedError = (input: AppErrorFactoryInput): AppError =>
+  makeAppError({
+    kind: 'UnexpectedError',
+    status: 500,
+    ...errorFields(input, 'An unexpected error occurred.'),
   });

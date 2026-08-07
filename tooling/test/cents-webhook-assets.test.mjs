@@ -89,6 +89,11 @@ const executePreRequest = ({ mode, rawBody, key, nowMilliseconds }) => {
   const headers = new Map([['x-pressly-proof-mode', mode]]);
   const normalizeHeader = (name) => name.toLowerCase();
   const pm = {
+    expect: {
+      fail: (message) => {
+        throw new Error(message);
+      },
+    },
     require: (specifier) => {
       if (specifier !== 'npm:crypto-js@4.2.0')
         throw new Error(`Unexpected package: ${specifier}`);
@@ -217,6 +222,21 @@ describe('Cents webhook Postman proof assets', () => {
       .digest('hex');
     expect(staleHeaders.get('x-cents-timestamp')).toBe(staleTimestamp);
     expect(staleHeaders.get('x-cents-signature')).toBe(`v1=${staleSignature}`);
+  });
+
+  it('fails unsupported proof modes and unusable keys through the Postman assertion boundary', () => {
+    const input = {
+      rawBody: itemsByCase.get('valid_signature').request.body.raw,
+      key: 'deterministic-tooling-hmac-key-000000000001',
+      nowMilliseconds: Date.parse('2026-07-12T16:00:00.000Z'),
+    };
+
+    expect(() => executePreRequest({ ...input, mode: 'unsupported' })).toThrow(
+      /Unsupported Pressly proof mode/,
+    );
+    expect(() =>
+      executePreRequest({ ...input, mode: 'valid', key: 'too-short' }),
+    ).toThrow(/at least 32 UTF-8 bytes/);
   });
 
   it('uses an unusable key placeholder, localhost URL, and synthetic non-PII defaults', () => {

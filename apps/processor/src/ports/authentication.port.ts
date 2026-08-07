@@ -1,7 +1,7 @@
 import type {
   ProcessorAuthenticatedSession,
   ProcessorLoginResult,
-} from "@pressly/contracts"
+} from "@pressly/contracts/auth"
 
 export type AuthenticationPort = Readonly<{
   restore: () => Promise<ProcessorAuthenticatedSession>

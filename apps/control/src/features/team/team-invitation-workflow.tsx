@@ -27,8 +27,10 @@ import {
   SheetTitle,
   Spinner,
 } from "@/components/ui"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
-import type { WorkforceRole } from "./team-model"
+import type {
+  ControlAuthenticatedSession,
+  WorkforceRole,
+} from "@pressly/contracts/auth"
 
 const accessPreview = (
   t: TFunction,

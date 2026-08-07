@@ -1,12 +1,12 @@
 import type { TFunction } from "i18next"
-import { RequestFailure } from "@/ports/request.error"
+import { isRequestFailure } from "@/ports/request.error"
 
 export const presentIntakeError = (
   cause: unknown,
   t: TFunction,
   operation: "load" | "mutation" = "mutation"
 ): string => {
-  if (!(cause instanceof RequestFailure))
+  if (!isRequestFailure(cause))
     return t(
       operation === "load"
         ? "intake.errors.loadFailed"
@@ -35,12 +35,13 @@ export const presentIntakeError = (
       return t("intake.errors.admissionChanged")
   }
 
-  if (cause.kind === "unauthorized") return t("intake.errors.unauthorized")
-  if (cause.kind === "forbidden") return t("intake.errors.forbidden")
-  if (cause.kind === "unavailable") return t("intake.errors.unavailable")
-  if (cause.kind === "invalid_response")
+  if (cause.requestKind === "unauthorized")
+    return t("intake.errors.unauthorized")
+  if (cause.requestKind === "forbidden") return t("intake.errors.forbidden")
+  if (cause.requestKind === "unavailable") return t("intake.errors.unavailable")
+  if (cause.requestKind === "invalid_response")
     return t("intake.errors.invalidResponse")
-  if (cause.kind === "conflict") return t("intake.errors.changed")
+  if (cause.requestKind === "conflict") return t("intake.errors.changed")
   return t(
     operation === "load"
       ? "intake.errors.loadFailed"

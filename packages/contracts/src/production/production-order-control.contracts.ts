@@ -188,7 +188,7 @@ export const productionQueuedMoveTargetSchema = z
     expectedBatchVersion: z.number().int().positive(),
     currentWeightLbs: z.number().nonnegative(),
     projectedWeightLbs: z.number().positive(),
-    capacityLbs: z.number().positive(),
+    capacityLbs: z.number().nonnegative(),
     feasibility: productionQueuedMoveTargetFeasibilitySchema,
   })
   .strict();

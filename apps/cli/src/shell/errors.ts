@@ -1,4 +1,6 @@
-import { presentAppError, type AppError } from '@pressly/errors';
+import { type AppError } from '@pressly/errors/app-error';
+import { presentAppError } from '@pressly/errors/presentation';
+import { apiFailure } from '@pressly/http';
 import type { CliIO } from './io.ts';
 
 export const writeCliOutput = (
@@ -20,7 +22,7 @@ export const writeCliError = (
 ): void => {
   io.stderr.write(
     json
-      ? `${JSON.stringify({ ok: false, error }, null, 2)}\n`
+      ? `${JSON.stringify(apiFailure(error), null, 2)}\n`
       : `${presentAppError(error)}\n`,
   );
 };

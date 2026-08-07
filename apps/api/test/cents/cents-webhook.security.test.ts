@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import type { AppError } from '@pressly/errors';
+import type { AppError } from '@pressly/errors/app-error';
+import type { Clock } from '@pressly/time';
 import {
   acceptUnsignedCentsWebhook,
   centsWebhookClockWindowSeconds,
@@ -36,7 +37,7 @@ const verifier = (
   input: {
     currentKey?: string;
     previousKey?: string;
-    clock?: Readonly<{ now: () => Date }>;
+    clock?: Clock;
     clockWindowSeconds?: number;
   } = {},
 ) =>

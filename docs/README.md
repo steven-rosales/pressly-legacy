@@ -29,6 +29,7 @@ delta, then regenerate it with the Stateworks tooling.
 | Need                                              | Read                                                          |
 | ------------------------------------------------- | ------------------------------------------------------------- |
 | Repository boundaries and dependency direction    | [Architecture](./architecture.md)                             |
+| Backend module placement, suffixes, and failures  | [Module architecture](./module-architecture.md)               |
 | LPMS domain model and scheduling concepts         | [LPMS model](./plan/lpms.md)                                  |
 | CI, Docker, deployment, and recovery              | [Devops](./devops.md)                                         |
 | Signals, Sentry, alerts, and incident correlation | [Observability](./observability.md)                           |

@@ -5,7 +5,7 @@ import type {
   MouseEvent,
   PropsWithChildren,
 } from 'react';
-import type { ProductEvent } from '@pressly/metrics';
+import type { ProductEvent } from '@pressly/observability';
 import { usePublicEventTracker } from './use-public-event-tracker';
 
 type TrackedAnchorProps = PropsWithChildren<

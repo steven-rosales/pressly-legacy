@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { RequestFailure } from "@/ports/request.error"
+import { requestFailure } from "@/ports/request.error"
 
 const sentry = vi.hoisted(() => ({
   addBreadcrumb: vi.fn(),
@@ -102,11 +102,11 @@ describe("Processor observability", () => {
 
   it("records expected failures as breadcrumbs and captures actionable failures", () => {
     observeProcessorRequestFailure(
-      new RequestFailure({
-        kind: "conflict",
+      requestFailure({
+        requestKind: "conflict",
         code: "STALE_VERSION",
         message: "Refresh required.",
-        status: 409,
+        responseStatus: 409,
       }),
       {
         method: "PATCH",
@@ -120,11 +120,11 @@ describe("Processor observability", () => {
     )
     expect(sentry.captureException).not.toHaveBeenCalled()
 
-    const failure = new RequestFailure({
-      kind: "invalid_response",
+    const failure = requestFailure({
+      requestKind: "invalid_response",
       code: "INVALID_API_RESPONSE",
       message: "Unreadable response.",
-      status: 500,
+      responseStatus: 500,
       requestId: "request-7",
     })
     observeProcessorRequestFailure(failure, {

@@ -26,6 +26,7 @@ describe('browser e2e harness', () => {
       'docker volume ls',
       'PRESSLY_BROWSER_E2E_CREDENTIAL_FILE',
       'owner@browser-e2e.invalid',
+      'apps/cli/dist/commands/bootstrap-owner.command.js',
       '--password-stdin',
       '--fail-on-flaky-tests',
     ]) {
@@ -33,6 +34,9 @@ describe('browser e2e harness', () => {
     }
 
     expect(script).not.toContain('trypressly.com');
+    expect(script).not.toContain(
+      'modules/security/identity/dist/composition/bootstrap-owner.composition.js',
+    );
     expect(script).not.toMatch(/\bgit\s+(?:fetch|checkout|switch|reset)\b/);
     expect(script).not.toMatch(/\bgh\s/);
   });

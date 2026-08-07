@@ -7,7 +7,7 @@ import type {
   CounterLabels,
   CounterName,
   ErrorReportContext,
-} from '@pressly/metrics';
+} from '@pressly/observability';
 import type {
   Logger,
   LogFields,

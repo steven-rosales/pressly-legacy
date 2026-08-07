@@ -7,9 +7,9 @@ import {
   rejectIncomingOrderProposalRequestSchema,
   restoreIncomingOrderProposalRequestSchema,
   restoreIncomingOrderProposalResultSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/orders';
 import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
+import { defineValidatedController } from '@pressly/http/express';
 import type {
   IncomingOrderProposalListResult,
   OrdersApplication,
@@ -18,7 +18,8 @@ import { Router, type RequestHandler } from 'express';
 import {
   orderManagementCommandContext,
   type ReadOrderManagementPrincipal,
-} from '../command-context.mapper.ts';
+} from '../command-context.adapter.ts';
+import { orderManagementResultValue } from './order-management.error.ts';
 
 type IncomingOrderProposalApplication = Pick<
   OrdersApplication,
@@ -52,97 +53,114 @@ export const makeIncomingOrderProposalRoutes = (input: {
   readPrincipal: ReadOrderManagementPrincipal;
 }): Router => {
   const routes = Router();
+  const listController = defineValidatedController({
+    request: {
+      params: incomingOrderProposalParamsSchema.omit({ proposalId: true }),
+      query: incomingOrderProposalListQuerySchema,
+    },
+    handle: async ({ params, query }, { response }) => {
+      const outcome = await input.orders.listIncomingOrderProposals({
+        locationId: params.locationId,
+        limit: query.limit,
+        cursor: query.cursor ?? null,
+        view: query.view,
+      });
+      const value = orderManagementResultValue(outcome);
+      response.json(
+        apiSuccess(
+          incomingOrderProposalListSchema.parse(serializeProposalPage(value)),
+        ),
+      );
+    },
+  });
+  const acceptController = defineValidatedController({
+    request: {
+      params: incomingOrderProposalParamsSchema,
+      body: acceptIncomingOrderProposalRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
+      const outcome = await input.orders.acceptIncomingOrderProposal({
+        ...body,
+        proposalId: params.proposalId,
+        locationId: params.locationId,
+        context: orderManagementCommandContext(response, input.readPrincipal),
+      });
+      const value = orderManagementResultValue(outcome);
+      response.json(
+        apiSuccess(incomingOrderProposalDecisionResultSchema.parse(value)),
+      );
+    },
+  });
+  const rejectController = defineValidatedController({
+    request: {
+      params: incomingOrderProposalParamsSchema,
+      body: rejectIncomingOrderProposalRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
+      const outcome = await input.orders.rejectIncomingOrderProposal({
+        ...body,
+        proposalId: params.proposalId,
+        locationId: params.locationId,
+        context: orderManagementCommandContext(response, input.readPrincipal),
+      });
+      const value = orderManagementResultValue(outcome);
+      response.json(
+        apiSuccess(incomingOrderProposalDecisionResultSchema.parse(value)),
+      );
+    },
+  });
+  const restoreController = defineValidatedController({
+    request: {
+      params: incomingOrderProposalParamsSchema,
+      body: restoreIncomingOrderProposalRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
+      const outcome = await input.orders.restoreIncomingOrderProposal({
+        ...body,
+        proposalId: params.proposalId,
+        locationId: params.locationId,
+        context: orderManagementCommandContext(response, input.readPrincipal),
+      });
+      const value = orderManagementResultValue(outcome);
+      response.json(
+        apiSuccess(restoreIncomingOrderProposalResultSchema.parse(value)),
+      );
+    },
+  });
 
   routes.get(
     '/order-management/locations/:locationId/incoming-orders',
     input.authenticate,
-    validateRequest({
-      params: incomingOrderProposalParamsSchema.omit({ proposalId: true }),
-      query: incomingOrderProposalListQuerySchema,
-    }),
+    listController.validate,
     input.authorize,
-    catchAsync(async (request, response) => {
-      const outcome = await input.orders.listIncomingOrderProposals({
-        locationId: request.params['locationId'] as string,
-        limit: request.query['limit'] as unknown as number,
-        cursor: (request.query['cursor'] as string | undefined) ?? null,
-        view: request.query['view'] as 'needs_review' | 'source_closed',
-      });
-      if (outcome.tag === 'err') throw outcome.error;
-      response.json(
-        apiSuccess(
-          incomingOrderProposalListSchema.parse(
-            serializeProposalPage(outcome.value),
-          ),
-        ),
-      );
-    }),
+    listController.handle,
   );
-
-  const proposalSecurity = [
-    input.authenticate,
-    validateRequest({ params: incomingOrderProposalParamsSchema }),
-    input.authorize,
-  ] as const;
 
   routes.post(
     '/order-management/locations/:locationId/incoming-orders/:proposalId/accept',
-    ...proposalSecurity,
-    validateRequest({ body: acceptIncomingOrderProposalRequestSchema }),
-    catchAsync(async (request, response) => {
-      const outcome = await input.orders.acceptIncomingOrderProposal({
-        ...request.body,
-        proposalId: request.params['proposalId'] as string,
-        locationId: request.params['locationId'] as string,
-        context: orderManagementCommandContext(response, input.readPrincipal),
-      });
-      if (outcome.tag === 'err') throw outcome.error;
-      response.json(
-        apiSuccess(
-          incomingOrderProposalDecisionResultSchema.parse(outcome.value),
-        ),
-      );
-    }),
+    input.authenticate,
+    acceptController.validators.params,
+    input.authorize,
+    acceptController.validators.body,
+    acceptController.handle,
   );
 
   routes.post(
     '/order-management/locations/:locationId/incoming-orders/:proposalId/reject',
-    ...proposalSecurity,
-    validateRequest({ body: rejectIncomingOrderProposalRequestSchema }),
-    catchAsync(async (request, response) => {
-      const outcome = await input.orders.rejectIncomingOrderProposal({
-        ...request.body,
-        proposalId: request.params['proposalId'] as string,
-        locationId: request.params['locationId'] as string,
-        context: orderManagementCommandContext(response, input.readPrincipal),
-      });
-      if (outcome.tag === 'err') throw outcome.error;
-      response.json(
-        apiSuccess(
-          incomingOrderProposalDecisionResultSchema.parse(outcome.value),
-        ),
-      );
-    }),
+    input.authenticate,
+    rejectController.validators.params,
+    input.authorize,
+    rejectController.validators.body,
+    rejectController.handle,
   );
 
   routes.post(
     '/order-management/locations/:locationId/incoming-orders/:proposalId/restore',
-    ...proposalSecurity,
-    validateRequest({ body: restoreIncomingOrderProposalRequestSchema }),
-    catchAsync(async (request, response) => {
-      const outcome = await input.orders.restoreIncomingOrderProposal({
-        ...request.body,
-        proposalId: request.params['proposalId'] as string,
-        locationId: request.params['locationId'] as string,
-        context: orderManagementCommandContext(response, input.readPrincipal),
-      });
-      if (outcome.tag === 'err') throw outcome.error;
-      response.json(
-        apiSuccess(
-          restoreIncomingOrderProposalResultSchema.parse(outcome.value),
-        ),
-      );
-    }),
+    input.authenticate,
+    restoreController.validators.params,
+    input.authorize,
+    restoreController.validators.body,
+    restoreController.handle,
   );
 
   return routes;

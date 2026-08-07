@@ -5,52 +5,19 @@ import {
   controlCorrectOrderRequestSchema,
   controlCreateOrderRequestSchema,
   orderMutationResultSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/orders';
+import type { ControlExperience } from '@pressly/control-experience';
 import { apiSuccess } from '@pressly/http';
-import { catchAsync, validateRequest } from '@pressly/http/express';
-import type { OrderCustomer, OrdersApplication } from '@pressly/orders';
+import { defineValidatedController } from '@pressly/http/express';
 import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
-import {
-  controlAccess,
-  controlCommandContext,
-  controlLocationIds,
-} from './control-data.context.ts';
-import { controlOrder, controlOrderDetail } from './control-data.mapper.ts';
+import { controlResultValue } from '../control-experience.error.ts';
+import { readControlRequestContext } from '../control-request-context.adapter.ts';
 
 const orderParamsSchema = z.object({ orderId: z.uuid() }).strict();
 
-const directCustomer = (
-  input:
-    | Readonly<{ resolution: 'resolved'; userId: string }>
-    | Readonly<{ resolution: 'not_provided'; userId: null }>,
-): OrderCustomer =>
-  input.resolution === 'resolved'
-    ? {
-        resolution: 'resolved',
-        userId: input.userId,
-        externalUserId: null,
-      }
-    : {
-        resolution: 'not_provided',
-        userId: null,
-        externalUserId: null,
-      };
-
-const value = <Value>(
-  outcome:
-    | Readonly<{ tag: 'ok'; value: Value }>
-    | Readonly<{ tag: 'err'; error: unknown }>,
-): Value => {
-  if (outcome.tag === 'err') throw outcome.error;
-  return outcome.value;
-};
-
 export const makeControlOrderRoutes = (input: {
-  orders: Pick<
-    OrdersApplication,
-    'listCanonicalOrders' | 'getCanonicalOrder' | 'createOrder' | 'correctOrder'
-  >;
+  application: ControlExperience['orders'];
   authenticate: RequestHandler;
   limitIdentity: RequestHandler;
   requireRead: RequestHandler;
@@ -67,118 +34,145 @@ export const makeControlOrderRoutes = (input: {
     input.limitIdentity,
     input.requireWrite,
   ] as const;
-
-  routes.get(
-    '/orders',
-    ...read,
-    validateRequest({ query: controlOrderListQuerySchema }),
-    catchAsync(async (request, response) => {
-      const query = request.query as unknown as {
-        query?: string;
-        state?: 'open' | 'completed' | 'canceled';
-        locationId?: string;
-        cursor?: string;
-        limit: number;
-      };
-      const page = value(
-        await input.orders.listCanonicalOrders({
-          businessId: controlAccess(response).business.id,
-          locationIds: controlLocationIds(response, query.locationId),
-          query: query.query ?? null,
-          state: query.state ?? null,
+  const listController = defineValidatedController({
+    request: { query: controlOrderListQuerySchema },
+    handle: async ({ query }, { response }) => {
+      const page = controlResultValue(
+        await input.application.list({
+          context: readControlRequestContext(response),
+          ...(query.query === undefined ? {} : { query: query.query }),
+          ...(query.state === undefined ? {} : { state: query.state }),
+          ...(query.locationId === undefined
+            ? {}
+            : { locationId: query.locationId }),
           limit: query.limit,
-          cursor: query.cursor ?? null,
+          ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
         }),
       );
       response.json(
         apiSuccess(
           controlOrderListSchema.parse({
-            items: page.items.map(controlOrder),
+            items: page.items,
             nextCursor: page.nextCursor,
           }),
         ),
       );
-    }),
-  );
-
-  routes.get(
-    '/orders/:orderId',
-    ...read,
-    validateRequest({ params: orderParamsSchema }),
-    catchAsync(async (request, response) => {
-      const order = value(
-        await input.orders.getCanonicalOrder({
-          businessId: controlAccess(response).business.id,
-          locationIds: controlLocationIds(response),
-          orderId: request.params['orderId'] as string,
+    },
+  });
+  const getController = defineValidatedController({
+    request: { params: orderParamsSchema },
+    handle: async ({ params }, { response }) => {
+      const order = controlResultValue(
+        await input.application.get({
+          context: readControlRequestContext(response),
+          orderId: params.orderId,
         }),
       );
-      response.json(
-        apiSuccess(controlOrderDetailSchema.parse(controlOrderDetail(order))),
-      );
-    }),
-  );
-
-  routes.post(
-    '/orders',
-    ...write,
-    validateRequest({ body: controlCreateOrderRequestSchema }),
-    catchAsync(async (request, response) => {
-      controlLocationIds(response, request.body.fulfillment.locationId);
-      const outcome = value(
-        await input.orders.createOrder({
-          ...request.body,
-          businessId: controlAccess(response).business.id,
-          context: controlCommandContext(response),
-          customer: directCustomer(request.body.customer),
-          dueAt: new Date(request.body.dueAt),
+      response.json(apiSuccess(controlOrderDetailSchema.parse(order)));
+    },
+  });
+  const createController = defineValidatedController({
+    request: { body: controlCreateOrderRequestSchema },
+    handle: async ({ body }, { response }) => {
+      const outcome = controlResultValue(
+        await input.application.create({
+          ...body,
+          context: readControlRequestContext(response),
         }),
       );
       response
         .status(201)
         .json(apiSuccess(orderMutationResultSchema.parse(outcome)));
-    }),
+    },
+  });
+  const correctController = defineValidatedController({
+    request: {
+      params: orderParamsSchema,
+      body: controlCorrectOrderRequestSchema,
+    },
+    handle: async ({ params, body }, { response }) => {
+      const outcome = controlResultValue(
+        await input.application.correct({
+          orderId: params.orderId,
+          idempotencyKey: body.idempotencyKey,
+          context: readControlRequestContext(response),
+          reasonCode: body.reasonCode,
+          reasonNote: body.reasonNote,
+          expectedOrderVersion: body.expectedOrderVersion,
+          expectedFulfillmentVersion: body.expectedFulfillmentVersion,
+          changes: {
+            ...(body.changes.customer === undefined
+              ? {}
+              : { customer: body.changes.customer }),
+            ...(body.changes.displayNumber === undefined
+              ? {}
+              : { displayNumber: body.changes.displayNumber }),
+            ...(body.changes.dueAt === undefined
+              ? {}
+              : { dueAt: body.changes.dueAt }),
+            ...(body.changes.currency === undefined
+              ? {}
+              : { currency: body.changes.currency }),
+            ...(body.changes.totalAmountCents === undefined
+              ? {}
+              : { totalAmountCents: body.changes.totalAmountCents }),
+            ...(body.changes.balanceDueCents === undefined
+              ? {}
+              : { balanceDueCents: body.changes.balanceDueCents }),
+            ...(body.changes.items === undefined
+              ? {}
+              : { items: body.changes.items }),
+            ...(body.changes.fulfillment === undefined
+              ? {}
+              : {
+                  fulfillment: {
+                    ...(body.changes.fulfillment.typeCode === undefined
+                      ? {}
+                      : { typeCode: body.changes.fulfillment.typeCode }),
+                    ...(body.changes.fulfillment.locationId === undefined
+                      ? {}
+                      : { locationId: body.changes.fulfillment.locationId }),
+                    ...(body.changes.fulfillment.estimatedWeight === undefined
+                      ? {}
+                      : {
+                          estimatedWeight:
+                            body.changes.fulfillment.estimatedWeight,
+                        }),
+                  },
+                }),
+          },
+        }),
+      );
+      response.json(apiSuccess(orderMutationResultSchema.parse(outcome)));
+    },
+  });
+
+  routes.get(
+    '/orders',
+    ...read,
+    listController.validate,
+    listController.handle,
+  );
+
+  routes.get(
+    '/orders/:orderId',
+    ...read,
+    getController.validate,
+    getController.handle,
+  );
+
+  routes.post(
+    '/orders',
+    ...write,
+    createController.validate,
+    createController.handle,
   );
 
   routes.patch(
     '/orders/:orderId',
     ...write,
-    validateRequest({ params: orderParamsSchema }),
-    validateRequest({ body: controlCorrectOrderRequestSchema }),
-    catchAsync(async (request, response) => {
-      const orderId = request.params['orderId'] as string;
-      const current = value(
-        await input.orders.getCanonicalOrder({
-          businessId: controlAccess(response).business.id,
-          locationIds: controlLocationIds(response),
-          orderId,
-        }),
-      );
-      const body = request.body;
-      const outcome = value(
-        await input.orders.correctOrder({
-          businessId: controlAccess(response).business.id,
-          idempotencyKey: body.idempotencyKey,
-          context: controlCommandContext(response),
-          reasonCode: body.reasonCode,
-          reasonNote: body.reasonNote,
-          expectedOrderVersion: body.expectedOrderVersion,
-          expectedFulfillmentVersion: body.expectedFulfillmentVersion,
-          locationId: current.fulfillment.locationId,
-          orderId,
-          changes: {
-            ...body.changes,
-            ...(body.changes.customer === undefined
-              ? {}
-              : { customer: directCustomer(body.changes.customer) }),
-            ...(body.changes.dueAt === undefined
-              ? {}
-              : { dueAt: new Date(body.changes.dueAt) }),
-          },
-        }),
-      );
-      response.json(apiSuccess(orderMutationResultSchema.parse(outcome)));
-    }),
+    correctController.validate,
+    correctController.handle,
   );
 
   return routes;

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import type { SchedulerConfig } from "@pressly/contracts"
+import type { SchedulerConfig } from "@pressly/contracts/production"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import { presentSettingsError } from "./settings.error.presenter"

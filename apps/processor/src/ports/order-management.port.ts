@@ -6,7 +6,7 @@ import {
   rejectIncomingOrderProposalRequestSchema,
   restoreIncomingOrderProposalRequestSchema,
   restoreIncomingOrderProposalResultSchema,
-} from "@pressly/contracts"
+} from "@pressly/contracts/orders"
 
 export type IncomingOrderProposalList = z.infer<
   typeof incomingOrderProposalListSchema

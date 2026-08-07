@@ -2,7 +2,7 @@ import type {
   ProductionBatch,
   ProductionPendingPlacement,
   StageRun,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import type { TFunction } from "i18next"
 
 type PendingRunPlacement = Extract<

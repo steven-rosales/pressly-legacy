@@ -9,7 +9,6 @@ import {
   advanceProductionStageResultSchema,
   completeStageCommandSchema,
   completeStageRequestSchema,
-  changeProductionOrderResolutionCommandSchema,
   changeProductionOrderResolutionRequestSchema,
   changeProductionOrderResolutionResultSchema,
   confirmProductionOrderOvertimeCommandSchema,
@@ -85,19 +84,15 @@ const locationId = 'location-main';
 const now = '2026-07-12T14:00:00.000Z';
 
 describe('production order resolution contracts', () => {
-  it('accepts explicit resolve and restore commands', () => {
+  it('accepts explicit resolve and restore requests', () => {
     expect(
-      changeProductionOrderResolutionCommandSchema.parse({
-        locationId,
-        orderId: ids.order,
+      changeProductionOrderResolutionRequestSchema.parse({
         action: 'resolve_without_production',
         reason: 'completed_outside_pressly',
         expectedVersion: 4,
         idempotencyKey: 'resolve-order-123',
       }),
     ).toEqual({
-      locationId,
-      orderId: ids.order,
       action: 'resolve_without_production',
       reason: 'completed_outside_pressly',
       note: null,
@@ -107,9 +102,7 @@ describe('production order resolution contracts', () => {
     });
 
     expect(
-      changeProductionOrderResolutionCommandSchema.safeParse({
-        locationId,
-        orderId: ids.order,
+      changeProductionOrderResolutionRequestSchema.safeParse({
         action: 'restore',
         reason: 'manager_correction',
         note: 'This work belongs on the floor.',
@@ -143,9 +136,7 @@ describe('production order resolution contracts', () => {
   it('requires a meaningful note for other resolve and restore reasons', () => {
     for (const action of ['resolve_without_production', 'restore'] as const) {
       expect(
-        changeProductionOrderResolutionCommandSchema.safeParse({
-          locationId,
-          orderId: ids.order,
+        changeProductionOrderResolutionRequestSchema.safeParse({
           action,
           reason: 'other',
           note: null,

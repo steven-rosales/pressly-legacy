@@ -4,7 +4,7 @@ import i18next from "i18next"
 import { describe, expect, it, vi } from "vitest"
 import { SecurityWorkspace } from "@/features/security/security-workspace"
 import type { ControlSecurityApi } from "@/features/security/security-api"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
 
 const session: ControlAuthenticatedSession = {
   status: "authenticated",

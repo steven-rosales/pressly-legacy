@@ -2,7 +2,7 @@ import type {
   LoadPricingCatalogResult,
   PricingChangePlan,
   PublishPricingChangeResult,
-} from '@pressly/contracts';
+} from '@pressly/contracts/pricing';
 import { formatMoney } from '@pressly/money';
 import type { PricingCliOutput } from '../application/command.ts';
 

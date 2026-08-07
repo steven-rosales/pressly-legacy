@@ -54,12 +54,12 @@ export const setControlCookie = (
   response: Response,
   name: string,
   value: string,
-  expiresAt: string,
+  expiresAt: Date,
   options: ControlSessionOptions,
 ): void => {
   response.cookie(name, value, {
     ...cookieOptions(options),
-    expires: new Date(expiresAt),
+    expires: expiresAt,
   });
 };
 

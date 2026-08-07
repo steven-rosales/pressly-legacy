@@ -1,6 +1,13 @@
-import { eq, laundryProduction, type DatabaseRuntime } from '@pressly/db';
+import { type DatabaseRuntime } from '@pressly/db/client';
+import { eq } from '@pressly/db/query';
+import * as laundryProduction from '@pressly/db/schema/laundry-production';
+import { normalizeUnknownError } from '@pressly/errors/app-error';
 import type { Logger } from '@pressly/logging';
-import type { CounterSink } from '@pressly/metrics';
+import {
+  attemptObservation,
+  isolateCounterSink,
+  type CounterSink,
+} from '@pressly/observability';
 
 export const productionChangeChannel = 'pressly_production_changes';
 
@@ -62,17 +69,21 @@ export const makePostgresProductionChangeFeed = (input: {
   let stopListening: (() => Promise<void>) | null = null;
   let startPromise: Promise<void> | null = null;
   let connected = false;
+  const { increment } = isolateCounterSink(input.counters);
+  const logWarn: Logger['warn'] = (message, fields) => {
+    attemptObservation(() => input.logger.warn(message, fields));
+  };
 
   const publish = (locationId: string, change: ProductionChange): void => {
     for (const listener of subscribers.get(locationId) ?? []) {
       try {
         listener(change);
       } catch (error: unknown) {
-        input.counters.increment('api.sse_feed_failures', {
+        increment('api.sse_feed_failures', {
           reason: 'subscriber_failure',
         });
-        input.logger.warn('production change subscriber failed', {
-          error: error instanceof Error ? error : new Error(String(error)),
+        logWarn('production change subscriber failed', {
+          error: normalizeUnknownError(error),
         });
       }
     }
@@ -93,10 +104,10 @@ export const makePostgresProductionChangeFeed = (input: {
           (payload) => {
             const notification = parseProductionChangeNotification(payload);
             if (notification === null) {
-              input.counters.increment('api.sse_feed_failures', {
+              increment('api.sse_feed_failures', {
                 reason: 'invalid_notification',
               });
-              input.logger.warn('production change notification rejected', {
+              logWarn('production change notification rejected', {
                 reason: 'invalid_notification',
               });
               return;
@@ -108,7 +119,7 @@ export const makePostgresProductionChangeFeed = (input: {
           },
           () => {
             if (connected) {
-              input.counters.increment('api.sse_resyncs', {
+              increment('api.sse_resyncs', {
                 reason: 'database_listener_reconnected',
               });
               resyncAll();

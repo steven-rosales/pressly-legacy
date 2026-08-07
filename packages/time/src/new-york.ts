@@ -59,5 +59,3 @@ export const formatUtcIsoInNewYork = (
 
 export const formatInstantInUtc = (instant: InstantMs): UtcIso =>
   toUtcIso(instant);
-
-export const parseUtcIso = instantFromUtcIso;

@@ -18,6 +18,8 @@ jobs:
   quality:
     name: ci quality
     runs-on: ubuntu-latest
+    env:
+      VITEST_MAX_WORKERS: 2
 
     steps:
       - name: Checkout
@@ -36,7 +38,7 @@ jobs:
         run: pnpm typecheck
 
       - name: Unit tests
-        run: pnpm exec turbo test
+        run: pnpm exec turbo test --concurrency=2
 
       - name: Tooling and architecture tests
         run: pnpm exec vitest run tooling/test
@@ -79,6 +81,7 @@ jobs:
           --health-retries 10
 
     env:
+      VITEST_MAX_WORKERS: 1
       PRESSLY_TEST_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/pressly_test
       PRESSLY_TEST_MIGRATION_DATABASE_URL: postgres://pressly_migration:pressly_migration_test@localhost:5432/pressly_test
       PRESSLY_TEST_RUNTIME_DATABASE_URL: postgres://pressly_runtime:pressly_runtime_test@localhost:5432/pressly_test
@@ -92,6 +95,9 @@ jobs:
 
       - name: Setup workspace
         uses: ./.github/actions/setup-pnpm
+
+      - name: Build integration workspace
+        run: pnpm build:integration-deps
 
       - name: Configure database roles
         run: |
@@ -112,7 +118,7 @@ jobs:
         run: pnpm -F @pressly/db test:integration
 
       - name: Auth integration tests
-        run: pnpm -F @pressly/auth-module test:integration
+        run: pnpm -F @pressly/identity test:integration
 
       - name: Users integration tests
         run: pnpm -F @pressly/users test:integration

@@ -3,12 +3,12 @@ import { parseArgs } from 'node:util';
 import type {
   PricingServiceSlug,
   PublishPricingChangeItem,
-} from '@pressly/contracts';
+} from '@pressly/contracts/pricing';
 import {
   normalizeUnknownError,
-  validationError,
   type AppError,
-} from '@pressly/errors';
+} from '@pressly/errors/app-error';
+import { validationError } from '@pressly/errors/factories';
 import { commandError } from '../../shell/command-error.ts';
 import type { PricingCliCommand } from './application/command.ts';
 

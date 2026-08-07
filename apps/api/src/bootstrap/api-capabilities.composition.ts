@@ -1,34 +1,41 @@
-import { makeAccessControlModule } from '@pressly/access-control';
-import { makeAuthModule } from '@pressly/auth-module';
+import { makeAuthorizationModule } from '@pressly/authorization';
+import { makeIdentityModule } from '@pressly/identity';
 import { revealSecret } from '@pressly/config';
+import { makeControlExperience } from '@pressly/control-experience';
+import type { IdSource } from '@pressly/kernel';
 import { makePostgresOrdersApplication } from '@pressly/orders';
 import { makePricingModule } from '@pressly/pricing';
+import { makePostgresProcessorExperience } from '@pressly/processor-experience';
 import { makePostgresProductionModule } from '@pressly/production';
-import { makeProductionPolicy } from '@pressly/production-policy';
-import { makeProductionScheduler } from '@pressly/production-scheduling';
+import { nullMeasurementSink, nullTraceSink } from '@pressly/observability';
 import {
   makePostgresCanonicalSourceUserAcceptanceAdapter,
   makePostgresUsersApplication,
 } from '@pressly/users';
 import { makePostgresWebhookIngestionApplication } from '@pressly/webhook-ingestion';
-import { makeProcessorBrowserBoundary } from '../http/processor/session/processor-session.boundary.ts';
-import { makeProcessorAccessResolver } from '../http/processor/session/processor-access.query.ts';
+import type { Clock } from '@pressly/time';
+import { makeProcessorBrowserBoundary } from '../http/processor/session/processor-session.composition.ts';
 import { makeControlBrowserBoundary } from '../http/control/session/control-session.boundary.ts';
 import type { ApiRuntime } from '../runtime/api-runtime.ts';
 import { makeProductionDomainSignals } from './production-signals.adapter.ts';
 import { makePostgresLocationAncestryAdapter } from '../http/authorization/postgres-location-ancestry.adapter.ts';
-
-export type ApiClock = Readonly<{ now: () => Date }>;
-export type ApiIds = Readonly<{ next: () => string }>;
+import { makeApiAccessControl } from '../http/authorization/access-control.composition.ts';
+import {
+  adaptControlCustomers,
+  adaptControlOrders,
+  adaptControlWorkforce,
+} from '../http/control/control-experience.adapter.ts';
 
 export type ApiCapabilities = Readonly<{
-  accessControlModule: ReturnType<typeof makeAccessControlModule>;
-  authModule: ReturnType<typeof makeAuthModule>;
+  accessControl: ReturnType<typeof makeApiAccessControl>;
+  identityModule: ReturnType<typeof makeIdentityModule>;
   controlBoundary: ReturnType<typeof makeControlBrowserBoundary>;
+  controlExperience: ReturnType<typeof makeControlExperience>;
   locationAncestry: ReturnType<typeof makePostgresLocationAncestryAdapter>;
   orders: ReturnType<typeof makePostgresOrdersApplication>;
   pricingModule: ReturnType<typeof makePricingModule>;
   processorBoundary: ReturnType<typeof makeProcessorBrowserBoundary>;
+  processorExperience: ReturnType<typeof makePostgresProcessorExperience>;
   productionModule: ReturnType<typeof makePostgresProductionModule>;
   users: ReturnType<typeof makePostgresUsersApplication>;
   webhookIngestion: ReturnType<typeof makePostgresWebhookIngestionApplication>;
@@ -36,9 +43,17 @@ export type ApiCapabilities = Readonly<{
 
 export const makeApiCapabilities = (input: {
   runtime: ApiRuntime;
-  clock: ApiClock;
-  ids: ApiIds;
+  clock: Clock;
+  ids: IdSource;
 }): ApiCapabilities => {
+  const transactions = {
+    counters: input.runtime.observability.counters,
+    measurements:
+      input.runtime.observability.measurements ?? nullMeasurementSink,
+    trace: input.runtime.observability.trace ?? nullTraceSink,
+    nowNanoseconds: process.hrtime.bigint,
+  };
+
   const webhookIngestion = makePostgresWebhookIngestionApplication({
     db: input.runtime.database.db,
     clock: input.clock,
@@ -46,8 +61,10 @@ export const makeApiCapabilities = (input: {
     quarantineRetentionMs:
       input.runtime.env.centsWebhook.quarantine.retentionMs,
   });
-  const authModule = makeAuthModule({
+
+  const identityModule = makeIdentityModule({
     db: input.runtime.database.db,
+    clock: input.clock,
     tokenSecret: revealSecret(input.runtime.env.auth.secret),
     sessionTtlMinutes: input.runtime.env.auth.sessionTtlMinutes,
     sessionIdleTimeoutMinutes: input.runtime.env.auth.sessionIdleTimeoutMinutes,
@@ -57,12 +74,14 @@ export const makeApiCapabilities = (input: {
     securityEvents: input.runtime.securityEvents,
     mfaEncryptionKey: revealSecret(input.runtime.env.auth.mfaEncryptionKey),
     mfaIssuer: input.runtime.env.auth.mfaIssuer,
+    transactions,
   });
+
   const locationAncestry = makePostgresLocationAncestryAdapter(
     input.runtime.database.db,
   );
-  const accessControlModule = makeAccessControlModule({
-    auth: authModule.guards,
+
+  const authorizationModule = makeAuthorizationModule({
     locationAncestry,
     clock: input.clock,
     policies: {
@@ -80,23 +99,90 @@ export const makeApiCapabilities = (input: {
       },
     },
   });
+
+  const accessControl = makeApiAccessControl({
+    authorization: authorizationModule,
+    auth: identityModule.guards,
+  });
+
+  const processorExperience = makePostgresProcessorExperience({
+    db: input.runtime.database.db,
+    clock: input.clock,
+    origins: {
+      processor: input.runtime.env.processor.origin,
+      control: input.runtime.env.control.origin,
+    },
+    resolveProductionCapabilities: ({ session, location, now }) =>
+      authorizationModule.productionCapabilitiesForLocation({
+        principal: session.principal,
+        principalAttributes: session.principalAttributes,
+        locationId: location.id,
+        businessId: location.businessId,
+        now,
+      }),
+  });
+
   const processorBoundary = makeProcessorBrowserBoundary({
-    application: authModule.application,
-    resolveAccess: makeProcessorAccessResolver({
-      db: input.runtime.database.db,
-      processorOrigin: input.runtime.env.processor.origin,
-      controlOrigin: input.runtime.env.control.origin,
-    }),
-    bearerAuthenticate: authModule.guards.authenticate,
+    application: identityModule.application,
+    resolveAccess: processorExperience.resolveAccess,
+    bearerAuthenticate: identityModule.guards.authenticate,
     options: {
       origin: input.runtime.env.processor.origin,
       csrfSecret: revealSecret(input.runtime.env.processor.csrfSecret),
       secureCookies: input.runtime.env.nodeEnv === 'production',
     },
   });
-  const controlBoundary = makeControlBrowserBoundary({
+
+  const pricingModule = makePricingModule({
     db: input.runtime.database.db,
-    application: authModule.application,
+    clock: input.clock,
+    auth: accessControl.pricing,
+  });
+
+  const productionModule = makePostgresProductionModule({
+    db: input.runtime.database.db,
+    clock: input.clock,
+    ids: input.ids,
+    signals: makeProductionDomainSignals(input.runtime.observability.counters),
+    transactions,
+    security: {
+      ...accessControl.production,
+      authenticate: processorBoundary.authenticate,
+    },
+  });
+
+  const users = makePostgresUsersApplication({
+    db: input.runtime.database.db,
+    clock: input.clock,
+  });
+
+  const incomingOrderProposalCustomer =
+    makePostgresCanonicalSourceUserAcceptanceAdapter();
+
+  const orders = makePostgresOrdersApplication({
+    db: input.runtime.database.db,
+    clock: input.clock,
+    incomingOrderProposalCustomer,
+    transactions,
+  });
+
+  const controlExperience = makeControlExperience({
+    db: input.runtime.database.db,
+    clock: input.clock,
+    controlOrigin: input.runtime.env.control.origin,
+    processorOrigin: input.runtime.env.processor.origin,
+    customers: adaptControlCustomers(users),
+    orders: adaptControlOrders(orders),
+    workforce: adaptControlWorkforce(identityModule.application.workforce),
+  });
+
+  const controlBoundary = makeControlBrowserBoundary({
+    application: identityModule.application,
+    resolveAccess: (session) =>
+      controlExperience.access({
+        identityId: session.principal.identityId,
+        assuranceLevel: session.principalAttributes.assuranceLevel,
+      }),
     options: {
       origin: input.runtime.env.control.origin,
       csrfSecret: revealSecret(input.runtime.env.control.csrfSecret),
@@ -104,42 +190,17 @@ export const makeApiCapabilities = (input: {
       secureCookies: input.runtime.env.nodeEnv === 'production',
     },
   });
-  const pricingModule = makePricingModule({
-    db: input.runtime.database.db,
-    auth: accessControlModule.pricing,
-  });
-  const productionModule = makePostgresProductionModule({
-    db: input.runtime.database.db,
-    policy: makeProductionPolicy(),
-    scheduler: makeProductionScheduler(),
-    clock: input.clock,
-    ids: input.ids,
-    signals: makeProductionDomainSignals(input.runtime.observability.counters),
-    security: {
-      ...accessControlModule.production,
-      authenticate: processorBoundary.authenticate,
-    },
-  });
-  const users = makePostgresUsersApplication({
-    db: input.runtime.database.db,
-    clock: input.clock,
-  });
-  const incomingOrderProposalCustomer =
-    makePostgresCanonicalSourceUserAcceptanceAdapter();
-  const orders = makePostgresOrdersApplication({
-    db: input.runtime.database.db,
-    clock: input.clock,
-    incomingOrderProposalCustomer,
-  });
 
   return {
-    accessControlModule,
-    authModule,
+    accessControl,
+    identityModule,
     controlBoundary,
+    controlExperience,
     locationAncestry,
     orders,
     pricingModule,
     processorBoundary,
+    processorExperience,
     productionModule,
     users,
     webhookIngestion,

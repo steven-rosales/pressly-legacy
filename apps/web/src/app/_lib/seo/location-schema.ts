@@ -1,4 +1,4 @@
-import type { PricingCatalogResult } from '@pressly/contracts';
+import type { PricingCatalogResult } from '@pressly/contracts/pricing';
 import { CONTACT } from '@/config/site';
 import {
   buildOfferCatalogId,

@@ -2,7 +2,8 @@ import type {
   ProductionOrderSummary,
   ProductionWarning,
   ScheduleProposal,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
+import { validationError } from "@pressly/errors/factories"
 import type { TFunction } from "i18next"
 
 export type ScheduleWarningPresentation = Readonly<{
@@ -94,7 +95,12 @@ export const formatZonedDateTimeInput = (
 const parseLocalDateTime = (value: string) => {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/)
   if (match === null)
-    throw new TypeError("Enter a complete local date and time.")
+    throw validationError({
+      code: "processor_local_date_time_incomplete",
+      message: "Enter a complete local date and time.",
+      safeMessage: "Enter a complete local date and time.",
+      status: 422,
+    })
   const [, year, month, day, hour, minute] = match
   return {
     year: Number(year),
@@ -137,7 +143,12 @@ export const zonedDateTimeInputToIso = (
 
   const iso = new Date(timestamp).toISOString()
   if (formatZonedDateTimeInput(iso, timeZone) !== value)
-    throw new TypeError("That local time does not exist in this location.")
+    throw validationError({
+      code: "processor_local_date_time_invalid",
+      message: "That local time does not exist in this location.",
+      safeMessage: "That local time does not exist in this location.",
+      status: 422,
+    })
   return iso
 }
 

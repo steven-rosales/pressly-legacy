@@ -1,13 +1,13 @@
 import type { ControlHttpClient } from "@/api/control-http-client"
 import {
-  controlCustomerPageSchema,
+  controlCustomerListSchema as controlCustomerPageSchema,
   controlCustomerSchema,
-  customerMutationResultSchema,
+  userMutationResultSchema as customerMutationResultSchema,
   type ControlCustomer,
-  type ControlCustomerPage,
-  type CustomerMutationResult,
-  type CustomerProfile,
-} from "./customer-model"
+  type ControlCustomerList as ControlCustomerPage,
+  type UserMutationResult as CustomerMutationResult,
+  type UserProfile as CustomerProfile,
+} from "@pressly/contracts/users"
 
 export type CustomerListInput = Readonly<{
   query: string

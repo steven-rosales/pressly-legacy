@@ -2,6 +2,7 @@
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { configError } from '@pressly/errors/factories';
 import { config as loadEnv } from 'dotenv';
 import { defineConfig, type Config } from 'drizzle-kit';
 
@@ -15,7 +16,10 @@ loadEnv({
 const databaseUrl = process.env['DATABASE_URL'];
 
 if (!databaseUrl) {
-  throw new Error('DATABASE_URL is required for drizzle.');
+  throw configError({
+    code: 'drizzle_database_url_missing',
+    message: 'DATABASE_URL is required for drizzle.',
+  });
 }
 
 export default defineConfig({

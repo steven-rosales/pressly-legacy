@@ -1,8 +1,7 @@
 import type {
   PricingCatalogResult,
-  PricingItemResult,
   PricingParamsRequestSchema,
-} from '@pressly/contracts';
+} from '@pressly/contracts/pricing';
 
 export type PricingSource = 'api' | 'static-fallback';
 
@@ -55,5 +54,3 @@ export type DryCleaningPricingModel = Readonly<{
 export type PricingCatalogLoader = (
   input: PricingParamsRequestSchema,
 ) => Promise<PricingCatalogViewModel>;
-
-export type PricingCatalogItem = PricingItemResult;

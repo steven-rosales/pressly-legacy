@@ -1,0 +1,162 @@
+work_id: error-contract-refactor
+title: End-to-end error contract refactor
+status: done
+
+goal:
+  - Give packages, modules, applications, and workers one predictable error data flow without hiding domain meaning or duplicating runtime effects.
+
+invariants:
+  - Expected domain outcomes use typed Result values; unexpected infrastructure and invariant failures use AppError.
+  - Existing AppError identity, cause, code, kind, and status survive intermediate boundaries.
+  - Private diagnostic details are never serialized unless separately marked public.
+  - API error normalization, observability, correlation, and presentation occur exactly once.
+  - Shared packages own reusable mechanisms; modules retain business-specific policy and codes.
+  - Existing unrelated worktree changes are preserved.
+  - No secret, credential, request payload, or customer data enters evidence or logs.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconfirm error boundaries and activate the work
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - repo:stateworks/work/active
+      - repo:stateworks/work/queued
+      - repo:packages/errors
+      - repo:packages/http
+      - repo:modules/business
+      - repo:apps
+    writes:
+      - repo:stateworks/work/done/error-contract-refactor
+    action:
+      - Record the current taxonomy, bypasses, duplicated decoders, retry policies, and dirty-tree exclusions.
+      - Define the smallest package, module, and runtime boundaries before implementation.
+    verifier:
+      - Evidence separates repository facts, design decisions, and excluded scope.
+    rollback:
+      - Remove only this active work item if implementation is abandoned.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/error-contract-refactor/evidence.md
+
+  - id: T1
+    title: Strengthen shared error and HTTP algebra
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:packages/errors
+      - repo:packages/http
+      - repo:packages/kernel
+    writes:
+      - repo:packages/errors
+      - repo:packages/http
+    action:
+      - Add semantic constructors, explicit public details, safe default presentation, one runtime API-envelope decoder, and exhaustive status normalization.
+      - Keep the implementation as small pure functions and discriminated data rather than classes or managers.
+    verifier:
+      - pnpm --filter @pressly/errors test
+      - pnpm --filter @pressly/http test
+      - pnpm --filter @pressly/errors typecheck
+      - pnpm --filter @pressly/http typecheck
+    rollback:
+      - Revert only shared package and focused test changes.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/error-contract-refactor/evidence.md
+
+  - id: T2
+    title: Normalize module failure semantics
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1]
+    reads:
+      - repo:modules/business
+    writes:
+      - repo:modules/business
+    action:
+      - Preserve existing AppError values, classify database and invariant failures semantically, and keep expected domain rejection in Result.
+      - Repair high-risk routing and access-guard misclassification without changing domain behavior.
+    verifier:
+      - Focused module tests, lint, and typechecks pass.
+    rollback:
+      - Revert only module error mapping and focused tests.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/error-contract-refactor/evidence.md
+
+  - id: T3
+    title: Normalize runtime boundaries
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1]
+    reads:
+      - repo:apps/api
+      - repo:apps/web
+      - repo:apps/control
+      - repo:apps/processor
+      - repo:apps/cli
+      - repo:apps/worker
+    writes:
+      - repo:apps
+    action:
+      - Route API failures through one middleware, consume the shared HTTP decoder in clients, preserve causes and correlation, and make worker retry and lifecycle policy explicit.
+    verifier:
+      - Focused application tests, lint, and typechecks pass.
+    rollback:
+      - Revert only runtime boundary and focused test changes while preserving pre-existing Processor hunks.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/error-contract-refactor/evidence.md
+
+  - id: V1
+    title: Verify repository-wide error contracts
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T2, T3]
+    reads:
+      - repo
+      - repo:stateworks/work/done/error-contract-refactor/evidence.md
+    writes:
+      - repo:stateworks/work/done/error-contract-refactor/evidence.md
+      - repo:stateworks/work/done/error-contract-refactor/final-report.md
+    action:
+      - Run targeted contract tests followed by workspace lint, typecheck, tests, formatting, diff safety, and Stateworks verification.
+      - Record failures and repairs without claiming deployment or production proof.
+    verifier:
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm test
+      - pnpm format:check
+      - git diff --check
+      - pnpm stateworks:verify stateworks/work/done/error-contract-refactor/network.yaml --state stateworks/work/done/error-contract-refactor/state.yaml
+    rollback:
+      - Keep the work active and report exact residual failures if verification cannot be completed safely.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/error-contract-refactor/evidence.md
+      - stateworks/work/done/error-contract-refactor/final-report.md

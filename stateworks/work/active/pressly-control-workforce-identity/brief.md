@@ -34,6 +34,29 @@ surface.
 - Orders owns canonical commercial orders and fulfillment release.
 - Production consumes only canonical source-neutral fulfillment events.
 
+## Architecture Authority
+
+- `modules/experience/control` owns Control-specific cross-domain application
+  orchestration, business/location scoping, capabilities, application
+  destinations, and Control projections.
+- Identity, Users, and Orders remain independent authorities. The API
+  composition root adapts their public capabilities to narrow Control-owned
+  ports; the Control Experience module imports no peer module package.
+- `apps/api/src/http/control` owns HTTP validation and presentation plus
+  cookie/session/CSRF mechanics. It does not own Control business policy.
+- `apps/control` consumes serialized Control contracts and owns presentation
+  state only.
+- Expected peer rejections are classified into typed Control failure data at
+  the API composition edge. Unexpected database, invariant, configuration, or
+  programming failures remain throwable `AppError` values and are never
+  disguised as expected `Result` data.
+- Control language uses semantic roles, not transport convenience: workforce
+  grant, invitation, and membership are entities because their identities
+  continue across lifecycle changes; access manifests, snapshots, details,
+  pages, lists, and mutation outcomes are models; role, scope, state, and actor
+  reference are values. `Record` is reserved for an actual representation
+  record, while date-rich peer application values use `Snapshot`.
+
 ## Security Posture
 
 Security is deliberately strong at authority boundaries and proportionate to a

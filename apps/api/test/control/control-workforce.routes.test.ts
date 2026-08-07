@@ -1,13 +1,14 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { WorkforceApplication } from '@pressly/auth-module';
-import { isAppError, makeAppError } from '@pressly/errors';
+import type { WorkforceApplication } from '@pressly/identity';
+import { isAppError } from '@pressly/errors/app-error';
 import express, {
   type ErrorRequestHandler,
   type RequestHandler,
 } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeControlWorkforceRoutes } from '../../src/http/control/workforce/control-workforce.route.ts';
+import { makeTestControlExperience } from './control-experience.fixture.ts';
 
 const businessId = '00000000-0000-4000-8000-000000000100';
 const identityId = '00000000-0000-4000-8000-000000000001';
@@ -150,11 +151,12 @@ const makeApplication = () =>
 
 const makeApp = (application: WorkforceApplication) => {
   const app = express();
+  const experience = makeTestControlExperience({ workforce: application });
   app.use(express.json());
   app.use(
     '/control',
     makeControlWorkforceRoutes({
-      application,
+      application: experience,
       authenticate: authentication,
       limitIdentity: pass,
       requireRead: pass,
@@ -236,13 +238,11 @@ describe('Control workforce routes', () => {
     const application = makeApplication();
     vi.mocked(application.listWorkforce).mockResolvedValueOnce({
       tag: 'err',
-      error: makeAppError({
-        kind: 'PermissionError',
+      error: {
+        kind: 'permission',
         code: 'workforce_scope_denied',
-        message: 'Internal scope comparison detail.',
-        safeMessage: 'You do not have access to this team.',
-        status: 403,
-      }),
+        message: 'You do not have access to this team.',
+      },
     });
     const baseUrl = await start(makeApp(application));
     const response = await fetch(`${baseUrl}/control/team`);

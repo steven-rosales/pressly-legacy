@@ -1,13 +1,14 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { WorkforceApplication } from '@pressly/auth-module';
-import { isAppError } from '@pressly/errors';
+import type { WorkforceApplication } from '@pressly/identity';
+import { isAppError } from '@pressly/errors/app-error';
 import express, {
   type ErrorRequestHandler,
   type RequestHandler,
 } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeControlSecurityRoutes } from '../../src/http/control/security/control-security.route.ts';
+import { makeTestControlExperience } from './control-experience.fixture.ts';
 
 const businessId = '00000000-0000-4000-8000-000000000100';
 const identityId = '00000000-0000-4000-8000-000000000001';
@@ -81,11 +82,12 @@ describe('Control security routes', () => {
     const application = {
       listSecurityEvents,
     } as unknown as WorkforceApplication;
+    const experience = makeTestControlExperience({ workforce: application });
     const app = express();
     app.use(
       '/control',
       makeControlSecurityRoutes({
-        application,
+        application: experience.security,
         authenticate: authentication,
         limitIdentity: pass,
         requireRead: pass,

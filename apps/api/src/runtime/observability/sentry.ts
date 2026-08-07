@@ -1,16 +1,38 @@
 import * as Sentry from '@sentry/node';
-import { normalizeUnknownError, type AppError } from '@pressly/errors';
-import { redactLogFields } from '@pressly/logging';
-import type {
-  CounterLabels,
-  CounterName,
-  CounterSink,
-  ErrorReportContext,
-  ErrorReporter,
-  MeasurementLabels,
-  MeasurementSink,
-} from '@pressly/metrics';
-import type { Logger, LogFields } from '@pressly/logging';
+import { isSentryDsn } from '@pressly/config';
+import {
+  normalizeUnknownError,
+  type AppError,
+} from '@pressly/errors/app-error';
+import { unexpectedError } from '@pressly/errors/factories';
+import {
+  makeJsonLogger,
+  makeStructuredLogger,
+  redactLogFields,
+  toStructuredLogAttributes,
+  toStructuredLogMessage,
+  type Logger,
+  type LogFields,
+  type StructuredLogRecord,
+} from '@pressly/logging';
+import {
+  attemptObservation,
+  metricCatalog,
+  nullTraceSink,
+  type CounterLabels,
+  type CounterName,
+  type CounterSink,
+  type ErrorReportContext,
+  type ErrorReporter,
+  type MeasurementLabels,
+  type MeasurementName,
+  type MeasurementSink,
+  type MetricAttributeKey,
+  type MetricName,
+  type MetricUnit,
+  type TraceSink,
+} from '@pressly/observability';
+import { systemClock } from '@pressly/time';
 
 type SentryConfig = Readonly<{
   enabled: boolean;
@@ -20,65 +42,194 @@ type SentryConfig = Readonly<{
   traceSampleRate: number;
 }>;
 
-export const initializeSentry = (config: SentryConfig): void => {
-  if (!config.enabled) return;
+type SentryInitializationDependencies = Readonly<{
+  initialize?: typeof Sentry.init;
+  hasInitializedDsn?: () => boolean;
+}>;
 
-  Sentry.init({
-    dsn: config.dsn,
-    environment: config.environment,
-    release: config.release,
-    tracesSampleRate: config.traceSampleRate,
-    enableMetrics: true,
-    sendDefaultPii: false,
-    integrations: [
-      Sentry.httpIntegration({ maxIncomingRequestBodySize: 'none' }),
-      Sentry.requestDataIntegration({
-        include: {
-          cookies: false,
-          data: false,
-          headers: false,
-          ip: false,
-          query_string: false,
-          url: true,
-        },
-      }),
-    ],
+let sentryInitialized = false;
+
+const writeEmergencyLog = (
+  service: 'pressly-api',
+  record: Pick<StructuredLogRecord, 'level' | 'message' | 'attributes'>,
+): void => {
+  if (record.level !== 'error' && record.level !== 'fatal') return;
+
+  console.error(
+    JSON.stringify({
+      ...record.attributes,
+      service,
+      runtime: 'api',
+      level: record.level,
+      message: record.message,
+    }),
+  );
+};
+
+export const reportApiTelemetryFailure = (
+  message: 'api.telemetry.initialization_failed' | 'api.telemetry.flush_failed',
+): void =>
+  writeEmergencyLog('pressly-api', {
+    level:
+      message === 'api.telemetry.initialization_failed' ? 'fatal' : 'error',
+    message,
+    attributes: {
+      phase:
+        message === 'api.telemetry.initialization_failed'
+          ? 'startup'
+          : 'shutdown',
+    },
+  });
+
+const sanitizedLog = <
+  Log extends Readonly<{
+    message: string;
+    attributes?: Record<string, unknown>;
+  }>,
+>(
+  log: Log,
+): Log =>
+  ({
+    ...log,
+    message: toStructuredLogMessage(log.message),
+    attributes: toStructuredLogAttributes(log.attributes ?? {}),
+  }) as Log;
+
+export const initializeSentry = (
+  config: SentryConfig,
+  dependencies: SentryInitializationDependencies = {},
+): boolean => {
+  sentryInitialized = false;
+  if (!config.enabled) return false;
+
+  if (!isSentryDsn(config.dsn)) {
+    reportApiTelemetryFailure('api.telemetry.initialization_failed');
+    return false;
+  }
+
+  const initialize = dependencies.initialize ?? Sentry.init;
+  const hasInitializedDsn =
+    dependencies.hasInitializedDsn ??
+    (() => Sentry.getClient()?.getDsn() !== undefined);
+
+  try {
+    initialize({
+      dsn: config.dsn,
+      environment: config.environment,
+      release: config.release,
+      tracesSampleRate: config.traceSampleRate,
+      enableLogs: true,
+      enableMetrics: true,
+      sendDefaultPii: false,
+      initialScope: { tags: { runtime: 'api' } },
+      beforeSendLog: sanitizedLog,
+      integrations: [
+        Sentry.httpIntegration({ maxIncomingRequestBodySize: 'none' }),
+        Sentry.requestDataIntegration({
+          include: {
+            cookies: false,
+            data: false,
+            headers: false,
+            ip: false,
+            query_string: false,
+            url: true,
+          },
+        }),
+      ],
+    });
+
+    if (!hasInitializedDsn()) {
+      reportApiTelemetryFailure('api.telemetry.initialization_failed');
+      return false;
+    }
+
+    sentryInitialized = true;
+    return true;
+  } catch {
+    reportApiTelemetryFailure('api.telemetry.initialization_failed');
+    return false;
+  }
+};
+
+export const requireApiSentryInitialization = (
+  enabled: boolean,
+  initialized: boolean,
+): void => {
+  if (!enabled || initialized) return;
+
+  throw unexpectedError({
+    code: 'api_sentry_initialization_failed',
+    message: 'The API could not initialize its required Sentry client.',
+    safeMessage: 'API telemetry initialization failed.',
   });
 };
 
-const highVolumeCounters = new Set<CounterName>([
-  'api.http_requests',
-  'api.sse_connections',
-  'api.sse_events',
-]);
+export const makeApiRuntimeLogger = (config: SentryConfig): Logger => {
+  const fields: LogFields = {
+    service: 'pressly-api',
+    environment: config.environment,
+    runtime: 'api',
+    ...(config.release === undefined ? {} : { release: config.release }),
+  };
 
-const metricAttributeKeys = new Set([
-  'method',
-  'route',
-  'status',
-  'operation',
-  'kind',
-  'reason',
-  'source',
-  'outcome',
-  'mode',
-  'type',
-]);
+  if (!config.enabled)
+    return makeJsonLogger({
+      service: 'pressly-api',
+      environment: config.environment,
+      ...(config.release === undefined ? {} : { release: config.release }),
+    }).child({ runtime: 'api' });
+
+  return makeStructuredLogger({
+    fields,
+    write: (record) => {
+      if (!sentryInitialized) {
+        writeEmergencyLog('pressly-api', record);
+        return;
+      }
+      Sentry.logger[record.level](record.message, record.attributes);
+    },
+    onWriteFailure: (_failure, record) =>
+      writeEmergencyLog('pressly-api', record),
+  });
+};
 
 const metricAttributes = (
+  name: MetricName,
   labels: CounterLabels | MeasurementLabels | undefined,
 ): Record<string, string> => {
+  const definition = metricCatalog[name];
+  const allowed = new Set<MetricAttributeKey>(definition.allowedAttributes);
   const attributes: Record<string, string> = { runtime: 'api' };
+
   for (const [key, value] of Object.entries(labels ?? {})) {
-    if (!metricAttributeKeys.has(key)) continue;
-    attributes[key] = /^[a-z0-9_./:-]{1,120}$/i.test(value) ? value : 'other';
+    if (key === 'runtime') continue;
+    if (!allowed.has(key as MetricAttributeKey)) continue;
+
+    const finiteAttributeValues = definition.attributeValues as
+      | Readonly<Partial<Record<MetricAttributeKey, readonly string[]>>>
+      | undefined;
+    const finiteValues = finiteAttributeValues?.[key as MetricAttributeKey];
+    attributes[key] =
+      finiteValues === undefined
+        ? /^[a-z0-9_./:-]{1,120}$/i.test(value)
+          ? value
+          : 'other'
+        : finiteValues.includes(value)
+          ? value
+          : 'other';
   }
+
   return attributes;
 };
 
 type ApiSentryMetrics = Readonly<
   Pick<typeof Sentry.metrics, 'count' | 'gauge' | 'distribution'>
 >;
+
+const sentryMetricUnit = (unit: MetricUnit): 'second' | undefined =>
+  // Sentry represents count semantics with its unitless default. The catalog's
+  // `count` is a domain contract and must not be forwarded as an SDK unit.
+  unit === 'second' ? 'second' : undefined;
 
 export const makeApiSignalSinks = (input: {
   logger: Logger;
@@ -90,9 +241,28 @@ export const makeApiSignalSinks = (input: {
 }): Readonly<{ counters: CounterSink; measurements: MeasurementSink }> => {
   const exportEnabled = input.sentryEnabled && input.metricsEnabled;
   const sentryMetrics = input.sentryMetrics ?? Sentry.metrics;
-  const nowMs = input.nowMs ?? Date.now;
+  const nowMs = input.nowMs ?? (() => systemClock.now().getTime());
   const exportFailureLogIntervalMs = input.exportFailureLogIntervalMs ?? 60_000;
   const lastExportFailureAt = new Map<string, number>();
+
+  const captureMetric = (
+    name: MetricName,
+    value: number,
+    labels: CounterLabels | MeasurementLabels | undefined,
+  ): void => {
+    const definition = metricCatalog[name];
+    const unit = sentryMetricUnit(definition.unit);
+    const options = {
+      attributes: metricAttributes(name, labels),
+      ...(unit === undefined ? {} : { unit }),
+    };
+
+    if (definition.instrument === 'counter')
+      sentryMetrics.count(name, value, options);
+    else if (definition.instrument === 'gauge')
+      sentryMetrics.gauge(name, value, options);
+    else sentryMetrics.distribution(name, value, options);
+  };
 
   const exportMetric = (name: string, capture: () => void): void => {
     if (!exportEnabled) return;
@@ -104,44 +274,53 @@ export const makeApiSignalSinks = (input: {
       if (lastAt !== undefined && now - lastAt < exportFailureLogIntervalMs)
         return;
       lastExportFailureAt.set(name, now);
-      input.logger.warn(
-        'api metric export failed',
-        redactLogFields({ metric: name, error }) as LogFields,
+      attemptObservation(() =>
+        input.logger.warn(
+          'api metric export failed',
+          redactLogFields({ metric: name, error }) as LogFields,
+        ),
       );
     }
   };
 
   return {
     counters: {
-      increment: (name, labels) => {
-        if (!highVolumeCounters.has(name))
-          input.logger.info('api counter incremented', {
-            metric: name,
-            labels,
-            value: 1,
-          });
-        exportMetric(name, () =>
-          sentryMetrics.count(name, 1, {
-            attributes: metricAttributes(labels),
-          }),
-        );
+      increment: (name: CounterName, labels?: CounterLabels) => {
+        exportMetric(name, () => captureMetric(name, 1, labels));
       },
     },
     measurements: {
-      observe: (name, value, labels) => {
-        exportMetric(name, () => {
-          if (name === 'api.sse_active_connections')
-            sentryMetrics.gauge(name, value, {
-              attributes: metricAttributes(labels),
-            });
-          else
-            sentryMetrics.distribution(name, value, {
-              unit: 'second',
-              attributes: metricAttributes(labels),
-            });
-        });
+      observe: (
+        name: MeasurementName,
+        value: number,
+        labels?: MeasurementLabels,
+      ) => {
+        exportMetric(name, () => captureMetric(name, value, labels));
       },
     },
+  };
+};
+
+export const makeApiTraceSink = (enabled: boolean): TraceSink => {
+  if (!enabled || !sentryInitialized) return nullTraceSink;
+
+  return {
+    startActiveSpan: (definition, work) =>
+      Sentry.startSpan(
+        {
+          name: definition.name,
+          op: definition.operation,
+          ...(definition.attributes === undefined
+            ? {}
+            : { attributes: definition.attributes }),
+        },
+        (span) =>
+          work({
+            setAttribute: (name, value) => span.setAttribute(name, value),
+            setStatus: (status) =>
+              span.setStatus({ code: status === 'ok' ? 1 : 2 }),
+          }),
+      ),
   };
 };
 
@@ -200,18 +379,26 @@ const setReportContext = (
 
 export const makeSentryErrorReporter = (): ErrorReporter => ({
   capture: (error, context) => {
-    const appError = normalizeUnknownError(error);
+    attemptObservation(() => {
+      const appError = normalizeUnknownError(error);
 
-    Sentry.withScope((scope) => {
-      setReportContext(scope, context);
-      setAppErrorContext(scope, appError);
-      scope.setLevel(appError.status >= 500 ? 'error' : 'warning');
+      Sentry.withScope((scope) => {
+        setReportContext(scope, context);
+        setAppErrorContext(scope, appError);
+        scope.setLevel(appError.status >= 500 ? 'error' : 'warning');
 
-      Sentry.captureException(appError);
+        Sentry.captureException(appError);
+      });
     });
   },
 
   shutdown: async () => {
-    await flushSentry();
+    const flushed = await flushSentry();
+    if (!flushed)
+      throw unexpectedError({
+        code: 'api_sentry_flush_timed_out',
+        message: 'Sentry did not flush before the API shutdown deadline.',
+        safeMessage: 'API telemetry did not flush before shutdown.',
+      });
   },
 });

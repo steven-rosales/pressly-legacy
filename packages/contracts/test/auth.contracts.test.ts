@@ -4,7 +4,7 @@ import {
   mfaRecoveryCodesResultSchema,
   processorCompleteMfaChallengeRequestSchema,
   processorLoginResultSchema,
-} from '../src/index.ts';
+} from '../src/auth/index.ts';
 
 const principal = {
   identityId: '00000000-0000-4000-8000-000000000001',

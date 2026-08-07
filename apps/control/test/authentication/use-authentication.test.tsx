@@ -1,12 +1,10 @@
 import { StrictMode, type ReactNode } from "react"
 import { act, renderHook, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import {
-  ControlApiError,
-  type ControlAuthenticationApi,
-} from "@/authentication/control-api"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
+import type { ControlAuthenticationApi } from "@/authentication/control-api"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
 import { useAuthentication } from "@/authentication/use-authentication"
+import { controlApiErrorFixture } from "../support/control-api-error.fixture"
 
 const session: ControlAuthenticatedSession = {
   status: "authenticated",
@@ -37,7 +35,9 @@ describe("useAuthentication", () => {
     const api: ControlAuthenticationApi = {
       restore: vi
         .fn()
-        .mockRejectedValue(new ControlApiError(401, "authentication_required")),
+        .mockRejectedValue(
+          controlApiErrorFixture("authentication_required", { status: 401 }),
+        ),
       login: vi.fn().mockResolvedValue(session),
       completeMfa: vi.fn(),
       logout: vi.fn(),

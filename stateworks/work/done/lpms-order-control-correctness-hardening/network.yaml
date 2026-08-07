@@ -1,0 +1,292 @@
+work_id: lpms-order-control-correctness-hardening
+title: LPMS order-control correctness hardening - complete
+status: complete
+
+goal:
+  - Close four post-checkpoint correctness gaps in whole-order routing and History keyset pagination.
+  - Preserve the completed Processor loading-state improvement.
+  - Re-establish local LPMS proof before the production-readiness pilot gate resumes.
+
+invariants:
+  - stage_run remains the sole canonical batch-stage transition authority.
+  - Whole-order routes remain atomic, hard-capacity-bound, proposal-bound, versioned, and run-first locked.
+  - Idempotent retries return the original committed result under concurrency.
+  - History keyset pagination cannot skip or duplicate an authorized row because of cursor precision loss.
+  - Historical evidence is not rewritten; new evidence records the follow-up audit and repair.
+  - No deployment, pilot, or external-system claim is made from repository proof.
+  - No secret, credential, customer payload, or private token enters Stateworks.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconcile the post-checkpoint audit
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - memory:domain:steven-collaboration/context-pack
+      - memory:domain:laundry-production/context-pack
+      - repo:stateworks/work/done/lpms-order-control-history
+      - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening/brief.md
+      - repo:docs/plan/lpms-state-transitions.md
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/floor/advance-stage
+      - repo:modules/business/production/src/features/history
+      - repo:modules/business/production/src/foundations/language/lifecycles
+      - repo:modules/business/production/src/foundations/language/stage-transition
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md
+    action:
+      - Reproduce or prove each of the four audit findings against the post-operational-authority worktree and contracts.
+      - Record exact failing tests or source-level proofs before implementation.
+      - Confirm whether any repair changes business policy or only restores existing invariants.
+      - Preserve the explicit lifecycle graph ownership, source-handoff boundary, remaining-day forecast, and current Processor information architecture.
+    verifier:
+      - Evidence identifies one deterministic pre-repair failure or source proof for every finding.
+      - Any required domain decision is explicit before implementation.
+    rollback:
+      - No rollback is needed for read-only reconciliation.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t0---reconcile-the-current-failures
+
+  - id: T1
+    title: Repair between-stage routing semantics
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:modules/business/production/src/foundations/language/order-routing
+      - repo:modules/business/production/src/foundations/language/stage-transition
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/orders/list-order-control
+      - repo:modules/business/production/src/features/floor/advance-stage
+    writes:
+      - repo:modules/business/production/src/foundations/language/order-routing
+      - repo:modules/business/production/src/foundations/language/stage-transition
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/orders/list-order-control
+      - repo:modules/business/production/test/features/orders/route-order
+    action:
+      - Model the between-stage milestone without creating another execution state machine.
+      - Preserve completed attempts and route only the required unfinished suffix.
+    verifier:
+      - Focused policy tests cover completed-stage-to-next-stage gaps.
+      - Existing whole-order, hard-capacity, and sole-authority tests remain green.
+    rollback:
+      - Revert the focused repair and retain the route rejection rather than weakening stage authority.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t1---repair-between-stage-routing-semantics
+
+  - id: T2
+    title: Fence routing against assigned machine under-capacity
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/floor/advance-stage
+      - repo:modules/business/production/src/foundations/adapters/postgres
+      - repo:packages/contracts/src/production/production-order-control.contracts.ts
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/floor/advance-stage
+      - repo:modules/business/production/test/features/orders/route-order
+      - repo:modules/business/production/test/features/floor/advance-stage
+      - repo:modules/business/production/test/integration/order-control
+      - repo:packages/contracts/src/production/production-order-control.contracts.ts
+    action:
+      - Make the effective capacity of the actual planned machine assignments authoritative at route and start boundaries.
+      - Reject, repair, or invalidate a mutation that would leave an affected stage startable below the routed batch weight.
+      - Preserve hard pulse capacity, deterministic scheduling, and stage-run transition authority.
+    verifier:
+      - A deterministic PostgreSQL proof reproduces the stale-assignment failure before repair.
+      - PostgreSQL integration proves the routed target cannot start with insufficient assigned capacity after repair.
+      - Existing scheduling, routing, and stage-start capacity tests remain green.
+    rollback:
+      - Revert the focused repair and retain route rejection rather than weakening assigned or pulse capacity.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t2---fence-assigned-machine-capacity
+
+  - id: T3
+    title: Fence route idempotency under lock
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+    reads:
+      - repo:packages/contracts/src/production/production-order-control.contracts.ts
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/scheduling/place-order
+      - repo:modules/business/production/src/features/floor/advance-stage
+    writes:
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/test/features/orders/route-order
+      - repo:modules/business/production/test/integration/order-control
+      - repo:packages/contracts/test/production-order-control.contracts.test.ts
+    action:
+      - Recheck replay after the run-first aggregate lock and before mutable-version rejection.
+      - Include the normalized exception note and every mutation-relevant field in canonical command identity.
+      - Return the first committed result for identical concurrent retries.
+    verifier:
+      - A concurrent identical-retry Postgres test returns committed plus replay rather than conflict.
+      - Commands differing only in a mutation-relevant note do not share identity.
+      - Existing stale-version and proposal-drift rejection remains green.
+    rollback:
+      - Revert the idempotency repair without changing route policy or persisted production history.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t3---fence-route-idempotency-under-lock
+
+  - id: T4
+    title: Preserve exact History cursor ordering
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/contracts/src/production/production-history.contracts.ts
+      - repo:modules/business/production/src/features/history
+      - repo:modules/business/production/src/foundations/language/history
+      - repo:modules/business/production/src/foundations/adapters/postgres/history
+      - repo:packages/db/src/query.ts
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:packages/contracts/src/production/production-history.contracts.ts
+      - repo:packages/contracts/test/production-history.contracts.test.ts
+      - repo:modules/business/production/src/features/history
+      - repo:modules/business/production/test/features/history
+      - repo:modules/business/production/src/foundations/language/history
+      - repo:modules/business/production/src/foundations/adapters/postgres/history
+      - repo:modules/business/production/test/foundations/language/history
+      - repo:modules/business/production/test/foundations/adapters/postgres/history
+      - repo:packages/db/src/migrations/0040_flashy_colossus.sql
+      - repo:packages/db/src/migrations/meta/0040_snapshot.json
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    action:
+      - Preserve the exact database ordering key across cursor encode and decode.
+      - Keep cursors filter-bound, opaque, bounded, and backward-incompatible only if required for correctness.
+    verifier:
+      - Postgres fixtures with rows inside one millisecond paginate every row exactly once.
+      - Malformed, cross-filter, and cross-view cursors remain rejected.
+      - Existing newest-first run, activity, and plan pagination remains green.
+    rollback:
+      - Revert the cursor change and keep the affected History surface non-release-ready rather than accepting row loss.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t4---preserve-exact-history-cursor-ordering
+
+  - id: V1
+    title: Run full LPMS and staging observability proof
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+      - T4
+    reads:
+      - repo:modules/business/production/src/foundations/language
+      - repo:modules/business/production
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:apps/processor
+      - repo:apps/api
+      - repo:apps/worker
+      - repo:apps/web
+      - repo:docs/observability.md
+      - repo:tooling/scripts/production-topology-smoke.sh
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening
+    writes:
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md
+    action:
+      - Run focused and repository-wide policy, contract, Production, database, Processor, LPMS integration, and LPMS end-to-end gates.
+      - Reverify the Processor loading-state checkpoint and local Docker path without resetting the development database.
+      - Run the staging observability checks available from this checkout and verify Sentry API, Worker, log, trace, metric, release, and Cron state without recording secrets.
+      - Record exact test counts, environment boundaries, and any nonblocking warnings.
+    verifier:
+      - pnpm --filter @pressly/production exec vitest run test/foundations/language
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production test:integration
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/db test:integration
+      - pnpm --filter @pressly/processor test
+      - pnpm test:lpms:int
+      - pnpm test:lpms:e2e
+      - pnpm typecheck
+      - pnpm lint
+      - pnpm build
+      - pnpm format:check
+      - pnpm architecture:check
+      - pnpm lint:architecture
+      - pnpm docker:production:smoke
+      - pnpm stateworks:validate stateworks/work/done/lpms-order-control-correctness-hardening/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/lpms-order-control-correctness-hardening/network.yaml --state stateworks/work/done/lpms-order-control-correctness-hardening/state.yaml
+    rollback:
+      - Keep the work active and the production-readiness gate stopped until every correctness verifier passes.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#v1---full-lpms-and-staging-observability-proof
+
+  - id: T5
+    title: Close evidence and memory impact
+    type: primitive
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md
+      - memory:domain:laundry-production/context-pack
+    writes:
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening/final-report.md
+      - repo:stateworks/memory/domains/laundry-production/deltas
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+    action:
+      - Record the repaired implementation boundary and exact remaining limitations.
+      - Apply a source-backed laundry-production delta only if the repair changes a durable business belief.
+      - Keep deployment and pilot claims behind their existing human gates.
+    verifier:
+      - Stateworks network and lifecycle state validate.
+      - All changed memory and deltas validate, and context-pack output is deterministic.
+      - The final report distinguishes repository, local runtime, deployment, and pilot evidence.
+    rollback:
+      - Leave any unsupported memory delta proposed and keep the work active.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/lpms-order-control-correctness-hardening/evidence.md#t5---close-evidence-and-memory-impact
+      - stateworks/work/done/lpms-order-control-correctness-hardening/final-report.md

@@ -1,67 +1,70 @@
-import { z, type ZodType } from "zod"
+import { isAppError, isRecord, type AppError } from "@pressly/errors/app-error"
+import {
+  conflictError,
+  externalServiceError,
+  validationError,
+} from "@pressly/errors/factories"
+import {
+  appErrorFromApiFailure,
+  decodeApiResponse,
+  encodeJsonBody,
+  responseTraceId,
+} from "@pressly/http"
+import { type ZodType } from "zod"
 
 const requestTimeoutMilliseconds = 15_000
-const apiEnvelopeSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), data: z.unknown() }).strict(),
-  z
-    .object({
-      ok: z.literal(false),
-      error: z
-        .object({
-          code: z.string().max(120).optional(),
-          message: z.string().max(500).optional(),
-          traceId: z.string().max(200).optional(),
-          // API failures may carry structured diagnostics. Control validates
-          // envelope compatibility but deliberately does not expose or retain
-          // those details in presentation state.
-          details: z.unknown().optional(),
-        })
-        .strict(),
-    })
-    .strict(),
-])
 
-export class ControlApiError extends Error {
-  readonly status: number | null
-  readonly kind: ControlApiErrorKind
-  readonly code: string | null
+export const controlApiErrorKinds = [
+  "session_refresh_required",
+  "request_timeout",
+  "service_unreachable",
+  "unreadable_response",
+  "authentication_required",
+  "permission_denied",
+  "record_not_found",
+  "conflict",
+  "invalid_request",
+  "rate_limited",
+  "service_unavailable",
+  "request_rejected",
+] as const
 
-  constructor(
-    status: number | null,
-    kind: ControlApiErrorKind,
-    code: string | null = null,
-  ) {
-    super(kind)
-    this.name = "ControlApiError"
-    this.status = status
-    this.kind = kind
-    this.code = code
+export type ControlApiErrorKind = (typeof controlApiErrorKinds)[number]
+
+export type ControlApiError = AppError &
+  Readonly<{ controlKind: ControlApiErrorKind }>
+
+export const isControlApiError = (value: unknown): value is ControlApiError =>
+  isAppError(value) &&
+  isRecord(value) &&
+  controlApiErrorKinds.includes(value["controlKind"] as ControlApiErrorKind)
+
+export const makeControlApiError = (
+  error: AppError,
+  controlKind: ControlApiErrorKind = errorKindForAppError(error),
+): ControlApiError => Object.freeze(Object.assign(error, { controlKind }))
+
+const errorKindForAppError = (error: AppError): ControlApiErrorKind => {
+  switch (error.kind) {
+    case "AuthError":
+      return "authentication_required"
+    case "PermissionError":
+      return "permission_denied"
+    case "NotFoundError":
+      return "record_not_found"
+    case "ConflictError":
+      return "conflict"
+    case "ValidationError":
+      return "invalid_request"
+    case "RateLimitError":
+      return "rate_limited"
+    case "ExternalServiceError":
+    case "DatabaseError":
+    case "InvariantViolationError":
+    case "UnexpectedError":
+    case "ConfigError":
+      return "service_unavailable"
   }
-}
-
-export type ControlApiErrorKind =
-  | "session_refresh_required"
-  | "request_timeout"
-  | "service_unreachable"
-  | "unreadable_response"
-  | "authentication_required"
-  | "permission_denied"
-  | "record_not_found"
-  | "conflict"
-  | "invalid_request"
-  | "rate_limited"
-  | "service_unavailable"
-  | "request_rejected"
-
-const errorKindForStatus = (status: number): ControlApiErrorKind => {
-  if (status === 401) return "authentication_required"
-  if (status === 403) return "permission_denied"
-  if (status === 404) return "record_not_found"
-  if (status === 409) return "conflict"
-  if (status === 400 || status === 422) return "invalid_request"
-  if (status === 429) return "rate_limited"
-  if (status >= 500) return "service_unavailable"
-  return "request_rejected"
 }
 
 type FetchImplementation = typeof fetch
@@ -104,8 +107,33 @@ export function makeControlHttpClient(
     schema: ZodType<Result>,
   ): Promise<Result> => {
     if (requestInput.csrf === true && csrfToken === null) {
-      throw new ControlApiError(null, "session_refresh_required")
+      throw makeControlApiError(
+        conflictError({
+          code: "control_session_refresh_required",
+          message: "A mutating Control request has no in-memory CSRF proof.",
+          safeMessage: "Refresh your session before trying again.",
+        }),
+        "session_refresh_required",
+      )
     }
+
+    const encodedBody =
+      requestInput.body === undefined
+        ? undefined
+        : encodeJsonBody(requestInput.body)
+    if (encodedBody?.tag === "rejected")
+      throw makeControlApiError(
+        validationError({
+          code: "control_request_body_not_serializable",
+          message: "The Control request body cannot be encoded as JSON.",
+          safeMessage: "The request contains unsupported data.",
+          details: { reason: encodedBody.reason },
+          ...(encodedBody.cause === undefined
+            ? {}
+            : { cause: encodedBody.cause }),
+        }),
+        "invalid_request",
+      )
 
     let response: Response
     try {
@@ -119,58 +147,106 @@ export function makeControlHttpClient(
           signal: AbortSignal.timeout(requestTimeoutMilliseconds),
           headers: {
             Accept: "application/json",
-            ...(requestInput.body === undefined
+            ...(encodedBody === undefined
               ? {}
               : { "Content-Type": "application/json" }),
             ...(requestInput.csrf === true && csrfToken !== null
               ? { "X-CSRF-Token": csrfToken }
               : {}),
           },
-          ...(requestInput.body === undefined
-            ? {}
-            : { body: JSON.stringify(requestInput.body) }),
+          ...(encodedBody?.tag === "encoded" ? { body: encodedBody.body } : {}),
         },
       )
     } catch (error) {
-      throw new ControlApiError(
-        null,
-        error instanceof Error && error.name === "TimeoutError"
-          ? "request_timeout"
-          : "service_unreachable",
+      const timedOut = isRecord(error) && error["name"] === "TimeoutError"
+
+      throw makeControlApiError(
+        externalServiceError({
+          code: timedOut ? "control_request_timed_out" : "control_unreachable",
+          message: timedOut
+            ? "The Control API request timed out."
+            : "The Control API could not be reached.",
+          safeMessage: timedOut
+            ? "The request timed out."
+            : "Control is temporarily unavailable.",
+          status: timedOut ? 504 : 503,
+          cause: error,
+        }),
+        timedOut ? "request_timeout" : "service_unreachable",
       )
     }
 
     if (!response.headers.get("content-type")?.includes("application/json")) {
-      throw new ControlApiError(response.status, "unreadable_response")
+      throw makeControlApiError(
+        externalServiceError({
+          code: "control_response_not_json",
+          message: "The Control API response was not JSON.",
+          safeMessage: "Control returned an unreadable response.",
+          status: 502,
+          traceId: responseTraceId(response.headers),
+        }),
+        "unreadable_response",
+      )
     }
 
     let decoded: unknown
     try {
       decoded = await response.json()
-    } catch {
-      throw new ControlApiError(response.status, "unreadable_response")
-    }
-
-    const parsedEnvelope = apiEnvelopeSchema.safeParse(decoded)
-    if (!parsedEnvelope.success) {
-      throw new ControlApiError(response.status, "unreadable_response")
-    }
-    const envelope = parsedEnvelope.data
-
-    if (!response.ok || envelope.ok === false) {
-      const code = envelope.ok === false ? (envelope.error.code ?? null) : null
-      throw new ControlApiError(
-        response.status,
-        errorKindForStatus(response.status),
-        code,
+    } catch (error) {
+      throw makeControlApiError(
+        externalServiceError({
+          code: "control_response_invalid_json",
+          message: "The Control API response body was invalid JSON.",
+          safeMessage: "Control returned an unreadable response.",
+          status: 502,
+          cause: error,
+          traceId: responseTraceId(response.headers),
+        }),
+        "unreadable_response",
       )
     }
 
-    const result = schema.safeParse(envelope.data)
-    if (!result.success) {
-      throw new ControlApiError(response.status, "unreadable_response")
+    const parsedEnvelope = decodeApiResponse(decoded, schema)
+    if (!parsedEnvelope.success) {
+      throw makeControlApiError(
+        externalServiceError({
+          code: "control_response_contract_invalid",
+          message: "The Control API response violated its envelope contract.",
+          safeMessage: "Control returned an unreadable response.",
+          status: 502,
+          cause: parsedEnvelope.error,
+          details: parsedEnvelope.error.issues,
+          traceId: responseTraceId(response.headers),
+        }),
+        "unreadable_response",
+      )
     }
-    return result.data
+    const envelope = parsedEnvelope.data
+
+    if (envelope.ok === false) {
+      const appError = appErrorFromApiFailure({
+        failure: envelope,
+        responseStatus: response.status,
+        headers: response.headers,
+      })
+
+      throw makeControlApiError(appError)
+    }
+
+    if (!response.ok)
+      throw makeControlApiError(
+        externalServiceError({
+          code: "control_status_envelope_mismatch",
+          message: `The Control API returned HTTP ${response.status} with a success envelope.`,
+          safeMessage: "Control returned an unreadable response.",
+          status: 502,
+          details: { receivedStatus: response.status },
+          traceId: responseTraceId(response.headers),
+        }),
+        "unreadable_response",
+      )
+
+    return envelope.data
   }
 
   return {

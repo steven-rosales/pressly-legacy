@@ -1,34 +1,35 @@
 import { result, type Result } from '@pressly/kernel';
 import { expect } from 'vitest';
-import type { AppError } from '@pressly/errors';
-import { makeAppError } from '@pressly/errors';
+import { invariantViolationError } from '@pressly/errors/factories';
 
-export const expectOk = <T>(actual: Result<T, AppError>): T => {
+type CodedFailure = Readonly<{ code: string }>;
+
+export const expectOk = <T, E>(actual: Result<T, E>): T => {
   expect(result.isOk(actual)).toBe(true);
 
-  if (result.isErr(actual))
-    throw makeAppError({
-      kind: actual.error.kind,
-      code: actual.error.code,
-      message: actual.error.message,
-      status: actual.error.status,
+  if (result.isErr(actual)) {
+    if (actual.error instanceof Error) throw actual.error;
+
+    throw invariantViolationError({
+      code: 'expected_ok_result',
+      message: 'Expected ok result, received typed failure.',
+      details: { failure: actual.error },
     });
+  }
 
   return actual.value;
 };
 
-export const expectErrCode = <T>(
-  actual: Result<T, AppError>,
+export const expectErrCode = <T, E extends CodedFailure>(
+  actual: Result<T, E>,
   code: string,
-): AppError => {
+): E => {
   expect(result.isErr(actual)).toBe(true);
 
   if (result.isOk(actual))
-    throw makeAppError({
-      kind: 'UnexpectedError',
+    throw invariantViolationError({
       code: 'expected_error_result',
       message: 'Expected error result, received ok result.',
-      status: 400,
     });
 
   expect(actual.error.code).toBe(code);

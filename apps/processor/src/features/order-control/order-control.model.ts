@@ -210,4 +210,4 @@ export type OrderControlCallbacks = Readonly<{
   onChangeActionDetails: () => void
   onCancelAction: () => void
 }>
-import type { ProcessorOperationalOrderIdentity } from "@pressly/contracts"
+import type { ProcessorOperationalOrderIdentity } from "@pressly/contracts/processor"

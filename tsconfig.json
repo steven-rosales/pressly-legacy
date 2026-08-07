@@ -12,7 +12,7 @@
     { "path": "./packages/time" },
     { "path": "./packages/money" },
     { "path": "./packages/logging" },
-    { "path": "./packages/metrics" },
+    { "path": "./packages/observability" },
     { "path": "./packages/db" },
     { "path": "./packages/auth" },
     { "path": "./packages/http" },

@@ -9,8 +9,8 @@ import {
   EmptyTitle,
   Button,
   Spinner,
-  WorkspaceShell,
 } from "@/components/ui"
+import { WorkspaceShell } from "@/components/layout/workspace-shell"
 import { IconRouteOff, IconShieldLock } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { AuthenticationView } from "@/authentication/authentication-view"
@@ -112,6 +112,7 @@ function ControlWorkspace({
       }),
     )
   }, [session.access.capabilities, t])
+
   const canOpen =
     requestedView !== null &&
     mayOpenControlView(requestedView, session.access.capabilities)

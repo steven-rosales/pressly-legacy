@@ -44,14 +44,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
-import type { ControlTeamApi } from "./team-api"
 import type {
-  AccessGrant,
-  WorkforceMemberDetail,
+  ControlAccessGrantProjection as AccessGrant,
+  ControlAuthenticatedSession,
+  ControlWorkforceMemberDetailProjection as WorkforceMemberDetail,
+  ControlWorkforceSession as WorkforceSession,
   WorkforceRole,
-  WorkforceSession,
-} from "./team-model"
+} from "@pressly/contracts/auth"
+import type { ControlTeamApi } from "./team-api"
 
 type MutationRunner = (operation: () => Promise<unknown>) => Promise<void>
 

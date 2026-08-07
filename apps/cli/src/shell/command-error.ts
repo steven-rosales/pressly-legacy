@@ -1,4 +1,5 @@
-import { validationError, type AppError } from '@pressly/errors';
+import { type AppError } from '@pressly/errors/app-error';
+import { validationError } from '@pressly/errors/factories';
 
 export const commandError = (message: string, details?: unknown): AppError =>
   validationError({

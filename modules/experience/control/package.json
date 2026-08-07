@@ -1,0 +1,35 @@
+{
+  "name": "@pressly/control-experience",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm run typecheck:test",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pressly/codec": "workspace:*",
+    "@pressly/db": "workspace:*",
+    "@pressly/kernel": "workspace:*",
+    "@pressly/time": "workspace:*"
+  },
+  "devDependencies": {
+    "@pressly/testkit": "workspace:*",
+    "@pressly/tsconfig": "workspace:*",
+    "typescript": "latest",
+    "vitest": "^4.1.5"
+  }
+}

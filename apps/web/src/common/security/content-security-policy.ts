@@ -1,3 +1,5 @@
+import type { Result } from '@pressly/kernel';
+
 type ContentSecurityPolicyInput = Readonly<{
   apiBaseUrl: string;
   isDevelopment: boolean;
@@ -5,14 +7,50 @@ type ContentSecurityPolicyInput = Readonly<{
   sentryDsn?: string;
 }>;
 
-const sourceOrigin = (name: string, value: string): string => {
-  const url = new URL(value);
+type ContentSecurityPolicyFailure = Readonly<{
+  code: 'invalid_content_security_policy_origin';
+  message: string;
+  details: Readonly<{ name: string; protocol?: string }>;
+  cause?: unknown;
+}>;
 
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error(`${name} must use HTTP or HTTPS.`);
+const invalidOrigin = (
+  name: string,
+  message: string,
+  input: Readonly<{ protocol?: string; cause?: unknown }> = {},
+): Result<string, ContentSecurityPolicyFailure> => ({
+  tag: 'err',
+  error: {
+    code: 'invalid_content_security_policy_origin',
+    message,
+    details: {
+      name,
+      ...(input.protocol === undefined ? {} : { protocol: input.protocol }),
+    },
+    ...(input.cause === undefined ? {} : { cause: input.cause }),
+  },
+});
+
+const sourceOrigin = (
+  name: string,
+  value: string,
+): Result<string, ContentSecurityPolicyFailure> => {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch (cause) {
+    return invalidOrigin(name, `${name} must be a valid absolute URL.`, {
+      cause,
+    });
   }
 
-  return url.origin;
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return invalidOrigin(name, `${name} must use HTTP or HTTPS.`, {
+      protocol: url.protocol,
+    });
+  }
+
+  return { tag: 'ok', value: url.origin };
 };
 
 const posthogAssetOrigin = (posthogOrigin: string): string => {
@@ -30,18 +68,35 @@ export const buildContentSecurityPolicy = ({
   isDevelopment,
   posthogHost,
   sentryDsn,
-}: ContentSecurityPolicyInput): string => {
-  const posthogOrigin = sourceOrigin('NEXT_PUBLIC_POSTHOG_HOST', posthogHost);
+}: ContentSecurityPolicyInput): Result<
+  string,
+  ContentSecurityPolicyFailure
+> => {
+  const posthogOriginResult = sourceOrigin(
+    'NEXT_PUBLIC_POSTHOG_HOST',
+    posthogHost,
+  );
+  if (posthogOriginResult.tag === 'err') return posthogOriginResult;
+
+  const apiOriginResult = sourceOrigin('NEXT_PUBLIC_API_BASE_URL', apiBaseUrl);
+  if (apiOriginResult.tag === 'err') return apiOriginResult;
+
+  const posthogOrigin = posthogOriginResult.value;
   const posthogAssets = posthogAssetOrigin(posthogOrigin);
   const connectSources = new Set([
     "'self'",
-    sourceOrigin('NEXT_PUBLIC_API_BASE_URL', apiBaseUrl),
+    apiOriginResult.value,
     posthogOrigin,
     posthogAssets,
   ]);
 
   if (sentryDsn) {
-    connectSources.add(sourceOrigin('NEXT_PUBLIC_SENTRY_DSN', sentryDsn));
+    const sentryOriginResult = sourceOrigin(
+      'NEXT_PUBLIC_SENTRY_DSN',
+      sentryDsn,
+    );
+    if (sentryOriginResult.tag === 'err') return sentryOriginResult;
+    connectSources.add(sentryOriginResult.value);
   }
 
   if (isDevelopment) {
@@ -69,5 +124,5 @@ export const buildContentSecurityPolicy = ({
 
   if (!isDevelopment) directives.push('upgrade-insecure-requests');
 
-  return directives.join('; ');
+  return { tag: 'ok', value: directives.join('; ') };
 };

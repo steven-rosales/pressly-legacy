@@ -1,4 +1,4 @@
-import { RequestFailure } from "@/ports/request.error"
+import { isRequestFailure } from "@/ports/request.error"
 
 export type AppErrorOperation = "load_locations" | "load_workspace"
 
@@ -39,17 +39,17 @@ export const presentAppError = (
   operation: AppErrorOperation,
   messages: AppErrorMessages
 ): string => {
-  if (!(cause instanceof RequestFailure))
+  if (!isRequestFailure(cause))
     return operation === "load_locations"
       ? messages.loadLocations
       : messages.loadProduction
 
   const specific = codeMessage(cause.code, messages)
   if (specific !== null) return specific
-  if (cause.kind === "unauthorized") return messages.unauthorized
-  if (cause.kind === "forbidden") return messages.forbidden
-  if (cause.kind === "conflict") return messages.conflict
-  if (cause.kind === "unavailable") return messages.unavailable
-  if (cause.kind === "invalid_response") return messages.invalidResponse
+  if (cause.requestKind === "unauthorized") return messages.unauthorized
+  if (cause.requestKind === "forbidden") return messages.forbidden
+  if (cause.requestKind === "conflict") return messages.conflict
+  if (cause.requestKind === "unavailable") return messages.unavailable
+  if (cause.requestKind === "invalid_response") return messages.invalidResponse
   return messages.unexpected
 }

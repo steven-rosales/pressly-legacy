@@ -1,29 +1,23 @@
-import type { Database } from '@pressly/db';
 import { controlCookieNames } from './control-cookie.adapter.ts';
-import { makeControlAccessResolver } from './control-access.query.ts';
 import { makeControlSessionAuthentication } from './control-session.middleware.ts';
 import type {
   ControlAuthApplication,
   ControlBrowserBoundary,
   ControlSessionOptions,
+  ResolveControlAccess,
 } from './control-session.port.ts';
 import { makeControlSessionRoutes } from './control-session.route.ts';
-import { requireControlOrigin } from './control-csrf.policy.ts';
+import { requireControlOrigin } from './control-csrf.adapter.ts';
 
 export const makeControlBrowserBoundary = (input: {
-  db: Database;
   application: ControlAuthApplication;
   options: ControlSessionOptions;
+  resolveAccess: ResolveControlAccess;
 }): ControlBrowserBoundary => {
   const names = controlCookieNames(input.options.secureCookies);
-  const resolveAccess = makeControlAccessResolver({
-    db: input.db,
-    controlOrigin: input.options.origin,
-    processorOrigin: input.options.processorOrigin,
-  });
   const authentication = makeControlSessionAuthentication({
     application: input.application,
-    resolveAccess,
+    resolveAccess: input.resolveAccess,
     names,
     options: input.options,
   });
@@ -32,7 +26,7 @@ export const makeControlBrowserBoundary = (input: {
     routes: makeControlSessionRoutes({
       application: input.application,
       loadCookieSession: authentication.loadCookieSession,
-      resolveAccess,
+      resolveAccess: input.resolveAccess,
       names,
       options: input.options,
     }),
@@ -50,7 +44,7 @@ export const makeControlBrowserBoundary = (input: {
     invitationBootstrap: {
       names,
       options: input.options,
-      resolveAccess,
+      resolveAccess: input.resolveAccess,
     },
   };
 };

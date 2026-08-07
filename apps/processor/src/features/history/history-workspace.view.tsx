@@ -3,25 +3,25 @@ import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import type {
   ProcessorListProductionHistoryActivityResult,
+  ProcessorProductionHistoryActivityEntry,
+  ProcessorProductionHistoryRunDetail,
+} from "@pressly/contracts/processor"
+import type {
   ListProductionHistoryPlansResult,
   ListProductionHistoryRunsResult,
-  ProcessorProductionHistoryActivityEntry,
   ProductionHistoryPlanSummary,
-  ProcessorProductionHistoryRunDetail,
   ProductionHistoryRunSummary,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import { useIsMobile } from "@/components/ui/use-mobile"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import type { ProductionPort } from "@/ports/production.port"
 import { presentHistoryError } from "./history.error.presenter"
-import {
-  HistoryWorkspace,
-  type HistoryCallbacks,
-  type HistoryFilters,
-  type HistoryRunDetail,
-  type HistoryViewModel,
-} from "./history.view"
+import { HistoryWorkspace } from "./history.view"
 import type {
+  HistoryCallbacks,
+  HistoryFilters,
+  HistoryRunDetail,
+  HistoryViewModel,
   HistoryActivityItem,
   HistoryPlanSummary as HistoryPlanViewModel,
   HistoryRestoreReason,

@@ -1,4 +1,3 @@
-import { result } from '@pressly/kernel';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -13,16 +12,10 @@ describe('make password hasher', () => {
 
     const hash = await hasher.hash('CorrectHorse1!Battery');
 
-    expect(result.isOk(hash)).toBe(true);
-    if (result.isErr(hash)) throw hash.error;
+    const verified = await verifier.verify(hash, 'CorrectHorse1!Battery');
 
-    const verified = await verifier.verify(hash.value, 'CorrectHorse1!Battery');
-
-    expect(result.isOk(verified)).toBe(true);
-    if (result.isErr(verified)) throw verified.error;
-
-    expect(hash.value).not.toBe('CorrectHorse1!Battery');
-    expect(verified.value).toBe(true);
+    expect(hash).not.toBe('CorrectHorse1!Battery');
+    expect(verified).toBe(true);
   });
 
   it('returns an app error when hashing fails', async () => {
@@ -32,11 +25,8 @@ describe('make password hasher', () => {
       },
     });
 
-    const hashResult = await hasher.hash('CorrectHorse1!Battery');
-
-    expect(result.isErr(hashResult)).toBe(true);
-    if (result.isOk(hashResult)) throw new Error('Expect hashing to fail.');
-
-    expect(hashResult.error.code).toBe('password_hashing_failed');
+    await expect(hasher.hash('CorrectHorse1!Battery')).rejects.toMatchObject({
+      code: 'password_hashing_failed',
+    });
   });
 });

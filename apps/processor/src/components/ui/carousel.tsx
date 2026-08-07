@@ -1,4 +1,5 @@
 import * as React from "react"
+import { invariantViolationError } from "@pressly/errors/factories"
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from "embla-carousel-react"
@@ -34,7 +35,10 @@ function useCarousel() {
   const context = React.useContext(CarouselContext)
 
   if (!context) {
-    throw new Error("useCarousel must be used within a <Carousel />")
+    throw invariantViolationError({
+      code: "processor_carousel_context_missing",
+      message: "useCarousel must be used within a <Carousel />",
+    })
   }
 
   return context

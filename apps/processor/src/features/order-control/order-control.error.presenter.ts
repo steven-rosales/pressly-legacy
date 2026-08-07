@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next"
-import { RequestFailure } from "@/ports/request.error"
+import { isRequestFailure } from "@/ports/request.error"
 
 export type OrderControlErrorOperation =
   | "load"
@@ -23,7 +23,7 @@ export const presentOrderControlError = (
   operation: OrderControlErrorOperation,
   t: TFunction
 ): string => {
-  if (!(cause instanceof RequestFailure)) return fallbackMessage(operation, t)
+  if (!isRequestFailure(cause)) return fallbackMessage(operation, t)
 
   switch (cause.code.toLowerCase()) {
     case "hard_capacity_exceeded":
@@ -65,17 +65,18 @@ export const presentOrderControlError = (
       return t("orderControl.errors.conflict")
   }
 
-  if (cause.kind === "unauthorized")
+  if (cause.requestKind === "unauthorized")
     return t("orderControl.errors.unauthorized")
-  if (cause.kind === "forbidden") return t("orderControl.errors.forbidden")
-  if (cause.kind === "unavailable")
+  if (cause.requestKind === "forbidden")
+    return t("orderControl.errors.forbidden")
+  if (cause.requestKind === "unavailable")
     return operation === "commit"
       ? t("orderControl.errors.commitUnknown")
       : t("orderControl.errors.unavailable")
-  if (cause.kind === "invalid_response")
+  if (cause.requestKind === "invalid_response")
     return operation === "commit"
       ? t("orderControl.errors.commitUnknown")
       : t("orderControl.errors.invalidResponse")
-  if (cause.kind === "conflict") return t("orderControl.errors.conflict")
+  if (cause.requestKind === "conflict") return t("orderControl.errors.conflict")
   return fallbackMessage(operation, t)
 }

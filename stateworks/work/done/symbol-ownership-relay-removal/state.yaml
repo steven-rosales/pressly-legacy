@@ -1,0 +1,30 @@
+work_id: symbol-ownership-relay-removal
+status: complete
+updated: 2026-08-05T14:43:00-04:00
+
+current_focus:
+  - complete
+  - Internal relays are removed, explicit surfaces are formalized, and repository gates pass.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/symbol-ownership-relay-removal/evidence.md
+      - stateworks/work/done/symbol-ownership-relay-removal/final-report.md

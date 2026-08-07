@@ -1,5 +1,8 @@
 import type { ReactNode } from "react"
-import type { ProductionShift, SchedulerConfig } from "@pressly/contracts"
+import type {
+  ProductionShift,
+  SchedulerConfig,
+} from "@pressly/contracts/production"
 import { useTranslation } from "react-i18next"
 import {
   Card,

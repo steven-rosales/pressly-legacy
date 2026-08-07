@@ -18,6 +18,7 @@ const safeSampleRate = (raw: string | undefined): number => {
 const withoutQueryOrFragment = (value: string): string => {
   try {
     const url = new URL(value, window.location.origin)
+
     return `${url.origin}${url.pathname}`
   } catch {
     return value.split(/[?#]/, 1)[0] ?? value
@@ -28,6 +29,7 @@ const scrubBreadcrumb = (
   breadcrumb: Sentry.Breadcrumb
 ): Sentry.Breadcrumb | null => {
   if (breadcrumb.category === "console") return null
+
   if (breadcrumb.data === undefined) return breadcrumb
 
   if (breadcrumb.category === "navigation") {
@@ -119,14 +121,17 @@ export const observeProcessorRequestFailure = (
   context: RequestFailureContext
 ): void => {
   const route = normalizedRoute(context.path)
+
   Sentry.addBreadcrumb({
     category: "processor.request",
     level: "warning",
     message: `${context.method.toUpperCase()} ${route} failed`,
     data: {
       code: failure.code,
-      kind: failure.kind,
-      ...(failure.status === undefined ? {} : { status: failure.status }),
+      kind: failure.requestKind,
+      ...(failure.responseStatus === undefined
+        ? {}
+        : { status: failure.responseStatus }),
       ...(failure.referenceId === undefined
         ? {}
         : { reference_id: failure.referenceId }),
@@ -134,19 +139,20 @@ export const observeProcessorRequestFailure = (
   })
 
   const actionable =
-    failure.kind === "invalid_response" ||
-    failure.kind === "unexpected" ||
-    (failure.kind === "unavailable" && failure.status !== undefined)
+    failure.requestKind === "invalid_response" ||
+    failure.requestKind === "unexpected" ||
+    (failure.requestKind === "unavailable" &&
+      failure.responseStatus !== undefined)
   if (!actionable) return
 
   Sentry.withScope((scope) => {
-    scope.setLevel(failure.kind === "unavailable" ? "warning" : "error")
-    scope.setTag("failure.kind", failure.kind)
+    scope.setLevel(failure.requestKind === "unavailable" ? "warning" : "error")
+    scope.setTag("failure.requestKind", failure.requestKind)
     scope.setTag("failure.code", failure.code)
     scope.setTag("http.route", route)
     scope.setTag("http.request.method", context.method.toUpperCase())
-    if (failure.status !== undefined)
-      scope.setTag("http.response.status_code", String(failure.status))
+    if (failure.responseStatus !== undefined)
+      scope.setTag("http.response.status_code", String(failure.responseStatus))
     scope.setContext("request_reference", {
       request_id: failure.requestId ?? null,
       trace_id: failure.traceId ?? null,

@@ -1,8 +1,8 @@
 import type {
   CentsOrderTerminalClosePayload,
   CentsSubmittedOrderCandidatePayload,
-} from '@pressly/contracts';
-import { makeAppError } from '@pressly/errors';
+} from '@pressly/contracts/cents';
+import { makeAppError } from '@pressly/errors/app-error';
 import type { OrdersWorkerApplication } from '@pressly/orders';
 import type { ProductionApplication } from '@pressly/production';
 import type { ClaimedWebhookEvent } from '@pressly/webhook-ingestion';
@@ -53,8 +53,8 @@ const event = (
   subjectType: 'order',
   subjectId: 'order-1',
   sourceLocationId: 'store-1',
-  sourceOccurredAt: '2026-07-10T13:00:00.000Z',
-  receivedAt: '2026-07-10T13:00:01.000Z',
+  sourceOccurredAt: new Date('2026-07-10T13:00:00.000Z'),
+  receivedAt: new Date('2026-07-10T13:00:01.000Z'),
   payloadHash: 'a'.repeat(64),
   recoveredLease: false,
   payload: payload(),
@@ -457,7 +457,7 @@ describe('Cents order candidate adapter', () => {
       consumer(
         event({
           payload: terminalPayload('COMPLETED'),
-          sourceOccurredAt: '2026-07-10T13:00:02.000Z',
+          sourceOccurredAt: new Date('2026-07-10T13:00:02.000Z'),
         }),
       ),
     ).resolves.toMatchObject({
@@ -509,71 +509,53 @@ describe('Cents order candidate adapter', () => {
     expect(proposeIncomingOrder).not.toHaveBeenCalled();
   });
 
-  it.each([
-    {
-      status: 503,
-      kind: 'DatabaseError',
-      code: 'INCOMING_ORDER_PROPOSAL_FAILED',
-      retryable: true,
-    },
-    {
-      status: 409,
-      kind: 'ConflictError',
-      code: 'INCOMING_ORDER_PROPOSAL_CONFLICT',
+  it('maps an expected Orders rejection to a permanent worker outcome', async () => {
+    const consumer = makeCentsOrderHandler({
+      resolveSourceLocation: vi.fn(async () => 'location-1'),
+      orders: {
+        proposeIncomingOrder: propose(
+          vi.fn(async () => ({
+            tag: 'err' as const,
+            error: {
+              kind: 'validation' as const,
+              code: 'incoming_order_proposal_invalid' as const,
+              message: 'The incoming Order candidate is incomplete.',
+            },
+          })),
+        ),
+        closeIncomingOrderSource: close(),
+      },
+    });
+
+    await expect(consumer(event())).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'incoming_order_proposal_invalid' },
       retryable: false,
-    },
-  ] as const)(
-    'maps an Orders failure to retryable=$retryable',
-    async ({ status, kind, code, retryable }) => {
-      const failure = makeAppError({
-        kind,
-        code,
-        message: 'Incoming order proposal failed.',
-        safeMessage: 'Incoming order proposal failed.',
-        status,
-      });
-      const consumer = makeCentsOrderHandler({
-        resolveSourceLocation: vi.fn(async () => 'location-1'),
-        orders: {
-          proposeIncomingOrder: propose(
-            vi.fn(async () => ({ tag: 'err' as const, error: failure })),
-          ),
-          closeIncomingOrderSource: close(),
-        },
-      });
+    });
+  });
 
-      await expect(consumer(event())).resolves.toMatchObject({
-        tag: 'err',
-        error: { code },
-        retryable,
-      });
-    },
-  );
-
-  it('maps terminal close failures using the same retry policy', async () => {
+  it('lets unexpected Orders faults reach the worker retry boundary', async () => {
     const failure = makeAppError({
       kind: 'DatabaseError',
-      code: 'INCOMING_ORDER_CLOSE_FAILED',
-      message: 'Incoming order close failed.',
-      safeMessage: 'Incoming order close failed.',
+      code: 'incoming_order_proposal_failed',
+      message: 'Incoming order proposal failed.',
+      safeMessage: 'Incoming order proposal failed.',
       status: 503,
     });
     const consumer = makeCentsOrderHandler({
       resolveSourceLocation: vi.fn(async () => 'location-1'),
       orders: {
-        proposeIncomingOrder: propose(),
-        closeIncomingOrderSource: close(
-          vi.fn(async () => ({ tag: 'err' as const, error: failure })),
+        proposeIncomingOrder: propose(
+          vi.fn(async () => {
+            throw failure;
+          }),
         ),
+        closeIncomingOrderSource: close(),
       },
     });
 
-    await expect(
-      consumer(event({ payload: terminalPayload('COMPLETED') })),
-    ).resolves.toMatchObject({
-      tag: 'err',
-      error: { code: 'INCOMING_ORDER_CLOSE_FAILED' },
-      retryable: true,
+    await expect(consumer(event())).rejects.toMatchObject({
+      code: 'incoming_order_proposal_failed',
     });
   });
 });

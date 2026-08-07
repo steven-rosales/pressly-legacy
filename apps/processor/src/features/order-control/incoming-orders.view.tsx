@@ -8,7 +8,7 @@ import {
 } from "@tabler/icons-react"
 import { useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { SectionHeading } from "@/components/layout/workspace-primitives"
+import { WorkspaceSectionHeading as SectionHeading } from "@/components/layout/workspace-section-heading"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -82,6 +82,7 @@ function IncomingOrderIdentity({
   const detail = [proposal.customer?.phone, proposal.customer?.email]
     .filter((value): value is string => value !== null && value !== undefined)
     .join(" · ")
+
   return (
     <div className="min-w-0">
       <p className="truncate font-medium">

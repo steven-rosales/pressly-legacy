@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { toolingError } from '../../packages/errors/src/tooling-error.mjs';
 
 const shaPattern = /^[0-9a-f]{40}$/;
 const imagePattern = /^(ghcr\.io\/[a-z0-9._/-]+)@sha256:([0-9a-f]{64})$/;
@@ -42,7 +43,10 @@ export const validateReleaseManifest = (value, expectedSourceSha) => {
     !shaPattern.test(value.sourceSha) ||
     !isCanonicalBuiltAt(value.builtAt)
   ) {
-    throw new Error('Release manifest is malformed.');
+    throw toolingError({
+      code: 'malformed_release_manifest',
+      message: 'Release manifest is malformed.',
+    });
   }
 
   const repositories = new Set();
@@ -58,22 +62,29 @@ export const validateReleaseManifest = (value, expectedSourceSha) => {
       (repositoryName !== application &&
         repositoryName !== `pressly-${application}`)
     )
-      throw new Error('Release manifest is malformed.');
+      throw toolingError({
+        code: 'malformed_release_manifest',
+        message: 'Release manifest is malformed.',
+      });
     repositories.add(repository);
     digests.add(digest);
   }
 
   if (repositories.size !== 5 || digests.size !== 5)
-    throw new Error('Release manifest is malformed.');
+    throw toolingError({
+      code: 'malformed_release_manifest',
+      message: 'Release manifest is malformed.',
+    });
 
   if (
     expectedSourceSha !== undefined &&
     (!shaPattern.test(expectedSourceSha) ||
       value.sourceSha !== expectedSourceSha)
   ) {
-    throw new Error(
-      'Release manifest source SHA does not match deployment SHA.',
-    );
+    throw toolingError({
+      code: 'release_manifest_source_mismatch',
+      message: 'Release manifest source SHA does not match deployment SHA.',
+    });
   }
 
   return value;
@@ -127,9 +138,10 @@ const main = async () => {
     return;
   }
 
-  throw new Error(
-    'Usage: release-manifest.mjs create | validate <manifest-path>',
-  );
+  throw toolingError({
+    code: 'invalid_release_manifest_arguments',
+    message: 'Usage: release-manifest.mjs create | validate <manifest-path>',
+  });
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {

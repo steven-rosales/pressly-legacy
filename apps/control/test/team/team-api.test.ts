@@ -91,7 +91,7 @@ describe("Control team API", () => {
         intendedLocationId: "laundry-production",
       }),
     ).rejects.toMatchObject({
-      kind: "unreadable_response",
+      controlKind: "unreadable_response",
     })
   })
 

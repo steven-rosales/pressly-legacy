@@ -1,0 +1,30 @@
+work_id: error-contract-refactor
+status: complete
+updated: 2026-08-01
+
+current_focus:
+  - complete
+  - Shared, module, runtime, client, and worker error contracts are locally verified.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/error-contract-refactor/evidence.md
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/error-contract-refactor/evidence.md
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/error-contract-refactor/evidence.md
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/error-contract-refactor/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/error-contract-refactor/evidence.md
+      - stateworks/work/done/error-contract-refactor/final-report.md

@@ -4,7 +4,7 @@ import {
   WorkspaceShell,
   type WorkspaceApplicationDestination,
 } from "@/components/layout/workspace-shell"
-import type { ProcessorCapability } from "@pressly/contracts"
+import type { ProcessorCapability } from "@pressly/contracts/auth"
 import {
   workspaceHomeNavigation,
   visibleWorkspaceNavigationSections,
@@ -41,6 +41,7 @@ export function AppShell({
   children: ReactNode
 }) {
   const { t } = useTranslation()
+
   const localizedApplications = applications.map((application) => {
     if (application.id === "processor")
       return {
@@ -48,12 +49,14 @@ export function AppShell({
         label: t("applications.processor.label"),
         description: t("applications.processor.description"),
       }
+
     if (application.id === "control")
       return {
         ...application,
         label: t("applications.control.label"),
         description: t("applications.control.description"),
       }
+
     return application
   })
 

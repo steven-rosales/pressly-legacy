@@ -1,10 +1,13 @@
 import type { Logger } from '@pressly/logging';
-import { normalizeUnknownError } from '@pressly/errors';
+import { normalizeUnknownError } from '@pressly/errors/app-error';
+import { attemptObservation } from '@pressly/observability';
 
 type ShutdownHandlersInput = {
   logger: Logger;
   shutdownGracePeriodMs: number;
   close: (signal: string) => Promise<void>;
+  flush: () => Promise<void>;
+  reportFlushFailure: () => void;
   forceClose: () => void;
 };
 
@@ -16,10 +19,14 @@ export const installShutdownHandlers = (input: ShutdownHandlersInput): void => {
 
     shuttingDown = true;
 
-    input.logger.info('api shutdown started', { signal });
+    attemptObservation(() =>
+      input.logger.info('api shutdown started', { signal }),
+    );
 
     const forceTimer = setTimeout(() => {
-      input.logger.error('api shutdown grace period exceeded', { signal });
+      attemptObservation(() =>
+        input.logger.error('api shutdown grace period exceeded', { signal }),
+      );
       input.forceClose();
     }, input.shutdownGracePeriodMs);
 
@@ -29,15 +36,30 @@ export const installShutdownHandlers = (input: ShutdownHandlersInput): void => {
       await input.close(signal);
       clearTimeout(forceTimer);
 
-      input.logger.info('api shutdown completed', { signal });
-      process.exit(0);
+      attemptObservation(() =>
+        input.logger.info('api shutdown completed', { signal }),
+      );
+      try {
+        await input.flush();
+        process.exit(0);
+      } catch {
+        input.reportFlushFailure();
+        process.exit(1);
+      }
     } catch (error) {
       clearTimeout(forceTimer);
 
-      input.logger.error('api shutdown failed', {
-        signal,
-        error: normalizeUnknownError(error),
-      });
+      attemptObservation(() =>
+        input.logger.error('api shutdown failed', {
+          signal,
+          error: normalizeUnknownError(error),
+        }),
+      );
+      try {
+        await input.flush();
+      } catch {
+        input.reportFlushFailure();
+      }
       process.exit(1);
     }
   };
@@ -46,14 +68,18 @@ export const installShutdownHandlers = (input: ShutdownHandlersInput): void => {
   process.on('SIGINT', () => void shutdown('SIGINT'));
 
   process.on('unhandledRejection', (reason) => {
-    input.logger.error('api unhandled rejection', {
-      reason: normalizeUnknownError(reason),
-    });
+    attemptObservation(() =>
+      input.logger.error('api unhandled rejection', {
+        reason: normalizeUnknownError(reason),
+      }),
+    );
     void shutdown('UNHANDLED_REJECTION');
   });
 
   process.on('uncaughtException', (error) => {
-    input.logger.error('api uncaught exception', { error });
+    attemptObservation(() =>
+      input.logger.error('api uncaught exception', { error }),
+    );
     void shutdown('UNCAUGHT_EXCEPTION');
   });
 };

@@ -1,10 +1,10 @@
 import { result, type Result } from '@pressly/kernel';
-import type {
-  LoadPricingCatalogResult,
-  PricingChangePlan,
-  PublishPricingChangeResult,
-} from '@pressly/contracts';
-import { type AppError } from '@pressly/errors';
+import {
+  pricingCatalogSchema,
+  pricingChangePlanSchema,
+  publishPricingChangeResultSchema,
+} from '@pressly/contracts/pricing';
+import { type AppError } from '@pressly/errors/app-error';
 import {
   readApiUrl,
   requestApi,
@@ -17,10 +17,8 @@ import {
 } from '../../../shell/session-store.ts';
 import type { PricingClient } from '../application/ports.ts';
 
-export type PricingCliEnv = ApiClientEnv;
-
 export const makeApiPricingClient = (
-  env: PricingCliEnv,
+  env: ApiClientEnv,
   store: SessionStore = makeSessionStore(),
 ): Result<PricingClient, AppError> => {
   const apiUrl = readApiUrl(env);
@@ -42,12 +40,13 @@ export const makeApiPricingClient = (
 
       if (result.isErr(token)) return token;
 
-      return requestApi<LoadPricingCatalogResult>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: `/pricing/services/${encodeURIComponent(
           command.serviceSlug,
         )}/pricing`,
         method: 'GET',
+        dataSchema: pricingCatalogSchema,
         bearerToken: token.value,
       });
     },
@@ -57,10 +56,11 @@ export const makeApiPricingClient = (
 
       if (result.isErr(token)) return token;
 
-      return requestApi<PricingChangePlan>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: '/pricing/changes/plan',
         method: 'POST',
+        dataSchema: pricingChangePlanSchema,
         bearerToken: token.value,
         body: input,
       });
@@ -71,10 +71,11 @@ export const makeApiPricingClient = (
 
       if (result.isErr(token)) return token;
 
-      return requestApi<PublishPricingChangeResult>({
+      return requestApi({
         apiUrl: apiUrl.value,
         path: '/pricing/changes/publish',
         method: 'POST',
+        dataSchema: publishPricingChangeResultSchema,
         bearerToken: token.value,
         body: input,
       });

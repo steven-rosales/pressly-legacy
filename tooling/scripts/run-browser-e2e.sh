@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export PRESSLY_TOOLING_ERROR_FACTORY_PATH="$ROOT_DIR/packages/errors/src/tooling-error.mjs"
 PRODUCTION_COMPOSE="$ROOT_DIR/infra/aws/lightsail/docker-compose.production.yml"
 SMOKE_FIXTURE_DIR="$ROOT_DIR/tooling/fixtures/production-topology"
 SMOKE_COMPOSE="$SMOKE_FIXTURE_DIR/docker-compose.smoke.yml"
@@ -155,24 +156,27 @@ RENDERED_CONFIG="$RUNTIME_DIR/compose.json"
 compose config --format json >"$RENDERED_CONFIG"
 node --input-type=module - "$RENDERED_CONFIG" "$PROJECT_NAME" <<'NODE'
 import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'browser_e2e_failure', message });
 const [path, project] = process.argv.slice(2);
 const config = JSON.parse(readFileSync(path, 'utf8'));
-if (config.name !== project) throw new Error(`unexpected Compose project: ${config.name}`);
+if (config.name !== project) throw smokeFailure(`unexpected Compose project: ${config.name}`);
 const published = Object.entries(config.services).flatMap(([name, service]) =>
   (service.ports ?? []).map((port) => ({ name, port })),
 );
 if (published.length !== 1 || published[0].name !== 'caddy') {
-  throw new Error(`only Caddy may publish a port: ${JSON.stringify(published)}`);
+  throw smokeFailure(`only Caddy may publish a port: ${JSON.stringify(published)}`);
 }
 if (published[0].port.host_ip !== '127.0.0.1' || published[0].port.target !== 443) {
-  throw new Error('Caddy must bind local HTTPS only on 127.0.0.1.');
+  throw smokeFailure('Caddy must bind local HTTPS only on 127.0.0.1.');
 }
 const dependencies = Object.keys(config.services.caddy.depends_on ?? {}).sort();
 if (JSON.stringify(dependencies) !== JSON.stringify(['api', 'control', 'processor'])) {
-  throw new Error(`unexpected browser ingress dependencies: ${JSON.stringify(dependencies)}`);
+  throw smokeFailure(`unexpected browser ingress dependencies: ${JSON.stringify(dependencies)}`);
 }
 for (const service of ['api', 'processor', 'control']) {
-  if (config.services[service].read_only !== true) throw new Error(`${service} must be read-only.`);
+  if (config.services[service].read_only !== true) throw smokeFailure(`${service} must be read-only.`);
 }
 NODE
 
@@ -192,7 +196,7 @@ printf '%s\n' "$OWNER_PASSWORD" | \
     --env "PRESSLY_BOOTSTRAP_OWNER_EMAIL=$OWNER_EMAIL" \
     --env PRESSLY_BOOTSTRAP_OWNER_CONFIRM=bootstrap-first-owner \
     --workdir /repo migrate \
-    node modules/business/auth/dist/bootstrap-owner/bootstrap-owner.command.js \
+    node apps/cli/dist/commands/bootstrap-owner.command.js \
     --password-stdin >/dev/null
 unset OWNER_PASSWORD
 
@@ -209,7 +213,7 @@ if [[ "${CI:-false}" == true ]]; then
 fi
 
 echo '[browser-e2e] building host-side browser contract dependencies'
-pnpm exec turbo build --filter=@pressly/contracts
+pnpm exec turbo build --filter=@pressly/contracts --concurrency=2
 
 echo "[browser-e2e] running Chromium against disposable local HTTPS; artifacts=$ARTIFACT_DIR"
 cd "$ROOT_DIR"

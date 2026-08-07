@@ -1,7 +1,7 @@
 import {
   fulfillmentDemandChangedEventSchema,
   fulfillmentDemandChangedEventType,
-} from '../src/index.ts';
+} from '../src/orders/index.ts';
 import { describe, expect, it } from 'vitest';
 
 const event = {

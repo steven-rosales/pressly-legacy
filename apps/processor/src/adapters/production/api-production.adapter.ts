@@ -1,4 +1,13 @@
 import {
+  processorListProductionHistoryActivityResultSchema,
+  listProcessorOrderControlResultSchema,
+  processorProductionHistoryRunDetailSchema,
+  processorProductionOrderBacklogPreviewSchema,
+  processorProductionBoardSchema,
+  processorProductionWorkspaceSchema,
+  processorRemainingDayForecastSchema,
+} from "@pressly/contracts/processor"
+import {
   acceptScheduleResultSchema,
   advanceProductionStageResultSchema,
   automaticProductionOrderPlacementResultSchema,
@@ -7,19 +16,12 @@ import {
   changeProductionOrderResolutionResultSchema,
   exactProductionOrderPlacementResultSchema,
   commitProductionOrderRouteResultSchema,
-  processorListProductionHistoryActivityResultSchema,
   listProductionHistoryPlansResultSchema,
   listProductionHistoryRunsResultSchema,
-  listProcessorOrderControlResultSchema,
   productionBatchMembershipMutationResultSchema,
   productionBatchProgressReconciliationResultSchema,
   listProductionLocationsResultSchema,
   listProductionOrdersResultSchema,
-  processorProductionHistoryRunDetailSchema,
-  processorProductionOrderBacklogPreviewSchema,
-  processorProductionBoardSchema,
-  processorProductionWorkspaceSchema,
-  processorRemainingDayForecastSchema,
   productionOrderBacklogCommitResultSchema,
   productionMutationResultSchema,
   productionOrderRouteProposalSchema,
@@ -30,7 +32,7 @@ import {
   schedulerConfigSchema,
   startScheduleResultSchema,
   updateProductionShiftResultSchema,
-} from "@pressly/contracts"
+} from "@pressly/contracts/production"
 import type { ProductionPort } from "@/ports/production.port"
 import type { RequestPort } from "@/ports/request.port"
 

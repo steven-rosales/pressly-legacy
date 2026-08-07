@@ -13,6 +13,7 @@ import {
 
 export function ProcessorErrorBoundary({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
+
   return (
     <Sentry.ErrorBoundary
       showDialog={false}

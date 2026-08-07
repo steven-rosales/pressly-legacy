@@ -1,0 +1,18 @@
+{
+  "extends": "../../../packages/tsconfig/node.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": "../../..",
+    "types": ["node", "vitest"],
+    "paths": {
+      "@pressly/db/schema/*": ["../../../packages/db/src/schema/*.schema.ts"],
+      "@pressly/db/*": ["../../../packages/db/src/*.ts"],
+      "@pressly/errors/*": ["../../../packages/errors/src/*.ts"],
+      "@pressly/time": ["../../../packages/time/src/index.ts"],
+      "@pressly/testkit/database": ["../../../packages/testkit/src/database.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

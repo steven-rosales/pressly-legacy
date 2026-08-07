@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAppError } from '@pressly/errors';
+import { isAppError } from '@pressly/errors/app-error';
 import { z } from 'zod';
 import { parseEnv } from '../src/parse-env.js';
 

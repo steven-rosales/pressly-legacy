@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ControlApiError, type ControlAuthenticationApi } from "./control-api"
-import type { ControlAuthenticatedSession } from "./control-session"
+import { isControlApiError } from "@/api/control-http-client"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
+import type { ControlAuthenticationApi } from "./control-api"
 import { controlErrorMessage } from "@/i18n/control-error-message"
 
 type AuthenticationState =
@@ -44,7 +45,7 @@ export function useAuthentication(api: ControlAuthenticationApi) {
         setState({
           status: "unauthenticated",
           error:
-            error instanceof ControlApiError && error.status === 401
+            isControlApiError(error) && error.status === 401
               ? null
               : controlErrorMessage(
                   error,

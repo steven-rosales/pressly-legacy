@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CounterSink, ErrorReporter } from '@pressly/metrics';
+import type { CounterSink, ErrorReporter } from '@pressly/observability';
 import { makeSecurityEventSink } from '../../src/runtime/security/security-events.ts';
 
 const makeAlerts = () => {

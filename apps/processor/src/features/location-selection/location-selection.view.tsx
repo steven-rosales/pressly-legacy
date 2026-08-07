@@ -1,4 +1,4 @@
-import type { ProductionLocation } from "@pressly/contracts"
+import type { ProductionLocation } from "@pressly/contracts/production"
 import { useTranslation } from "react-i18next"
 import {
   Select,

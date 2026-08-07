@@ -107,7 +107,7 @@ That spelling was corrected through a dedicated migration.
 - policy
 - decision
 
-`modules/business/auth` owns persistence and hydration:
+`modules/security/identity` owns persistence and hydration:
 
 - verify credentials
 - create and revoke sessions
@@ -115,7 +115,7 @@ That spelling was corrected through a dedicated migration.
 - load principal facts from the database
 - map stored assignments into runtime assignments
 
-`modules/policy/access-control` owns application policy:
+`modules/security/authorization` owns framework-free application policy:
 
 - action choice
 - resource construction
@@ -777,7 +777,7 @@ Use this checklist before adding auth data:
 1. Is this durable fact about an identity, credential, session, assignment, or
    audit event?
 2. Is this actually a policy decision that belongs in
-   `modules/policy/access-control`?
+   `modules/security/authorization`?
 3. Does this data contain secret material?
 4. Does it need a revocation path?
 5. Does it need an expiry or active window?

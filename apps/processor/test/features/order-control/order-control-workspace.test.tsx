@@ -1,10 +1,8 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type {
-  ProcessorOrderControlItem,
-  ProductionOrderRouteProposal,
-} from "@pressly/contracts"
+import type { ProcessorOrderControlItem } from "@pressly/contracts/processor"
+import type { ProductionOrderRouteProposal } from "@pressly/contracts/production"
 import { OrderControlWorkspaceContainer } from "@/features/order-control/order-control-workspace.view"
 import {
   makeTestProductionPort,

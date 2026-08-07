@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run --passWithNoTests"
+    "test": "VITEST_MAX_WORKERS=2 vitest run --passWithNoTests"
   },
   "exports": {
     "./base": "./base.json",

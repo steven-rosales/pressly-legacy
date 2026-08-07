@@ -2,8 +2,8 @@ import type { TFunction } from "i18next"
 import type {
   ProductionLiveAutomaticPlacement,
   ProductionLiveExactBatchTarget,
-} from "@pressly/contracts"
-import { RequestFailure } from "@/ports/request.error"
+} from "@pressly/contracts/production"
+import { isRequestFailure } from "@/ports/request.error"
 
 export type LivePlacementProjection =
   | ProductionLiveAutomaticPlacement
@@ -60,8 +60,7 @@ export const presentLiveRunActionError = (
   cause: unknown,
   t: TFunction
 ): string => {
-  if (!(cause instanceof RequestFailure))
-    return t("liveRunChanges.errors.actionFailed")
+  if (!isRequestFailure(cause)) return t("liveRunChanges.errors.actionFailed")
 
   switch (cause.code.toLowerCase()) {
     case "production_run_not_found":
@@ -89,13 +88,15 @@ export const presentLiveRunActionError = (
       return t("liveRunChanges.errors.changed")
   }
 
-  if (cause.kind === "unauthorized")
+  if (cause.requestKind === "unauthorized")
     return t("liveRunChanges.errors.unauthorized")
-  if (cause.kind === "forbidden") return t("liveRunChanges.errors.forbidden")
-  if (cause.kind === "unavailable")
+  if (cause.requestKind === "forbidden")
+    return t("liveRunChanges.errors.forbidden")
+  if (cause.requestKind === "unavailable")
     return t("liveRunChanges.errors.unavailable")
-  if (cause.kind === "invalid_response")
+  if (cause.requestKind === "invalid_response")
     return t("liveRunChanges.errors.invalidResponse")
-  if (cause.kind === "conflict") return t("liveRunChanges.errors.changed")
+  if (cause.requestKind === "conflict")
+    return t("liveRunChanges.errors.changed")
   return t("liveRunChanges.errors.actionFailed")
 }

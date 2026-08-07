@@ -1,4 +1,4 @@
-import { makeAppError } from '@pressly/errors';
+import { validationError } from '@pressly/errors/factories';
 import type { RequestHandler } from 'express';
 
 export const requireJsonContentType =
@@ -12,8 +12,7 @@ export const requireJsonContentType =
     }
 
     next(
-      makeAppError({
-        kind: 'ValidationError',
+      validationError({
         code: 'unsupported_media_type',
         message: `Expected a JSON content type for ${req.method} ${req.path}.`,
         safeMessage: 'This endpoint requires a JSON request body.',

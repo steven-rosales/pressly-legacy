@@ -7,11 +7,14 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { usePathname } from 'next/navigation';
-import { makeAppError } from '@pressly/errors';
-import { nullErrorReporter, nullAnalyticsTracker } from '@pressly/metrics';
+import { invariantViolationError } from '@pressly/errors/factories';
+import {
+  nullErrorReporter,
+  nullAnalyticsTracker,
+} from '@pressly/observability';
 import { nullLogger } from '@pressly/logging';
+import { systemClock } from '@pressly/time';
 import { webEnv } from '@/common/config/env';
-import { systemClock } from '@/common/core/runtime/clock';
 import { createWebCore, type WebCore } from '@/common/core/runtime/core';
 import type {
   ContextProvider,
@@ -42,12 +45,10 @@ const makeBrowserContextProvider = (
 
 const makeUnavailableRequestClient = (): WebCore['request'] => ({
   send: async () => {
-    throw makeAppError({
-      kind: 'InvariantViolationError',
+    throw invariantViolationError({
       code: 'web_core_request_client_unavailable',
       message: 'WebCore request client is unavailable.',
       safeMessage: 'Application runtime is unavailable.',
-      status: 500,
     });
   },
 });
@@ -93,12 +94,10 @@ export const useWebCore = (): WebCore => {
   const core = useContext(WebCoreContext);
 
   if (core === null)
-    throw makeAppError({
-      kind: 'InvariantViolationError',
+    throw invariantViolationError({
       code: 'web_core_provider_missing',
       message: 'useWebCore must be used inside WebCoreProvider.',
       safeMessage: 'Application runtime is unavailable.',
-      status: 500,
     });
 
   return core;

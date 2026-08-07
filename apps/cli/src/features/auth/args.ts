@@ -1,6 +1,9 @@
 import { result, type Result } from '@pressly/kernel';
 import { parseArgs } from 'node:util';
-import { normalizeUnknownError, type AppError } from '@pressly/errors';
+import {
+  normalizeUnknownError,
+  type AppError,
+} from '@pressly/errors/app-error';
 import { commandError } from '../../shell/command-error.ts';
 import type { AuthCliCommand } from './application/command.ts';
 

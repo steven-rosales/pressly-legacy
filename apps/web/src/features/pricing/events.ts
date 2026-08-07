@@ -1,4 +1,4 @@
-import { defineEvent } from '@pressly/metrics';
+import { defineEvent } from '@pressly/observability';
 
 export const pricingEvents = {
   viewed: (input: { source: 'schedule' }) =>

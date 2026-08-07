@@ -1,10 +1,11 @@
-import { ingestWebhookEventCommandSchema } from '@pressly/contracts';
-import type { AppError } from '@pressly/errors';
-import { apiFailure, apiSuccess } from '@pressly/http';
 import {
-  catchAsync,
+  ingestWebhookEventCommandSchema,
+  ingestWebhookEventResultSchema,
+} from '@pressly/contracts/webhook-ingestion';
+import {
+  defineValidatedController,
   requireJsonContentType,
-  validateRequest,
+  sendValidatedApiResult,
 } from '@pressly/http/express';
 import type { WebhookIngestionApplication } from '@pressly/webhook-ingestion';
 import express, { Router } from 'express';
@@ -17,18 +18,11 @@ import {
   readCentsWebhookQuarantineReceiptId,
 } from './cents-webhook-normalization.middleware.ts';
 import type { CentsWebhookPayloadCipher } from './cents-webhook.quarantine.ts';
-
-type ApiResult<T> =
-  | Readonly<{ tag: 'ok'; value: T }>
-  | Readonly<{ tag: 'err'; error: AppError }>;
-
-const send = <T>(response: express.Response, value: ApiResult<T>): void => {
-  if (value.tag === 'err') {
-    response.status(value.error.status).json(apiFailure(value.error));
-    return;
-  }
-  response.status(202).json(apiSuccess(value.value));
-};
+import {
+  toIngestWebhookEventCommand,
+  toIngestWebhookEventResult,
+  toLinkWebhookReceiptError,
+} from './cents-webhook.contract.mapper.ts';
 
 export const makeCentsWebhookRoute = (input: {
   verifier: CentsWebhookVerifier;
@@ -40,6 +34,29 @@ export const makeCentsWebhookRoute = (input: {
   }>;
 }): Router => {
   const router = Router();
+  const controller = defineValidatedController({
+    request: { body: ingestWebhookEventCommandSchema },
+    handle: async ({ body }, { response }) => {
+      const ingested = await input.ingestEvent(
+        toIngestWebhookEventCommand(body),
+      );
+
+      const receiptId = readCentsWebhookQuarantineReceiptId(response.locals);
+      if (input.quarantine !== undefined && receiptId !== null) {
+        const linked = await input.quarantine.linkReceipt({
+          receiptId,
+          eventId: ingested.value.eventId,
+        });
+        if (linked.tag === 'err') throw toLinkWebhookReceiptError(linked.error);
+      }
+
+      sendValidatedApiResult(response, ingested, {
+        schema: ingestWebhookEventResultSchema,
+        present: toIngestWebhookEventResult,
+        successStatus: 202,
+      });
+    },
+  });
   router.post(
     '/',
     (_request, response, next) => {
@@ -50,28 +67,8 @@ export const makeCentsWebhookRoute = (input: {
     express.raw({ type: 'application/json', limit: '256kb' }),
     makeCentsWebhookBoundary(input.verifier),
     makeCentsWebhookNormalizationBoundary(input.quarantine),
-    validateRequest({ body: ingestWebhookEventCommandSchema }),
-    catchAsync(async (request, response) => {
-      const ingested = await input.ingestEvent(request.body);
-      if (ingested.tag === 'err') {
-        send(response, ingested);
-        return;
-      }
-
-      const receiptId = readCentsWebhookQuarantineReceiptId(response.locals);
-      if (input.quarantine !== undefined && receiptId !== null) {
-        const linked = await input.quarantine.linkReceipt({
-          receiptId,
-          eventId: ingested.value.eventId,
-        });
-        if (linked.tag === 'err') {
-          send(response, linked);
-          return;
-        }
-      }
-
-      send(response, ingested);
-    }),
+    controller.validate,
+    controller.handle,
   );
   return router;
 };

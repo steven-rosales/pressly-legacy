@@ -1,5 +1,8 @@
 import type { RequestHandler } from 'express';
-import { makeAppError } from '@pressly/errors';
+import {
+  externalServiceError,
+  validationError,
+} from '@pressly/errors/factories';
 import type { WebhookIngestionApplication } from '@pressly/webhook-ingestion';
 import { readCentsWebhookRawBody } from './cents-webhook.verifier.ts';
 import {
@@ -13,8 +16,7 @@ import {
 } from './cents-webhook.quarantine.ts';
 
 const normalizationError = (input: { code: string; message: string }) =>
-  makeAppError({
-    kind: 'ValidationError',
+  validationError({
     code: input.code,
     message: input.message,
     safeMessage: 'The vendor webhook body is invalid.',
@@ -32,6 +34,7 @@ export const readCentsWebhookQuarantineReceiptId = (
   locals: Record<string, unknown>,
 ): string | null => {
   const receiptId = locals[quarantineReceiptKey];
+
   return typeof receiptId === 'string' ? receiptId : null;
 };
 
@@ -39,16 +42,17 @@ export const makeCentsWebhookNormalizationBoundary =
   (quarantine?: CentsWebhookQuarantineBoundary): RequestHandler =>
   async (request, response, next) => {
     const rawBody = readCentsWebhookRawBody(response.locals);
+
     if (rawBody === null) {
       next(
-        makeAppError({
-          kind: 'ExternalServiceError',
+        externalServiceError({
           code: 'cents_webhook_raw_body_unavailable',
           message: 'Cents webhook raw body was unavailable.',
           safeMessage: 'Vendor webhook receipt is unavailable.',
           status: 503,
         }),
       );
+
       return;
     }
 
@@ -58,21 +62,23 @@ export const makeCentsWebhookNormalizationBoundary =
     });
 
     if (quarantine !== undefined) {
-      const captured = await quarantine.captureReceipt({
-        source: 'cents',
-        rawBodySha256: hashCentsWebhookRawBody(rawBody),
-        adapterVersion: CENTS_WEBHOOK_ADAPTER_VERSION,
-        eventType: normalized.ok ? normalized.value.receipt.eventKind : null,
-        payloadCiphertext: quarantine.payloadCipher.encrypt(rawBody),
-        normalization: normalized.ok
-          ? { outcome: 'accepted' }
-          : { outcome: 'rejected', errorCode: normalized.error.code },
-      });
-      if (captured.tag === 'err') {
-        next(captured.error);
+      try {
+        const captured = await quarantine.captureReceipt({
+          source: 'cents',
+          rawBodySha256: hashCentsWebhookRawBody(rawBody),
+          adapterVersion: CENTS_WEBHOOK_ADAPTER_VERSION,
+          eventType: normalized.ok ? normalized.value.receipt.eventKind : null,
+          payloadCiphertext: quarantine.payloadCipher.encrypt(rawBody),
+          normalization: normalized.ok
+            ? { outcome: 'accepted' }
+            : { outcome: 'rejected', errorCode: normalized.error.code },
+        });
+
+        response.locals[quarantineReceiptKey] = captured.value.receiptId;
+      } catch (error) {
+        next(error);
         return;
       }
-      response.locals[quarantineReceiptKey] = captured.value.receiptId;
     }
 
     if (!normalized.ok) {

@@ -1,7 +1,8 @@
 import { render } from 'ink';
 import { result } from '@pressly/kernel';
-import { normalizeUnknownError, validationError } from '@pressly/errors';
-import type { AppError } from '@pressly/errors';
+import { normalizeUnknownError } from '@pressly/errors/app-error';
+import { validationError } from '@pressly/errors/factories';
+import type { AppError } from '@pressly/errors/app-error';
 import type { CliCommand, CliFeature, CliClient } from './feature.ts';
 import type { CliIO } from './io.ts';
 import { isTty } from './io.ts';
@@ -61,13 +62,10 @@ const runPlainCommand = async (
   command: CliCommand,
   client: CliClient,
   io: CliIO,
-): Promise<number> => {
+): Promise<AppError | undefined> => {
   const commandResult = await feature.run(command, client);
 
-  if (result.isErr(commandResult)) {
-    writeCliError(io, commandResult.error, command.json);
-    return 1;
-  }
+  if (result.isErr(commandResult)) return commandResult.error;
 
   writeCliOutput(
     io,
@@ -77,7 +75,7 @@ const runPlainCommand = async (
     command.json,
   );
 
-  return 0;
+  return undefined;
 };
 
 const runInteractiveCommand = async (
@@ -114,56 +112,78 @@ const runInteractiveCommand = async (
  * Returns the process exit code.
  */
 export const runCli = async (input: RunCliInput): Promise<number> => {
-  const args = normalizeArgv(input.argv);
-
-  if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
-    input.io.stdout.write(`${buildUsage(input.features)}\n`);
-    return 0;
-  }
-
-  const { feature, namespace } = findFeature(input.argv, input.features);
-
-  if (feature === undefined) {
-    writeCliError(input.io, namespaceError(namespace), false);
-    input.io.stderr.write(`\n${buildUsage(input.features)}\n`);
-    return 1;
-  }
-
-  const parsed = feature.parse(input.argv);
-
-  if (result.isErr(parsed)) {
-    writeCliError(input.io, parsed.error, false);
-    input.io.stderr.write(`\n${feature.usage}\n`);
-    return 1;
-  }
-
-  if (parsed.value === 'help') {
-    input.io.stdout.write(`${feature.usage}\n`);
-    return 0;
-  }
-
-  const command = parsed.value;
-  const client = feature.makeClient(input.env);
-
-  if (result.isErr(client)) {
-    writeCliError(input.io, client.error, command.json);
-    return 1;
-  }
-
+  let json = false;
   try {
-    if (command.json || !feature.interactive || !isTty(input.io.stdout))
-      return await runPlainCommand(feature, command, client.value, input.io);
+    const args = normalizeArgv(input.argv);
 
-    return await runInteractiveCommand(
-      feature,
-      command,
-      client.value,
-      input.io,
-    );
+    if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
+      input.io.stdout.write(`${buildUsage(input.features)}\n`);
+      return 0;
+    }
+
+    const { feature, namespace } = findFeature(input.argv, input.features);
+
+    if (feature === undefined) {
+      writeCliError(input.io, namespaceError(namespace), false);
+      input.io.stderr.write(`\n${buildUsage(input.features)}\n`);
+      return 1;
+    }
+
+    const parsed = feature.parse(input.argv);
+
+    if (result.isErr(parsed)) {
+      writeCliError(input.io, parsed.error, false);
+      input.io.stderr.write(`\n${feature.usage}\n`);
+      return 1;
+    }
+
+    if (parsed.value === 'help') {
+      input.io.stdout.write(`${feature.usage}\n`);
+      return 0;
+    }
+
+    const command = parsed.value;
+    json = command.json;
+    const client = feature.makeClient(input.env);
+
+    if (result.isErr(client)) {
+      writeCliError(input.io, client.error, json);
+      return 1;
+    }
+
+    let exitCode = 0;
+    let primaryError: AppError | undefined;
+
+    try {
+      if (json || !feature.interactive || !isTty(input.io.stdout))
+        primaryError = await runPlainCommand(
+          feature,
+          command,
+          client.value,
+          input.io,
+        );
+      else
+        exitCode = await runInteractiveCommand(
+          feature,
+          command,
+          client.value,
+          input.io,
+        );
+    } catch (error) {
+      primaryError = normalizeUnknownError(error);
+    }
+
+    try {
+      await client.value.close();
+    } catch (error) {
+      primaryError ??= normalizeUnknownError(error);
+    }
+
+    if (primaryError !== undefined) throw primaryError;
+
+    return exitCode;
   } catch (error) {
-    writeCliError(input.io, normalizeUnknownError(error), command.json);
+    writeCliError(input.io, normalizeUnknownError(error), json);
     return 1;
-  } finally {
-    await client.value.close();
   }
 };

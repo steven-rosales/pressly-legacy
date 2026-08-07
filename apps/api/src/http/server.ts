@@ -1,10 +1,7 @@
-/**
- * `server.ts` creates the http server.
- */
-
 import http, { type Server } from 'node:http';
 import type express from 'express';
 import type { Logger } from '@pressly/logging';
+import { attemptObservation } from '@pressly/observability';
 
 export type StartedServer = Readonly<{
   server: Server;
@@ -27,7 +24,9 @@ export const startServer = (input: {
     server.keepAliveTimeout = 5_000;
 
     server.on('clientError', (error, socket) => {
-      input.logger.debug('api client socket error', { error });
+      attemptObservation(() =>
+        input.logger.debug('api client socket error', { error }),
+      );
 
       if (socket.writable) {
         socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
@@ -38,13 +37,16 @@ export const startServer = (input: {
 
     server.listen(input.port, input.host, () => {
       server.off('error', reject);
+
       if (input.onServerError !== undefined)
         server.on('error', input.onServerError);
 
-      input.logger.info('api server started', {
-        host: input.host,
-        port: input.port,
-      });
+      attemptObservation(() =>
+        input.logger.info('api server started', {
+          host: input.host,
+          port: input.port,
+        }),
+      );
 
       resolve({
         server,

@@ -10,10 +10,14 @@
     "paths": {
       "@/*": ["./src/*"],
       "@pressly/config": ["../../packages/config/dist/index"],
-      "@pressly/contracts": ["../../packages/contracts/dist/index"],
-      "@pressly/errors": ["../../packages/errors/dist/index"],
+      "@pressly/contracts/utc-iso": [
+        "../../packages/contracts/dist/utc-iso.contracts"
+      ],
+      "@pressly/contracts/*": ["../../packages/contracts/dist/*/index"],
+      "@pressly/errors/*": ["../../packages/errors/dist/*"],
       "@pressly/logging": ["../../packages/logging/dist/index"],
-      "@pressly/metrics": ["../../packages/metrics/dist/index"]
+      "@pressly/observability": ["../../packages/observability/dist/index"],
+      "@pressly/time": ["../../packages/time/dist/index"]
     },
     "resolveJsonModule": true,
     "types": ["node", "vitest/globals", "@testing-library/jest-dom"]

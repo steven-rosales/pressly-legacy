@@ -2,14 +2,14 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import i18next from "i18next"
 import { describe, expect, it, vi } from "vitest"
-import type { ControlAuthenticatedSession } from "@/authentication/control-session"
-import type { ControlCustomerApi } from "@/features/customers/customer-api"
-import type { ControlCustomer } from "@/features/customers/customer-model"
-import type { ControlOrderApi } from "@/features/orders/order-api"
+import type { ControlAuthenticatedSession } from "@pressly/contracts/auth"
 import type {
   ControlOrder,
   ControlOrderDetail,
-} from "@/features/orders/order-model"
+} from "@pressly/contracts/orders"
+import type { ControlCustomer } from "@pressly/contracts/users"
+import type { ControlCustomerApi } from "@/features/customers/customer-api"
+import type { ControlOrderApi } from "@/features/orders/order-api"
 import { OrderWorkspace } from "@/features/orders/order-workspace"
 
 const customer: ControlCustomer = {

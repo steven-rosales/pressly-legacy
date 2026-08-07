@@ -1,6 +1,6 @@
 import { IconCircleCheck, IconPackageImport } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
-import type { ProcessorOrderControlItem } from "@pressly/contracts"
+import type { ProcessorOrderControlItem } from "@pressly/contracts/processor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"

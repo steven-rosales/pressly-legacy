@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { getTableConfig, getTableName, orders, users } from '../src/index.ts';
+import { getTableConfig, getTableName } from '../src/query.ts';
+import * as orders from '../src/schema/orders.schema.ts';
+import * as users from '../src/schema/users.schema.ts';
 
 describe('source-neutral Users and Orders schema', () => {
   it('exports canonical identity, commercial order, and fulfillment tables separately', () => {

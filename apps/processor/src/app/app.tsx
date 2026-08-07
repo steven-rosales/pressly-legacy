@@ -232,7 +232,9 @@ function ProcessorWorkspace({
   const selectLocation = useCallback(
     (locationId: string) => {
       if (locationId === model.selectedLocationId) return
+
       goToRoute(workspaceRouteForView(route.view), true)
+
       model.selectLocation(locationId)
     },
     [goToRoute, model, route.view]
@@ -280,6 +282,7 @@ function ProcessorWorkspace({
           }),
     [model.workspace, route.shiftId, runtime]
   )
+
   const planningDefaults = useMemo(
     () =>
       model.workspace === null || scheduleContext === null
@@ -297,6 +300,7 @@ function ProcessorWorkspace({
 
   useEffect(() => {
     if (model.workspace === null) return
+
     const resolvedRoute =
       route.view === "schedule"
         ? workspaceRouteForView("schedule", {
@@ -317,8 +321,11 @@ function ProcessorWorkspace({
                   : null),
             })
           : workspaceRouteForView(route.view)
+
     if (workspaceRoutePath(resolvedRoute) === workspaceRoutePath(route)) return
+
     const timeout = window.setTimeout(() => goToRoute(resolvedRoute, true), 0)
+
     return () => window.clearTimeout(timeout)
   }, [goToRoute, model.workspace, route, scheduleContext])
 

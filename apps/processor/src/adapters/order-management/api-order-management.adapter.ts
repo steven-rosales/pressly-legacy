@@ -2,7 +2,7 @@ import {
   incomingOrderProposalDecisionResultSchema,
   incomingOrderProposalListSchema,
   restoreIncomingOrderProposalResultSchema,
-} from "@pressly/contracts"
+} from "@pressly/contracts/orders"
 import type { OrderManagementPort } from "@/ports/order-management.port"
 import type { RequestPort } from "@/ports/request.port"
 

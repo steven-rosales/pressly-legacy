@@ -2,9 +2,9 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import i18next from "i18next"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { ProcessorProductionLiveRunChanges } from "@pressly/contracts"
+import type { ProcessorProductionLiveRunChanges } from "@pressly/contracts/processor"
 import { LiveRunChangesWorkspace } from "@/features/scheduling/live-run-changes.view"
-import { RequestFailure } from "@/ports/request.error"
+import { requestFailure } from "@/ports/request.error"
 import {
   makeTestProductionPort,
   testBoard,
@@ -341,8 +341,8 @@ describe("live run changes", () => {
     const user = userEvent.setup()
     const onMutated = vi.fn(async () => undefined)
     const retryAutomaticPlacement = vi.fn(async () => {
-      throw new RequestFailure({
-        kind: "conflict",
+      throw requestFailure({
+        requestKind: "conflict",
         code: "production_queue_version_conflict",
         message: "Queue changed.",
       })
@@ -382,8 +382,8 @@ describe("live run changes", () => {
     const user = userEvent.setup()
     const onMutated = vi.fn(async () => undefined)
     const placeOrderExactly = vi.fn(async () => {
-      throw new RequestFailure({
-        kind: "conflict",
+      throw requestFailure({
+        requestKind: "conflict",
         code: "production_batch_version_conflict",
         message: "Batch changed.",
       })

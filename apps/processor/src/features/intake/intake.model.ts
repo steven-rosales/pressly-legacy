@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import type {
-  ProcessorOrderControlItem,
-  ProductionOrderListItem,
-} from "@pressly/contracts"
+import type { ProcessorOrderControlItem } from "@pressly/contracts/processor"
+import type { ProductionOrderListItem } from "@pressly/contracts/production"
 import type { ProductionPort } from "@/ports/production.port"
 import type { IdempotencyPort } from "@/ports/idempotency.port"
 import { presentIntakeError } from "./intake.error.presenter"

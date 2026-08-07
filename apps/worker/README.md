@@ -61,14 +61,23 @@ the worker exposes no HTTP route or host port.
   remains unchanged.
 - A database outage is retried with bounded loop-level backoff. The heartbeat
   intentionally becomes stale until a complete database pass succeeds again.
-- Counters are emitted to Sentry Metrics for work, retries, dead letters,
-  recovered or lost leases, and loop failures. Backlog age, backlog depth, and
-  processing latency are exported at a bounded interval rather than once per
-  poll. Metric attributes contain only bounded operational labels; event,
-  order, worker, and customer identifiers are never exported.
+- Application logs go directly to Sentry Logs. Docker output is limited to
+  initialization failures, synchronous error/fatal writer fallbacks, final
+  flush failures, and the local Sentry-disabled development logger; it is not
+  a mirror of an asynchronous Sentry outage.
+- Typed counters, gauges, and distributions are emitted to Sentry for work,
+  named-job passes, transactions, retries, dead letters, recovered or lost
+  leases, and loop failures. Inbox and Orders-outbox age/depth use one
+  aggregate query per queue per minute. Metric attributes contain only bounded
+  operational labels; event, order, worker, and customer identifiers are never
+  exported.
+- Every named job gets a `worker.job` span. Busy and failed pass metrics are
+  complete; successful idle pass metrics are sampled at most once per minute.
+  The wrapper observes duration and batch size but never retries, dead-letters,
+  or interprets a business result.
 - A successful complete inbox pass writes the local healthcheck file. At most
   once per minute it also sends an `ok` check-in to the
-  `pressly-worker-heartbeat` Sentry Cron monitor. Database or loop failures stop
+  `pressly-worker-progress` Sentry Cron monitor. Database or loop failures stop
   both heartbeats, allowing the container healthcheck and Sentry to detect the
   same loss of progress.
 
@@ -85,21 +94,24 @@ notification routes. An operator must connect the Cron monitor and metric
 alerts to the production on-call destination and confirm that Metrics and
 Crons are enabled for the Sentry project. Start with these exact rules:
 
-| Signal                                    | Recommended alert                                                                                                                                         |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pressly-worker-heartbeat` Cron           | Alert on one missed check-in. The SDK declares a 1-minute schedule and 1-minute grace margin; recover after one successful check-in.                      |
-| `worker.inbox_oldest_pending_age_seconds` | Warning when `max >= 120` for 5 minutes; critical when `max >= 300` for 5 minutes.                                                                        |
-| `worker.inbox_pending_count`              | Warning when `min >= 1` for 10 minutes.                                                                                                                   |
-| `worker.jobs_retried`                     | Warning when `sum >= 5` over 10 minutes.                                                                                                                  |
-| `worker.dead_letters`                     | Critical when `sum >= 1` over 5 minutes.                                                                                                                  |
-| `worker.lease_losses`                     | Critical when `sum >= 1` over 5 minutes.                                                                                                                  |
-| `worker.loop_failures`                    | Critical when `sum >= 1` over 5 minutes. Keep the existing Sentry issue alert for captured `worker_loop` and `worker_runtime` exceptions enabled as well. |
+| Signal                                     | Recommended alert                                                                                                                                         |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pressly-worker-progress` Cron             | Alert on one missed check-in. The SDK declares a 1-minute schedule and 1-minute grace margin; recover after one successful check-in.                      |
+| `worker.inbox_oldest_pending_age_seconds`  | Warning when `max >= 120` for 5 minutes; critical when `max >= 300` for 5 minutes.                                                                        |
+| `worker.inbox_pending_count`               | Warning when `min >= 1` for 10 minutes.                                                                                                                   |
+| `worker.outbox_oldest_pending_age_seconds` | Warning when `max >= 120` for 5 minutes; critical when `max >= 300` for 5 minutes.                                                                        |
+| `worker.outbox_pending_count`              | Warning when `min >= 1` for 10 minutes.                                                                                                                   |
+| `worker.job_passes{outcome:failed}`        | Critical when `sum >= 1` over 5 minutes.                                                                                                                  |
+| `worker.jobs_retried`                      | Warning when `sum >= 5` over 10 minutes.                                                                                                                  |
+| `worker.dead_letters`                      | Critical when `sum >= 1` over 5 minutes.                                                                                                                  |
+| `worker.lease_losses`                      | Critical when `sum >= 1` over 5 minutes.                                                                                                                  |
+| `worker.loop_failures`                     | Critical when `sum >= 1` over 5 minutes. Keep the existing Sentry issue alert for captured `worker_loop` and `worker_runtime` exceptions enabled as well. |
 
 Validate the production wiring in staging before launch:
 
 1. Run the Worker with staging `SENTRY_DSN`, `SENTRY_ENABLED=true`, and a staging
-   database. Confirm the Cron monitor and both inbox gauges appear within 90
-   seconds.
+   database. Confirm the Cron monitor, both inbox gauges, both Orders-outbox
+   gauges, and named-job spans appear within 90 seconds.
 2. Stop the Worker for more than 2 minutes and confirm the missed-check-in
    notification reaches the on-call destination; restart it and confirm
    recovery.

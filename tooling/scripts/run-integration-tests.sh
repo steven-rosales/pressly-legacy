@@ -3,6 +3,7 @@ set -euo pipefail
 
 target="${1:-all}"
 
+export VITEST_MAX_WORKERS="${VITEST_MAX_WORKERS:-1}"
 export PRESSLY_TEST_ADMIN_DATABASE_URL="${PRESSLY_TEST_ADMIN_DATABASE_URL:-postgres://pressly:pressly@localhost:55434/pressly_test}"
 export PRESSLY_TEST_MIGRATION_DATABASE_URL="${PRESSLY_TEST_MIGRATION_DATABASE_URL:-postgres://pressly_migration:pressly_migration_test@localhost:55434/pressly_test}"
 export PRESSLY_TEST_RUNTIME_DATABASE_URL="${PRESSLY_TEST_RUNTIME_DATABASE_URL:-postgres://pressly_runtime:pressly_runtime_test@localhost:55434/pressly_test}"
@@ -10,13 +11,17 @@ export PRESSLY_TEST_BACKUP_DATABASE_URL="${PRESSLY_TEST_BACKUP_DATABASE_URL:-pos
 export PRESSLY_TEST_DATABASE_URL="${PRESSLY_TEST_DATABASE_URL:-$PRESSLY_TEST_RUNTIME_DATABASE_URL}"
 export PRESSLY_TEST_DATABASE_RESET_URL="${PRESSLY_TEST_DATABASE_RESET_URL:-$PRESSLY_TEST_MIGRATION_DATABASE_URL}"
 
+# These suites invoke Vitest directly, so materialize the compiled workspace
+# exports loaded by the API-composed integration graph first.
+pnpm build:integration-deps
+
 tooling/scripts/configure-test-database-roles.sh
 DATABASE_URL="$PRESSLY_TEST_MIGRATION_DATABASE_URL" pnpm -F @pressly/db migrate
 
 case "$target" in
   all)
     pnpm -F @pressly/db test:integration
-    pnpm -F @pressly/auth-module test:integration
+    pnpm -F @pressly/identity test:integration
     pnpm -F @pressly/users test:integration
     pnpm -F @pressly/orders test:integration
     pnpm -F @pressly/pricing test:integration
@@ -38,10 +43,13 @@ case "$target" in
     pnpm exec vitest run tooling/test/cents-webhook-assets.test.mjs
     ;;
   auth)
-    pnpm -F @pressly/auth-module test:integration
+    pnpm -F @pressly/identity test:integration
     ;;
   pricing)
     pnpm -F @pressly/pricing test:integration
+    ;;
+  production)
+    pnpm -F @pressly/production test:integration
     ;;
   db-security)
     pnpm -F @pressly/db test:integration

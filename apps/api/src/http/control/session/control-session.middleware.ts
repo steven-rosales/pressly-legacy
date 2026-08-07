@@ -1,5 +1,7 @@
-import type { ControlCapability } from '@pressly/contracts';
-import { catchAsync } from '@pressly/http/express';
+import type {
+  ControlAccess,
+  ControlCapability,
+} from '@pressly/control-experience';
 import type { Request, Response, RequestHandler } from 'express';
 import {
   clearControlCookie,
@@ -9,14 +11,14 @@ import {
 import {
   controlRequestNeedsCsrf,
   requireControlCsrf,
-} from './control-csrf.policy.ts';
+} from './control-csrf.adapter.ts';
 import {
   controlForbidden,
+  controlSessionFailureToAppError,
   controlUnauthorized,
 } from './control-session.error.ts';
 import {
   isControlResultError,
-  type ControlAccess,
   type ControlAuthApplication,
   type ControlSessionOptions,
   type LoadedControlSession,
@@ -67,12 +69,13 @@ export const makeControlSessionAuthentication = (input: {
     });
     if (isControlResultError(loaded)) {
       clearControlCookie(response, input.names.session, input.options);
-      throw loaded.error;
+      throw controlSessionFailureToAppError(loaded.error);
     }
 
     const access = await input.resolveAccess(loaded.value);
     if (access === null) {
       clearControlCookie(response, input.names.session, input.options);
+
       throw controlForbidden({
         code: 'control_access_unavailable',
         message:
@@ -87,10 +90,10 @@ export const makeControlSessionAuthentication = (input: {
     return { loaded: loaded.value, access, sessionToken };
   };
 
-  const authenticate = catchAsync(async (request, response, next) => {
+  const authenticate: RequestHandler = async (request, response, next) => {
     await loadCookieSession(request, response);
     next();
-  });
+  };
 
   const readAccess = (response: Response): ControlAccess => {
     const access = response.locals['controlAccess'] as
@@ -112,6 +115,7 @@ export const makeControlSessionAuthentication = (input: {
           next();
           return;
         }
+
         throw controlForbidden({
           code: 'control_capability_denied',
           message: `Control capability ${capability} was denied.`,

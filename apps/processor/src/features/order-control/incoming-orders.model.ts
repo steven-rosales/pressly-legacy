@@ -8,7 +8,7 @@ import type {
   OrderManagementPort,
   RejectIncomingOrderProposalRequest,
 } from "@/ports/order-management.port"
-import { RequestFailure } from "@/ports/request.error"
+import { isRequestFailure, type RequestFailure } from "@/ports/request.error"
 
 export type IncomingOrderAction = "accept" | "reject" | "restore"
 
@@ -42,19 +42,19 @@ const messageForFailure = (
   operation: "load" | IncomingOrderAction,
   t: TFunction
 ): string => {
-  if (!(cause instanceof RequestFailure))
+  if (!isRequestFailure(cause))
     return t(
       operation === "load"
         ? "orderControl.manageOrders.errors.load"
         : "orderControl.manageOrders.errors.mutation"
     )
-  if (cause.kind === "forbidden")
+  if (cause.requestKind === "forbidden")
     return t("orderControl.manageOrders.errors.forbidden")
-  if (cause.kind === "unauthorized")
+  if (cause.requestKind === "unauthorized")
     return t("orderControl.manageOrders.errors.unauthorized")
-  if (cause.kind === "unavailable")
+  if (cause.requestKind === "unavailable")
     return t("orderControl.manageOrders.errors.unavailable")
-  if (cause.kind === "invalid_response")
+  if (cause.requestKind === "invalid_response")
     return t("orderControl.manageOrders.errors.invalidResponse")
   return t(
     operation === "load"
@@ -322,7 +322,7 @@ export function useIncomingOrdersModel(input: IncomingOrdersModelInput) {
       await Promise.allSettled([load(), onMutated()])
     } catch (cause) {
       setBusy(null)
-      if (cause instanceof RequestFailure && cause.kind === "conflict") {
+      if (isRequestFailure(cause) && cause.requestKind === "conflict") {
         setDecision(null)
         setRejectReason("")
         setRejectReasonError(null)

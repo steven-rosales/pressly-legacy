@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next"
-import { RequestFailure } from "@/ports/request.error"
+import { isRequestFailure } from "@/ports/request.error"
 
 export type AuthenticationErrorOperation =
   | "login"
@@ -23,7 +23,7 @@ export const presentAuthenticationError = (
   operation: AuthenticationErrorOperation,
   t: TFunction
 ): string => {
-  if (!(cause instanceof RequestFailure)) return fallbackMessage(operation, t)
+  if (!isRequestFailure(cause)) return fallbackMessage(operation, t)
 
   switch (cause.code.toLowerCase()) {
     case "invalid_credentials":
@@ -39,10 +39,11 @@ export const presentAuthenticationError = (
       return t("authentication.errors.expiredMfaChallenge")
   }
 
-  if (cause.kind === "forbidden") return t("authentication.errors.forbidden")
-  if (cause.kind === "unavailable")
+  if (cause.requestKind === "forbidden")
+    return t("authentication.errors.forbidden")
+  if (cause.requestKind === "unavailable")
     return t("authentication.errors.unavailable")
-  if (cause.kind === "invalid_response")
+  if (cause.requestKind === "invalid_response")
     return t("authentication.errors.invalidResponse")
   return fallbackMessage(operation, t)
 }

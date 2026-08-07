@@ -1,13 +1,15 @@
 import type { ControlHttpClient } from "@/api/control-http-client"
 import {
   controlOrderDetailSchema,
-  controlOrderPageSchema,
+  controlOrderListSchema as controlOrderPageSchema,
   orderMutationResultSchema,
   type ControlOrderDetail,
-  type ControlOrderPage,
+  type ControlOrderList as ControlOrderPage,
   type OrderMutationResult,
-  type OrderState,
-} from "./order-model"
+  type ControlOrder,
+} from "@pressly/contracts/orders"
+
+type OrderState = ControlOrder["state"]
 
 export type OrderListInput = Readonly<{
   query: string
@@ -53,6 +55,7 @@ const queryString = (input: OrderListInput) => {
   if (input.state !== null) parameters.set("state", input.state)
   if (input.locationId !== null) parameters.set("locationId", input.locationId)
   if (input.cursor !== null) parameters.set("cursor", input.cursor)
+
   parameters.set("limit", String(input.limit ?? 25))
   return parameters.toString()
 }

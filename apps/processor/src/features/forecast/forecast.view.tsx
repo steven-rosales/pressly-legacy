@@ -8,11 +8,9 @@ import {
 import { enUS, es } from "date-fns/locale"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import type { ProductionRemainingDayForecast } from "@pressly/contracts"
-import {
-  MetricStrip,
-  SectionHeading,
-} from "@/components/layout/workspace-primitives"
+import type { ProductionRemainingDayForecast } from "@pressly/contracts/production"
+import { MetricStrip } from "@/components/layout/workspace-primitives"
+import { WorkspaceSectionHeading as SectionHeading } from "@/components/layout/workspace-section-heading"
 import { OperationalOrderIdentity } from "@/components/orders/operational-order-identity"
 import {
   Accordion,
