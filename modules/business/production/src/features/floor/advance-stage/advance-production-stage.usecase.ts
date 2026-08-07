@@ -46,6 +46,7 @@ type AdvanceProductionStagePolicy = Pick<
   ProductionRules,
   | 'evaluateProductionOrderOperationalAccess'
   | 'evaluateStageTransition'
+  | 'evaluateMachineAssignment'
   | 'evaluateProductionBatchTransition'
   | 'evaluateProductionOrderStageAttemptTransition'
   | 'resolveProductionOrderExecutionState'
@@ -217,6 +218,9 @@ export const makeAdvanceProductionStage = (deps: {
         const assigned = context.machines.filter((machine) =>
           context.stage.machineIds.includes(machine.id),
         );
+        const machinesRequired = ['washing', 'drying'].includes(
+          context.stage.stage,
+        );
         const decision = deps.policy.evaluateStageTransition(
           {
             state: context.stage.status,
@@ -233,9 +237,7 @@ export const makeAdvanceProductionStage = (deps: {
             productionRunStarted: context.productionRunStarted,
             previousStageCompleted: context.previousStageCompleted,
             sameKindAlreadyActive: context.sameKindAlreadyActive,
-            machinesRequired: ['washing', 'drying'].includes(
-              context.stage.stage,
-            ),
+            machinesRequired,
             assignedMachineIds: assigned.map((machine) => machine.id),
             overlappingMachineIds: assigned
               .filter((machine) => machine.overlaps)
@@ -250,7 +252,21 @@ export const makeAdvanceProductionStage = (deps: {
               safeMessage: decision.error.message,
             }),
           );
-
+        if (command.transition === 'start' && machinesRequired) {
+          const assignment = deps.policy.evaluateMachineAssignment({
+            stageKind: context.stage.stage,
+            batchWeightLbs: context.batchWeightLbs,
+            machines: assigned,
+          });
+          if (assignment.tag === 'err')
+            return result.err(
+              conflictFailure({
+                code: assignment.error.code.toLowerCase(),
+                message: assignment.error.message,
+                safeMessage: assignment.error.message,
+              }),
+            );
+        }
         let stageLifecycle: Readonly<{
           from: 'planned' | 'started';
           state: 'started' | 'completed';

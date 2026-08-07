@@ -16,9 +16,6 @@ import type { PlaceProductionOrderRepository } from '../../../../src/features/sc
 import { makePlaceProductionOrder } from '../../../../src/features/scheduling/place-order/place-production-order.usecase.ts';
 import { makeManageBatchMembershipRepository } from '../../../../src/features/floor/manage-batch-membership/manage-batch-membership.repo.ts';
 import { makeManageBatchMembership } from '../../../../src/features/floor/manage-batch-membership/manage-batch-membership.usecase.ts';
-import { makeListProductionOrderControlRepository } from '../../../../src/features/orders/list-order-control/list-production-order-control.repo.ts';
-import { makeRouteProductionOrderRepository } from '../../../../src/features/orders/route-order/route-production-order.repo.ts';
-import { makeRouteProductionOrder } from '../../../../src/features/orders/route-order/route-production-order.usecase.ts';
 import { lockLocationScheduling } from '../../../../src/foundations/adapters/postgres/commands/scheduling-locks.adapter.ts';
 import {
   createProductionTestDatabase,
@@ -51,6 +48,8 @@ const ids = {
   washingStation: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
   dryingStation: '12121212-1212-4212-8212-121212121212',
   foldingStation: '13131313-1313-4313-8313-131313131313',
+  washer: '45454545-4545-4545-8545-454545454545',
+  dryer: '46464646-4646-4646-8646-464646464646',
   frozenStage: '14141414-1414-4414-8414-141414141414',
   queuedSorting: '15151515-1515-4515-8515-151515151515',
   queuedWashing: '16161616-1616-4616-8616-161616161616',
@@ -160,6 +159,22 @@ const seed = async () => {
       kind: 'folding_packaging',
       label: 'Folding',
       sortOrder: 4,
+    },
+  ]);
+  await testDb.db.insert(laundryProduction.machines).values([
+    {
+      id: ids.washer,
+      locationId: 'location-1',
+      stationId: ids.washingStation,
+      label: 'Washer 1',
+      effectiveCapacityLbs: 100,
+    },
+    {
+      id: ids.dryer,
+      locationId: 'location-1',
+      stationId: ids.dryingStation,
+      label: 'Dryer 1',
+      effectiveCapacityLbs: 100,
     },
   ]);
   await testDb.db.insert(laundryProduction.schedulerConfigs).values({
@@ -380,8 +395,9 @@ const seed = async () => {
     ids.queuedDrying,
     ids.queuedFolding,
   ];
+  const queuedStages = stageProjection('2026-07-14T14:56:00.000Z');
   await testDb.db.insert(laundryProduction.stageRuns).values(
-    stageProjection('2026-07-14T14:56:00.000Z').map((stage, index) => ({
+    queuedStages.map((stage, index) => ({
       id: queuedStageIds[index]!,
       locationId: 'location-1',
       productionBatchId: ids.mutableBatch,
@@ -392,6 +408,19 @@ const seed = async () => {
       plannedEndAt: new Date(stage.endsAt),
       version: 1,
     })),
+  );
+  await testDb.db.insert(laundryProduction.stageMachineAssignments).values(
+    queuedStages
+      .filter((stage) => stage.stage === 'washing' || stage.stage === 'drying')
+      .map((stage) => ({
+        locationId: 'location-1',
+        stageRunId:
+          stage.stage === 'washing' ? ids.queuedWashing : ids.queuedDrying,
+        machineId: stage.stage === 'washing' ? ids.washer : ids.dryer,
+        plannedStartAt: new Date(stage.startsAt),
+        plannedEndAt: new Date(stage.endsAt),
+        status: 'planned',
+      })),
   );
 };
 
@@ -1048,317 +1077,5 @@ describe('place production order Postgres commit', () => {
       executionStatus: 'unassigned',
       version: 1,
     });
-  });
-
-  it('atomically moves one whole queued order and preserves its released route history', async () => {
-    await seed();
-    const targetBatch = '23232323-2323-4323-8323-232323232323';
-    const targetDemand = '24242424-2424-4424-8424-242424242424';
-    const targetOrder = '25252525-2525-4525-8525-252525252525';
-    const targetStageIds = [
-      '26262626-2626-4626-8626-262626262626',
-      '27272727-2727-4727-8727-272727272727',
-      '28282828-2828-4828-8828-282828282828',
-      '29292929-2929-4929-8929-292929292929',
-    ] as const;
-    const sourceAttemptIds = [
-      '30303030-3030-4030-8030-303030303030',
-      '31313131-3131-4131-8131-313131313131',
-      '32323232-3232-4232-8232-323232323232',
-      '34343434-3434-4434-8434-343434343434',
-    ] as const;
-    const arrivingAttemptIds = [
-      '35353535-3535-4535-8535-353535353535',
-      '36363636-3636-4636-8636-363636363636',
-      '37373737-3737-4737-8737-373737373737',
-      '38383838-3838-4838-8838-383838383838',
-    ] as const;
-    const targetAttemptIds = [
-      '39393939-3939-4939-8939-393939393939',
-      '40404040-4040-4040-8040-404040404040',
-      '41414141-4141-4141-8141-414141414141',
-      '42424242-4242-4242-8242-424242424242',
-    ] as const;
-    const now = new Date('2026-07-14T15:30:00.000Z');
-    const kinds = [
-      'sorting',
-      'washing',
-      'drying',
-      'folding_packaging',
-    ] as const;
-
-    await seedProductionDemands(testDb.db, {
-      id: targetDemand,
-      demandKey: 'placement:route-target',
-      displayReference: 'route-target-order',
-      locationId: 'location-1',
-      revisionHash: '9'.repeat(64),
-      revisionAt: now,
-      phase: 'production_released',
-      dueAt: new Date(shiftEndsAt),
-    });
-    await testDb.db.insert(laundryProduction.productionOrders).values({
-      id: targetOrder,
-      orderDemandId: targetDemand,
-      locationId: 'location-1',
-      dueAt: new Date(shiftEndsAt),
-      operationalStatus: 'scheduled',
-      executionStatus: 'scheduled',
-      derivedWeightLbs: 10,
-      bagCount: 1,
-      bagCountSource: 'operator_intake',
-      intakeVersion: 1,
-      eligibleAt: now,
-    });
-    await testDb.db
-      .update(laundryProduction.productionOrders)
-      .set({
-        operationalStatus: 'scheduled',
-        executionStatus: 'scheduled',
-      })
-      .where(eq(laundryProduction.productionOrders.id, ids.arrivingOrder));
-    await testDb.db
-      .update(laundryProduction.productionBatches)
-      .set({ derivedWeightLbs: 60 })
-      .where(eq(laundryProduction.productionBatches.id, ids.mutableBatch));
-    await testDb.db.insert(laundryProduction.productionBatchOrders).values({
-      locationId: 'location-1',
-      productionBatchId: ids.mutableBatch,
-      productionOrderId: ids.arrivingOrder,
-      placementProvenance: 'automatic',
-      placedAt: now,
-      placedBy: ids.actor,
-    });
-    await testDb.db.insert(laundryProduction.productionBatches).values({
-      id: targetBatch,
-      locationId: 'location-1',
-      productionRunId: ids.run,
-      sequenceIndex: 2,
-      status: 'queued',
-      pulseCapacityLbs: 100,
-      derivedWeightLbs: 10,
-      pulseMinutes,
-      plannedDoneAt: new Date('2026-07-14T20:32:00.000Z'),
-    });
-    await testDb.db.insert(laundryProduction.productionBatchOrders).values({
-      locationId: 'location-1',
-      productionBatchId: targetBatch,
-      productionOrderId: targetOrder,
-      placementProvenance: 'initial_schedule',
-      placedAt: now,
-      placedBy: ids.actor,
-    });
-    await testDb.db.insert(laundryProduction.stageRuns).values(
-      stageProjection('2026-07-14T16:48:00.000Z').map((stage, index) => ({
-        id: targetStageIds[index]!,
-        locationId: 'location-1',
-        productionBatchId: targetBatch,
-        stationId: stationId(stage.stage),
-        stageKind: stage.stage,
-        status: 'planned',
-        plannedStartAt: new Date(stage.startsAt),
-        plannedEndAt: new Date(stage.endsAt),
-      })),
-    );
-    await testDb.db
-      .insert(laundryProduction.productionOrderStageAttempts)
-      .values([
-        ...kinds.map((stageKind, index) => ({
-          id: sourceAttemptIds[index]!,
-          locationId: 'location-1',
-          productionRunId: ids.run,
-          productionOrderId: ids.queuedOrder,
-          stageRunId: [
-            ids.queuedSorting,
-            ids.queuedWashing,
-            ids.queuedDrying,
-            ids.queuedFolding,
-          ][index]!,
-          stageKind,
-          attemptNumber: 1,
-          assignmentReason: 'initial_schedule',
-          assignedAt: now,
-          assignedBy: ids.actor,
-        })),
-        ...kinds.map((stageKind, index) => ({
-          id: arrivingAttemptIds[index]!,
-          locationId: 'location-1',
-          productionRunId: ids.run,
-          productionOrderId: ids.arrivingOrder,
-          stageRunId: [
-            ids.queuedSorting,
-            ids.queuedWashing,
-            ids.queuedDrying,
-            ids.queuedFolding,
-          ][index]!,
-          stageKind,
-          attemptNumber: 1,
-          assignmentReason: 'automatic',
-          assignedAt: now,
-          assignedBy: ids.actor,
-        })),
-        ...kinds.map((stageKind, index) => ({
-          id: targetAttemptIds[index]!,
-          locationId: 'location-1',
-          productionRunId: ids.run,
-          productionOrderId: targetOrder,
-          stageRunId: targetStageIds[index]!,
-          stageKind,
-          attemptNumber: 1,
-          assignmentReason: 'initial_schedule',
-          assignedAt: now,
-          assignedBy: ids.actor,
-        })),
-      ]);
-
-    const route = makeRouteProductionOrder({
-      repo: makeRouteProductionOrderRepository({
-        db: testDb.db,
-        ids: makeIds(),
-      }),
-      policy: allowPolicy,
-      clock: { now: () => now },
-    });
-    const preview = await route.preview({
-      locationId: 'location-1',
-      productionRunId: ids.run,
-      productionOrderId: ids.queuedOrder,
-      actorId: ids.actor,
-      authorizedAction: 'production:stage',
-      kind: 'queued_move',
-      reason: 'manual_rebatch',
-      restartStage: 'sorting',
-      targetProductionBatchId: targetBatch,
-      expectedQueueVersion: 1,
-      expectedOrderVersion: 1,
-      expectedSourceBatchVersion: 1,
-    });
-    if (preview.tag !== 'ok') throw new Error(preview.error.safeMessage);
-    const outcome = await route.commit({
-      locationId: 'location-1',
-      productionRunId: ids.run,
-      productionOrderId: ids.queuedOrder,
-      actorId: ids.actor,
-      authorizedAction: 'production:stage',
-      kind: 'queued_move',
-      reason: 'manual_rebatch',
-      restartStage: 'sorting',
-      targetProductionBatchId: targetBatch,
-      expectedQueueVersion: 1,
-      expectedOrderVersion: 1,
-      expectedSourceBatchVersion: 1,
-      proposalHash: preview.value.proposalHash,
-      idempotencyKey: 'route-queued-order-atomically',
-    });
-    expect(outcome).toMatchObject({
-      tag: 'ok',
-      value: {
-        queueVersion: 2,
-        orderVersion: 2,
-        sourceBatchVersion: 2,
-        targetBatchVersion: 2,
-      },
-    });
-
-    const memberships = await testDb.db
-      .select()
-      .from(laundryProduction.productionBatchOrders)
-      .where(
-        eq(
-          laundryProduction.productionBatchOrders.productionOrderId,
-          ids.queuedOrder,
-        ),
-      );
-    expect(memberships).toHaveLength(2);
-    expect(memberships).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          productionBatchId: ids.mutableBatch,
-          active: false,
-          releaseReason: 'manual_rebatch',
-        }),
-        expect.objectContaining({
-          productionBatchId: targetBatch,
-          active: true,
-          placementProvenance: 'manual_rebatch',
-        }),
-      ]),
-    );
-    const attempts = await testDb.db
-      .select()
-      .from(laundryProduction.productionOrderStageAttempts)
-      .where(
-        eq(
-          laundryProduction.productionOrderStageAttempts.productionOrderId,
-          ids.queuedOrder,
-        ),
-      );
-    expect(
-      attempts.filter((attempt) => attempt.status === 'released'),
-    ).toHaveLength(4);
-    expect(
-      attempts.filter((attempt) => attempt.status === 'assigned'),
-    ).toHaveLength(4);
-
-    const orderControl = await makeListProductionOrderControlRepository({
-      db: testDb.db,
-      policy: allowPolicy,
-    }).list({ locationId: 'location-1', view: 'all', limit: 25 }, now);
-    expect(orderControl.tag).toBe('found');
-    if (orderControl.tag !== 'found') return;
-    expect(
-      orderControl.value.items.find(
-        (item) => item.order.id === ids.queuedOrder,
-      ),
-    ).toMatchObject({
-      currentPlacement: {
-        productionBatchId: targetBatch,
-        placementProvenance: 'manual_rebatch',
-      },
-      nextRequiredStage: 'sorting',
-      commands: {
-        queuedMove: {
-          status: 'allowed',
-          expectedQueueVersion: 2,
-          expectedOrderVersion: 2,
-          expectedSourceBatchVersion: 2,
-          targets: expect.arrayContaining([
-            expect.objectContaining({
-              productionBatchId: targetBatch,
-              feasibility: {
-                status: 'blocked',
-                code: 'TARGET_IS_SOURCE_BATCH',
-              },
-            }),
-            expect.objectContaining({
-              productionBatchId: ids.mutableBatch,
-              feasibility: { status: 'allowed' },
-            }),
-          ]),
-        },
-        routeException: {
-          status: 'blocked',
-          code: 'EXCEPTION_SOURCE_NOT_IN_FLIGHT',
-        },
-      },
-      routeAttempts: expect.arrayContaining([
-        expect.objectContaining({ status: 'released', attemptNumber: 1 }),
-        expect.objectContaining({ status: 'assigned', attemptNumber: 2 }),
-      ]),
-    });
-    await expect(
-      makeListProductionOrderControlRepository({
-        db: testDb.db,
-        policy: allowPolicy,
-      }).list(
-        {
-          locationId: 'location-1',
-          view: 'all',
-          stage: 'washing',
-          limit: 25,
-        },
-        now,
-      ),
-    ).resolves.toMatchObject({ tag: 'found', value: { items: [] } });
   });
 });

@@ -1,6 +1,6 @@
 export const productionHistoryRunStatuses = ['started', 'completed'] as const;
 export type ProductionHistoryCursorPoint = Readonly<{
-  createdAt: Date;
+  createdAtKey: string;
   id: string;
 }>;
 

@@ -1,7 +1,7 @@
 import { invariantViolationError } from '@pressly/errors/factories';
 import type {
+  OrderRoutingCurrentStageInput,
   OrderRoutingInput,
-  OrderRoutingStage,
 } from '../../../foundations/language/order-routing/order-routing.policy.ts';
 import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type {
@@ -44,6 +44,7 @@ export type ProductionOrderCommandCapabilityContext = Readonly<{
           activeOrderCount: number;
         }>)
     | null;
+  sourceAttempts: OrderRoutingCurrentStageInput['attempts'];
   candidates: readonly RoutingBatch[];
 }>;
 
@@ -105,6 +106,10 @@ const queuedTarget = (
     orderWeightLbs: context.order.weightLbs,
     target: candidate,
   });
+  const effectiveCapacityLbs = candidate.stages.reduce(
+    (capacityLbs, stage) => Math.min(capacityLbs, stage.capacityLbs),
+    candidate.pulseCapacityLbs,
+  );
   return {
     productionBatchId: candidate.productionBatchId,
     batchSequence: candidate.sequence,
@@ -113,23 +118,13 @@ const queuedTarget = (
     expectedBatchVersion: candidate.version,
     currentWeightLbs: candidate.derivedWeightLbs,
     projectedWeightLbs: candidate.derivedWeightLbs + context.order.weightLbs,
-    capacityLbs: candidate.pulseCapacityLbs,
+    capacityLbs: effectiveCapacityLbs,
     feasibility:
       decision.decision === 'allowed'
         ? { status: 'allowed' }
         : { status: 'blocked', code: decision.code },
   };
 };
-
-const currentStage = (
-  source: NonNullable<ProductionOrderCommandCapabilityContext['source']>,
-): OrderRoutingStage =>
-  source.status === 'sorting' ||
-  source.status === 'washing' ||
-  source.status === 'drying' ||
-  source.status === 'folding_packaging'
-    ? source.status
-    : 'sorting';
 
 const routeExceptionCapability = (
   policy: ProductionRules,
@@ -144,7 +139,14 @@ const routeExceptionCapability = (
   if (source.status === 'queued' || source.status === 'finished')
     return blocked('EXCEPTION_SOURCE_NOT_IN_FLIGHT');
 
-  const stage = currentStage(source);
+  const currentStage = policy.deriveOrderRoutingCurrentStage({
+    batchStatus: source.status,
+    stages: source.stages,
+    attempts: context.sourceAttempts,
+  });
+  if (currentStage.tag === 'err')
+    return blocked('SOURCE_CURRENT_STAGE_MISMATCH');
+
   const decision = policy.evaluateOrderRouting({
     command: 'defer_or_rework',
     order: {
@@ -157,8 +159,9 @@ const routeExceptionCapability = (
       status: source.status,
       membershipFrozen: source.membershipFrozen,
     },
-    currentStage: stage,
-    restartStage: stage,
+    currentStage: currentStage.value.stage,
+    currentStageStatus: currentStage.value.status,
+    restartStage: currentStage.value.stage,
     targetCandidates: context.candidates,
   });
   return decision.decision === 'accepted'

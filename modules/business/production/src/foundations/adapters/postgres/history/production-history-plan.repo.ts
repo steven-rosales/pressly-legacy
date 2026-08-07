@@ -1,3 +1,4 @@
+import { sql } from '@pressly/db/query';
 import * as laundryProduction from '@pressly/db/schema/laundry-production';
 
 export const productionHistoryPlanSelect = {
@@ -19,6 +20,10 @@ export const productionHistoryPlanSelect = {
   acknowledgedWarningCodes:
     laundryProduction.scheduleRuns.acknowledgedWarningCodes,
   createdAt: laundryProduction.scheduleRuns.createdAt,
+  cursorCreatedAtKey:
+    sql<string>`to_char(${laundryProduction.scheduleRuns.createdAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as(
+      'cursor_created_at_key',
+    ),
   acceptedAt: laundryProduction.scheduleRuns.acceptedAt,
   acceptedBy: laundryProduction.scheduleRuns.acceptedBy,
   supersededAt: laundryProduction.scheduleRuns.supersededAt,

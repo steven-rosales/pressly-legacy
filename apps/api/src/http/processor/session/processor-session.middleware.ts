@@ -14,6 +14,7 @@ import {
 } from './processor-csrf.adapter.ts';
 import {
   processorForbidden,
+  processorSessionFailureToAppError,
   processorUnauthorized,
 } from './processor-session.error.ts';
 import {
@@ -66,7 +67,7 @@ export const makeProcessorSessionAuthentication = (input: {
     });
     if (isResultError(loaded)) {
       clearProcessorCookie(response, input.names.session, input.options);
-      throw loaded.error;
+      throw processorSessionFailureToAppError(loaded.error);
     }
 
     const access = await input.resolveAccess(loaded.value);

@@ -1,0 +1,36 @@
+work_id: lpms-order-control-correctness-hardening
+status: active
+updated: 2026-08-06T00:00:00-04:00
+
+current_focus:
+  - T1
+  - T2
+  - T3
+  - T4
+  - Complete combined verification for the four independently reproduced repairs.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/active/lpms-order-control-correctness-hardening/evidence.md#t0---reconcile-the-current-failures
+  T1:
+    status: running
+    evidence: []
+  T2:
+    status: running
+    evidence: []
+  T3:
+    status: running
+    evidence:
+      - stateworks/work/active/lpms-order-control-correctness-hardening/evidence.md#t3---fence-route-idempotency-under-lock
+  T4:
+    status: running
+    evidence:
+      - stateworks/work/active/lpms-order-control-correctness-hardening/evidence.md#t4---preserve-exact-history-cursor-ordering
+  V1:
+    status: pending
+    evidence: []
+  T5:
+    status: pending
+    evidence: []

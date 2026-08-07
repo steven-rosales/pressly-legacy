@@ -28,11 +28,18 @@ beforeAll(async () => {
   await testDb.check();
   await testDb.db
     .insert(businessSchema.businessAccounts)
-    .values({
-      id: otherBusinessId,
-      slug: 'users-isolation-fixture',
-      displayName: 'Users isolation fixture',
-    })
+    .values([
+      {
+        id: businessId,
+        slug: 'pressly-one',
+        displayName: 'Pressly One',
+      },
+      {
+        id: otherBusinessId,
+        slug: 'users-isolation-fixture',
+        displayName: 'Users isolation fixture',
+      },
+    ])
     .onConflictDoNothing();
 });
 beforeEach(testDb.reset);

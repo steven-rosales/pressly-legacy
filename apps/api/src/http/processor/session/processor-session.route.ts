@@ -15,6 +15,7 @@ import {
 import { requireProcessorOrigin } from './processor-csrf.adapter.ts';
 import {
   processorForbidden,
+  processorSessionFailureToAppError,
   processorUnauthorized,
 } from './processor-session.error.ts';
 import {
@@ -52,7 +53,8 @@ export const makeProcessorSessionRoutes = (input: {
     const loaded = await input.application.loadSession({
       bearerToken: accessToken,
     });
-    if (isResultError(loaded)) throw loaded.error;
+    if (isResultError(loaded))
+      throw processorSessionFailureToAppError(loaded.error);
     const access = await input.resolveAccess(loaded.value);
     if (access === null) {
       await input.application.revokeSession({
@@ -97,7 +99,8 @@ export const makeProcessorSessionRoutes = (input: {
         ...body,
         ...processorRequestMetadata(request, response),
       });
-      if (isResultError(authenticated)) throw authenticated.error;
+      if (isResultError(authenticated))
+        throw processorSessionFailureToAppError(authenticated.error);
 
       if ('challengeToken' in authenticated.value) {
         clearProcessorCookie(response, input.names.session, input.options);
@@ -145,7 +148,8 @@ export const makeProcessorSessionRoutes = (input: {
           ? {}
           : { requestId: processorRequestId(response)! }),
       });
-      if (isResultError(completed)) throw completed.error;
+      if (isResultError(completed))
+        throw processorSessionFailureToAppError(completed.error);
 
       clearProcessorCookie(response, input.names.mfa, input.options);
       await establishBrowserSession(

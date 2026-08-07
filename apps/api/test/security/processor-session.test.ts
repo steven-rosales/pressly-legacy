@@ -281,6 +281,38 @@ describe('processor browser session boundary', () => {
     );
   });
 
+  it('presents a revoked cookie session as invalid authentication and clears it', async () => {
+    const application = makeApplication();
+    vi.mocked(application.loadSession).mockResolvedValue({
+      tag: 'err',
+      error: {
+        kind: 'authentication',
+        code: 'invalid_session',
+        message: 'Authentication is required.',
+      },
+    });
+    const { app } = makeTestApp({ application });
+    const baseUrl = await start(app);
+
+    const response = await fetch(`${baseUrl}/processor/auth/session`, {
+      headers: {
+        Cookie: `pressly_processor_session=${sessionToken}`,
+      },
+    });
+    const body = (await response.json()) as {
+      error: { code: string; message: string };
+    };
+
+    expect(response.status).toBe(401);
+    expect(body.error).toEqual({
+      code: 'invalid_session',
+      message: 'Authentication is required.',
+    });
+    expect(response.headers.get('set-cookie')).toContain(
+      'pressly_processor_session=;',
+    );
+  });
+
   it('keeps bearer clients compatible without applying browser CSRF checks', async () => {
     const application = makeApplication();
     const { app, bearerAuthenticate } = makeTestApp({ application });

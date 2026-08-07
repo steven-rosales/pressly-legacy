@@ -18,6 +18,7 @@ import {
 } from './control-csrf.adapter.ts';
 import {
   controlForbidden,
+  controlSessionFailureToAppError,
   controlUnauthorized,
 } from './control-session.error.ts';
 import {
@@ -45,7 +46,8 @@ export const establishControlBrowserSession = async (input: {
   const loaded = await input.application.loadSession({
     bearerToken: input.accessToken,
   });
-  if (isControlResultError(loaded)) throw loaded.error;
+  if (isControlResultError(loaded))
+    throw controlSessionFailureToAppError(loaded.error);
 
   const access = await input.resolveAccess(loaded.value);
   if (access === null) {
@@ -116,7 +118,8 @@ export const makeControlSessionRoutes = (input: {
         ...body,
         ...controlRequestMetadata(request, response),
       });
-      if (isControlResultError(authenticated)) throw authenticated.error;
+      if (isControlResultError(authenticated))
+        throw controlSessionFailureToAppError(authenticated.error);
 
       if ('challengeToken' in authenticated.value) {
         clearControlCookie(response, input.names.session, input.options);
@@ -169,7 +172,8 @@ export const makeControlSessionRoutes = (input: {
           ? {}
           : { requestId: controlRequestId(response)! }),
       });
-      if (isControlResultError(completed)) throw completed.error;
+      if (isControlResultError(completed))
+        throw controlSessionFailureToAppError(completed.error);
 
       clearControlCookie(response, input.names.mfa, input.options);
 

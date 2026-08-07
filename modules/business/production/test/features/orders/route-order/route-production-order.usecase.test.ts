@@ -2,6 +2,7 @@ import { makeAppError } from '@pressly/errors/app-error';
 import { describe, expect, it, vi } from 'vitest';
 import { nullProductionSignals } from '../../../../src/foundations/adapters/signals/null-production-signals.adapter.ts';
 import type { StoredWorkEvent } from '../../../../src/foundations/language/commands/production-command.model.ts';
+import { productionRules } from '../../../../src/foundations/language/rules/production-rules.factory.ts';
 import type {
   ProductionOrderRoutingContext,
   RouteProductionOrderRepository,
@@ -310,6 +311,69 @@ describe('route production order', () => {
     });
   });
 
+  it('surfaces an impossible locked stage graph as an invariant failure', async () => {
+    const deriveOrderRoutingCurrentStage = vi
+      .fn()
+      .mockReturnValueOnce({
+        tag: 'ok',
+        value: { stage: 'drying', status: 'started' },
+      })
+      .mockReturnValueOnce({
+        tag: 'err',
+        error: {
+          code: 'SOURCE_STAGE_GRAPH_INVALID',
+          message: 'The source batch stage graph is incomplete.',
+        },
+      });
+    const { route, loadContext } = setup(null, undefined, {
+      ...allowPolicy,
+      deriveOrderRoutingCurrentStage,
+    });
+    const base = context();
+    loadContext.mockResolvedValue({
+      ...base,
+      source: {
+        ...base.source,
+        status: 'drying',
+        membershipFrozen: true,
+      },
+      candidates: [
+        ...base.candidates,
+        {
+          ...base.candidates[0]!,
+          productionBatchId: ids.source,
+          sequence: 0,
+          status: 'drying',
+          membershipFrozen: true,
+        },
+      ],
+    });
+    const exception = {
+      ...command,
+      kind: 'exception' as const,
+      reason: 'needs_more_drying' as const,
+      restartStage: 'drying' as const,
+    };
+    delete (exception as { targetProductionBatchId?: string })
+      .targetProductionBatchId;
+    const preview = await route.preview(exception);
+    if (preview.tag !== 'ok') throw new Error('Expected a preview.');
+
+    await expect(
+      route.commit({
+        ...exception,
+        proposalHash: preview.value.proposalHash,
+        idempotencyKey: 'route-production-order-invariant-1',
+      }),
+    ).rejects.toMatchObject({
+      tag: 'AppError',
+      kind: 'InvariantViolationError',
+      code: 'production_order_route_source_stage_graph_invalid',
+      status: 500,
+    });
+    expect(deriveOrderRoutingCurrentStage).toHaveBeenCalledTimes(2);
+  });
+
   it('preserves an existing application error from route persistence', async () => {
     const existing = makeAppError({
       kind: 'ExternalServiceError',
@@ -356,5 +420,232 @@ describe('route production order', () => {
       kind: 'queued_move',
       reason: 'manual_rebatch',
     });
+  });
+
+  it('rechecks replay after the run lock before evaluating mutable versions', async () => {
+    const { route, findWorkEvent, loadContext, commit } = setup();
+    const preview = await route.preview(command);
+    if (preview.tag !== 'ok') throw new Error('Expected a preview.');
+    const commitCommand = {
+      ...command,
+      proposalHash: preview.value.proposalHash,
+      idempotencyKey: 'route-production-order-lock-replay-1',
+    };
+    const committed: CommitProductionOrderRouteResult = {
+      status: 'routed',
+      proposal: preview.value,
+      queueVersion: 5,
+      orderVersion: 4,
+      sourceBatchVersion: 3,
+      targetBatchVersion: 6,
+      createdAttemptIds: [stageIds.sorting],
+      replayed: false,
+    };
+
+    findWorkEvent.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      command: {
+        operation: 'production_order_rebatched',
+        locationId: command.locationId,
+        actorId: command.actorId,
+        target: {
+          entityType: 'production_order',
+          entityId: command.productionOrderId,
+        },
+        expectedVersion: command.expectedOrderVersion,
+        payload: {
+          kind: command.kind,
+          authorizedAction: command.authorizedAction,
+          reason: command.reason,
+          restartStage: command.restartStage,
+          expectedQueueVersion: command.expectedQueueVersion,
+          expectedSourceBatchVersion: command.expectedSourceBatchVersion,
+          proposalHash: preview.value.proposalHash,
+          targetProductionBatchId: command.targetProductionBatchId,
+        },
+      },
+      result: committed,
+      valid: true,
+    });
+
+    await expect(route.commit(commitCommand)).resolves.toMatchObject({
+      tag: 'ok',
+      value: { status: 'routed', replayed: true },
+    });
+    expect(loadContext).toHaveBeenCalledTimes(2);
+    expect(loadContext).toHaveBeenLastCalledWith(
+      command.locationId,
+      command.productionRunId,
+      command.productionOrderId,
+      true,
+    );
+    expect(findWorkEvent).toHaveBeenCalledTimes(2);
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('treats the normalized exception note as command identity', async () => {
+    const { route, loadContext, commit } = setup();
+    const base = context();
+    const exceptionContext: ProductionOrderRoutingContext = {
+      ...base,
+      source: {
+        ...base.source,
+        status: 'drying',
+        membershipFrozen: true,
+      },
+      candidates: [
+        ...base.candidates.map((candidate) => ({
+          ...candidate,
+          status: 'washing',
+          membershipFrozen: true,
+          stages: candidate.stages.map((stage) => ({
+            ...stage,
+            status:
+              stage.stage === 'sorting'
+                ? ('completed' as const)
+                : stage.stage === 'washing'
+                  ? ('started' as const)
+                  : ('planned' as const),
+          })),
+        })),
+        {
+          productionBatchId: ids.source,
+          sequence: 0,
+          status: 'drying',
+          membershipFrozen: true,
+          version: 2,
+          derivedWeightLbs: 70,
+          pulseCapacityLbs: 100,
+          stages: base.attempts.map((attempt) => ({
+            stageRunId: attempt.stageRunId,
+            stage: attempt.stage,
+            status:
+              attempt.stage === 'sorting' || attempt.stage === 'washing'
+                ? ('completed' as const)
+                : attempt.stage === 'drying'
+                  ? ('started' as const)
+                  : ('planned' as const),
+            assignedWeightLbs: 70,
+            capacityLbs: 100,
+          })),
+        },
+      ],
+      attempts: base.attempts.map((attempt) => ({
+        ...attempt,
+        status:
+          attempt.stage === 'sorting' || attempt.stage === 'washing'
+            ? ('completed' as const)
+            : ('assigned' as const),
+      })),
+    };
+    loadContext.mockResolvedValue(exceptionContext);
+    const exception = {
+      ...command,
+      kind: 'exception' as const,
+      reason: 'needs_more_drying' as const,
+      restartStage: 'drying' as const,
+      note: '  Customer reported remaining moisture.  ',
+    };
+    delete (exception as { targetProductionBatchId?: string })
+      .targetProductionBatchId;
+    const preview = await route.preview(exception);
+    if (preview.tag !== 'ok') throw new Error('Expected a preview.');
+    const first = {
+      ...exception,
+      proposalHash: preview.value.proposalHash,
+      idempotencyKey: 'route-production-order-note-1',
+    };
+
+    await expect(route.commit(first)).resolves.toMatchObject({ tag: 'ok' });
+    await expect(
+      route.commit({ ...first, note: 'Different operator evidence.' }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'production_idempotency_conflict' },
+    });
+    expect(commit).toHaveBeenCalledOnce();
+    expect(commit.mock.calls[0]?.[0]).toMatchObject({
+      note: 'Customer reported remaining moisture.',
+      idempotency: {
+        payload: { note: 'Customer reported remaining moisture.' },
+      },
+    });
+  });
+
+  it('routes from the valid gap after washing completes without releasing completed work', async () => {
+    const { route, loadContext, commit } = setup(
+      null,
+      undefined,
+      productionRules,
+    );
+    const base = context();
+    const sourceStages = base.attempts.map((attempt) => ({
+      stageRunId: attempt.stageRunId,
+      stage: attempt.stage,
+      status:
+        attempt.stage === 'sorting' || attempt.stage === 'washing'
+          ? ('completed' as const)
+          : ('planned' as const),
+      assignedWeightLbs: 70,
+      capacityLbs: 100,
+    }));
+    const gapContext: ProductionOrderRoutingContext = {
+      ...base,
+      source: {
+        ...base.source,
+        status: 'washing',
+        membershipFrozen: true,
+      },
+      candidates: [
+        ...base.candidates,
+        {
+          productionBatchId: ids.source,
+          sequence: 0,
+          status: 'washing',
+          membershipFrozen: true,
+          version: 2,
+          derivedWeightLbs: 70,
+          pulseCapacityLbs: 100,
+          stages: sourceStages,
+        },
+      ],
+      attempts: base.attempts.map((attempt) => ({
+        ...attempt,
+        status:
+          attempt.stage === 'sorting' || attempt.stage === 'washing'
+            ? ('completed' as const)
+            : ('assigned' as const),
+      })),
+    };
+    loadContext.mockResolvedValue(gapContext);
+    const exception = {
+      ...command,
+      kind: 'exception' as const,
+      reason: 'needs_more_drying' as const,
+      restartStage: 'drying' as const,
+    };
+    delete (exception as { targetProductionBatchId?: string })
+      .targetProductionBatchId;
+
+    const preview = await route.preview(exception);
+    expect(preview).toMatchObject({
+      tag: 'ok',
+      value: {
+        releasedStages: ['drying', 'folding_packaging'],
+        assignedStages: ['drying', 'folding_packaging'],
+      },
+    });
+    if (preview.tag !== 'ok') return;
+
+    await expect(
+      route.commit({
+        ...exception,
+        proposalHash: preview.value.proposalHash,
+        idempotencyKey: 'route-production-order-between-stages-1',
+      }),
+    ).resolves.toMatchObject({ tag: 'ok', value: { status: 'routed' } });
+    expect(commit.mock.calls[0]?.[0].attemptLifecycles).toMatchObject([
+      { attemptId: attemptIds.drying },
+      { attemptId: attemptIds.folding_packaging },
+    ]);
   });
 });

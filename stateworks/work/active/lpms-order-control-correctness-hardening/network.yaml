@@ -1,6 +1,6 @@
 work_id: lpms-order-control-correctness-hardening
 title: LPMS order-control correctness hardening
-status: queued
+status: active
 
 goal:
   - Close four post-checkpoint correctness gaps in whole-order routing and History keyset pagination.
@@ -36,7 +36,7 @@ tasks:
       - memory:domain:laundry-production/context-pack
       - repo:stateworks/work/done/lpms-order-control-history
       - repo:stateworks/work/done/lpms-operational-authority-remaining-day-forecast
-      - repo:stateworks/work/queued/lpms-order-control-correctness-hardening/brief.md
+      - repo:stateworks/work/active/lpms-order-control-correctness-hardening/brief.md
       - repo:docs/plan/lpms-state-transitions.md
       - repo:modules/business/production/src/features/orders/route-order
       - repo:modules/business/production/src/features/floor/advance-stage
@@ -61,7 +61,7 @@ tasks:
     evidence: []
 
   - id: T1
-    title: Repair routing stage and capacity semantics
+    title: Repair between-stage routing semantics
     type: primitive
     owner: agent
     surface: repo
@@ -73,29 +73,57 @@ tasks:
       - repo:modules/business/production/src/foundations/language/stage-transition
       - repo:modules/business/production/src/features/orders/route-order
       - repo:modules/business/production/src/features/floor/advance-stage
-      - repo:modules/business/production/src/foundations/adapters/postgres
-      - repo:packages/db/src/schema/laundry-production.schema.ts
     writes:
       - repo:modules/business/production/src/foundations/language/order-routing
       - repo:modules/business/production/src/foundations/language/stage-transition
       - repo:modules/business/production/src/features/orders/route-order
       - repo:modules/business/production/test/features/orders/route-order
-      - repo:modules/business/production/test/integration/concurrency
     action:
       - Model the between-stage milestone without creating another execution state machine.
-      - Ensure routing recomputes, repairs, or invalidates affected planned machine assignments so an under-capacity target cannot start.
       - Preserve completed attempts and route only the required unfinished suffix.
     verifier:
       - Focused policy tests cover completed-stage-to-next-stage gaps.
-      - Postgres integration proves a routed target cannot start with insufficient machine capacity.
       - Existing whole-order, hard-capacity, and sole-authority tests remain green.
     rollback:
-      - Revert the focused repair and retain the route rejection rather than weakening capacity or stage authority.
+      - Revert the focused repair and retain the route rejection rather than weakening stage authority.
     secret_handling: none
     status: pending
     evidence: []
 
   - id: T2
+    title: Fence routing against assigned machine under-capacity
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/floor/advance-stage
+      - repo:modules/business/production/src/foundations/adapters/postgres
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:modules/business/production/src/features/orders/route-order
+      - repo:modules/business/production/src/features/floor/advance-stage
+      - repo:modules/business/production/test/features/orders/route-order
+      - repo:modules/business/production/test/features/floor/advance-stage
+      - repo:modules/business/production/test/integration
+    action:
+      - Make the effective capacity of the actual planned machine assignments authoritative at route and start boundaries.
+      - Reject, repair, or invalidate a mutation that would leave an affected stage startable below the routed batch weight.
+      - Preserve hard pulse capacity, deterministic scheduling, and stage-run transition authority.
+    verifier:
+      - A deterministic PostgreSQL proof reproduces the stale-assignment failure before repair.
+      - PostgreSQL integration proves the routed target cannot start with insufficient assigned capacity after repair.
+      - Existing scheduling, routing, and stage-start capacity tests remain green.
+    rollback:
+      - Revert the focused repair and retain route rejection rather than weakening assigned or pulse capacity.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T3
     title: Fence route idempotency under lock
     type: primitive
     owner: agent
@@ -103,6 +131,7 @@ tasks:
     agent_can_verify: true
     deps:
       - T1
+      - T2
     reads:
       - repo:packages/contracts/src/production/production-order-control.contracts.ts
       - repo:modules/business/production/src/features/orders/route-order
@@ -127,7 +156,7 @@ tasks:
     status: pending
     evidence: []
 
-  - id: T3
+  - id: T4
     title: Preserve exact History cursor ordering
     type: primitive
     owner: agent
@@ -164,26 +193,30 @@ tasks:
     evidence: []
 
   - id: V1
-    title: Run full LPMS correctness proof
+    title: Run full LPMS and staging observability proof
     type: verification
     owner: agent
     surface: repo
     agent_can_verify: true
     deps:
-      - T2
       - T3
+      - T4
     reads:
       - repo:modules/business/production/src/foundations/language
       - repo:modules/business/production
       - repo:packages/contracts
       - repo:packages/db
       - repo:apps/processor
+      - repo:apps/api
+      - repo:apps/worker
+      - repo:docs/observability.md
       - repo:stateworks/work/active/lpms-order-control-correctness-hardening
     writes:
       - repo:stateworks/work/active/lpms-order-control-correctness-hardening/evidence.md
     action:
       - Run focused and repository-wide policy, contract, Production, database, Processor, LPMS integration, and LPMS end-to-end gates.
       - Reverify the Processor loading-state checkpoint and local Docker path without resetting the development database.
+      - Run the staging observability checks available from this checkout and verify Sentry API, Worker, log, trace, metric, release, and Cron state without recording secrets.
       - Record exact test counts, environment boundaries, and any nonblocking warnings.
     verifier:
       - pnpm --filter @pressly/production exec vitest run test/foundations/language
@@ -204,7 +237,7 @@ tasks:
     status: pending
     evidence: []
 
-  - id: T4
+  - id: T5
     title: Close evidence and memory impact
     type: primitive
     owner: agent

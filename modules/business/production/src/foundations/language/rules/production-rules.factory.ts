@@ -53,6 +53,7 @@ import {
   scheduleRevisionGraph,
 } from '../lifecycles/schedule-revision-lifecycle.lifecycle.ts';
 import {
+  deriveOrderRoutingCurrentStage,
   evaluateOrderRouting,
   evaluateQueuedMoveTarget,
 } from '../order-routing/order-routing.policy.ts';
@@ -86,6 +87,7 @@ export const defineProductionRules = () =>
     evaluateScheduleStart,
     evaluateShiftPlanningWindow,
     evaluateBatchMembershipTransition,
+    deriveOrderRoutingCurrentStage,
     evaluateOrderRouting,
     evaluateQueuedMoveTarget,
     evaluatePlacementCommit,

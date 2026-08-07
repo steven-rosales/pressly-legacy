@@ -189,109 +189,159 @@ const loadContext = async (
   const stageRows = lock ? await stageQuery.for('update') : await stageQuery;
   const stageIds = stageRows.map((stage) => stage.id);
 
-  const [attemptRows, assignedRows, sourceMembershipRows] = await Promise.all([
-    db
+  const loadMachineCapacities = async () => {
+    if (stageIds.length === 0) return [];
+    const query = db
       .select({
-        id: laundryProduction.productionOrderStageAttempts.id,
-        stageRunId: laundryProduction.productionOrderStageAttempts.stageRunId,
-        productionBatchId: laundryProduction.stageRuns.productionBatchId,
-        stageKind: laundryProduction.productionOrderStageAttempts.stageKind,
-        attemptNumber:
-          laundryProduction.productionOrderStageAttempts.attemptNumber,
-        status: laundryProduction.productionOrderStageAttempts.status,
+        stageRunId: laundryProduction.stageMachineAssignments.stageRunId,
+        capacityLbs: laundryProduction.machines.effectiveCapacityLbs,
       })
-      .from(laundryProduction.productionOrderStageAttempts)
+      .from(laundryProduction.stageMachineAssignments)
       .innerJoin(
-        laundryProduction.stageRuns,
+        laundryProduction.machines,
         and(
           eq(
-            laundryProduction.stageRuns.id,
-            laundryProduction.productionOrderStageAttempts.stageRunId,
+            laundryProduction.machines.id,
+            laundryProduction.stageMachineAssignments.machineId,
           ),
           eq(
-            laundryProduction.stageRuns.locationId,
-            laundryProduction.productionOrderStageAttempts.locationId,
+            laundryProduction.machines.locationId,
+            laundryProduction.stageMachineAssignments.locationId,
           ),
         ),
       )
       .where(
         and(
-          eq(
-            laundryProduction.productionOrderStageAttempts.locationId,
-            locationId,
-          ),
-          eq(
-            laundryProduction.productionOrderStageAttempts.productionRunId,
-            productionRunId,
-          ),
-          eq(
-            laundryProduction.productionOrderStageAttempts.productionOrderId,
-            productionOrderId,
+          eq(laundryProduction.stageMachineAssignments.locationId, locationId),
+          eq(laundryProduction.stageMachineAssignments.status, 'planned'),
+          eq(laundryProduction.machines.isActive, true),
+          inArray(
+            laundryProduction.stageMachineAssignments.stageRunId,
+            stageIds,
           ),
         ),
-      ),
-    stageIds.length === 0
-      ? Promise.resolve([])
-      : db
-          .select({
-            stageRunId:
+      )
+      .orderBy(
+        asc(laundryProduction.machines.id),
+        asc(laundryProduction.stageMachineAssignments.id),
+      );
+    return lock ? await query.for('update') : await query;
+  };
+
+  const [attemptRows, assignedRows, sourceMembershipRows, machineCapacityRows] =
+    await Promise.all([
+      db
+        .select({
+          id: laundryProduction.productionOrderStageAttempts.id,
+          stageRunId: laundryProduction.productionOrderStageAttempts.stageRunId,
+          productionBatchId: laundryProduction.stageRuns.productionBatchId,
+          stageKind: laundryProduction.productionOrderStageAttempts.stageKind,
+          attemptNumber:
+            laundryProduction.productionOrderStageAttempts.attemptNumber,
+          status: laundryProduction.productionOrderStageAttempts.status,
+        })
+        .from(laundryProduction.productionOrderStageAttempts)
+        .innerJoin(
+          laundryProduction.stageRuns,
+          and(
+            eq(
+              laundryProduction.stageRuns.id,
               laundryProduction.productionOrderStageAttempts.stageRunId,
-            weightLbs: laundryProduction.productionOrders.derivedWeightLbs,
-          })
-          .from(laundryProduction.productionOrderStageAttempts)
-          .innerJoin(
-            laundryProduction.productionOrders,
-            and(
-              eq(
-                laundryProduction.productionOrders.id,
-                laundryProduction.productionOrderStageAttempts
-                  .productionOrderId,
-              ),
-              eq(
-                laundryProduction.productionOrders.locationId,
-                laundryProduction.productionOrderStageAttempts.locationId,
-              ),
             ),
-          )
-          .where(
-            and(
-              eq(
-                laundryProduction.productionOrderStageAttempts.locationId,
-                locationId,
-              ),
-              eq(
-                laundryProduction.productionOrderStageAttempts.status,
-                'assigned',
-              ),
-              inArray(
-                laundryProduction.productionOrderStageAttempts.stageRunId,
-                stageIds,
-              ),
+            eq(
+              laundryProduction.stageRuns.locationId,
+              laundryProduction.productionOrderStageAttempts.locationId,
             ),
           ),
-    db
-      .select({
-        productionOrderId:
-          laundryProduction.productionBatchOrders.productionOrderId,
-      })
-      .from(laundryProduction.productionBatchOrders)
-      .where(
-        and(
-          eq(laundryProduction.productionBatchOrders.locationId, locationId),
-          eq(
-            laundryProduction.productionBatchOrders.productionBatchId,
-            source.id,
+        )
+        .where(
+          and(
+            eq(
+              laundryProduction.productionOrderStageAttempts.locationId,
+              locationId,
+            ),
+            eq(
+              laundryProduction.productionOrderStageAttempts.productionRunId,
+              productionRunId,
+            ),
+            eq(
+              laundryProduction.productionOrderStageAttempts.productionOrderId,
+              productionOrderId,
+            ),
           ),
-          eq(laundryProduction.productionBatchOrders.active, true),
         ),
-      ),
-  ]);
+      stageIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({
+              stageRunId:
+                laundryProduction.productionOrderStageAttempts.stageRunId,
+              weightLbs: laundryProduction.productionOrders.derivedWeightLbs,
+            })
+            .from(laundryProduction.productionOrderStageAttempts)
+            .innerJoin(
+              laundryProduction.productionOrders,
+              and(
+                eq(
+                  laundryProduction.productionOrders.id,
+                  laundryProduction.productionOrderStageAttempts
+                    .productionOrderId,
+                ),
+                eq(
+                  laundryProduction.productionOrders.locationId,
+                  laundryProduction.productionOrderStageAttempts.locationId,
+                ),
+              ),
+            )
+            .where(
+              and(
+                eq(
+                  laundryProduction.productionOrderStageAttempts.locationId,
+                  locationId,
+                ),
+                eq(
+                  laundryProduction.productionOrderStageAttempts.status,
+                  'assigned',
+                ),
+                inArray(
+                  laundryProduction.productionOrderStageAttempts.stageRunId,
+                  stageIds,
+                ),
+              ),
+            ),
+      db
+        .select({
+          productionOrderId:
+            laundryProduction.productionBatchOrders.productionOrderId,
+        })
+        .from(laundryProduction.productionBatchOrders)
+        .where(
+          and(
+            eq(laundryProduction.productionBatchOrders.locationId, locationId),
+            eq(
+              laundryProduction.productionBatchOrders.productionBatchId,
+              source.id,
+            ),
+            eq(laundryProduction.productionBatchOrders.active, true),
+          ),
+        ),
+      loadMachineCapacities(),
+    ]);
   const weightByStage = new Map<string, number>();
   for (const assigned of assignedRows)
     weightByStage.set(
       assigned.stageRunId,
       (weightByStage.get(assigned.stageRunId) ?? 0) + assigned.weightLbs,
     );
+  const machineCapacityByStage = new Map<string, number>();
+  for (const assignment of machineCapacityRows) {
+    if (assignment.capacityLbs === null) continue;
+    machineCapacityByStage.set(
+      assignment.stageRunId,
+      (machineCapacityByStage.get(assignment.stageRunId) ?? 0) +
+        assignment.capacityLbs,
+    );
+  }
 
   return {
     run,
@@ -316,13 +366,30 @@ const loadContext = async (
       pulseCapacityLbs: batch.pulseCapacityLbs,
       stages: stageRows
         .filter((stage) => stage.productionBatchId === batch.id)
-        .map((stage) => ({
-          stageRunId: stage.id,
-          stage: asStage(stage.stageKind),
-          status: asStageStatus(stage.status),
-          assignedWeightLbs: weightByStage.get(stage.id) ?? 0,
-          capacityLbs: batch.pulseCapacityLbs,
-        })),
+        .map((stage) => {
+          const stageKind = asStage(stage.stageKind);
+          const stageStatus = asStageStatus(stage.status);
+          const assignedMachineCapacityLbs =
+            machineCapacityByStage.get(stage.id) ?? 0;
+          const plannedMachineStage =
+            stageStatus === 'planned' &&
+            (stageKind === 'washing' || stageKind === 'drying');
+          return {
+            stageRunId: stage.id,
+            stage: stageKind,
+            status: stageStatus,
+            assignedWeightLbs:
+              stageStatus === 'planned'
+                ? Math.max(
+                    weightByStage.get(stage.id) ?? 0,
+                    batch.derivedWeightLbs,
+                  )
+                : (weightByStage.get(stage.id) ?? 0),
+            capacityLbs: plannedMachineStage
+              ? Math.min(batch.pulseCapacityLbs, assignedMachineCapacityLbs)
+              : batch.pulseCapacityLbs,
+          };
+        }),
     })),
     attempts: attemptRows.map((attempt) => ({
       id: attempt.id,

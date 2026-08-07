@@ -1,5 +1,5 @@
 import { type Database, type DatabaseExecutor } from '@pressly/db/client';
-import { and, desc, eq, gte, lt, or, sql } from '@pressly/db/query';
+import { and, desc, eq, gte, sql } from '@pressly/db/query';
 import * as laundryProduction from '@pressly/db/schema/laundry-production';
 import { productionHistoryLocationExists } from '../../../foundations/adapters/postgres/history/production-history-location.repo.ts';
 import {
@@ -69,16 +69,7 @@ const loadRunPage = (
             )`,
         cursor === undefined
           ? undefined
-          : or(
-              lt(laundryProduction.productionRuns.createdAt, cursor.createdAt),
-              and(
-                eq(
-                  laundryProduction.productionRuns.createdAt,
-                  cursor.createdAt,
-                ),
-                lt(laundryProduction.productionRuns.id, cursor.id),
-              ),
-            ),
+          : sql<boolean>`(${laundryProduction.productionRuns.createdAt}, ${laundryProduction.productionRuns.id}) < (${cursor.createdAtKey}::timestamptz, ${cursor.id}::uuid)`,
       ),
     )
     .orderBy(
@@ -121,7 +112,7 @@ const listRuns = async (
       nextCursor:
         hasNextPage && last !== undefined
           ? productionHistoryRunsCursor.encode(command, {
-              createdAt: last.createdAt,
+              createdAtKey: last.cursorCreatedAtKey,
               id: last.id,
             })
           : null,

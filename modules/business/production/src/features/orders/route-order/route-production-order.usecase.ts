@@ -20,8 +20,8 @@ import {
 } from '../../../foundations/language/commands/production-idempotency.policy.ts';
 import type { Clock } from '@pressly/time';
 import type {
+  OrderRoutingCurrentStage,
   OrderRoutingDecision,
-  OrderRoutingStage,
 } from '../../../foundations/language/order-routing/order-routing.policy.ts';
 import type { ProductionRules } from '../../../foundations/language/rules/production-rules.model.ts';
 import type { ProductionOrderStageAttemptMutation } from '../../../foundations/language/execution/production-lifecycle.model.ts';
@@ -71,11 +71,38 @@ const asBatchStatus = (
 const currentStageFor = (
   command: PreviewProductionOrderRouteCommand,
   context: ProductionOrderRoutingContext,
-): OrderRoutingStage => {
-  if (command.kind === 'queued_move') return 'sorting';
-  const status = asBatchStatus(context.source.status);
-  if (status === 'queued' || status === 'finished') return command.restartStage;
-  return status;
+  policy: Pick<ProductionRules, 'deriveOrderRoutingCurrentStage'>,
+): Result<
+  OrderRoutingCurrentStage,
+  Readonly<{ code: string; message: string }>
+> => {
+  if (command.kind === 'queued_move')
+    return result.ok({ stage: 'sorting', status: 'planned' });
+
+  const source = context.candidates.find(
+    (candidate) =>
+      candidate.productionBatchId === context.source.productionBatchId,
+  );
+  if (source === undefined)
+    throw invariantViolationError({
+      code: 'production_order_route_source_stage_graph_missing',
+      message: 'Stored production routing data is inconsistent.',
+      safeMessage: 'Stored production routing data is inconsistent.',
+    });
+
+  return policy.deriveOrderRoutingCurrentStage({
+    batchStatus: asBatchStatus(context.source.status),
+    stages: source.stages.map((stage) => ({
+      stage: stage.stage,
+      status: stage.status,
+    })),
+    attempts: context.attempts
+      .filter(
+        (attempt) =>
+          attempt.productionBatchId === context.source.productionBatchId,
+      )
+      .map((attempt) => ({ stage: attempt.stage, status: attempt.status })),
+  });
 };
 
 const proposalHash = (
@@ -91,6 +118,7 @@ type RouteProductionOrderPolicy = Pick<
   ProductionRules,
   | 'evaluateProductionOrderOperationalAccess'
   | 'resolveProductionOrderExecutionState'
+  | 'deriveOrderRoutingCurrentStage'
   | 'evaluateOrderRouting'
   | 'evaluateProductionOrderStageAttemptTransition'
   | 'initialProductionOrderStageAttemptState'
@@ -134,6 +162,7 @@ const evaluateProposal = (input: {
   command: PreviewProductionOrderRouteCommand;
   context: ProductionOrderRoutingContext;
   policy: RouteProductionOrderPolicy;
+  consistency: 'snapshot' | 'locked';
 }): ProposalEvaluation => {
   const { command, context } = input;
   if (context.run.status !== 'started')
@@ -218,6 +247,22 @@ const evaluateProposal = (input: {
             candidate.productionBatchId === command.targetProductionBatchId,
         )
       : context.candidates;
+  const currentStage = currentStageFor(command, context, input.policy);
+  if (currentStage.tag === 'err') {
+    if (input.consistency === 'locked')
+      throw invariantViolationError({
+        code: `production_order_route_${currentStage.error.code.toLowerCase()}`,
+        message: currentStage.error.message,
+        safeMessage: 'Stored production routing data is inconsistent.',
+      });
+    return result.err(
+      conflictFailure({
+        code: currentStage.error.code.toLowerCase(),
+        message: currentStage.error.message,
+        safeMessage: currentStage.error.message,
+      }),
+    );
+  }
   const decision: OrderRoutingDecision = input.policy.evaluateOrderRouting({
     command:
       command.kind === 'queued_move' ? 'queued_rebatch' : 'defer_or_rework',
@@ -231,7 +276,8 @@ const evaluateProposal = (input: {
       status: asBatchStatus(context.source.status),
       membershipFrozen: context.source.membershipFrozen,
     },
-    currentStage: currentStageFor(command, context),
+    currentStage: currentStage.value.stage,
+    currentStageStatus: currentStage.value.status,
     restartStage: command.restartStage,
     targetCandidates: candidates.map((candidate) => ({
       productionBatchId: candidate.productionBatchId,
@@ -327,6 +373,13 @@ const asPreviewCommand = (
       };
 };
 
+const normalizedExceptionNote = (
+  command: CommitProductionOrderRouteCommand,
+): string | undefined =>
+  command.kind === 'exception' && command.note !== undefined
+    ? command.note.trim()
+    : undefined;
+
 export const makeRouteProductionOrder = (deps: {
   repo: RouteProductionOrderRepository;
   policy: RouteProductionOrderPolicy;
@@ -374,6 +427,7 @@ export const makeRouteProductionOrder = (deps: {
               command,
               context,
               policy: deps.policy,
+              consistency: 'snapshot',
             });
     } catch (error) {
       const failure = mapUnknownError(error, (unknownCause) =>
@@ -407,6 +461,7 @@ export const makeRouteProductionOrder = (deps: {
     >;
     try {
       outcome = await deps.repo.transaction(async (repo) => {
+        const note = normalizedExceptionNote(command);
         const idempotency = defineWorkEventCommand({
           operation:
             command.kind === 'queued_move'
@@ -429,7 +484,9 @@ export const makeRouteProductionOrder = (deps: {
               ? {
                   targetProductionBatchId: command.targetProductionBatchId,
                 }
-              : {}),
+              : note === undefined
+                ? {}
+                : { note }),
           },
         });
         const replay = resolveWorkEventReplay<CommitProductionOrderRouteResult>(
@@ -446,6 +503,15 @@ export const makeRouteProductionOrder = (deps: {
           command.productionOrderId,
           true,
         );
+        const lockedReplay =
+          resolveWorkEventReplay<CommitProductionOrderRouteResult>(
+            await repo.findWorkEvent(command.idempotencyKey),
+            idempotency,
+          );
+        if (lockedReplay.tag === 'conflict')
+          return result.err(productionIdempotencyConflict());
+        if (lockedReplay.tag === 'replay')
+          return result.ok(lockedReplay.result);
         if (context === null)
           return result.err(
             notFoundFailure({
@@ -460,6 +526,7 @@ export const makeRouteProductionOrder = (deps: {
           command: asPreviewCommand(command),
           context,
           policy: deps.policy,
+          consistency: 'locked',
         });
         if (evaluated.tag === 'err') return evaluated;
         if (evaluated.value.proposalHash !== command.proposalHash)
@@ -516,9 +583,7 @@ export const makeRouteProductionOrder = (deps: {
             locationId: command.locationId,
             actorId: command.actorId,
             reason: command.reason,
-            ...(command.kind === 'exception' && command.note !== undefined
-              ? { note: command.note }
-              : {}),
+            ...(note === undefined ? {} : { note }),
             idempotencyKey: command.idempotencyKey,
             idempotency,
             context,

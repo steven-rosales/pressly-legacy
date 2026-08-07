@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { assessProductionOrderCommandCapabilities } from '../../../../src/features/orders/list-order-control/production-order-command-capability.policy.ts';
 import type { OrderRoutingDecision } from '../../../../src/foundations/language/order-routing/order-routing.policy.ts';
+import { productionRules } from '../../../../src/foundations/language/rules/production-rules.factory.ts';
 import type { ProductionRules } from '../../../../src/foundations/language/rules/production-rules.model.ts';
 import { allowPolicy } from '../../../support/production.fake.ts';
 
@@ -8,7 +9,19 @@ const batch = (
   id: string,
   sequence: number,
   input: Readonly<{
-    status?: 'queued' | 'sorting';
+    status?:
+      | 'queued'
+      | 'sorting'
+      | 'washing'
+      | 'drying'
+      | 'folding_packaging'
+      | 'finished';
+    stageStatuses?: Partial<
+      Record<
+        'sorting' | 'washing' | 'drying' | 'folding_packaging',
+        'planned' | 'started' | 'completed'
+      >
+    >;
     membershipFrozen?: boolean;
     version?: number;
     derivedWeightLbs?: number;
@@ -31,9 +44,10 @@ const batch = (
     ).map((stage) => ({
       stage,
       status:
-        status === 'sorting' && stage === 'sorting'
+        input.stageStatuses?.[stage] ??
+        (status !== 'queued' && status !== 'finished' && stage === status
           ? ('started' as const)
-          : ('planned' as const),
+          : ('planned' as const)),
       assignedWeightLbs: derivedWeightLbs,
       capacityLbs,
     })),
@@ -45,6 +59,10 @@ const context = (
     source?: ReturnType<typeof batch>;
     candidates?: readonly ReturnType<typeof batch>[];
     activeOrderCount?: number;
+    sourceAttempts?: readonly Readonly<{
+      stage: 'sorting' | 'washing' | 'drying' | 'folding_packaging';
+      status: 'assigned' | 'completed' | 'released';
+    }>[];
   }> = {},
 ) => {
   const source = input.source ?? batch('source-batch', 0);
@@ -59,6 +77,15 @@ const context = (
     },
     run: { id: 'run-1', status: 'started', queueVersion: 5 },
     source: { ...source, activeOrderCount: input.activeOrderCount ?? 2 },
+    sourceAttempts:
+      input.sourceAttempts ??
+      source.stages.map((stage) => ({
+        stage: stage.stage,
+        status:
+          stage.status === 'completed'
+            ? ('completed' as const)
+            : ('assigned' as const),
+      })),
     candidates: input.candidates ?? [
       source,
       batch('target-batch', 1, { version: 4 }),
@@ -216,6 +243,39 @@ describe('production order command capabilities', () => {
             },
           },
         ],
+      },
+    });
+  });
+
+  it('allows an exception in the completed-washing gap when drying remains feasible', () => {
+    const source = batch('source-batch', 0, {
+      status: 'washing',
+      membershipFrozen: true,
+      stageStatuses: {
+        sorting: 'completed',
+        washing: 'completed',
+      },
+    });
+    const target = batch('target-batch', 1, {
+      status: 'washing',
+      membershipFrozen: true,
+      stageStatuses: {
+        sorting: 'completed',
+        washing: 'started',
+      },
+    });
+
+    expect(
+      assessProductionOrderCommandCapabilities(
+        productionRules,
+        context({ source, candidates: [source, target] }),
+      ),
+    ).toMatchObject({
+      routeException: {
+        status: 'allowed',
+        expectedQueueVersion: 5,
+        expectedOrderVersion: 3,
+        expectedSourceBatchVersion: 1,
       },
     });
   });

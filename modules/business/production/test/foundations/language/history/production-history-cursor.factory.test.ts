@@ -19,7 +19,7 @@ describe('defineProductionHistoryCursor', () => {
       since: new Date('2026-08-02T12:00:00.000Z'),
     };
     const point = {
-      createdAt: new Date('2026-08-02T13:00:00.000Z'),
+      createdAtKey: '2026-08-02T13:00:00.123456Z',
       id: '00000000-0000-4000-8000-000000000001',
     };
 
@@ -32,7 +32,31 @@ describe('defineProductionHistoryCursor', () => {
   it('fails closed for malformed payloads and invalid cursor points', () => {
     expect(cursor.decode('not-a-cursor', {})).toBeNull();
     expect(() =>
-      cursor.encode({}, { createdAt: new Date('invalid'), id: 'not-a-uuid' }),
+      cursor.encode({}, { createdAtKey: 'not-a-timestamp', id: 'not-a-uuid' }),
     ).toThrow('Production-history cursor point is invalid.');
+    expect(() =>
+      cursor.encode(
+        {},
+        {
+          createdAtKey: '2026-02-31T13:00:00.123456Z',
+          id: '00000000-0000-4000-8000-000000000001',
+        },
+      ),
+    ).toThrow('Production-history cursor point is invalid.');
+  });
+
+  it('rejects legacy millisecond cursors instead of resuming from a lossy point', () => {
+    const filter = { status: 'completed' };
+    const legacy = Buffer.from(
+      JSON.stringify({
+        version: 1,
+        kind: 'example',
+        filterKey: cursor.filterKey(filter),
+        createdAt: '2026-08-02T13:00:00.123Z',
+        id: '00000000-0000-4000-8000-000000000001',
+      }),
+    ).toString('base64url');
+
+    expect(cursor.decode(legacy, filter)).toBeNull();
   });
 });

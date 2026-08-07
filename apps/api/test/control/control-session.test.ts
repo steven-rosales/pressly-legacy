@@ -262,6 +262,36 @@ describe('Control browser session boundary', () => {
     expect(accepted.status).toBe(200);
   });
 
+  it('presents a revoked cookie session as invalid authentication and clears it', async () => {
+    const application = makeApplication();
+    vi.mocked(application.loadSession).mockResolvedValue({
+      tag: 'err',
+      error: {
+        kind: 'authentication',
+        code: 'invalid_session',
+        message: 'Authentication is required.',
+      },
+    });
+    const app = makeTestApp({ application });
+    const baseUrl = await start(app);
+
+    const response = await fetch(`${baseUrl}/control/auth/session`, {
+      headers: { Cookie: `pressly_control_session=${sessionToken}` },
+    });
+    const body = (await response.json()) as {
+      error: { code: string; message: string };
+    };
+
+    expect(response.status).toBe(401);
+    expect(body.error).toEqual({
+      code: 'invalid_session',
+      message: 'Authentication is required.',
+    });
+    expect(response.headers.get('set-cookie')).toContain(
+      'pressly_control_session=;',
+    );
+  });
+
   it('has no bearer-token fallback and rejects identities without Control access', async () => {
     const application = makeApplication();
     const app = makeTestApp({

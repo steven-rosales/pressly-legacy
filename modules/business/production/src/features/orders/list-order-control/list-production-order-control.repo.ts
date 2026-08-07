@@ -721,46 +721,85 @@ export const makeListProductionOrderControlRepository = (
               ),
           ]);
     const routingStageIds = routingStageRows.map((stage) => stage.id);
-    const assignedWeightRows =
+    const [assignedWeightRows, machineCapacityRows] =
       routingStageIds.length === 0
-        ? []
-        : await db
-            .select({
-              stageRunId:
-                laundryProduction.productionOrderStageAttempts.stageRunId,
-              weightLbs: laundryProduction.productionOrders.derivedWeightLbs,
-            })
-            .from(laundryProduction.productionOrderStageAttempts)
-            .innerJoin(
-              laundryProduction.productionOrders,
-              and(
-                eq(
-                  laundryProduction.productionOrders.id,
-                  laundryProduction.productionOrderStageAttempts
-                    .productionOrderId,
-                ),
-                eq(
-                  laundryProduction.productionOrders.locationId,
-                  laundryProduction.productionOrderStageAttempts.locationId,
-                ),
-              ),
-            )
-            .where(
-              and(
-                eq(
-                  laundryProduction.productionOrderStageAttempts.locationId,
-                  command.locationId,
-                ),
-                eq(
-                  laundryProduction.productionOrderStageAttempts.status,
-                  'assigned',
-                ),
-                inArray(
+        ? [[], []]
+        : await Promise.all([
+            db
+              .select({
+                stageRunId:
                   laundryProduction.productionOrderStageAttempts.stageRunId,
-                  routingStageIds,
+                weightLbs: laundryProduction.productionOrders.derivedWeightLbs,
+              })
+              .from(laundryProduction.productionOrderStageAttempts)
+              .innerJoin(
+                laundryProduction.productionOrders,
+                and(
+                  eq(
+                    laundryProduction.productionOrders.id,
+                    laundryProduction.productionOrderStageAttempts
+                      .productionOrderId,
+                  ),
+                  eq(
+                    laundryProduction.productionOrders.locationId,
+                    laundryProduction.productionOrderStageAttempts.locationId,
+                  ),
+                ),
+              )
+              .where(
+                and(
+                  eq(
+                    laundryProduction.productionOrderStageAttempts.locationId,
+                    command.locationId,
+                  ),
+                  eq(
+                    laundryProduction.productionOrderStageAttempts.status,
+                    'assigned',
+                  ),
+                  inArray(
+                    laundryProduction.productionOrderStageAttempts.stageRunId,
+                    routingStageIds,
+                  ),
                 ),
               ),
-            );
+            db
+              .select({
+                stageRunId:
+                  laundryProduction.stageMachineAssignments.stageRunId,
+                capacityLbs: laundryProduction.machines.effectiveCapacityLbs,
+              })
+              .from(laundryProduction.stageMachineAssignments)
+              .innerJoin(
+                laundryProduction.machines,
+                and(
+                  eq(
+                    laundryProduction.machines.id,
+                    laundryProduction.stageMachineAssignments.machineId,
+                  ),
+                  eq(
+                    laundryProduction.machines.locationId,
+                    laundryProduction.stageMachineAssignments.locationId,
+                  ),
+                ),
+              )
+              .where(
+                and(
+                  eq(
+                    laundryProduction.stageMachineAssignments.locationId,
+                    command.locationId,
+                  ),
+                  eq(
+                    laundryProduction.stageMachineAssignments.status,
+                    'planned',
+                  ),
+                  eq(laundryProduction.machines.isActive, true),
+                  inArray(
+                    laundryProduction.stageMachineAssignments.stageRunId,
+                    routingStageIds,
+                  ),
+                ),
+              ),
+          ]);
 
     const activeOrderCountByBatch = new Map<string, number>();
     for (const membership of activeMembershipRows)
@@ -775,28 +814,52 @@ export const makeListProductionOrderControlRepository = (
         (assignedWeightByStage.get(assignment.stageRunId) ?? 0) +
           assignment.weightLbs,
       );
-    const capacityByBatch = new Map(
-      routingBatchRows.map((batch) => [batch.id, batch.pulseCapacityLbs]),
+    const machineCapacityByStage = new Map<string, number>();
+    for (const assignment of machineCapacityRows) {
+      if (assignment.capacityLbs === null) continue;
+      machineCapacityByStage.set(
+        assignment.stageRunId,
+        (machineCapacityByStage.get(assignment.stageRunId) ?? 0) +
+          assignment.capacityLbs,
+      );
+    }
+    const routingBatchById = new Map(
+      routingBatchRows.map((batch) => [batch.id, batch]),
     );
     const routingStagesByBatch = new Map<
       string,
       ProductionOrderCommandCapabilityContext['candidates'][number]['stages']
     >();
     for (const stage of routingStageRows) {
-      const capacityLbs = capacityByBatch.get(stage.productionBatchId);
-      if (capacityLbs === undefined)
+      const batch = routingBatchById.get(stage.productionBatchId);
+      if (batch === undefined)
         throw productionInvariantViolation(
           'production_order_control_routing_batch_missing',
           'Routing stage is missing its production batch.',
         );
       const stages = routingStagesByBatch.get(stage.productionBatchId) ?? [];
+      const stageKind = asStage(stage.stageKind);
+      const stageStatus = asStageStatus(stage.status);
+      const assignedMachineCapacityLbs =
+        machineCapacityByStage.get(stage.id) ?? 0;
+      const plannedMachineStage =
+        stageStatus === 'planned' &&
+        (stageKind === 'washing' || stageKind === 'drying');
       routingStagesByBatch.set(stage.productionBatchId, [
         ...stages,
         {
-          stage: asStage(stage.stageKind),
-          status: asStageStatus(stage.status),
-          assignedWeightLbs: assignedWeightByStage.get(stage.id) ?? 0,
-          capacityLbs,
+          stage: stageKind,
+          status: stageStatus,
+          assignedWeightLbs:
+            stageStatus === 'planned'
+              ? Math.max(
+                  assignedWeightByStage.get(stage.id) ?? 0,
+                  batch.derivedWeightLbs,
+                )
+              : (assignedWeightByStage.get(stage.id) ?? 0),
+          capacityLbs: plannedMachineStage
+            ? Math.min(batch.pulseCapacityLbs, assignedMachineCapacityLbs)
+            : batch.pulseCapacityLbs,
         },
       ]);
     }
@@ -986,6 +1049,19 @@ export const makeListProductionOrderControlRepository = (
                     routingSource.productionBatchId,
                   ) ?? 0,
               },
+        sourceAttempts:
+          routingSource === null
+            ? []
+            : attempts
+                .filter(
+                  (attempt) =>
+                    attempt.productionBatchId ===
+                    routingSource.productionBatchId,
+                )
+                .map((attempt) => ({
+                  stage: attempt.stage,
+                  status: attempt.status,
+                })),
         candidates: routingCandidates,
       });
       const sourceState = asSourceAdmissionState(row.admissionState);

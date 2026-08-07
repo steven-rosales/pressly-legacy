@@ -12,6 +12,7 @@ import type {
 } from '../../../../src/foundations/language/commands/production-command.model.ts';
 import type { AdvanceProductionStageRepository } from '../../../../src/features/floor/advance-stage/advance-production-stage.port.ts';
 import { makeAdvanceProductionStage } from '../../../../src/features/floor/advance-stage/advance-production-stage.usecase.ts';
+import { evaluateMachineAssignment } from '../../../../src/foundations/language/machine-assignment/machine-assignment.policy.ts';
 import { allowPolicy } from '../../../support/production.fake.ts';
 
 const ids = {
@@ -21,6 +22,7 @@ const ids = {
   otherActor: '44444444-4444-4444-8444-444444444444',
   attempt: '55555555-5555-4555-8555-555555555555',
   order: '66666666-6666-4666-8666-666666666666',
+  machine: '77777777-7777-4777-8777-777777777777',
 } as const;
 
 const runLifecycleDecision = Object.freeze({
@@ -114,7 +116,11 @@ const makeRepository = (
   overrides: Readonly<{
     version?: number;
     status?: 'planned' | 'started';
-    stageKind?: 'sorting' | 'folding_packaging';
+    stageKind?: 'sorting' | 'washing' | 'drying' | 'folding_packaging';
+    batchStatus?: StageTransitionContext['batch']['status'];
+    batchWeightLbs?: number;
+    machineIds?: readonly string[];
+    machines?: StageTransitionContext['machines'];
     plannedStartAt?: string;
     plannedEndAt?: string;
     actualStartAt?: string | null;
@@ -140,17 +146,18 @@ const makeRepository = (
         overrides.actualStartAt === undefined
           ? '2026-07-14T14:00:00.000Z'
           : overrides.actualStartAt,
-      machineIds: [],
+      machineIds: overrides.machineIds ?? [],
       version: overrides.version ?? 3,
     },
     batch: {
       id: ids.batch,
       status:
-        stageStatus === 'planned'
+        overrides.batchStatus ??
+        (stageStatus === 'planned'
           ? stageKind === 'sorting'
             ? 'queued'
             : 'drying'
-          : stageKind,
+          : stageKind),
       version: 2,
     },
     attempts: [{ id: ids.attempt, status: 'assigned' }],
@@ -169,8 +176,8 @@ const makeRepository = (
     batchMembershipFrozen: true,
     previousStageCompleted: true,
     sameKindAlreadyActive: false,
-    batchWeightLbs: 20,
-    machines: [],
+    batchWeightLbs: overrides.batchWeightLbs ?? 20,
+    machines: overrides.machines ?? [],
   };
   const mutation: ProductionMutationResult = {
     entityId: ids.stage,
@@ -250,6 +257,46 @@ const startConfirmationValue = (
 };
 
 describe('advance production stage', () => {
+  it('blocks a machine stage start when assigned effective capacity is below the current batch weight', async () => {
+    const repository = makeRepository({
+      status: 'planned',
+      stageKind: 'washing',
+      batchStatus: 'sorting',
+      actualStartAt: null,
+      batchWeightLbs: 60,
+      machineIds: [ids.machine],
+      machines: [
+        {
+          id: ids.machine,
+          stationKind: 'washing',
+          effectiveCapacityLbs: 50,
+          active: true,
+          overlaps: false,
+        },
+      ],
+    });
+    const advance = makeAdvanceProductionStage({
+      repo: repository.repo,
+      policy: { ...policy, evaluateMachineAssignment },
+      clock: { now: () => new Date('2026-07-14T15:00:00.000Z') },
+    });
+
+    await expect(
+      advance({
+        locationId: 'location-1',
+        stageRunId: ids.stage,
+        expectedVersion: 3,
+        actorId: ids.actor,
+        transition: 'start',
+        idempotencyKey: 'start-undercapacity-stage-command-1',
+      }),
+    ).resolves.toMatchObject({
+      tag: 'err',
+      error: { code: 'machine_capacity_insufficient', kind: 'conflict' },
+    });
+    expect(repository.transitionStage).not.toHaveBeenCalled();
+  });
+
   it('rejects floor progress for an archived production order', async () => {
     const repository = makeRepository({
       resolutionState: 'resolved_without_production',

@@ -14,6 +14,10 @@ export const productionHistoryActivitySelect = {
   currentResolutionState: laundryProduction.productionOrders.resolutionState,
   currentProductionVersion: laundryProduction.productionOrders.version,
   createdAt: laundryProduction.workEvents.createdAt,
+  cursorCreatedAtKey:
+    sql<string>`to_char(${laundryProduction.workEvents.createdAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as(
+      'cursor_created_at_key',
+    ),
 } as const;
 
 export const productionHistoryRunScope = (productionRunId: string) =>

@@ -227,10 +227,14 @@ export const loadStageTransitionContext = async (
       )
       .map((assignment) => assignment.machineId),
   );
+  // Machine availability and effective capacity participate in the start
+  // decision, so fence resource updates until this transition commits.
   const machineRows = await db
     .select()
     .from(laundryProduction.machines)
-    .where(eq(laundryProduction.machines.locationId, locationId));
+    .where(eq(laundryProduction.machines.locationId, locationId))
+    .orderBy(asc(laundryProduction.machines.id))
+    .for('update');
   const stationRows = await db
     .select()
     .from(laundryProduction.stations)

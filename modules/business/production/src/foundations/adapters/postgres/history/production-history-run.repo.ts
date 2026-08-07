@@ -19,6 +19,10 @@ export const productionHistoryRunSelect = {
   overtimeAcknowledgedAt:
     laundryProduction.productionRuns.overtimeAcknowledgedAt,
   createdAt: laundryProduction.productionRuns.createdAt,
+  cursorCreatedAtKey:
+    sql<string>`to_char(${laundryProduction.productionRuns.createdAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as(
+      'cursor_created_at_key',
+    ),
 } as const;
 
 export const loadProductionHistoryRunStatistics = async (

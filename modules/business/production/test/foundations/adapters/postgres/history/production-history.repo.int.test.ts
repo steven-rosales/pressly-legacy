@@ -1,4 +1,4 @@
-import { eq } from '@pressly/db/query';
+import { eq, sql } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
 import * as laundryProduction from '@pressly/db/schema/laundry-production';
 import { productionHistoryRunDetailSchema } from '@pressly/contracts/production';
@@ -40,6 +40,9 @@ const ids = {
   resolvedDemand: '10000000-0000-4000-8000-000000000018',
   resolvedOrder: '10000000-0000-4000-8000-000000000019',
   resolvedEvent: '10000000-0000-4000-8000-000000000024',
+  precisionEventOldest: '10000000-0000-4000-8000-000000000025',
+  precisionEventMiddle: '10000000-0000-4000-8000-000000000026',
+  precisionEventNewest: '10000000-0000-4000-8000-000000000027',
 } as const;
 
 const stages = [
@@ -354,6 +357,69 @@ const seed = async () => {
 };
 
 describe('production history Postgres read model', () => {
+  it('paginates every activity row when PostgreSQL timestamps differ only below JavaScript precision', async () => {
+    await seed();
+    const precisionEvents = [
+      {
+        id: ids.precisionEventOldest,
+        createdAt: '2026-07-15T19:45:00.000100Z',
+      },
+      {
+        id: ids.precisionEventMiddle,
+        createdAt: '2026-07-15T19:45:00.000500Z',
+      },
+      {
+        id: ids.precisionEventNewest,
+        createdAt: '2026-07-15T19:45:00.000900Z',
+      },
+    ] as const;
+    await testDb.db.insert(laundryProduction.workEvents).values(
+      precisionEvents.map(({ id }) => ({
+        id,
+        locationId: 'location-1',
+        eventType: 'stage_started',
+        entityType: 'stage_run',
+        entityId: '20000000-0000-4000-8000-000000000023',
+        actorId: ids.actor,
+        idempotencyKey: `history-precision-${id}`,
+        payload: { version: 2 },
+        createdAt: new Date('2026-07-15T19:45:00.000Z'),
+      })),
+    );
+    for (const event of precisionEvents)
+      await testDb.db
+        .update(laundryProduction.workEvents)
+        .set({ createdAt: sql<Date>`${event.createdAt}::timestamptz` })
+        .where(eq(laundryProduction.workEvents.id, event.id));
+
+    const repo = makeProductionHistoryRepositories();
+    const collectedIds: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await repo.listActivity(
+        {
+          locationId: 'location-1',
+          runId: ids.run,
+          eventType: 'stage_started',
+          limit: 1,
+          ...(cursor === undefined ? {} : { cursor }),
+        },
+        now,
+      );
+      expect(page.tag).toBe('found');
+      if (page.tag !== 'found') break;
+      collectedIds.push(...page.value.items.map((item) => item.id));
+      cursor = page.value.nextCursor ?? undefined;
+    } while (cursor !== undefined);
+
+    expect(collectedIds).toEqual([
+      ids.precisionEventNewest,
+      ids.precisionEventMiddle,
+      ids.precisionEventOldest,
+    ]);
+    expect(new Set(collectedIds).size).toBe(collectedIds.length);
+  });
+
   it('keeps pages location-scoped, keyset-stable, and sanitized', async () => {
     await seed();
     const repo = makeProductionHistoryRepositories();

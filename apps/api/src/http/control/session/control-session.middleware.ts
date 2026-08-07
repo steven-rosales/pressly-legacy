@@ -14,6 +14,7 @@ import {
 } from './control-csrf.adapter.ts';
 import {
   controlForbidden,
+  controlSessionFailureToAppError,
   controlUnauthorized,
 } from './control-session.error.ts';
 import {
@@ -68,7 +69,7 @@ export const makeControlSessionAuthentication = (input: {
     });
     if (isControlResultError(loaded)) {
       clearControlCookie(response, input.names.session, input.options);
-      throw loaded.error;
+      throw controlSessionFailureToAppError(loaded.error);
     }
 
     const access = await input.resolveAccess(loaded.value);

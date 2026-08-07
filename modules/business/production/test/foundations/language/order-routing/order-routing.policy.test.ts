@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  deriveOrderRoutingCurrentStage,
   evaluateOrderRouting,
   evaluateQueuedMoveTarget,
   orderRoutingStages,
@@ -47,11 +48,67 @@ const dryerDeferral = (
     membershipFrozen: true,
   },
   currentStage: 'drying',
+  currentStageStatus: 'started',
   restartStage: 'drying',
   targetCandidates: candidates,
 });
 
 describe('order routing policy', () => {
+  it('derives the next required stage in the completed-stage gap', () => {
+    const progress = deriveOrderRoutingCurrentStage({
+      batchStatus: 'washing',
+      stages: stageStatuses({ sorting: 'completed', washing: 'completed' }),
+      attempts: orderRoutingStages.map((stage) => ({
+        stage,
+        status:
+          stage === 'sorting' || stage === 'washing'
+            ? ('completed' as const)
+            : ('assigned' as const),
+      })),
+    });
+
+    expect(progress).toEqual({
+      tag: 'ok',
+      value: { stage: 'drying', status: 'planned' },
+    });
+    if (progress.tag !== 'ok') return;
+    expect(
+      evaluateOrderRouting({
+        ...dryerDeferral(1, [target('batch-2', 2)]),
+        source: {
+          productionBatchId: 'batch-1',
+          sequence: 1,
+          status: 'washing',
+          membershipFrozen: true,
+        },
+        currentStage: progress.value.stage,
+        currentStageStatus: progress.value.status,
+      }),
+    ).toMatchObject({
+      decision: 'accepted',
+      route: {
+        currentStage: 'drying',
+        releasedUnfinishedStages: ['drying', 'folding_packaging'],
+      },
+    });
+
+    expect(
+      deriveOrderRoutingCurrentStage({
+        batchStatus: 'washing',
+        stages: stageStatuses({ sorting: 'completed', washing: 'started' }),
+        attempts: [
+          { stage: 'sorting', status: 'completed' },
+          { stage: 'washing', status: 'completed' },
+          { stage: 'drying', status: 'assigned' },
+          { stage: 'folding_packaging', status: 'assigned' },
+        ],
+      }),
+    ).toMatchObject({
+      tag: 'err',
+      error: { code: 'SOURCE_ORDER_ATTEMPT_INCONSISTENT' },
+    });
+  });
+
   it('routes a dryer leave-behind from batch m to the earliest feasible m+1 suffix', () => {
     const later = target('batch-3', 3, {
       status: 'washing',
@@ -205,6 +262,7 @@ describe('order routing policy', () => {
         membershipFrozen: false,
       },
       currentStage: 'sorting',
+      currentStageStatus: 'planned',
       restartStage: 'sorting',
       targetCandidates: [target('batch-3', 3), target('batch-1', 1)],
     };

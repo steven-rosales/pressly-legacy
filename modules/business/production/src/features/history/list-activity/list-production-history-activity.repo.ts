@@ -1,5 +1,5 @@
 import { type Database, type DatabaseExecutor } from '@pressly/db/client';
-import { and, desc, eq, gte, inArray, lt, or, sql } from '@pressly/db/query';
+import { and, desc, eq, gte, inArray, sql } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
 import * as laundryProduction from '@pressly/db/schema/laundry-production';
 import {
@@ -98,13 +98,7 @@ const loadActivityPage = (
             )`,
         cursor === undefined
           ? undefined
-          : or(
-              lt(laundryProduction.workEvents.createdAt, cursor.createdAt),
-              and(
-                eq(laundryProduction.workEvents.createdAt, cursor.createdAt),
-                lt(laundryProduction.workEvents.id, cursor.id),
-              ),
-            ),
+          : sql<boolean>`(${laundryProduction.workEvents.createdAt}, ${laundryProduction.workEvents.id}) < (${cursor.createdAtKey}::timestamptz, ${cursor.id}::uuid)`,
       ),
     )
     .orderBy(
@@ -144,7 +138,7 @@ const listActivity = async (
       nextCursor:
         hasNextPage && last !== undefined
           ? productionHistoryActivityCursor.encode(command, {
-              createdAt: last.createdAt,
+              createdAtKey: last.cursorCreatedAtKey,
               id: last.id,
             })
           : null,

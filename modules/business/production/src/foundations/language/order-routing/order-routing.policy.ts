@@ -1,3 +1,5 @@
+import { result, type CodedFailure, type Result } from '@pressly/kernel';
+
 export const orderRoutingStages = [
   'sorting',
   'washing',
@@ -59,8 +61,26 @@ export type OrderRoutingInput = Readonly<{
     membershipFrozen: boolean;
   }>;
   currentStage: OrderRoutingStage;
+  currentStageStatus: Extract<OrderRoutingStageStatus, 'planned' | 'started'>;
   restartStage: OrderRoutingStage;
   targetCandidates: readonly OrderRoutingTargetCandidate[];
+}>;
+
+export type OrderRoutingCurrentStageInput = Readonly<{
+  batchStatus: OrderRoutingBatchStatus;
+  stages: readonly Readonly<{
+    stage: OrderRoutingStage;
+    status: OrderRoutingStageStatus;
+  }>[];
+  attempts: readonly Readonly<{
+    stage: OrderRoutingStage;
+    status: 'assigned' | 'completed' | 'released';
+  }>[];
+}>;
+
+export type OrderRoutingCurrentStage = Readonly<{
+  stage: OrderRoutingStage;
+  status: Extract<OrderRoutingStageStatus, 'planned' | 'started'>;
 }>;
 
 export type OrderRoutingRejectionCode =
@@ -119,6 +139,112 @@ export type OrderRoutingDecision =
 
 const stageIndex = (stage: OrderRoutingStage): number =>
   orderRoutingStages.indexOf(stage);
+
+const sourceProgressFailure = (
+  code: string,
+  message: string,
+): CodedFailure => ({ code, message });
+
+export const deriveOrderRoutingCurrentStage = (
+  input: OrderRoutingCurrentStageInput,
+): Result<OrderRoutingCurrentStage, CodedFailure> => {
+  if (input.stages.length !== orderRoutingStages.length)
+    return result.err(
+      sourceProgressFailure(
+        'SOURCE_STAGE_GRAPH_INVALID',
+        'The source batch stage graph is incomplete.',
+      ),
+    );
+
+  const byStage = new Map(input.stages.map((stage) => [stage.stage, stage]));
+  if (byStage.size !== orderRoutingStages.length)
+    return result.err(
+      sourceProgressFailure(
+        'SOURCE_STAGE_GRAPH_INVALID',
+        'The source batch stage graph is incomplete.',
+      ),
+    );
+  const stages = orderRoutingStages.map((stage) => byStage.get(stage)!);
+
+  let completedPrefixLength = 0;
+  while (stages[completedPrefixLength]?.status === 'completed')
+    completedPrefixLength += 1;
+  const activeStageIndex = stages.findIndex(
+    (stage) => stage.status === 'started',
+  );
+  const suffixStart =
+    activeStageIndex < 0 ? completedPrefixLength : activeStageIndex + 1;
+  const stageSequenceValid =
+    (activeStageIndex < 0 || activeStageIndex === completedPrefixLength) &&
+    stages.slice(suffixStart).every((stage) => stage.status === 'planned');
+  if (!stageSequenceValid)
+    return result.err(
+      sourceProgressFailure(
+        'SOURCE_STAGE_SEQUENCE_INVALID',
+        'The source batch stages are not one completed prefix with at most one active stage.',
+      ),
+    );
+
+  const expectedBatchStatus: OrderRoutingBatchStatus =
+    completedPrefixLength === orderRoutingStages.length
+      ? 'finished'
+      : activeStageIndex >= 0
+        ? orderRoutingStages[activeStageIndex]!
+        : completedPrefixLength === 0
+          ? 'queued'
+          : orderRoutingStages[completedPrefixLength - 1]!;
+  if (input.batchStatus !== expectedBatchStatus)
+    return result.err(
+      sourceProgressFailure(
+        'SOURCE_BATCH_STATUS_INCONSISTENT',
+        'The source batch status does not match its canonical stage graph.',
+      ),
+    );
+
+  const assignedCounts = new Map<OrderRoutingStage, number>();
+  for (const attempt of input.attempts) {
+    if (attempt.status !== 'assigned') continue;
+    assignedCounts.set(
+      attempt.stage,
+      (assignedCounts.get(attempt.stage) ?? 0) + 1,
+    );
+  }
+  if ([...assignedCounts.values()].some((count) => count > 1))
+    return result.err(
+      sourceProgressFailure(
+        'SOURCE_ORDER_ATTEMPT_INVALID',
+        'The source order has duplicate active stage attempts.',
+      ),
+    );
+  const currentStage = orderRoutingStages.find(
+    (stage) => (assignedCounts.get(stage) ?? 0) === 1,
+  );
+  if (currentStage === undefined)
+    return result.err(
+      sourceProgressFailure(
+        'SOURCE_ORDER_ATTEMPT_MISSING',
+        'The source order has no unfinished stage attempt.',
+      ),
+    );
+
+  const currentStageIndex = stageIndex(currentStage);
+  const currentStageStatus = stages[currentStageIndex]!.status;
+  const currentStageMatchesBatch =
+    (currentStageStatus === 'started' &&
+      activeStageIndex === currentStageIndex) ||
+    (currentStageStatus === 'planned' &&
+      activeStageIndex < 0 &&
+      completedPrefixLength === currentStageIndex);
+  if (!currentStageMatchesBatch)
+    return result.err(
+      sourceProgressFailure(
+        'SOURCE_ORDER_ATTEMPT_INCONSISTENT',
+        'The source order unfinished attempt does not match current batch progress.',
+      ),
+    );
+
+  return result.ok({ stage: currentStage, status: currentStageStatus });
+};
 
 const reject = (
   command: OrderRoutingCommand,
@@ -279,7 +405,13 @@ export const evaluateOrderRouting = (
         'EXCEPTION_SOURCE_NOT_IN_FLIGHT',
         'Deferral or rework requires an in-flight source batch.',
       );
-    if (input.source.status !== input.currentStage)
+    const currentIndex = stageIndex(input.currentStage);
+    const sourceMatchesCurrentStage =
+      input.currentStageStatus === 'started'
+        ? input.source.status === input.currentStage
+        : currentIndex > 0 &&
+          input.source.status === orderRoutingStages[currentIndex - 1];
+    if (!sourceMatchesCurrentStage)
       return reject(
         input.command,
         'SOURCE_CURRENT_STAGE_MISMATCH',

@@ -2,8 +2,20 @@
 
 ## Status
 
-Queued follow-up. Complete this before treating whole-order routing and History
-pagination as pilot-ready.
+Active hardening. Complete this before treating whole-order routing, History
+pagination, or the new staging observability boundary as release-ready.
+
+## Current Rebaseline - 2026-08-06
+
+The architecture migration is complete on this branch and the four findings
+still reproduce against the current Production authority. This active pass
+keeps the repairs independent: stage-gap semantics, assigned machine capacity,
+route idempotency, and exact History ordering each receive their own proof.
+
+The branch also contains the cross-runtime Sentry observability work. That work
+does not change Production policy, but V1 must verify its staging-facing API,
+Worker, logging, metrics, tracing, and Cron configuration alongside the LPMS
+integration and end-to-end proof.
 
 ## Rebaseline After Operational Authority
 
@@ -120,8 +132,8 @@ an ordering representation whose round trip cannot lose rows.
 - Idempotent retries return the original committed result.
 - History pagination returns every authorized row exactly once across pages.
 - No migration or repair guesses at ambiguous production history.
-- The separate `lpms-production-readiness` human gate remains stopped until
-  this work and its local proof pass.
+- Release and pilot authorization remain separate human decisions after this
+  repository, staging, and Sentry proof passes.
 
 ## Verification Target
 
@@ -132,6 +144,8 @@ an ordering representation whose round trip cannot lose rows.
 - Postgres fixtures with multiple history rows inside one millisecond.
 - Full Production, database, Processor, LPMS integration, and LPMS end-to-end
   verification.
+- Staging-facing API and Worker observability checks, including Sentry logs,
+  traces, metrics, release health, and Worker Cron progress.
 - Stateworks evidence that distinguishes repository proof from deployment or
   pilot proof.
 

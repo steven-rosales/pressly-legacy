@@ -510,6 +510,11 @@ export const scheduleRuns = pgTable(
       table.id,
       table.locationId,
     ),
+    index('schedule_runs_location_created_id_idx').on(
+      table.locationId,
+      table.createdAt,
+      table.id,
+    ),
     uniqueIndex('schedule_runs_one_current_per_shift_unique')
       .on(table.productionShiftId)
       .where(sql`${table.status} in ('draft', 'accepted')`),
@@ -569,6 +574,11 @@ export const productionRuns = pgTable(
     uniqueIndex('production_runs_id_location_unique').on(
       table.id,
       table.locationId,
+    ),
+    index('production_runs_location_created_id_idx').on(
+      table.locationId,
+      table.createdAt,
+      table.id,
     ),
     check('production_runs_positive_version', sql`${table.version} > 0`),
     check(
