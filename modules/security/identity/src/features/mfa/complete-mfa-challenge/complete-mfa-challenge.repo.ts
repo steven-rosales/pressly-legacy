@@ -1,8 +1,8 @@
-import { type Database, type DatabaseExecutor } from '@pressly/db/client';
+import { type Database, type DatabaseTransaction } from '@pressly/db/client';
 import { and, eq, gt, isNull, lt, lte, ne, or, sql } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
 import { defineResultUnitOfWork } from '@pressly/db/unit-of-work';
-import { result, type Result } from '@pressly/kernel';
+import { result, type Result, type ResultUnitOfWork } from '@pressly/kernel';
 import type {
   CompletedMfaSession,
   CompleteMfaChallengeStore,
@@ -16,12 +16,17 @@ const mfaTransitionRejected: MfaTransitionFailure = Object.freeze({
   kind: 'rejected',
 });
 
-const makeCompleteTransaction = (db: Database) => {
-  const unitOfWork = defineResultUnitOfWork(db, (transaction) => transaction);
+const makeCompleteTransaction = (
+  db: Database,
+  providedUnitOfWork?: ResultUnitOfWork<DatabaseTransaction>,
+) => {
+  const unitOfWork =
+    providedUnitOfWork ??
+    defineResultUnitOfWork(db, (transaction) => transaction);
 
   return (
     work: (
-      transaction: DatabaseExecutor,
+      transaction: DatabaseTransaction,
     ) => Promise<Result<CompletedMfaSession, MfaTransitionFailure>>,
   ): Promise<MfaCompletionResult> =>
     runDatabaseOperation(async () => {
@@ -34,8 +39,9 @@ const makeCompleteTransaction = (db: Database) => {
 
 export const makeCompleteMfaChallengeStore = (
   db: Database,
+  unitOfWork?: ResultUnitOfWork<DatabaseTransaction>,
 ): CompleteMfaChallengeStore => {
-  const completeTransaction = makeCompleteTransaction(db);
+  const completeTransaction = makeCompleteTransaction(db, unitOfWork);
 
   return {
     findChallengeByTokenHash: async (tokenHash) =>

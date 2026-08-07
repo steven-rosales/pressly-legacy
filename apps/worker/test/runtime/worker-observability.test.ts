@@ -5,10 +5,30 @@ import {
   initializeWorkerSentry,
   makeWorkerSentryHeartbeat,
   makeWorkerSignalSinks,
+  makeWorkerTracesSampler,
+  makeWorkerTransactionFilter,
   reportWorkerFailure,
+  requireWorkerSentryInitialization,
   sanitizeWorkerError,
   workerHeartbeatMonitorSlug,
 } from '../../src/runtime/observability/worker-observability.ts';
+
+const workerTransaction = (input: {
+  job: string;
+  outcome: 'busy' | 'idle' | 'failed';
+}) =>
+  ({
+    type: 'transaction' as const,
+    transaction: input.job,
+    contexts: {
+      trace: {
+        trace_id: '1'.repeat(32),
+        span_id: '2'.repeat(16),
+        op: 'worker.job',
+        data: input,
+      },
+    },
+  }) as const;
 
 describe('worker signal sinks', () => {
   it('redacts diagnostics while preserving structured identity and cause', () => {
@@ -58,7 +78,7 @@ describe('worker signal sinks', () => {
     });
   });
 
-  it('exports low-cardinality Sentry metrics and rate-limits measurements', () => {
+  it('maps count metrics to Sentry unitless and seconds to second', () => {
     const info = vi.fn();
     const count = vi.fn();
     const gauge = vi.fn();
@@ -73,55 +93,50 @@ describe('worker signal sinks', () => {
     });
 
     sinks.counters.increment('worker.jobs_retried', {
-      job: 'cents_projection',
+      runtime: 'api',
+      job: 'webhook_ingestion',
       receipt_id: 'must-not-be-exported',
       token: 'must-not-be-exported',
     });
     sinks.measurements.observe('worker.inbox_pending_count', 2, {
-      job: 'cents_projection',
+      job: 'webhook_ingestion',
     });
     sinks.measurements.observe('worker.inbox_pending_count', 1, {
-      job: 'cents_projection',
+      job: 'webhook_ingestion',
     });
     sinks.measurements.observe('worker.inbox_oldest_pending_age_seconds', 130, {
-      job: 'cents_projection',
+      job: 'webhook_ingestion',
     });
     sinks.measurements.observe('worker.processing_latency_seconds', 0.25, {
-      job: 'cents_projection',
+      job: 'webhook_ingestion',
     });
     now = new Date(now.getTime() + 60_000);
     sinks.measurements.observe('worker.inbox_pending_count', 1, {
-      job: 'cents_projection',
+      job: 'webhook_ingestion',
     });
 
-    expect(info).toHaveBeenCalledTimes(5);
-    expect(info.mock.calls.map(([message]) => message)).toEqual([
-      'worker counter incremented',
-      'worker measurement observed',
-      'worker measurement observed',
-      'worker measurement observed',
-      'worker measurement observed',
-    ]);
+    expect(info).not.toHaveBeenCalled();
     expect(count).toHaveBeenCalledWith('worker.jobs_retried', 1, {
-      attributes: { runtime: 'worker', job: 'cents_projection' },
+      attributes: { runtime: 'worker', job: 'webhook_ingestion' },
     });
-    expect(gauge).toHaveBeenCalledTimes(3);
+    expect(count.mock.calls[0]?.[2]).not.toHaveProperty('unit');
+    expect(gauge).toHaveBeenCalledTimes(4);
     expect(gauge).toHaveBeenCalledWith(
       'worker.inbox_oldest_pending_age_seconds',
       130,
       {
-        attributes: { runtime: 'worker', job: 'cents_projection' },
+        attributes: { runtime: 'worker', job: 'webhook_ingestion' },
         unit: 'second',
       },
     );
     expect(gauge).toHaveBeenLastCalledWith('worker.inbox_pending_count', 1, {
-      attributes: { runtime: 'worker', job: 'cents_projection' },
+      attributes: { runtime: 'worker', job: 'webhook_ingestion' },
     });
     expect(distribution).toHaveBeenCalledWith(
       'worker.processing_latency_seconds',
       0.25,
       {
-        attributes: { runtime: 'worker', job: 'cents_projection' },
+        attributes: { runtime: 'worker', job: 'webhook_ingestion' },
         unit: 'second',
       },
     );
@@ -138,12 +153,150 @@ describe('worker signal sinks', () => {
         release: 'worker-test',
         traceSampleRate: 0,
       },
-      initialize,
+      { initialize, hasInitializedDsn: () => true },
     );
 
     expect(initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ enableMetrics: true, sendDefaultPii: false }),
+      expect.objectContaining({
+        enableLogs: true,
+        enableMetrics: true,
+        sendDefaultPii: false,
+        tracesSampler: expect.any(Function),
+        beforeSendTransaction: expect.any(Function),
+      }),
     );
+  });
+
+  it('rejects an invalid DSN before initializing the SDK', () => {
+    const initialize = vi.fn();
+    const emergencyLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    const initialized = initializeWorkerSentry(
+      {
+        enabled: true,
+        dsn: 'https://example.com',
+        environment: 'test',
+        release: undefined,
+        traceSampleRate: 0,
+      },
+      { initialize },
+    );
+
+    expect(initialized).toBe(false);
+    expect(initialize).not.toHaveBeenCalled();
+    expect(emergencyLog).toHaveBeenCalledWith(
+      expect.stringContaining('worker.telemetry.initialization_failed'),
+    );
+
+    emergencyLog.mockRestore();
+  });
+
+  it('remains unavailable when the SDK creates no DSN-backed client', () => {
+    const emergencyLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    const initialized = initializeWorkerSentry(
+      {
+        enabled: true,
+        dsn: 'https://public@example.com/1',
+        environment: 'test',
+        release: undefined,
+        traceSampleRate: 0,
+      },
+      { initialize: vi.fn(), hasInitializedDsn: () => false },
+    );
+
+    expect(initialized).toBe(false);
+    expect(emergencyLog).toHaveBeenCalledWith(
+      expect.stringContaining('worker.telemetry.initialization_failed'),
+    );
+
+    emergencyLog.mockRestore();
+  });
+
+  it('fails startup when enabled Sentry did not initialize', () => {
+    expect(() => requireWorkerSentryInitialization(true, false)).toThrow(
+      expect.objectContaining({ code: 'worker_sentry_initialization_failed' }),
+    );
+    expect(() => requireWorkerSentryInitialization(true, true)).not.toThrow();
+    expect(() => requireWorkerSentryInitialization(false, false)).not.toThrow();
+  });
+
+  it('keeps every busy and failed job transaction while sampling idle per job', () => {
+    const times = [0n, 1n, 30_000_000_000n, 60_000_000_000n];
+    const filter = makeWorkerTransactionFilter({
+      nowNanoseconds: () => times.shift() ?? 60_000_000_000n,
+    });
+    const webhookIdle = workerTransaction({
+      job: 'webhook_ingestion',
+      outcome: 'idle',
+    });
+    const outboxIdle = workerTransaction({
+      job: 'order_outbox',
+      outcome: 'idle',
+    });
+    const busy = workerTransaction({
+      job: 'webhook_ingestion',
+      outcome: 'busy',
+    });
+    const failed = workerTransaction({
+      job: 'order_outbox',
+      outcome: 'failed',
+    });
+    const other = {
+      ...webhookIdle,
+      contexts: {
+        trace: {
+          ...webhookIdle.contexts.trace,
+          op: 'http.server',
+        },
+      },
+    } as const;
+
+    expect(filter(webhookIdle, {})).toBe(webhookIdle);
+    expect(filter(outboxIdle, {})).toBe(outboxIdle);
+    expect(filter(webhookIdle, {})).toBeNull();
+    expect(filter(busy, {})).toBe(busy);
+    expect(filter(failed, {})).toBe(failed);
+    expect(filter(other, {})).toBe(other);
+    expect(filter(webhookIdle, {})).toBe(webhookIdle);
+  });
+
+  it('records worker job roots before their outcome and preserves other trace sampling', () => {
+    const sampler = makeWorkerTracesSampler(0.2);
+    const inheritOrSampleWith = vi.fn(() => 0.4);
+
+    expect(
+      sampler({
+        name: 'order_outbox',
+        attributes: { 'pressly.trace.operation': 'worker.job' },
+        inheritOrSampleWith,
+      }),
+    ).toBe(1);
+    expect(
+      sampler({
+        name: 'GET /health',
+        attributes: { 'pressly.trace.operation': 'http.server' },
+        inheritOrSampleWith,
+      }),
+    ).toBe(0.4);
+    expect(inheritOrSampleWith).toHaveBeenCalledOnce();
+    expect(inheritOrSampleWith).toHaveBeenCalledWith(0.2);
+  });
+
+  it('preserves an explicit tracing-off configuration for worker jobs', () => {
+    const sampler = makeWorkerTracesSampler(0);
+
+    expect(
+      sampler({
+        name: 'order_outbox',
+        attributes: { 'pressly.trace.operation': 'worker.job' },
+        inheritOrSampleWith: vi.fn(() => 1),
+      }),
+    ).toBe(0);
   });
 
   it('rate-limits successful Sentry heartbeat check-ins', async () => {

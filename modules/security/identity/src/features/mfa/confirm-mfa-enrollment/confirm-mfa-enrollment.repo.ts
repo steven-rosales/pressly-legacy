@@ -1,8 +1,8 @@
-import type { Database } from '@pressly/db/client';
+import type { Database, DatabaseTransaction } from '@pressly/db/client';
 import { and, eq, gt, isNull } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
 import { defineResultUnitOfWork } from '@pressly/db/unit-of-work';
-import { result } from '@pressly/kernel';
+import { result, type ResultUnitOfWork } from '@pressly/kernel';
 import { runDatabaseOperation } from '../../../foundations/adapters/postgres/database-operation/database-operation.adapter.ts';
 import type { ConfirmMfaEnrollmentStore } from './confirm-mfa-enrollment.port.ts';
 
@@ -14,8 +14,11 @@ const enrollmentTransitionRejected: EnrollmentTransitionFailure = Object.freeze(
 
 export const makeConfirmMfaEnrollmentStore = (
   db: Database,
+  providedUnitOfWork?: ResultUnitOfWork<DatabaseTransaction>,
 ): ConfirmMfaEnrollmentStore => {
-  const unitOfWork = defineResultUnitOfWork(db, (transaction) => transaction);
+  const unitOfWork =
+    providedUnitOfWork ??
+    defineResultUnitOfWork(db, (transaction) => transaction);
 
   return {
     findCredential: async (identityId) =>

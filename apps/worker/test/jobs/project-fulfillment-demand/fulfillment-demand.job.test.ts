@@ -3,7 +3,9 @@ import { nullLogger } from '@pressly/logging';
 import {
   nullCounterSink,
   nullErrorReporter,
+  nullMeasurementSink,
   type ErrorReporter,
+  type MeasurementSink,
 } from '@pressly/observability';
 import type { OrdersApplication, OrderOutboxEvent } from '@pressly/orders';
 import {
@@ -62,14 +64,22 @@ const event = (
 
 const setup = (input: {
   claimed?: readonly OrderOutboxEvent[];
+  claim?: OrdersApplication['claimOutbox'];
   project?: ProductionApplication['applyFulfillmentDemand'];
   complete?: OrdersApplication['completeOutbox'];
+  measureBacklog?: OrdersApplication['measureOutboxBacklog'];
+  measurements?: MeasurementSink;
+  now?: () => Date;
+  nowNanoseconds?: () => bigint;
   errors?: ErrorReporter;
 }) => {
-  const claimOutbox = vi.fn(async () => ({
-    tag: 'ok' as const,
-    value: input.claimed ?? [event()],
-  }));
+  const claimOutbox = vi.fn(
+    input.claim ??
+      (async () => ({
+        tag: 'ok' as const,
+        value: input.claimed ?? [event()],
+      })),
+  );
   const completeOutbox = vi.fn(
     input.complete ??
       (async () => ({
@@ -83,6 +93,13 @@ const setup = (input: {
     tag: 'ok' as const,
     value: { deadLettered: true },
   }));
+  const measureOutboxBacklog = vi.fn(
+    input.measureBacklog ??
+      (async () => ({
+        pendingCount: 0,
+        oldestPendingAgeSeconds: 0,
+      })),
+  );
   const applyFulfillmentDemand = vi.fn(
     input.project ??
       (async () => ({
@@ -97,16 +114,23 @@ const setup = (input: {
   );
   const processor = makeFulfillmentDemandProjectionJob({
     orders: {
+      measureOutboxBacklog,
       claimOutbox,
       completeOutbox,
       retryOutbox,
       deadLetterOutbox,
     },
     production: { applyFulfillmentDemand },
-    clock: { now: () => new Date('2026-07-21T14:00:00.000Z') },
+    clock: {
+      now: input.now ?? (() => new Date('2026-07-21T14:00:00.000Z')),
+    },
+    ...(input.nowNanoseconds === undefined
+      ? {}
+      : { nowNanoseconds: input.nowNanoseconds }),
     random: () => 0.5,
     logger: nullLogger,
     counters: nullCounterSink,
+    measurements: input.measurements ?? nullMeasurementSink,
     errors: input.errors ?? nullErrorReporter,
     config: {
       workerId: 'worker-1',
@@ -115,6 +139,7 @@ const setup = (input: {
       maxAttempts: 8,
       retryBaseMs: 1_000,
       retryMaxMs: 300_000,
+      backlogMeasurementIntervalMs: 60_000,
     },
   });
   return {
@@ -123,11 +148,58 @@ const setup = (input: {
     completeOutbox,
     retryOutbox,
     deadLetterOutbox,
+    measureOutboxBacklog,
     applyFulfillmentDemand,
   };
 };
 
 describe('order outbox projector', () => {
+  it('samples aggregate outbox depth and age once per minute', async () => {
+    let nowNanoseconds = 0n;
+    const observe = vi.fn();
+    const harness = setup({
+      claimed: [],
+      nowNanoseconds: () => nowNanoseconds,
+      measurements: { observe },
+      measureBacklog: async () => ({
+        pendingCount: 7,
+        oldestPendingAgeSeconds: 90,
+      }),
+    });
+
+    await harness.processor.runOnce();
+    nowNanoseconds += 30_000_000_000n;
+    await harness.processor.runOnce();
+    nowNanoseconds += 30_000_000_000n;
+    await harness.processor.runOnce();
+
+    expect(harness.measureOutboxBacklog).toHaveBeenCalledTimes(2);
+    expect(observe).toHaveBeenCalledTimes(4);
+    expect(observe).toHaveBeenCalledWith('worker.outbox_pending_count', 7, {
+      job: 'order_outbox',
+    });
+    expect(observe).toHaveBeenCalledWith(
+      'worker.outbox_oldest_pending_age_seconds',
+      90,
+      { job: 'order_outbox' },
+    );
+  });
+
+  it('samples backlog after claim failure without replacing the primary error', async () => {
+    const claimFailure = new Error('claim unavailable');
+    const measureOutboxBacklog = vi.fn(async () => {
+      throw new Error('measurement unavailable');
+    });
+    const harness = setup({
+      claim: async () => Promise.reject(claimFailure),
+      measureBacklog: measureOutboxBacklog,
+      nowNanoseconds: () => 0n,
+    });
+
+    await expect(harness.processor.runOnce()).rejects.toBe(claimFailure);
+    expect(measureOutboxBacklog).toHaveBeenCalledOnce();
+  });
+
   it('projects source-neutral wash-and-fold demand and acknowledges it', async () => {
     const harness = setup({});
     await expect(harness.processor.runOnce()).resolves.toBe(1);

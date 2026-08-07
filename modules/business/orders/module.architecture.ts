@@ -99,6 +99,7 @@ export default defineModule({
       }),
     }),
     outbox: defineNamespace({
+      'measure-order-outbox-backlog': defineFeature.headlessQuery(),
       'claim-order-outbox': defineFeature.headlessCommand({
         dependsOn: [
           'language/order-outbox',

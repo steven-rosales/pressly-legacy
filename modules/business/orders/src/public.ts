@@ -134,6 +134,8 @@ export type {
 } from './foundations/language/order-outbox/order-outbox.model.ts';
 export type { ClaimOrderOutbox } from './features/outbox/claim-order-outbox/claim-order-outbox.port.ts';
 export type { ClaimOrderOutboxFailure } from './features/outbox/claim-order-outbox/claim-order-outbox.failure.ts';
+export type { OrderOutboxBacklog } from './features/outbox/measure-order-outbox-backlog/measure-order-outbox-backlog.model.ts';
+export type { MeasureOrderOutboxBacklog } from './features/outbox/measure-order-outbox-backlog/measure-order-outbox-backlog.port.ts';
 export type { CompleteOrderOutbox } from './features/outbox/complete-order-outbox/complete-order-outbox.port.ts';
 export type { DeadLetterOrderOutbox } from './features/outbox/dead-letter-order-outbox/dead-letter-order-outbox.port.ts';
 export type { DeadLetterOrderOutboxFailure } from './features/outbox/dead-letter-order-outbox/dead-letter-order-outbox.failure.ts';

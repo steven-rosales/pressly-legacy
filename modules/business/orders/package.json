@@ -26,6 +26,7 @@
     "@pressly/db": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/kernel": "workspace:*",
+    "@pressly/observability": "workspace:*",
     "@pressly/time": "workspace:*"
   },
   "devDependencies": {

@@ -31,6 +31,8 @@ export type CounterName =
   | 'production.overtime_confirmations'
   | 'production.order_route_outcomes'
   | 'production.progress_reconciliations'
+  | 'db.transactions'
+  | 'worker.job_passes'
   | 'deployment.failures';
 
 export type CounterLabels = Readonly<Record<string, string>>;

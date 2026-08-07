@@ -1,6 +1,8 @@
-import { type Database } from '@pressly/db/client';
+import { type Database, type DatabaseTransaction } from '@pressly/db/client';
 import { and, eq, gt, isNull, lte, or, sql } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
+import { defineUnitOfWork } from '@pressly/db/unit-of-work';
+import type { UnitOfWork } from '@pressly/kernel';
 import { recordAudit } from '../../../../foundations/adapters/postgres/workforce-audit/workforce-audit.repo.ts';
 import { loadAuthorizedActor } from '../../../../foundations/adapters/postgres/workforce-actor-read/workforce-actor-read.repo.ts';
 import { lockBusiness } from '../../../../foundations/adapters/postgres/workforce-business-lock/workforce-business-lock.repo.ts';
@@ -24,10 +26,14 @@ import type { TransitionWorkforceMembershipStore } from './transition-workforce-
 
 export const makeTransitionWorkforceMembershipStore = (
   db: Database,
+  unitOfWork: UnitOfWork<DatabaseTransaction> = defineUnitOfWork(
+    db,
+    (transaction) => transaction,
+  ),
 ): TransitionWorkforceMembershipStore => ({
   transition: async (input) =>
     runDatabaseOperation(async () =>
-      db.transaction(async (tx) => {
+      unitOfWork.transaction(async (tx) => {
         await lockBusiness(tx, input.businessId);
         const receipt = await checkReceipt(
           tx,

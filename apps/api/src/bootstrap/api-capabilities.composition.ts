@@ -7,6 +7,7 @@ import { makePostgresOrdersApplication } from '@pressly/orders';
 import { makePricingModule } from '@pressly/pricing';
 import { makePostgresProcessorExperience } from '@pressly/processor-experience';
 import { makePostgresProductionModule } from '@pressly/production';
+import { nullMeasurementSink, nullTraceSink } from '@pressly/observability';
 import {
   makePostgresCanonicalSourceUserAcceptanceAdapter,
   makePostgresUsersApplication,
@@ -45,6 +46,14 @@ export const makeApiCapabilities = (input: {
   clock: Clock;
   ids: IdSource;
 }): ApiCapabilities => {
+  const transactions = {
+    counters: input.runtime.observability.counters,
+    measurements:
+      input.runtime.observability.measurements ?? nullMeasurementSink,
+    trace: input.runtime.observability.trace ?? nullTraceSink,
+    nowNanoseconds: process.hrtime.bigint,
+  };
+
   const webhookIngestion = makePostgresWebhookIngestionApplication({
     db: input.runtime.database.db,
     clock: input.clock,
@@ -65,6 +74,7 @@ export const makeApiCapabilities = (input: {
     securityEvents: input.runtime.securityEvents,
     mfaEncryptionKey: revealSecret(input.runtime.env.auth.mfaEncryptionKey),
     mfaIssuer: input.runtime.env.auth.mfaIssuer,
+    transactions,
   });
 
   const locationAncestry = makePostgresLocationAncestryAdapter(
@@ -134,6 +144,7 @@ export const makeApiCapabilities = (input: {
     clock: input.clock,
     ids: input.ids,
     signals: makeProductionDomainSignals(input.runtime.observability.counters),
+    transactions,
     security: {
       ...accessControl.production,
       authenticate: processorBoundary.authenticate,
@@ -152,6 +163,7 @@ export const makeApiCapabilities = (input: {
     db: input.runtime.database.db,
     clock: input.clock,
     incomingOrderProposalCustomer,
+    transactions,
   });
 
   const controlExperience = makeControlExperience({

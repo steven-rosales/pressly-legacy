@@ -9,6 +9,13 @@ export {
   isolateCounterSink,
   isolateMeasurementSink,
 } from './isolated-sinks.js';
+export {
+  metricCatalog,
+  transactionOperations,
+  workerJobNames,
+} from './metric-catalog.js';
+export { isolateTraceSink, nullTraceSink } from './trace.js';
+export { observeResultUnitOfWork, observeUnitOfWork } from './unit-of-work.js';
 
 export {
   decideObservation,
@@ -42,6 +49,28 @@ export type {
   MeasurementName,
   MeasurementSink,
 } from './measurement.js';
+export type {
+  MetricAttributeKey,
+  MetricCatalog,
+  MetricDefinition,
+  MetricInstrument,
+  MetricName,
+  MetricUnit,
+  TransactionOperation,
+  WorkerJobName,
+} from './metric-catalog.js';
+export type {
+  TraceSink,
+  TraceSpan,
+  TraceSpanAttributes,
+  TraceSpanAttributeValue,
+  TraceSpanDefinition,
+  TraceSpanStatus,
+} from './trace.js';
+export type {
+  TransactionOutcome,
+  UnitOfWorkObservation,
+} from './unit-of-work.js';
 
 export type {
   ErrorObservation,

@@ -6,6 +6,8 @@ type ShutdownHandlersInput = {
   logger: Logger;
   shutdownGracePeriodMs: number;
   close: (signal: string) => Promise<void>;
+  flush: () => Promise<void>;
+  reportFlushFailure: () => void;
   forceClose: () => void;
 };
 
@@ -37,7 +39,13 @@ export const installShutdownHandlers = (input: ShutdownHandlersInput): void => {
       attemptObservation(() =>
         input.logger.info('api shutdown completed', { signal }),
       );
-      process.exit(0);
+      try {
+        await input.flush();
+        process.exit(0);
+      } catch {
+        input.reportFlushFailure();
+        process.exit(1);
+      }
     } catch (error) {
       clearTimeout(forceTimer);
 
@@ -47,6 +55,11 @@ export const installShutdownHandlers = (input: ShutdownHandlersInput): void => {
           error: normalizeUnknownError(error),
         }),
       );
+      try {
+        await input.flush();
+      } catch {
+        input.reportFlushFailure();
+      }
       process.exit(1);
     }
   };

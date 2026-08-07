@@ -66,4 +66,4 @@ RUN rm -rf \
 USER pressly
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 CMD ["node", "apps/worker/dist/runtime/healthcheck.js"]
-CMD ["node", "apps/worker/dist/main.js"]
+CMD ["node", "--import", "./apps/worker/dist/runtime/observability/instrument.js", "apps/worker/dist/main.js"]

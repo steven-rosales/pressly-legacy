@@ -1,6 +1,8 @@
-import { type Database } from '@pressly/db/client';
+import { type Database, type DatabaseTransaction } from '@pressly/db/client';
 import { and, count, eq, gt, isNull, lte, ne, or } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
+import { defineUnitOfWork } from '@pressly/db/unit-of-work';
+import type { UnitOfWork } from '@pressly/kernel';
 import { grantSummary } from '../../../../foundations/adapters/postgres/access-grant-read/access-grant.persistence.mapper.ts';
 import { recordAudit } from '../../../../foundations/adapters/postgres/workforce-audit/workforce-audit.repo.ts';
 import { loadAuthorizedActor } from '../../../../foundations/adapters/postgres/workforce-actor-read/workforce-actor-read.repo.ts';
@@ -21,10 +23,14 @@ import type { RevokeWorkforceAccessStore } from './revoke-workforce-access.port.
 
 export const makeRevokeWorkforceAccessStore = (
   db: Database,
+  unitOfWork: UnitOfWork<DatabaseTransaction> = defineUnitOfWork(
+    db,
+    (transaction) => transaction,
+  ),
 ): RevokeWorkforceAccessStore => ({
   revoke: async (input) =>
     runDatabaseOperation(async () =>
-      db.transaction(async (tx) => {
+      unitOfWork.transaction(async (tx) => {
         await lockBusiness(tx, input.businessId);
         const receipt = await checkReceipt(
           tx,

@@ -2,6 +2,7 @@ export type { EnvSource } from './env-source.js';
 
 export { envBoolean } from './boolean.js';
 export { envPort } from './port.js';
+export { envSentryDsn, isSentryDsn } from './sentry-dsn.js';
 export { envUrl } from './url.js';
 export { featureFlag } from './feature-flag.js';
 export { nodeEnvSchema } from './node-env.js';

@@ -6,7 +6,18 @@ import {
   makeTokenIssuer,
   makeTotpAuthenticator,
 } from '@pressly/auth/credentials';
-import type { Database } from '@pressly/db/client';
+import type { Database, DatabaseTransaction } from '@pressly/db/client';
+import {
+  defineResultUnitOfWork,
+  defineUnitOfWork,
+} from '@pressly/db/unit-of-work';
+import type { ResultUnitOfWork, UnitOfWork } from '@pressly/kernel';
+import {
+  observeResultUnitOfWork,
+  observeUnitOfWork,
+  type TransactionOperation,
+  type UnitOfWorkObservation,
+} from '@pressly/observability';
 import type { Clock } from '@pressly/time';
 import {
   Router,
@@ -123,7 +134,41 @@ export type IdentityModuleDeps = Readonly<{
   mfaEncryptionKey: string;
   mfaIssuer: string;
   workforceInvitationTtlMinutes?: number;
+  transactions?: Omit<UnitOfWorkObservation, 'operation'>;
 }>;
+
+const makeIdentityUnitOfWork = (
+  deps: IdentityModuleDeps,
+  operation: TransactionOperation,
+): UnitOfWork<DatabaseTransaction> => {
+  const unitOfWork = defineUnitOfWork(deps.db, (transaction) => transaction);
+
+  return deps.transactions === undefined
+    ? unitOfWork
+    : observeUnitOfWork({
+        ...deps.transactions,
+        operation,
+        unitOfWork,
+      });
+};
+
+const makeIdentityResultUnitOfWork = (
+  deps: IdentityModuleDeps,
+  operation: TransactionOperation,
+): ResultUnitOfWork<DatabaseTransaction> => {
+  const unitOfWork = defineResultUnitOfWork(
+    deps.db,
+    (transaction) => transaction,
+  );
+
+  return deps.transactions === undefined
+    ? unitOfWork
+    : observeResultUnitOfWork({
+        ...deps.transactions,
+        operation,
+        unitOfWork,
+      });
+};
 
 export type AuthGuardBundle = Readonly<{
   authenticate: RequestHandler;
@@ -188,13 +233,23 @@ export const makeIdentityModule = (
   const revokeSessionStore = makeRevokeSessionStore(deps.db);
   const listIdentitySessionsStore = makeListIdentitySessionsStore(deps.db);
   const revokeIdentitySessionsStore = makeRevokeIdentitySessionsStore(deps.db);
-  const completeMfaChallengeStore = makeCompleteMfaChallengeStore(deps.db);
+  const completeMfaChallengeStore = makeCompleteMfaChallengeStore(
+    deps.db,
+    makeIdentityResultUnitOfWork(deps, 'identity.complete_mfa_challenge'),
+  );
   const beginMfaEnrollmentStore = makeBeginMfaEnrollmentStore(deps.db);
-  const confirmMfaEnrollmentStore = makeConfirmMfaEnrollmentStore(deps.db);
+  const confirmMfaEnrollmentStore = makeConfirmMfaEnrollmentStore(
+    deps.db,
+    makeIdentityResultUnitOfWork(deps, 'identity.confirm_mfa_enrollment'),
+  );
   const regenerateMfaRecoveryCodesStore = makeRegenerateMfaRecoveryCodesStore(
     deps.db,
+    makeIdentityUnitOfWork(deps, 'identity.regenerate_mfa_recovery_codes'),
   );
-  const removeMfaStore = makeRemoveMfaStore(deps.db);
+  const removeMfaStore = makeRemoveMfaStore(
+    deps.db,
+    makeIdentityUnitOfWork(deps, 'identity.remove_mfa'),
+  );
   const issueWorkforceInvitationStore = makeIssueWorkforceInvitationStore(
     deps.db,
   );
@@ -215,10 +270,28 @@ export const makeIdentityModule = (
   );
   const listWorkforceStore = makeListWorkforceStore(deps.db);
   const getWorkforceMemberStore = makeGetWorkforceMemberStore(deps.db);
-  const transitionWorkforceMembershipStore =
-    makeTransitionWorkforceMembershipStore(deps.db);
-  const grantWorkforceAccessStore = makeGrantWorkforceAccessStore(deps.db);
-  const revokeWorkforceAccessStore = makeRevokeWorkforceAccessStore(deps.db);
+  const suspendWorkforceMembershipStore =
+    makeTransitionWorkforceMembershipStore(
+      deps.db,
+      makeIdentityUnitOfWork(deps, 'identity.suspend_workforce_membership'),
+    );
+  const reactivateWorkforceMembershipStore =
+    makeTransitionWorkforceMembershipStore(
+      deps.db,
+      makeIdentityUnitOfWork(deps, 'identity.reactivate_workforce_membership'),
+    );
+  const endWorkforceMembershipStore = makeTransitionWorkforceMembershipStore(
+    deps.db,
+    makeIdentityUnitOfWork(deps, 'identity.end_workforce_membership'),
+  );
+  const grantWorkforceAccessStore = makeGrantWorkforceAccessStore(
+    deps.db,
+    makeIdentityUnitOfWork(deps, 'identity.grant_workforce_access'),
+  );
+  const revokeWorkforceAccessStore = makeRevokeWorkforceAccessStore(
+    deps.db,
+    makeIdentityUnitOfWork(deps, 'identity.revoke_workforce_access'),
+  );
   const listWorkforceMemberSessionsStore = makeListWorkforceMemberSessionsStore(
     deps.db,
   );
@@ -349,17 +422,17 @@ export const makeIdentityModule = (
       clock,
     }),
     suspendMembership: makeTransitionWorkforceMembership({
-      store: transitionWorkforceMembershipStore,
+      store: suspendWorkforceMembershipStore,
       clock,
       event: 'suspend',
     }),
     reactivateMembership: makeTransitionWorkforceMembership({
-      store: transitionWorkforceMembershipStore,
+      store: reactivateWorkforceMembershipStore,
       clock,
       event: 'reactivate',
     }),
     endMembership: makeTransitionWorkforceMembership({
-      store: transitionWorkforceMembershipStore,
+      store: endWorkforceMembershipStore,
       clock,
       event: 'end',
     }),

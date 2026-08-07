@@ -1,7 +1,13 @@
 import { makeAcceptSchedule } from '../features/scheduling/accept-schedule/accept-schedule.usecase.ts';
 import { makeAcceptScheduleRoute } from '../features/scheduling/accept-schedule/accept-schedule.route.ts';
 import { makeAcceptScheduleRepository } from '../features/scheduling/accept-schedule/accept-schedule.repo.ts';
-import type { IdSource } from '@pressly/kernel';
+import type { IdSource, ResultUnitOfWork, UnitOfWork } from '@pressly/kernel';
+import {
+  observeResultUnitOfWork,
+  observeUnitOfWork,
+  type TransactionOperation,
+  type UnitOfWorkObservation,
+} from '@pressly/observability';
 import type { AcceptScheduleRepository } from '../features/scheduling/accept-schedule/accept-schedule.port.ts';
 import { makeApplyFulfillmentDemandRepository } from '../features/demand/apply-fulfillment-demand/apply-fulfillment-demand.repo.ts';
 import { makeApplyFulfillmentDemand } from '../features/demand/apply-fulfillment-demand/apply-fulfillment-demand.usecase.ts';
@@ -638,7 +644,36 @@ type PostgresProductionApplicationDeps = Omit<
   ProductionApplicationDeps,
   'repositories'
 > &
-  Readonly<{ db: Database }>;
+  Readonly<{
+    db: Database;
+    transactions?: Omit<UnitOfWorkObservation, 'operation'>;
+  }>;
+
+const observeProductionUnitOfWork = <Operations>(
+  deps: PostgresProductionApplicationDeps,
+  operation: TransactionOperation,
+  unitOfWork: UnitOfWork<Operations>,
+): UnitOfWork<Operations> =>
+  deps.transactions === undefined
+    ? unitOfWork
+    : observeUnitOfWork({
+        ...deps.transactions,
+        operation,
+        unitOfWork,
+      });
+
+const observeProductionResultUnitOfWork = <Operations>(
+  deps: PostgresProductionApplicationDeps,
+  operation: TransactionOperation,
+  unitOfWork: ResultUnitOfWork<Operations>,
+): ResultUnitOfWork<Operations> =>
+  deps.transactions === undefined
+    ? unitOfWork
+    : observeResultUnitOfWork({
+        ...deps.transactions,
+        operation,
+        unitOfWork,
+      });
 
 export const makePostgresProductionApplication = (
   deps: PostgresProductionApplicationDeps,
@@ -656,16 +691,36 @@ export const makePostgresProductionApplication = (
   const application = makeProductionApplication({
     ...deps,
     repositories: {
-      acceptSchedule: makeAcceptScheduleRepository(deps),
-      applyFulfillmentDemand: makeApplyFulfillmentDemandRepository(deps),
-      advanceProductionStage: makeAdvanceProductionStageRepository(deps),
-      assignStageMachines: makeAssignStageMachinesRepository(deps),
+      acceptSchedule: observeProductionUnitOfWork(
+        deps,
+        'production.accept_schedule',
+        makeAcceptScheduleRepository(deps),
+      ),
+      applyFulfillmentDemand: observeProductionUnitOfWork(
+        deps,
+        'production.apply_fulfillment_demand',
+        makeApplyFulfillmentDemandRepository(deps),
+      ),
+      advanceProductionStage: observeProductionUnitOfWork(
+        deps,
+        'production.advance_stage',
+        makeAdvanceProductionStageRepository(deps),
+      ),
+      assignStageMachines: observeProductionUnitOfWork(
+        deps,
+        'production.assign_stage_machines',
+        makeAssignStageMachinesRepository(deps),
+      ),
       changeProductionAdmission: makeChangeProductionAdmissionRepository(deps),
       changeProductionOrderResolution:
         makeChangeProductionOrderResolutionRepository(deps),
       resolveSourceClosedFulfillment:
         makeResolveSourceClosedFulfillmentRepository(deps.db),
-      createSchedule: makeCreateScheduleRepository(deps),
+      createSchedule: observeProductionUnitOfWork(
+        deps,
+        'production.create_schedule',
+        makeCreateScheduleRepository(deps),
+      ),
       listProductionLocations: makeListProductionLocationsRepository(deps.db),
       listProductionOrders: makeListProductionOrdersRepository(deps.db),
       listProductionOrderControl: makeListProductionOrderControlRepository({
@@ -681,25 +736,50 @@ export const makePostgresProductionApplication = (
       loadProductionBoard: makeLoadProductionBoardRepository(deps),
       loadSchedule: makeLoadScheduleRepository(deps.db),
       loadProductionWorkspace: makeLoadProductionWorkspaceRepository(deps.db),
-      manageBatchMembership: makeManageBatchMembershipRepository(deps),
+      manageBatchMembership: observeProductionUnitOfWork(
+        deps,
+        'production.manage_batch_membership',
+        makeManageBatchMembershipRepository(deps),
+      ),
       manageProductionResources: makeManageProductionResourcesRepository(deps),
       createProductionShift: makeCreateProductionShiftRepository(deps),
       updateProductionShift: makeUpdateProductionShiftRepository(deps),
-      placeProductionOrder: makePlaceProductionOrderRepository(deps),
+      placeProductionOrder: observeProductionUnitOfWork(
+        deps,
+        'production.place_order',
+        makePlaceProductionOrderRepository(deps),
+      ),
       publishSchedulerConfig: makePublishSchedulerConfigRepository(deps),
       recordOrderIntake: makeRecordOrderIntakeRepository(deps),
       previewProductionOrderBacklog:
         makePreviewProductionOrderBacklogRepository(deps.db),
-      commitProductionOrderBacklog:
+      commitProductionOrderBacklog: observeProductionResultUnitOfWork(
+        deps,
+        'production.commit_order_backlog',
         makeCommitProductionOrderBacklogRepository(deps),
-      replaceShiftOrderSelection:
+      ),
+      replaceShiftOrderSelection: observeProductionUnitOfWork(
+        deps,
+        'production.replace_shift_order_selection',
         makeReplaceShiftOrderSelectionRepository(deps),
-      routeProductionOrder: makeRouteProductionOrderRepository(deps),
-      reconcileProductionBatchProgress:
+      ),
+      routeProductionOrder: observeProductionUnitOfWork(
+        deps,
+        'production.route_order',
+        makeRouteProductionOrderRepository(deps),
+      ),
+      reconcileProductionBatchProgress: observeProductionUnitOfWork(
+        deps,
+        'production.reconcile_batch_progress',
         makeReconcileProductionBatchProgressRepository(deps),
+      ),
       setProductionOrderPriority:
         makeSetProductionOrderPriorityRepository(deps),
-      startSchedule: makeStartScheduleRepository(deps),
+      startSchedule: observeProductionUnitOfWork(
+        deps,
+        'production.start_schedule',
+        makeStartScheduleRepository(deps),
+      ),
     },
   });
   return {

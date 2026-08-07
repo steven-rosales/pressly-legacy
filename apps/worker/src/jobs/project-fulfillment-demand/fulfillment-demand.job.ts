@@ -1,9 +1,11 @@
-import type { Logger } from '@pressly/logging';
+import { redactLogFields, type Logger, type LogFields } from '@pressly/logging';
 import {
   attemptObservation,
   isolateCounterSink,
+  isolateMeasurementSink,
   type CounterSink,
   type ErrorReporter,
+  type MeasurementSink,
 } from '@pressly/observability';
 import type { OrdersWorkerApplication } from '@pressly/orders';
 import {
@@ -26,7 +28,11 @@ import { ordersWorkerFailureToAppError } from '../order-failure.error.ts';
 
 type OrderOutboxPort = Pick<
   OrdersWorkerApplication,
-  'claimOutbox' | 'completeOutbox' | 'retryOutbox' | 'deadLetterOutbox'
+  | 'measureOutboxBacklog'
+  | 'claimOutbox'
+  | 'completeOutbox'
+  | 'retryOutbox'
+  | 'deadLetterOutbox'
 >;
 
 type ProductionDemandPort = Pick<
@@ -38,9 +44,11 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
   orders: OrderOutboxPort;
   production: ProductionDemandPort;
   clock: Clock;
+  nowNanoseconds?: () => bigint;
   random: () => number;
   logger: Logger;
   counters: CounterSink;
+  measurements: MeasurementSink;
   errors: ErrorReporter;
   config: Readonly<{
     workerId: string;
@@ -49,12 +57,18 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
     maxAttempts: number;
     retryBaseMs: number;
     retryMaxMs: number;
+    backlogMeasurementIntervalMs: number;
   }>;
 }) => {
+  const nowNanoseconds = deps.nowNanoseconds ?? process.hrtime.bigint;
+  const backlogMeasurementIntervalNanoseconds =
+    BigInt(deps.config.backlogMeasurementIntervalMs) * 1_000_000n;
+  let lastBacklogMeasurementAttemptAt: bigint | undefined;
   const observe = (effect: () => void): void => {
     attemptObservation(effect);
   };
   const { increment } = isolateCounterSink(deps.counters);
+  const { observe: measure } = isolateMeasurementSink(deps.measurements);
   const capture: ErrorReporter['capture'] = (error, context) =>
     observe(() => deps.errors.capture(error, context));
   const logWarn: Logger['warn'] = (message, fields) =>
@@ -176,65 +190,102 @@ export const makeFulfillmentDemandProjectionJob = (deps: {
       });
   };
 
+  const sampleBacklogIfDue = async (): Promise<void> => {
+    try {
+      const now = nowNanoseconds();
+      if (
+        lastBacklogMeasurementAttemptAt !== undefined &&
+        now - lastBacklogMeasurementAttemptAt <
+          backlogMeasurementIntervalNanoseconds
+      )
+        return;
+
+      // Record the attempt before I/O so a failing aggregate cannot turn the
+      // one-second claim loop into a database or warning storm.
+      lastBacklogMeasurementAttemptAt = now;
+      const backlog = await deps.orders.measureOutboxBacklog();
+      measure('worker.outbox_pending_count', backlog.pendingCount, {
+        job: 'order_outbox',
+      });
+      measure(
+        'worker.outbox_oldest_pending_age_seconds',
+        backlog.oldestPendingAgeSeconds,
+        { job: 'order_outbox' },
+      );
+    } catch (error: unknown) {
+      logWarn(
+        'order outbox backlog measurement failed',
+        redactLogFields({ error }) as LogFields,
+      );
+    }
+  };
+
   return {
     runOnce: async (): Promise<number> => {
-      const claim = await deps.orders.claimOutbox({
-        workerId: deps.config.workerId,
-        limit: deps.config.batchSize,
-        leaseMs: deps.config.leaseMs,
-      });
-      if (claim.tag === 'err') throw ordersWorkerFailureToAppError(claim.error);
+      try {
+        const claim = await deps.orders.claimOutbox({
+          workerId: deps.config.workerId,
+          limit: deps.config.batchSize,
+          leaseMs: deps.config.leaseMs,
+        });
+        if (claim.tag === 'err')
+          throw ordersWorkerFailureToAppError(claim.error);
 
-      for (const event of claim.value) {
-        if (event.kind === 'invalid') {
-          await fail({
-            eventId: event.id,
-            attempt: event.attempts,
-            error: invariantViolationError({
-              code: `order_outbox_${event.validationError}`,
-              message:
-                'The order outbox event is outside its durable contract.',
-              safeMessage:
-                'The order outbox event is outside its durable contract.',
-            }),
-          });
-          continue;
-        }
-        const demand = event.payload;
-        if (demand.typeCode !== 'wash_fold') {
-          await complete(event.id);
-          continue;
-        }
-
-        let projected: Awaited<
-          ReturnType<ProductionApplication['applyFulfillmentDemand']>
-        >;
-        try {
-          projected = await deps.production.applyFulfillmentDemand(
-            toApplyFulfillmentDemandCommand({
+        for (const event of claim.value) {
+          if (event.kind === 'invalid') {
+            await fail({
               eventId: event.id,
-              demand,
-            }),
-          );
-        } catch (error: unknown) {
-          await fail({
-            eventId: event.id,
-            attempt: event.attempts,
-            error: normalizeUnknownError(error),
-          });
-          continue;
+              attempt: event.attempts,
+              error: invariantViolationError({
+                code: `order_outbox_${event.validationError}`,
+                message:
+                  'The order outbox event is outside its durable contract.',
+                safeMessage:
+                  'The order outbox event is outside its durable contract.',
+              }),
+            });
+            continue;
+          }
+          const demand = event.payload;
+          if (demand.typeCode !== 'wash_fold') {
+            await complete(event.id);
+            continue;
+          }
+
+          let projected: Awaited<
+            ReturnType<ProductionApplication['applyFulfillmentDemand']>
+          >;
+          try {
+            projected = await deps.production.applyFulfillmentDemand(
+              toApplyFulfillmentDemandCommand({
+                eventId: event.id,
+                demand,
+              }),
+            );
+          } catch (error: unknown) {
+            await fail({
+              eventId: event.id,
+              attempt: event.attempts,
+              error: normalizeUnknownError(error),
+            });
+            continue;
+          }
+          if (projected.tag === 'err') {
+            await fail({
+              eventId: event.id,
+              attempt: event.attempts,
+              error: productionFailureToAppError(projected.error),
+            });
+            continue;
+          }
+          await complete(event.id);
         }
-        if (projected.tag === 'err') {
-          await fail({
-            eventId: event.id,
-            attempt: event.attempts,
-            error: productionFailureToAppError(projected.error),
-          });
-          continue;
-        }
-        await complete(event.id);
+        return claim.value.length;
+      } finally {
+        // Sampling is independently fail-open, so it cannot replace the claim
+        // or processing outcome that this pass must report to the worker loop.
+        await sampleBacklogIfDue();
       }
-      return claim.value.length;
     },
   };
 };

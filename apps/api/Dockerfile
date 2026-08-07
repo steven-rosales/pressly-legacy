@@ -83,4 +83,4 @@ USER pressly
 
 EXPOSE 4000
 
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["node", "--import", "./apps/api/dist/runtime/observability/instrument.js", "apps/api/dist/main.js"]

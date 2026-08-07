@@ -19,6 +19,9 @@
     "test": "VITEST_MAX_WORKERS=2 vitest run --dir test",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "@pressly/kernel": "workspace:*"
+  },
   "devDependencies": {
     "@pressly/tsconfig": "workspace:*",
     "typescript": "latest",

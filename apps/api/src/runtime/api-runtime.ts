@@ -4,6 +4,7 @@ import type {
   CounterSink,
   ErrorReporter,
   MeasurementSink,
+  TraceSink,
 } from '@pressly/observability';
 import type { apiEnv } from './env.ts';
 
@@ -13,6 +14,7 @@ export type ApiObservability = Readonly<{
   errors: ErrorReporter;
   counters: CounterSink;
   measurements?: MeasurementSink;
+  trace?: TraceSink;
 }>;
 
 export type ApiRuntime = Readonly<{

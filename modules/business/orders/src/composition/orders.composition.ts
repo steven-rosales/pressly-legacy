@@ -1,4 +1,10 @@
 import type { Database } from '@pressly/db/client';
+import type { UnitOfWork } from '@pressly/kernel';
+import {
+  observeUnitOfWork,
+  type TransactionOperation,
+  type UnitOfWorkObservation,
+} from '@pressly/observability';
 import type { Clock } from '@pressly/time';
 import { makeCancelOrder } from '../features/lifecycle/cancel-order/cancel-order.usecase.ts';
 import { makeCompleteOrder } from '../features/lifecycle/complete-order/complete-order.usecase.ts';
@@ -8,6 +14,8 @@ import { makePostgresOrderLifecycleTransaction } from '../foundations/adapters/p
 import { makePostgresFulfillmentReleaseTransaction } from '../foundations/adapters/postgres/fulfillment-release-transaction/fulfillment-release-transaction.repo.ts';
 import { makePostgresClaimOrderOutboxRepository } from '../features/outbox/claim-order-outbox/claim-order-outbox.repo.ts';
 import { makeClaimOrderOutbox } from '../features/outbox/claim-order-outbox/claim-order-outbox.usecase.ts';
+import { makePostgresMeasureOrderOutboxBacklogRepository } from '../features/outbox/measure-order-outbox-backlog/measure-order-outbox-backlog.repo.ts';
+import { makeMeasureOrderOutboxBacklog } from '../features/outbox/measure-order-outbox-backlog/measure-order-outbox-backlog.usecase.ts';
 import { makePostgresCompleteOrderOutboxRepository } from '../features/outbox/complete-order-outbox/complete-order-outbox.repo.ts';
 import { makeCompleteOrderOutbox } from '../features/outbox/complete-order-outbox/complete-order-outbox.usecase.ts';
 import { makePostgresCorrectOrderRepository } from '../features/lifecycle/correct-order/correct-order.repo.ts';
@@ -40,12 +48,27 @@ export type OrdersApplicationDeps = Readonly<{
   db: Database;
   clock: Clock;
   incomingOrderProposalCustomer: IncomingOrderProposalCustomerPersistence;
+  transactions?: Omit<UnitOfWorkObservation, 'operation'>;
 }>;
 
 type OrdersPersistenceDeps = Readonly<{
   db: Database;
   clock: Clock;
+  transactions?: Omit<UnitOfWorkObservation, 'operation'>;
 }>;
+
+const observeOrdersUnitOfWork = <Operations>(
+  deps: OrdersPersistenceDeps,
+  operation: TransactionOperation,
+  unitOfWork: UnitOfWork<Operations>,
+): UnitOfWork<Operations> =>
+  deps.transactions === undefined
+    ? unitOfWork
+    : observeUnitOfWork({
+        ...deps.transactions,
+        operation,
+        unitOfWork,
+      });
 
 const makePostgresOrderOutboxApplication = (deps: OrdersPersistenceDeps) => {
   const claimRepo = makePostgresClaimOrderOutboxRepository(deps.db);
@@ -54,6 +77,10 @@ const makePostgresOrderOutboxApplication = (deps: OrdersPersistenceDeps) => {
   const deadLetterRepo = makePostgresDeadLetterOrderOutboxRepository(deps.db);
 
   return {
+    measureOutboxBacklog: makeMeasureOrderOutboxBacklog({
+      repo: makePostgresMeasureOrderOutboxBacklogRepository(deps.db),
+      clock: deps.clock,
+    }),
     claimOutbox: makeClaimOrderOutbox({
       repo: claimRepo,
       clock: deps.clock,
@@ -71,8 +98,16 @@ const makePostgresOrderOutboxApplication = (deps: OrdersPersistenceDeps) => {
 };
 
 export const makePostgresOrdersApplication = (deps: OrdersApplicationDeps) => {
-  const createRepo = makePostgresCreateOrderRepository(deps.db);
-  const correctRepo = makePostgresCorrectOrderRepository(deps.db);
+  const createRepo = observeOrdersUnitOfWork(
+    deps,
+    'orders.create_order',
+    makePostgresCreateOrderRepository(deps.db),
+  );
+  const correctRepo = observeOrdersUnitOfWork(
+    deps,
+    'orders.correct_order',
+    makePostgresCorrectOrderRepository(deps.db),
+  );
   const lifecycleRepo = makePostgresOrderLifecycleTransaction(deps.db);
   const proposeIncomingOrderRepo = makePostgresProposeIncomingOrderRepository(
     deps.db,
@@ -110,19 +145,31 @@ export const makePostgresOrdersApplication = (deps: OrdersApplicationDeps) => {
     createOrder: makeCreateOrder({ repo: createRepo, clock: deps.clock }),
     correctOrder: makeCorrectOrder({ repo: correctRepo, clock: deps.clock }),
     completeOrder: makeCompleteOrder({
-      repo: lifecycleRepo,
+      repo: observeOrdersUnitOfWork(
+        deps,
+        'orders.complete_order',
+        lifecycleRepo,
+      ),
       clock: deps.clock,
     }),
     cancelOrder: makeCancelOrder({
-      repo: lifecycleRepo,
+      repo: observeOrdersUnitOfWork(deps, 'orders.cancel_order', lifecycleRepo),
       clock: deps.clock,
     }),
     releaseFulfillment: makeReleaseFulfillment({
-      repo: releaseRepo,
+      repo: observeOrdersUnitOfWork(
+        deps,
+        'orders.release_fulfillment',
+        releaseRepo,
+      ),
       clock: deps.clock,
     }),
     withdrawFulfillment: makeWithdrawFulfillment({
-      repo: releaseRepo,
+      repo: observeOrdersUnitOfWork(
+        deps,
+        'orders.withdraw_fulfillment',
+        releaseRepo,
+      ),
       clock: deps.clock,
     }),
     listCanonicalOrders: makeListCanonicalOrders(
@@ -147,9 +194,15 @@ export type OrdersApplication = ReturnType<
 export const makePostgresOrdersWorkerApplication = (
   deps: OrdersPersistenceDeps,
 ) => {
-  const proposalRepo = makePostgresProposeIncomingOrderRepository(deps.db);
-  const closeSourceRepo = makePostgresCloseIncomingOrderSourceRepository(
-    deps.db,
+  const proposalRepo = observeOrdersUnitOfWork(
+    deps,
+    'orders.propose_incoming_order',
+    makePostgresProposeIncomingOrderRepository(deps.db),
+  );
+  const closeSourceRepo = observeOrdersUnitOfWork(
+    deps,
+    'orders.close_incoming_order_source',
+    makePostgresCloseIncomingOrderSourceRepository(deps.db),
   );
   return {
     proposeIncomingOrder: makeProposeIncomingOrder(proposalRepo),

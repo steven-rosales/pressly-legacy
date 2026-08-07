@@ -5,6 +5,7 @@ import {
   type CounterSink,
   type ErrorReporter,
   type MeasurementSink,
+  type TraceSink,
 } from '@pressly/observability';
 import { makeFileHeartbeat } from '../runtime/heartbeat.js';
 import type { WorkerConfig } from '../runtime/env.js';
@@ -22,6 +23,7 @@ export const runWorker = async (input: {
   counters: CounterSink;
   measurements: MeasurementSink;
   errors: ErrorReporter;
+  trace: TraceSink;
 }): Promise<void> => {
   if (!input.config.features.jobsEnabled) {
     attemptObservation(() =>
@@ -49,6 +51,7 @@ export const runWorker = async (input: {
     counters: input.counters,
     measurements: input.measurements,
     errors: input.errors,
+    trace: input.trace,
   });
   const lifecycle = startWorkerLifecycle(input.logger);
 

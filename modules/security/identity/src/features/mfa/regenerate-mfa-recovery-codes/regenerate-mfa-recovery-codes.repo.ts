@@ -1,16 +1,22 @@
-import type { Database } from '@pressly/db/client';
+import type { Database, DatabaseTransaction } from '@pressly/db/client';
 import { and, eq } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
+import { defineUnitOfWork } from '@pressly/db/unit-of-work';
 import { invariantViolationError } from '@pressly/errors/factories';
+import type { UnitOfWork } from '@pressly/kernel';
 import { runDatabaseOperation } from '../../../foundations/adapters/postgres/database-operation/database-operation.adapter.ts';
 import type { RegenerateMfaRecoveryCodesStore } from './regenerate-mfa-recovery-codes.port.ts';
 
 export const makeRegenerateMfaRecoveryCodesStore = (
   db: Database,
+  unitOfWork: UnitOfWork<DatabaseTransaction> = defineUnitOfWork(
+    db,
+    (transaction) => transaction,
+  ),
 ): RegenerateMfaRecoveryCodesStore => ({
   replaceRecoveryCodes: async (input) =>
     runDatabaseOperation(async () => {
-      await db.transaction(async (tx) => {
+      await unitOfWork.transaction(async (tx) => {
         const [credential] = await tx
           .select({ id: auth.authMfaCredentials.id })
           .from(auth.authMfaCredentials)

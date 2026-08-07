@@ -1,13 +1,21 @@
-import type { Database } from '@pressly/db/client';
+import type { Database, DatabaseTransaction } from '@pressly/db/client';
 import { and, eq, isNull, ne } from '@pressly/db/query';
 import * as auth from '@pressly/db/schema/auth';
+import { defineUnitOfWork } from '@pressly/db/unit-of-work';
+import type { UnitOfWork } from '@pressly/kernel';
 import { runDatabaseOperation } from '../../../foundations/adapters/postgres/database-operation/database-operation.adapter.ts';
 import type { RemoveMfaStore } from './remove-mfa.port.ts';
 
-export const makeRemoveMfaStore = (db: Database): RemoveMfaStore => ({
+export const makeRemoveMfaStore = (
+  db: Database,
+  unitOfWork: UnitOfWork<DatabaseTransaction> = defineUnitOfWork(
+    db,
+    (transaction) => transaction,
+  ),
+): RemoveMfaStore => ({
   removeMfa: async (input) =>
     runDatabaseOperation(async () => {
-      await db.transaction(async (tx) => {
+      await unitOfWork.transaction(async (tx) => {
         await tx
           .delete(auth.authMfaRecoveryCodes)
           .where(eq(auth.authMfaRecoveryCodes.identityId, input.identityId));

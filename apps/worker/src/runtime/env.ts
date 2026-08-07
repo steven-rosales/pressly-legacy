@@ -4,6 +4,7 @@ import { config as loadEnv } from 'dotenv';
 
 import {
   envSampleRate,
+  envSentryDsn,
   envUrl,
   featureFlag,
   nodeEnvSchema,
@@ -59,7 +60,7 @@ const workerEnvSchema = z
       .default(60_000),
 
     SENTRY_ENABLED: featureFlag,
-    SENTRY_DSN: z.url().optional(),
+    SENTRY_DSN: envSentryDsn.optional(),
     SENTRY_RELEASE: z.string().min(1).optional(),
     SENTRY_TRACES_SAMPLE_RATE: envSampleRate.default(0.1),
   })

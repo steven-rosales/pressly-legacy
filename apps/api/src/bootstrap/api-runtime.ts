@@ -1,5 +1,4 @@
 import { createDatabaseRuntime } from '@pressly/db/client';
-import { makeJsonLogger } from '@pressly/logging';
 import {
   attemptAsyncObservation,
   nullErrorReporter,
@@ -16,31 +15,34 @@ import { installShutdownHandlers } from './api-lifecycle.ts';
 import { startServer } from '../http/server.ts';
 import { makeSecurityEventSink } from '../runtime/security/security-events.ts';
 import {
-  flushSentry,
   makeApiSignalSinks,
+  makeApiTraceSink,
+  makeApiRuntimeLogger,
   makeSentryErrorReporter,
+  reportApiTelemetryFailure,
 } from '../runtime/observability/sentry.ts';
 import { observeApiRuntimeFailure } from '../runtime/observability/runtime-failure.ts';
-import { makeLoggingCounterSink } from '../runtime/observability/logging-counter.adapter.ts';
 import { makePostgresProductionChangeFeed } from '../http/production/live/postgres-production-change-feed.adapter.ts';
 
 const makeRuntimeLogger = () =>
-  makeJsonLogger({
-    service: 'pressly-api',
+  makeApiRuntimeLogger({
+    ...apiEnv.observability.sentry,
     environment: apiEnv.nodeEnv,
-    ...(apiEnv.observability.sentry.release === undefined
-      ? {}
-      : { release: apiEnv.observability.sentry.release }),
-  }).child({ runtime: 'api' });
+  });
+
+const makeRuntimeSignals = (logger: ReturnType<typeof makeRuntimeLogger>) =>
+  makeApiSignalSinks({
+    logger,
+    sentryEnabled: apiEnv.observability.sentry.enabled,
+    metricsEnabled: apiEnv.features.metricsEnabled,
+  });
 
 type ClosableApiResource = Readonly<{ close: () => Promise<void> }>;
-type ApiErrorReporterResource = Readonly<{ shutdown: () => Promise<void> }>;
 
 const makeApiCleanupPlan = (input: {
   server?: ClosableApiResource;
   productionChanges: ClosableApiResource;
   database: ClosableApiResource;
-  errors: ApiErrorReporterResource;
 }): ApiCleanupPlan => {
   const server = input.server;
   const serverEffects: readonly ApiCleanupEffect[] =
@@ -57,7 +59,6 @@ const makeApiCleanupPlan = (input: {
       },
     ],
     [{ resource: 'database', run: () => input.database.close() }],
-    [{ resource: 'error_reporter', run: () => input.errors.shutdown() }],
   ];
 };
 
@@ -66,12 +67,9 @@ const startApi = async (): Promise<void> => {
   const errors = apiEnv.observability.sentry.enabled
     ? makeSentryErrorReporter()
     : nullErrorReporter;
-  const signals = makeApiSignalSinks({
-    logger,
-    sentryEnabled: apiEnv.observability.sentry.enabled,
-    metricsEnabled: apiEnv.features.metricsEnabled,
-  });
+  const signals = makeRuntimeSignals(logger);
   const counters = signals.counters;
+  const trace = makeApiTraceSink(apiEnv.observability.sentry.enabled);
 
   const database = createDatabaseRuntime({
     databaseUrl: apiEnv.databaseUrl,
@@ -94,6 +92,7 @@ const startApi = async (): Promise<void> => {
       errors,
       counters,
       measurements: signals.measurements,
+      trace,
     },
     database,
   };
@@ -108,7 +107,7 @@ const startApi = async (): Promise<void> => {
   } catch (error: unknown) {
     return cleanupApiAfterFailure({
       primaryError: error,
-      plan: makeApiCleanupPlan({ productionChanges, database, errors }),
+      plan: makeApiCleanupPlan({ productionChanges, database }),
       logger,
     });
   }
@@ -132,7 +131,7 @@ const startApi = async (): Promise<void> => {
   } catch (error: unknown) {
     return cleanupApiAfterFailure({
       primaryError: error,
-      plan: makeApiCleanupPlan({ productionChanges, database, errors }),
+      plan: makeApiCleanupPlan({ productionChanges, database }),
       logger,
     });
   }
@@ -140,6 +139,9 @@ const startApi = async (): Promise<void> => {
   installShutdownHandlers({
     logger,
     shutdownGracePeriodMs: apiEnv.shutdownGracePeriodMs,
+    flush: () => errors.shutdown(),
+    reportFlushFailure: () =>
+      reportApiTelemetryFailure('api.telemetry.flush_failed'),
 
     forceClose: server.forceClose,
 
@@ -149,7 +151,6 @@ const startApi = async (): Promise<void> => {
           server,
           productionChanges,
           database,
-          errors,
         }),
       ),
   });
@@ -171,7 +172,7 @@ export const runApi = async (): Promise<void> => {
         logger,
         observability: {
           errors,
-          counters: makeLoggingCounterSink(logger),
+          counters: makeRuntimeSignals(logger).counters,
         },
       },
       {
@@ -181,6 +182,8 @@ export const runApi = async (): Promise<void> => {
       },
     );
 
-    await attemptAsyncObservation(flushSentry);
+    const flush = await attemptAsyncObservation(() => errors.shutdown());
+    if (flush.tag === 'failed')
+      reportApiTelemetryFailure('api.telemetry.flush_failed');
   }
 };
