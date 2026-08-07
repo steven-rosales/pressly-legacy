@@ -36,6 +36,6 @@
     "@pressly/tsconfig": "workspace:*",
     "@types/node": "^25.6.0",
     "typescript": "latest",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.10"
   }
 }

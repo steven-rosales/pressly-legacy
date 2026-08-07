@@ -22,9 +22,9 @@
     "@pressly/tsconfig": "workspace:*",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "tsx": "latest",
+    "tsx": "4.23.11",
     "typescript": "latest",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "@pressly/authorization": "workspace:*",
