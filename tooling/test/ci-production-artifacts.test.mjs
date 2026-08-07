@@ -278,6 +278,20 @@ describe('five-image CI release', () => {
     );
     expect(processorDockerfile).not.toMatch(/ARG SENTRY_AUTH_TOKEN/);
     expect(processorDockerfile).not.toMatch(/ENV SENTRY_AUTH_TOKEN/);
+    expect(processorDockerfile).toContain(
+      'pnpm exec turbo build --filter=@pressly/processor^... --concurrency=2',
+    );
+    expect(processorDockerfile).toContain(
+      'pnpm --filter @pressly/processor build',
+    );
+    expect(processorDockerfile).not.toContain(
+      'pnpm exec turbo build --filter=@pressly/processor... --concurrency=2',
+    );
+    expect(
+      processorDockerfile.indexOf('export SENTRY_AUTH_TOKEN='),
+    ).toBeLessThan(
+      processorDockerfile.indexOf('pnpm --filter @pressly/processor build'),
+    );
   });
 
   it('exposes one stable required check covering browser and every branch-specific image path', () => {
