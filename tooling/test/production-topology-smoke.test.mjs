@@ -180,7 +180,8 @@ describe('offline production topology smoke harness', () => {
       PROCESSOR_ORIGIN: `https://processor.pressly.test:${port}`,
       CONTROL_ORIGIN: `https://control.pressly.test:${port}`,
       FEATURE_METRICS_ENABLED: 'false',
-      SENTRY_ENABLED: 'false',
+      SENTRY_ENABLED: 'true',
+      SENTRY_DSN: 'http://offlinesmoke@127.0.0.1:9/1',
       CENTS_WEBHOOK_QUARANTINE_ENCRYPTION_KEY: expect.any(String),
     });
     expect(config.services.web.build.args).toMatchObject({

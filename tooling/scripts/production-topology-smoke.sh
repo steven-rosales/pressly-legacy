@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export PRESSLY_TOOLING_ERROR_FACTORY_PATH="$ROOT_DIR/packages/errors/src/tooling-error.mjs"
@@ -85,6 +86,8 @@ REPORT_PATH="${PRESSLY_SMOKE_REPORT_PATH:-/tmp/${PROJECT_NAME}-report.json}"
 [[ ! -e "$REPORT_PATH" ]] || fail "report path already exists: $REPORT_PATH"
 REPORT_CREATED=false
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pressly-v2-smoke.XXXXXX")"
+MFA_TOTP_SECRET_FILE="$WORK_DIR/owner-mfa-totp-secret.txt"
+MFA_TOTP_COUNTER_FILE="$WORK_DIR/owner-mfa-totp-counter.txt"
 
 export PRESSLY_SMOKE_REPO_ROOT="$ROOT_DIR"
 export PRESSLY_SMOKE_FIXTURE_DIR="$SMOKE_FIXTURE_DIR"
@@ -395,6 +398,214 @@ probe_ok() {
     "https://${host}:${CADDY_PORT}${path}" >/dev/null
 }
 
+public_api_error_summary() {
+  local response_file="$1"
+  node --input-type=module - "$response_file" <<'NODE'
+import { readFileSync } from 'node:fs';
+
+try {
+  const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  const code = response?.error?.code;
+  const message = response?.error?.message;
+  process.stdout.write(
+    typeof code === 'string' && typeof message === 'string'
+      ? `code=${code}; message=${message}`
+      : 'response did not contain a public API error',
+  );
+} catch {
+  process.stdout.write('response was not valid JSON');
+}
+NODE
+}
+
+write_next_totp_challenge_request() {
+  local request_path="$1"
+  node --input-type=module - \
+    "$MFA_TOTP_SECRET_FILE" \
+    "$MFA_TOTP_COUNTER_FILE" \
+    "$request_path" <<'NODE'
+import { readFileSync, writeFileSync } from 'node:fs';
+import { Secret, TOTP } from 'otpauth';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
+const [secretPath, counterPath, requestPath] = process.argv.slice(2);
+const secret = readFileSync(secretPath, 'utf8');
+const previousCounter = Number(readFileSync(counterPath, 'utf8'));
+if (!Number.isSafeInteger(previousCounter) || previousCounter < 0)
+  throw smokeFailure('The previous synthetic TOTP counter is invalid.');
+
+let timestamp = Date.now();
+let counter = TOTP.counter({ period: 30, timestamp });
+if (counter <= previousCounter) {
+  await new Promise((resolve) =>
+    setTimeout(resolve, TOTP.remaining({ period: 30, timestamp }) + 250),
+  );
+  timestamp = Date.now();
+  counter = TOTP.counter({ period: 30, timestamp });
+}
+if (counter <= previousCounter)
+  throw smokeFailure('The synthetic TOTP counter did not advance.');
+
+const code = new TOTP({
+  issuer: 'Pressly',
+  label: 'offline-smoke-owner',
+  algorithm: 'SHA1',
+  digits: 6,
+  period: 30,
+  secret: Secret.fromBase32(secret),
+}).generate({ timestamp });
+writeFileSync(requestPath, JSON.stringify({ method: 'totp', code }), {
+  flag: 'wx',
+  mode: 0o600,
+});
+writeFileSync(counterPath, String(counter), { mode: 0o600 });
+NODE
+}
+
+enroll_owner_mfa() {
+  local origin="https://api.pressly.test:${CADDY_PORT}"
+  local login_request="$WORK_DIR/owner-mfa-login-request.json"
+  local login_response="$WORK_DIR/owner-mfa-login-response.json"
+  local authorization_header="$WORK_DIR/owner-mfa-authorization.header"
+  local enrollment_response="$WORK_DIR/owner-mfa-enrollment-response.json"
+  local confirmation_request="$WORK_DIR/owner-mfa-confirmation-request.json"
+  local confirmation_response="$WORK_DIR/owner-mfa-confirmation-response.json"
+
+  OWNER_PASSWORD="$OWNER_PASSWORD" OWNER_LOGIN_FILE="$login_request" \
+    node --input-type=module -e "
+      import { writeFileSync } from 'node:fs';
+      writeFileSync(
+        process.env.OWNER_LOGIN_FILE,
+        JSON.stringify({
+          email: 'owner@offline.pressly.test',
+          password: process.env.OWNER_PASSWORD,
+        }),
+        { flag: 'wx', mode: 0o600 },
+      );
+    "
+
+  local status
+  status="$(curl \
+    --noproxy '*' \
+    --insecure \
+    --silent \
+    --show-error \
+    --output "$login_response" \
+    --write-out '%{http_code}' \
+    --resolve "api.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    --header 'Content-Type: application/json' \
+    --data-binary "@$login_request" \
+    "${origin}/auth/login")"
+  rm -f "$login_request"
+  [[ "$status" == 200 ]] ||
+    fail "owner MFA login returned $status; expected 200; $(public_api_error_summary "$login_response")."
+
+  node --input-type=module - "$login_response" "$authorization_header" <<'NODE'
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
+const [responsePath, headerPath] = process.argv.slice(2);
+const response = JSON.parse(readFileSync(responsePath, 'utf8'));
+const accessToken = response?.data?.accessToken;
+if (response?.ok !== true || typeof accessToken !== 'string' || accessToken.length < 32)
+  throw smokeFailure('General owner login did not return a usable authenticated session token.');
+if (/[\r\n]/.test(accessToken))
+  throw smokeFailure('General owner login returned an invalid authenticated session token.');
+writeFileSync(headerPath, `Authorization: ${['Bearer', accessToken].join(' ')}\n`, {
+  flag: 'wx',
+  mode: 0o600,
+});
+NODE
+  rm -f "$login_response"
+
+  status="$(curl \
+    --noproxy '*' \
+    --insecure \
+    --silent \
+    --show-error \
+    --output "$enrollment_response" \
+    --write-out '%{http_code}' \
+    --resolve "api.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    --header "@$authorization_header" \
+    --request POST \
+    "${origin}/auth/mfa/enrollment")"
+  [[ "$status" == 200 ]] ||
+    fail "owner MFA enrollment returned $status; expected 200; $(public_api_error_summary "$enrollment_response")."
+
+  node --input-type=module - \
+    "$enrollment_response" \
+    "$confirmation_request" \
+    "$MFA_TOTP_SECRET_FILE" \
+    "$MFA_TOTP_COUNTER_FILE" <<'NODE'
+import { readFileSync, writeFileSync } from 'node:fs';
+import { Secret, TOTP } from 'otpauth';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
+const [responsePath, requestPath, secretPath, counterPath] = process.argv.slice(2);
+const response = JSON.parse(readFileSync(responsePath, 'utf8'));
+const secret = response?.data?.secret;
+if (
+  response?.ok !== true ||
+  typeof secret !== 'string' ||
+  !/^[A-Z2-7]+=*$/.test(secret) ||
+  typeof response.data.enrollmentUri !== 'string' ||
+  !response.data.enrollmentUri.startsWith('otpauth://totp/')
+) throw smokeFailure('Owner MFA enrollment did not return a valid synthetic TOTP secret.');
+const timestamp = Date.now();
+const counter = TOTP.counter({ period: 30, timestamp });
+const code = new TOTP({
+  issuer: 'Pressly',
+  label: 'offline-smoke-owner',
+  algorithm: 'SHA1',
+  digits: 6,
+  period: 30,
+  secret: Secret.fromBase32(secret),
+}).generate({ timestamp });
+writeFileSync(requestPath, JSON.stringify({ code }), { flag: 'wx', mode: 0o600 });
+writeFileSync(secretPath, secret, { flag: 'wx', mode: 0o600 });
+writeFileSync(counterPath, String(counter), { flag: 'wx', mode: 0o600 });
+NODE
+  rm -f "$enrollment_response"
+
+  status="$(curl \
+    --noproxy '*' \
+    --insecure \
+    --silent \
+    --show-error \
+    --output "$confirmation_response" \
+    --write-out '%{http_code}' \
+    --resolve "api.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    --header "@$authorization_header" \
+    --header 'Content-Type: application/json' \
+    --data-binary "@$confirmation_request" \
+    "${origin}/auth/mfa/enrollment/confirm")"
+  rm -f "$confirmation_request" "$authorization_header"
+  [[ "$status" == 200 ]] ||
+    fail "owner MFA confirmation returned $status; expected 200; $(public_api_error_summary "$confirmation_response")."
+
+  node --input-type=module - "$confirmation_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const recoveryCodes = response?.data?.recoveryCodes;
+if (
+  response?.ok !== true ||
+  !Array.isArray(recoveryCodes) ||
+  recoveryCodes.length < 2 ||
+  new Set(recoveryCodes).size !== recoveryCodes.length ||
+  recoveryCodes.some(
+    (code) => typeof code !== 'string' || code.length < 16 || code.length > 40,
+  )
+) throw smokeFailure('Owner MFA confirmation did not return two distinct usable recovery codes.');
+NODE
+  rm -f "$confirmation_response"
+}
+
 probe_routes() {
   probe_ok web.pressly.test /health
   probe_ok api.pressly.test /health/ready
@@ -431,9 +642,12 @@ NODE
 prove_processor_cookie_auth() {
   local origin="https://processor.pressly.test:${CADDY_PORT}"
   local cookie_jar="$WORK_DIR/processor-cookies.txt"
-  local headers="$WORK_DIR/processor-login.headers"
+  local login_headers="$WORK_DIR/processor-login.headers"
   local login_response="$WORK_DIR/processor-login.json"
   local login_request="$WORK_DIR/processor-login-request.json"
+  local challenge_headers="$WORK_DIR/processor-mfa-challenge.headers"
+  local challenge_response="$WORK_DIR/processor-mfa-challenge.json"
+  local challenge_request="$WORK_DIR/processor-mfa-challenge-request.json"
   OWNER_PASSWORD="$OWNER_PASSWORD" OWNER_LOGIN_FILE="$login_request" \
     node --input-type=module -e "
       import { writeFileSync } from 'node:fs';
@@ -443,7 +657,7 @@ prove_processor_cookie_auth() {
           email: 'owner@offline.pressly.test',
           password: process.env.OWNER_PASSWORD,
         }),
-        { flag: 'wx' },
+        { flag: 'wx', mode: 0o600 },
       );
     "
   local status
@@ -452,7 +666,7 @@ prove_processor_cookie_auth() {
     --insecure \
     --silent \
     --show-error \
-    --dump-header "$headers" \
+    --dump-header "$login_headers" \
     --cookie-jar "$cookie_jar" \
     --output "$login_response" \
     --write-out '%{http_code}' \
@@ -461,30 +675,88 @@ prove_processor_cookie_auth() {
     --header 'Content-Type: application/json' \
     --data-binary "@$login_request" \
     "${origin}/api/processor/auth/login")"
-  [[ "$status" == 200 ]] || fail "processor login returned $status; expected 200."
+  rm -f "$login_request"
+  [[ "$status" == 200 ]] ||
+    fail "processor login returned $status; expected 200; $(public_api_error_summary "$login_response")."
+
+  node --input-type=module - "$login_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response?.ok !== true || response?.data?.status !== 'mfa_required')
+  throw smokeFailure('Processor login did not require the enrolled second factor.');
+const serialized = JSON.stringify(response);
+if (serialized.includes('accessToken') || serialized.includes('challengeToken'))
+  throw smokeFailure('Processor login exposed an opaque credential in JSON.');
+NODE
+
+  local mfa_cookie
+  mfa_cookie="$(tr -d '\r' < "$login_headers" | grep -i '^set-cookie: __Host-pressly-processor-mfa=' | head -n 1)"
+  [[ "$mfa_cookie" == *'; Secure'* ]] || fail 'processor MFA cookie is not Secure.'
+  [[ "$mfa_cookie" == *'; HttpOnly'* ]] || fail 'processor MFA cookie is not HttpOnly.'
+  [[ "$mfa_cookie" == *'; SameSite=Strict'* ]] || fail 'processor MFA cookie is not SameSite=Strict.'
+  [[ "$mfa_cookie" == *'; Path=/'* ]] || fail 'processor MFA cookie is not root-scoped.'
+  [[ "$mfa_cookie" != *'; Domain='* ]] || fail 'processor MFA __Host cookie must not set Domain.'
+  local cleared_session_cookie_before_mfa
+  cleared_session_cookie_before_mfa="$(tr -d '\r' < "$login_headers" | grep -i '^set-cookie: __Host-pressly-processor-session=' | head -n 1)"
+  [[ "$cleared_session_cookie_before_mfa" == *'__Host-pressly-processor-session=;'* ]] ||
+    fail 'processor login established a session before the MFA challenge completed.'
+  [[ "$cleared_session_cookie_before_mfa" == *'Expires=Thu, 01 Jan 1970 00:00:00 GMT'* ]] ||
+    fail 'processor login did not expire the stale session cookie before MFA.'
+
+  write_next_totp_challenge_request "$challenge_request"
+
+  status="$(curl \
+    --noproxy '*' \
+    --insecure \
+    --silent \
+    --show-error \
+    --cookie "$cookie_jar" \
+    --cookie-jar "$cookie_jar" \
+    --dump-header "$challenge_headers" \
+    --output "$challenge_response" \
+    --write-out '%{http_code}' \
+    --resolve "processor.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    --header "Origin: $origin" \
+    --header 'Content-Type: application/json' \
+    --data-binary "@$challenge_request" \
+    "${origin}/api/processor/auth/mfa/challenge")"
+  rm -f "$challenge_request"
+  [[ "$status" == 200 ]] ||
+    fail "processor MFA challenge returned $status; expected 200; $(public_api_error_summary "$challenge_response")."
 
   local session_cookie
-  session_cookie="$(tr -d '\r' < "$headers" | grep -i '^set-cookie: __Host-pressly-processor-session=' | head -n 1)"
+  session_cookie="$(tr -d '\r' < "$challenge_headers" | grep -i '^set-cookie: __Host-pressly-processor-session=' | head -n 1)"
   [[ "$session_cookie" == *'; Secure'* ]] || fail 'processor session cookie is not Secure.'
   [[ "$session_cookie" == *'; HttpOnly'* ]] || fail 'processor session cookie is not HttpOnly.'
   [[ "$session_cookie" == *'; SameSite=Strict'* ]] || fail 'processor session cookie is not SameSite=Strict.'
   [[ "$session_cookie" == *'; Path=/'* ]] || fail 'processor session cookie is not root-scoped.'
   [[ "$session_cookie" != *'; Domain='* ]] || fail 'processor __Host cookie must not set Domain.'
 
+  local cleared_mfa_cookie
+  cleared_mfa_cookie="$(tr -d '\r' < "$challenge_headers" | grep -i '^set-cookie: __Host-pressly-processor-mfa=' | head -n 1)"
+  [[ "$cleared_mfa_cookie" == *'; Secure'* ]] || fail 'cleared processor MFA cookie is not Secure.'
+  [[ "$cleared_mfa_cookie" == *'; HttpOnly'* ]] || fail 'cleared processor MFA cookie is not HttpOnly.'
+  [[ "$cleared_mfa_cookie" == *'; SameSite=Strict'* ]] || fail 'cleared processor MFA cookie is not SameSite=Strict.'
+  [[ "$cleared_mfa_cookie" == *'Expires=Thu, 01 Jan 1970 00:00:00 GMT'* ]] ||
+    fail 'processor MFA challenge did not expire its challenge cookie.'
+
   local csrf_token
-  csrf_token="$(node --input-type=module - "$login_response" <<'NODE'
+  csrf_token="$(node --input-type=module - "$challenge_response" <<'NODE'
 import { readFileSync } from 'node:fs';
 
 const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
 const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response?.ok !== true || response?.data?.status !== 'authenticated')
-  throw smokeFailure('Processor login did not establish an authenticated session.');
+  throw smokeFailure('Processor MFA challenge did not establish an authenticated session.');
 if (typeof response.data.csrfToken !== 'string' || response.data.csrfToken.length !== 43)
-  throw smokeFailure('Processor login did not return a CSRF proof.');
+  throw smokeFailure('Processor MFA challenge did not return a CSRF proof.');
 const serialized = JSON.stringify(response);
 if (serialized.includes('accessToken') || serialized.includes('challengeToken'))
-  throw smokeFailure('Processor login exposed an opaque credential in JSON.');
+  throw smokeFailure('Processor MFA challenge exposed an opaque credential in JSON.');
 process.stdout.write(response.data.csrfToken);
 NODE
   )"
@@ -618,9 +890,11 @@ LPMS_DUE_AT=''
 
 login_lpms_processor_session() {
   local origin="https://processor.pressly.test:${CADDY_PORT}"
-  local request_file="$WORK_DIR/lpms-login-request.json"
-  local response_file="$WORK_DIR/lpms-login-response.json"
-  OWNER_PASSWORD="$OWNER_PASSWORD" REQUEST_FILE="$request_file" \
+  local login_request="$WORK_DIR/lpms-login-request.json"
+  local login_response="$WORK_DIR/lpms-login-response.json"
+  local challenge_request="$WORK_DIR/lpms-mfa-challenge-request.json"
+  local challenge_response="$WORK_DIR/lpms-mfa-challenge-response.json"
+  OWNER_PASSWORD="$OWNER_PASSWORD" REQUEST_FILE="$login_request" \
     node --input-type=module -e "
       import { writeFileSync } from 'node:fs';
       writeFileSync(
@@ -629,7 +903,7 @@ login_lpms_processor_session() {
           email: 'owner@offline.pressly.test',
           password: process.env.OWNER_PASSWORD,
         }),
-        { flag: 'wx' },
+        { flag: 'wx', mode: 0o600 },
       );
     "
 
@@ -640,25 +914,62 @@ login_lpms_processor_session() {
     --silent \
     --show-error \
     --cookie-jar "$LPMS_COOKIE_JAR" \
-    --output "$response_file" \
+    --output "$login_response" \
     --write-out '%{http_code}' \
     --resolve "processor.pressly.test:${CADDY_PORT}:127.0.0.1" \
     --header "Origin: $origin" \
     --header 'Content-Type: application/json' \
-    --data-binary "@$request_file" \
+    --data-binary "@$login_request" \
     "${origin}/api/processor/auth/login")"
-  [[ "$status" == 200 ]] || fail "LPMS Processor login returned $status; expected 200."
+  rm -f "$login_request"
+  [[ "$status" == 200 ]] ||
+    fail "LPMS Processor login returned $status; expected 200; $(public_api_error_summary "$login_response")."
 
-  LPMS_CSRF_TOKEN="$(node --input-type=module - "$response_file" <<'NODE'
+  node --input-type=module - "$login_response" <<'NODE'
+import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
+const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (response?.ok !== true || response?.data?.status !== 'mfa_required')
+  throw smokeFailure('LPMS Processor login did not require the enrolled second factor.');
+if (JSON.stringify(response).includes('accessToken') || JSON.stringify(response).includes('challengeToken'))
+  throw smokeFailure('LPMS Processor login exposed an opaque credential in JSON.');
+NODE
+
+  write_next_totp_challenge_request "$challenge_request"
+
+  status="$(curl \
+    --noproxy '*' \
+    --insecure \
+    --silent \
+    --show-error \
+    --cookie "$LPMS_COOKIE_JAR" \
+    --cookie-jar "$LPMS_COOKIE_JAR" \
+    --output "$challenge_response" \
+    --write-out '%{http_code}' \
+    --resolve "processor.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    --header "Origin: $origin" \
+    --header 'Content-Type: application/json' \
+    --data-binary "@$challenge_request" \
+    "${origin}/api/processor/auth/mfa/challenge")"
+  rm -f "$challenge_request"
+  rm -f "$MFA_TOTP_SECRET_FILE" "$MFA_TOTP_COUNTER_FILE"
+  [[ "$status" == 200 ]] ||
+    fail "LPMS Processor MFA challenge returned $status; expected 200; $(public_api_error_summary "$challenge_response")."
+
+  LPMS_CSRF_TOKEN="$(node --input-type=module - "$challenge_response" <<'NODE'
 import { readFileSync } from 'node:fs';
 
 const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
 const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response?.ok !== true || response?.data?.status !== 'authenticated')
-  throw smokeFailure('LPMS Processor login did not establish an authenticated session.');
+  throw smokeFailure('LPMS Processor MFA challenge did not establish an authenticated session.');
 if (typeof response.data.csrfToken !== 'string' || response.data.csrfToken.length !== 43)
-  throw smokeFailure('LPMS Processor login did not return a CSRF proof.');
+  throw smokeFailure('LPMS Processor MFA challenge did not return a CSRF proof.');
+if (JSON.stringify(response).includes('accessToken') || JSON.stringify(response).includes('challengeToken'))
+  throw smokeFailure('LPMS Processor MFA challenge exposed an opaque credential in JSON.');
 process.stdout.write(response.data.csrfToken);
 NODE
   )"
@@ -694,24 +1005,7 @@ processor_request() {
   local status
   status="$(curl "${arguments[@]}" "${origin}${path}")"
   if [[ "$status" != "$expected_status" ]]; then
-    local error_summary
-    error_summary="$(node --input-type=module - "$response_file" <<'NODE'
-import { readFileSync } from 'node:fs';
-try {
-  const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
-  const code = response?.error?.code;
-  const message = response?.error?.message;
-  process.stdout.write(
-    typeof code === 'string' && typeof message === 'string'
-      ? `code=${code}; message=${message}`
-      : 'response did not contain a public API error',
-  );
-} catch {
-  process.stdout.write('response was not valid JSON');
-}
-NODE
-    )"
-    fail "Processor $method $path returned $status; expected $expected_status; $error_summary."
+    fail "Processor $method $path returned $status; expected $expected_status; $(public_api_error_summary "$response_file")."
   fi
   node --input-type=module - "$response_file" <<'NODE'
 import { readFileSync } from 'node:fs';
@@ -1727,6 +2021,8 @@ echo '[v2] starting release-a and proving Caddy routes'
 compose up -d --wait --wait-timeout 180 api web worker processor control caddy
 assert_release_images release-a
 probe_routes
+echo '[v2] enrolling MFA for the synthetic owner through the general HTTPS authentication boundary'
+enroll_owner_mfa
 echo '[v2] proving production HTTPS cookie, session restoration, and CSRF behavior through Caddy'
 prove_processor_cookie_auth
 echo '[v2] proving unsupported-order, customer, and marketing Cents events retain only ignored durable receipts'
@@ -1882,7 +2178,10 @@ const report = {
     workerRestartHeartbeatAdvanced: true,
   },
   processorAuthentication: {
+    generalMfaEnrollmentThroughCaddy: true,
     loginThroughCaddy: true,
+    totpChallengesCompleted: 2,
+    monotonicTotpCounters: true,
     secureHttpOnlyStrictHostCookie: true,
     sessionRestoredFromCookie: true,
     sessionSurvivedApiRestart: true,
