@@ -1,0 +1,1252 @@
+work_id: lpms-production-readiness
+title: LPMS production readiness and controlled pilot
+status: active
+
+goal:
+  - Replace synthetic and disabled LPMS runtime seams with location-aware, observable production behavior and an explicit Cents ingress mode.
+  - Ship API, Web, Worker, and Processor as one immutable and reversible production release on the existing Lightsail Compose topology.
+  - Prove one controlled happy-path pilot from Cents demand accepted under the configured ingress mode through operator-confirmed production without implementing deferred exception workflows.
+
+invariants:
+  - No module imports, calls, or declares a package dependency on another module; apps remain the only composition roots.
+  - Intrinsic Production policy and approved algorithm foundations remain headless and expose no HTTP routes.
+  - Production writes remain strongly consistent, versioned, idempotent, and atomically recorded with work events.
+  - Cents ingress mode is explicit: hmac verifies exact raw body bytes before JSON parsing, while unsigned intentionally matches the vendor's documented sender without claiming authenticity.
+  - In hmac mode, the shared Cents secret is used only as an HMAC key and is never transmitted as a raw header value, logged, committed, or placed in Stateworks.
+  - Hmac mode retains the versioned HMAC-SHA256 contract with a bounded timestamp window and constant-time comparison; unsigned mode skips only source authentication and emits an operational warning.
+  - In hmac mode, invalid, missing, malformed, stale, future, or body-mismatched signatures create no receipt or projection.
+  - Customer PII, bearer credentials, signatures, secrets, recovery codes, and production connection strings never appear in repository fixtures, evidence, logs, screenshots, or durable memory.
+  - Durable Cents order receipts retain only canonical LPMS input plus a raw-body digest unless encrypted short-retention storage is separately approved.
+  - Customer and marketing events pass the configured ingress boundary and are minimally acknowledged without persisting irrelevant PII.
+  - Cents source ordering uses the vendor updatedAt fact, not webhook arrival order or an invented numeric source version.
+  - Every Cents storeId maps explicitly to one Pressly location; unknown stores fail closed and no scheduling query crosses locations.
+  - Missing bag count is never fabricated; an order remains unschedulable until a versioned intake command records the fact or an authoritative vendor field is proven.
+  - Runtime processor code contains no demo mode, frozen date, hardcoded location, or production fixture; deterministic synthetic data lives under test only.
+  - Processor authentication reuses the opaque server-side session authority and does not introduce JWTs.
+  - Processor session credentials are not persisted in browser localStorage; same-origin cookie transport is Secure, HttpOnly, SameSite=Strict, and protected against CSRF on unsafe requests.
+  - The worker runs as a private long-lived container with no public route and cannot bypass production policy or transaction boundaries.
+  - Caddy is the only public production ingress; Postgres, Worker, API container ports, and internal service traffic remain private.
+  - Main-branch CI is the only normal source of production artifacts and every release records immutable digests for API, Web, Worker, and Processor.
+  - No production merge, deploy, vendor enablement, secret placement, DNS change, or pilot begins without its explicit human task.
+  - Existing user changes and unrelated worktree files are preserved.
+  - Manual hold, cancellation, rework, damage, missing-bag, breakdown, late-work, and reassignment workflows remain deferred; encountering one during the pilot stops LPMS use for that work.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconcile the production-readiness baseline
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo:stateworks/work/done/lpms-v1-happy-path
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:docs/plan/lpms.md
+      - repo:docs/architecture.md
+      - repo:docs/devops.md
+      - repo:apps/api
+      - repo:apps/worker
+      - repo:apps/processor
+      - repo:modules/business/production
+      - repo:modules/business/production/src/foundations/language
+      - repo:modules/business/production/src/foundations/algorithms
+      - repo:packages/contracts/src/cents
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:.github/workflows
+      - repo:infra/aws/lightsail
+      - external:https://chathelp.trycents.com/en/articles/12083443-cents-webhooks
+    writes:
+      - repo:docs/plan/lpms.md
+      - repo:docs/architecture.md
+      - repo:docs/devops.md
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+    preconditions:
+      - The current dirty worktree is inventoried before editing.
+      - The completed happy-path evidence is treated as the baseline rather than reimplemented.
+    action:
+      - Re-check every verified starting-point claim in the brief against the current checkout.
+      - Record a gap matrix for vendor contract, ingress security, persistence, operator commands, processor startup, worker operations, release artifacts, production topology, and external setup.
+      - Reconcile the canonical LPMS and architecture docs with the accepted HMAC, PII minimization, location isolation, bag-intake, same-origin processor, and four-image deployment decisions.
+      - Name any checkout drift and replan only the affected downstream tasks before implementation.
+      - Preserve the deferred exception boundary and do not use production credentials or customer data during the audit.
+    postconditions:
+      - The execution baseline is current, source-backed, and recorded without secrets.
+      - Canonical docs no longer claim synthetic Cents fields or raw PII retention as verified production behavior.
+      - Every downstream task still names real paths, boundaries, and proof obligations.
+    verifier:
+      - pnpm stateworks:validate stateworks/work/active/lpms-production-readiness/network.yaml
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - rg -n "HMAC|updatedAt|storeId|bag count|processor|worker" docs/plan/lpms.md docs/architecture.md docs/devops.md
+      - git diff --check
+    rollback:
+      - Revert only unverified T0 documentation edits and retain the recorded baseline for repair.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T1
+    title: Define the real Cents wire and canonical ingress contracts
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:packages/contracts/src/cents
+      - repo:packages/contracts/test
+      - repo:apps/api/src/http/webhooks/cents/cents-webhook.verifier.ts
+      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event
+      - repo:apps/worker/src/jobs/process-webhook-inbox/cents/cents-order.handler.ts
+      - repo:docs/plan/lpms.md
+      - external:https://chathelp.trycents.com/en/articles/12083443-cents-webhooks
+    writes:
+      - repo:packages/contracts/src/cents
+      - repo:packages/contracts/test
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:apps/api/test/cents
+    preconditions:
+      - T0 confirms the current documented and implemented contract mismatch.
+      - Fixtures are synthetic or irreversibly redacted and contain no real customer identifiers.
+    action:
+      - Model the documented Cents wire payload separately from the canonical production receipt command.
+      - Normalize action versus event, CANCELLED status, dueDate, updatedAt, unitPrice versus unitCost, and decimal dollar prices converted exactly to integer cents.
+      - Classify all documented order, customer, and marketing event kinds without forcing non-order events through an order schema.
+      - Map vendor order ID, storeId, and source updatedAt explicitly; do not require invented eventId, sourceVersion, occurredAt, or bagCount fields.
+      - Derive deterministic redelivery identity from event kind, vendor entity ID, source updatedAt when present, and raw-body digest.
+      - Return a minimized canonical order input or an explicit authenticated-ignore decision for non-production events.
+      - Add payload limits and positive, malformed, variant, cancellation, decimal-money, unknown-event, and forward-compatible tests.
+    postconditions:
+      - Vendor wire changes are isolated in one API adapter and contract boundary.
+      - Production application input contains canonical values and no transport aliases.
+      - Missing bag count and unknown store remain explicit facts rather than defaults.
+    verifier:
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/contracts typecheck
+      - pnpm --filter @pressly/contracts lint
+      - pnpm --filter @pressly/api test -- cents
+      - pnpm --filter @pressly/api typecheck
+    rollback:
+      - Revert the new wire adapter and contract tests while leaving the existing live verifier disabled.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T2
+    title: Implement HMAC verification and minimized durable receipt
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+    reads:
+      - repo:apps/api/src/bootstrap/api.composition.ts
+      - repo:apps/api/src/runtime/env.ts
+      - repo:apps/api/src/http/webhooks/cents/cents-webhook.verifier.ts
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/config
+      - repo:packages/logging
+      - repo:packages/observability
+    writes:
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:apps/api/src/runtime/env.ts
+      - repo:apps/api/src/bootstrap/api.composition.ts
+      - repo:apps/api/.env.example
+      - repo:apps/api/test/cents
+      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event
+      - repo:modules/integration/webhook-ingestion/test/features/inbox/ingest-event
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/test
+    preconditions:
+      - Exact raw request bytes are available before the JSON parser for /webhooks/cents.
+      - Production enablement can fail startup when hmac mode lacks required secret configuration.
+    action:
+      - Select hmac or unsigned only through explicit runtime configuration; hmac remains the default and unsigned is the documented-vendor compatibility mode.
+      - Verify X-Cents-Timestamp as Unix seconds and X-Cents-Signature as v1 hex HMAC-SHA256 over timestamp, a period, and exact raw body bytes.
+      - Enforce a five-minute past and future window through an injected clock and compare fixed-length byte buffers in constant time.
+      - Support current and previous HMAC keys during bounded rotation without revealing which key matched.
+      - Distinguish invalid authentication from unavailable server configuration and malformed accepted JSON.
+      - Apply the configured ingress boundary and normalize before durable write; persist canonical LPMS input, event classification, source metadata, and raw-body SHA-256 digest rather than irrelevant raw PII.
+      - Store a minimal deduplicated receipt for accepted ignored events so repeated delivery is auditable without retaining customer payloads.
+      - Acknowledge only after the appropriate receipt commits; emit sparse redacted counters and security signals.
+      - Add valid, wrong-key, missing-header, malformed-signature, stale, future, body-mutation, dual-key rotation, duplicate, ignored-event, database-failure, and logging-redaction tests.
+    postconditions:
+      - Invalid requests produce no receipt and no projection.
+      - A valid order event is durably pending before success is returned.
+      - An accepted customer or marketing event is minimally recorded and ignored without PII retention.
+      - Secret absence cannot silently disable verification when hmac mode is configured in production.
+    verifier:
+      - pnpm --filter @pressly/api test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/db test:integration
+      - pnpm typecheck
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+    rollback:
+      - Disable the Cents route or restore hmac mode and retain already minimized receipts; never relabel unsigned receipts as authenticated.
+    secret_handling: env_file_only
+    status: pending
+    evidence: []
+
+  - id: T3
+    title: Make Cents projection and production data location-aware
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps:
+      - T2
+    reads:
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:modules/integration/webhook-ingestion/src/features/bindings/resolve-source-location
+      - repo:modules/business/orders/src/features/intake/propose-incoming-order
+      - repo:apps/worker/src/jobs/project-fulfillment-demand
+      - repo:modules/business/production/src/features/demand/apply-fulfillment-demand
+      - repo:modules/business/production/src/features/scheduling/create-schedule
+      - repo:modules/business/production/src/foundations/adapters/postgres
+      - repo:modules/business/production/src/foundations/language
+      - repo:docs/plan/lpms.md
+    writes:
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:packages/db/src/migrations
+      - repo:packages/db/src/migrations/meta
+      - repo:packages/db/test
+      - repo:modules/integration/webhook-ingestion/src/features/bindings/resolve-source-location
+      - repo:modules/business/orders/src/features/intake/propose-incoming-order
+      - repo:apps/worker/src/jobs/project-fulfillment-demand
+      - repo:modules/business/production/src/features/demand/apply-fulfillment-demand
+      - repo:modules/business/production/src/features/scheduling/create-schedule
+      - repo:modules/business/production/src/foundations/adapters/postgres
+      - repo:modules/business/production/test
+    preconditions:
+      - Migration tests use an isolated clean database and a representative pre-migration fixture.
+      - Existing migration history is never rewritten after deployment.
+    action:
+      - Replace invented numeric vendor ordering with source_updated_at ordering plus equal-timestamp divergence detection.
+      - Add an explicit Cents store-to-Pressly-location mapping owned by production persistence and configured through a composition-root capability.
+      - Scope CRM projections, production orders, eligible-order reads, shifts, configs, schedules, runs, boards, and uniqueness constraints by location where required.
+      - Keep unknown-store events pending or dead with a stable inspectable code; never project them into a default location.
+      - Model bag count as missing until authoritative vendor input or operator intake records it, with provenance and optimistic versioning.
+      - Make scheduling eligibility require current IN_PROGRESS status, location mapping, positive derived weight, and completed bag intake.
+      - Add forward migration, rollback guidance, indexes, constraints, and concurrent/out-of-order projection tests.
+    postconditions:
+      - One location can never schedule another location's order.
+      - Newer source updatedAt wins regardless of arrival order; equal-time divergence is visible.
+      - Missing bag count is represented honestly and blocks scheduling without blocking CRM projection.
+    verifier:
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/db test:integration
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/production typecheck
+      - pnpm db:test:migrate
+      - Migration upgrade test proves pre-existing rows are handled explicitly.
+      - Cross-location and concurrent projection integration tests pass.
+    rollback:
+      - Before shared deployment, revert the migration and code together; after deployment, disable scheduling and add a forward corrective migration.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T4
+    title: Add bootstrap, intake, discovery, and resumability capabilities
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+      - T3
+    reads:
+      - repo:packages/contracts/src/production
+      - repo:modules/business/production
+      - repo:modules/security/authorization
+      - repo:apps/api/src/bootstrap/api.composition.ts
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:infra/aws/docs
+    writes:
+      - repo:packages/contracts/src/production
+      - repo:packages/contracts/test
+      - repo:modules/business/production/src/features/resources/list-locations
+      - repo:modules/business/production/src/features/orders/list-orders
+      - repo:modules/business/production/src/features/demand/record-order-intake
+      - repo:modules/business/production/src/features/queries/load-workspace
+      - repo:modules/business/production/src/features/resources/manage-resources
+      - repo:modules/business/production/test
+      - repo:modules/security/authorization/src/features/operations/authorize-production
+      - repo:modules/security/authorization/test/features/operations/authorize-production
+      - repo:apps/cli/src/commands
+      - repo:apps/api/test/lpms
+      - repo:infra/aws/docs/lpms-bootstrap.example.json
+    preconditions:
+      - T3 has one authoritative location and intake representation.
+      - Module-isolation and filename architecture tests pass before adding features.
+    action:
+      - Add authenticated, location-scoped reads for allowed locations, eligible and intake-pending orders, current shift/config, latest proposal, active run, board, stations, and machines.
+      - Add a versioned idempotent command to record bag count and provenance without changing vendor facts.
+      - Expose the existing machine-assignment happy-path command through the processor contract if it is not already fully reachable.
+      - Add one idempotent API composition-root bootstrap command that reads an operator-owned JSON file and invokes production-owned capabilities for location, store mapping, stations, machines, and initial scheduler config.
+      - Make bootstrap converge on natural keys, report create/update/no-op results, support dry-run, and reject destructive inventory changes.
+      - Keep intrinsic Production policies and approved algorithms headless; expose them through Production features and let apps inject only explicit effects and module capabilities.
+      - Add authorization, version conflict, idempotency, resume-after-restart, unknown-location, and cross-location tests.
+    postconditions:
+      - A production environment can be initialized without hardcoded seed data or direct ad hoc SQL.
+      - The processor can discover scope and resume real operational state after refresh or restart.
+      - Intake and resource mutations remain auditable production commands.
+    verifier:
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/authorization test
+      - pnpm --filter @pressly/api test
+      - pnpm --filter @pressly/api typecheck
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - Bootstrap dry-run and repeated-apply integration tests produce the same final state.
+    rollback:
+      - Disable bootstrap and new mutation routes; preserve created audit events and use forward commands to correct production resources.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: T5
+    title: Make the processor authenticated, live-only, and resumable
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T4
+    reads:
+      - repo:apps/processor
+      - repo:packages/contracts/src/auth
+      - repo:packages/contracts/src/production
+      - repo:modules/security/identity
+      - repo:apps/api/src/bootstrap/api.composition.ts
+      - repo:docs/agents/07/10
+      - repo:apps/web/src/styles/globals.css
+    writes:
+      - repo:apps/processor/src/app
+      - repo:apps/processor/src/adapters
+      - repo:apps/processor/src/features/authentication
+      - repo:apps/processor/src/features/location-selection
+      - repo:apps/processor/src/features/intake
+      - repo:apps/processor/src/features/scheduling
+      - repo:apps/processor/src/features/production-board
+      - repo:apps/processor/src/ports
+      - repo:apps/processor/test
+      - repo:apps/processor/README.md
+      - repo:apps/api/src/http/processor/session
+      - repo:apps/api/test/security
+      - repo:modules/security/identity
+      - repo:modules/security/identity/test
+    preconditions:
+      - Location discovery, workspace resume, intake, scheduling, board, and machine-assignment contracts are stable.
+      - The existing opaque session remains the source of truth.
+    action:
+      - Remove demo mode, query-string live switching, demo adapters, frozen dates, hardcoded location, and runtime fixture imports from src.
+      - Move only deterministic synthetic data still useful for tests into test fixtures.
+      - Implement login, MFA challenge, session restore, expiry, logout, unauthorized recovery, and role-safe navigation using existing auth contracts.
+      - Add same-origin Secure HttpOnly SameSite=Strict cookie transport for processor sessions while retaining existing bearer support for other clients.
+      - Add CSRF tokens and origin checks for unsafe cookie-authenticated requests; never expose the opaque production token to browser storage.
+      - Discover operator-authorized locations, remember only a non-secret location preference, and load the resumable production workspace on startup.
+      - Derive shift defaults from current time, location timezone, persisted config, and operator input rather than hardcoded dates.
+      - Add intake and machine-assignment controls needed for the happy path and preserve server-authoritative action availability.
+      - Cover loading, empty, expired, forbidden, conflict, offline, retry, refresh, and no-active-run states in the existing design system and light/dark themes.
+    postconditions:
+      - Opening the production processor cannot show demo production data.
+      - Reloading the browser restores authenticated server state or returns to login safely.
+      - A credential is not readable from localStorage, sessionStorage, URL, logs, or rendered markup.
+      - The UI does not duplicate production policy or scheduler decisions.
+    verifier:
+      - pnpm --filter @pressly/processor test
+      - pnpm --filter @pressly/processor typecheck
+      - pnpm --filter @pressly/processor lint
+      - pnpm --filter @pressly/processor build
+      - pnpm --filter @pressly/api test
+      - Login, MFA, CSRF, cookie attributes, logout, expiry, refresh, location discovery, intake, machine assignment, and resume browser tests pass.
+      - rg -n "demo|location-1|2026-07-10|live=1" apps/processor/src returns no runtime match.
+    rollback:
+      - Disable the processor route or serve a maintenance page; do not restore demo data or weaken authentication.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: T6
+    title: Productionize worker observability and recovery
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+      - T3
+      - T4
+    reads:
+      - repo:apps/worker
+      - repo:packages/logging
+      - repo:packages/observability
+      - repo:packages/db
+      - repo:modules/business/production
+      - repo:docs/plan/lpms.md
+    writes:
+      - repo:apps/worker/src
+      - repo:apps/worker/test
+      - repo:apps/worker/.env.example
+      - repo:apps/worker/README.md
+      - repo:apps/cli/src/commands
+      - repo:packages/logging
+      - repo:packages/observability
+    preconditions:
+      - Durable receipt and projection semantics from T2 and T3 are stable.
+      - Reconciliation support is not claimed until an authoritative Cents read API is proven.
+    action:
+      - Replace null runtime logger, counter, and measurement sinks with injected production adapters and safe structured context.
+      - Fail startup when the production worker is expected but disabled or critically misconfigured.
+      - Emit startup, shutdown, fatal, lease-recovery, retry, dead-letter, oldest-pending-age, processing-latency, and reconciliation-watermark signals without per-poll noise.
+      - Add a health or heartbeat proof that detects a running-but-stalled loop without exposing a public worker endpoint.
+      - Schedule reconciliation only when the verified Cents read adapter is configured; otherwise report unsupported state and retain an explicit manual replay path.
+      - Add authenticated operator commands for dead-letter inspection and bounded replay through the same projection use case, never direct row mutation.
+      - Reuse the existing server incident destination with runtime=worker rather than introducing a new monitoring platform.
+      - Prove graceful shutdown, database outage recovery, crash after claim, crash after commit, poison event isolation, replay idempotency, and bounded backoff.
+    postconditions:
+      - Operators can distinguish idle, healthy, delayed, retrying, dead-lettered, unsupported reconciliation, and crashed worker states.
+      - Worker restart and replay cannot duplicate projections or bypass production invariants.
+      - The worker has no route and no public port.
+    verifier:
+      - pnpm --filter @pressly/worker test
+      - pnpm --filter @pressly/worker test:integration
+      - pnpm --filter @pressly/worker typecheck
+      - pnpm --filter @pressly/worker lint
+      - pnpm --filter @pressly/api test
+      - Logging-redaction and stalled-heartbeat tests pass.
+    rollback:
+      - Stop the worker, leave pending and dead rows intact, and use the bounded replay command after repair.
+    secret_handling: env_file_only
+    status: pending
+    evidence: []
+
+  - id: T7
+    title: Add signed Postman and production-like proof assets
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+      - T6
+    reads:
+      - repo:tooling/scripts/run-integration-tests.sh
+      - repo:apps/api/test/lpms
+      - repo:apps/worker/test
+      - repo:apps/processor/test
+      - repo:docker-compose.yml
+      - repo:package.json
+    writes:
+      - repo:tooling/cents-webhook.postman_collection.json
+      - repo:tooling/cents-webhook.postman_environment.example.json
+      - repo:docs/runbooks/cents-webhook.md
+      - repo:tooling/scripts/run-integration-tests.sh
+      - repo:apps/api/test/lpms
+      - repo:apps/worker/test
+      - repo:apps/processor/test
+      - repo:package.json
+    preconditions:
+      - No Postman collection or fixture contains a real secret, token, customer identity, or production URL by default.
+      - The test environment uses a clean isolated database and deterministic clock controls unavailable in production.
+    action:
+      - Add a Postman collection whose pre-request script computes the exact timestamped HMAC from a local secret variable and raw request body.
+      - Provide a secret-free environment example and a runbook for valid, wrong-key, modified-body, stale-timestamp, duplicate, order, customer, and marketing cases.
+      - Add an automated equivalent of every Postman case so CI does not depend on the GUI.
+      - Extend the composed proof through signed receipt, worker projection, unknown-store rejection, location mapping, intake-pending state, bag-count intake, scheduling, acceptance, processor resume, machine assignment, and four fixed-pulse stages.
+      - Prove duplicate and out-of-order delivery, no PII persistence for ignored events, worker restart, dead-letter replay, API restart, processor refresh, and cross-location isolation.
+      - Keep vendor reconciliation proof conditional on a verified read API and test manual replay otherwise.
+    postconditions:
+      - A human can reproduce webhook security behavior in Postman without hand-building signatures.
+      - CI proves the same security and happy-path behavior without real credentials.
+      - Synthetic fixtures exist only under test or explicit tooling assets.
+    verifier:
+      - pnpm test:lpms:int
+      - pnpm test:lpms:e2e
+      - Postman collection and environment JSON parse successfully.
+      - The environment example contains placeholders and no value matching a secret or production credential.
+      - All listed positive and negative HMAC cases have automated assertions.
+    rollback:
+      - Remove the proof assets and keep live Cents enablement disabled until a repaired harness passes.
+    secret_handling: local_only
+    status: pending
+    evidence: []
+
+  - id: V1
+    title: Prove local production readiness
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T7
+    reads:
+      - repo:all-production-readiness-code
+      - repo:stateworks/work/active/lpms-production-readiness/brief.md
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+    writes:
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+    preconditions:
+      - The test database, signing key, clock, locations, machines, and orders are synthetic and isolated.
+      - No verifier uses a production endpoint or secret.
+    action:
+      - Run focused, integration, HTTP, browser, architecture, security, migration, build, container, and composed proofs.
+      - Record exact commands, exit status, timestamp, concise output, failures, and repairs.
+      - Inspect logs and durable rows to prove secret and PII minimization rather than relying only on response codes.
+      - Record unsupported vendor reconciliation as an external gate rather than a passing guarantee.
+    postconditions:
+      - Local evidence covers ingress authenticity, projection ordering, location and intake truth, processor auth/resume, worker recovery, and the full happy path.
+      - Repository implementation is ready for release-tooling changes without unresolved critical test failures.
+    verifier:
+      - pnpm format:check
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm test
+      - pnpm build
+      - pnpm test:lpms:int
+      - pnpm test:lpms:e2e
+      - pnpm docker:lpms:build
+      - docker compose config
+      - git diff --check
+    rollback:
+      - Keep the work active and repair only the failing subgraph; do not proceed to release artifacts.
+    secret_handling: local_only
+    status: pending
+    evidence: []
+
+  - id: T8
+    title: Configure four immutable application images in CI
+    type: primitive
+    owner: agent
+    surface: github
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:.github/workflows/ci.yml
+      - repo:apps/api/Dockerfile
+      - repo:apps/web/Dockerfile
+      - repo:apps/worker/Dockerfile
+      - repo:apps/processor/Dockerfile
+      - repo:tooling/scripts/release-manifest.mjs
+      - repo:tooling/test/release-manifest.test.mjs
+    writes:
+      - repo:.github/workflows/ci.yml
+      - repo:tooling/scripts/release-manifest.mjs
+      - repo:tooling/test/release-manifest.test.mjs
+      - repo:docs/devops.md
+    preconditions:
+      - V1 passes on the exact code intended for release.
+      - Production deploy remains gated to a successful main-branch CI run.
+    action:
+      - Configure main CI to build API, Web, Worker, and Processor images once and tag them with the source SHA.
+      - Configure SBOM generation and critical OS or library vulnerability gates for all four images.
+      - Configure all four images to push only after tests and every scan pass.
+      - Extend the immutable release manifest schema and validator with four digest-qualified image references and one source SHA.
+      - Upload the manifest and four SBOMs as release evidence.
+      - Keep branch CI build-only and keep manual ref deployment as a privileged explicit path.
+      - Add workflow and manifest tests that fail when any image, digest, scan, or source SHA is absent or mismatched.
+    postconditions:
+      - A successful main CI release will identify exactly four immutable application images built from one verified commit.
+      - A partial or mixed-SHA release cannot pass manifest validation.
+    verifier:
+      - pnpm exec vitest run tooling/test/release-manifest.test.mjs
+      - pnpm exec vitest run tooling/test
+      - actionlint .github/workflows/ci.yml when actionlint is available.
+      - Local workflow-structure tests prove branch CI builds four containers without a publish step.
+      - A local workflow-equivalent proof produces and validates a four-image release manifest.
+    rollback:
+      - Revert CI and manifest changes; do not deploy a two-image manifest with new runtime code.
+    secret_handling: github_secret
+    status: pending
+    evidence: []
+
+  - id: T9
+    title: Extend production Compose, Caddy, deploy, and rollback
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T8
+    reads:
+      - repo:infra/aws/lightsail/docker-compose.production.yml
+      - repo:infra/aws/lightsail/Caddyfile
+      - repo:infra/aws/lightsail/deploy.sh
+      - repo:infra/aws/lightsail/rollback.sh
+      - repo:infra/aws/lightsail/README.md
+      - repo:infra/aws/docs
+      - repo:.github/workflows/deploy-production.yml
+      - repo:tooling/scripts/deployment-selection.mjs
+    writes:
+      - repo:infra/aws/lightsail/docker-compose.production.yml
+      - repo:infra/aws/lightsail/Caddyfile
+      - repo:infra/aws/lightsail/deploy.sh
+      - repo:infra/aws/lightsail/rollback.sh
+      - repo:infra/aws/lightsail/README.md
+      - repo:infra/aws/docs
+      - repo:.github/workflows/deploy-production.yml
+      - repo:tooling/test
+      - repo:docs/devops.md
+    preconditions:
+      - T8 defines four immutable image digests in one release manifest.
+      - Existing backup, migration, health, and rollback controls remain mandatory.
+    action:
+      - Add Processor and Worker services with read-only filesystems, dropped capabilities, resource limits, private networking, restart policy, env files, and health behavior appropriate to each runtime.
+      - Keep Worker and Postgres unexposed; expose API, Web, and Processor only to Caddy on the Compose network.
+      - Route the processor domain root to processor:80 and handle /api/* through api:4000 with the /api prefix stripped.
+      - Configure the Processor build/runtime to call same-origin /api and keep the direct API domain for vendor and existing clients.
+      - Extend deploy preflight, pull, migration, start, health, current-release metadata, previous-release metadata, and rollback to all four image digests.
+      - Ensure rollback restores the four-image set from one prior source SHA and never mixes releases.
+      - Document env-file names, 0600 permissions, DNS, firewall, health checks, backup, restore, and 4 GB pilot sizing.
+      - Add deterministic Compose, Caddy-route, deploy-preflight, release-metadata, and rollback tests without contacting production.
+    postconditions:
+      - Production topology contains all four applications and only Caddy publishes host ports.
+      - Processor API traffic is same-origin and Worker remains a separate private container.
+      - Deploy and rollback operate on one atomic four-image release identity.
+    verifier:
+      - docker compose --env-file infra/aws/docs/env/compose.env.example -f infra/aws/lightsail/docker-compose.production.yml config
+      - pnpm exec vitest run tooling/test
+      - shellcheck infra/aws/lightsail/deploy.sh infra/aws/lightsail/rollback.sh when shellcheck is available.
+      - Caddy configuration adapts successfully with placeholder domains and no live certificate request.
+      - Deploy and rollback dry-run fixtures reject missing, mutable, or mixed-SHA images.
+    rollback:
+      - Revert production topology changes before deployment; after deployment, use the verified previous four-image release and retain database forward compatibility.
+    secret_handling: env_file_only
+    status: pending
+    evidence: []
+
+  - id: V2
+    title: Prove the release and production topology offline
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T9
+    reads:
+      - repo:.github/workflows
+      - repo:infra/aws/lightsail
+      - repo:all-four-Dockerfiles
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+    writes:
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+    preconditions:
+      - Placeholder env files contain no production secrets.
+      - The proof runs on an isolated host or disposable local Compose project.
+    action:
+      - Build all four images, migrate a clean database, start the production Compose shape, and exercise Caddy routing locally.
+      - Prove API and Processor health, worker heartbeat and projection, signed webhook receipt, processor auth, and Web health through only the intended ingress.
+      - Restart API and Worker independently and prove operational state resumes.
+      - Run a synthetic four-image release-selection switch and rollback against disposable current-schema data, including release metadata and durable-state preservation.
+      - Measure steady-state container memory and record whether the 4 GB pilot floor leaves safe headroom.
+    postconditions:
+      - The exact production topology is locally operable and reversible without real vendor or cloud state.
+      - Evidence records image identities, routes, health, restart, rollback, and resource measurements.
+    verifier:
+      - pnpm docker:lpms:build
+      - Production Compose config and isolated smoke script exit zero.
+      - Only Caddy publishes host ports in the rendered production config.
+      - Four-image release switching and rollback restore the expected synthetic source SHA and healthy services.
+      - No demo mode or synthetic runtime row appears without an explicit test fixture command.
+    rollback:
+      - Tear down the disposable project and volumes after evidence is captured; do not touch production.
+    secret_handling: local_only
+    status: pending
+    evidence: []
+
+  - id: R1
+    title: Separate generic webhook ingestion from source-neutral Production
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - V2
+    reads:
+      - repo:apps/api/src/http/webhooks
+      - repo:apps/worker/src
+      - repo:modules/business/production
+      - repo:packages/contracts/src/cents
+      - repo:packages/db/src/schema
+      - repo:docs/architecture.md
+      - repo:docs/plan/lpms.md
+    writes:
+      - repo:apps/api/src/http/webhooks/cents
+      - repo:apps/api/src/http/webhook-ingestion/dead-letters/dead-letter.route.ts
+      - repo:apps/worker/src
+      - repo:modules/integration/webhook-ingestion
+      - repo:modules/business/production
+      - repo:packages/contracts/src/webhook-ingestion
+      - repo:packages/contracts/src/lpms
+      - repo:packages/db/src/schema
+      - repo:packages/db/src/migrations
+      - repo:tooling
+      - repo:docs/architecture.md
+      - repo:docs/plan/lpms.md
+      - repo:apps/worker/README.md
+      - repo:stateworks/work/active/lpms-production-readiness
+    preconditions:
+      - Existing V2 proof is retained as historical evidence but is not treated as proof of the refactored module boundary.
+      - No exception workflow or live vendor, cloud, DNS, secret, or production state is added or changed.
+    action:
+      - Move durable inbox, claims, leases, retries, dead letters, replay, and source-location bindings into the generic webhook-ingestion integration module.
+      - Keep Cents HMAC verification and wire normalization in the API vendor adapter.
+      - Compose an application-owned Worker dispatcher whose Cents consumer translates a claimed event into Production's canonical ApplyOrderDemand command.
+      - Make Production own only source-neutral order demand, planning, and physical execution; remove all Cents, webhook, receipt, lease, and CRM concepts from Production source.
+      - Preserve crash-after-Production-commit safety with a stable event-derived idempotency key and lease-fenced inbox completion.
+      - Split persistence schemas and migrate existing rows forward without data loss, including generic source bindings and canonical order-demand revision ordering.
+      - Update contracts, bootstrap manifests, tooling, architecture rails, runbooks, and canonical docs to the implemented boundary.
+    postconditions:
+      - No module imports or declares a dependency on another module; API and Worker remain the composition roots.
+      - webhook-ingestion can accept other sources and dispatch targets without changing its persistence or application language.
+      - Production can accept equivalent wash-and-fold demand from any adapter through one canonical command.
+      - Existing Cents behavior remains authenticated, durable, idempotent, recoverable, and PII-minimized.
+    verifier:
+      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - pnpm --filter @pressly/contracts test
+      - pnpm --filter @pressly/db test
+      - pnpm --filter @pressly/webhook-ingestion test
+      - pnpm --filter @pressly/production test
+      - pnpm --filter @pressly/worker test
+      - pnpm --filter @pressly/api test
+      - rg -n -i "cents|webhook|receipt|lease|\\bcrm\\b|crm_" modules/business/production/src returns no matches.
+    rollback:
+      - Revert only the unverified boundary refactor before deployment; never restore a partially migrated runtime or weaken Cents authentication.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: RV1
+    title: Re-prove LPMS after the module-boundary refactor
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - R1
+    reads:
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+      - repo:modules/integration/webhook-ingestion
+      - repo:modules/business/production
+      - repo:apps/api
+      - repo:apps/worker
+      - repo:packages/db/src/migrations
+      - repo:tooling/scripts/production-topology-smoke.sh
+    writes:
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+      - repo:stateworks/work/active/lpms-production-readiness/state.yaml
+    preconditions:
+      - R1 implementation and documentation are complete.
+      - Test databases and Docker resources are disposable and contain no production data or credentials.
+    action:
+      - Migrate a fresh database and run generic inbox, canonical demand, worker crash-window, location, scheduling, and HTTP proofs.
+      - Run architecture, formatting, lint, typecheck, unit, integration, composed API/Processor, and build gates.
+      - Rebuild the production images and repeat the isolated signed-webhook-to-Production topology smoke with exact durable row-count assertions and teardown proof.
+      - Record the refactor proof separately from historical V2 evidence before returning control to H1.
+    postconditions:
+      - The new boundary has fresh repository, database, integration, and Docker-topology evidence.
+      - H1 depends on RV1 and cannot proceed on superseded pre-refactor proof alone.
+    verifier:
+      - pnpm format:check
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm test
+      - pnpm build
+      - pnpm test:lpms:int
+      - pnpm test:lpms:e2e
+      - pnpm docker:production:smoke
+      - pnpm stateworks:validate stateworks/work/active/lpms-production-readiness/network.yaml
+      - pnpm stateworks:verify stateworks/work/active/lpms-production-readiness/network.yaml --state stateworks/work/active/lpms-production-readiness/state.yaml
+      - git diff --check
+    rollback:
+      - Keep H1 blocked and repair the failing boundary or proof; do not claim the historical V2 run validates the new shape.
+    secret_handling: local_only
+    status: pending
+    evidence: []
+
+  - id: H1
+    title: Confirm the live Cents contract and identifiers
+    type: human_action
+    owner: human
+    surface: other
+    agent_can_verify: false
+    deps:
+      - RV1
+    reads:
+      - repo:stateworks/work/active/lpms-production-readiness/brief.md
+      - external:Cents-CSM-and-account-configuration
+    writes:
+      - external:Cents-webhook-contract-confirmation
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    human_instructions:
+      - Record whether Cents offers any signing or authentication contract beyond the ordinary headers shown in its public webhook documentation; signing is future hardening rather than a launch blocker for the authorized unsigned mode.
+      - Confirm retry schedule, timeout, accepted success status range, ordering, duplicate behavior, and whether all documented event types are always enabled for one endpoint.
+      - Obtain one representative redacted order payload and confirm action versus event, CANCELLED spelling, dueDate, updatedAt, services, unitPrice versus unitCost, and decimal price semantics.
+      - Record real Cents store IDs and their intended Pressly locations without recording customer data.
+      - Ask whether an authoritative bag-count field exists and whether Cents exposes an orders-updated-since API with pagination and rate limits for reconciliation.
+      - Ask for stable egress IP ranges only as optional defense in depth.
+      - Record non-secret answers, contact, date, and source in human-actions.md; never record the shared key or raw payload.
+    expected_external_state:
+      - Cents can deliver its documented HTTPS JSON request to the Pressly endpoint; any available stronger authentication is recorded for a later mode switch.
+      - Retry and payload behavior are documented well enough to verify the adapter.
+      - Store mappings and the presence or absence of bag count and reconciliation APIs are known.
+    verifier:
+      - Human provides redacted written confirmation of delivery, retry, payload, and identifier facts and records any signing capability without a secret.
+      - Human-actions evidence names the confirmed store IDs only if they are not sensitive and contains no customer PII or secret.
+      - Any mismatch with T1 or T2 invalidates those tasks for repair before production infrastructure or secrets are configured.
+    rollback:
+      - Do not enable Cents delivery if its documented body cannot be normalized or mapped; restore hmac mode later when Cents supports the verified signing contract.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: H2A
+    title: Provision the Lightsail host and network boundary
+    type: human_action
+    owner: human
+    surface: aws
+    agent_can_verify: false
+    deps:
+      - H1
+    reads:
+      - repo:infra/aws/lightsail/README.md
+      - repo:infra/aws/docs
+      - external:AWS-Lightsail-console
+    writes:
+      - external:Lightsail-instance-and-static-IP
+      - external:host-firewall
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    human_instructions:
+      - Confirm or resize the production Lightsail instance to at least 4 GB RAM unless V2 measurements prove the current size has safe headroom.
+      - Attach and verify a static IP without removing the current Web or API address.
+      - Allow public 80 and 443. While the GitHub-hosted deploy runner has no stable egress, rate-limit public SSH, require keys, disable root login, pin the host key, and allow only the deployment user. Do not expose Postgres, API container, Processor container, or Worker ports directly.
+      - Confirm disk headroom, encrypted backup access, host time synchronization, Docker availability, and the existing deployment user's restricted access.
+      - Record only redacted instance size, static IP suffix, firewall rules, disk headroom, and time-sync result in human-actions.md.
+    expected_external_state:
+      - The host has capacity for the four applications plus Caddy and Postgres.
+      - One stable static IP is attached and only Caddy ingress plus the hardened deployment SSH boundary can reach the host.
+      - Host time and backup prerequisites are healthy.
+    verifier:
+      - Human provides redacted instance, static-IP, firewall, disk, time-sync, and backup-access evidence.
+    rollback:
+      - Restore the prior instance plan and firewall only if the existing services remain healthy; retain the static IP when removing it would disrupt current DNS.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: H2B
+    title: Configure the processor DNS record
+    type: human_action
+    owner: human
+    surface: dns
+    agent_can_verify: true
+    deps:
+      - H2A
+    reads:
+      - external:DNS-provider
+      - external:Lightsail-static-IP
+      - repo:infra/aws/lightsail/Caddyfile
+    writes:
+      - external:processor-DNS-record
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    human_instructions:
+      - Create the processor hostname record pointing to the verified Lightsail static IP without changing the Web or API records.
+      - Use a low temporary TTL for launch and raise it only after the pilot is stable.
+      - Confirm the record from at least two independent resolvers and record only hostname, record type, TTL, and redacted resolution in human-actions.md.
+    expected_external_state:
+      - The processor hostname resolves consistently to the production static IP.
+      - Existing Web and API hostnames continue resolving unchanged.
+    verifier:
+      - Agent can verify public DNS resolution and compare it with the human-provided redacted static-IP proof.
+    rollback:
+      - Remove only the new processor record if launch is abandoned; do not alter existing Web or API DNS.
+    secret_handling: none
+    status: pending
+    evidence: []
+
+  - id: H2C
+    title: Place production env, HMAC, and bootstrap configuration
+    type: human_action
+    owner: human
+    surface: local_secret_store
+    agent_can_verify: false
+    deps:
+      - H2B
+    reads:
+      - repo:infra/aws/docs
+      - repo:infra/aws/docs/lpms-bootstrap.example.json
+      - external:approved-secret-store
+      - external:confirmed-Cents-store-mapping
+    writes:
+      - external:/opt/pressly/env
+      - external:/opt/pressly/config/lpms-bootstrap.json
+      - external:Cents-current-HMAC-key
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    human_instructions:
+      - Create compose, caddy, web, api, worker, processor, postgres, migration, and backup env files under /opt/pressly/env with owner-only 0600 permissions.
+      - Generate at least 32 random bytes for the current Cents HMAC key in the approved secret boundary and place it only in the API env file; do not paste it into chat, Git, Stateworks, shell history, or screenshots.
+      - Leave the previous-key slot empty for first launch and document the rotation procedure that temporarily accepts current and previous keys.
+      - Configure the Processor same-origin API path, Worker runtime settings, database URLs, existing auth and observability values, and feature flags using the documented production names.
+      - Prepare /opt/pressly/config/lpms-bootstrap.json from the repo example with actual location, timezone, stations, machines, effective capacities, folding configuration, and initial pulse settings. Keep sourceLocationBindings empty until the Cents store identifier is confirmed; never use a placeholder binding in production.
+      - Validate files through the deployment preflight without printing values and record only file names, modes, owner, bootstrap hash, and pass/fail outcome in human-actions.md.
+    expected_external_state:
+      - Required env and bootstrap files exist outside the repository with 0600 permissions and correct ownership; the facility manifest does not require an unconfirmed vendor binding.
+      - A current HMAC key exists in the API secret boundary but Cents delivery is not enabled.
+      - Bootstrap input reflects operator-reviewed facility facts.
+    verifier:
+      - Human provides redacted file-mode, owner, preflight, and bootstrap-hash evidence without values.
+    rollback:
+      - Securely remove unused configuration and revoke the HMAC key if launch is abandoned; do not delete existing production env files needed by Web or API.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: H2D
+    title: Configure worker and deployment alerts
+    type: human_action
+    owner: human
+    surface: sentry
+    agent_can_verify: false
+    deps:
+      - H2C
+    reads:
+      - external:server-observability-project
+      - repo:apps/worker/README.md
+      - repo:docs/devops.md
+    writes:
+      - external:worker-alert-rules
+      - external:deployment-alert-rules
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    human_instructions:
+      - Reuse the existing server observability destination and distinguish runtime=worker rather than creating an unnecessary monitoring stack.
+      - Alert on missing heartbeat, oldest pending age, dead letters, repeated retries, fatal exit, and failed deployment with thresholds from the verified runbook.
+      - Route alerts to an operator-owned destination and send one synthetic non-PII test signal per rule.
+      - Record redacted rule names, thresholds, destination name, and test outcomes in human-actions.md.
+    expected_external_state:
+      - Worker and deployment failures reach an operator without paging on normal idle polls.
+    verifier:
+      - Human provides redacted alert configuration and one successful test result per high-signal rule.
+    rollback:
+      - Disable noisy or unsafe new rules while preserving existing API and Web alerts.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: H3
+    title: Approve and deploy the verified main release
+    type: human_action
+    owner: human
+    surface: github
+    agent_can_verify: false
+    deps:
+      - H2D
+    reads:
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+      - external:GitHub-branch-protection-and-CI
+      - external:production-release-artifact
+    writes:
+      - external:main-branch
+      - external:production-deployment
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    human_instructions:
+      - Review V1 and V2 evidence, unresolved risks, migration plan, backup state, and rollback proof.
+      - Merge the reviewed branch to main only after required CI checks pass; do not deploy directly from the feature branch.
+      - Confirm main CI builds, scans, pushes, and records immutable API, Web, Worker, and Processor digests for the same source SHA.
+      - Allow the normal main deployment workflow to deploy that exact manifest and observe migration, four-service health, and deployment events.
+      - Stop and roll back if any digest is missing, source SHAs differ, migration fails, Worker is unhealthy, or Processor/API routing fails.
+      - Record the deployed source SHA, digest suffixes, workflow run IDs, timestamp, and redacted outcome in human-actions.md.
+    expected_external_state:
+      - Production runs one verified four-image release from main.
+      - Current and previous four-image release metadata exist for rollback.
+      - Cents delivery remains disabled pending V3 and H4.
+    verifier:
+      - Human provides the successful main CI and deploy run IDs plus redacted four-digest manifest proof.
+      - Public Web and API health remain successful after deployment.
+    rollback:
+      - Invoke the verified previous four-image rollback and confirm Web and API health; do not rewrite deployed migration history.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: V3
+    title: Verify the deployed stack before vendor enablement
+    type: verification
+    owner: agent
+    surface: other
+    agent_can_verify: false
+    deps:
+      - H3
+    reads:
+      - external:public-Web-API-and-Processor-health
+      - external:human-provided-Compose-and-Worker-evidence
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    writes:
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+    preconditions:
+      - H3 identifies one exact deployed source SHA and four immutable image digests.
+      - Cents has not begun live delivery.
+    action:
+      - Verify Web, API readiness, Processor TLS, Processor static routing, and same-origin /api routing from the public edge.
+      - Verify unauthenticated processor access shows login and no demo data.
+      - Record human-provided proof that Worker is private, healthy, connected to Postgres, and emitting heartbeat signals.
+      - Verify direct public access to internal service ports is unavailable.
+      - Verify current and previous release metadata can identify all four images.
+    postconditions:
+      - The deployed platform is healthy and secure enough to bootstrap data before vendor traffic.
+      - Evidence contains no session token, secret, raw header, or customer payload.
+    verifier:
+      - Public HTTPS and certificate checks pass for Web, API, and Processor domains.
+      - Processor /api health resolves through Caddy while internal ports are unreachable publicly.
+      - Worker heartbeat and release metadata are proven through redacted human evidence.
+    rollback:
+      - Roll back through H3 instructions if any public route, private-boundary, or worker-health check fails.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: H4
+    title: Bootstrap the production location and operator access
+    type: human_action
+    owner: human
+    surface: database
+    agent_can_verify: false
+    deps:
+      - V3
+    reads:
+      - external:/opt/pressly/config/lpms-bootstrap.json
+      - external:deployed-API-image
+      - external:production-auth-administration
+    writes:
+      - external:production-location-and-resource-records
+      - external:production-store-mapping
+      - external:production-operator-access
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    human_instructions:
+      - Run the deployed bootstrap command in dry-run mode with /opt/pressly/config/lpms-bootstrap.json and review every create, update, no-op, and rejection.
+      - Run the same command in apply mode only when the dry-run matches the physical facility.
+      - Run it a second time and require an idempotent no-op result.
+      - Verify location timezone, stations, machine identifiers, effective capacities, folding inputs, pulse minutes, and initial scheduler configuration against the actual floor. Verify the Cents store mapping only after H1 confirms its identifier, and require it before H5 enables delivery.
+      - Create or confirm the least-privileged processor operator assignment through the existing auth administration path, enroll MFA, and store recovery codes offline.
+      - Sign in to the Processor and confirm only authorized locations are visible; do not submit production commands yet.
+      - Record redacted counts, natural identifiers, configuration hash, operator role, MFA completion, and no-op result in human-actions.md.
+    expected_external_state:
+      - The production facility exists exactly once; the Cents store mapping exists exactly once before vendor delivery is enabled.
+      - Machine and scheduling capacities match operator-reviewed physical facts.
+      - One least-privileged operator can authenticate with MFA and see only allowed scope.
+    verifier:
+      - Human provides the redacted dry-run, apply, repeated no-op, location-scope, and MFA outcomes.
+      - No recovery code, bearer token, password, or bootstrap secret is recorded.
+    rollback:
+      - Disable Processor access and use versioned corrective resource commands; do not delete audit history or edit production rows manually.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: H5
+    title: Configure Cents webhook delivery
+    type: human_action
+    owner: human
+    surface: other
+    agent_can_verify: false
+    deps:
+      - H4
+    reads:
+      - external:Cents-account-configuration
+      - external:approved-Cents-auth-mode
+      - external:production-API-health
+    writes:
+      - external:Cents-webhook-endpoint
+      - external:Cents-delivery-configuration
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    human_instructions:
+      - Configure the public HTTPS endpoint as the production API /webhooks/cents route, not an internal container URL.
+      - Confirm the production API explicitly uses the approved ingress mode; the initial documented-vendor compatibility mode is unsigned.
+      - Start with a Cents test delivery or one designated non-customer pilot order if the vendor supports it.
+      - Confirm Cents receives HTTP 202 after a durable receipt and that no webhook-disabled warning is generated.
+      - Record endpoint hostname, event types, configuration timestamp, CSM confirmation, and redacted delivery result in human-actions.md.
+    expected_external_state:
+      - Cents sends its documented JSON events to the production API endpoint and receives HTTP 202 for a durable receipt.
+      - API startup logs clearly identify unsigned mode until a verified signing mode is adopted.
+    verifier:
+      - Human provides a redacted Cents delivery result and matching API receipt identifier or digest prefix without showing headers or payload PII.
+    rollback:
+      - Disable the Cents endpoint in the vendor console and restore hmac mode when delivery must be stopped or signing becomes available.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: V4
+    title: Prove configured ingress and operational recovery in production
+    type: verification
+    owner: agent
+    surface: other
+    agent_can_verify: false
+    deps:
+      - H5
+    reads:
+      - external:human-Postman-results
+      - external:redacted-production-logs-metrics-and-database-proof
+      - repo:tooling/cents-webhook.postman_collection.json
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    writes:
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+    preconditions:
+      - Tests use a designated non-customer or safely controlled order and do not disrupt live production.
+      - Signature-negative tests remain confined to hmac mode in a production-like isolated endpoint.
+    action:
+      - Record one live Cents HTTP 202 delivery under the configured ingress mode; retain wrong-key, modified-body, and stale-timestamp proof for hmac mode in automated tests.
+      - Trace one Cents order event from durable receipt through Worker projection and the mapped production location.
+      - Prove an order without bag count remains intake-pending, then record intake through the Processor and prove it becomes eligible.
+      - Prove ignored customer or marketing delivery retains no customer payload and only minimal receipt metadata.
+      - Prove Worker heartbeat, retry/dead-letter visibility, bounded replay, and restart recovery without duplicating projection.
+      - If the Cents read API was confirmed, prove reconciliation from a stored watermark; otherwise prove and document manual replay as the launch fallback.
+    postconditions:
+      - Live configured ingress, projection, location mapping, intake, and recovery behavior have redacted evidence.
+      - The accepted unsigned-authenticity limitation is explicit and no unresolved PII, worker, or mapping defect remains before pilot approval.
+    verifier:
+      - Human evidence covers every applicable proof with timestamps, safe identifiers, and outcomes.
+      - Receipt and projection counts prove duplicate effectiveness without exposing raw payloads.
+      - Unsupported automatic reconciliation is explicitly accepted as manual operational debt or blocks the pilot.
+    rollback:
+      - Disable Cents delivery, stop Worker if necessary, retain minimized receipts, and restore hmac mode when signing is available.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: H6
+    title: Approve a controlled happy-path pilot
+    type: human_gate
+    owner: human
+    surface: other
+    agent_can_verify: false
+    deps:
+      - V4
+    reads:
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+      - repo:stateworks/work/active/lpms-production-readiness/brief.md
+      - external:operator-staffing-and-facility-state
+    writes:
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    human_instructions:
+      - Review signed-ingress, rollback, backup, worker, processor, facility, alert, and operator evidence.
+      - Choose one low-risk shift window and a bounded set of ordinary wash-and-fold orders that require no known exception handling.
+      - Confirm trained operator coverage and the existing manual process is available immediately as fallback.
+      - Define stop conditions for auth failure, stale or missing order, bad capacity, location mismatch, worker lag, dead letter, invariant rejection, UI uncertainty, or any deferred exception.
+      - Record explicit approval, date, location, order-count bound, observers, and stop conditions without customer identifiers.
+    expected_external_state:
+      - A bounded pilot window is approved with staffing, fallback, and stop authority.
+    verifier:
+      - Human approval is explicit and all V4 critical findings are resolved or consciously block approval.
+    rollback:
+      - Withdraw approval and continue the existing manual workflow.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: H7
+    title: Operate and observe the controlled pilot
+    type: human_action
+    owner: human
+    surface: other
+    agent_can_verify: false
+    deps:
+      - H6
+    reads:
+      - external:approved-pilot-orders-and-floor-state
+      - external:Processor
+      - external:worker-and-API-observability
+    writes:
+      - external:production-work-events-and-stage-state
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+    human_instructions:
+      - Verify each pilot order is projected to the correct location, intake-complete, and eligible before scheduling.
+      - Review pulse capacity, whole-order batches, machines, makespan, warnings, and completion forecast before accepting the schedule.
+      - Operate only the existing sorting, washing, drying, and folding/packaging happy path, confirming each command and version through the Processor.
+      - Observe Worker heartbeat, pending age, retries, dead letters, API errors, command conflicts, and invariant rejections throughout the window.
+      - Stop LPMS immediately and return affected work to the manual process when any H6 stop condition or deferred exception appears; do not invent an override.
+      - Record redacted totals, timings, batch weights, forecast versus actual, alerts, conflicts, operator feedback, and any stopped work without customer PII.
+    expected_external_state:
+      - The bounded pilot either completes through four stages with auditable work events or stops safely with no fabricated state.
+    verifier:
+      - Human supplies redacted operational evidence for every pilot batch and confirms database, board, and physical floor state agree.
+      - Any stop is treated as valid evidence and routes to repair or exception-work planning rather than being hidden.
+    rollback:
+      - Stop new LPMS commands, disable Cents delivery if ingress is unsafe, and use the existing manual operating process; preserve all audit evidence.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
+  - id: V5
+    title: Close production readiness and update durable memory
+    type: verification
+    owner: agent
+    surface: memory
+    agent_can_verify: true
+    deps:
+      - H7
+    reads:
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+      - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
+      - repo:docs/plan/lpms.md
+      - repo:docs/architecture.md
+      - repo:docs/devops.md
+      - memory:domain:laundry-production/current
+    writes:
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+      - repo:stateworks/work/active/lpms-production-readiness/final-report.md
+      - repo:stateworks/work/active/lpms-production-readiness/state.yaml
+      - repo:stateworks/memory/domains/laundry-production/deltas/lpms-production-readiness.memory-delta.yaml
+      - repo:stateworks/memory/domains/laundry-production/memory.yaml
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:docs/plan/lpms.md
+      - repo:docs/architecture.md
+      - repo:docs/devops.md
+      - repo:apps/processor/README.md
+      - repo:apps/worker/README.md
+    preconditions:
+      - Pilot and external evidence are redacted and contain no secret, signature, credential, recovery code, or customer PII.
+      - Every committed task has passing verification or explicit human proof.
+    action:
+      - Reconcile docs to actual deployed behavior, operating procedures, known limits, and pilot measurements.
+      - Record whether automatic Cents reconciliation is supported or whether manual replay remains accepted operational debt.
+      - Record pilot outcome, rollback readiness, residual risks, and the still-deferred exception-work boundary.
+      - Propose and apply a source-backed laundry-production memory delta only for facts proven by implementation and pilot evidence.
+      - Run full repository, memory, Stateworks, release-manifest, and production-topology verification.
+      - Mark tasks committed only after evidence exists; then close and move the work item from active to done through the normal lifecycle procedure.
+      - Create a separate queued exception-work item only if the human explicitly authorizes its scope after pilot learning.
+    postconditions:
+      - Final report says complete, blocked, or repaired with exact evidence and residual risk.
+      - Durable memory reflects verified production behavior and excludes secrets and unverified vendor claims.
+      - Production-readiness work can move to done without reopening the happy-path work item.
+    verifier:
+      - pnpm format:check
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm test
+      - pnpm build
+      - pnpm stateworks:memory:validate stateworks/memory/domains/laundry-production/memory.yaml
+      - pnpm stateworks:memory:context laundry-production
+      - pnpm stateworks:validate stateworks/work/active/lpms-production-readiness/network.yaml
+      - pnpm stateworks:verify stateworks/work/active/lpms-production-readiness/network.yaml --state stateworks/work/active/lpms-production-readiness/state.yaml
+      - git diff --check
+    rollback:
+      - Revert unverified docs or memory updates, keep the work active, and preserve evidence for repair.
+    secret_handling: none
+    status: pending
+    evidence: []
