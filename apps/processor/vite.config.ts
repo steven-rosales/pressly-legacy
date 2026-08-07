@@ -31,6 +31,9 @@ export default defineConfig(({ mode }) => {
               project: env["SENTRY_PROJECT"],
               release: { name: release },
               sourcemaps: { filesToDeleteAfterUpload: "./dist/**/*.map" },
+              errorHandler: (error) => {
+                throw error
+              },
               silent: env["CI"] !== "true",
               telemetry: false,
             }),
