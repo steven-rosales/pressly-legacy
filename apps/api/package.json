@@ -47,7 +47,7 @@
     "@pressly/webhook-ingestion": "workspace:*",
     "@pressly/users": "workspace:*",
     "@pressly/time": "workspace:*",
-    "@sentry/node": "^10.50.0",
+    "@sentry/node": "^10.69.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
