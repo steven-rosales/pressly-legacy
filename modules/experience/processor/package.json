@@ -31,6 +31,6 @@
     "@pressly/testkit": "workspace:*",
     "@pressly/tsconfig": "workspace:*",
     "typescript": "latest",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.10"
   }
 }
