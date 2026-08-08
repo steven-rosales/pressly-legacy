@@ -1,0 +1,18 @@
+work_id: cents-webhook-redelivery-idempotency
+status: complete
+updated: 2026-08-08T14:10:00-04:00
+
+current_focus:
+  - complete
+  - Exact raw redelivery is repository-verified; publication, deployment, and production observation remain outside this package.
+
+tasks:
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/cents-webhook-redelivery-idempotency/evidence.md
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/cents-webhook-redelivery-idempotency/evidence.md
+      - stateworks/work/done/cents-webhook-redelivery-idempotency/final-report.md

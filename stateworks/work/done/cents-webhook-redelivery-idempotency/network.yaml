@@ -1,0 +1,86 @@
+work_id: cents-webhook-redelivery-idempotency
+title: Preserve exact webhook redelivery across adapter evolution
+status: complete
+
+goal:
+  - Acknowledge an exact durable webhook receipt when adapter-owned normalized fields evolve between deliveries.
+  - Continue rejecting one deduplication identity that refers to different raw source bytes.
+
+invariants:
+  - The raw-body digest is the immutable fingerprint of one external receipt.
+  - Adapter-owned classification, identity extraction, timestamps, disposition, and canonical payload may evolve without changing the historical receipt.
+  - A deduplication identity that names different raw source bytes remains an invariant violation.
+  - Existing inbox state is authoritative and is never rewritten by duplicate ingestion.
+  - No production payload, identifier, digest, credential, or customer data enters repository evidence.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T1
+    title: Repair exact-receipt duplicate interpretation
+    type: primitive
+    owner: agent
+    surface: database
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event
+      - repo:packages/db/src/schema/webhook-ingestion.schema.ts
+      - repo:stateworks/work/active/lpms-production-readiness
+    writes:
+      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event/ingest-event.repo.ts
+      - repo:modules/integration/webhook-ingestion/test/integration/inbox/ingest-event.repo.int.test.ts
+    action:
+      - Treat equal raw-body fingerprints as an exact redelivery even when normalized fields differ.
+      - Retain the invariant failure when the same source and deduplication key carry different raw-body fingerprints.
+      - Prove both branches against PostgreSQL.
+    verifier:
+      - pnpm --filter @pressly/webhook-ingestion test:integration
+      - pnpm --filter @pressly/webhook-ingestion test
+      - pnpm --filter @pressly/webhook-ingestion typecheck
+      - pnpm --filter @pressly/webhook-ingestion lint
+    rollback:
+      - Revert the repository interpretation and its focused tests; no data migration is involved.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/cents-webhook-redelivery-idempotency/evidence.md
+
+  - id: V1
+    title: Verify module and architecture boundaries
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1]
+    reads:
+      - repo:modules/integration/webhook-ingestion
+      - repo:docs/architecture.md
+      - repo:docs/module-architecture.md
+    writes:
+      - repo:stateworks/work/done/cents-webhook-redelivery-idempotency/evidence.md
+      - repo:stateworks/work/done/cents-webhook-redelivery-idempotency/state.yaml
+      - repo:stateworks/work/done/cents-webhook-redelivery-idempotency/final-report.md
+    action:
+      - Run the complete webhook-ingestion unit and PostgreSQL integration suites.
+      - Run architecture, formatting, type, lint, build, Stateworks, and diff hygiene gates for the isolated patch.
+      - Record the repository-only boundary without claiming deployment or external issue resolution.
+    verifier:
+      - pnpm architecture:check
+      - pnpm lint:architecture
+      - pnpm format:check
+      - pnpm stateworks:validate stateworks/work/done/cents-webhook-redelivery-idempotency/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/cents-webhook-redelivery-idempotency/network.yaml --state stateworks/work/done/cents-webhook-redelivery-idempotency/state.yaml
+      - git diff --check
+    rollback:
+      - Leave the work package incomplete if any verifier contradicts the claimed boundary.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/cents-webhook-redelivery-idempotency/evidence.md
+      - stateworks/work/done/cents-webhook-redelivery-idempotency/final-report.md
