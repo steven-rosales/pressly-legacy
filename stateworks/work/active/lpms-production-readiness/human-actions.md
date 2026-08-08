@@ -81,9 +81,12 @@ advance `H2A`–`H2D` or bypass their declared dependencies.
   snapshots are enabled at 07:00 UTC, but the new host's first automatic
   snapshot still requires post-window readback.
 - The active production Worker progress monitor and the three native Lightsail
-  alarms were healthy at readback. Backup and host-capacity Sentry monitors are
-  staged for deployment and require post-deploy check-in readback before they
-  count as alert evidence.
+  alarms were healthy at readback. `pressly-host-capacity` now checks every five
+  minutes with a three-failure threshold and has successful production
+  check-ins. `pressly-postgres-backup` now checks the 03:15 UTC schedule with a
+  one-failure threshold; its first successful check-in followed a real encrypted
+  upload and remote checksum readback. No synthetic failure was emitted, so the
+  operator notification route remains separate `H2D` evidence.
 
 ## Later gates
 
