@@ -2,11 +2,16 @@
 
 ## Status
 
-`H1` is ready. Repository implementation and offline proof passed through `V2`.
-On 2026-07-17, Steven explicitly authorized temporary unsigned compatibility
-with Cents' documented webhook sender so launch is not blocked on signing.
-Retry, store, bag-count, reconciliation, and any future signing facts still
-require live confirmation before the pilot evidence is complete.
+`H1` is the next ready vendor-fact gate. Historical `V2` proof was invalidated
+by later ownership changes; `RV1` proves the refactored boundary, not the
+current release, deployment, or recovery topology. On 2026-07-17, Steven
+explicitly authorized temporary unsigned compatibility with Cents' documented
+webhook sender so launch is not blocked on signing. Retry, store, bag-count,
+reconciliation, and any future signing facts still require live confirmation
+before the pilot evidence is complete. The separate
+`production-recovery-hardening` package is also active; its publication,
+natural scheduled backup, immutable custody, approved RPO/RTO, and replacement-
+instance drill must not be inferred from historical LPMS evidence.
 
 ## Secret handling
 
@@ -78,8 +83,8 @@ advance `H2A`–`H2D` or bypass their declared dependencies.
   Postgres remained healthy and its container and volume identities were
   unchanged; the drill left no disposable container or volume.
 - A manual hardening-baseline instance snapshot is available. Automatic
-  snapshots are enabled at 07:00 UTC, but the new host's first automatic
-  snapshot still requires post-window readback.
+  snapshots are enabled at 07:00 UTC, and the new host's first automatic
+  snapshot completed successfully on 2026-08-08.
 - The active production Worker progress monitor and the three native Lightsail
   alarms were healthy at readback. `pressly-host-capacity` now checks every five
   minutes with a three-failure threshold and has successful production
@@ -96,3 +101,7 @@ advance `H2A`–`H2D` or bypass their declared dependencies.
 - `H4`–`H5`: bootstrap the real facility and enable Cents delivery under the
   explicitly configured ingress mode.
 - `H6`–`H7`: approve and operate the controlled happy-path pilot.
+- `production-recovery-hardening`: publish and observe the repaired recovery
+  release, approve RPO/RTO and independent immutable custody, escrow recovery
+  secrets off host, and prove a complete replacement-instance recovery before
+  treating disaster recovery as complete.

@@ -9,6 +9,10 @@ POSTGRES_ENV_FILE="${PRESSLY_POSTGRES_ENV_FILE:-$ENV_DIR/postgres.env}"
 ROLE_ENV_FILE="${PRESSLY_DATABASE_ROLES_ENV_FILE:-$ENV_DIR/database-roles.env}"
 COMPOSE_FILE="${PRESSLY_COMPOSE_FILE:-$REPO_DIR/infra/aws/lightsail/docker-compose.production.yml}"
 ROLE_SQL="${PRESSLY_DATABASE_ROLES_SQL:-$REPO_DIR/infra/postgres/configure-roles.sql}"
+DEPLOY_LOCK_FILE="${PRESSLY_DEPLOY_LOCK_FILE:-$APP_ROOT/deploy.lock}"
+OPERATION_LOCK_DIR="${PRESSLY_OPERATION_LOCK_DIR:-$APP_ROOT/run}"
+BACKUP_LOCK_FILE="$OPERATION_LOCK_DIR/postgres-backup.lock"
+RESTORE_JOURNAL_FILE="${PRESSLY_RESTORE_JOURNAL_FILE:-$APP_ROOT/postgres-restore.json}"
 POSTGRES_IMAGE='postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a'
 
 # Compose validates all required image variables even when only Postgres starts.
@@ -16,7 +20,30 @@ export PRESSLY_API_IMAGE="${PRESSLY_API_IMAGE:-$POSTGRES_IMAGE}"
 export PRESSLY_WEB_IMAGE="${PRESSLY_WEB_IMAGE:-$POSTGRES_IMAGE}"
 export PRESSLY_WORKER_IMAGE="${PRESSLY_WORKER_IMAGE:-$POSTGRES_IMAGE}"
 export PRESSLY_PROCESSOR_IMAGE="${PRESSLY_PROCESSOR_IMAGE:-$POSTGRES_IMAGE}"
+export PRESSLY_CONTROL_IMAGE="${PRESSLY_CONTROL_IMAGE:-$POSTGRES_IMAGE}"
+export PRESSLY_RELEASE_SHA="${PRESSLY_RELEASE_SHA:-0000000000000000000000000000000000000000}"
 export PRESSLY_POSTGRES_ENV_FILE="$POSTGRES_ENV_FILE"
+
+command -v flock >/dev/null || {
+  echo "flock is required to configure database roles." >&2
+  exit 1
+}
+mkdir -p "$OPERATION_LOCK_DIR"
+chmod 700 "$OPERATION_LOCK_DIR"
+exec 9> "$DEPLOY_LOCK_FILE"
+if ! flock --nonblock 9; then
+  echo "Another deployment, rollback, restore, or role configuration is running." >&2
+  exit 75
+fi
+exec 8> "$BACKUP_LOCK_FILE"
+if ! flock --nonblock 8; then
+  echo "A Postgres backup or restore is already running." >&2
+  exit 75
+fi
+if [[ -e "$RESTORE_JOURNAL_FILE" || -L "$RESTORE_JOURNAL_FILE" ]]; then
+  echo "Active Postgres restore journal blocks database role changes: $RESTORE_JOURNAL_FILE" >&2
+  exit 75
+fi
 
 for env_file in "$COMPOSE_ENV_FILE" "$POSTGRES_ENV_FILE" "$ROLE_ENV_FILE"; do
   if [[ ! -f "$env_file" || "$(stat -c '%a' "$env_file")" != "600" ]]; then

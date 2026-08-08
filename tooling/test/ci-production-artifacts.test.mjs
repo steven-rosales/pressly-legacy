@@ -32,6 +32,17 @@ const restoreRunbook = await readFile(
   new URL('../../infra/aws/docs/restore-postgres.md', import.meta.url),
   'utf8',
 );
+const restoreScript = await readFile(
+  new URL('../../infra/aws/lightsail/restore-postgres.sh', import.meta.url),
+  'utf8',
+);
+const restoreProof = await readFile(
+  new URL(
+    '../../infra/aws/lightsail/restore-postgres-proof.sh',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const workflow = parse(workflowSource);
 const production = workflow.jobs['production-artifacts'];
 const productionSteps = production.steps;
@@ -493,17 +504,367 @@ describe('five-image CI release', () => {
 });
 
 describe('production restore runbook', () => {
-  it('stops every current database writer without misclassifying frontends', () => {
+  it('fences public ingress and every current database writer without misclassifying frontends', () => {
     expect(restoreRunbook).toContain('current database-writing services');
     expect(restoreRunbook).toContain('API and Worker');
-    expect(restoreRunbook).toMatch(
-      /They are frontends, not database\s+writers\./,
+    expect(restoreRunbook).toMatch(/frontends, not database writers\./);
+    expect(restoreRunbook).toContain('also stops Caddy');
+    expect(restoreScript).toContain('compose stop caddy api worker');
+    expect(restoreScript).toContain(
+      'compose stop caddy api worker >/dev/null 2>&1 || true',
     );
+    expect(restoreScript).toContain(
+      'REVOKE CONNECT ON DATABASE %I FROM pressly_runtime',
+    );
+  });
+
+  it('restores a clean candidate and validates it before promotion or restart', () => {
+    const restoreIndex = restoreScript.indexOf('restore pg_restore');
+    const migrateIndex = restoreScript.indexOf(
+      'migrate node node_modules/drizzle-kit/bin.cjs migrate',
+    );
+    const candidateValidationIndex = restoreScript.indexOf(
+      'validate_database "$CANDIDATE_DATABASE"',
+    );
+    const promotionIndex = restoreScript.indexOf(
+      "echo 'Promoting the validated candidate",
+    );
+    const finishStart = restoreScript.indexOf('finish_restore() {');
+    const finishEnd = restoreScript.indexOf('\n}', finishStart);
+    const finishSource = restoreScript.slice(finishStart, finishEnd);
+    const writerStartIndex = finishSource.indexOf(
+      'compose up -d --wait api worker',
+    );
+    const ingressStartIndex = finishSource.indexOf(
+      'compose up -d --wait caddy',
+    );
+
+    expect(restoreScript).toContain(
+      'postgres_exec createdb -U "$POSTGRES_USER" --template=template0 "$CANDIDATE_DATABASE"',
+    );
+    expect(restoreScript).toContain('drop schema if exists drizzle cascade');
+    expect(restoreScript).not.toContain('drop schema if exists public cascade');
+    expect(restoreScript).toContain('--no-owner');
+    expect(restoreScript).toContain('--no-privileges');
+    expect(restoreScript).toContain('configure_roles "$CANDIDATE_DATABASE"');
+    expect(restoreScript).toContain('source "$COMPOSE_ENV_FILE"');
+    expect(restoreScript).toContain(
+      'repository checkout is $CHECKOUT_SHA; release is $PRESSLY_RELEASE_SHA.',
+    );
+    expect(restoreScript).toContain('must be an immutable digest reference.');
+    expect(restoreScript).toContain('expected the $application repository.');
+    expect(restoreScript).toContain(
+      'application image digest is reused across release bindings',
+    );
+    expect(restoreScript).toContain('org.opencontainers.image.revision');
+    expect(restoreScript).toContain("--write-out '%{http_code}'");
+    expect(restoreScript).toContain('[[ "$http_status" =~ ^2[0-9]{2}$ ]]');
+    expect(restoreScript).toContain(
+      '^pressly-[0-9]{8}T[0-9]{6}Z\\.dump\\.gpg$',
+    );
+    expect(restoreIndex).toBeGreaterThanOrEqual(0);
+    expect(migrateIndex).toBeGreaterThan(restoreIndex);
+    expect(candidateValidationIndex).toBeGreaterThan(migrateIndex);
+    expect(promotionIndex).toBeGreaterThan(candidateValidationIndex);
+    expect(restoreScript).toMatch(/complete_cutover\n\s+finish_restore/);
+    expect(writerStartIndex).toBeGreaterThanOrEqual(0);
+    expect(ingressStartIndex).toBeGreaterThan(writerStartIndex);
+  });
+
+  it('retains the old database and has a disposable encrypted proof', () => {
+    expect(restoreScript).toContain('QUARANTINE_DATABASE=');
+    expect(restoreScript).toContain(
+      'Remove the quarantined database only after explicit retention approval.',
+    );
+    expect(restoreProof).toContain(
+      'pg_dump --format=custom --compress=9 --no-owner --no-privileges',
+    );
+    expect(restoreProof).toContain('gpg --symmetric --cipher-algo AES256');
+    expect(restoreProof).toContain("'after-backup'");
+    expect(restoreProof).toContain('"$RESTORE_SCRIPT" "$BACKUP_FILE"');
+    expect(restoreProof).toContain('PRESSLY_RESTORE_RESUME_SERVICES=false');
     expect(restoreRunbook).toContain(
-      'docker-compose.production.yml stop api worker',
+      'It still replaces `POSTGRES_DB` with the restored candidate',
     );
-    expect(restoreRunbook).not.toContain(
-      'docker-compose.production.yml stop api web',
+  });
+
+  it('proves real role reads and harmlessly rejected writes', () => {
+    expect(restoreScript).toContain(
+      'select count(*) >= 0 from public.auth_identities;',
     );
+    expect(restoreScript).toContain(
+      'select count(*) >= 0 from drizzle.__drizzle_migrations',
+    );
+    expect(restoreScript).toContain(
+      'create table public.pressly_restore_runtime_ddl_probe',
+    );
+    expect(restoreScript).toContain(
+      'update public.auth_identities set id = id where false',
+    );
+    expect(restoreScript).toContain(
+      'delete from public.auth_identities where false',
+    );
+  });
+
+  it('serializes against deploy, rollback, and backup before Compose mutation', () => {
+    const deploymentLockIndex = restoreScript.indexOf(
+      'exec 9> "$DEPLOY_LOCK_FILE"',
+    );
+    const backupLockIndex = restoreScript.indexOf(
+      'exec 8> "$BACKUP_LOCK_FILE"',
+    );
+    const composeMutationIndex = restoreScript.indexOf(
+      'compose up -d --wait postgres',
+    );
+
+    expect(restoreScript).toContain(
+      'PRESSLY_DEPLOY_LOCK_FILE:-$APP_ROOT/deploy.lock',
+    );
+    expect(restoreScript).toContain(
+      'PRESSLY_OPERATION_LOCK_DIR:-$APP_ROOT/run',
+    );
+    expect(restoreScript).toContain('postgres-backup.lock');
+    expect(restoreScript.match(/if ! flock -n [89]; then/g)).toHaveLength(2);
+    expect(restoreScript.match(/exit 75/g)).toHaveLength(2);
+    expect(deploymentLockIndex).toBeGreaterThanOrEqual(0);
+    expect(backupLockIndex).toBeGreaterThan(deploymentLockIndex);
+    expect(composeMutationIndex).toBeGreaterThan(backupLockIndex);
+  });
+
+  it('derives the exact release identity from verified durable metadata', () => {
+    const sourceIndex = restoreScript.indexOf('source "$ROLE_ENV_FILE"');
+    const identityIndex = restoreScript.indexOf('RELEASE_IDENTITY="$({');
+    const composeConfigIndex = restoreScript.indexOf('compose config --quiet');
+
+    expect(restoreScript).toContain('CURRENT_RELEASE_FILE=');
+    expect(restoreScript).toContain('CURRENT_RELEASE_METADATA_FILE=');
+    expect(restoreScript).toContain('DEPLOYMENT_STATE_FILE=');
+    expect(restoreScript).toContain('object_pairs_hook=unique_object');
+    expect(restoreScript).toContain("('verified', 'succeeded', 0)");
+    expect(restoreScript).toContain(
+      'deployment state does not match current release metadata',
+    );
+    expect(restoreScript).toContain(
+      'application image repositories must be distinct',
+    );
+    expect(restoreScript).toContain(
+      'application image digests must be distinct',
+    );
+    expect(identityIndex).toBeGreaterThan(sourceIndex);
+    expect(composeConfigIndex).toBeGreaterThan(identityIndex);
+    expect(restoreProof).toContain('caller-stale-api:latest');
+    expect(restoreProof).toContain('authoritative_release_metadata=passed');
+  });
+
+  it('rejects dirty recovery inputs and journals a crash-resumable cutover', () => {
+    const journalStartIndex = restoreScript.indexOf(
+      'restore_journal_operation \\\n    start',
+    );
+    const postgresStartIndex = restoreScript.indexOf(
+      'compose up -d --wait postgres',
+    );
+    const writerStopIndex = restoreScript.indexOf(
+      'compose stop caddy api worker',
+      journalStartIndex,
+    );
+
+    expect(restoreScript).toContain(
+      'status --porcelain --untracked-files=all --',
+    );
+    expect(restoreScript).toContain('"$MIGRATION_DIR"');
+    expect(restoreScript).toContain('RESTORE_JOURNAL_FILE=');
+    expect(restoreScript).toContain(
+      'RESTORE_JOURNAL_CANONICAL="$(readlink -m -- "$RESTORE_JOURNAL_FILE")"',
+    );
+    expect(restoreScript).toContain(
+      '"$RESTORE_JOURNAL_FILE" -ef "$RESTORE_EVIDENCE_FILE"',
+    );
+    expect(restoreScript).toContain('os.fsync(handle.fileno())');
+    expect(restoreScript).toContain('os.fsync(directory_descriptor)');
+    expect(restoreScript).toContain('write_restore_phase candidate_ready');
+    expect(journalStartIndex).toBeGreaterThanOrEqual(0);
+    expect(writerStopIndex).toBeGreaterThan(journalStartIndex);
+    expect(postgresStartIndex).toBeGreaterThan(writerStopIndex);
+    expect(postgresStartIndex).toBeGreaterThan(journalStartIndex);
+    expect(restoreScript).toContain('TEST_FAIL_BEFORE_JOURNAL');
+    expect(restoreProof).toContain('PRE_JOURNAL_POSTGRES_ID');
+    expect(restoreScript).toContain('proof_kill_after after_target_rename');
+    expect(restoreScript).toContain('proof_kill_after after_candidate_rename');
+    expect(restoreProof).toContain(
+      "run_killed_restore after_target_rename candidate_ready '0|1|1'",
+    );
+    expect(restoreProof).toContain(
+      "run_killed_restore after_candidate_rename target_quarantined '1|0|1'",
+    );
+  });
+
+  it('binds public recovery health to the provisioned host identity', () => {
+    const composeConfigIndex = restoreScript.indexOf('compose config --quiet');
+    const dnsPreflightIndex = restoreScript.indexOf(
+      'preflight_public_health_hostnames',
+      composeConfigIndex,
+    );
+    const journalStartIndex = restoreScript.indexOf(
+      'restore_journal_operation \\\n    start',
+    );
+
+    expect(restoreScript).toContain('/etc/pressly/host-identity.json');
+    expect(restoreScript).toContain(
+      'host identity must be root-owned mode 0644',
+    );
+    expect(restoreScript).toContain(
+      'host identity directory must be root-owned and not group/world writable',
+    );
+    expect(restoreScript).toContain(
+      "'publicHealthTarget': public_health_target",
+    );
+    expect(restoreScript).toContain('getent ahostsv4 "$hostname"');
+    expect(restoreScript).toContain('expected_address_found=true');
+    expect(restoreScript).toContain('unexpected_address_found=true');
+    expect(restoreScript).toContain(
+      '--resolve "$hostname:443:$EXPECTED_PUBLIC_IP"',
+    );
+    expect(dnsPreflightIndex).toBeGreaterThan(composeConfigIndex);
+    expect(dnsPreflightIndex).toBeLessThan(journalStartIndex);
+    expect(restoreProof).toContain('HOST_IDENTITY_SNAPSHOT_FILE');
+    expect(restoreProof).toContain(
+      'publicHealthTarget does not match this invocation',
+    );
+  });
+
+  it('brackets final public health with exclusive DNS checks', () => {
+    const finishStart = restoreScript.indexOf('finish_restore()');
+    const abortStart = restoreScript.indexOf(
+      'if [[ "$ABORT_PRE_CUTOVER" == true ]]',
+      finishStart,
+    );
+    const finish = restoreScript.slice(finishStart, abortStart);
+    const abort = restoreScript.slice(abortStart);
+
+    for (const block of [finish, abort]) {
+      const caddyStart = block.indexOf('fenced_compose up -d --wait caddy');
+      const dnsBefore = block.indexOf(
+        'preflight_public_health_hostnames',
+        caddyStart,
+      );
+      const apiHealth = block.indexOf('wait_for_public_health API', dnsBefore);
+      const controlHealth = block.indexOf(
+        'wait_for_public_health Control',
+        apiHealth,
+      );
+      const dnsAfter = block.indexOf(
+        'preflight_public_health_hostnames',
+        controlHealth,
+      );
+
+      expect(caddyStart).toBeGreaterThanOrEqual(0);
+      expect(dnsBefore).toBeGreaterThan(caddyStart);
+      expect(apiHealth).toBeGreaterThan(dnsBefore);
+      expect(controlHealth).toBeGreaterThan(apiHealth);
+      expect(dnsAfter).toBeGreaterThan(controlHealth);
+    }
+
+    expect(
+      finish.indexOf('reconcile_schema1_deployment_state'),
+    ).toBeGreaterThan(finish.lastIndexOf('preflight_public_health_hostnames'));
+    expect(abort.indexOf('write_restore_phase aborting')).toBeLessThan(
+      abort.indexOf('fenced_compose up -d --wait api worker'),
+    );
+  });
+
+  it('keeps service restart policies fenced across public-verification crashes', () => {
+    expect(restoreScript).toContain(
+      'proof_kill_after before_public_verification',
+    );
+    expect(restoreScript).toContain('proof_kill_after after_public_verified');
+    expect(restoreScript).toContain('docker update --restart=no');
+    expect(restoreScript).toContain('docker update --restart=unless-stopped');
+    expect(restoreProof).toContain('FENCE_PRE_PUBLIC_STATUS');
+    expect(restoreProof).toContain('FENCE_PUBLIC_VERIFIED_STATUS');
+    expect(restoreProof).toContain("== 'no no no'");
+    expect(restoreProof).toContain(
+      "== 'unless-stopped unless-stopped unless-stopped'",
+    );
+    expect(restoreProof).toContain(
+      'public_verified_admission=verified,running_unverified',
+    );
+    expect(restoreProof).toContain(
+      'write_public_verified_journal running_unverified',
+    );
+    expect(restoreProof).toContain('write_public_verified_journal verified');
+  });
+
+  it('supports exact pre-cutover abort and first-rollout bundle recovery', () => {
+    expect(restoreScript).toContain('--abort-pre-cutover');
+    expect(restoreScript).toContain("'aborting': {'aborting'}");
+    expect(restoreScript).toContain(
+      'proof_kill_after after_abort_candidate_drop',
+    );
+    expect(restoreScript).toContain(
+      'candidate recovery is forbidden while a hardened current operations bundle exists',
+    );
+    expect(restoreScript).toContain(
+      'candidate operations bundle source SHA does not match the unresolved deployment identity',
+    );
+    expect(restoreProof).toContain(
+      'run_killed_restore after_preparing preparing',
+    );
+    expect(restoreProof).toContain(
+      'run_killed_restore after_candidate_ready candidate_ready',
+    );
+    expect(restoreProof).toContain(
+      'PRESSLY_RESTORE_TEST_FAIL_ABORT_VALIDATION',
+    );
+    expect(restoreProof).toContain('after_abort_candidate_drop');
+    expect(restoreProof).toContain('post-rename abort unexpectedly passed');
+    expect(restoreScript).toContain("journal['resumeServices'] = True");
+  });
+
+  it('rejects stale quarantine collisions before cutover', () => {
+    expect(restoreScript).toContain(
+      'QUARANTINE_DATABASE="${RECOVERY_PREFIX}_damaged_${RESTORE_STAMP}_$$"',
+    );
+    expect(restoreScript).toContain('preparing:target_only');
+    expect(restoreScript).toContain('preparing:candidate_ready');
+    expect(restoreScript).not.toContain('preparing:*');
+    expect(restoreScript).not.toContain('candidate_ready:candidate_promoted');
+    expect(restoreProof).toContain('STALE_QUARANTINE_DATABASE');
+    expect(restoreProof).toContain(
+      'phase preparing conflicts with database topology candidate_promoted',
+    );
+    expect(restoreProof).toContain(
+      'quarantine_collision=unique-name,preparing-rejected',
+    );
+    expect(restoreProof).toContain('ANOMALOUS_CUTOVER_OUTPUT');
+    expect(restoreProof).toContain(
+      'phase candidate_ready conflicts with database topology candidate_promoted',
+    );
+    expect(restoreProof).toContain(
+      'unreachable_cutover_topology=candidate-ready-promoted-rejected',
+    );
+  });
+
+  it('admits exact unresolved deployment shapes without erasing recovery evidence', () => {
+    expect(restoreScript).toContain("state.get('schemaVersion') == 2");
+    expect(restoreScript).toContain(
+      'current release must exactly match recoveryTarget or rollbackPrevious',
+    );
+    expect(restoreScript).toContain('unresolvedDeploymentState');
+    expect(restoreScript).toContain('postgres-restore-last.json');
+    expect(restoreProof).toContain(
+      'write_recovering_unverified_state previous',
+    );
+    expect(restoreProof).toContain('UNRESOLVED_STATE_SNAPSHOT_FILE');
+  });
+
+  it('builds an actual N-1 backup and requires the current migration on restore', () => {
+    expect(restoreProof).toContain('const removed = journal.entries.pop()');
+    expect(restoreProof).toContain(
+      '--volume "$N_MINUS_ONE_MIGRATIONS:/repo/packages/db/src/migrations:ro"',
+    );
+    expect(restoreProof).toContain(
+      'the current release migration was not applied to the N-1 backup',
+    );
+    expect(restoreProof).toContain('migration_upgrade=$N_MINUS_ONE_COUNT->');
   });
 });

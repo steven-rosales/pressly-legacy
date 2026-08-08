@@ -1,0 +1,45 @@
+work_id: production-recovery-hardening
+status: active
+updated: 2026-08-08T13:41:03-04:00
+
+current_focus:
+  - H1
+  - H2
+  - Repository recovery hardening and combined verification are complete. Publication, host-identity provisioning, natural scheduling, immutable custody, and replacement-host proof remain explicit external gates.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#t0---baseline
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#t1---failure-safe-deploy-and-rollback
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#t2---production-shaped-database-restore
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#t3---backup-remains-authoritative
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#v1---combined-repository-verification
+  H1:
+    status: pending
+    evidence: []
+  V2:
+    status: latent
+    evidence: []
+  H2:
+    status: pending
+    evidence: []
+  H3:
+    status: latent
+    evidence: []
+  V3:
+    status: latent
+    evidence: []
