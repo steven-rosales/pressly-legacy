@@ -77,8 +77,11 @@ advance `H2A`–`H2D` or bypass their declared dependencies.
   the legacy static bucket access key was deleted after credential-free proof.
 - The 03:15 UTC schedule produced a complete encrypted backup triplet. Its local
   checksum, remote object size, and remote encrypted-byte readback checksum all
-  matched. A second backup using only instance resource access passed the same
-  checks.
+  matched. That natural execution occurred before the stable monitored runner
+  was installed at 05:25 UTC. A second, manually invoked backup using only
+  instance resource access passed the same checks. These runs prove backup and
+  readback behavior, not the post-install natural schedule required by recovery
+  V2.
 - The second backup restored into an isolated disposable Postgres in 4 seconds.
   Smoke proof found 59 public tables and the identity table. Production
   Postgres remained healthy and its container and volume identities were
@@ -90,15 +93,32 @@ advance `H2A`–`H2D` or bypass their declared dependencies.
   alarms were healthy at readback. `pressly-host-capacity` now checks every five
   minutes with a three-failure threshold and has successful production
   check-ins. `pressly-postgres-backup` now checks the 03:15 UTC schedule with a
-  one-failure threshold; its first successful check-in followed a real encrypted
-  upload and remote checksum readback. No synthetic failure was emitted, so the
-  operator notification route remains separate `H2D` evidence.
+  one-failure threshold. Its first successful check-in followed a manually
+  invoked monitored backup with a real encrypted upload and remote checksum
+  readback; it proves the command and telemetry path, not cron or recovery V2.
+  No synthetic failure was emitted, so the operator notification route remains
+  separate `H2D` evidence.
 
 ## Later gates
 
-- `H2A`–`H2D`: re-read the pre-provisioned host/network/DNS evidence after H1,
-  then prove the still-required external configuration and alert tests without
-  bypassing the declared dependency order.
+- `H2A`: read back and reconcile the existing 8 GiB host, static IP, firewall,
+  time, disk, backup access, and capacity for API, Web, Worker, Processor,
+  Control, Caddy, and Postgres. Change external state only to repair a proven
+  mismatch.
+- `H2B`: read back Web, API, Processor, and Control DNS from two independent
+  resolvers and reconcile it with the verified static IP; do not recreate
+  healthy records.
+- `H2C`: read back the existing production environment and bootstrap files,
+  including Control, validate ownership/modes and preflight without printing
+  values, and repair only a proven mismatch.
+- `H2D`: read back the existing Worker, host, backup, and deployment monitors,
+  then prove the still-open operator notification route with bounded non-PII
+  test evidence.
+
+These pre-provisioned facts do not advance `H2A`–`H2D`; each gate remains
+ordered behind its declared dependency and requires a dated reconciliation
+record after it becomes ready.
+
 - `H3`: approve a verified main-branch release for deployment.
 - `H4`–`H5`: bootstrap the real facility and enable Cents delivery under the
   explicitly configured ingress mode.

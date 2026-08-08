@@ -321,12 +321,15 @@ Stateworks will stop and request the human when these become ready:
   validate delivery, compatibility evidence, and observability; they do not
   grant Cents canonical lifecycle, fulfillment-release, or physical-intake
   authority.
-- `H2A`: provision/resize the Lightsail host, static IP, firewall, time sync,
-  disk headroom, and backup access.
-- `H2B`: add and verify the Processor DNS record.
-- `H2C`: place external env files with an explicit Cents auth mode and reviewed
-  facility bootstrap input without exposing secret values.
-- `H2D`: configure high-signal Worker and deployment alerts.
+- `H2A`: read back and reconcile the provisioned host, static IP, firewall,
+  time, disk, backup access, and capacity for all five applications.
+- `H2B`: read back and reconcile Web, API, Processor, and Control DNS without
+  changing healthy records.
+- `H2C`: read back and reconcile all five applications' external env files,
+  explicit Cents auth mode, and reviewed facility bootstrap input without
+  exposing secret values.
+- `H2D`: read back existing Worker, host, backup, and deployment monitoring and
+  prove operator notification delivery.
 - `H3`: approve and deploy only a main-branch release whose CI produced all
   five immutable digests.
 - `H4`: run the idempotent production bootstrap and verify the real location,

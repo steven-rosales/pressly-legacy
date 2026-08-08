@@ -434,8 +434,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ```
 
 The backup monitor schedule defaults to the daily cron expression
-`15 3 * * *`. When the approved one-hour RPO is activated, replace only the
-backup cron entry and pass the matching hourly expression to the runner:
+`15 3 * * *`. Keep that cadence until the recovery owner explicitly approves
+the one-hour RPO and the corresponding storage, retention, and operational
+cost. Only after that approval, replace the backup cron entry and pass the
+matching hourly expression to the runner:
 
 ```text
 15 * * * * PRESSLY_BACKUP_MONITOR_SCHEDULE='15 * * * *' PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres /opt/pressly/ops/current/run-monitored-operation.sh backup >> /var/log/pressly-backup.log 2>&1
@@ -464,11 +466,12 @@ runner bounds telemetry to 20 seconds and records skipped or failed telemetry
 in the backup log without printing the DSN.
 
 Run both recipes once manually after installation, then read the monitors and
-their successful check-ins back from Sentry. After changing cron, also observe
-the first natural 03:15 UTC execution: a manual run proves the command but not
-the scheduler. A successful `pressly-postgres-backup` check-in means the dump,
-upload, and remote checksum verification all succeeded. The host log is the
-fallback evidence when Sentry is unavailable.
+their successful check-ins back from Sentry. Also observe the first natural
+execution at the installed cadence: 03:15 UTC for the daily recipe, or the next
+`:15` UTC execution after an approved hourly change. A manual run proves the
+command but not cron. A successful `pressly-postgres-backup` check-in means the
+dump, upload, and remote checksum verification all succeeded. The host log is
+the fallback evidence when Sentry is unavailable.
 
 ## Processor Clean-Slate Maintenance
 

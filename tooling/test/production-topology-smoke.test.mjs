@@ -288,6 +288,8 @@ describe('offline production topology smoke harness', () => {
     expect(script).toContain('completedStageCount: 4');
     expect(script).toContain('stageTransitionCommandCount: 8');
     expect(script).toContain('directRunIdBoardResume: true');
+    expect(script).toContain('switchedAllFiveToReleaseB: true');
+    expect(script).toContain('rolledBackAllFiveToReleaseA: true');
 
     const report = script.slice(
       script.indexOf("proof: 'lpms-v2-offline-production-topology'"),

@@ -627,9 +627,12 @@ stopped. No live external state was changed.
 
 Status: committed.
 
-The current repository proof includes the completed operational-authority,
-order-control, production-order-resolution, and exact-raw-redelivery work. The
-exact-redelivery repair is recorded canonically in
+The application and release checkout under this proof was exact source commit
+`a5c768b97cc9dee56bb53de1678563849b6d1f9a`; the only working-tree differences
+during the proof were these Stateworks truth records, not executable
+application or release inputs. The proof includes the completed
+operational-authority, order-control, production-order-resolution, and
+exact-raw-redelivery work. The exact-redelivery repair is recorded canonically in
 `stateworks/work/done/cents-webhook-redelivery-idempotency/` and was merged at
 exact source commit `8dec29e0724ea05340a2586a348991f256c06d81`.
 
@@ -661,6 +664,15 @@ exit: 0
 time: 2026-08-08T16:48:35-04:00
 summary: all five application images built. The seven-container topology migrated a clean database, exposed only loopback Caddy, proved Web/API/Processor/Control routes, Processor MFA/cookie/CSRF behavior, two signed submitted candidates through acceptance, fulfillment release, intake, scheduling, one completed run and four completed stages, independent API and Worker recovery, and five-image A-to-B-to-A release rotation with durable state preserved. The steady-state snapshot measured 450615050 bytes, 10.49% of the historical 4 GiB floor, with 89.51% observed headroom. Teardown left zero owned containers, networks, volumes, or images. The redacted transient report is /tmp/pressly-v2-smoke-1000-1060023-report.json; no production, Cents, DNS, or deployed cloud endpoint was intentionally contacted.
 ```
+
+A follow-up review corrected only the report field names from the retired
+four-image wording to `switchedAllFiveToReleaseB` and
+`rolledBackAllFiveToReleaseA`. The complete disposable smoke reran successfully
+at 2026-08-08T17:17:08-04:00: both fields were true, both release manifests
+contained API, Web, Worker, Processor, and Control, and teardown again left zero
+owned containers, networks, volumes, or images. That verifier-only follow-up
+does not rebind the current V2 application/release proof from exact checkout
+`a5c768b97cc9dee56bb53de1678563849b6d1f9a`.
 
 This current reproof repairs the temporary 2026-07-26 V2 invalidation. It does
 not advance H1 or any later live-vendor, production-data, pilot, or recovery
