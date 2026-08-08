@@ -116,37 +116,54 @@ const adaptOrderResult = async <Value>(
     : resolved;
 };
 
+type CanonicalControlOrderItem = Omit<ControlOrderItem, 'sourceMetadata'> &
+  Readonly<{ sourceMetadata: JsonObject }>;
+
+const toCanonicalControlOrderItem = (
+  item: ControlOrderItem,
+  sourceMetadata: JsonObject,
+): CanonicalControlOrderItem => ({
+  lineKey: item.lineKey,
+  itemType: item.itemType,
+  code: item.code,
+  description: item.description,
+  quantity: item.quantity,
+  unit: item.unit,
+  unitPriceCents: item.unitPriceCents,
+  totalAmountCents: item.totalAmountCents,
+  sourceMetadata,
+});
+
 const validateControlOrderDetail = (
   order: CanonicalOrderDetail,
 ): ControlOrderDetailSnapshot => ({
   ...order,
   items: order.items.map((item) => {
-    if (!isJsonObject(item.sourceMetadata))
+    const sourceMetadata = item.sourceMetadata;
+    if (!isJsonObject(sourceMetadata))
       throw invariantViolationError({
         code: 'control_order_source_metadata_invalid',
         message: `Order ${order.orderId} item ${item.lineKey} contains non-JSON source metadata.`,
         safeMessage: 'Order data could not be loaded.',
       });
 
-    return { ...item, sourceMetadata: item.sourceMetadata };
+    return toCanonicalControlOrderItem(item, sourceMetadata);
   }),
 });
-
-type CanonicalControlOrderItem = Omit<ControlOrderItem, 'sourceMetadata'> &
-  Readonly<{ sourceMetadata: JsonObject }>;
 
 const validateControlOrderItems = (
   items: readonly ControlOrderItem[],
 ): readonly CanonicalControlOrderItem[] =>
   items.map((item) => {
-    if (!isJsonObject(item.sourceMetadata))
+    const sourceMetadata = item.sourceMetadata;
+    if (!isJsonObject(sourceMetadata))
       throw invariantViolationError({
         code: 'control_order_item_source_metadata_invalid',
         message: `Control order item ${item.lineKey} contains non-object JSON source metadata.`,
         safeMessage: 'Order data could not be submitted.',
       });
 
-    return { ...item, sourceMetadata: item.sourceMetadata };
+    return toCanonicalControlOrderItem(item, sourceMetadata);
   });
 
 export const adaptControlCustomers = (

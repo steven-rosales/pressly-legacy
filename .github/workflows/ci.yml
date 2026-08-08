@@ -563,11 +563,32 @@ jobs:
           CONTROL_TAG: ${{ steps.images.outputs.control_tag }}
         run: |
           set -euo pipefail
-          docker push "$API_TAG"
-          docker push "$WEB_TAG"
-          docker push "$WORKER_TAG"
-          docker push "$PROCESSOR_TAG"
-          docker push "$CONTROL_TAG"
+          push_image() {
+            local image="$1"
+            local attempt
+            local delay_seconds
+
+            for attempt in 1 2 3; do
+              if docker push "$image"; then
+                return 0
+              fi
+
+              if (( attempt == 3 )); then
+                echo "Image publication failed after 3 attempts: $image" >&2
+                return 1
+              fi
+
+              delay_seconds=$((attempt * 5))
+              echo "Image publication attempt $attempt failed for $image; retrying in ${delay_seconds}s." >&2
+              sleep "$delay_seconds"
+            done
+          }
+
+          push_image "$API_TAG"
+          push_image "$WEB_TAG"
+          push_image "$WORKER_TAG"
+          push_image "$PROCESSOR_TAG"
+          push_image "$CONTROL_TAG"
 
       - name: Record immutable release manifest
         shell: bash

@@ -17,6 +17,7 @@ const identityId = '00000000-0000-4000-8000-000000000001';
 const customerId = '00000000-0000-4000-8000-000000000010';
 const orderId = '00000000-0000-4000-8000-000000000020';
 const fulfillmentId = '00000000-0000-4000-8000-000000000030';
+const orderItemId = '00000000-0000-4000-8000-000000000040';
 const now = new Date('2026-07-29T16:00:00.000Z');
 const pass: RequestHandler = (_request, _response, next) => next();
 const authenticate: RequestHandler = (_request, response, next) => {
@@ -121,7 +122,24 @@ const orders = {
       },
       createdAt: now,
       updatedAt: now,
-      items: [],
+      items: [
+        {
+          id: orderItemId,
+          businessId,
+          orderId,
+          lineKey: 'line-1',
+          itemType: 'service',
+          code: 'wash_fold',
+          description: 'Wash and fold',
+          quantity: 1,
+          unit: 'each',
+          unitPriceCents: 3_000,
+          totalAmountCents: 3_000,
+          sourceMetadata: { source: 'manual' },
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
     },
   })),
   createOrder: vi.fn(async () => ({
@@ -193,6 +211,29 @@ describe('Control customer and Order routes', () => {
     const response = await fetch(`${baseUrl}/control/orders?locationId=west`);
     expect(response.status).toBe(404);
     expect(orders.listCanonicalOrders).not.toHaveBeenCalled();
+  });
+
+  it('projects persistence-only item fields out of an Order detail response', async () => {
+    const baseUrl = await start(app());
+    const response = await fetch(`${baseUrl}/control/orders/${orderId}`);
+    const body = (await response.json()) as {
+      data: { items: readonly unknown[] };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.data.items).toEqual([
+      {
+        lineKey: 'line-1',
+        itemType: 'service',
+        code: 'wash_fold',
+        description: 'Wash and fold',
+        quantity: 1,
+        unit: 'each',
+        unitPriceCents: 3_000,
+        totalAmountCents: 3_000,
+        sourceMetadata: { source: 'manual' },
+      },
+    ]);
   });
 
   it('creates one source-neutral unreleased fulfillment with an exact customer ID', async () => {
