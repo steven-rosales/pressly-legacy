@@ -433,6 +433,20 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 */5 * * * * /opt/pressly/ops/current/run-monitored-operation.sh host-capacity >/dev/null 2>&1
 ```
 
+The backup monitor schedule defaults to the daily cron expression
+`15 3 * * *`. When the approved one-hour RPO is activated, replace only the
+backup cron entry and pass the matching hourly expression to the runner:
+
+```text
+15 * * * * PRESSLY_BACKUP_MONITOR_SCHEDULE='15 * * * *' PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres /opt/pressly/ops/current/run-monitored-operation.sh backup >> /var/log/pressly-backup.log 2>&1
+```
+
+The cron expression and `PRESSLY_BACKUP_MONITOR_SCHEDULE` must describe the
+same execution cadence. The runner accepts only the daily and hourly
+expressions shown above. An explicitly empty or malformed override skips the
+Sentry check-in without preventing the authoritative backup or replacing its
+exit status.
+
 Ubuntu's default cron does not interpret `CRON_TZ`; require the host timezone
 to remain `Etc/UTC` and verify it with
 `timedatectl show --property=Timezone --value` before installing the schedule.
