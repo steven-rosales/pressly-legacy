@@ -516,12 +516,73 @@ describe('five-image CI release', () => {
     expect(Math.max(...scanIndexes)).toBeLessThan(loginIndex);
     expect(loginIndex).toBeLessThan(publishIndex);
     const publish = step('Publish verified images');
-    expect(publish.run.match(/docker push "\$[A-Z]+_TAG"/g)).toHaveLength(5);
+    expect(publish.run.match(/push_image "\$[A-Z]+_TAG"/g)).toHaveLength(5);
+    expect(publish.run).toContain('for attempt in 1 2 3');
+    expect(publish.run).toContain('if docker push "$image"; then');
+    expect(publish.run).toContain('delay_seconds=$((attempt * 5))');
+    expect(publish.run).toContain(
+      'Image publication failed after 3 attempts: $image',
+    );
     expect(
       productionSteps
         .slice(0, publishIndex)
         .filter((candidate) => candidate.name.startsWith('Block critical ')),
     ).toHaveLength(5);
+  });
+
+  it('retries each immutable image independently after a registry failure', () => {
+    const publish = step('Publish verified images');
+    const exercised = runBash(
+      `
+        declare -A attempts=()
+        docker() {
+          local image="$2"
+          attempts["$image"]=$((\${attempts["$image"]:-0} + 1))
+          printf 'push %s %s\n' "$image" "\${attempts["$image"]}"
+          (( attempts["$image"] > 1 ))
+        }
+        sleep() { printf 'sleep %s\n' "$1"; }
+        ${publish.run}
+        for image in "$API_TAG" "$WEB_TAG" "$WORKER_TAG" "$PROCESSOR_TAG" "$CONTROL_TAG"; do
+          [[ \${attempts["$image"]} == 2 ]]
+        done
+      `,
+      {
+        API_TAG: 'ghcr.io/pressly/api:release',
+        WEB_TAG: 'ghcr.io/pressly/web:release',
+        WORKER_TAG: 'ghcr.io/pressly/worker:release',
+        PROCESSOR_TAG: 'ghcr.io/pressly/processor:release',
+        CONTROL_TAG: 'ghcr.io/pressly/control:release',
+      },
+    );
+
+    expect(exercised.status).toBe(0);
+    expect(exercised.stdout.match(/^push /gm)).toHaveLength(10);
+    expect(exercised.stdout.match(/^sleep 5$/gm)).toHaveLength(5);
+  });
+
+  it('fails closed after three publication attempts for one image', () => {
+    const publish = step('Publish verified images');
+    const failed = runBash(
+      `
+        docker() { printf 'push failed\n'; return 1; }
+        sleep() { :; }
+        ${publish.run}
+      `,
+      {
+        API_TAG: 'ghcr.io/pressly/api:release',
+        WEB_TAG: 'ghcr.io/pressly/web:release',
+        WORKER_TAG: 'ghcr.io/pressly/worker:release',
+        PROCESSOR_TAG: 'ghcr.io/pressly/processor:release',
+        CONTROL_TAG: 'ghcr.io/pressly/control:release',
+      },
+    );
+
+    expect(failed.status).not.toBe(0);
+    expect(failed.stdout.match(/^push failed$/gm)).toHaveLength(3);
+    expect(failed.stderr).toContain(
+      'Image publication failed after 3 attempts: ghcr.io/pressly/api:release',
+    );
   });
 
   it('records registry digests and uploads one exact five-image release artifact', () => {
