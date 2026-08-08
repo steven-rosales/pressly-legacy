@@ -20,6 +20,11 @@ const monitoredOperationScript = resolve(
   root,
   'infra/aws/lightsail/run-monitored-operation.sh',
 );
+const backupScript = resolve(root, 'infra/aws/lightsail/backup-postgres.sh');
+const productionCompose = resolve(
+  root,
+  'infra/aws/lightsail/docker-compose.production.yml',
+);
 const fixtures = [];
 
 afterEach(() => {
@@ -155,6 +160,36 @@ describe('host capacity check', () => {
 });
 
 describe('Sentry-monitored host operations', () => {
+  it('supplies every Compose-only application binding for the backup profile', () => {
+    const source = readFile(backupScript);
+    const compose = readFile(productionCompose);
+    const requiredBindings = new Set(
+      [...compose.matchAll(/\$\{(PRESSLY_[A-Z0-9_]+):\?[^}]+\}/g)].map(
+        ([, binding]) => binding,
+      ),
+    );
+
+    expect(requiredBindings.size).toBeGreaterThan(0);
+    for (const binding of requiredBindings) {
+      const exportMatch = source.match(
+        new RegExp(`export ${binding}="\\$\\{${binding}:-([^}]+)\\}"`),
+      );
+      expect(
+        exportMatch,
+        `${binding} needs a nonempty backup fallback`,
+      ).not.toBe(null);
+
+      const fallback = exportMatch?.[1]?.trim() ?? '';
+      expect(fallback).not.toBe('');
+      const referencedBinding = fallback.match(/^\$([A-Z][A-Z0-9_]*)$/)?.[1];
+      if (referencedBinding) {
+        expect(source).toMatch(
+          new RegExp(`^${referencedBinding}=(['"])[^'"]+\\1$`, 'm'),
+        );
+      }
+    }
+  });
+
   it('reports backup success only after the backup command exits successfully', () => {
     const fixture = monitoredFixture();
     const result = spawnSync(monitoredOperationScript, ['backup'], {
