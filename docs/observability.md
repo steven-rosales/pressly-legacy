@@ -6,13 +6,14 @@ state without reproducing it first?
 
 ## Current signal path
 
-| Surface   | Signals                                                                                                                   | Correlation                                                                                                              |
-| --------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Control   | Sentry browser errors and traces, root error boundary, sanitized navigation/request breadcrumbs and trace URLs            | Management UI errors retain the exact image release SHA; uploaded source maps are removed from the shipped image         |
-| Processor | Sentry browser errors and traces, root error boundary, sanitized navigation/request breadcrumbs                           | UI errors retain the API `X-Request-Id` or `traceId`; source maps and the exact Git SHA are attached at image build time |
-| API       | Sentry logs, errors, HTTP and database traces, typed metrics, live/readiness endpoints                                    | Request ID, trace ID, route, operation, and the exact deployed Git SHA                                                   |
-| Worker    | Sentry logs, errors, named-job and database traces, typed job/queue metrics, file heartbeat, Sentry Cron check-in         | Job, operation, bounded metric attributes, and the exact deployed Git SHA                                                |
-| Host      | Docker healthchecks, infrastructure logs, and a bounded emergency log ring for telemetry initialization or flush failures | Immutable image digests and the same source SHA in release metadata                                                      |
+| Surface    | Signals                                                                                                                   | Correlation                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Control    | Sentry browser errors and traces, root error boundary, sanitized navigation/request breadcrumbs and trace URLs            | Management UI errors retain the exact image release SHA; uploaded source maps are removed from the shipped image         |
+| Processor  | Sentry browser errors and traces, root error boundary, sanitized navigation/request breadcrumbs                           | UI errors retain the API `X-Request-Id` or `traceId`; source maps and the exact Git SHA are attached at image build time |
+| API        | Sentry logs, errors, HTTP and database traces, typed metrics, live/readiness endpoints                                    | Request ID, trace ID, route, operation, and the exact deployed Git SHA                                                   |
+| Worker     | Sentry logs, errors, named-job and database traces, typed job/queue metrics, file heartbeat, Sentry Cron check-in         | Job, operation, bounded metric attributes, and the exact deployed Git SHA                                                |
+| Deployment | Sentry start and terminal check-ins plus a bounded GitHub log event                                                       | One check-in ID and the exact selected workflow-run or manual Git SHA                                                    |
+| Host       | Docker healthchecks, infrastructure logs, and a bounded emergency log ring for telemetry initialization or flush failures | Immutable image digests and the same source SHA in release metadata                                                      |
 
 The Processor and Control DSNs are public browser configuration. CI passes
 them as build arguments. The Sentry auth token is different: it is an upload
@@ -65,6 +66,16 @@ Sentry Cron observes missed Worker progress only. It does not schedule work or
 provide singleton execution. Polling, leases, fencing, idempotency, retries,
 and reconciliation remain Worker/database responsibilities.
 
+The deployment workflow sends a DSN-authenticated `in_progress` check-in after
+validating the immutable event SHA and an `ok` or `error` terminal check-in for
+GitHub's authoritative `success`, `failure`, or `cancelled` job status. The
+envelope contains only a random check-in ID, fixed monitor slug, status, exact
+release SHA, `production` environment, duration, and protocol timestamps. It
+does not contain workflow logs, secrets, runtime configuration, payloads,
+customer identifiers, or PII. The sender rejects malformed configuration and
+redirects, uses a five-second timeout, and emits only a fixed error message.
+Delivery is best-effort and cannot change the deployment result.
+
 ## Required Sentry views
 
 Create these views before the pilot; repository code emits the signals but
@@ -95,6 +106,9 @@ cannot select notification recipients.
   resyncs remain elevated for ten minutes.
 - Worker: use the exact Cron, backlog, retry, dead-letter, lease-loss, and loop
   rules in `apps/worker/README.md`.
+- Deployment: alert immediately on an `error` check-in and after a 30-minute
+  incomplete check-in; recover after one successful deployment. GitHub remains
+  authoritative when Sentry delivery itself is unavailable.
 - Security: route authentication failures and sustained rate-limit or login
   abuse to the security destination, not the floor-operations channel.
 
@@ -126,9 +140,10 @@ evidence that it is noisy; disabling the underlying signal does not.
 8. Record cause, mitigation, affected release, and missing signal. Add the
    missing signal or runbook step before closing the incident.
 
-Staging must prove source-map symbolication, reference-ID lookup, one API alert,
-one SSE failure alert, the Worker missed-Cron alert, and recovery notifications
-before production notifications are considered configured.
+Staging must prove source-map symbolication, reference-ID lookup, one API
+alert, one SSE failure alert, the Worker missed-Cron alert, the deployment
+failure alert, and recovery notifications for each before production
+notifications are considered configured.
 
 ## Related Runbooks
 

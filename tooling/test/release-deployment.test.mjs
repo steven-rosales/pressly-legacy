@@ -325,7 +325,7 @@ describe('release deployment identity', () => {
 
     expect(workflow).toContain('Checkout deployed release tooling');
     expect(workflow).toContain(
-      "local_deploy_script='infra/aws/lightsail/deploy.sh'",
+      "local_deploy_script='release-source/infra/aws/lightsail/deploy.sh'",
     );
     expect(workflow).toContain(
       "'umask 077; mktemp -d /tmp/pressly-deploy.XXXXXXXX'",

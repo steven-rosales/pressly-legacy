@@ -124,12 +124,65 @@ behavior end to end.
 `.github/workflows/deploy-production.yml` runs after successful main CI or by a
 privileged manual selection of a full main-branch commit with successful CI.
 
-It checks out the verified target release on the runner, hashes that release's
-deploy script, stages it in a random mode-700 directory on Lightsail, verifies
-the transferred hash, and executes that staged script. The historical first
-four-image cutover established this rule: invoking the script from an old host
+It retains the workflow-owned deployment and telemetry tooling at the runner
+root, checks out the verified target release under `release-source`, hashes
+that release's deploy script, stages it in a random mode-700 directory on
+Lightsail, verifies the transferred hash, and executes that staged script. The
+separate checkout means an older manually selected release cannot remove or
+replace the terminal telemetry helper. The historical first four-image cutover
+established the other half of this rule: invoking the script from an old host
 checkout could continue running old deployment logic even after Git checks out
 the new commit.
+
+Immediately after the first checkout, the repository-owned deployment monitor
+validates the event type and exact `workflow_run.head_sha` or manual full SHA,
+then sends a Sentry `in_progress` check-in. This precedes manual-CI lookup,
+artifact download, manifest validation, SSH configuration, and host mutation.
+An `always()` step sends the matching terminal check-in with `ok` for success
+and `error` for failure or cancellation. Ordinary cancellation reaches the
+terminal step; force-cancellation, runner loss, and failure before the first
+checkout cannot guarantee it. The Sentry monitor's runtime timeout covers a
+missing terminal check-in once start delivery succeeded.
+
+The helper uses Node's built-in HTTPS transport and the version-7 Sentry
+envelope contract; no package installation or Sentry auth token is required.
+It sends only check-in identity, fixed slug, status, exact release SHA,
+`production`, duration, and timestamps. It has a five-second timeout, rejects
+redirects and malformed inputs before sending, never reads a response body,
+and prints no DSN, response, log, payload, or customer value. Both telemetry
+steps are best-effort and cannot replace the GitHub job status or the bounded
+deployment result event.
+
+Configure the GitHub `production` environment with:
+
+```txt
+secret:   SENTRY_DEPLOYMENT_DSN=<pressly-api project DSN>
+variable: SENTRY_DEPLOYMENT_MONITOR_SLUG=pressly-production-deployment
+```
+
+This is the ingest-only project DSN, not `SENTRY_AUTH_TOKEN`. In Sentry's
+`pressly-api` project, create the monitor before enabling the workflow:
+
+```txt
+name: Production deployment
+slug: pressly-production-deployment
+environment: production
+schedule: interval, 1 year
+check-in margin: 40320 minutes
+maximum runtime: 30 minutes
+failure issue threshold: 1
+recovery threshold: 1
+timezone: UTC
+owner: operator team
+```
+
+Sentry Crons requires a recurring schedule even though deployment is
+event-driven. The one-year interval and maximum 28-day margin avoid routine
+missed-check-in noise while retaining immediate explicit failures and a
+30-minute incomplete-run timeout. Route this monitor's production issue to the
+operator destination, then prove one synthetic non-PII failure and recovery.
+Until the secret, variable, monitor, ownership, route, and notification test are
+read back, H2D remains open.
 
 For a non-mutating host check, the same target script supports:
 
@@ -205,14 +258,16 @@ the key with `openssl rand -base64 32`; do not reuse
 `AUTH_MFA_ENCRYPTION_KEY`. A release that includes the quarantine schema will
 fail API startup in production until this value is present.
 
-The main-only GitHub `Production` environment owns only the deploy workflow's
-SSH boundary credentials:
+The main-only GitHub `production` environment owns the deploy workflow's SSH
+boundary credentials and write-only deployment check-in destination:
 
 ```txt
 LIGHTSAIL_HOST
 LIGHTSAIL_USER
 LIGHTSAIL_SSH_KEY
 LIGHTSAIL_SSH_KNOWN_HOSTS
+SENTRY_DEPLOYMENT_DSN
+SENTRY_DEPLOYMENT_MONITOR_SLUG (environment variable)
 ```
 
 The separate main-only `release-production` environment owns Web, Processor,
