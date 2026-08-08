@@ -67,19 +67,13 @@ export const makeIngestWebhookEventRepository = (deps: {
         'WEBHOOK_EVENT_INSERT_RESULT_MISSING',
         'Webhook event insert raced and vanished.',
       );
-    if (
-      existing.rawBodySha256 !== command.rawBodySha256 ||
-      existing.payloadHash !== payloadHash ||
-      existing.subjectType !== command.subjectType ||
-      existing.eventType !== command.eventType ||
-      existing.subjectId !== command.subjectId ||
-      existing.sourceLocationId !== command.sourceLocationId ||
-      (existing.sourceOccurredAt?.getTime() ?? null) !==
-        (command.sourceOccurredAt?.getTime() ?? null)
-    )
+    // The raw receipt is the immutable external observation. Adapter-owned
+    // classification and canonical payload may evolve between redeliveries,
+    // but one deduplication identity may never name different source bytes.
+    if (existing.rawBodySha256 !== command.rawBodySha256)
       throw webhookEventInvariant(
         'WEBHOOK_EVENT_DUPLICATE_DIVERGED',
-        'Duplicate webhook event contains divergent data.',
+        'Duplicate webhook event identity refers to different raw data.',
       );
     return { eventId: existing.id, duplicate: true };
   },
