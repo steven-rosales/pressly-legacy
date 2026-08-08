@@ -48,8 +48,26 @@ The merged secondary-destination support is only a repository prerequisite. It
 can upload one encrypted triplet to independently verified primary and
 secondary destinations and fails the operation unless every configured
 destination passes remote readback. It does not create or configure the
-secondary bucket, Object Lock, retention, encryption, IAM, approved objectives,
-or escrow, so `H2` remains pending.
+secondary bucket, Object Lock, retention, encryption, IAM, or escrow, so `H2`
+remains pending despite the approved objectives below.
+
+### H2 partial evidence — 2026-08-08
+
+- Owner: Steven.
+- Approved RPO: one hour.
+- Approved RTO: four hours.
+- Approved immutable retention: 90 days in S3 Object Lock COMPLIANCE mode.
+- Vault status: Steven confirmed completion of the Bitwarden baseline
+  checklist: protected business vault, Pressly recovery collection and policy
+  note, two-step login, and an offline recovery-code path. The complete
+  recovery-material inventory and redacted retrieval proof remain pending.
+- AWS status: the independently administered account, Object-Locked bucket,
+  least-privilege writer, retained-object readback, and secondary restore proof
+  remain pending.
+
+These decisions approve the target policy; they do not prove custody or
+recoverability. No credential, recovery code, DSN, payload, or secret value is
+recorded here.
 
 Record only owners, dates, objective values, retention, access-boundary facts,
 and redacted outcomes. Never record a secret value in this package.

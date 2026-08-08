@@ -1,11 +1,11 @@
 work_id: production-recovery-hardening
 status: active
-updated: 2026-08-08T16:37:00-04:00
+updated: 2026-08-08T18:18:00-04:00
 
 current_focus:
   - V2
   - H2
-  - The repaired release, deployed operations bundle, host identity, and stable restore preflight are proven. V2 remains running until the first natural 03:15 UTC backup; approved recovery objectives, independent custody, escrow, and replacement-host proof remain explicit external gates.
+  - The repaired release, deployed operations bundle, host identity, and stable restore preflight are proven. V2 remains running until the first natural 03:15 UTC backup. The owner approved a one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE retention; independent custody, completed escrow with retrieval proof, and replacement-host proof remain explicit external gates.
 
 tasks:
   T0:

@@ -148,9 +148,24 @@ when every configured remote readback matches. The configuration requires a
 distinct secondary bucket and expected AWS account.
 
 Repository support does not provision or verify an independently administered
-bucket, Object Lock retention, encryption, least-privilege host IAM, approved
-RPO/RTO, or off-host recovery-secret escrow. None of those external `H2` facts is
-claimed here.
+bucket, Object Lock retention, encryption, least-privilege host IAM, or off-host
+recovery-secret escrow. It therefore proves no external custody fact by itself;
+the owner decisions below are separate human evidence.
+
+### H2 owner decisions — 2026-08-08
+
+- Owner: Steven.
+- Approved recovery point objective: one hour.
+- Approved recovery time objective: four hours.
+- Approved immutable retention: 90 days in S3 Object Lock COMPLIANCE mode.
+- Off-host store: Steven confirmed completion of the Bitwarden baseline
+  checklist: protected business vault, Pressly recovery collection and policy
+  note, two-step login, and an offline recovery-code path. Recovery-material
+  escrow and a redacted retrieval test remain unproved.
+
+No AWS backup account, immutable bucket, writer boundary, retained object,
+secondary restore, or secret value is claimed by this partial evidence. `H2`
+remains open.
 
 ```text
 command: VITEST_MAX_WORKERS=2 pnpm exec vitest run tooling/test/postgres-backup-destinations.test.mjs tooling/test/host-operations-monitoring.test.mjs
@@ -163,5 +178,6 @@ summary: both focused files and all 41 tests passed. The proof covers independen
 
 - `V2`: first natural 03:15 UTC execution after publication, including local
   checksum, remote durability/encryption/version evidence, and bounded telemetry
-- `H2`: approved RPO/RTO, independent immutable storage, and off-host escrow
+- `H2`: independent immutable storage, least-privilege writer proof, completed
+  off-host escrow, and retrieval/secondary-restore proof
 - `H3`: complete replacement-instance drill
