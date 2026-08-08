@@ -29,10 +29,19 @@ An authorized Pressly operator can:
    dead letters, restarts, and a missed vendor delivery when the vendor exposes
    a reconciliation API.
 
-The production release contains four immutable application images: `api`,
-`web`, `worker`, and `processor`. Caddy is the only public ingress. The worker
-is a separate private long-lived container because its lifecycle, retry, and
-failure behavior differ from the API.
+The production release contains five immutable application images: `api`,
+`web`, `worker`, `processor`, and `control`. Caddy is the only public ingress.
+The worker is a separate private long-lived container because its lifecycle,
+retry, and failure behavior differ from the API.
+
+The committed four-image release tasks and their evidence below describe the
+historical pre-Control release boundary. They remain dated evidence rather than
+current topology. Current deployment and recovery work must prove all five
+application images. The dedicated
+`stateworks/work/active/production-recovery-hardening/` package owns the
+post-deployment rollback, restore, backup-monitoring, immutable-custody, and
+replacement-instance gates; this pilot remains stopped while those gates are
+open.
 
 ## Historical Verified Starting Point (Superseded)
 
@@ -312,7 +321,7 @@ Stateworks will stop and request the human when these become ready:
   facility bootstrap input without exposing secret values.
 - `H2D`: configure high-signal Worker and deployment alerts.
 - `H3`: approve and deploy only a main-branch release whose CI produced all
-  four immutable digests.
+  five immutable digests.
 - `H4`: run the idempotent production bootstrap and verify the real location,
   store mapping, stations, machines, scheduler config, operator account, and
   MFA.

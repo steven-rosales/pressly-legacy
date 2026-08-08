@@ -1,0 +1,297 @@
+work_id: production-recovery-hardening
+title: Failure-safe deployment rollback and production-shaped recovery
+status: active
+
+goal:
+  - Make release rollback and migration-state recording conservative under partial failure.
+  - Prove the database recovery procedure against the production schema, roles, grants, and release migrations.
+  - Keep backup execution independent from observability availability and make the remaining disaster-recovery gates explicit.
+
+invariants:
+  - One shared host lock serializes automated deploy, manual deploy, and rollback mutation.
+  - An unresolved runtime identity is never discarded until one exact recovery target is publicly verified.
+  - Migration starts only after durable state records that the target may have affected the database or runtime.
+  - Rollback uses one exact prior five-image manifest and never mixes release identities.
+  - Production restore never imports into an existing application database or silently discards the damaged database.
+  - Restore validation covers public and drizzle schemas, application roles, grants, release migrations, and runtime access before ingress resumes.
+  - A durable restore journal blocks deploy, rollback, backup, and direct role mutation until the exact restore resumes or a confirmation-gated pre-cutover abort retires it.
+  - Recovery binds the release, backup, four public health authorities, expected static IP, and provisioned host identity; restart policies remain fenced until durable public verification.
+  - Backup success or failure is determined by the backup command, never by Sentry availability or telemetry exit status.
+  - Secrets, database contents, customer payloads, DSNs, private keys, and recovery passphrases never enter Stateworks evidence.
+  - Existing launch and vendor-enablement gates remain stopped until this package and their own human obligations are satisfied.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconcile the production recovery baseline
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo:infra/aws/lightsail
+      - repo:infra/aws/docs
+      - repo:stateworks/work/active/lpms-production-readiness
+      - external:production-health-and-backup-metadata
+    writes:
+      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+    action:
+      - Reproduce the reported rollback, migration classification, restore, and monitoring failure modes.
+      - Record a read-only production baseline without exposing secrets or customer data.
+    verifier:
+      - Evidence separates repository defects, current production health, and unproved recovery obligations.
+    rollback: No rollback is required for read-only characterization.
+    secret_handling: never_show_agent
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#t0---baseline
+
+  - id: T1
+    title: Make deploy and rollback state failure-safe
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:infra/aws/lightsail/deploy.sh
+      - repo:infra/aws/lightsail/rollback.sh
+      - repo:tooling/test/release-deployment.test.mjs
+    writes:
+      - repo:infra/aws/lightsail/deploy.sh
+      - repo:infra/aws/lightsail/rollback.sh
+      - repo:tooling/test/release-deployment.test.mjs
+    action:
+      - Serialize host release mutations with one shared lock.
+      - Preserve unresolved runtime and exact recovery-target identities through every rollback failure stage.
+      - Record running-unverified state durably before migration execution.
+      - Validate canonical app-to-repository image mapping and unique digests locally.
+    verifier:
+      - Focused tests cover contention, migration failure, pull and label failure, partial Compose failure, public-health failure, rollback retry, wrong repositories, and aliased digests.
+    rollback: Revert deploy, rollback, and their focused tests together before publication.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#t1---failure-safe-deploy-and-rollback
+
+  - id: T2
+    title: Implement a production-shaped database restore
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:infra/aws/lightsail/backup-postgres.sh
+      - repo:infra/aws/docs/restore-postgres.md
+      - repo:packages/db/src/migrations
+    writes:
+      - repo:infra/aws/lightsail/restore-postgres.sh
+      - repo:infra/aws/lightsail/restore-postgres-proof.sh
+      - repo:infra/aws/docs/restore-postgres.md
+      - repo:infra/aws/docs/restore-postgres-drill.md
+      - repo:tooling/test/ci-production-artifacts.test.mjs
+    action:
+      - Restore into a clean candidate database instead of existing public and drizzle schemas.
+      - Reapply roles, ownership, and grants; run the checked-out release migrations; validate application and backup privileges.
+      - Promote only after validation while retaining the damaged database under a quarantine name.
+      - Persist exact recovery and public-host authority, block every competing operational entrypoint, and keep ingress/writer restart policies fenced until exact public verification.
+      - Exercise the same contract in an isolated disposable proof with no production volume access.
+    verifier:
+      - The disposable encrypted-backup proof passes and cleans every container, volume, image, and temporary artifact it owns.
+      - Bash syntax, focused tests, and documentation checks pass.
+    rollback:
+      - Before promotion, remove only the candidate database and resume the untouched production database.
+      - After promotion, keep ingress and writers stopped and follow the explicit quarantined-database recovery procedure.
+    secret_handling: never_show_agent
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#t2---production-shaped-database-restore
+
+  - id: T3
+    title: Decouple backup execution from Sentry
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T0]
+    reads:
+      - repo:infra/aws/lightsail/run-monitored-operation.sh
+      - repo:tooling/test/host-operations-monitoring.test.mjs
+    writes:
+      - repo:infra/aws/lightsail/run-monitored-operation.sh
+      - repo:infra/aws/lightsail/README.md
+      - repo:tooling/test/host-operations-monitoring.test.mjs
+    action:
+      - Run and classify the locked operation before attempting bounded best-effort telemetry.
+      - Preserve the operation exit status across missing, malformed, failing, or stalled Sentry configuration.
+      - Prevent DSNs from reaching diagnostics and define a private bounded fallback log.
+    verifier:
+      - Focused tests prove exact exit preservation and no DSN disclosure across successful, failing, missing, malformed, and noisy telemetry fixtures.
+    rollback: Revert the runner, focused tests, and corresponding runbook text together before publication.
+    secret_handling: never_show_agent
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#t3---backup-remains-authoritative
+
+  - id: V1
+    title: Verify repository recovery behavior
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [T1, T2, T3]
+    reads:
+      - repo
+    writes:
+      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+    action:
+      - Run shell syntax, focused failure-path tests, the disposable restore proof, Stateworks validation, architecture checks, and the full repository gates.
+      - Review the combined diff for rollback, recovery, secret-handling, and cleanup regressions.
+    verifier:
+      - All required checks pass with no owned disposable resources left behind.
+    rollback: Repair the failed slice or revert the unverified work unit before publication.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#v1---combined-repository-verification
+
+  - id: H1
+    title: Review and publish the repaired production release
+    type: human_action
+    owner: human
+    surface: github
+    agent_can_verify: false
+    deps: [V1]
+    reads:
+      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+      - external:GitHub-required-checks
+    writes:
+      - external:main-branch
+      - external:production-release
+      - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
+    human_instructions:
+      - Review the recovery diff and disposable proof; merge only through protected main after strict CI and CodeQL pass.
+      - Observe the exact main release and normal workflow-run deployment to terminal success.
+      - From the independently verified production static IP and four approved HTTPS health URLs, install `/etc/pressly/host-identity.json` root-owned and mode `0644` exactly as the restore runbook specifies.
+      - Do not execute a live restore merely to test the runbook.
+      - Record only workflow IDs, source SHA, timestamps, and redacted outcomes.
+    expected_external_state:
+      - Production runs the reviewed five-image release, the repaired scripts exist at the deployed source SHA, and the immutable host-identity input is installed from independently verified infrastructure facts.
+    verifier:
+      - Main CI, CodeQL, immutable artifact publication, deployment, and public health succeed for one exact source SHA.
+    rollback: Use the repaired exact-manifest rollback procedure if deployment does not verify publicly.
+    secret_handling: never_show_agent
+    status: latent
+    evidence: []
+
+  - id: V2
+    title: Observe deployed recovery scripts and natural backup schedule
+    type: verification
+    owner: agent
+    surface: aws
+    agent_can_verify: true
+    deps: [H1]
+    reads:
+      - external:production-host-script-hashes
+      - external:root-owned-production-host-identity
+      - external:production-cron-and-Sentry-monitor
+      - external:private-versioned-backup-metadata
+    writes:
+      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+    action:
+      - Match deployed script hashes to the published source SHA.
+      - Verify the root-owned host-identity file has the approved static IP and health authorities, then run the stable restore `--preflight-only` against an approved backup without restoring data.
+      - Observe the first natural 03:15 UTC backup using the new runner and prove local checksum, remote size/version/encryption, and successful or safely skipped telemetry.
+    verifier:
+      - Restore admission, natural scheduling, backup durability, and monitoring independence are proven without exposing credential or payload values.
+    rollback: Restore the prior verified cron recipe if the new deployed recipe cannot execute the backup command.
+    secret_handling: never_show_agent
+    status: latent
+    evidence: []
+
+  - id: H2
+    title: Approve recovery objectives and independent custody
+    type: human_action
+    owner: human
+    surface: other
+    agent_can_verify: false
+    deps: [V1]
+    reads:
+      - repo:infra/aws/lightsail/README.md
+      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+    writes:
+      - external:approved-RPO-and-RTO
+      - external:immutable-secondary-backup
+      - external:off-host-recovery-secret-escrow
+      - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
+    human_instructions:
+      - Approve explicit maximum data-loss and recovery-time objectives based on business fallback capacity.
+      - Provision an independently administered encrypted secondary copy with Object Lock retention and no delete authority for the production host.
+      - Escrow the backup passphrase, runtime environments, release access, DNS access, and required recovery credentials off host.
+      - Record owners, retention, objective values, and redacted proof only; never record secret values.
+    expected_external_state:
+      - A compromised production instance cannot erase every usable backup or its recovery credentials.
+    verifier:
+      - Human provides redacted retention, custody, access-boundary, RPO, and RTO evidence.
+    rollback: Disable an unsafe replication rule without deleting the existing primary backup history.
+    secret_handling: never_show_agent
+    status: latent
+    evidence: []
+
+  - id: H3
+    title: Run a complete replacement-instance recovery drill
+    type: human_action
+    owner: human
+    surface: aws
+    agent_can_verify: false
+    deps: [H1, H2]
+    reads:
+      - external:immutable-secondary-backup
+      - external:off-host-recovery-secret-escrow
+      - repo:infra/aws/docs/restore-postgres.md
+    writes:
+      - external:disposable-replacement-instance
+      - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
+    human_instructions:
+      - Build a disposable replacement instance without using the production volume.
+      - Recover the exact approved release and configuration from escrow, restore a verified backup, and prove database writes plus all public health surfaces on isolated DNS or hosts-file routing.
+      - Measure achieved recovery point and elapsed recovery time, then destroy only the disposable drill resources after evidence is captured.
+    expected_external_state:
+      - Pressly has one measured end-to-end host-loss recovery proof.
+    verifier:
+      - Human provides source SHA, backup timestamp, measured RPO/RTO, redacted health/write proof, and cleanup evidence.
+    rollback: Remove only the disposable instance and its isolated routing; never alter production during the drill.
+    secret_handling: never_show_agent
+    status: latent
+    evidence: []
+
+  - id: V3
+    title: Close recovery hardening
+    type: verification
+    owner: agent
+    surface: other
+    agent_can_verify: true
+    deps: [V2, H3]
+    reads:
+      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+      - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
+    writes:
+      - repo:stateworks/work/active/production-recovery-hardening/state.yaml
+      - repo:stateworks/work/active/production-recovery-hardening/final-report.md
+    action:
+      - Verify repository, deployed schedule, immutable custody, and replacement-instance evidence agree with the declared invariants.
+    verifier:
+      - No recovery obligation is inferred from a local-only or manually invoked proof.
+      - Every human claim is redacted, dated, and independently checkable.
+    rollback: Reopen the exact failed task instead of closing the package on incomplete evidence.
+    secret_handling: never_show_agent
+    status: latent
+    evidence: []

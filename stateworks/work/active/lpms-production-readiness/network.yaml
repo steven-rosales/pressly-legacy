@@ -4,7 +4,7 @@ status: active
 
 goal:
   - Replace synthetic and disabled LPMS runtime seams with location-aware, observable production behavior and an explicit Cents ingress mode.
-  - Ship API, Web, Worker, and Processor as one immutable and reversible production release on the existing Lightsail Compose topology.
+  - Ship API, Web, Worker, Processor, and Control as one immutable and reversible production release on the existing Lightsail Compose topology.
   - Prove one controlled happy-path pilot from Cents demand accepted under the configured ingress mode through operator-confirmed production without implementing deferred exception workflows.
 
 invariants:
@@ -26,7 +26,8 @@ invariants:
   - Processor session credentials are not persisted in browser localStorage; same-origin cookie transport is Secure, HttpOnly, SameSite=Strict, and protected against CSRF on unsafe requests.
   - The worker runs as a private long-lived container with no public route and cannot bypass production policy or transaction boundaries.
   - Caddy is the only public production ingress; Postgres, Worker, API container ports, and internal service traffic remain private.
-  - Main-branch CI is the only normal source of production artifacts and every release records immutable digests for API, Web, Worker, and Processor.
+  - Main-branch CI is the only normal source of production artifacts and every release records immutable digests for API, Web, Worker, Processor, and Control.
+  - Committed T8 and T9 four-image clauses are historical pre-Control evidence; current release and recovery gates require all five application images.
   - No production merge, deploy, vendor enablement, secret placement, DNS change, or pilot begins without its explicit human task.
   - Existing user changes and unrelated worktree files are preserved.
   - Manual hold, cancellation, rework, damage, missing-bag, breakdown, late-work, and reassignment workflows remain deferred; encountering one during the pilot stops LPMS use for that work.
@@ -967,19 +968,19 @@ tasks:
     human_instructions:
       - Review V1 and V2 evidence, unresolved risks, migration plan, backup state, and rollback proof.
       - Merge the reviewed branch to main only after required CI checks pass; do not deploy directly from the feature branch.
-      - Confirm main CI builds, scans, pushes, and records immutable API, Web, Worker, and Processor digests for the same source SHA.
-      - Allow the normal main deployment workflow to deploy that exact manifest and observe migration, four-service health, and deployment events.
-      - Stop and roll back if any digest is missing, source SHAs differ, migration fails, Worker is unhealthy, or Processor/API routing fails.
+      - Confirm main CI builds, scans, pushes, and records immutable API, Web, Worker, Processor, and Control digests for the same source SHA.
+      - Allow the normal main deployment workflow to deploy that exact manifest and observe migration, five-application health, and deployment events.
+      - Stop and roll back if any digest is missing, source SHAs differ, migration fails, Worker is unhealthy, or Control/Processor/API routing fails.
       - Record the deployed source SHA, digest suffixes, workflow run IDs, timestamp, and redacted outcome in human-actions.md.
     expected_external_state:
-      - Production runs one verified four-image release from main.
-      - Current and previous four-image release metadata exist for rollback.
+      - Production runs one verified five-image release from main.
+      - Current and previous five-image release metadata exist for rollback.
       - Cents delivery remains disabled pending V3 and H4.
     verifier:
-      - Human provides the successful main CI and deploy run IDs plus redacted four-digest manifest proof.
-      - Public Web and API health remain successful after deployment.
+      - Human provides the successful main CI and deploy run IDs plus redacted five-digest manifest proof.
+      - Public Web, API, Processor, and Control health remain successful after deployment.
     rollback:
-      - Invoke the verified previous four-image rollback and confirm Web and API health; do not rewrite deployed migration history.
+      - Invoke the verified previous five-image rollback and confirm all public health surfaces; do not rewrite deployed migration history.
     secret_handling: never_show_agent
     status: pending
     evidence: []
@@ -993,25 +994,25 @@ tasks:
     deps:
       - H3
     reads:
-      - external:public-Web-API-and-Processor-health
+      - external:public-Web-API-Processor-and-Control-health
       - external:human-provided-Compose-and-Worker-evidence
       - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
     writes:
       - repo:stateworks/work/active/lpms-production-readiness/evidence.md
     preconditions:
-      - H3 identifies one exact deployed source SHA and four immutable image digests.
+      - H3 identifies one exact deployed source SHA and five immutable image digests.
       - Cents has not begun live delivery.
     action:
-      - Verify Web, API readiness, Processor TLS, Processor static routing, and same-origin /api routing from the public edge.
+      - Verify Web, API readiness, Processor and Control TLS/static routing, and same-origin /api routing from the public edge.
       - Verify unauthenticated processor access shows login and no demo data.
       - Record human-provided proof that Worker is private, healthy, connected to Postgres, and emitting heartbeat signals.
       - Verify direct public access to internal service ports is unavailable.
-      - Verify current and previous release metadata can identify all four images.
+      - Verify current and previous release metadata can identify all five images.
     postconditions:
       - The deployed platform is healthy and secure enough to bootstrap data before vendor traffic.
       - Evidence contains no session token, secret, raw header, or customer payload.
     verifier:
-      - Public HTTPS and certificate checks pass for Web, API, and Processor domains.
+      - Public HTTPS and certificate checks pass for Web, API, Processor, and Control domains.
       - Processor /api health resolves through Caddy while internal ports are unreachable publicly.
       - Worker heartbeat and release metadata are proven through redacted human evidence.
     rollback:
