@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -48,6 +50,17 @@ const fiveImageMetadata = ({
   controlImage: releaseImages.PRESSLY_CONTROL_IMAGE,
   deployedAt,
 });
+
+const fiveImageIdentity = ({
+  sourceSha = sha,
+  releaseImages = images,
+} = {}) => {
+  const { deployedAt: _deployedAt, ...identity } = fiveImageMetadata({
+    sourceSha,
+    releaseImages,
+  });
+  return identity;
+};
 
 const fiveImageDeploymentState = ({
   sourceSha = sha,
@@ -121,19 +134,48 @@ const writeCommandStubs = (directory) => {
   mkdirSync(binDirectory, { recursive: true });
   writeFileSync(
     join(binDirectory, 'git'),
-    '#!/bin/sh\nset -eu\nprintf "git %s\\n" "$*" >> "$COMMAND_LOG"\nif [ "$1" = "rev-parse" ]; then printf "%s\\n" "$EXPECTED_TARGET_SHA"; fi\n',
+    [
+      '#!/bin/sh',
+      'set -eu',
+      'printf "git %s\\n" "$*" >> "$COMMAND_LOG"',
+      'if [ "$1" = "rev-parse" ]; then',
+      '  if [ "${3:-}" = "HEAD" ]; then cat "$GIT_CHECKOUT_STATE_FILE"; else printf "%s\\n" "$EXPECTED_TARGET_SHA"; fi',
+      'fi',
+      'if [ "$1" = "status" ]; then',
+      '  checkout_sha="$(cat "$GIT_CHECKOUT_STATE_FILE")"',
+      '  if [ "${DIRTY_CHECKOUT:-false}" = "true" ]; then',
+      '    printf "%s\\n" "${DIRTY_STATUS_OUTPUT:- M infra/aws/lightsail/deploy.sh}"',
+      '  elif [ "${DIRTY_AFTER_CHECKOUT:-false}" = "true" ] && [ "$checkout_sha" != "$INVOCATION_CHECKOUT_SHA" ]; then',
+      '    printf "%s\\n" "${DIRTY_STATUS_OUTPUT:- M infra/aws/lightsail/docker-compose.production.yml}"',
+      '  fi',
+      'fi',
+      'if [ "$1" = "checkout" ] && [ "${2:-}" = "--detach" ]; then',
+      '  printf "%s\\n" "$3" > "$GIT_CHECKOUT_STATE_FILE"',
+      '  if [ "${REPLACE_REPO_TOOLING_ON_TARGET:-false}" = "true" ]; then',
+      '    if [ "$3" = "$INVOCATION_CHECKOUT_SHA" ]; then',
+      '      cp "$HARDENED_DEPLOY_SCRIPT" "$PRESSLY_REPO_DIR/infra/aws/lightsail/deploy.sh"',
+      '      cp "$HARDENED_ROLLBACK_SCRIPT" "$PRESSLY_REPO_DIR/infra/aws/lightsail/rollback.sh"',
+      '    else',
+      '      printf "#!/bin/sh\\necho incompatible-target-deploy >&2\\nexit 97\\n" > "$PRESSLY_REPO_DIR/infra/aws/lightsail/deploy.sh"',
+      '      printf "#!/bin/sh\\necho incompatible-target-rollback >&2\\nexit 97\\n" > "$PRESSLY_REPO_DIR/infra/aws/lightsail/rollback.sh"',
+      '    fi',
+      '    chmod 700 "$PRESSLY_REPO_DIR/infra/aws/lightsail/deploy.sh" "$PRESSLY_REPO_DIR/infra/aws/lightsail/rollback.sh"',
+      '  fi',
+      'fi',
+      '',
+    ].join('\n'),
   );
   writeFileSync(
     join(binDirectory, 'docker'),
-    '#!/bin/sh\nset -eu\nprintf "docker %s\\n" "$*" >> "$COMMAND_LOG"\ncase " $* " in *" pull "*) if [ "${FAIL_DOCKER:-false}" = "true" ]; then exit 23; fi;; *" up -d "*) if [ -n "${STATE_AT_COMPOSE_UP_FILE:-}" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_COMPOSE_UP_FILE"; fi; if [ "${FAIL_COMPOSE_UP:-false}" = "true" ]; then exit 29; fi;; esac\nif [ "${1:-}" = image ] && [ "${2:-}" = inspect ]; then printf "%s\\n" "${IMAGE_REVISION_OVERRIDE:-$EXPECTED_TARGET_SHA}"; fi\n',
+    '#!/bin/sh\nset -eu\nprintf "docker %s\\n" "$*" >> "$COMMAND_LOG"\ncase " $* " in *" pull "*) if [ "${FAIL_DOCKER:-false}" = "true" ]; then exit 23; fi;; *" run --rm --workdir /repo/packages/db migrate "*) if [ -n "${STATE_AT_MIGRATION_FILE:-}" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_MIGRATION_FILE"; fi; if [ "${FAIL_MIGRATION:-false}" = "true" ]; then exit 31; fi;; *" up -d "*) if [ -n "${STATE_AT_COMPOSE_UP_FILE:-}" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_COMPOSE_UP_FILE"; fi; if [ -n "${PREVIOUS_AT_COMPOSE_UP_FILE:-}" ]; then cp "$PRESSLY_PREVIOUS_RELEASE_METADATA_FILE" "$PREVIOUS_AT_COMPOSE_UP_FILE"; fi; if [ "${FAIL_COMPOSE_UP:-false}" = "true" ]; then exit 29; fi;; esac\nif [ "${1:-}" = image ] && [ "${2:-}" = inspect ]; then printf "%s\\n" "${IMAGE_REVISION_OVERRIDE:-$EXPECTED_TARGET_SHA}"; fi\n',
   );
   writeFileSync(
     join(binDirectory, 'curl'),
-    '#!/bin/sh\nset -eu\nprintf "curl %s\\n" "$*" >> "$COMMAND_LOG"\nif [ -n "${STATE_AT_FIRST_HEALTH_FILE:-}" ] && [ ! -f "$STATE_AT_FIRST_HEALTH_FILE" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_FIRST_HEALTH_FILE"; fi\nif [ -n "${CURL_FAILURE_COUNTER_FILE:-}" ]; then count=0; if [ -f "$CURL_FAILURE_COUNTER_FILE" ]; then count="$(cat "$CURL_FAILURE_COUNTER_FILE")"; fi; count=$((count + 1)); printf "%s\\n" "$count" > "$CURL_FAILURE_COUNTER_FILE"; if [ "$count" -le "${FAIL_CURL_ATTEMPTS:-0}" ]; then exit 35; fi; fi\n',
+    '#!/bin/sh\nset -eu\nprintf "curl %s\\n" "$*" >> "$COMMAND_LOG"\nif [ -n "${STATE_AT_FIRST_HEALTH_FILE:-}" ] && [ ! -f "$STATE_AT_FIRST_HEALTH_FILE" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_FIRST_HEALTH_FILE"; fi\nif [ -n "${PREVIOUS_AT_FIRST_HEALTH_FILE:-}" ] && [ ! -f "$PREVIOUS_AT_FIRST_HEALTH_FILE" ]; then cp "$PRESSLY_PREVIOUS_RELEASE_METADATA_FILE" "$PREVIOUS_AT_FIRST_HEALTH_FILE"; fi\nif [ -n "${CURL_FAILURE_COUNTER_FILE:-}" ]; then count=0; if [ -f "$CURL_FAILURE_COUNTER_FILE" ]; then count="$(cat "$CURL_FAILURE_COUNTER_FILE")"; fi; count=$((count + 1)); printf "%s\\n" "$count" > "$CURL_FAILURE_COUNTER_FILE"; if [ "$count" -le "${FAIL_CURL_ATTEMPTS:-0}" ]; then exit 35; fi; fi\nprintf "%s" "${CURL_HTTP_STATUS:-200}"\n',
   );
   writeFileSync(
     join(binDirectory, 'getent'),
-    '#!/bin/sh\nset -eu\nprintf "getent %s\\n" "$*" >> "$COMMAND_LOG"\nif [ -n "${STATE_AT_FIRST_DNS_FILE:-}" ] && [ ! -f "$STATE_AT_FIRST_DNS_FILE" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_FIRST_DNS_FILE"; fi\nif [ "${FAIL_DNS_HOST:-}" = "${2:-}" ]; then exit 2; fi\nprintf "%s STREAM %s\\n" "${DNS_ADDRESS_OVERRIDE:-127.0.0.1}" "${2:-}"\n',
+    '#!/bin/sh\nset -eu\nprintf "getent %s\\n" "$*" >> "$COMMAND_LOG"\nif [ -n "${STATE_AT_FIRST_DNS_FILE:-}" ] && [ ! -f "$STATE_AT_FIRST_DNS_FILE" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_FIRST_DNS_FILE"; fi\nif [ "${FAIL_DNS_HOST:-}" = "${2:-}" ]; then exit 2; fi\naddress="${DNS_ADDRESS_OVERRIDE:-127.0.0.1}"\nif [ -n "${DNS_DRIFT_AFTER_CALLS:-}" ]; then call_count="$(grep -c "^getent " "$COMMAND_LOG")"; if [ "$call_count" -gt "$DNS_DRIFT_AFTER_CALLS" ]; then address="${DNS_DRIFT_ADDRESS:-192.0.2.44}"; fi; fi\nprintf "%s STREAM %s\\n" "$address" "${2:-}"\n',
   );
   for (const command of ['git', 'docker', 'curl', 'getent'])
     chmodSync(join(binDirectory, command), 0o700);
@@ -150,6 +192,21 @@ const createHostFixture = (currentMetadata) => {
   );
   mkdirSync(resolve(compose, '..'), { recursive: true });
   writeFileSync(compose, 'services: {}\n');
+  for (const scriptName of [
+    'deploy.sh',
+    'rollback.sh',
+    'backup-postgres.sh',
+    'check-host-capacity.sh',
+    'configure-database-roles.sh',
+    'restore-postgres-drill.sh',
+    'restore-postgres.sh',
+    'run-monitored-operation.sh',
+  ]) {
+    const source = join(root, 'infra/aws/lightsail', scriptName);
+    const destination = join(repoDirectory, 'infra/aws/lightsail', scriptName);
+    copyFileSync(source, destination);
+    chmodSync(destination, 0o700);
+  }
   writeFileSync(
     join(directory, 'current-release'),
     `${currentMetadata.sourceSha}\n`,
@@ -158,14 +215,45 @@ const createHostFixture = (currentMetadata) => {
     join(directory, 'current-release.json'),
     `${JSON.stringify(currentMetadata)}\n`,
   );
+  const checkoutState = join(directory, 'checkout-state');
+  writeFileSync(checkoutState, `${currentMetadata.sourceSha}\n`);
   const commands = writeCommandStubs(directory);
   return {
     ...commands,
     compose,
+    checkoutState,
+    invocationCheckoutSha: currentMetadata.sourceSha,
     directory,
     envDirectory,
     repoDirectory,
   };
+};
+
+const installPreviousRelease = (fixture, metadata) => {
+  writeFileSync(
+    join(fixture.directory, 'previous-release.json'),
+    `${JSON.stringify(metadata)}\n`,
+  );
+  writeFileSync(
+    join(fixture.directory, 'previous-release'),
+    `${metadata.sourceSha}\n`,
+  );
+};
+
+const installHostReleaseTooling = (fixture) => {
+  const hostDeploy = join(
+    fixture.repoDirectory,
+    'infra/aws/lightsail/deploy.sh',
+  );
+  const hostRollback = join(
+    fixture.repoDirectory,
+    'infra/aws/lightsail/rollback.sh',
+  );
+  copyFileSync(deployScript, hostDeploy);
+  copyFileSync(rollbackScript, hostRollback);
+  chmodSync(hostDeploy, 0o700);
+  chmodSync(hostRollback, 0o700);
+  return { hostDeploy, hostRollback };
 };
 
 const deploymentEnv = (fixture, overrides = {}) => ({
@@ -180,12 +268,18 @@ const deploymentEnv = (fixture, overrides = {}) => ({
   PRESSLY_PROCESSOR_HEALTH_URL: 'https://processor.example.test/health',
   PRESSLY_CONTROL_HEALTH_URL: 'https://control.example.test/health',
   PRESSLY_EXPECTED_PUBLIC_IP: '127.0.0.1',
+  PRESSLY_PREVIOUS_RELEASE_METADATA_FILE: join(
+    fixture.directory,
+    'previous-release.json',
+  ),
   PRESSLY_DEPLOYMENT_STATE_FILE: join(
     fixture.directory,
     'deployment-state.json',
   ),
   COMMAND_LOG: fixture.commandLog,
   EXPECTED_TARGET_SHA: sha,
+  GIT_CHECKOUT_STATE_FILE: fixture.checkoutState,
+  INVOCATION_CHECKOUT_SHA: fixture.invocationCheckoutSha,
   PATH: `${fixture.binDirectory}:${process.env.PATH}`,
   ...overrides,
 });
@@ -289,6 +383,51 @@ describe('release deployment identity', () => {
     expect(mutableProcessor.stderr).toContain(
       'PRESSLY_PROCESSOR_IMAGE must be an immutable GHCR digest.',
     );
+  });
+
+  it('host admission rejects an application image from the wrong repository', () => {
+    const fixture = createHostFixture(
+      fiveImageMetadata({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+      }),
+    );
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        PRESSLY_WORKER_IMAGE: image('api', 'f'),
+      }),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'workerImage repository does not match worker',
+    );
+    expect(readFileSync(fixture.commandLog, 'utf8')).not.toContain('getent ');
+  });
+
+  it('host admission rejects one digest reused across repository aliases', () => {
+    const fixture = createHostFixture(
+      fiveImageMetadata({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+      }),
+    );
+    const sharedDigestWorker = `ghcr.io/example/alternate/worker@sha256:${'a'.repeat(
+      64,
+    )}`;
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        PRESSLY_WORKER_IMAGE: sharedDigestWorker,
+      }),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('image digests must be distinct');
+    expect(readFileSync(fixture.commandLog, 'utf8')).not.toContain('getent ');
   });
 
   it('preflight-only validates the host without mutating deployment state', () => {
@@ -418,6 +557,44 @@ describe('release deployment identity', () => {
     expect(commands).not.toMatch(/docker .*\b(pull|run|up)\b/);
   });
 
+  it('keeps the release unverified when DNS drifts after pinned public health passes', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        DNS_DRIFT_AFTER_CALLS: '8',
+      }),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'API DNS preflight did not resolve api.example.test exclusively to the expected production IP.',
+    );
+    const commands = readFileSync(fixture.commandLog, 'utf8');
+    expect(commands).toContain(
+      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve control.example.test:443:127.0.0.1 https://control.example.test/health',
+    );
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'running_unverified',
+      outcome: 'failed',
+    });
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toEqual(current);
+  });
+
   it('uses current-release JSON as authority when the derived SHA pointer lags', () => {
     const current = fiveImageMetadata({
       sourceSha: currentSha,
@@ -489,13 +666,87 @@ describe('release deployment identity', () => {
     expect(result.stderr).not.toContain('"event":"deployment.failed"');
   });
 
+  it('fails fast when another host deployment holds the shared lock', () => {
+    const fixture = createHostFixture(
+      fiveImageMetadata({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+      }),
+    );
+
+    const result = spawnSync(
+      'bash',
+      [
+        '-c',
+        'exec 8>"$PRESSLY_DEPLOY_LOCK_FILE"; flock -n 8; bash "$DEPLOY_SCRIPT"',
+      ],
+      {
+        encoding: 'utf8',
+        env: deploymentEnv(fixture, {
+          DEPLOY_SCRIPT: deployScript,
+          PRESSLY_DEPLOY_LOCK_FILE: join(fixture.directory, 'deploy.lock'),
+        }),
+      },
+    );
+
+    expect(result.status).toBe(75);
+    expect(result.stderr).toContain(
+      'Another deployment or rollback is already in progress.',
+    );
+    expect(existsSync(fixture.commandLog)).toBe(false);
+  });
+
+  it('refuses deployment while a durable Postgres restore is active', () => {
+    const fixture = createHostFixture(
+      fiveImageMetadata({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+      }),
+    );
+    writeFileSync(
+      join(fixture.directory, 'postgres-restore.json'),
+      '{"phase":"preparing"}\n',
+    );
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+
+    expect(result.status).toBe(75);
+    expect(result.stderr).toContain(
+      'Active Postgres restore journal blocks deployment',
+    );
+    expect(existsSync(fixture.commandLog)).toBe(false);
+  });
+
+  it('requires an exact expected production IP before deployment mutation', () => {
+    const fixture = createHostFixture(
+      fiveImageMetadata({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+      }),
+    );
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, { PRESSLY_EXPECTED_PUBLIC_IP: '' }),
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      'PRESSLY_EXPECTED_PUBLIC_IP is required for deployment and rollback',
+    );
+    expect(existsSync(fixture.commandLog)).toBe(false);
+  });
+
   it('rejects different images for an already recorded source SHA', () => {
     const fixture = createHostFixture(
       fiveImageMetadata({
         sourceSha: sha,
         releaseImages: {
           ...images,
-          PRESSLY_PROCESSOR_IMAGE: image('processor', 'e'),
+          PRESSLY_PROCESSOR_IMAGE: image('processor', '6'),
         },
       }),
     );
@@ -689,6 +940,52 @@ describe('release deployment identity', () => {
     });
   });
 
+  it('records running-unverified before a migration attempt and preserves it on failure', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const atMigration = join(
+      fixture.directory,
+      'state-at-migration-attempt.json',
+    );
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        FAIL_MIGRATION: 'true',
+        STATE_AT_MIGRATION_FILE: atMigration,
+      }),
+    });
+
+    expect(result.status).toBe(31);
+    expect(JSON.parse(readFileSync(atMigration, 'utf8'))).toMatchObject({
+      sourceSha: sha,
+      phase: 'running_unverified',
+      outcome: 'in_progress',
+      exitCode: null,
+    });
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'running_unverified',
+      outcome: 'failed',
+      exitCode: 31,
+    });
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toEqual(current);
+    expect(readFileSync(fixture.commandLog, 'utf8')).not.toContain(
+      'up -d --remove-orphans --wait',
+    );
+  });
+
   it('refuses a new target while a running-unverified release is unresolved', () => {
     const current = fiveImageMetadata({
       sourceSha: currentSha,
@@ -720,6 +1017,32 @@ describe('release deployment identity', () => {
     expect(commands).not.toContain('getent ');
     expect(commands).not.toMatch(/git (fetch|checkout)/);
     expect(commands).not.toMatch(/docker .*\b(pull|run|up)\b/);
+  });
+
+  it('admits rollback only for the exact saved release identity', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const rollbackManifest = join(
+      fixture.directory,
+      'rollback-release-admission.json',
+    );
+    writeFileSync(rollbackManifest, `${JSON.stringify(current)}\n`);
+
+    const result = spawnSync('bash', [deployScript, '--rollback'], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        PRESSLY_ROLLBACK_RELEASE_MANIFEST_FILE: rollbackManifest,
+      }),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Rollback target does not exactly match the admitted release manifest.',
+    );
+    expect(readFileSync(fixture.commandLog, 'utf8')).not.toContain('getent ');
   });
 
   it('resumes only the exact running-unverified release identity', () => {
@@ -871,6 +1194,231 @@ describe('release deployment identity', () => {
     ).toEqual(current);
   });
 
+  it('reconciles a failed deployment by rolling back the exact prior release', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+
+    const failedDeployment = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, { FAIL_COMPOSE_UP: 'true' }),
+    });
+
+    expect(failedDeployment.status).toBe(29);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'running_unverified',
+      outcome: 'failed',
+    });
+
+    const rollback = spawnSync('bash', [rollbackScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        EXPECTED_TARGET_SHA: currentSha,
+        FAIL_COMPOSE_UP: 'false',
+        PRESSLY_DEPLOY_SCRIPT: deployScript,
+      }),
+    });
+
+    expect(rollback.stderr).toBe('');
+    expect(rollback.status).toBe(0);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: currentSha,
+      apiImage: currentImages.PRESSLY_API_IMAGE,
+      webImage: currentImages.PRESSLY_WEB_IMAGE,
+      workerImage: currentImages.PRESSLY_WORKER_IMAGE,
+      processorImage: currentImages.PRESSLY_PROCESSOR_IMAGE,
+      controlImage: currentImages.PRESSLY_CONTROL_IMAGE,
+      phase: 'verified',
+      outcome: 'succeeded',
+      exitCode: 0,
+    });
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: currentSha,
+      apiImage: currentImages.PRESSLY_API_IMAGE,
+      webImage: currentImages.PRESSLY_WEB_IMAGE,
+      workerImage: currentImages.PRESSLY_WORKER_IMAGE,
+      processorImage: currentImages.PRESSLY_PROCESSOR_IMAGE,
+      controlImage: currentImages.PRESSLY_CONTROL_IMAGE,
+    });
+  });
+
+  it('retains both recovery identities and admits only the exact rollback retry', () => {
+    const verifiedA = fiveImageMetadata();
+    const fixture = createHostFixture(verifiedA);
+
+    const failedB = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        DEPLOY_SHA: currentSha,
+        ...currentImages,
+        EXPECTED_TARGET_SHA: currentSha,
+        FAIL_COMPOSE_UP: 'true',
+      }),
+    });
+    expect(failedB.status).toBe(29);
+
+    const failedRecovery = spawnSync('bash', [rollbackScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        EXPECTED_TARGET_SHA: sha,
+        FAIL_DOCKER: 'true',
+        PRESSLY_DEPLOY_SCRIPT: deployScript,
+      }),
+    });
+    expect(failedRecovery.status).toBe(23);
+
+    const recoveryState = JSON.parse(
+      readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+    );
+    expect(recoveryState).toMatchObject({
+      schemaVersion: 2,
+      phase: 'recovering_unverified',
+      outcome: 'failed',
+      exitCode: 23,
+      unresolvedRelease: fiveImageIdentity({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+      }),
+      recoveryTarget: fiveImageIdentity(),
+    });
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'previous-release.json'), 'utf8'),
+      ),
+    ).toEqual(verifiedA);
+
+    const normalAttempt = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        DEPLOY_SHA: currentSha,
+        ...currentImages,
+        EXPECTED_TARGET_SHA: currentSha,
+      }),
+    });
+    expect(normalAttempt.status).toBe(1);
+    expect(normalAttempt.stderr).toContain('Deployment recovery is unresolved');
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toEqual(recoveryState);
+
+    const resumeAttempt = spawnSync(
+      'bash',
+      [deployScript, '--resume-unverified'],
+      {
+        encoding: 'utf8',
+        env: deploymentEnv(fixture, {
+          DEPLOY_SHA: currentSha,
+          ...currentImages,
+          EXPECTED_TARGET_SHA: currentSha,
+        }),
+      },
+    );
+    expect(resumeAttempt.status).toBe(1);
+    expect(resumeAttempt.stderr).toContain(
+      '--resume-unverified cannot erase an unresolved rollback recovery',
+    );
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toEqual(recoveryState);
+
+    const wrongSha = 'd'.repeat(40);
+    const wrongImages = {
+      PRESSLY_API_IMAGE: image('api', '6'),
+      PRESSLY_WEB_IMAGE: image('web', '7'),
+      PRESSLY_WORKER_IMAGE: image('worker', '8'),
+      PRESSLY_PROCESSOR_IMAGE: image('processor', '9'),
+      PRESSLY_CONTROL_IMAGE: image('control', '0'),
+    };
+    const wrongManifest = join(fixture.directory, 'wrong-rollback.json');
+    writeFileSync(
+      wrongManifest,
+      `${JSON.stringify(
+        fiveImageMetadata({
+          sourceSha: wrongSha,
+          releaseImages: wrongImages,
+        }),
+      )}\n`,
+    );
+    const wrongRollback = spawnSync('bash', [deployScript, '--rollback'], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        DEPLOY_SHA: wrongSha,
+        ...wrongImages,
+        EXPECTED_TARGET_SHA: wrongSha,
+        PRESSLY_ROLLBACK_RELEASE_MANIFEST_FILE: wrongManifest,
+      }),
+    });
+    expect(wrongRollback.status).toBe(1);
+    expect(wrongRollback.stderr).toContain(
+      'Rollback target does not exactly match the recorded recovery target.',
+    );
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toEqual(recoveryState);
+
+    const recoveryAtCompose = join(
+      fixture.directory,
+      'recovery-at-compose.json',
+    );
+    const recoveryAtHealth = join(fixture.directory, 'recovery-at-health.json');
+    const exactRetry = spawnSync('bash', [rollbackScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        EXPECTED_TARGET_SHA: sha,
+        FAIL_DOCKER: 'false',
+        PRESSLY_DEPLOY_SCRIPT: deployScript,
+        STATE_AT_COMPOSE_UP_FILE: recoveryAtCompose,
+        STATE_AT_FIRST_HEALTH_FILE: recoveryAtHealth,
+      }),
+    });
+    expect(exactRetry.status).toBe(0);
+    expect(exactRetry.stderr).toBe('');
+    for (const observedState of [recoveryAtCompose, recoveryAtHealth]) {
+      expect(JSON.parse(readFileSync(observedState, 'utf8'))).toMatchObject({
+        schemaVersion: 2,
+        phase: 'recovering_unverified',
+        outcome: 'in_progress',
+        unresolvedRelease: fiveImageIdentity({
+          sourceSha: currentSha,
+          releaseImages: currentImages,
+        }),
+        recoveryTarget: fiveImageIdentity(),
+      });
+    }
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      schemaVersion: 1,
+      sourceSha: sha,
+      phase: 'verified',
+      outcome: 'succeeded',
+      exitCode: 0,
+    });
+  });
+
   it('retries transient public readiness before committing release metadata', () => {
     const current = fiveImageMetadata({
       sourceSha: currentSha,
@@ -907,13 +1455,49 @@ describe('release deployment identity', () => {
       .split('\n')
       .filter((line) => line.startsWith('curl '));
     expect(curls).toEqual([
-      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://api.example.test/health/ready',
-      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://api.example.test/health/ready',
-      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://api.example.test/health/ready',
-      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://web.example.test/health',
-      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://processor.example.test/health',
-      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://control.example.test/health',
+      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve api.example.test:443:127.0.0.1 https://api.example.test/health/ready',
+      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve api.example.test:443:127.0.0.1 https://api.example.test/health/ready',
+      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve api.example.test:443:127.0.0.1 https://api.example.test/health/ready',
+      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve web.example.test:443:127.0.0.1 https://web.example.test/health',
+      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve processor.example.test:443:127.0.0.1 https://processor.example.test/health',
+      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve control.example.test:443:127.0.0.1 https://control.example.test/health',
     ]);
+  });
+
+  it('rejects a redirected public health endpoint', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        CURL_HTTP_STATUS: '302',
+        PRESSLY_HEALTH_MAX_ATTEMPTS: '1',
+        PRESSLY_HEALTH_RETRY_DELAY_SECONDS: '0',
+      }),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'API health check failed after 1 attempts.',
+    );
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toEqual(current);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'running_unverified',
+      outcome: 'failed',
+    });
   });
 
   it('leaves current release metadata unchanged when readiness never converges', () => {
@@ -991,6 +1575,713 @@ describe('release deployment identity', () => {
     expect(commands).not.toContain('up -d --remove-orphans --wait');
   });
 
+  it('fails closed before target checkout when the invocation checkout is dirty', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, { DIRTY_CHECKOUT: 'true' }),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Deployment repository must be clean before checkout.',
+    );
+    expect(readFileSync(fixture.checkoutState, 'utf8').trim()).toBe(currentSha);
+    expect(readFileSync(fixture.commandLog, 'utf8')).not.toContain(
+      `git checkout --detach ${sha}`,
+    );
+  });
+
+  it.each([
+    [
+      'tracked Compose input',
+      ' M infra/aws/lightsail/docker-compose.production.yml',
+    ],
+    ['tracked migration input', ' M packages/db/drizzle/0099_shadow.sql'],
+    ['untracked migration shadow', '?? packages/db/drizzle/shadow.sql'],
+  ])(
+    'fails closed and restores the invocation checkout for a %s after checkout',
+    (_description, dirtyStatus) => {
+      const current = fiveImageMetadata({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+      });
+      const fixture = createHostFixture(current);
+
+      const result = spawnSync('bash', [deployScript], {
+        encoding: 'utf8',
+        env: deploymentEnv(fixture, {
+          DIRTY_AFTER_CHECKOUT: 'true',
+          DIRTY_STATUS_OUTPUT: dirtyStatus,
+        }),
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(
+        'Target deployment checkout must be clean.',
+      );
+      expect(readFileSync(fixture.checkoutState, 'utf8').trim()).toBe(
+        currentSha,
+      );
+      const commands = readFileSync(fixture.commandLog, 'utf8');
+      expect(commands).toContain(`git checkout --detach ${sha}`);
+      expect(commands).toContain(`git checkout --detach ${currentSha}`);
+      expect(commands).not.toContain('config --quiet');
+      expect(commands).not.toContain(' pull');
+      expect(commands).not.toContain(
+        'run --rm --workdir /repo/packages/db migrate',
+      );
+      expect(commands).not.toContain('up -d --remove-orphans --wait');
+    },
+  );
+
+  it('installs and advances a complete checksummed operations bundle after public health and before verified state closes', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe('');
+    const opsCurrent = join(fixture.directory, 'ops/current');
+    const opsCandidate = join(fixture.directory, 'ops/candidate');
+    expect(readFileSync(join(opsCurrent, 'source-sha'), 'utf8').trim()).toBe(
+      sha,
+    );
+    expect(readFileSync(join(opsCandidate, 'source-sha'), 'utf8').trim()).toBe(
+      sha,
+    );
+
+    const manifest = readFileSync(join(opsCurrent, 'SHA256SUMS'), 'utf8');
+    for (const scriptName of [
+      'deploy.sh',
+      'rollback.sh',
+      'backup-postgres.sh',
+      'check-host-capacity.sh',
+      'configure-database-roles.sh',
+      'restore-postgres-drill.sh',
+      'restore-postgres.sh',
+      'run-monitored-operation.sh',
+    ]) {
+      expect(existsSync(join(opsCurrent, scriptName))).toBe(true);
+      expect(existsSync(join(opsCurrent, 'payload', scriptName))).toBe(true);
+      expect(manifest).toContain(`  ${scriptName}\n`);
+      expect(manifest).toContain(`  payload/${scriptName}\n`);
+    }
+    expect(manifest).not.toContain('restore-postgres-proof.sh');
+    expect(readFileSync(join(opsCurrent, 'deploy.sh'), 'utf8')).toContain(
+      'sha256sum --check --strict --status SHA256SUMS',
+    );
+  });
+
+  it('recovers an exact release after ops/current advances but verified state is not committed', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const deployed = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+    expect(deployed.status).toBe(0);
+
+    writeFileSync(
+      join(fixture.directory, 'deployment-state.json'),
+      `${JSON.stringify(fiveImageDeploymentState())}\n`,
+    );
+    fixture.invocationCheckoutSha = sha;
+
+    const resumed = spawnSync('bash', [deployScript, '--resume-unverified'], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+
+    expect(resumed.status).toBe(0);
+    expect(resumed.stderr).toBe('');
+    expect(
+      readFileSync(join(fixture.directory, 'ops/current/source-sha'), 'utf8'),
+    ).toBe(`${sha}\n`);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'verified',
+      outcome: 'succeeded',
+    });
+  });
+
+  it('fails before migration when a required operations script is missing', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const missingScript = join(
+      fixture.repoDirectory,
+      'infra/aws/lightsail/restore-postgres.sh',
+    );
+    rmSync(missingScript);
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `Operations bundle source is missing: ${missingScript}`,
+    );
+    expect(readFileSync(fixture.checkoutState, 'utf8').trim()).toBe(currentSha);
+    expect(readFileSync(fixture.commandLog, 'utf8')).not.toContain(
+      'run --rm --workdir /repo/packages/db migrate',
+    );
+    expect(existsSync(join(fixture.directory, 'ops/current'))).toBe(false);
+  });
+
+  it('rejects a corrupted operations payload at the stable entrypoint', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const deployed = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+    expect(deployed.status).toBe(0);
+
+    const stableRollback = join(fixture.directory, 'ops/current/rollback.sh');
+    writeFileSync(
+      join(fixture.directory, 'ops/current/payload/deploy.sh'),
+      '#!/bin/sh\nexit 0\n',
+    );
+    const corrupted = spawnSync('bash', [stableRollback], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+
+    expect(corrupted.status).toBe(70);
+    expect(corrupted.stderr).toContain(
+      'Operations bundle checksum verification failed:',
+    );
+  });
+
+  it('keeps the stable operations revision after a successful app rollback', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const deployed = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+    expect(deployed.status).toBe(0);
+
+    const repoDeploy = join(
+      fixture.repoDirectory,
+      'infra/aws/lightsail/deploy.sh',
+    );
+    writeFileSync(repoDeploy, '#!/bin/sh\nexit 97\n');
+    chmodSync(repoDeploy, 0o700);
+
+    const stableRollback = join(fixture.directory, 'ops/current/rollback.sh');
+    const rollback = spawnSync('bash', [stableRollback], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        EXPECTED_TARGET_SHA: currentSha,
+        INVOCATION_CHECKOUT_SHA: sha,
+      }),
+    });
+
+    expect(rollback.status).toBe(0);
+    expect(rollback.stderr).toBe('');
+    expect(
+      readFileSync(
+        join(fixture.directory, 'ops/current/source-sha'),
+        'utf8',
+      ).trim(),
+    ).toBe(sha);
+    expect(
+      readFileSync(
+        join(fixture.directory, 'ops/candidate/source-sha'),
+        'utf8',
+      ).trim(),
+    ).toBe(sha);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ).sourceSha,
+    ).toBe(currentSha);
+  });
+
+  it('leaves a deterministic candidate dispatcher for first-deploy recovery in a fresh shell', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const failed = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, { FAIL_MIGRATION: 'true' }),
+    });
+
+    expect(failed.status).toBe(31);
+    const candidateRollback = join(
+      fixture.directory,
+      'ops/candidate/rollback.sh',
+    );
+    expect(existsSync(candidateRollback)).toBe(true);
+    expect(existsSync(join(fixture.directory, 'ops/current'))).toBe(false);
+
+    // Model a hard-stop residue: the mutable checkout and its scripts are no
+    // longer usable, and no exported lock/self-stage state reaches this shell.
+    writeFileSync(fixture.checkoutState, `${sha}\n`);
+    for (const scriptName of ['deploy.sh', 'rollback.sh']) {
+      const path = join(
+        fixture.repoDirectory,
+        'infra/aws/lightsail',
+        scriptName,
+      );
+      writeFileSync(path, '#!/bin/sh\nexit 97\n');
+      chmodSync(path, 0o700);
+    }
+
+    const recovered = spawnSync('bash', [candidateRollback], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        EXPECTED_TARGET_SHA: currentSha,
+        INVOCATION_CHECKOUT_SHA: sha,
+        FAIL_MIGRATION: 'false',
+      }),
+    });
+
+    expect(recovered.status).toBe(0);
+    expect(recovered.stderr).toBe('');
+    expect(readFileSync(fixture.checkoutState, 'utf8').trim()).toBe(currentSha);
+    expect(
+      readFileSync(
+        join(fixture.directory, 'ops/candidate/source-sha'),
+        'utf8',
+      ).trim(),
+    ).toBe(sha);
+    expect(existsSync(join(fixture.directory, 'ops/current'))).toBe(false);
+  });
+
+  it('binds candidate rollback to its sibling deploy revision when current is older', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const deployed = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture),
+    });
+    expect(deployed.status).toBe(0);
+
+    const candidateDeployCapture = join(
+      fixture.directory,
+      'candidate-deploy-capture',
+    );
+    const repoDeploy = join(
+      fixture.repoDirectory,
+      'infra/aws/lightsail/deploy.sh',
+    );
+    writeFileSync(
+      repoDeploy,
+      '#!/bin/sh\nset -eu\nprintf "%s\\n" "$*" > "$CANDIDATE_DEPLOY_CAPTURE"\nexit 66\n',
+    );
+    chmodSync(repoDeploy, 0o700);
+
+    const failedFuture = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        DEPLOY_SHA: unverifiedSha,
+        EXPECTED_TARGET_SHA: unverifiedSha,
+        INVOCATION_CHECKOUT_SHA: sha,
+        FAIL_MIGRATION: 'true',
+      }),
+    });
+    expect(failedFuture.status).toBe(31);
+    expect(
+      readFileSync(
+        join(fixture.directory, 'ops/current/source-sha'),
+        'utf8',
+      ).trim(),
+    ).toBe(sha);
+    expect(
+      readFileSync(
+        join(fixture.directory, 'ops/candidate/source-sha'),
+        'utf8',
+      ).trim(),
+    ).toBe(unverifiedSha);
+
+    const candidateRollback = join(
+      fixture.directory,
+      'ops/candidate/rollback.sh',
+    );
+    const rollback = spawnSync('bash', [candidateRollback], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        CANDIDATE_DEPLOY_CAPTURE: candidateDeployCapture,
+        EXPECTED_TARGET_SHA: sha,
+        INVOCATION_CHECKOUT_SHA: sha,
+        FAIL_MIGRATION: 'false',
+      }),
+    });
+
+    expect(rollback.status).toBe(66);
+    expect(readFileSync(candidateDeployCapture, 'utf8').trim()).toBe(
+      '--rollback',
+    );
+  });
+
+  it.each([
+    ['DNS preflight', { FAIL_DNS_HOST: 'control.example.test' }, 1],
+    ['image pull', { FAIL_DOCKER: 'true' }, 23],
+    [
+      'image revision verification',
+      { IMAGE_REVISION_OVERRIDE: 'f'.repeat(40) },
+      1,
+    ],
+    ['migration', { FAIL_MIGRATION: 'true' }, 31],
+    ['Compose replacement', { FAIL_COMPOSE_UP: 'true' }, 29],
+  ])(
+    'keeps the admitted rollback target durable after %s failure',
+    (_stage, failureEnv, expectedStatus) => {
+      const current = fiveImageMetadata({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+      });
+      const rollbackTarget = fiveImageMetadata();
+      const fixture = createHostFixture(current);
+      installPreviousRelease(fixture, rollbackTarget);
+      writeFileSync(
+        join(fixture.directory, 'deployment-state.json'),
+        `${JSON.stringify(
+          fiveImageDeploymentState({
+            sourceSha: currentSha,
+            releaseImages: currentImages,
+            phase: 'verified',
+            outcome: 'succeeded',
+            exitCode: 0,
+          }),
+        )}\n`,
+      );
+
+      const rollback = spawnSync('bash', [rollbackScript], {
+        encoding: 'utf8',
+        env: deploymentEnv(fixture, {
+          EXPECTED_TARGET_SHA: sha,
+          PRESSLY_DEPLOY_SCRIPT: deployScript,
+          ...failureEnv,
+        }),
+      });
+
+      expect(rollback.status).toBe(expectedStatus);
+      expect(
+        JSON.parse(
+          readFileSync(
+            join(fixture.directory, 'previous-release.json'),
+            'utf8',
+          ),
+        ),
+      ).toEqual(rollbackTarget);
+      expect(
+        readFileSync(
+          join(fixture.directory, 'previous-release'),
+          'utf8',
+        ).trim(),
+      ).toBe(sha);
+      expect(
+        JSON.parse(
+          readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+        ),
+      ).toEqual(current);
+    },
+  );
+
+  it('rotates the old current release into previous only after rollback verifies', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const rollbackTarget = fiveImageMetadata();
+    const fixture = createHostFixture(current);
+    installPreviousRelease(fixture, rollbackTarget);
+    const previousAtCompose = join(
+      fixture.directory,
+      'previous-at-compose.json',
+    );
+    const previousAtHealth = join(fixture.directory, 'previous-at-health.json');
+
+    const rollback = spawnSync('bash', [rollbackScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        EXPECTED_TARGET_SHA: sha,
+        PRESSLY_DEPLOY_SCRIPT: deployScript,
+        PREVIOUS_AT_COMPOSE_UP_FILE: previousAtCompose,
+        PREVIOUS_AT_FIRST_HEALTH_FILE: previousAtHealth,
+      }),
+    });
+
+    expect(rollback.stderr).toBe('');
+    expect(rollback.status).toBe(0);
+    expect(JSON.parse(readFileSync(previousAtCompose, 'utf8'))).toEqual(
+      rollbackTarget,
+    );
+    expect(JSON.parse(readFileSync(previousAtHealth, 'utf8'))).toEqual(
+      rollbackTarget,
+    );
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toMatchObject(fiveImageIdentity());
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'previous-release.json'), 'utf8'),
+      ),
+    ).toEqual(current);
+    expect(
+      readFileSync(join(fixture.directory, 'previous-release'), 'utf8').trim(),
+    ).toBe(currentSha);
+
+    const deploy = readFileSync(deployScript, 'utf8');
+    expect(deploy).toContain('durably_install_release_pair');
+    expect(deploy).toContain('"$PREVIOUS_RELEASE_METADATA_FILE"');
+  });
+
+  it('retries the exact rollback after an unverified Compose failure', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const rollbackTarget = fiveImageMetadata();
+    const fixture = createHostFixture(current);
+    installPreviousRelease(fixture, rollbackTarget);
+
+    const failedRollback = spawnSync('bash', [rollbackScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        EXPECTED_TARGET_SHA: sha,
+        FAIL_COMPOSE_UP: 'true',
+        PRESSLY_DEPLOY_SCRIPT: deployScript,
+      }),
+    });
+    expect(failedRollback.status).toBe(29);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'previous-release.json'), 'utf8'),
+      ),
+    ).toEqual(rollbackTarget);
+
+    const retry = spawnSync('bash', [rollbackScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        EXPECTED_TARGET_SHA: sha,
+        FAIL_COMPOSE_UP: 'false',
+        PRESSLY_DEPLOY_SCRIPT: deployScript,
+      }),
+    });
+    expect(retry.status).toBe(0);
+    expect(retry.stderr).toBe('');
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'previous-release.json'), 'utf8'),
+      ),
+    ).toEqual(current);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      sourceSha: sha,
+      phase: 'verified',
+      outcome: 'succeeded',
+    });
+  });
+
+  it('retains old-current metadata when previous installation fails and reconstructs it on retry', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const rollbackTarget = fiveImageMetadata();
+    const fixture = createHostFixture(current);
+    installPreviousRelease(fixture, rollbackTarget);
+    const blockedPreviousPointer = join(
+      fixture.directory,
+      'blocked-previous-pointer',
+    );
+    mkdirSync(blockedPreviousPointer);
+
+    const failedInstall = spawnSync('bash', [rollbackScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        EXPECTED_TARGET_SHA: sha,
+        PRESSLY_DEPLOY_SCRIPT: deployScript,
+        PRESSLY_PREVIOUS_RELEASE_FILE: blockedPreviousPointer,
+      }),
+    });
+    expect(failedInstall.status).toBe(1);
+
+    const recoveryState = JSON.parse(
+      readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+    );
+    expect(recoveryState).toMatchObject({
+      schemaVersion: 2,
+      phase: 'recovering_unverified',
+      outcome: 'failed',
+      recoveryTarget: rollbackTarget,
+      rollbackPrevious: current,
+    });
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
+      ),
+    ).toMatchObject(fiveImageIdentity());
+
+    // Model a power loss after both previous-release renames but before the
+    // recovery state could close. The journal remains authoritative for A/B.
+    installPreviousRelease(fixture, current);
+    const retry = spawnSync('bash', [rollbackScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        EXPECTED_TARGET_SHA: sha,
+        PRESSLY_DEPLOY_SCRIPT: deployScript,
+      }),
+    });
+    expect(retry.status).toBe(0);
+    expect(retry.stderr).toBe('');
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'previous-release.json'), 'utf8'),
+      ),
+    ).toEqual(current);
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      schemaVersion: 1,
+      sourceSha: sha,
+      phase: 'verified',
+      outcome: 'succeeded',
+    });
+  });
+
+  it('restores hardened invocation tooling after a failed normal target checkout', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const fixture = createHostFixture(current);
+    const { hostDeploy, hostRollback } = installHostReleaseTooling(fixture);
+    const toolingReplacementEnv = {
+      REPLACE_REPO_TOOLING_ON_TARGET: 'true',
+      HARDENED_DEPLOY_SCRIPT: deployScript,
+      HARDENED_ROLLBACK_SCRIPT: rollbackScript,
+    };
+
+    const failed = spawnSync('bash', [hostDeploy], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        ...toolingReplacementEnv,
+        FAIL_COMPOSE_UP: 'true',
+      }),
+    });
+    expect(failed.status).toBe(29);
+    expect(readFileSync(fixture.checkoutState, 'utf8').trim()).toBe(currentSha);
+    expect(readFileSync(hostDeploy, 'utf8')).toBe(
+      readFileSync(deployScript, 'utf8'),
+    );
+    expect(readFileSync(hostRollback, 'utf8')).toBe(
+      readFileSync(rollbackScript, 'utf8'),
+    );
+
+    const retry = spawnSync('bash', [hostDeploy, '--resume-unverified'], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        ...toolingReplacementEnv,
+        FAIL_COMPOSE_UP: 'false',
+      }),
+    });
+    expect(retry.status).toBe(0);
+    expect(retry.stderr).toBe('');
+  });
+
+  it('restores hardened rollback tooling before an exact recovery retry', () => {
+    const current = fiveImageMetadata({
+      sourceSha: currentSha,
+      releaseImages: currentImages,
+    });
+    const rollbackTarget = fiveImageMetadata();
+    const fixture = createHostFixture(current);
+    installPreviousRelease(fixture, rollbackTarget);
+    const { hostDeploy, hostRollback } = installHostReleaseTooling(fixture);
+    const toolingReplacementEnv = {
+      REPLACE_REPO_TOOLING_ON_TARGET: 'true',
+      HARDENED_DEPLOY_SCRIPT: deployScript,
+      HARDENED_ROLLBACK_SCRIPT: rollbackScript,
+    };
+
+    const failed = spawnSync('bash', [hostRollback], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        ...toolingReplacementEnv,
+        EXPECTED_TARGET_SHA: sha,
+        FAIL_COMPOSE_UP: 'true',
+        PRESSLY_DEPLOY_SCRIPT: hostDeploy,
+      }),
+    });
+    expect(failed.status).toBe(29);
+    expect(readFileSync(fixture.checkoutState, 'utf8').trim()).toBe(currentSha);
+    expect(readFileSync(hostDeploy, 'utf8')).toBe(
+      readFileSync(deployScript, 'utf8'),
+    );
+    expect(readFileSync(hostRollback, 'utf8')).toBe(
+      readFileSync(rollbackScript, 'utf8'),
+    );
+    expect(
+      JSON.parse(
+        readFileSync(join(fixture.directory, 'deployment-state.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      schemaVersion: 2,
+      phase: 'recovering_unverified',
+      recoveryTarget: rollbackTarget,
+      rollbackPrevious: current,
+    });
+
+    const retry = spawnSync('bash', [hostRollback], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        ...toolingReplacementEnv,
+        EXPECTED_TARGET_SHA: sha,
+        FAIL_COMPOSE_UP: 'false',
+        PRESSLY_DEPLOY_SCRIPT: hostDeploy,
+      }),
+    });
+    expect(retry.status).toBe(0);
+    expect(retry.stderr).toBe('');
+  });
+
   it('rollback validates and forwards one complete prior release', () => {
     const directory = mkdtempSync(join(tmpdir(), 'pressly-rollback-'));
     const metadata = join(directory, 'previous-release.json');
@@ -1008,6 +2299,7 @@ describe('release deployment identity', () => {
       env: {
         ...process.env,
         PRESSLY_PREVIOUS_RELEASE_METADATA_FILE: metadata,
+        PRESSLY_DEPLOY_LOCK_FILE: join(directory, 'deploy.lock'),
         PRESSLY_DEPLOY_SCRIPT: stub,
         CAPTURE_FILE: capture,
       },
@@ -1024,6 +2316,77 @@ describe('release deployment identity', () => {
       images.PRESSLY_PROCESSOR_IMAGE,
       images.PRESSLY_CONTROL_IMAGE,
     ]);
+  });
+
+  it('holds the shared lock across rollback target resolution and deploy', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'pressly-rollback-'));
+    const metadata = join(directory, 'previous-release.json');
+    const capture = join(directory, 'capture.txt');
+    const stub = join(directory, 'deploy-stub.sh');
+    const lock = join(directory, 'deploy.lock');
+    writeFileSync(metadata, `${JSON.stringify(fiveImageMetadata())}\n`);
+    writeFileSync(
+      stub,
+      '#!/bin/sh\nset -eu\nprintf "called\\n" > "$CAPTURE_FILE"\n',
+    );
+    chmodSync(stub, 0o700);
+
+    const rollback = spawnSync(
+      'bash',
+      [
+        '-c',
+        'exec 8>"$PRESSLY_DEPLOY_LOCK_FILE"; flock -n 8; bash "$ROLLBACK_SCRIPT"',
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PRESSLY_PREVIOUS_RELEASE_METADATA_FILE: metadata,
+          PRESSLY_DEPLOY_LOCK_FILE: lock,
+          PRESSLY_DEPLOY_SCRIPT: stub,
+          ROLLBACK_SCRIPT: rollbackScript,
+          CAPTURE_FILE: capture,
+        },
+      },
+    );
+
+    expect(rollback.status).toBe(75);
+    expect(rollback.stderr).toContain(
+      'Another deployment or rollback is already in progress.',
+    );
+    expect(existsSync(capture)).toBe(false);
+  });
+
+  it('refuses rollback while durable restore topology is quarantined', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'pressly-rollback-'));
+    const metadata = join(directory, 'previous-release.json');
+    const capture = join(directory, 'capture.txt');
+    const stub = join(directory, 'deploy-stub.sh');
+    writeFileSync(metadata, `${JSON.stringify(fiveImageMetadata())}\n`);
+    writeFileSync(stub, '#!/bin/sh\nprintf "called\\n" > "$CAPTURE_FILE"\n');
+    chmodSync(stub, 0o700);
+    writeFileSync(
+      join(directory, 'postgres-restore.json'),
+      '{"phase":"target_quarantined"}\n',
+    );
+
+    const rollback = spawnSync('bash', [rollbackScript], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PRESSLY_APP_ROOT: directory,
+        PRESSLY_PREVIOUS_RELEASE_METADATA_FILE: metadata,
+        PRESSLY_DEPLOY_LOCK_FILE: join(directory, 'deploy.lock'),
+        PRESSLY_DEPLOY_SCRIPT: stub,
+        CAPTURE_FILE: capture,
+      },
+    });
+
+    expect(rollback.status).toBe(75);
+    expect(rollback.stderr).toContain(
+      'Active Postgres restore journal blocks rollback',
+    );
+    expect(existsSync(capture)).toBe(false);
   });
 
   it('rolls back to a complete four-image release without inventing Control', () => {
@@ -1043,6 +2406,7 @@ describe('release deployment identity', () => {
       env: {
         ...process.env,
         PRESSLY_PREVIOUS_RELEASE_METADATA_FILE: metadata,
+        PRESSLY_DEPLOY_LOCK_FILE: join(directory, 'deploy.lock'),
         PRESSLY_DEPLOY_SCRIPT: stub,
         CAPTURE_FILE: capture,
       },
@@ -1104,10 +2468,10 @@ describe('release deployment identity', () => {
     expect(checkoutIndex).toBeGreaterThan(-1);
     expect(upIndex).toBeGreaterThan(checkoutIndex);
     expect(commands).toContain(
-      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://api.example.test/health/ready',
+      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve api.example.test:443:127.0.0.1 https://api.example.test/health/ready',
     );
     expect(commands).toContain(
-      'curl --fail --silent --show-error --max-time 10 --output /dev/null https://web.example.test/health',
+      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve web.example.test:443:127.0.0.1 https://web.example.test/health',
     );
     expect(commands).not.toContain('https://processor.example.test/health');
     expect(commands.match(/^docker image inspect /gm)).toHaveLength(2);
@@ -1122,6 +2486,20 @@ describe('release deployment identity', () => {
         workerImage: images.PRESSLY_WORKER_IMAGE,
       },
     ],
+    [
+      'an application image in the wrong repository',
+      {
+        ...fiveImageMetadata(),
+        workerImage: image('api', '6'),
+      },
+    ],
+    [
+      'one digest reused across repository aliases',
+      {
+        ...fiveImageMetadata(),
+        workerImage: `ghcr.io/example/alternate/worker@sha256:${'a'.repeat(64)}`,
+      },
+    ],
   ])('rollback rejects %s', (_description, release) => {
     const directory = mkdtempSync(join(tmpdir(), 'pressly-rollback-'));
     const metadata = join(directory, 'previous-release.json');
@@ -1132,6 +2510,7 @@ describe('release deployment identity', () => {
       env: {
         ...process.env,
         PRESSLY_PREVIOUS_RELEASE_METADATA_FILE: metadata,
+        PRESSLY_DEPLOY_LOCK_FILE: join(directory, 'deploy.lock'),
       },
     });
 
@@ -1159,6 +2538,7 @@ describe('release deployment identity', () => {
       env: {
         ...process.env,
         PRESSLY_PREVIOUS_RELEASE_METADATA_FILE: metadata,
+        PRESSLY_DEPLOY_LOCK_FILE: join(directory, 'deploy.lock'),
       },
     });
 

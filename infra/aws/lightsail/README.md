@@ -11,6 +11,8 @@ rebuilds application source.
 /opt/pressly/
   env/                       service-specific mode-600 files
   repo/                      deployment tooling checkout
+  ops/releases/<sha>/        immutable checksummed host-operations bundle
+  ops/current                verified active host-operations bundle pointer
   backups/postgres/          short-lived encrypted local copies
   backup-passphrase.txt      mode 600; retain an offline recovery copy
   deployment-state.json     exact attempted or unverified release identity
@@ -33,8 +35,14 @@ chmod 700 /opt/pressly/env
 4. Configure the fixed database roles:
 
 ```bash
-/opt/pressly/repo/infra/aws/lightsail/configure-database-roles.sh
+/opt/pressly/ops/current/configure-database-roles.sh
 ```
+
+On the first host bootstrap only, before a verified deploy has created
+`/opt/pressly/ops/current`, run the same script from the reviewed repository
+checkout at
+`/opt/pressly/repo/infra/aws/lightsail/configure-database-roles.sh`. After that
+bootstrap, use only the checksummed stable entrypoint.
 
 5. Authenticate Docker to the private GHCR packages using a read-only package
    credential owned by the deployment operator:
@@ -240,12 +248,33 @@ destructive migration.
 
 ```bash
 ssh ubuntu@<server>
-/opt/pressly/repo/infra/aws/lightsail/rollback.sh
-curl --fail --silent --show-error https://api.trypressly.com/health/ready
-curl --fail --silent --show-error https://trypressly.com/health
-curl --fail --silent --show-error https://processor.trypressly.com/health
-curl --fail --silent --show-error https://control.trypressly.com/health
+export PRESSLY_EXPECTED_PUBLIC_IP='<production-static-ip>'
+/opt/pressly/ops/current/rollback.sh
+require_2xx() {
+  local hostname="$1"
+  local url="$2"
+  local status
+  status="$(curl --silent --show-error --max-time 10 --output /dev/null \
+    --write-out '%{http_code}' \
+    --resolve "$hostname:443:$PRESSLY_EXPECTED_PUBLIC_IP" \
+    "$url")"
+  [[ "$status" == 2[0-9][0-9] ]]
+}
+require_2xx api.trypressly.com https://api.trypressly.com/health/ready
+require_2xx trypressly.com https://trypressly.com/health
+require_2xx processor.trypressly.com https://processor.trypressly.com/health
+require_2xx control.trypressly.com https://control.trypressly.com/health
 ```
+
+Normal releases install the host-control scripts as a checksummed, versioned
+bundle under `/opt/pressly/ops/releases/<sha>` and atomically advance
+`/opt/pressly/ops/current` only after application health verifies. A candidate
+bundle is available at `/opt/pressly/ops/candidate` before migrations begin, so
+the first hardened release can still be recovered in a fresh shell if it
+fails before `current` exists. Rollback never advances or downgrades either
+stable bundle pointer. Each stable entrypoint verifies the complete payload
+before execution. `restore-postgres-proof.sh` remains repository-only because
+it is a disposable local proof harness, not production host-control tooling.
 
 Normal rollback requires one complete `five-image-v1` record with five distinct
 immutable image digests and one full source SHA. During the first Control
@@ -275,21 +304,17 @@ container ports.
 
 ## Backups
 
-Run one verified encrypted S3 backup:
+Run one verified encrypted S3 backup through the supported stable entrypoint:
 
 ```bash
 PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres \
-  /opt/pressly/repo/infra/aws/lightsail/backup-postgres.sh
+  /opt/pressly/ops/current/run-monitored-operation.sh backup
 ```
 
-Cron example:
-
-```text
-15 3 * * * PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres /opt/pressly/repo/infra/aws/lightsail/backup-postgres.sh >> /var/log/pressly-backup.log 2>&1
-```
-
-The script uploads the encrypted dump, checksum, and metadata, then downloads
-the encrypted object stream to verify its SHA-256 checksum.
+Use that monitored runner for both manual and cron execution. The raw
+`backup-postgres.sh` payload is internal to the operations bundle: it owns the
+shared backup/restore lock, uploads the encrypted dump, checksum, and metadata,
+then downloads the encrypted object stream to verify its SHA-256 checksum.
 
 For a Lightsail object-storage bucket, attach the production instance through
 Lightsail resource access instead of retaining a long-lived bucket access key.
@@ -310,8 +335,8 @@ decompress it without executing it, and verify the binary SHA-256 is
 `1f2f64ec8bb23ced496a103977cb54e72b49b83495cf30c3cad487dcefd70c16`,
 then install that verified binary root-owned and mode `0755` at
 `/usr/local/bin/sentry`. The monitored operation runner reads only `SENTRY_DSN`
-from the mode-600 Worker environment file and never prints it. Replace the plain
-backup cron entry with:
+from the mode-600 Worker environment file and never prints it. Install the CLI
+with:
 
 ```bash
 (
@@ -334,11 +359,33 @@ unset PRESSLY_SENTRY_TMP
 )
 ```
 
+The cron shell opens redirected files before the runner can apply its umask.
+Pre-create the fallback log as the `ubuntu` cron user with mode `0600`, and
+bound its retained size before installing the cron entry:
+
+```bash
+sudo touch /var/log/pressly-backup.log
+sudo chown ubuntu:ubuntu /var/log/pressly-backup.log
+sudo chmod 0600 /var/log/pressly-backup.log
+sudo tee /etc/logrotate.d/pressly-backup >/dev/null <<'EOF'
+/var/log/pressly-backup.log {
+  daily
+  rotate 14
+  maxsize 1M
+  compress
+  missingok
+  notifempty
+  create 0600 ubuntu ubuntu
+  su ubuntu ubuntu
+}
+EOF
+```
+
 ```text
 MAILTO=""
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-15 3 * * * PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres /opt/pressly/repo/infra/aws/lightsail/run-monitored-operation.sh backup >/dev/null 2>&1
-*/5 * * * * /opt/pressly/repo/infra/aws/lightsail/run-monitored-operation.sh host-capacity >/dev/null 2>&1
+15 3 * * * PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres /opt/pressly/ops/current/run-monitored-operation.sh backup >> /var/log/pressly-backup.log 2>&1
+*/5 * * * * /opt/pressly/ops/current/run-monitored-operation.sh host-capacity >/dev/null 2>&1
 ```
 
 Ubuntu's default cron does not interpret `CRON_TZ`; require the host timezone
@@ -348,11 +395,21 @@ to remain `Etc/UTC` and verify it with
 match the local SHA-256. `pressly-host-capacity` fails after disk usage reaches
 80 percent or available memory falls below 512 MiB; Sentry opens an issue only
 after three consecutive failed checks and resolves it after three healthy
-checks. The runner prevents overlapping executions and terminates a backup
-after 25 minutes so Sentry can report the failure before its 30-minute maximum
-runtime. Run both recipes once manually after installation, then read the
-monitors and their successful check-ins back from Sentry; the CLI intentionally
-preserves a successful wrapped command exit even when a check-in cannot be sent.
+checks. The backup payload serializes direct and monitored backups against each
+other and against restore through one shared lock. The runner separately locks
+host-capacity checks and terminates a backup after 25 minutes. The locked,
+timed operation is authoritative and completes before its Sentry status
+check-in is attempted. Missing Sentry CLI, Worker environment, DSN, or a failed
+check-in therefore cannot prevent the backup or replace its exit status. The
+runner bounds telemetry to 20 seconds and records skipped or failed telemetry
+in the backup log without printing the DSN.
+
+Run both recipes once manually after installation, then read the monitors and
+their successful check-ins back from Sentry. After changing cron, also observe
+the first natural 03:15 UTC execution: a manual run proves the command but not
+the scheduler. A successful `pressly-postgres-backup` check-in means the dump,
+upload, and remote checksum verification all succeeded. The host log is the
+fallback evidence when Sentry is unavailable.
 
 ## Processor Clean-Slate Maintenance
 
@@ -363,9 +420,10 @@ policy, webhook receipts, and quarantine evidence.
 
 This is a maintenance-window procedure, not a migration. Use the destructive
 checklist in `docs/ops/production-migrations.md`. Stop API, Worker, and
-Processor; create a fresh encrypted backup with `backup-postgres.sh`; verify
-the uploaded checksum; and run the SQL only through the migration environment
-for the exact deployed release. The SQL requires:
+Processor; create a fresh encrypted backup with
+`/opt/pressly/ops/current/run-monitored-operation.sh backup`; verify the uploaded
+checksum; and run the SQL only through the migration environment for the exact
+deployed release. The SQL requires:
 
 ```text
 PGOPTIONS=-cpressly.environment=production_processor_reset
@@ -387,6 +445,40 @@ bad application release, data is sound -> rollback.sh
 data corruption or machine loss        -> restore-postgres.md
 practice and evidence                   -> restore-postgres-drill.md
 ```
+
+`/opt/pressly/postgres-restore.json` is durable recovery authority, not a
+temporary lock file. While it or even a dangling symlink at that path exists,
+deploy, rollback, backup, and direct database-role configuration exit `75`
+before mutation. Never delete or hand-edit it to unblock an operation. Resume
+the exact confirmed restore with the exact admitted operations bundle, or use
+the confirmation-gated pre-cutover abort described in `restore-postgres.md`.
+The restore-owned service fence keeps API, Worker, and Caddy from automatically
+restarting while that recovery authority is unresolved.
+
+### Recovery objectives and custody
+
+Nightly backups provide a nominal recovery-point interval of up to 24 hours;
+they do not provide point-in-time recovery. This is a design interval, not an
+approved RPO. Record an owner-approved RPO and RTO before launch, and measure
+the achieved recovery point and elapsed recovery time in every drill.
+
+The attached production instance currently has enough bucket authority to
+delete object versions. Treat that bucket as the primary operational copy, not
+immutable disaster recovery. The remaining production proof is:
+
+1. Replicate encrypted backup objects into an independently administered
+   standard S3 boundary with Object Lock retention and no delete authority for
+   the production host.
+2. Escrow the backup passphrase, runtime environment files, release access,
+   DNS access, and required recovery credentials in an approved off-host store.
+   Never place their values in this repository or Stateworks.
+3. Build a replacement instance, recover the exact approved release and
+   configuration from escrow, restore a verified backup, and prove database
+   writes plus every public health endpoint. Record the achieved RPO and RTO.
+
+Versioning and isolated restore drills remain valuable, but neither substitutes
+for the immutable copy, recovery-secret custody, or the complete replacement-
+instance drill.
 
 Read:
 

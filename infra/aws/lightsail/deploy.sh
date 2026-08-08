@@ -3,17 +3,22 @@ set -euo pipefail
 
 preflight_only=false
 resume_unverified=false
+rollback_release=false
 case "${1:-}" in
   '') ;;
   --preflight-only) preflight_only=true ;;
   --resume-unverified) resume_unverified=true ;;
+  --rollback) rollback_release=true ;;
   *)
-    echo "Usage: deploy.sh [--preflight-only|--resume-unverified]" >&2
+    echo "Usage: deploy.sh [--preflight-only|--resume-unverified|--rollback]" >&2
     exit 2
     ;;
 esac
 
 APP_ROOT="${PRESSLY_APP_ROOT:-/opt/pressly}"
+DEPLOY_LOCK_FILE="${PRESSLY_DEPLOY_LOCK_FILE:-$APP_ROOT/deploy.lock}"
+DEPLOY_SELF_STAGED_FILE="${PRESSLY_DEPLOY_SELF_STAGED_FILE:-}"
+OPS_ROOT="${PRESSLY_OPS_ROOT:-$APP_ROOT/ops}"
 REPO_DIR="${PRESSLY_REPO_DIR:-$APP_ROOT/repo}"
 ENV_DIR="${PRESSLY_ENV_DIR:-$APP_ROOT/env}"
 COMPOSE_ENV_FILE="${PRESSLY_COMPOSE_ENV_FILE:-$ENV_DIR/compose.env}"
@@ -41,6 +46,7 @@ PREVIOUS_RELEASE_FILE="${PRESSLY_PREVIOUS_RELEASE_FILE:-$APP_ROOT/previous-relea
 CURRENT_RELEASE_METADATA_FILE="${PRESSLY_CURRENT_RELEASE_METADATA_FILE:-$APP_ROOT/current-release.json}"
 PREVIOUS_RELEASE_METADATA_FILE="${PRESSLY_PREVIOUS_RELEASE_METADATA_FILE:-$APP_ROOT/previous-release.json}"
 DEPLOYMENT_STATE_FILE="${PRESSLY_DEPLOYMENT_STATE_FILE:-$APP_ROOT/deployment-state.json}"
+RESTORE_JOURNAL_FILE="${PRESSLY_RESTORE_JOURNAL_FILE:-$APP_ROOT/postgres-restore.json}"
 PRESSLY_API_IMAGE="${PRESSLY_API_IMAGE:-}"
 PRESSLY_WEB_IMAGE="${PRESSLY_WEB_IMAGE:-}"
 PRESSLY_WORKER_IMAGE="${PRESSLY_WORKER_IMAGE:-}"
@@ -48,10 +54,57 @@ PRESSLY_PROCESSOR_IMAGE="${PRESSLY_PROCESSOR_IMAGE:-}"
 PRESSLY_CONTROL_IMAGE="${PRESSLY_CONTROL_IMAGE:-}"
 TARGET_RELEASE_FORMAT="${PRESSLY_TARGET_RELEASE_FORMAT:-five-image-v1}"
 LEGACY_ROLLBACK_MANIFEST_FILE="${PRESSLY_LEGACY_ROLLBACK_MANIFEST_FILE:-}"
+ROLLBACK_RELEASE_MANIFEST_FILE="${PRESSLY_ROLLBACK_RELEASE_MANIFEST_FILE:-}"
 deployment_completed=false
 deployment_state_tracking_started=false
 target_runtime_mutation_started=false
+unverified_reconciliation_pending=false
+recovery_in_progress=false
 release_snapshot_tmp=""
+previous_release_pointer_tmp=""
+invocation_checkout_sha=""
+target_checkout_started=false
+
+acquire_deployment_lock() {
+  if ! command -v flock >/dev/null; then
+    echo "Missing deployment prerequisite: flock" >&2
+    exit 1
+  fi
+
+  if [[ "${PRESSLY_DEPLOY_LOCK_HELD:-}" == "1" ]]; then
+    if ! flock -n 9; then
+      echo "Inherited deployment lock is invalid." >&2
+      exit 1
+    fi
+    return
+  fi
+
+  exec 9> "$DEPLOY_LOCK_FILE"
+  if ! flock -n 9; then
+    echo "Another deployment or rollback is already in progress." >&2
+    exit 75
+  fi
+  export PRESSLY_DEPLOY_LOCK_HELD=1
+}
+
+refuse_active_restore() {
+  if [[ -e "$RESTORE_JOURNAL_FILE" || -L "$RESTORE_JOURNAL_FILE" ]]; then
+    echo "Active Postgres restore journal blocks deployment: $RESTORE_JOURNAL_FILE" >&2
+    exit 75
+  fi
+}
+
+stage_deployment_script() {
+  if [[ -n "$DEPLOY_SELF_STAGED_FILE" ]]; then
+    return
+  fi
+
+  DEPLOY_SELF_STAGED_FILE="$(mktemp "${DEPLOY_LOCK_FILE}.deploy.XXXXXX")"
+  cp "$0" "$DEPLOY_SELF_STAGED_FILE"
+  chmod 700 "$DEPLOY_SELF_STAGED_FILE"
+  export PRESSLY_DEPLOY_SELF_STAGED_FILE="$DEPLOY_SELF_STAGED_FILE"
+  exec "$DEPLOY_SELF_STAGED_FILE" "$@"
+}
 
 emit_deployment_event() {
   local outcome="$1"
@@ -85,6 +138,8 @@ deployment_state_operation() {
     "$PRESSLY_WORKER_IMAGE" \
     "$PRESSLY_PROCESSOR_IMAGE" \
     "$PRESSLY_CONTROL_IMAGE" \
+    "${ROLLBACK_RELEASE_MANIFEST_FILE:--}" \
+    "$CURRENT_RELEASE_METADATA_FILE" \
     "$phase" \
     "$outcome" \
     "$exit_code" <<'PY'
@@ -106,14 +161,25 @@ import tempfile
     worker_image,
     processor_image,
     control_image,
+    rollback_manifest_path,
+    current_metadata_path,
     phase,
     outcome,
     raw_exit_code,
 ) = sys.argv[1:]
 
 sha_pattern = re.compile(r'[0-9a-f]{40}')
-image_pattern = re.compile(r'ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}')
+image_pattern = re.compile(
+    r'(ghcr\.io/[a-z0-9._/-]+)@sha256:([0-9a-f]{64})'
+)
 timestamp_pattern = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z')
+image_application_by_field = {
+    'apiImage': 'api',
+    'webImage': 'web',
+    'workerImage': 'worker',
+    'processorImage': 'processor',
+    'controlImage': 'control',
+}
 image_fields_by_format = {
     'five-image-v1': (
         'apiImage',
@@ -130,14 +196,18 @@ image_fields_by_format = {
     ),
     'legacy-two-image-v1': ('apiImage', 'webImage'),
 }
-allowed_states = {
+allowed_standard_states = {
     ('attempted', 'in_progress', None),
     ('running_unverified', 'in_progress', None),
     ('running_unverified', 'failed', 'nonzero'),
     ('failed_before_running', 'failed', 'nonzero'),
     ('verified', 'succeeded', 0),
 }
-common_fields = {
+allowed_recovery_states = {
+    ('recovering_unverified', 'in_progress', None),
+    ('recovering_unverified', 'failed', 'nonzero'),
+}
+standard_common_fields = {
     'schemaVersion',
     'releaseFormat',
     'sourceSha',
@@ -145,6 +215,16 @@ common_fields = {
     'outcome',
     'exitCode',
     'updatedAt',
+}
+recovery_fields = {
+    'schemaVersion',
+    'phase',
+    'outcome',
+    'exitCode',
+    'updatedAt',
+    'unresolvedRelease',
+    'recoveryTarget',
+    'rollbackPrevious',
 }
 
 
@@ -181,32 +261,189 @@ def state_key(value):
     return (value.get('phase'), value.get('outcome'), exit_code)
 
 
-def validate_state(value):
+def validate_release_identity(value, description):
+    if not isinstance(value, dict):
+        raise ValueError(f'{description} must be a JSON object')
     stored_format = value.get('releaseFormat')
     if stored_format not in image_fields_by_format:
-        raise ValueError('releaseFormat is invalid')
+        raise ValueError(f'{description} releaseFormat is invalid')
     image_fields = image_fields_by_format[stored_format]
-    if set(value) != common_fields | set(image_fields):
-        raise ValueError('deployment state fields are incomplete or unknown')
-    if value.get('schemaVersion') != 1:
-        raise ValueError('schemaVersion is invalid')
+    expected_fields = {'releaseFormat', 'sourceSha', *image_fields}
+    if set(value) != expected_fields:
+        raise ValueError(f'{description} fields are incomplete or unknown')
     if not sha_pattern.fullmatch(value.get('sourceSha', '')):
-        raise ValueError('sourceSha is invalid')
-    images = [value.get(field, '') for field in image_fields]
-    if not all(image_pattern.fullmatch(image) for image in images):
-        raise ValueError('every image must be an immutable GHCR digest')
-    if len(set(images)) != len(images):
-        raise ValueError('image references must be distinct')
-    if state_key(value) not in allowed_states:
-        raise ValueError('phase, outcome, and exitCode are inconsistent')
-    if not timestamp_pattern.fullmatch(value.get('updatedAt', '')):
-        raise ValueError('updatedAt is invalid')
+        raise ValueError(f'{description} sourceSha is invalid')
+
+    repositories = set()
+    digests = set()
+    for field in image_fields:
+        match = image_pattern.fullmatch(value.get(field, ''))
+        if match is None:
+            raise ValueError(
+                f'{description} {field} must be an immutable GHCR digest'
+            )
+        repository, digest = match.groups()
+        application = image_application_by_field[field]
+        repository_name = repository.rsplit('/', 1)[-1]
+        if repository_name not in {application, f'pressly-{application}'}:
+            raise ValueError(
+                f'{description} {field} repository does not match {application}'
+            )
+        repositories.add(repository)
+        digests.add(digest)
+    if len(repositories) != len(image_fields):
+        raise ValueError(f'{description} image repositories must be distinct')
+    if len(digests) != len(image_fields):
+        raise ValueError(f'{description} image digests must be distinct')
+
+
+def identity_object(value):
+    stored_format = value['releaseFormat']
+    return {
+        'releaseFormat': stored_format,
+        'sourceSha': value['sourceSha'],
+        **{
+            field: value[field]
+            for field in image_fields_by_format[stored_format]
+        },
+    }
+
+
+def validate_release_record(value, description):
+    if not isinstance(value, dict):
+        raise ValueError(f'{description} must be a JSON object')
+    stored_format = value.get('releaseFormat')
+    if stored_format not in image_fields_by_format:
+        raise ValueError(f'{description} releaseFormat is invalid')
+    expected_fields = {
+        'releaseFormat',
+        'sourceSha',
+        *image_fields_by_format[stored_format],
+        'deployedAt',
+    }
+    if stored_format == 'legacy-two-image-v1':
+        expected_fields.add('transition')
+        if value.get('transition') != 'first-four-image-cutover':
+            raise ValueError(f'{description} legacy transition is invalid')
+    if set(value) != expected_fields:
+        raise ValueError(f'{description} fields are incomplete or unknown')
+    validate_release_identity(identity_object(value), description)
+    if not timestamp_pattern.fullmatch(value.get('deployedAt', '')):
+        raise ValueError(f'{description} deployedAt is invalid')
+
+
+def load_current_release_record():
+    current = load_object(current_metadata_path, 'current release metadata')
+    unmarked_legacy_fields = {
+        'sourceSha',
+        'apiImage',
+        'webImage',
+        'deployedAt',
+    }
+    if set(current) == unmarked_legacy_fields:
+        current = {
+            'releaseFormat': 'legacy-two-image-v1',
+            'transition': 'first-four-image-cutover',
+            **current,
+        }
+    validate_release_record(current, 'current release metadata')
+    return current
+
+
+def validate_state(value):
+    schema_version = value.get('schemaVersion')
+    if schema_version == 1:
+        stored_format = value.get('releaseFormat')
+        if stored_format not in image_fields_by_format:
+            raise ValueError('releaseFormat is invalid')
+        image_fields = image_fields_by_format[stored_format]
+        if set(value) != standard_common_fields | set(image_fields):
+            raise ValueError('deployment state fields are incomplete or unknown')
+        validate_release_identity(identity_object(value), 'deployment state')
+        if state_key(value) not in allowed_standard_states:
+            raise ValueError('phase, outcome, and exitCode are inconsistent')
+        if not timestamp_pattern.fullmatch(value.get('updatedAt', '')):
+            raise ValueError('updatedAt is invalid')
+        return 'standard'
+
+    if schema_version == 2:
+        if set(value) != recovery_fields:
+            raise ValueError('recovery state fields are incomplete or unknown')
+        validate_release_identity(
+            value.get('unresolvedRelease'), 'unresolved release'
+        )
+        validate_release_record(value.get('recoveryTarget'), 'recovery target')
+        if release_identity(value['unresolvedRelease']) == release_identity(
+            value['recoveryTarget']
+        ):
+            raise ValueError('recovery identities must be distinct')
+        rollback_previous = value.get('rollbackPrevious')
+        if rollback_previous is not None:
+            validate_release_record(rollback_previous, 'rollback previous release')
+            if release_identity(rollback_previous) == release_identity(
+                value['recoveryTarget']
+            ):
+                raise ValueError(
+                    'rollback previous release must differ from recovery target'
+                )
+        if state_key(value) not in allowed_recovery_states:
+            raise ValueError(
+                'recovery phase, outcome, and exitCode are inconsistent'
+            )
+        if not timestamp_pattern.fullmatch(value.get('updatedAt', '')):
+            raise ValueError('updatedAt is invalid')
+        return 'recovery'
+
+    raise ValueError('schemaVersion is invalid')
 
 
 def release_identity(value):
     stored_format = value['releaseFormat']
     fields = ('releaseFormat', 'sourceSha', *image_fields_by_format[stored_format])
     return tuple(value[field] for field in fields)
+
+
+def load_rollback_record():
+    if rollback_manifest_path == '-':
+        raise ValueError('rollback release manifest is missing')
+    rollback = load_object(rollback_manifest_path, 'rollback release manifest')
+    stored_format = rollback.get('releaseFormat')
+    if stored_format not in image_fields_by_format:
+        raise ValueError('rollback release format is invalid')
+
+    image_fields = image_fields_by_format[stored_format]
+    expected_fields = {
+        'releaseFormat',
+        'sourceSha',
+        *image_fields,
+        'deployedAt',
+    }
+    if stored_format == 'legacy-two-image-v1':
+        expected_fields.add('transition')
+        if rollback.get('transition') != 'first-four-image-cutover':
+            raise ValueError('legacy rollback transition is invalid')
+    if set(rollback) != expected_fields:
+        raise ValueError('rollback release fields are incomplete or unknown')
+    rollback_identity = identity_object(rollback)
+    validate_release_identity(rollback_identity, 'rollback release')
+    if not timestamp_pattern.fullmatch(rollback.get('deployedAt', '')):
+        raise ValueError('rollback deployedAt is invalid')
+    return rollback
+
+
+def load_rollback_identity():
+    return release_identity(load_rollback_record())
+
+
+def load_object(object_path, description):
+    try:
+        with open(object_path, encoding='utf-8') as handle:
+            value = json.load(handle, object_pairs_hook=unique_object)
+    except (OSError, ValueError) as error:
+        raise ValueError(f'cannot read {description}: {error}') from error
+    if not isinstance(value, dict):
+        raise ValueError(f'{description} must be a JSON object')
+    return value
 
 
 if release_format not in image_fields_by_format:
@@ -229,31 +466,44 @@ target = {
         for field in image_fields_by_format[release_format]
     },
 }
-target_image_values = [
-    target[field] for field in image_fields_by_format[release_format]
-]
-if not all(image_pattern.fullmatch(image) for image in target_image_values):
-    raise SystemExit('Deployment state target image identity is invalid.')
-if len(set(target_image_values)) != len(target_image_values):
-    raise SystemExit('Deployment state target images must be distinct.')
+try:
+    validate_release_identity(target, 'deployment target')
+except ValueError as error:
+    raise SystemExit(f'Deployment state target is invalid: {error}.') from error
 
 if action == 'guard':
-    if invocation_mode not in {'normal', 'resume'}:
+    if invocation_mode not in {'normal', 'resume', 'rollback'}:
         raise SystemExit('Deployment state invocation mode is invalid.')
+    if invocation_mode == 'rollback':
+        try:
+            rollback_identity = load_rollback_identity()
+        except ValueError as error:
+            raise SystemExit(f'Rollback admission failed: {error}.') from error
+        if rollback_identity != release_identity(target):
+            raise SystemExit(
+                'Rollback target does not exactly match the admitted release manifest.'
+            )
     if not os.path.exists(path):
         if invocation_mode == 'resume':
             raise SystemExit(
                 '--resume-unverified requires an existing running_unverified '
                 'deployment state.'
             )
+        if invocation_mode == 'rollback':
+            print('reconcile')
         raise SystemExit(0)
     try:
         existing = load_state()
-        validate_state(existing)
+        existing_kind = validate_state(existing)
     except ValueError as error:
         raise SystemExit(f'Deployment state is invalid: {error}.') from error
 
     if invocation_mode == 'normal':
+        if existing_kind == 'recovery':
+            raise SystemExit(
+                'Deployment recovery is unresolved; retry rollback with the '
+                'exact recorded recovery target.'
+            )
         if existing['phase'] == 'running_unverified':
             raise SystemExit(
                 'Deployment state is running_unverified; use '
@@ -262,6 +512,25 @@ if action == 'guard':
             )
         raise SystemExit(0)
 
+    if invocation_mode == 'rollback':
+        if existing_kind == 'recovery':
+            if release_identity(existing['recoveryTarget']) != release_identity(
+                target
+            ):
+                raise SystemExit(
+                    'Rollback target does not exactly match the recorded '
+                    'recovery target.'
+                )
+            print('recover')
+            raise SystemExit(0)
+        print('reconcile')
+        raise SystemExit(0)
+
+    if existing_kind == 'recovery':
+        raise SystemExit(
+            '--resume-unverified cannot erase an unresolved rollback recovery; '
+            'retry rollback with the exact recorded recovery target.'
+        )
     if existing['phase'] != 'running_unverified':
         raise SystemExit(
             '--resume-unverified requires an existing running_unverified '
@@ -274,7 +543,7 @@ if action == 'guard':
         )
     raise SystemExit(0)
 
-if action != 'write':
+if action not in {'write', 'start_recovery', 'write_recovery'}:
     raise SystemExit('Deployment state operation is invalid.')
 
 if raw_exit_code == '-':
@@ -288,14 +557,86 @@ else:
 updated_at = datetime.datetime.now(datetime.timezone.utc).strftime(
     '%Y-%m-%dT%H:%M:%SZ'
 )
-state = {
-    'schemaVersion': 1,
-    **target,
-    'phase': phase,
-    'outcome': outcome,
-    'exitCode': parsed_exit_code,
-    'updatedAt': updated_at,
-}
+if action == 'write':
+    state = {
+        'schemaVersion': 1,
+        **target,
+        'phase': phase,
+        'outcome': outcome,
+        'exitCode': parsed_exit_code,
+        'updatedAt': updated_at,
+    }
+else:
+    existing = None
+    existing_kind = None
+    if os.path.exists(path):
+        try:
+            existing = load_state()
+            existing_kind = validate_state(existing)
+        except ValueError as error:
+            raise SystemExit(f'Deployment state is invalid: {error}.') from error
+
+    if action == 'start_recovery':
+        if existing_kind == 'recovery':
+            unresolved_release = existing['unresolvedRelease']
+            recovery_target = existing['recoveryTarget']
+            rollback_previous = existing['rollbackPrevious']
+            if release_identity(existing['recoveryTarget']) != release_identity(
+                target
+            ):
+                raise SystemExit(
+                    'Recovery target does not exactly match the recorded target.'
+                )
+        else:
+            try:
+                recovery_target = load_rollback_record()
+            except ValueError as error:
+                raise SystemExit(f'Rollback admission failed: {error}.') from error
+            if release_identity(recovery_target) != release_identity(target):
+                raise SystemExit(
+                    'Recovery target does not match the admitted rollback manifest.'
+                )
+            try:
+                current_release = load_current_release_record()
+            except ValueError as error:
+                raise SystemExit(
+                    f'Current release metadata is invalid: {error}.'
+                ) from error
+            current_identity = identity_object(current_release)
+            if (
+                existing_kind == 'standard'
+                and existing['phase'] == 'running_unverified'
+                and release_identity(existing) != release_identity(target)
+            ):
+                unresolved_release = identity_object(existing)
+            else:
+                unresolved_release = current_identity
+            rollback_previous = (
+                current_release
+                if release_identity(current_identity) != release_identity(target)
+                else None
+            )
+    else:
+        if existing_kind != 'recovery':
+            raise SystemExit('No rollback recovery is currently in progress.')
+        if release_identity(existing['recoveryTarget']) != release_identity(target):
+            raise SystemExit(
+                'Recovery target does not exactly match the recorded target.'
+            )
+        unresolved_release = existing['unresolvedRelease']
+        recovery_target = existing['recoveryTarget']
+        rollback_previous = existing['rollbackPrevious']
+
+    state = {
+        'schemaVersion': 2,
+        'phase': phase,
+        'outcome': outcome,
+        'exitCode': parsed_exit_code,
+        'updatedAt': updated_at,
+        'unresolvedRelease': unresolved_release,
+        'recoveryTarget': recovery_target,
+        'rollbackPrevious': rollback_previous,
+    }
 try:
     validate_state(state)
 except ValueError as error:
@@ -333,6 +674,20 @@ PY
 guard_deployment_state() {
   if [[ "$resume_unverified" == true ]]; then
     deployment_state_operation "guard" "resume" "-" "-" "-"
+  elif [[ "$rollback_release" == true ]]; then
+    local rollback_admission
+    rollback_admission="$(
+      deployment_state_operation "guard" "rollback" "-" "-" "-"
+    )"
+    if [[
+      "$rollback_admission" == "reconcile" ||
+      "$rollback_admission" == "recover"
+    ]]; then
+      unverified_reconciliation_pending=true
+    elif [[ "$rollback_admission" != "normal" ]]; then
+      echo "Deployment rollback admission returned an invalid result." >&2
+      return 1
+    fi
   else
     deployment_state_operation "guard" "normal" "-" "-" "-"
   fi
@@ -342,13 +697,36 @@ write_deployment_state() {
   deployment_state_operation "write" "-" "$1" "$2" "$3"
 }
 
-preflight_health_hostname() {
-  local application="$1"
-  local url="$2"
-  local hostname
+start_recovery_state() {
+  deployment_state_operation "start_recovery" "-" \
+    "recovering_unverified" "in_progress" "-"
+}
 
-  if ! hostname="$(
-    python3 - "$url" <<'PY'
+write_failed_recovery_state() {
+  deployment_state_operation "write_recovery" "-" \
+    "recovering_unverified" "failed" "$1"
+}
+
+restore_invocation_checkout() {
+  if [[
+    "$preflight_only" == true ||
+    "$deployment_completed" == true ||
+    "$target_checkout_started" != true ||
+    -z "$invocation_checkout_sha"
+  ]]; then
+    return
+  fi
+
+  if ! (
+    cd "$REPO_DIR"
+    git checkout --detach "$invocation_checkout_sha"
+  ); then
+    echo "Failed to restore invocation checkout $invocation_checkout_sha." >&2
+  fi
+}
+
+health_hostname() {
+  python3 - "$1" <<'PY'
 import sys
 import urllib.parse
 
@@ -368,7 +746,14 @@ if port not in (None, 443):
 
 print(parsed.hostname)
 PY
-  )"; then
+}
+
+preflight_health_hostname() {
+  local application="$1"
+  local url="$2"
+  local hostname
+
+  if ! hostname="$(health_hostname "$url")"; then
     echo "$application health URL preflight failed: $url" >&2
     return 1
   fi
@@ -417,7 +802,7 @@ preflight_health_hostnames() {
   fi
 }
 
-durably_install_current_release() {
+durably_install_release_pair() {
   local release_tmp="$1"
   local release_path="$2"
   local metadata_tmp="$3"
@@ -452,6 +837,201 @@ for directory in {
 PY
 }
 
+install_ops_bundle() {
+  local source_sha="$1"
+  local link_name="$2"
+
+  python3 - \
+    "$REPO_DIR/infra/aws/lightsail" \
+    "$OPS_ROOT" \
+    "$source_sha" \
+    "$link_name" <<'PY'
+import hashlib
+import os
+import shutil
+import stat
+import sys
+import tempfile
+
+source_directory, ops_root, source_sha, link_name = sys.argv[1:]
+script_names = (
+    'deploy.sh',
+    'rollback.sh',
+    'backup-postgres.sh',
+    'check-host-capacity.sh',
+    'configure-database-roles.sh',
+    'restore-postgres-drill.sh',
+    'restore-postgres.sh',
+    'run-monitored-operation.sh',
+)
+# restore-postgres-proof.sh is deliberately excluded. It is a disposable,
+# repository-layout proof harness, not a production host-control entrypoint.
+if link_name not in {'candidate', 'current'}:
+    raise SystemExit('Operations bundle link name is invalid.')
+
+
+def fsync_directory(path):
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def digest_bytes(value):
+    return hashlib.sha256(value).hexdigest()
+
+
+def digest(path):
+    value = hashlib.sha256()
+    with open(path, 'rb') as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+            value.update(chunk)
+    return value.hexdigest()
+
+
+def wrapper(name):
+    deploy_binding = (
+        'export PRESSLY_DEPLOY_SCRIPT="$bundle_dir/deploy.sh"\n'
+        if name == 'rollback.sh'
+        else ''
+    )
+    return f'''#!/usr/bin/env bash
+set -euo pipefail
+
+bundle_dir="$(CDPATH= cd -- "$(dirname -- "${{BASH_SOURCE[0]}}")" && pwd -P)"
+if ! (cd "$bundle_dir" && sha256sum --check --strict --status SHA256SUMS); then
+  echo "Operations bundle checksum verification failed: $bundle_dir" >&2
+  exit 70
+fi
+{deploy_binding}exec "$bundle_dir/payload/{name}" "$@"
+'''.encode()
+
+
+sources = {}
+for name in script_names:
+    path = os.path.join(source_directory, name)
+    if not os.path.exists(path):
+        raise SystemExit(f'Operations bundle source is missing: {path}')
+    mode = os.lstat(path).st_mode
+    if not stat.S_ISREG(mode):
+        raise SystemExit(f'Operations bundle source must be a regular file: {path}')
+    sources[name] = path
+
+wrappers = {name: wrapper(name) for name in script_names}
+source_marker = f'{source_sha}\n'.encode()
+manifest = (
+    ''.join(
+        f'{digest_bytes(wrappers[name])}  {name}\n'
+        f'{digest(source_path)}  payload/{name}\n'
+        for name, source_path in sources.items()
+    )
+    + f'{digest_bytes(source_marker)}  source-sha\n'
+).encode()
+
+os.makedirs(ops_root, mode=0o700, exist_ok=True)
+releases_directory = os.path.join(ops_root, 'releases')
+os.makedirs(releases_directory, mode=0o700, exist_ok=True)
+release_directory = os.path.join(releases_directory, source_sha)
+temporary_directory = None
+
+try:
+    if os.path.lexists(release_directory):
+        if not os.path.isdir(release_directory) or os.path.islink(release_directory):
+            raise ValueError('existing operations release is not a directory')
+        marker_path = os.path.join(release_directory, 'source-sha')
+        try:
+            with open(marker_path, encoding='utf-8') as handle:
+                installed_sha = handle.read().strip()
+        except OSError as error:
+            raise ValueError('existing operations release marker is unreadable') from error
+        if installed_sha != source_sha:
+            raise ValueError('existing operations release marker does not match')
+        for name, source_path in sources.items():
+            installed_path = os.path.join(release_directory, 'payload', name)
+            wrapper_path = os.path.join(release_directory, name)
+            if (
+                not os.path.exists(installed_path)
+                or not stat.S_ISREG(os.lstat(installed_path).st_mode)
+                or digest(installed_path) != digest(source_path)
+                or not os.path.exists(wrapper_path)
+                or not stat.S_ISREG(os.lstat(wrapper_path).st_mode)
+                or digest(wrapper_path) != digest_bytes(wrappers[name])
+            ):
+                raise ValueError(f'existing operations release differs at {name}')
+        manifest_path = os.path.join(release_directory, 'SHA256SUMS')
+        try:
+            with open(manifest_path, 'rb') as handle:
+                installed_manifest = handle.read()
+        except OSError as error:
+            raise ValueError('existing operations checksum manifest is unreadable') from error
+        if installed_manifest != manifest:
+            raise ValueError('existing operations checksum manifest differs')
+    else:
+        temporary_directory = tempfile.mkdtemp(
+            dir=releases_directory,
+            prefix=f'.{source_sha}.',
+        )
+        payload_directory = os.path.join(temporary_directory, 'payload')
+        os.mkdir(payload_directory, mode=0o700)
+        for name, source_path in sources.items():
+            installed_path = os.path.join(payload_directory, name)
+            with open(source_path, 'rb') as source_handle:
+                with open(installed_path, 'xb') as installed_handle:
+                    shutil.copyfileobj(source_handle, installed_handle)
+                    os.fchmod(installed_handle.fileno(), 0o700)
+                    installed_handle.flush()
+                    os.fsync(installed_handle.fileno())
+
+            wrapper_path = os.path.join(temporary_directory, name)
+            with open(wrapper_path, 'xb') as wrapper_handle:
+                wrapper_handle.write(wrappers[name])
+                os.fchmod(wrapper_handle.fileno(), 0o700)
+                wrapper_handle.flush()
+                os.fsync(wrapper_handle.fileno())
+
+        manifest_path = os.path.join(temporary_directory, 'SHA256SUMS')
+        with open(manifest_path, 'xb') as manifest_handle:
+            manifest_handle.write(manifest)
+            os.fchmod(manifest_handle.fileno(), 0o600)
+            manifest_handle.flush()
+            os.fsync(manifest_handle.fileno())
+
+        marker_path = os.path.join(temporary_directory, 'source-sha')
+        with open(marker_path, 'xb') as marker:
+            marker.write(source_marker)
+            os.fchmod(marker.fileno(), 0o600)
+            marker.flush()
+            os.fsync(marker.fileno())
+        fsync_directory(payload_directory)
+        fsync_directory(temporary_directory)
+        os.replace(temporary_directory, release_directory)
+        temporary_directory = None
+        fsync_directory(releases_directory)
+
+    descriptor, temporary_link = tempfile.mkstemp(
+        dir=ops_root,
+        prefix='.current.',
+    )
+    os.close(descriptor)
+    os.unlink(temporary_link)
+    try:
+        os.symlink(os.path.join('releases', source_sha), temporary_link)
+        os.replace(temporary_link, os.path.join(ops_root, link_name))
+    finally:
+        try:
+            os.unlink(temporary_link)
+        except FileNotFoundError:
+            pass
+    fsync_directory(ops_root)
+except (OSError, ValueError) as error:
+    raise SystemExit(f'Operations bundle installation failed: {error}.') from error
+finally:
+    if temporary_directory is not None:
+        shutil.rmtree(temporary_directory, ignore_errors=True)
+PY
+}
+
 require_positive_integer() {
   local name="$1"
   local value="$2"
@@ -476,15 +1056,26 @@ wait_for_health() {
   local application="$1"
   local url="$2"
   local attempt
+  local hostname
+  local http_status
+
+  hostname="$(health_hostname "$url")" || {
+    echo "$application health URL is invalid: $url" >&2
+    return 1
+  }
 
   for ((attempt = 1; attempt <= HEALTH_MAX_ATTEMPTS; attempt += 1)); do
-    if curl \
-      --fail \
-      --silent \
-      --show-error \
-      --max-time "$HEALTH_REQUEST_TIMEOUT_SECONDS" \
-      --output /dev/null \
-      "$url"; then
+    http_status=""
+    if http_status="$(
+      curl \
+        --silent \
+        --show-error \
+        --max-time "$HEALTH_REQUEST_TIMEOUT_SECONDS" \
+        --output /dev/null \
+        --write-out '%{http_code}' \
+        --resolve "$hostname:443:$EXPECTED_PUBLIC_IP" \
+        "$url"
+    )" && [[ "$http_status" =~ ^2[0-9]{2}$ ]]; then
       echo "$application health check passed after $attempt attempt(s)."
       return 0
     fi
@@ -505,6 +1096,12 @@ on_exit() {
   if [[ -n "$release_snapshot_tmp" ]]; then
     rm -f "$release_snapshot_tmp"
   fi
+  if [[ -n "$previous_release_pointer_tmp" ]]; then
+    rm -f "$previous_release_pointer_tmp"
+  fi
+  if [[ -n "$DEPLOY_SELF_STAGED_FILE" ]]; then
+    rm -f "$DEPLOY_SELF_STAGED_FILE"
+  fi
 
   if [[
     "$preflight_only" != true &&
@@ -512,7 +1109,11 @@ on_exit() {
     "$exit_code" -ne 0
   ]]; then
     if [[ "$deployment_state_tracking_started" == true ]]; then
-      if [[ "$target_runtime_mutation_started" == true ]]; then
+      if [[ "$recovery_in_progress" == true ]]; then
+        if ! write_failed_recovery_state "$exit_code"; then
+          echo "Failed to persist the rollback recovery outcome." >&2
+        fi
+      elif [[ "$target_runtime_mutation_started" == true ]]; then
         if ! write_deployment_state "running_unverified" "failed" "$exit_code"; then
           echo "Failed to persist the running-but-unverified deployment outcome." >&2
         fi
@@ -522,6 +1123,8 @@ on_exit() {
     fi
     emit_deployment_event "failed" "$exit_code" >&2
   fi
+
+  restore_invocation_checkout
 }
 
 trap on_exit EXIT
@@ -622,15 +1225,22 @@ case "$TARGET_RELEASE_FORMAT" in
     ;;
 esac
 
-for required_command in git docker curl getent python3 stat mktemp sha256sum; do
+for required_command in git docker curl getent python3 stat mktemp sha256sum flock; do
   if ! command -v "$required_command" >/dev/null; then
     echo "Missing deployment prerequisite: $required_command" >&2
     exit 1
   fi
 done
 
-if [[ -n "$EXPECTED_PUBLIC_IP" ]]; then
-  python3 - "$EXPECTED_PUBLIC_IP" <<'PY'
+acquire_deployment_lock
+refuse_active_restore
+stage_deployment_script "$@"
+
+if [[ -z "$EXPECTED_PUBLIC_IP" ]]; then
+  echo "PRESSLY_EXPECTED_PUBLIC_IP is required for deployment and rollback." >&2
+  exit 1
+fi
+python3 - "$EXPECTED_PUBLIC_IP" <<'PY'
 import ipaddress
 import sys
 
@@ -641,11 +1251,28 @@ except ValueError as error:
 if address.version != 4:
     raise SystemExit('PRESSLY_EXPECTED_PUBLIC_IP must be an IPv4 address.')
 PY
-fi
 
 if ! docker compose version >/dev/null; then
   echo "Docker Compose v2 is required." >&2
   exit 1
+fi
+
+if [[ "$preflight_only" != true ]]; then
+  cd "$REPO_DIR"
+  invocation_checkout_sha="$(git rev-parse --verify HEAD)"
+  if [[ ! "$invocation_checkout_sha" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "Invocation checkout is not a full commit SHA." >&2
+    exit 1
+  fi
+  if [[ -n "$(
+    git status \
+      --porcelain=v1 \
+      --untracked-files=all \
+      --ignored=matching
+  )" ]]; then
+    echo "Deployment repository must be clean before checkout." >&2
+    exit 1
+  fi
 fi
 
 if [[ "$preflight_only" != true ]]; then
@@ -654,6 +1281,13 @@ if [[ "$preflight_only" != true ]]; then
     # The exact target was already admitted to runtime mutation by the prior
     # attempt. Any resume failure must retain that truth, even before Compose.
     target_runtime_mutation_started=true
+    deployment_state_tracking_started=true
+  elif [[ "$unverified_reconciliation_pending" == true ]]; then
+    # Journal both immutable identities before rollback preflight. No normal
+    # deployment or same-release resume can erase this ambiguity; only the
+    # exact recovery target may retry it.
+    start_recovery_state
+    recovery_in_progress=true
     deployment_state_tracking_started=true
   else
     write_deployment_state "attempted" "in_progress" "-"
@@ -698,9 +1332,10 @@ fi
 # verified release or allowing checkout, migrations, or Compose mutation.
 preflight_health_hostnames
 
-# previous-release.json is the authoritative rollback target. Normalize and
-# atomically replace it before checkout, migrations, or Compose can mutate the
-# running deployment.
+# Capture the verified current release before checkout. A normal deployment
+# durably installs it as the rollback target before mutation. A rollback keeps
+# its admitted target in previous-release.json until the rollback passes every
+# health check, retaining the captured current release only in private staging.
 snapshot_output="-"
 if [[ "$preflight_only" != true ]]; then
   release_snapshot_tmp="$(mktemp "${PREVIOUS_RELEASE_METADATA_FILE}.tmp.XXXXXX")"
@@ -717,6 +1352,8 @@ python3 - \
   "$PRESSLY_WORKER_IMAGE" \
   "$PRESSLY_PROCESSOR_IMAGE" \
   "$PRESSLY_CONTROL_IMAGE" \
+  "$DEPLOYMENT_STATE_FILE" \
+  "$rollback_release" \
   "${LEGACY_ROLLBACK_MANIFEST_FILE:--}" <<'PY'
 import json
 import os
@@ -734,12 +1371,23 @@ import sys
     target_worker,
     target_processor,
     target_control,
+    deployment_state_path,
+    rollback_mode,
     legacy_manifest_path,
 ) = sys.argv[1:]
 
 sha_pattern = re.compile(r'[0-9a-f]{40}')
-image_pattern = re.compile(r'ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}')
+image_pattern = re.compile(
+    r'(ghcr\.io/[a-z0-9._/-]+)@sha256:([0-9a-f]{64})'
+)
 timestamp_pattern = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z')
+image_application_by_field = {
+    'apiImage': 'api',
+    'webImage': 'web',
+    'workerImage': 'worker',
+    'processorImage': 'processor',
+    'controlImage': 'control',
+}
 four_fields = {
     'releaseFormat',
     'sourceSha',
@@ -803,11 +1451,25 @@ def validate_common(value):
 
 
 def validate_images(value, fields):
-    images = [value.get(field, '') for field in fields]
-    if not all(image_pattern.fullmatch(image) for image in images):
-        raise ValueError('every release image must be an immutable GHCR digest')
-    if len(set(images)) != len(images):
-        raise ValueError('release image references must be distinct')
+    repositories = set()
+    digests = set()
+    for field in fields:
+        match = image_pattern.fullmatch(value.get(field, ''))
+        if match is None:
+            raise ValueError('every release image must be an immutable GHCR digest')
+        repository, digest = match.groups()
+        application = image_application_by_field[field]
+        repository_name = repository.rsplit('/', 1)[-1]
+        if repository_name not in {application, f'pressly-{application}'}:
+            raise ValueError(
+                f'{field} repository does not match application {application}'
+            )
+        repositories.add(repository)
+        digests.add(digest)
+    if len(repositories) != len(fields):
+        raise ValueError('release image repositories must be distinct')
+    if len(digests) != len(fields):
+        raise ValueError('release image digests must be distinct')
 
 
 def normalize_current(value):
@@ -963,9 +1625,43 @@ try:
             and current_identity(current) != target_identity()
         ):
             raise ValueError('the source SHA is already associated with a different release')
-        if current['sourceSha'] != target_sha and snapshot_path != '-':
+        snapshot_release = (
+            current if current_identity(current) != target_identity() else None
+        )
+        if rollback_mode == 'true':
+            recovery_state = load_object(deployment_state_path)
+            expected_recovery_fields = {
+                'schemaVersion',
+                'phase',
+                'outcome',
+                'exitCode',
+                'updatedAt',
+                'unresolvedRelease',
+                'recoveryTarget',
+                'rollbackPrevious',
+            }
+            if (
+                set(recovery_state) != expected_recovery_fields
+                or recovery_state.get('schemaVersion') != 2
+                or recovery_state.get('phase') != 'recovering_unverified'
+                or current_identity(recovery_state['recoveryTarget'])
+                != target_identity()
+            ):
+                raise ValueError('rollback recovery journal is invalid')
+            rollback_previous = recovery_state['rollbackPrevious']
+            snapshot_release = (
+                normalize_current(rollback_previous)
+                if rollback_previous is not None
+                else None
+            )
+            if (
+                snapshot_release is not None
+                and current_identity(snapshot_release) == target_identity()
+            ):
+                raise ValueError('rollback recovery previous release is the target')
+        if snapshot_release is not None and snapshot_path != '-':
             with open(snapshot_path, 'w', encoding='utf-8') as handle:
-                json.dump(current, handle, separators=(',', ':'))
+                json.dump(snapshot_release, handle, separators=(',', ':'))
                 handle.write('\n')
 except ValueError as error:
     raise SystemExit(f'Release metadata preflight failed: {error}.')
@@ -994,12 +1690,17 @@ if [[ -s "$release_snapshot_tmp" ]]; then
       'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sourceSha"])' \
       "$release_snapshot_tmp"
   )"
-  mv "$release_snapshot_tmp" "$PREVIOUS_RELEASE_METADATA_FILE"
-  release_snapshot_tmp=""
-
-  previous_release_tmp="$(mktemp "${PREVIOUS_RELEASE_FILE}.tmp.XXXXXX")"
-  printf '%s\n' "$snapshot_sha" > "$previous_release_tmp"
-  mv "$previous_release_tmp" "$PREVIOUS_RELEASE_FILE"
+  previous_release_pointer_tmp="$(mktemp "${PREVIOUS_RELEASE_FILE}.tmp.XXXXXX")"
+  printf '%s\n' "$snapshot_sha" > "$previous_release_pointer_tmp"
+  if [[ "$rollback_release" != true ]]; then
+    durably_install_release_pair \
+      "$previous_release_pointer_tmp" \
+      "$PREVIOUS_RELEASE_FILE" \
+      "$release_snapshot_tmp" \
+      "$PREVIOUS_RELEASE_METADATA_FILE"
+    previous_release_pointer_tmp=""
+    release_snapshot_tmp=""
+  fi
 else
   rm -f "$release_snapshot_tmp"
   release_snapshot_tmp=""
@@ -1009,12 +1710,29 @@ cd "$REPO_DIR"
 
 git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
 git cat-file -e "$DEPLOY_SHA^{commit}"
+target_checkout_started=true
 git checkout --detach "$DEPLOY_SHA"
 
 target_sha="$(git rev-parse --verify HEAD)"
 if [[ "$target_sha" != "${DEPLOY_SHA,,}" ]]; then
   echo "Resolved commit $target_sha does not match requested commit $DEPLOY_SHA." >&2
   exit 1
+fi
+if [[ -n "$(
+  git status \
+    --porcelain=v1 \
+    --untracked-files=all \
+    --ignored=matching
+)" ]]; then
+  echo "Target deployment checkout must be clean." >&2
+  exit 1
+fi
+
+# Make this exact, checksummed control-plane revision discoverable before the
+# first database or runtime mutation. It is only a recovery candidate here;
+# the stable current pointer advances after the normal release verifies.
+if [[ "$rollback_release" != true ]]; then
+  install_ops_bundle "$target_sha" "candidate"
 fi
 
 docker compose \
@@ -1058,15 +1776,21 @@ if [[ "$TARGET_RELEASE_FORMAT" == "five-image-v1" ]]; then
   verify_image_revision "Control" "$PRESSLY_CONTROL_IMAGE"
 fi
 
+# Migration is the first potentially durable target mutation. Persist the
+# conservative state before invoking it so any partial or unknown migration
+# outcome blocks unrelated releases and remains eligible for exact recovery.
+if [[ "$recovery_in_progress" != true ]]; then
+  write_deployment_state "running_unverified" "in_progress" "-"
+fi
+target_runtime_mutation_started=true
+deployment_state_tracking_started=true
+
 docker compose \
   --profile tools \
   --env-file "$COMPOSE_ENV_FILE" \
   -f "$COMPOSE_FILE" \
   run --rm --workdir /repo/packages/db migrate \
   node node_modules/drizzle-kit/bin.cjs migrate --config drizzle.config.ts
-
-write_deployment_state "running_unverified" "in_progress" "-"
-target_runtime_mutation_started=true
 
 docker compose \
   --env-file "$COMPOSE_ENV_FILE" \
@@ -1077,6 +1801,11 @@ docker compose \
   --env-file "$COMPOSE_ENV_FILE" \
   -f "$COMPOSE_FILE" \
   ps
+
+# DNS may change during checkout, migration, or container replacement. Recheck
+# immediately before the pinned health probes so another host cannot satisfy
+# the public routing prerequisite.
+preflight_health_hostnames
 
 wait_for_health "API" "$API_HEALTH_URL"
 wait_for_health "Web" "$WEB_HEALTH_URL"
@@ -1089,6 +1818,11 @@ fi
 if [[ "$TARGET_RELEASE_FORMAT" == "five-image-v1" ]]; then
   wait_for_health "Control" "$CONTROL_HEALTH_URL"
 fi
+
+# The probes above deliberately pin TLS to this host. Confirm live DNS still
+# routes every public surface here before release metadata or verified state
+# can become authoritative.
+preflight_health_hostnames
 
 deployed_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 current_release_tmp="$(mktemp "${CURRENT_RELEASE_FILE}.tmp.XXXXXX")"
@@ -1118,11 +1852,32 @@ else
     "$PRESSLY_WEB_IMAGE" \
     "$deployed_at" > "$current_metadata_tmp"
 fi
-durably_install_current_release \
+durably_install_release_pair \
   "$current_release_tmp" \
   "$CURRENT_RELEASE_FILE" \
   "$current_metadata_tmp" \
   "$CURRENT_RELEASE_METADATA_FILE"
+
+if [[
+  "$rollback_release" == true &&
+  -n "$release_snapshot_tmp" &&
+  -s "$release_snapshot_tmp"
+]]; then
+  durably_install_release_pair \
+    "$previous_release_pointer_tmp" \
+    "$PREVIOUS_RELEASE_FILE" \
+    "$release_snapshot_tmp" \
+    "$PREVIOUS_RELEASE_METADATA_FILE"
+  previous_release_pointer_tmp=""
+  release_snapshot_tmp=""
+fi
+
+# The application checkout is intentionally allowed to move backward during a
+# rollback. Keep recovery tooling on a separately installed control plane:
+# successful normal releases advance it, while rollback can never downgrade it.
+if [[ "$rollback_release" != true ]]; then
+  install_ops_bundle "$target_sha" "current"
+fi
 
 write_deployment_state "verified" "succeeded" "0"
 deployment_completed=true

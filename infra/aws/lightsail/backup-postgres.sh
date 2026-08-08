@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 APP_ROOT="${PRESSLY_APP_ROOT:-/opt/pressly}"
 REPO_DIR="${PRESSLY_REPO_DIR:-$APP_ROOT/repo}"
@@ -9,6 +10,8 @@ BACKUP_ENV_FILE="${PRESSLY_BACKUP_ENV_FILE:-$ENV_DIR/backup.env}"
 COMPOSE_FILE="${PRESSLY_COMPOSE_FILE:-$REPO_DIR/infra/aws/lightsail/docker-compose.production.yml}"
 BACKUP_DIR="${PRESSLY_BACKUP_DIR:-$APP_ROOT/backups/postgres}"
 PASSPHRASE_FILE="${PRESSLY_BACKUP_PASSPHRASE_FILE:-$APP_ROOT/backup-passphrase.txt}"
+LOCK_DIR="${PRESSLY_OPERATION_LOCK_DIR:-$APP_ROOT/run}"
+RESTORE_JOURNAL_FILE="${PRESSLY_RESTORE_JOURNAL_FILE:-$APP_ROOT/postgres-restore.json}"
 RETENTION_DAYS="${PRESSLY_BACKUP_RETENTION_DAYS:-14}"
 S3_URI="${PRESSLY_BACKUP_S3_URI:-}"
 POSTGRES_IMAGE='postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a'
@@ -38,12 +41,24 @@ if [[ -z "$S3_URI" || ! "$S3_URI" =~ ^s3://[^/]+/.+ ]]; then
   exit 1
 fi
 
-for command in aws docker gpg sha256sum; do
+for command in aws docker flock gpg sha256sum; do
   command -v "$command" >/dev/null || {
     echo "$command is required." >&2
     exit 1
   }
 done
+
+mkdir -p "$LOCK_DIR"
+chmod 700 "$LOCK_DIR"
+exec 9> "$LOCK_DIR/postgres-backup.lock"
+if ! flock --nonblock 9; then
+  echo "Another Postgres backup or restore is already running." >&2
+  exit 75
+fi
+if [[ -e "$RESTORE_JOURNAL_FILE" || -L "$RESTORE_JOURNAL_FILE" ]]; then
+  echo "Active Postgres restore journal blocks backup: $RESTORE_JOURNAL_FILE" >&2
+  exit 75
+fi
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
