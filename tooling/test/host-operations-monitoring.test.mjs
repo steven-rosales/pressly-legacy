@@ -109,6 +109,7 @@ const monitoredFixture = ({
   fixtures.push(directory);
   const sentryArgs = join(directory, 'sentry-args');
   const operationMarker = join(directory, 'operation-marker');
+  const secondaryMarker = join(directory, 'secondary-marker');
   const workerEnv = join(directory, 'worker.env');
   const sentry = join(directory, 'sentry');
   const backup = join(directory, 'backup');
@@ -127,7 +128,7 @@ const monitoredFixture = ({
   );
   executable(
     backup,
-    `#!/bin/sh\nset -eu\nprintf "backup:%s\\n" "$PRESSLY_BACKUP_S3_URI" > "$OPERATION_MARKER"\nexit ${backupExit}\n`,
+    `#!/bin/sh\nset -eu\nprintf "backup:%s\\n" "$PRESSLY_BACKUP_S3_URI" > "$OPERATION_MARKER"\nif [ -n "\${PRESSLY_BACKUP_SECONDARY_S3_URI:-}" ]; then\n  printf "%s|%s|%s\\n" "$PRESSLY_BACKUP_SECONDARY_S3_URI" "$PRESSLY_BACKUP_SECONDARY_AWS_PROFILE" "$PRESSLY_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER" > "$SECONDARY_MARKER"\nfi\nexit ${backupExit}\n`,
   );
   executable(
     capacity,
@@ -137,10 +138,12 @@ const monitoredFixture = ({
   return {
     directory,
     operationMarker,
+    secondaryMarker,
     sentryArgs,
     env: {
       ...process.env,
       OPERATION_MARKER: operationMarker,
+      SECONDARY_MARKER: secondaryMarker,
       PRESSLY_BACKUP_SCRIPT: backup,
       PRESSLY_HOST_CAPACITY_SCRIPT: capacity,
       PRESSLY_SENTRY_BIN: sentry,
@@ -165,9 +168,14 @@ const backupFixture = () => {
   const composeFile = join(directory, 'compose.yml');
   const backupStarts = join(directory, 'backup-starts');
   const backupRelease = join(directory, 'backup-release');
-  const remoteBackup = join(directory, 'remote-backup');
+  const remoteBackupDirectory = join(directory, 'remote-backups');
 
-  for (const path of [binDirectory, envDirectory, lockDirectory]) {
+  for (const path of [
+    binDirectory,
+    envDirectory,
+    lockDirectory,
+    remoteBackupDirectory,
+  ]) {
     mkdirSync(path);
     chmodSync(path, 0o700);
   }
@@ -184,7 +192,7 @@ const backupFixture = () => {
   executable(join(binDirectory, 'gpg'), '#!/bin/sh\nexec /bin/cat\n');
   executable(
     join(binDirectory, 'aws'),
-    '#!/bin/sh\nset -eu\n[ "$1" = "s3" ] && [ "$2" = "cp" ]\nif [ "$4" = "-" ]; then exec /bin/cat "$REMOTE_BACKUP"; fi\ncase "$3" in\n  *.dump.gpg) /bin/cp "$3" "$REMOTE_BACKUP" ;;\nesac\n',
+    '#!/bin/sh\nset -eu\n[ "$1" = "s3" ] && [ "$2" = "cp" ]\nremote_uri="$4"\nif [ "$remote_uri" = "-" ]; then remote_uri="$3"; fi\nremote_key="$(printf "%s" "$remote_uri" | sha256sum | cut -d" " -f1)"\nremote_path="$REMOTE_BACKUP_DIRECTORY/$remote_key"\nif [ "$4" = "-" ]; then exec /bin/cat "$remote_path"; fi\n/bin/cp "$3" "$remote_path"\n',
   );
 
   return {
@@ -206,7 +214,7 @@ const backupFixture = () => {
       PRESSLY_COMPOSE_ENV_FILE: composeEnv,
       PRESSLY_COMPOSE_FILE: composeFile,
       PRESSLY_OPERATION_LOCK_DIR: lockDirectory,
-      REMOTE_BACKUP: remoteBackup,
+      REMOTE_BACKUP_DIRECTORY: remoteBackupDirectory,
     },
   };
 };
@@ -549,6 +557,25 @@ describe('Sentry-monitored host operations', () => {
     expect(args).toContain('sh\n-c\n');
     expect(args).toContain('sentry-check-in\n0\n');
     expect(args).not.toContain('public@sentry.invalid');
+  });
+
+  it('preserves secondary destination selection through the monitored runner', () => {
+    const fixture = monitoredFixture();
+    const result = spawnSync(monitoredOperationScript, ['backup'], {
+      env: {
+        ...fixture.env,
+        PRESSLY_BACKUP_S3_URI: 's3://backup.example/postgres',
+        PRESSLY_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER: '222222222222',
+        PRESSLY_BACKUP_SECONDARY_AWS_PROFILE: 'secondary-writer',
+        PRESSLY_BACKUP_SECONDARY_S3_URI: 's3://immutable.example/postgres',
+      },
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    expect(readFile(fixture.secondaryMarker)).toBe(
+      's3://immutable.example/postgres|secondary-writer|222222222222\n',
+    );
   });
 
   it('preserves a backup failure after reporting it to Sentry', () => {

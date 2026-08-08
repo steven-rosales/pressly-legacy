@@ -314,7 +314,7 @@ PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres \
 Use that monitored runner for both manual and cron execution. The raw
 `backup-postgres.sh` payload is internal to the operations bundle: it owns the
 shared backup/restore lock, uploads the encrypted dump, checksum, and metadata,
-then downloads the encrypted object stream to verify its SHA-256 checksum.
+then downloads all three objects to verify their SHA-256 checksums.
 
 For a Lightsail object-storage bucket, attach the production instance through
 Lightsail resource access instead of retaining a long-lived bucket access key.
@@ -325,9 +325,50 @@ the instance credential automatically; the cron entry does not set
 Resource access gives the attached instance full access to that Lightsail
 bucket. Versioning protects recoverability from ordinary overwrite or deletion,
 but it is not immutable retention against a compromised host that deletes
-specific versions. Before this pilot risk is no longer acceptable, copy backups
-into a separate standard S3 security boundary with Object Lock or a writer that
-cannot delete versions.
+specific versions.
+
+To make every backup operation require an independently administered standard
+S3 secondary, configure the optional second destination:
+
+```bash
+PRESSLY_BACKUP_S3_URI=s3://<primary-bucket>/postgres \
+PRESSLY_BACKUP_SECONDARY_S3_URI=s3://<secondary-bucket>/postgres \
+PRESSLY_BACKUP_SECONDARY_AWS_PROFILE=pressly-secondary-writer \
+PRESSLY_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER=<12-digit-account-id> \
+  /opt/pressly/ops/current/run-monitored-operation.sh backup
+```
+
+The secondary must be a different bucket and its expected AWS account ID is
+required. One Postgres dump is encrypted once, producing one local dump,
+checksum, and metadata triplet. Those exact three files are uploaded to both
+destinations and every remote object is streamed back and checksum-compared.
+The operation attempts each configured destination independently, so a primary
+failure does not prevent the secondary write, but reports success only if every
+configured destination passes.
+The metadata `object` remains the canonical primary path; the secondary path
+uses the same basename under the configured secondary prefix.
+
+`PRESSLY_BACKUP_AWS_PROFILE` and
+`PRESSLY_BACKUP_AWS_EXPECTED_BUCKET_OWNER` provide the same optional profile
+and owner pinning for the primary. If a profile is omitted, AWS CLI uses its
+ordinary credential chain; this preserves the credential-free Lightsail
+resource-access path. Prefer a dedicated named role or credential-process
+profile for the secondary. Configure it for the same OS account that runs cron
+and never place access keys in Git, command lines, or cron. If static
+credentials are unavoidable, keep their AWS credentials file mode `0600`,
+escrow and rotate them through the approved off-host process, and verify cron's
+`HOME` resolves the intended profile.
+
+Provisioning remains an explicit infrastructure gate. The script neither
+creates a bucket nor changes encryption, versioning, Object Lock, retention, or
+IAM. Before enabling the secondary, an independent administrator must enable
+default Object Lock retention and encryption and choose the approved retention
+period. The host writer needs only upload, exact-object readback, and required
+multipart or KMS mechanics for the backup prefix. It must have no
+`DeleteObject`, `DeleteObjectVersion`, retention-change, or Object Lock bypass
+authority. Account pinning also requires read-only `GetBucketLocation` access.
+Read back that policy and retention configuration independently; dual upload
+alone is not proof of immutable custody.
 
 Download Sentry CLI `0.40.0` for Linux x86-64 from the exact release asset
 `https://github.com/getsentry/cli/releases/download/0.40.0/sentry-linux-x64.gz`,
