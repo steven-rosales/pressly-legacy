@@ -292,9 +292,11 @@ jobs:
         env:
           NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
           PROCESSOR_SENTRY_DSN: ${{ secrets.PROCESSOR_SENTRY_DSN }}
+          CONTROL_SENTRY_DSN: ${{ secrets.CONTROL_SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           PROCESSOR_SENTRY_PROJECT: ${{ vars.PROCESSOR_SENTRY_PROJECT }}
+          CONTROL_SENTRY_PROJECT: ${{ vars.CONTROL_SENTRY_PROJECT }}
         run: |
           set -euo pipefail
 
@@ -319,14 +321,17 @@ jobs:
           for name in \
             NEXT_PUBLIC_SENTRY_DSN \
             PROCESSOR_SENTRY_DSN \
+            CONTROL_SENTRY_DSN \
             SENTRY_AUTH_TOKEN \
             SENTRY_ORG \
-            PROCESSOR_SENTRY_PROJECT; do
+            PROCESSOR_SENTRY_PROJECT \
+            CONTROL_SENTRY_PROJECT; do
             require_value "$name"
           done
 
           validate_sentry_dsn NEXT_PUBLIC_SENTRY_DSN
           validate_sentry_dsn PROCESSOR_SENTRY_DSN
+          validate_sentry_dsn CONTROL_SENTRY_DSN
 
           if (( ${#SENTRY_AUTH_TOKEN} < 20 )) || \
             [[ "$SENTRY_AUTH_TOKEN" =~ [[:space:]] ]]; then
@@ -334,7 +339,7 @@ jobs:
             exit 1
           fi
 
-          for name in SENTRY_ORG PROCESSOR_SENTRY_PROJECT; do
+          for name in SENTRY_ORG PROCESSOR_SENTRY_PROJECT CONTROL_SENTRY_PROJECT; do
             if [[ ! "${!name}" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
               echo "Required release telemetry configuration is invalid: $name." >&2
               exit 1
@@ -420,6 +425,14 @@ jobs:
           labels: org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
             VITE_API_URL=/api
+            VITE_SENTRY_DSN=${{ secrets.CONTROL_SENTRY_DSN }}
+            VITE_SENTRY_ENVIRONMENT=production
+            VITE_SENTRY_RELEASE=${{ github.sha }}
+            VITE_SENTRY_TRACES_SAMPLE_RATE=${{ vars.CONTROL_SENTRY_TRACES_SAMPLE_RATE || '0.1' }}
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ vars.CONTROL_SENTRY_PROJECT }}
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
           cache-from: type=gha,scope=pressly-control
           cache-to: type=gha,mode=max,scope=pressly-control
 

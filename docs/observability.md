@@ -8,21 +8,23 @@ state without reproducing it first?
 
 | Surface   | Signals                                                                                                                   | Correlation                                                                                                              |
 | --------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Control   | Sentry browser errors and traces, root error boundary, sanitized navigation/request breadcrumbs and trace URLs            | Management UI errors retain the exact image release SHA; uploaded source maps are removed from the shipped image         |
 | Processor | Sentry browser errors and traces, root error boundary, sanitized navigation/request breadcrumbs                           | UI errors retain the API `X-Request-Id` or `traceId`; source maps and the exact Git SHA are attached at image build time |
 | API       | Sentry logs, errors, HTTP and database traces, typed metrics, live/readiness endpoints                                    | Request ID, trace ID, route, operation, and the exact deployed Git SHA                                                   |
 | Worker    | Sentry logs, errors, named-job and database traces, typed job/queue metrics, file heartbeat, Sentry Cron check-in         | Job, operation, bounded metric attributes, and the exact deployed Git SHA                                                |
 | Host      | Docker healthchecks, infrastructure logs, and a bounded emergency log ring for telemetry initialization or flush failures | Immutable image digests and the same source SHA in release metadata                                                      |
 
-The Processor DSN is public browser configuration. CI may pass it as a build
-argument. The Sentry auth token is different: it is an upload credential and is
-available only as an optional BuildKit secret while source maps are uploaded.
-It is never a build argument, image environment variable, or runtime file.
-Uploaded maps are removed from the image artifact.
+The Processor and Control DSNs are public browser configuration. CI passes
+them as build arguments. The Sentry auth token is different: it is an upload
+credential and is available only as an optional BuildKit secret while source
+maps are uploaded. It is never a build argument, image environment variable,
+or runtime file. Uploaded maps are removed from the image artifact.
 
 Production deployment injects the validated source SHA as `SENTRY_RELEASE` for
-API and Worker. Processor compiles that same SHA as `VITE_SENTRY_RELEASE`.
-`production` is the Sentry environment for all three. Local and offline-smoke
-builds use distinct environment/release names and do not upload source maps.
+API and Worker. Processor and Control compile that same SHA as
+`VITE_SENTRY_RELEASE`. `production` is the Sentry environment for all four.
+Local and offline-smoke builds use distinct environment/release names and do
+not upload source maps.
 Production Compose forces API/Worker Sentry on and API metric export on; a
 missing runtime DSN therefore prevents those services from starting silently
 without their required visibility.
@@ -85,8 +87,8 @@ cannot select notification recipients.
 
 - Uptime: alert after two consecutive failures of API readiness, Web health,
   or Processor health; recover after two successes.
-- Processor: alert on a new or regressed production issue immediately; alert
-  on a sustained browser error spike over five minutes.
+- Processor and Control: alert on a new or regressed production issue
+  immediately; alert on a sustained browser error spike over five minutes.
 - API: critical on any sustained 5xx increase; warning on p95 request duration
   above two seconds for ten minutes. Do not page on isolated expected 409s.
 - SSE: critical on `api.sse_feed_failures >= 1` in five minutes; warning when

@@ -196,6 +196,10 @@ describe('offline production topology smoke harness', () => {
     });
     expect(config.services.control.build.args).toMatchObject({
       VITE_API_URL: '/api',
+      VITE_SENTRY_DSN: '',
+      VITE_SENTRY_ENVIRONMENT: 'offline-smoke',
+      VITE_SENTRY_RELEASE: 'pressly-offline-smoke',
+      VITE_SENTRY_TRACES_SAMPLE_RATE: '0',
     });
     expect(config.services.api.environment.SENTRY_RELEASE).toBe('a'.repeat(40));
     expect(config.services.worker.environment.SENTRY_RELEASE).toBe(

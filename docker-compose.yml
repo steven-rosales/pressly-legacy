@@ -178,6 +178,10 @@ services:
       dockerfile: apps/control/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_SENTRY_DSN: ${CONTROL_SENTRY_DSN:-}
+        VITE_SENTRY_ENVIRONMENT: ${CONTROL_SENTRY_ENVIRONMENT:-development}
+        VITE_SENTRY_RELEASE: ${CONTROL_SENTRY_RELEASE:-pressly-control-development}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${CONTROL_SENTRY_TRACES_SAMPLE_RATE:-0.1}
     ports:
       - '${CONTROL_PORT:-4174}:80'
     depends_on:

@@ -97,10 +97,10 @@ missing, mutable, duplicate, cross-wired, or extra application images and can
 bind validation to an expected full source SHA.
 
 The main image job uses the scoped `GITHUB_TOKEN` to publish to GHCR and public
-browser telemetry DSNs at build time when configured. Processor source-map
-upload receives its project-scoped Sentry token through a BuildKit secret; the
-token is not a build argument or image value. Database, auth, Cents HMAC, SSH,
-and other runtime secrets must never enter image builds.
+browser telemetry DSNs at build time when configured. Processor and Control
+source-map uploads receive the project-scoped Sentry token through a BuildKit
+secret; the token is not a build argument or image value. Database, auth,
+Cents HMAC, SSH, and other runtime secrets must never enter image builds.
 
 The integration database is a GitHub Actions Postgres service. It is separate
 from local Docker and production Docker.
@@ -215,11 +215,11 @@ LIGHTSAIL_SSH_KEY
 LIGHTSAIL_SSH_KNOWN_HOSTS
 ```
 
-The separate main-only `release-production` environment owns Web and Processor
-Sentry DSNs, the source-map upload token, Sentry project coordinates, and trace
-sample rates. Production image builds fail closed when a required telemetry
-value is missing. Keeping release credentials separate prevents image builds
-from receiving deployment SSH access.
+The separate main-only `release-production` environment owns Web, Processor,
+and Control Sentry DSNs, the source-map upload token, Sentry project
+coordinates, and trace sample rates. Production image builds fail closed when
+a required telemetry value is missing. Keeping release credentials separate
+prevents image builds from receiving deployment SSH access.
 
 ## Runtime
 
@@ -280,10 +280,10 @@ postgres://pressly_runtime:<password>@postgres:5432/pressly
 
 ## Observability
 
-Processor, API, and Worker report the same validated Git SHA as their Sentry
-release. CI compiles Processor browser telemetry and uploads source maps with a
-BuildKit secret; deploy injects that SHA into the API and Worker runtime without
-editing host env files. Production API metrics require
+Control, Processor, API, and Worker report the same validated Git SHA as their
+Sentry release. CI compiles Control and Processor browser telemetry and uploads
+source maps with a BuildKit secret; deploy injects that SHA into the API and
+Worker runtime without editing host env files. Production API metrics require
 `FEATURE_METRICS_ENABLED=true`; production Compose enforces that and Sentry for
 API and Worker.
 
