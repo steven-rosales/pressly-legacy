@@ -96,9 +96,72 @@ time: 2026-08-08T13:41:03-04:00
 summary: formatting and both architecture gates passed; lint passed across 28 Turbo tasks; typecheck passed across 50 Turbo tasks plus browser and architecture tooling; tests passed across 51 Turbo tasks and 316 tooling tests; build passed across all 28 tasks. Both Stateworks networks validated. Recovery hardening has only external publication and disaster-recovery obligations left; LPMS correctly remains stopped on human_action_required and invariant_violation. The adversarial recovery review found no remaining script correctness or security defect, and no disposable proof resources remain.
 ```
 
+## H1 - Published recovery release
+
+Status: committed.
+
+The repaired release was published through protected `main` at exact source SHA
+`a44216cf83223225ab1caeb32a1e20d616ccce47`.
+
+```text
+main CI: 31271988560, success
+CodeQL: 31271988452, success
+production deployment: 31273257568, success
+time: 2026-08-08
+summary: immutable production artifacts and the normal workflow-run deployment succeeded for the exact source SHA. Repository HEAD, current-release metadata, verified deployment state, and /opt/pressly/ops/current agreed; all seven Compose services were healthy and the four pinned public HTTPS health authorities returned HTTP 200.
+```
+
+The independently provisioned host identity is owned by `root:root`, has mode
+`0644`, and has SHA-256
+`31032a9bfd414b438359bb96c5d3a75bea6beaae6762b34d7a43eb771d25865e`.
+No private address, credential, DSN, database URL, or recovery secret is recorded
+here.
+
+## V2 - Deployed recovery admission (partial)
+
+Status: running.
+
+- The deployed stable operations scripts match the published recovery source
+  SHA.
+- The stable restore `--preflight-only` path accepted the approved encrypted
+  `pressly-20260808T052558Z.dump.gpg` backup under the verified deployment and
+  host-identity authority.
+- The proof performed no restore, created no recovery journal, retained no
+  operational lock, and left production healthy.
+- The stable monitored backup runner, private backup log and log rotation are
+  installed; the 03:15 UTC cron schedule is unchanged.
+
+The first natural 03:15 UTC execution after installation has not occurred. A
+manual invocation or successful preflight cannot prove scheduler execution, so
+`V2` remains open.
+
+## H2 - Immutable-secondary repository prerequisite
+
+Status: prerequisite implemented; human gate pending.
+
+Main at exact source commit
+`a5c768b97cc9dee56bb53de1678563849b6d1f9a` contains optional
+immutable-secondary backup destination support. One encrypted dump, checksum,
+and metadata triplet is uploaded to both independently configured destinations;
+each destination is attempted independently and the operation succeeds only
+when every configured remote readback matches. The configuration requires a
+distinct secondary bucket and expected AWS account.
+
+Repository support does not provision or verify an independently administered
+bucket, Object Lock retention, encryption, least-privilege host IAM, approved
+RPO/RTO, or off-host recovery-secret escrow. None of those external `H2` facts is
+claimed here.
+
+```text
+command: VITEST_MAX_WORKERS=2 pnpm exec vitest run tooling/test/postgres-backup-destinations.test.mjs tooling/test/host-operations-monitoring.test.mjs
+exit: 0
+time: 2026-08-08T16:45:24-04:00
+summary: both focused files and all 41 tests passed. The proof covers independent primary and optional secondary destination attempts and readback, distinct bucket/account admission, exact backup authority despite missing or failing telemetry, and private bounded fallback logging. It configures no AWS resource and proves no external H2 fact.
+```
+
 ## Pending evidence
 
-- `H1`: reviewed main publication and deployment
-- `V2`: first natural 03:15 UTC execution after publication
+- `V2`: first natural 03:15 UTC execution after publication, including local
+  checksum, remote durability/encryption/version evidence, and bounded telemetry
 - `H2`: approved RPO/RTO, independent immutable storage, and off-host escrow
 - `H3`: complete replacement-instance drill

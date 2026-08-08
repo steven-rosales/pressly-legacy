@@ -633,7 +633,7 @@ tasks:
     evidence: []
 
   - id: V2
-    title: Prove the release and production topology offline
+    title: Prove the current five-image release and production topology offline
     type: verification
     owner: agent
     surface: repo
@@ -643,7 +643,10 @@ tasks:
     reads:
       - repo:.github/workflows
       - repo:infra/aws/lightsail
-      - repo:all-four-Dockerfiles
+      - repo:all-five-Dockerfiles
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity
+      - repo:stateworks/work/done/cents-webhook-redelivery-idempotency
       - repo:stateworks/work/active/lpms-production-readiness/evidence.md
     writes:
       - repo:stateworks/work/active/lpms-production-readiness/evidence.md
@@ -651,19 +654,22 @@ tasks:
       - Placeholder env files contain no production secrets.
       - The proof runs on an isolated host or disposable local Compose project.
     action:
-      - Build all four images, migrate a clean database, start the production Compose shape, and exercise Caddy routing locally.
-      - Prove API and Processor health, worker heartbeat and projection, signed webhook receipt, processor auth, and Web health through only the intended ingress.
+      - Build all five application images, migrate a clean database, start the production Compose shape, and exercise Caddy routing locally.
+      - Prove API, Web, Processor, and Control health, worker heartbeat and projection, signed webhook receipt, and Processor authentication through only the intended ingress and durable boundaries.
       - Restart API and Worker independently and prove operational state resumes.
-      - Run a synthetic four-image release-selection switch and rollback against disposable current-schema data, including release metadata and durable-state preservation.
-      - Measure steady-state container memory and record whether the 4 GB pilot floor leaves safe headroom.
+      - Run a synthetic five-image release-selection switch and rollback against disposable current-schema data, including release metadata and durable-state preservation.
+      - Re-run the current LPMS integration and composed happy-path proofs, including exact raw redelivery, after the completed order-control, resolution, and exact-redelivery changes.
+      - Measure steady-state container memory and retain the existing 4 GB floor only as a historical minimum; production currently uses an 8 GiB host.
     postconditions:
       - The exact production topology is locally operable and reversible without real vendor or cloud state.
       - Evidence records image identities, routes, health, restart, rollback, and resource measurements.
     verifier:
-      - pnpm docker:lpms:build
-      - Production Compose config and isolated smoke script exit zero.
+      - pnpm test:lpms:int
+      - pnpm test:lpms:e2e
+      - pnpm docker:production:smoke
+      - Production Compose config and isolated five-image smoke script exit zero.
       - Only Caddy publishes host ports in the rendered production config.
-      - Four-image release switching and rollback restore the expected synthetic source SHA and healthy services.
+      - Five-image release switching and rollback restore the expected synthetic source SHA and healthy services.
       - No demo mode or synthetic runtime row appears without an explicit test fixture command.
     rollback:
       - Tear down the disposable project and volumes after evidence is captured; do not touch production.
@@ -788,6 +794,7 @@ tasks:
     surface: other
     agent_can_verify: false
     deps:
+      - V2
       - RV1
     reads:
       - repo:stateworks/work/active/lpms-production-readiness/brief.md

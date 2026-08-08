@@ -614,10 +614,56 @@ production-order execution persistence, forecast contracts, Home, Schedule,
 Production, Intake, and History assumptions after the prior readiness proof.
 
 The historical commands and results below remain valid evidence for their
-recorded revision, but V2 is invalidated for the current worktree. Repository
-proof must be rerun after `lpms-order-control-correctness-hardening` and the
-queued production-order resolution work complete or are explicitly
-rebaselined.
+recorded revision. At this checkpoint, V2 was invalidated for the then-current
+worktree. Both `lpms-order-control-correctness-hardening` and
+`lpms-production-order-resolution-and-identity` later completed; the
+2026-08-08 current five-image V2 reproof below supersedes this temporary
+invalidation.
 
 H1 and later live-vendor, deployment, production-data, and pilot gates remain
 stopped. No live external state was changed.
+
+## 2026-08-08 - Current five-image V2 reproof
+
+Status: committed.
+
+The current repository proof includes the completed operational-authority,
+order-control, production-order-resolution, and exact-raw-redelivery work. The
+exact-redelivery repair is recorded canonically in
+`stateworks/work/done/cents-webhook-redelivery-idempotency/` and was merged at
+exact source commit `8dec29e0724ea05340a2586a348991f256c06d81`.
+
+```text
+main CI: 31275127116, success
+CodeQL: 31275126925, success
+production deployment: 31276572639, success
+time: 2026-08-08
+summary: protected-main CI, CodeQL, and the normal production deployment succeeded for the exact Cents repair SHA. This proves publication and deployment, not that a historical real Cents redelivery has traversed the repaired path.
+```
+
+```text
+command: pnpm test:lpms:int
+exit: 0
+time: 2026-08-08
+summary: 178 files and 750 tests passed across the database, Users, Orders, webhook-ingestion, Worker, Production, and final LPMS asset suites. The complete webhook-ingestion PostgreSQL and unit suites include the exact-raw-redelivery regression.
+```
+
+```text
+command: pnpm test:lpms:e2e
+exit: 0
+time: 2026-08-08
+summary: the composed API proof passed 5 files and 55 tests; Processor passed 40 files and 275 tests. Two existing Radix Dialog description warnings remained non-failing test output.
+```
+
+```text
+command: pnpm docker:production:smoke; inspect the redacted report; query disposable Docker resources after teardown
+exit: 0
+time: 2026-08-08T16:48:35-04:00
+summary: all five application images built. The seven-container topology migrated a clean database, exposed only loopback Caddy, proved Web/API/Processor/Control routes, Processor MFA/cookie/CSRF behavior, two signed submitted candidates through acceptance, fulfillment release, intake, scheduling, one completed run and four completed stages, independent API and Worker recovery, and five-image A-to-B-to-A release rotation with durable state preserved. The steady-state snapshot measured 450615050 bytes, 10.49% of the historical 4 GiB floor, with 89.51% observed headroom. Teardown left zero owned containers, networks, volumes, or images. The redacted transient report is /tmp/pressly-v2-smoke-1000-1060023-report.json; no production, Cents, DNS, or deployed cloud endpoint was intentionally contacted.
+```
+
+This current reproof repairs the temporary 2026-07-26 V2 invalidation. It does
+not advance H1 or any later live-vendor, production-data, pilot, or recovery
+gate. In particular, the natural backup, independent immutable custody,
+approved RPO/RTO, off-host escrow, and replacement-instance drill remain open
+under `production-recovery-hardening`.

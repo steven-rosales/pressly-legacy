@@ -1,12 +1,12 @@
 work_id: lpms-production-readiness
 status: active
-updated: 2026-08-08T11:59:38-04:00
+updated: 2026-08-08T16:37:00-04:00
 
 current_focus:
   - H1
   - Unsigned documented-vendor compatibility was authorized for launch; live retry, store, bag-count, reconciliation, and any future signing facts remain to be confirmed.
   - The current production release contains five application images; committed four-image tasks are historical pre-Control evidence.
-  - Repository proof must be rerun after operational-authority changes and queued correctness and resolution work; production-recovery-hardening and all deployment and pilot gates remain stopped.
+  - Current five-image repository proof includes the completed operational-authority, order-control, production-order-resolution, and exact-raw-redelivery changes. Production recovery V2/H2/H3 and all live-vendor and pilot gates remain stopped.
 
 tasks:
   T0:
@@ -36,10 +36,10 @@ tasks:
     evidence:
       - stateworks/work/active/lpms-production-readiness/evidence.md
   V2:
-    status: invalidated
+    status: committed
     evidence:
       - stateworks/work/active/lpms-production-readiness/evidence.md
-      - stateworks/work/done/lpms-operational-authority-remaining-day-forecast/final-report.md
+      - stateworks/work/active/lpms-production-readiness/evidence.md#2026-08-08---current-five-image-v2-reproof
   R1:
     status: committed
     evidence:

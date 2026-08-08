@@ -2,16 +2,17 @@
 
 ## Status
 
-`H1` is the next ready vendor-fact gate. Historical `V2` proof was invalidated
-by later ownership changes; `RV1` proves the refactored boundary, not the
-current release, deployment, or recovery topology. On 2026-07-17, Steven
+`H1` is the next ready vendor-fact gate. `V2` has been re-proven against the
+current five-image repository and the completed order-control, resolution, and
+exact-redelivery changes. On 2026-07-17, Steven
 explicitly authorized temporary unsigned compatibility with Cents' documented
 webhook sender so launch is not blocked on signing. Retry, store, bag-count,
 reconciliation, and any future signing facts still require live confirmation
 before the pilot evidence is complete. The separate
-`production-recovery-hardening` package is also active; its publication,
-natural scheduled backup, immutable custody, approved RPO/RTO, and replacement-
-instance drill must not be inferred from historical LPMS evidence.
+`production-recovery-hardening` package is also active. Its repaired release,
+host identity, and stable restore preflight are proven, but the natural
+scheduled backup, immutable custody, approved RPO/RTO, escrow, and replacement-
+instance drill must not be inferred from LPMS repository evidence.
 
 ## Secret handling
 
@@ -95,13 +96,14 @@ advance `H2A`–`H2D` or bypass their declared dependencies.
 
 ## Later gates
 
-- `H2A`–`H2D`: provision host/network/DNS, place external configuration, and
-  configure alerts.
+- `H2A`–`H2D`: re-read the pre-provisioned host/network/DNS evidence after H1,
+  then prove the still-required external configuration and alert tests without
+  bypassing the declared dependency order.
 - `H3`: approve a verified main-branch release for deployment.
 - `H4`–`H5`: bootstrap the real facility and enable Cents delivery under the
   explicitly configured ingress mode.
 - `H6`–`H7`: approve and operate the controlled happy-path pilot.
-- `production-recovery-hardening`: publish and observe the repaired recovery
-  release, approve RPO/RTO and independent immutable custody, escrow recovery
-  secrets off host, and prove a complete replacement-instance recovery before
-  treating disaster recovery as complete.
+- `production-recovery-hardening`: observe the first natural backup, approve
+  RPO/RTO and independent immutable custody, escrow recovery secrets off host,
+  and prove a complete replacement-instance recovery before treating disaster
+  recovery as complete.

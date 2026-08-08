@@ -2,7 +2,11 @@
 
 Status: active
 
-Repository hardening is in progress. This report remains intentionally
-incomplete until rollback, migration classification, production-shaped restore,
-natural scheduled backup, independent immutable custody, and a complete
+Repository hardening, combined verification, protected-main publication,
+deployment, host-identity provisioning, and stable restore preflight are
+complete. No live restore was performed.
+
+This report remains intentionally incomplete until the first natural scheduled
+backup under the deployed runner, approved RPO/RTO, independently administered
+immutable custody, off-host recovery-secret escrow, and a complete
 replacement-instance drill have all been proven through their declared tasks.

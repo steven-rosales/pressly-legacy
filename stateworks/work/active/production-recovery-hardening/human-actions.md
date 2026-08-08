@@ -2,9 +2,11 @@
 
 ## Status
 
-No production recovery action should run yet. Repository implementation and
-verification must complete at `V1` first. The existing LPMS launch and vendor
-gates remain stopped.
+`H1` is complete. The repaired release, stable operations bundle, provisioned
+host identity, and restore preflight are proven for one exact source SHA. `V2`
+is running and must remain open until the first natural 03:15 UTC backup under
+the deployed runner is observed. `H2`, `H3`, the existing LPMS launch gate, and
+the live-vendor gates remain stopped.
 
 ## H1 - Publish the repaired release
 
@@ -18,6 +20,22 @@ checksum and redacted authority facts, never secret material. `V2` must prove
 the stable restore entrypoint accepts that identity with `--preflight-only`
 against an approved backup before recovery readiness is claimed.
 
+### H1 evidence — 2026-08-08
+
+- Source SHA: `a44216cf83223225ab1caeb32a1e20d616ccce47`
+- Main CI: `31271988560` succeeded.
+- CodeQL: `31271988452` succeeded.
+- Production deployment: `31273257568` succeeded.
+- Release result: repository HEAD, current-release metadata, deployment state,
+  and `/opt/pressly/ops/current` agreed with the exact source SHA.
+- Runtime result: all seven Compose services were healthy and the four pinned
+  public HTTPS health authorities returned HTTP 200.
+- Host identity: root-owned, group `root`, mode `0644`, SHA-256
+  `31032a9bfd414b438359bb96c5d3a75bea6beaae6762b34d7a43eb771d25865e`.
+- Restore admission: the stable `--preflight-only` path accepted the approved
+  `pressly-20260808T052558Z.dump.gpg` backup. It did not restore data, create a
+  recovery journal, or leave an operational lock held.
+
 ## H2 - Approve objectives and independent custody
 
 Approve explicit RPO and RTO values. Provision an independently administered,
@@ -25,6 +43,13 @@ encrypted, Object-Locked secondary backup boundary for which the production
 host has no delete authority. Escrow the backup passphrase, runtime
 configuration, release access, DNS access, and required recovery credentials in
 an approved off-host store.
+
+The merged secondary-destination support is only a repository prerequisite. It
+can upload one encrypted triplet to independently verified primary and
+secondary destinations and fails the operation unless every configured
+destination passes remote readback. It does not create or configure the
+secondary bucket, Object Lock, retention, encryption, IAM, approved objectives,
+or escrow, so `H2` remains pending.
 
 Record only owners, dates, objective values, retention, access-boundary facts,
 and redacted outcomes. Never record a secret value in this package.

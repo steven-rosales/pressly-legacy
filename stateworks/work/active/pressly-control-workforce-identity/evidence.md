@@ -610,7 +610,7 @@ of API transport code into the v2 `@pressly/control-experience` module.
   platform.
   Date: 2026-07-29
 
-## Open Risks
+## Historical open risks requiring current reconciliation
 
 - Risk: The current Processor browser session flattens scoped assignments into
   role names.
@@ -636,11 +636,11 @@ of API transport code into the v2 `@pressly/control-experience` module.
   Next step: Add the account root, backfill ancestry, and prove isolation
   before enabling Control list APIs.
 
-- Risk: Control adds a fifth immutable image to a release path that currently
-  validates exactly four.
-  Owner: Agent
-  Next step: update CI, release manifest, deployment, Caddy, Compose, topology
-  smoke tests, and source-SHA verification together.
+- Resolved repository/deployment risk: Control is now the fifth immutable image
+  in CI, release manifests, deployment, Caddy, Compose, topology proof, and
+  source-SHA verification. Current five-image readiness evidence belongs to
+  `lpms-production-readiness`; this historical risk is not a remaining Control
+  blocker.
 
 ## 2026-07-31 planning reconciliation (no implementation claim)
 
@@ -658,3 +658,34 @@ of API transport code into the v2 `@pressly/control-experience` module.
 - This reconciliation updates planning truth only. It makes no product,
   browser-harness, layered-verification, deployment, or operational-completion
   claim and changes no task status or task evidence array.
+
+## 2026-08-08 - Lifecycle truth rebaseline
+
+No active agent or process still owns T3 or T7, and neither task has current
+terminal evidence. Their stale `running` markers therefore return to `pending`.
+This makes T3 schedulable again without claiming that its historical
+implementation notes satisfy the current authentication, workforce,
+authorization, browser, or rendered-product verifiers. T7, T7A, T7B, V1, and
+T8 remain open behind their declared dependencies. The historical T5 and T6
+dependency-order anomaly is preserved and must be reconciled by current proof;
+it is not rewritten as successful sequencing.
+
+The merged Control OTP cleanup is exact source commit
+`bc599b617ce91e276b15e1208be2db16073dca16`. Main CI run `31273563439`, CodeQL
+run `31273563090`, and production deployment run `31275018233` succeeded. That
+change stabilizes React/jsdom cleanup and its regression proof only. It is
+verifier evidence, not completion evidence for any product, domain, security,
+human, or lifecycle task.
+
+The published recovery proof records `control.trypressly.com` healthy over its
+pinned HTTPS authority as part of the five-image deployment. That proves the
+hostname is deployed; it does not satisfy T3, the cross-application browser
+matrix, T7 capability and actor truth, V1 rendered QA, employee onboarding, or
+real invitation delivery.
+
+```text
+command: pnpm stateworks:validate stateworks/work/active/pressly-control-workforce-identity/network.yaml; pnpm stateworks:verify stateworks/work/active/pressly-control-workforce-identity/network.yaml --state stateworks/work/active/pressly-control-workforce-identity/state.yaml; pnpm stateworks:next stateworks/work/active/pressly-control-workforce-identity/network.yaml --state stateworks/work/active/pressly-control-workforce-identity/state.yaml
+exit: 0
+time: 2026-08-08T16:46:00-04:00
+summary: the 12-task network is valid, work is not done, no stop reason is asserted, and T3 is the single next ready task. The stale lifecycle deadlock is removed without advancing an unproved gate.
+```

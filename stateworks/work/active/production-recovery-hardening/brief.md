@@ -30,9 +30,15 @@ what happens when a release, migration, host, or primary database is not.
 
 ## Current External Baseline
 
-On 2026-08-08, read-only checks found the current production release healthy:
-all seven Compose services were healthy, API/Web/Processor/Control returned
-HTTP 200, native Lightsail alarms were OK, and the latest encrypted backup had
-matching local and remote size/checksum evidence in private versioned object
-storage. This baseline is not a substitute for the recovery proof in this
-package.
+On 2026-08-08, the repaired five-image release at source SHA
+`a44216cf83223225ab1caeb32a1e20d616ccce47` passed protected-main CI, CodeQL,
+artifact publication, normal deployment, and public verification. The deployed
+operations bundle and release metadata agree with that SHA; all seven Compose
+services were healthy and API/Web/Processor/Control returned HTTP 200. The
+root-owned host identity was installed and the stable restore preflight accepted
+an approved encrypted backup without restoring data or creating a recovery
+journal.
+
+This proves publication and restore admission. It does not prove the natural
+03:15 UTC scheduler, approved recovery objectives, independent immutable
+custody, off-host escrow, or replacement-host recovery.
