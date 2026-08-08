@@ -143,6 +143,11 @@ The policy restricts:
 - Plugin content through `object-src 'none'`.
 - Inline event-handler attributes through `script-src-attr 'none'`.
 
+Control keeps the same deny-by-default script policy. Its static Nginx and
+production Caddy boundaries permit browser connections only to the same origin
+and Sentry's US ingestion hosts so conditional error delivery works without
+opening another execution source.
+
 Development adds only the WebSocket and evaluation permissions required by the Next.js development runtime.
 Production adds `upgrade-insecure-requests`.
 

@@ -24,6 +24,14 @@ const processorBuildConfig = await readFile(
   new URL('../../apps/processor/vite.config.ts', import.meta.url),
   'utf8',
 );
+const controlDockerfile = await readFile(
+  new URL('../../apps/control/Dockerfile', import.meta.url),
+  'utf8',
+);
+const controlBuildConfig = await readFile(
+  new URL('../../apps/control/vite.config.ts', import.meta.url),
+  'utf8',
+);
 const webBuildConfig = await readFile(
   new URL('../../apps/web/next.config.ts', import.meta.url),
   'utf8',
@@ -204,9 +212,11 @@ describe('five-image CI release', () => {
     expect(validation.env).toEqual({
       NEXT_PUBLIC_SENTRY_DSN: '${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}',
       PROCESSOR_SENTRY_DSN: '${{ secrets.PROCESSOR_SENTRY_DSN }}',
+      CONTROL_SENTRY_DSN: '${{ secrets.CONTROL_SENTRY_DSN }}',
       SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}',
       SENTRY_ORG: '${{ vars.SENTRY_ORG }}',
       PROCESSOR_SENTRY_PROJECT: '${{ vars.PROCESSOR_SENTRY_PROJECT }}',
+      CONTROL_SENTRY_PROJECT: '${{ vars.CONTROL_SENTRY_PROJECT }}',
     });
     expect(stepIndex(validation.name)).toBeLessThan(
       Math.min(
@@ -225,9 +235,12 @@ describe('five-image CI release', () => {
         'https://web-private-key@o123.ingest.us.sentry.io/123',
       PROCESSOR_SENTRY_DSN:
         'https://processor-private-key@o123.ingest.us.sentry.io/456',
+      CONTROL_SENTRY_DSN:
+        'https://control-private-key@o123.ingest.us.sentry.io/789',
       SENTRY_AUTH_TOKEN: 'sntrys_valid_release_upload_token',
       SENTRY_ORG: 'pressly-laundry-service-dry-cl',
       PROCESSOR_SENTRY_PROJECT: 'pressly-processor',
+      CONTROL_SENTRY_PROJECT: 'pressly-control',
     };
     const valid = runBash(validation.run, validEnvironment);
     expect(valid.status, valid.stderr).toBe(0);
@@ -253,9 +266,18 @@ describe('five-image CI release', () => {
     expect(invalidDsn.status).not.toBe(0);
     expect(invalidDsn.stderr).toContain('PROCESSOR_SENTRY_DSN');
     expect(invalidDsn.stderr).not.toContain('processor-private-key');
+
+    const invalidControlDsn = runBash(validation.run, {
+      ...validEnvironment,
+      CONTROL_SENTRY_DSN:
+        'https://control-private-key@o123.ingest.us.sentry.io/not-a-project',
+    });
+    expect(invalidControlDsn.status).not.toBe(0);
+    expect(invalidControlDsn.stderr).toContain('CONTROL_SENTRY_DSN');
+    expect(invalidControlDsn.stderr).not.toContain('control-private-key');
   });
 
-  it('builds Web and Processor telemetry without embedding the upload token', () => {
+  it('builds Web, Processor, and Control telemetry without embedding the upload token', () => {
     const webBuild = step('Build web image once').with;
     expect(webBuild['build-args']).toContain('NEXT_PUBLIC_SENTRY_DSN=');
     expect(webBuild['build-args']).toContain(
@@ -311,14 +333,53 @@ describe('five-image CI release', () => {
     ).toBeLessThan(
       processorDockerfile.indexOf('pnpm --filter @pressly/processor build'),
     );
+
+    const controlBuild = step('Build Control image once').with;
+    expect(controlBuild['build-args']).toContain(
+      'VITE_SENTRY_RELEASE=${{ github.sha }}',
+    );
+    expect(controlBuild['build-args']).toContain(
+      'VITE_SENTRY_ENVIRONMENT=production',
+    );
+    expect(controlBuild['build-args']).toContain('VITE_SENTRY_DSN=');
+    expect(controlBuild['build-args']).toContain('SENTRY_ORG=');
+    expect(controlBuild['build-args']).toContain('SENTRY_PROJECT=');
+    expect(controlBuild.secrets).toContain(
+      'sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}',
+    );
+    expect(controlBuild['build-args']).not.toContain('SENTRY_AUTH_TOKEN=');
+
+    expect(controlDockerfile).toContain(
+      '--mount=type=secret,id=sentry_auth_token',
+    );
+    expect(controlDockerfile).not.toMatch(/ARG SENTRY_AUTH_TOKEN/);
+    expect(controlDockerfile).not.toMatch(/ENV SENTRY_AUTH_TOKEN/);
+    expect(controlDockerfile).toContain(
+      'pnpm exec turbo build --filter=@pressly/control^... --concurrency=2',
+    );
+    expect(controlDockerfile).toContain('pnpm --filter @pressly/control build');
+    expect(controlDockerfile).not.toContain(
+      'pnpm exec turbo build --filter=@pressly/control... --concurrency=2',
+    );
+    expect(controlDockerfile.indexOf('export SENTRY_AUTH_TOKEN=')).toBeLessThan(
+      controlDockerfile.indexOf('pnpm --filter @pressly/control build'),
+    );
   });
 
-  it('fails Web and Processor release builds when Sentry upload fails', () => {
-    for (const buildConfig of [webBuildConfig, processorBuildConfig]) {
+  it('fails Web, Processor, and Control release builds when Sentry upload fails', () => {
+    for (const buildConfig of [
+      webBuildConfig,
+      processorBuildConfig,
+      controlBuildConfig,
+    ]) {
       expect(buildConfig).toMatch(
         /errorHandler: \(error\) => \{\s+throw error;?\s+\}/,
       );
     }
+    for (const buildConfig of [processorBuildConfig, controlBuildConfig])
+      expect(buildConfig).toContain(
+        'filesToDeleteAfterUpload: "./dist/**/*.map"',
+      );
   });
 
   it('exposes one stable required check covering browser and every branch-specific image path', () => {

@@ -18,7 +18,7 @@
 	encode zstd gzip
 
 	header {
-		Content-Security-Policy "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'"
+		Content-Security-Policy "default-src 'self'; base-uri 'none'; connect-src 'self' https://*.ingest.sentry.io https://*.ingest.us.sentry.io; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'"
 		Cross-Origin-Opener-Policy "same-origin"
 		Permissions-Policy "camera=(), geolocation=(), microphone=(), payment=(), usb=()"
 		Referrer-Policy "no-referrer"

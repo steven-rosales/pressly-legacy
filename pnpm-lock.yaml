@@ -263,6 +263,9 @@ importers:
       '@pressly/time':
         specifier: workspace:*
         version: link:../../packages/time
+      '@sentry/react':
+        specifier: ^10.69.0
+        version: 10.69.0(react@19.2.6)
       '@tabler/icons-react':
         specifier: ^3.44.0
         version: 3.44.0(react@19.2.6)
@@ -318,6 +321,9 @@ importers:
       '@eslint/js':
         specifier: ^10
         version: 10.0.1(eslint@10.8.0(jiti@2.7.0))
+      '@sentry/vite-plugin':
+        specifier: 5.4.0
+        version: 5.4.0(rollup@4.62.4)(webpack@5.106.2(esbuild@0.28.1))
       '@testing-library/jest-dom':
         specifier: ^6.9.1
         version: 6.9.1

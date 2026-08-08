@@ -101,6 +101,7 @@ describe('production topology', () => {
     expect(caddyfile).toContain('reverse_proxy control:80');
     expect(caddyfile).toContain("default-src 'self'");
     expect(caddyfile).toContain("script-src 'self'");
+    expect(caddyfile).toContain('https://*.ingest.us.sentry.io');
     expect(caddyfile).not.toMatch(/script-src[^;\n]*'unsafe-inline'/);
     expect(caddyfile).toContain("frame-ancestors 'none'");
     expect(caddyfile).toContain('Referrer-Policy "no-referrer"');
@@ -112,6 +113,7 @@ describe('production topology', () => {
     );
     expect(nginx).toContain("default-src 'self'");
     expect(nginx).toContain("script-src 'self'");
+    expect(nginx).toContain('https://*.ingest.us.sentry.io');
     expect(nginx).toContain("frame-ancestors 'none'");
     expect(nginx).toContain('Referrer-Policy "no-referrer"');
     expect(nginx).toContain('X-Content-Type-Options "nosniff"');

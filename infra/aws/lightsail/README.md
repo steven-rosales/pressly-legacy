@@ -71,18 +71,22 @@ Configure release build telemetry in the main-only GitHub environment
 ```text
 secret NEXT_PUBLIC_SENTRY_DSN
 secret PROCESSOR_SENTRY_DSN
+secret CONTROL_SENTRY_DSN
 secret SENTRY_AUTH_TOKEN       source-map upload only; project-scoped
 variable SENTRY_ORG
 variable PROCESSOR_SENTRY_PROJECT
+variable CONTROL_SENTRY_PROJECT
 variable NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE
 variable PROCESSOR_SENTRY_TRACES_SAMPLE_RATE
+variable CONTROL_SENTRY_TRACES_SAMPLE_RATE
 ```
 
-Both browser DSNs are public configuration compiled into their JavaScript
+All browser DSNs are public configuration compiled into their JavaScript
 bundles. The auth token is mounted only as a BuildKit secret and never enters
 an image layer. CI fails before building production images when any required
 telemetry value is absent. It compiles the exact Git SHA and `production`
-environment into the Processor and removes source maps after uploading them.
+environment into Processor and Control and removes source maps after uploading
+them.
 See `docs/observability.md` for dashboard, alert, and incident-response setup.
 
 Deployment is driven by `.github/workflows/deploy-production.yml`. The workflow

@@ -83,6 +83,10 @@ services:
       target: runner
       args:
         VITE_API_URL: /api
+        VITE_SENTRY_DSN: ''
+        VITE_SENTRY_ENVIRONMENT: offline-smoke
+        VITE_SENTRY_RELEASE: pressly-offline-smoke
+        VITE_SENTRY_TRACES_SAMPLE_RATE: '0'
     env_file: !override
       - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/control.env.example
         required: true
