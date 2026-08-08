@@ -381,6 +381,13 @@ digests are recorded and still pullable from GHCR. Do not delete the rollback
 host or its retained snapshot until database restore evidence meets the agreed
 recovery window.
 
+Production also runs `pressly-host-capacity` through Sentry every five minutes.
+It becomes unhealthy when disk usage reaches 80 percent or available memory is
+below 512 MiB for three consecutive checks. This is an early operational alarm,
+not a replacement for the weekly host review or the monthly patch window. The
+host enforces non-overlap and a one-minute process timeout independently of
+Sentry's check-in timeout.
+
 ## Backups
 
 Production Postgres data lives in a Docker volume on the Lightsail server.
@@ -401,6 +408,16 @@ The backup script is:
 ```txt
 infra/aws/lightsail/backup-postgres.sh
 ```
+
+The nightly production recipe wraps this script with the
+`pressly-postgres-backup` Sentry Cron monitor. A successful check-in therefore
+means the encrypted dump, checksum, and metadata were uploaded and the remote
+encrypted bytes passed the script's readback checksum. A missing, timed-out, or
+failed execution reaches the existing production issue-alert destination.
+The host independently prevents overlapping backups and terminates one after
+25 minutes, leaving five minutes for Sentry to report failure before its
+30-minute check-in timeout. Production cron requires the host timezone to stay
+`Etc/UTC` and declares a fixed system path that includes `/usr/local/bin`.
 
 Lightsail snapshots are useful, but they do not replace database dumps.
 

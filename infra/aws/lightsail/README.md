@@ -291,6 +291,69 @@ Cron example:
 The script uploads the encrypted dump, checksum, and metadata, then downloads
 the encrypted object stream to verify its SHA-256 checksum.
 
+For a Lightsail object-storage bucket, attach the production instance through
+Lightsail resource access instead of retaining a long-lived bucket access key.
+Keep the bucket private and enable object versioning. The AWS CLI then resolves
+the instance credential automatically; the cron entry does not set
+`AWS_PROFILE`.
+
+Resource access gives the attached instance full access to that Lightsail
+bucket. Versioning protects recoverability from ordinary overwrite or deletion,
+but it is not immutable retention against a compromised host that deletes
+specific versions. Before this pilot risk is no longer acceptable, copy backups
+into a separate standard S3 security boundary with Object Lock or a writer that
+cannot delete versions.
+
+Download Sentry CLI `0.40.0` for Linux x86-64 from the exact release asset
+`https://github.com/getsentry/cli/releases/download/0.40.0/sentry-linux-x64.gz`,
+decompress it without executing it, and verify the binary SHA-256 is
+`1f2f64ec8bb23ced496a103977cb54e72b49b83495cf30c3cad487dcefd70c16`,
+then install that verified binary root-owned and mode `0755` at
+`/usr/local/bin/sentry`. The monitored operation runner reads only `SENTRY_DSN`
+from the mode-600 Worker environment file and never prints it. Replace the plain
+backup cron entry with:
+
+```bash
+(
+set -euo pipefail
+PRESSLY_SENTRY_TMP="$(mktemp -d)"
+curl --fail --silent --show-error --location \
+  https://github.com/getsentry/cli/releases/download/0.40.0/sentry-linux-x64.gz \
+  --output "$PRESSLY_SENTRY_TMP/sentry.gz"
+gzip --decompress --stdout "$PRESSLY_SENTRY_TMP/sentry.gz" \
+  > "$PRESSLY_SENTRY_TMP/sentry"
+printf '%s  %s\n' \
+  1f2f64ec8bb23ced496a103977cb54e72b49b83495cf30c3cad487dcefd70c16 \
+  "$PRESSLY_SENTRY_TMP/sentry" | sha256sum --check --strict
+sudo install --owner=root --group=root --mode=0755 \
+  "$PRESSLY_SENTRY_TMP/sentry" /usr/local/bin/sentry
+unlink "$PRESSLY_SENTRY_TMP/sentry.gz"
+unlink "$PRESSLY_SENTRY_TMP/sentry"
+rmdir "$PRESSLY_SENTRY_TMP"
+unset PRESSLY_SENTRY_TMP
+)
+```
+
+```text
+MAILTO=""
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+15 3 * * * PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres /opt/pressly/repo/infra/aws/lightsail/run-monitored-operation.sh backup >/dev/null 2>&1
+*/5 * * * * /opt/pressly/repo/infra/aws/lightsail/run-monitored-operation.sh host-capacity >/dev/null 2>&1
+```
+
+Ubuntu's default cron does not interpret `CRON_TZ`; require the host timezone
+to remain `Etc/UTC` and verify it with
+`timedatectl show --property=Timezone --value` before installing the schedule.
+`pressly-postgres-backup` reports success only after the remote encrypted bytes
+match the local SHA-256. `pressly-host-capacity` fails after disk usage reaches
+80 percent or available memory falls below 512 MiB; Sentry opens an issue only
+after three consecutive failed checks and resolves it after three healthy
+checks. The runner prevents overlapping executions and terminates a backup
+after 25 minutes so Sentry can report the failure before its 30-minute maximum
+runtime. Run both recipes once manually after installation, then read the
+monitors and their successful check-ins back from Sentry; the CLI intentionally
+preserves a successful wrapped command exit even when a check-in cannot be sent.
+
 ## Processor Clean-Slate Maintenance
 
 `reset-processor-operational-data.sql` removes operational orders, proposals,
