@@ -19,5 +19,15 @@ export const canonicalOrderItemFromRow = (row: {
       'Stored Order item source metadata is not a JSON object.',
     );
 
-  return { ...row, sourceMetadata: row.sourceMetadata };
+  return {
+    lineKey: row.lineKey,
+    itemType: row.itemType,
+    code: row.code,
+    description: row.description,
+    quantity: row.quantity,
+    unit: row.unit,
+    unitPriceCents: row.unitPriceCents,
+    totalAmountCents: row.totalAmountCents,
+    sourceMetadata: row.sourceMetadata,
+  };
 };

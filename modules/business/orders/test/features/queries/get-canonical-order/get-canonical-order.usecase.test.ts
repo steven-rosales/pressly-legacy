@@ -40,4 +40,35 @@ describe('canonical Order read boundary', () => {
       }),
     );
   });
+
+  it('projects persistence-only fields out of a canonical Order item', () => {
+    const persistedRow = {
+      id: '00000000-0000-4000-8000-000000000001',
+      businessId,
+      orderId: '00000000-0000-4000-8000-000000000002',
+      lineKey: 'line-1',
+      itemType: 'wash_fold',
+      code: 'wash_fold',
+      description: 'Wash and fold',
+      quantity: 1,
+      unit: 'lb',
+      unitPriceCents: 200,
+      totalAmountCents: 200,
+      sourceMetadata: { source: 'manual' },
+      createdAt: new Date('2026-07-29T12:00:00.000Z'),
+      updatedAt: new Date('2026-07-29T12:00:00.000Z'),
+    };
+
+    expect(canonicalOrderItemFromRow(persistedRow)).toEqual({
+      lineKey: 'line-1',
+      itemType: 'wash_fold',
+      code: 'wash_fold',
+      description: 'Wash and fold',
+      quantity: 1,
+      unit: 'lb',
+      unitPriceCents: 200,
+      totalAmountCents: 200,
+      sourceMetadata: { source: 'manual' },
+    });
+  });
 });
