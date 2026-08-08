@@ -398,14 +398,16 @@ describe('Postgres backup serialization', () => {
     const fixture = backupFixture();
     writeFileSync(fixture.backupRelease, 'release\n');
 
-    const result = spawnSync(
-      '/bin/sh',
-      ['-c', 'umask 022; exec "$1"', 'backup-fixture', backupScript],
-      {
+    const previousUmask = process.umask(0o022);
+    let result;
+    try {
+      result = spawnSync(backupScript, {
         env: { ...fixture.env, BACKUP_DOCKER_EXIT: '41' },
         encoding: 'utf8',
-      },
-    );
+      });
+    } finally {
+      process.umask(previousUmask);
+    }
 
     expect(result.status).toBe(41);
     const artifacts = readdirSync(fixture.backupDirectory).filter((name) =>
