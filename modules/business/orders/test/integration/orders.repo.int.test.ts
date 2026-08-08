@@ -795,6 +795,44 @@ describe('Postgres Orders application', () => {
     ]);
   });
 
+  it('returns canonical Order items without persistence-only columns', async () => {
+    const application = makePostgresOrdersApplication({
+      db: testDb.db,
+      clock,
+      incomingOrderProposalCustomer,
+    });
+    const item = {
+      lineKey: 'wash-fold',
+      itemType: 'service',
+      code: 'WF',
+      description: 'Wash and fold',
+      quantity: 1,
+      unit: 'order',
+      unitPriceCents: 3_000,
+      totalAmountCents: 3_000,
+      sourceMetadata: { source: 'pressly' },
+    };
+    const created = await application.createOrder({
+      ...baseOrder,
+      items: [item],
+      context: directContext,
+      idempotencyKey: 'create-order-canonical-item-read',
+    });
+
+    expect(created.tag).toBe('ok');
+    if (created.tag === 'err') return;
+
+    const loaded = await application.getCanonicalOrder({
+      businessId,
+      locationIds: [primaryLocationId],
+      orderId: created.value.orderId,
+    });
+
+    expect(loaded.tag).toBe('ok');
+    if (loaded.tag === 'err') return;
+    expect(loaded.value.items).toEqual([item]);
+  });
+
   it('rolls back the Order and outbox together when customer integrity fails', async () => {
     const application = makePostgresOrdersApplication({
       db: testDb.db,

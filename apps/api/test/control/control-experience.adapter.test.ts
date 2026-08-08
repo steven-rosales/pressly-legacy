@@ -78,6 +78,9 @@ const orderDetail = (sourceMetadata: unknown): CanonicalOrderDetail =>
     },
     items: [
       {
+        id: 'persisted-item-1',
+        businessId: listInput.businessId,
+        orderId: 'order-1',
         lineKey: 'line-1',
         itemType: 'service',
         code: 'wash_fold',
@@ -87,11 +90,13 @@ const orderDetail = (sourceMetadata: unknown): CanonicalOrderDetail =>
         unitPriceCents: 3_000,
         totalAmountCents: 3_000,
         sourceMetadata,
+        createdAt: new Date('2026-08-03T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-03T00:00:00.000Z'),
       },
     ],
     createdAt: new Date('2026-08-03T00:00:00.000Z'),
     updatedAt: new Date('2026-08-03T00:00:00.000Z'),
-  }) as CanonicalOrderDetail;
+  }) as unknown as CanonicalOrderDetail;
 
 describe('Control experience peer adapter', () => {
   it('maps a feature-owned Users failure into typed Control rejection data', async () => {
@@ -163,15 +168,29 @@ describe('Control experience peer adapter', () => {
       orderSource(async () => result.ok(detail)),
     );
 
-    await expect(
-      orders.get({
-        businessId: listInput.businessId,
-        locationIds: ['location-1'],
-        orderId: detail.orderId,
-      }),
-    ).resolves.toMatchObject({
+    const outcome = await orders.get({
+      businessId: listInput.businessId,
+      locationIds: ['location-1'],
+      orderId: detail.orderId,
+    });
+
+    expect(outcome).toEqual({
       tag: 'ok',
-      value: { items: [{ sourceMetadata: detail.items[0]?.sourceMetadata }] },
+      value: expect.objectContaining({
+        items: [
+          {
+            lineKey: 'line-1',
+            itemType: 'service',
+            code: 'wash_fold',
+            description: 'Wash and fold',
+            quantity: 1,
+            unit: 'each',
+            unitPriceCents: 3_000,
+            totalAmountCents: 3_000,
+            sourceMetadata: detail.items[0]?.sourceMetadata,
+          },
+        ],
+      }),
     });
   });
 
