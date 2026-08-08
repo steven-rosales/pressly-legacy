@@ -56,6 +56,35 @@ If Cents later supports signing, switch Pressly back to `hmac` mode through a
 separate verified rollout. If any wire fact differs from the implemented
 adapter, return the work to `T1`/`T2` repair before relying on that event shape.
 
+## Pre-provisioned DevOps evidence — 2026-08-08
+
+This evidence was collected ahead of the ordered human gates. It does not
+advance `H2A`–`H2D` or bypass their declared dependencies.
+
+- The production Lightsail host has 8 GiB RAM, 160 GiB storage, and a static IP
+  ending in `.111`. Only 80, 443, and rate-limited key-only SSH are public;
+  application and database container ports remain private. Host time is
+  synchronized in UTC, root SSH login is disabled, and disk usage was 35
+  percent.
+- The production object-storage bucket is private, tagged for Postgres backup,
+  and versioned. The host reaches it through attached-instance resource access;
+  the legacy static bucket access key was deleted after credential-free proof.
+- The 03:15 UTC schedule produced a complete encrypted backup triplet. Its local
+  checksum, remote object size, and remote encrypted-byte readback checksum all
+  matched. A second backup using only instance resource access passed the same
+  checks.
+- The second backup restored into an isolated disposable Postgres in 4 seconds.
+  Smoke proof found 59 public tables and the identity table. Production
+  Postgres remained healthy and its container and volume identities were
+  unchanged; the drill left no disposable container or volume.
+- A manual hardening-baseline instance snapshot is available. Automatic
+  snapshots are enabled at 07:00 UTC, but the new host's first automatic
+  snapshot still requires post-window readback.
+- The active production Worker progress monitor and the three native Lightsail
+  alarms were healthy at readback. Backup and host-capacity Sentry monitors are
+  staged for deployment and require post-deploy check-in readback before they
+  count as alert evidence.
+
 ## Later gates
 
 - `H2A`–`H2D`: provision host/network/DNS, place external configuration, and
