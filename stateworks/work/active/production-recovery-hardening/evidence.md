@@ -228,7 +228,8 @@ natural scheduling; it does not add an Object Lock or escrow claim.
 
 ## H2 - Immutable-secondary repository prerequisite
 
-Status: independent retention and file escrow proven; access inventory pending.
+Status: independent retention and file escrow proven; DNS administration access
+pending.
 
 Main at exact source commit
 `a5c768b97cc9dee56bb53de1678563849b6d1f9a` contains optional
@@ -276,8 +277,8 @@ the owner decisions below are separate human evidence.
   stable restore preflight; no version-pinned GET is claimed.
 - Steven confirmed a protected Bitwarden Business recovery collection,
   two-step login, offline account-recovery path, and storage of the secondary
-  writer credential. Complete recovery-material inventory and a redacted
-  retrieval from escrow are not yet proven.
+  writer credential. The later bundle retrieval and regenerable-access proof
+  below supersede the earlier incomplete-inventory status.
 
 ### H2 exact per-version retention — 2026-08-09
 
@@ -333,17 +334,41 @@ secret hash was emitted. This proves real off-host vault retrieval plus the
 integrity of the runtime environment files, backup passphrase, exact release
 identity, and Lightsail SSH key.
 
-The redacted member list does not prove every non-file access required by a
-replacement host. `H2` remains pending on three exact attestations:
+After validating that both Linux staging directories were real, non-symlink,
+mode-`0700` directories owned by Steven and that the workstation download was a
+regular, non-symlink file, only those three temporary copies were deleted.
+Readback found all three absent, and a bounded home-directory search found no
+matching staging directory or archive. The Bitwarden attachment remains the
+authoritative off-host copy. Normal filesystem deletion is not claimed as
+forensic media erasure.
 
-1. retrieve or prove a regenerable recovery path for private GHCR/GitHub release
-   pull access; `current-release.json` identifies immutable images but is not
-   registry authentication;
-2. retrieve or prove the management-account and DNS administration recovery
-   path; and
-3. retrieve the separately stored secondary-writer AWS credential required by
-   the replacement host; `backup.env` names the profile but the archive contains
-   no AWS credentials file.
+### H2 regenerable release and writer access — 2026-08-09
+
+Read-only release recovery was proven without using an existing credential. At
+exact deployed source `bc0987b98f746cab5d2a97f91c5e3f7892561bb6`, the live
+`current-release.json` named five digest-pinned API, Web, Worker, Processor, and
+Control images. From a fresh mode-`0700` `DOCKER_CONFIG` with no `config.json`,
+`docker manifest inspect` succeeded anonymously for every exact digest
+reference. With global and system Git configuration disabled, an empty
+`credential.helper`, terminal prompting disabled, and `GIT_ASKPASS=/bin/false`,
+anonymous `ls-remote` matched public `main` to exact `bc0987b`, and an anonymous
+depth-one fetch of that exact SHA succeeded. The current release's Git and GHCR
+access is therefore public and regenerable; no stored repository or registry
+credential is required for recovery.
+
+Steven's non-root IAM Identity Center `AdministratorAccess` into recovery
+account `067200612921` was independently exercised when he opened the exact S3
+objects and supplied their per-VersionId retention readback. That recovery
+administrator can read retained versions and create or rotate a replacement
+narrow writer for a replacement host. The existing secondary-writer key is
+therefore not a required recovery credential, and requiring escrow retrieval of
+that long-lived key would add unsafe ceremony rather than recoverability. This
+does not authorize removal of a credential still used by the production host.
+
+The redacted member list and regenerable-access proof now leave one non-file
+access requirement for `H2`: Steven must provide read-only proof that he can
+enter management account `088594414587` and reach the authoritative DNS
+administration surface. No DNS mutation is required or authorized.
 
 No secret value is recorded here.
 
@@ -356,7 +381,6 @@ summary: both focused files and all 41 tests passed. The proof covers independen
 
 ## Pending evidence
 
-- `H2`: redacted retrieval or regenerable-access proof for private release pull,
-  management-account/DNS administration, and the separately stored secondary
-  writer credential
+- `H2`: redacted read-only proof of management-account access to the
+  authoritative DNS administration surface
 - `H3`: complete replacement-instance drill

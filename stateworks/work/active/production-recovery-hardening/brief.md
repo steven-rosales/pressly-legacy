@@ -51,7 +51,11 @@ verified hourly cron and secondary-destination bindings. This proves `H1` and
 are approved, and exact 90-day COMPLIANCE retention is independently proven for
 all three versions of the manual secondary triplet. Bitwarden retrieval proves
 the complete file-based bundle, including runtime environments, backup
-passphrase, release identity, and the Lightsail SSH key. Private release-registry
-access, management-account/DNS recovery access, and retrieval of the separately
-stored secondary-writer credential remain unproved, so `H2`, `H3`, and `V3`
-remain open.
+passphrase, release identity, and the Lightsail SSH key. Anonymous readback of
+all five exact image manifests and anonymous Git fetch of the exact source prove
+that release recovery needs no stored registry or repository credential.
+Independent recovery-account administration can read the immutable versions
+and create or rotate a replacement narrow writer, so retaining the current
+long-lived writer key is not a recovery prerequisite. Read-only proof of
+management-account access to the authoritative DNS administration surface is
+the only remaining `H2` gate; `H3` and `V3` remain open behind it.

@@ -13,7 +13,11 @@ approved. The independent account, narrow writer, dual upload/readback, and
 secondary restore preflight are proven. Exact `COMPLIANCE` retention through
 2026-11-07 is also proven for all three current versions of the manual secondary
 triplet. A byte-identical, checksummed Bitwarden retrieval proves the file-based
-recovery bundle. This report remains intentionally incomplete until private
-release-pull access, management-account/DNS recovery access, and the separately
-stored secondary-writer credential are retrieved or proven regenerable, followed
-by a replacement-instance drill through `H2` and `H3`.
+recovery bundle. All five exact image manifests and the exact source SHA are
+anonymously accessible, so release recovery requires no stored GitHub or GHCR
+credential. Proven recovery-account administration can read retained versions
+and create or rotate a replacement narrow writer, so retrieval of the existing
+writer key is not a recovery prerequisite. This report remains intentionally
+incomplete until read-only management-account access to the authoritative DNS
+administration surface is proven, followed by a replacement-instance drill
+through `H2` and `H3`.

@@ -740,8 +740,8 @@ Lock `COMPLIANCE` retention through
 `2026-11-07T00:56:17Z`/`18Z`/`19Z`. Their VersionIds and exact sizes agree with
 the upload/readback and restore-preflight evidence. This closes the retention
 portion of recovery `H2`; that gate remains pending on the complete off-host
-recovery-material inventory and redacted escrow retrieval. `H3` and `V3` remain
-open behind it.
+recovery-material inventory and redacted escrow retrieval at that evidence
+point. `H3` and `V3` remain open behind it.
 
 A subsequent Bitwarden download proved the file-based escrow slice: the
 30,720-byte archive was byte-identical to its source at SHA-256
@@ -749,8 +749,13 @@ A subsequent Bitwarden download proved the file-based escrow slice: the
 14 protected members passed strict checksum validation without exposing their
 contents or individual hashes. The bundle contains all 11 runtime environment
 files, the backup passphrase, current release identity, and Lightsail SSH key.
-Recovery `H2` remains pending only on redacted private-release-pull,
-management-account/DNS, and separately stored secondary-writer access retrieval.
+All five exact release image manifests and the exact source SHA were then
+accessed anonymously with isolated Docker and Git configuration. Independently
+exercised recovery-account administration can read immutable versions and
+create or rotate a replacement narrow writer, so neither a release credential
+nor the current long-lived writer key is a required recovery escrow item.
+Recovery `H2` remains pending only on redacted read-only proof of
+management-account access to the authoritative DNS administration surface.
 
 These successful check-ins prove execution and Sentry ingestion, not
 operator-notification delivery or recovery. No bounded failure/recovery signal

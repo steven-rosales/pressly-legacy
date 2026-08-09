@@ -6,9 +6,11 @@
 provisioned host identity, restore preflight, hourly dual-destination schedule,
 and first natural 01:15 UTC execution are proven. Exact per-version 90-day
 Object Lock COMPLIANCE retention and retrieval of the complete file-based
-Bitwarden bundle are also proven. `H2` remains pending on redacted release-pull,
-management-account/DNS, and secondary-writer access retrieval. `H3`, the
-existing LPMS launch gate, and the live-vendor gates remain stopped.
+Bitwarden bundle are also proven. Anonymous exact-release access is proven, and
+recovery-account administration makes the narrow writer regenerable. `H2`
+remains pending only on read-only management-account access to the authoritative
+DNS administration surface. `H3`, the existing LPMS launch gate, and the
+live-vendor gates remain stopped.
 
 ## H1 - Publish the repaired release
 
@@ -98,11 +100,12 @@ payload, or secret value is recorded here.
   `2026-11-07T00:56:19Z`. Their exact VersionIds match the upload/readback and
   restore-preflight evidence in `evidence.md`; bucket defaults were not used as
   a substitute for object-version proof.
-- Remaining custody proof: complete the off-host recovery-material inventory
-  and redacted retrieval test. The file-based archive retrieval below satisfies
-  the backup passphrase, runtime configuration, release identity, and Lightsail
-  SSH-key portion. Private release pull, management-account/DNS recovery access,
-  and the separately stored secondary-writer credential remain.
+- At this evidence point, the off-host recovery-material inventory and redacted
+  retrieval test were incomplete. The file-based archive retrieval below
+  satisfies the backup passphrase, runtime configuration, release identity, and
+  Lightsail SSH-key portion. The later credential-free release and
+  regenerable-writer proof satisfies two remaining non-file paths; only
+  management-account/DNS recovery access remains.
 
 ### H2 Bitwarden bundle retrieval — 2026-08-09
 
@@ -116,7 +119,32 @@ payload, or secret value is recorded here.
   were mode `0700`; all 14 protected members passed strict checksum validation.
   No file contents or individual secret hashes were emitted.
 - This proves vault access, archive retrieval, and file-bundle integrity. It does
-  not prove the three remaining non-file access paths listed above.
+  not by itself prove the remaining non-file access paths listed above.
+- After exact target validation, the two temporary Linux staging directories
+  and workstation download were deleted and confirmed absent. The Bitwarden
+  attachment remains authoritative; ordinary deletion is not claimed as
+  forensic media erasure.
+
+### H2 regenerable-access proof — 2026-08-09
+
+- Every digest-pinned image in the exact deployed
+  `bc0987b98f746cab5d2a97f91c5e3f7892561bb6` release accepted an anonymous
+  manifest inspection from an empty, mode-`0700` Docker configuration with no
+  `config.json`.
+- With system and global Git configuration disabled and every credential prompt
+  suppressed, anonymous `ls-remote` matched public `main` to exact
+  `bc0987b98f746cab5d2a97f91c5e3f7892561bb6`, and an anonymous depth-one fetch
+  of that exact SHA succeeded. No GitHub or GHCR recovery credential is
+  required.
+- Steven exercised non-root Identity Center `AdministratorAccess` in recovery
+  account `067200612921` to open the exact immutable objects and report their
+  per-VersionId retention. That administrator can read retained versions and
+  create or rotate a replacement least-privilege writer. Retrieving the current
+  long-lived writer key is not a recovery gate and would be unsafe ceremony;
+  this does not authorize deleting a credential still used by production.
+- Remaining `H2` action: provide redacted, read-only proof that Steven can enter
+  management account `088594414587` and reach the authoritative DNS
+  administration surface. Do not mutate DNS.
 
 Record only owners, dates, objective values, retention, access-boundary facts,
 and redacted outcomes. Never record a secret value in this package.

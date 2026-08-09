@@ -13,9 +13,12 @@ before the pilot evidence is complete. The separate
 host identity, stable restore preflight, natural hourly dual-destination backup,
 approved objectives, and exact per-version Object Lock retention are proven.
 A byte-identical, checksummed Bitwarden download also proves the file-based
-recovery bundle. Private release-pull, management-account/DNS, and separately
-stored secondary-writer access retrieval plus the replacement-instance drill
-remain open and must not be inferred from LPMS repository evidence.
+recovery bundle. Anonymous access to every exact image manifest and the exact
+source SHA is proven, and recovery-account administration makes a replacement
+narrow writer regenerable.
+Read-only management-account access to authoritative DNS plus the
+replacement-instance drill remain open and must not be inferred from LPMS
+repository evidence.
 
 ## Secret handling
 
@@ -150,7 +153,8 @@ record after it becomes ready.
 - `H6`–`H7`: approve and operate the controlled happy-path pilot.
 - `production-recovery-hardening`: `H1` and `V2` are complete, including the
   first natural hourly dual-destination backup. Exact per-version Object Lock
-  retention and retrieval of the checksummed file bundle are proven. Private
-  release-pull, management-account/DNS, and separately stored secondary-writer
-  access retrieval plus a replacement-instance drill remain open under `H2` and
-  `H3` before disaster recovery is complete.
+  retention and retrieval of the checksummed file bundle are proven. Exact
+  release access is anonymous, and the recovery-account administrator can
+  regenerate a narrow writer. Read-only management-account access to
+  authoritative DNS plus a replacement-instance drill remain open under `H2`
+  and `H3` before disaster recovery is complete.

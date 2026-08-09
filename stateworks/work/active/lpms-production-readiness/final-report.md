@@ -13,8 +13,9 @@ next live-vendor fact gate. Later vendor, production-data, pilot, and recovery
 gates remain open. Recovery H1 and V2 now include the first natural hourly
 dual-destination backup, and exact per-version Object Lock retention is proven.
 The checksummed file-based Bitwarden bundle was also retrieved successfully.
-Private release-pull, management-account/DNS, and separately stored secondary-
-writer access retrieval plus the replacement-instance drill remain open. Backup
+Exact release access is anonymous, and proven recovery-account administration
+can regenerate a replacement narrow writer. Read-only management-account access
+to authoritative DNS plus the replacement-instance drill remain open. Backup
 and deployment success check-ins are proven, while H2D still needs operator
 notification delivery and recovery evidence.
 
