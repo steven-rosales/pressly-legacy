@@ -5,9 +5,10 @@
 `H1` and `V2` are complete. The repaired release, stable operations bundle,
 provisioned host identity, restore preflight, hourly dual-destination schedule,
 and first natural 01:15 UTC execution are proven. Exact per-version 90-day
-Object Lock COMPLIANCE retention is also proven. `H2` remains pending on the
-complete off-host recovery-material inventory and a redacted escrow retrieval.
-`H3`, the existing LPMS launch gate, and the live-vendor gates remain stopped.
+Object Lock COMPLIANCE retention and retrieval of the complete file-based
+Bitwarden bundle are also proven. `H2` remains pending on redacted release-pull,
+management-account/DNS, and secondary-writer access retrieval. `H3`, the
+existing LPMS launch gate, and the live-vendor gates remain stopped.
 
 ## H1 - Publish the repaired release
 
@@ -98,9 +99,24 @@ payload, or secret value is recorded here.
   restore-preflight evidence in `evidence.md`; bucket defaults were not used as
   a substitute for object-version proof.
 - Remaining custody proof: complete the off-host recovery-material inventory
-  and a redacted retrieval test for the backup passphrase, runtime
-  configuration, release access, DNS access, and required recovery credentials.
-  Vault setup alone does not satisfy retrieval.
+  and redacted retrieval test. The file-based archive retrieval below satisfies
+  the backup passphrase, runtime configuration, release identity, and Lightsail
+  SSH-key portion. Private release pull, management-account/DNS recovery access,
+  and the separately stored secondary-writer credential remain.
+
+### H2 Bitwarden bundle retrieval — 2026-08-09
+
+- One 30,720-byte archive was downloaded from Bitwarden to a separate
+  workstation and matched the source archive byte-for-byte at SHA-256
+  `d727ed2d1a4ec3276d4e86cc1c540bee3a8bd1133ecc86570d002e1ccc7655ee`.
+- Its 15 members were the 11 `/opt/pressly/env` runtime files,
+  `backup-passphrase.txt`, `current-release.json`, the Lightsail private key, and
+  `SHA256SUMS`.
+- The local retrieved archive was mode `0600`; isolated verification directories
+  were mode `0700`; all 14 protected members passed strict checksum validation.
+  No file contents or individual secret hashes were emitted.
+- This proves vault access, archive retrieval, and file-bundle integrity. It does
+  not prove the three remaining non-file access paths listed above.
 
 Record only owners, dates, objective values, retention, access-boundary facts,
 and redacted outcomes. Never record a secret value in this package.

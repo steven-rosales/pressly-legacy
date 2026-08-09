@@ -12,9 +12,10 @@ before the pilot evidence is complete. The separate
 `production-recovery-hardening` package is also active. Its repaired release,
 host identity, stable restore preflight, natural hourly dual-destination backup,
 approved objectives, and exact per-version Object Lock retention are proven.
-Complete off-host recovery-material inventory and retrieval plus the replacement-
-instance drill remain open and must not be inferred from LPMS repository
-evidence.
+A byte-identical, checksummed Bitwarden download also proves the file-based
+recovery bundle. Private release-pull, management-account/DNS, and separately
+stored secondary-writer access retrieval plus the replacement-instance drill
+remain open and must not be inferred from LPMS repository evidence.
 
 ## Secret handling
 
@@ -149,6 +150,7 @@ record after it becomes ready.
 - `H6`–`H7`: approve and operate the controlled happy-path pilot.
 - `production-recovery-hardening`: `H1` and `V2` are complete, including the
   first natural hourly dual-destination backup. Exact per-version Object Lock
-  retention is proven. Complete off-host recovery-material inventory and
-  redacted retrieval plus a replacement-instance drill remain open under `H2`
-  and `H3` before disaster recovery is complete.
+  retention and retrieval of the checksummed file bundle are proven. Private
+  release-pull, management-account/DNS, and separately stored secondary-writer
+  access retrieval plus a replacement-instance drill remain open under `H2` and
+  `H3` before disaster recovery is complete.

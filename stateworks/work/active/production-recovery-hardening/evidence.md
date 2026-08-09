@@ -228,7 +228,7 @@ natural scheduling; it does not add an Object Lock or escrow claim.
 
 ## H2 - Immutable-secondary repository prerequisite
 
-Status: independent retention proven; escrow human gate pending.
+Status: independent retention and file escrow proven; access inventory pending.
 
 Main at exact source commit
 `a5c768b97cc9dee56bb53de1678563849b6d1f9a` contains optional
@@ -298,11 +298,54 @@ The exact VersionIds and sizes agree with the prior manual upload/readback and
 secondary restore-preflight authority. This closes the Object Lock retention
 portion of `H2` without claiming that bucket defaults alone were sufficient.
 
-`H2` remains pending solely because the complete off-host recovery-material
-inventory and a redacted retrieval from escrow are not yet proven. That
-inventory includes the backup passphrase, runtime configuration, release
-access, DNS access, and required recovery credentials. No secret value is
-recorded here.
+### H2 off-host bundle retrieval — 2026-08-09
+
+Steven retrieved `pressly-recovery-bundle-20260809.tar` from Bitwarden to a
+separate workstation boundary. The downloaded archive was byte-identical to the
+source escrow archive: 30,720 bytes with SHA-256
+`d727ed2d1a4ec3276d4e86cc1c540bee3a8bd1133ecc86570d002e1ccc7655ee`.
+
+The exact 15-member archive topology was:
+
+```text
+env/compose.env
+env/caddy.env
+env/web.env
+env/api.env
+env/worker.env
+env/processor.env
+env/control.env
+env/postgres.env
+env/migration.env
+env/database-roles.env
+env/backup.env
+backup-passphrase.txt
+current-release.json
+LightsailDefaultKey-us-east-1.pem
+SHA256SUMS
+```
+
+The retrieved local archive was mode `0600`. It was extracted only into an
+isolated mode-`0700` verification directory whose environment subdirectory was
+also mode `0700`. All 14 protected members passed
+`sha256sum --check --strict` against `SHA256SUMS`; no file content or individual
+secret hash was emitted. This proves real off-host vault retrieval plus the
+integrity of the runtime environment files, backup passphrase, exact release
+identity, and Lightsail SSH key.
+
+The redacted member list does not prove every non-file access required by a
+replacement host. `H2` remains pending on three exact attestations:
+
+1. retrieve or prove a regenerable recovery path for private GHCR/GitHub release
+   pull access; `current-release.json` identifies immutable images but is not
+   registry authentication;
+2. retrieve or prove the management-account and DNS administration recovery
+   path; and
+3. retrieve the separately stored secondary-writer AWS credential required by
+   the replacement host; `backup.env` names the profile but the archive contains
+   no AWS credentials file.
+
+No secret value is recorded here.
 
 ```text
 command: VITEST_MAX_WORKERS=2 pnpm exec vitest run tooling/test/postgres-backup-destinations.test.mjs tooling/test/host-operations-monitoring.test.mjs
@@ -313,6 +356,7 @@ summary: both focused files and all 41 tests passed. The proof covers independen
 
 ## Pending evidence
 
-- `H2`: complete off-host recovery-material inventory and redacted escrow
-  retrieval proof
+- `H2`: redacted retrieval or regenerable-access proof for private release pull,
+  management-account/DNS administration, and the separately stored secondary
+  writer credential
 - `H3`: complete replacement-instance drill

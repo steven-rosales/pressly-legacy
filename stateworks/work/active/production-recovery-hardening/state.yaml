@@ -1,11 +1,11 @@
 work_id: production-recovery-hardening
 status: active
-updated: 2026-08-09T00:13:00-04:00
+updated: 2026-08-09T00:38:00-04:00
 
 current_focus:
   - H2
   - H3
-  - H1 and V2 are committed. Exact d7dde proved the first natural hourly dual-destination backup and exact bc098 preserved the schedule while proving deployment monitoring. The owner approved a one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE retention; exact COMPLIANCE retention is proven for all three current manual-triplet versions. H2 remains pending only on the complete off-host recovery-material inventory and redacted retrieval; H3 and V3 remain open behind it.
+  - H1 and V2 are committed. Exact d7dde proved the first natural hourly dual-destination backup and exact bc098 preserved the schedule while proving deployment monitoring. The owner approved a one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE retention; exact COMPLIANCE retention is proven for all three current manual-triplet versions. A byte-identical, checksummed Bitwarden retrieval proves the complete file bundle. H2 remains pending on private release-pull access, management-account/DNS recovery access, and separately stored secondary-writer credential retrieval; H3 and V3 remain open behind it.
 
 tasks:
   T0:

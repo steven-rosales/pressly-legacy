@@ -12,6 +12,8 @@ The one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE policy are
 approved. The independent account, narrow writer, dual upload/readback, and
 secondary restore preflight are proven. Exact `COMPLIANCE` retention through
 2026-11-07 is also proven for all three current versions of the manual secondary
-triplet. This report remains intentionally incomplete until the complete
-off-host recovery-material inventory and redacted escrow retrieval plus a
-replacement-instance drill are proven through `H2` and `H3`.
+triplet. A byte-identical, checksummed Bitwarden retrieval proves the file-based
+recovery bundle. This report remains intentionally incomplete until private
+release-pull access, management-account/DNS recovery access, and the separately
+stored secondary-writer credential are retrieved or proven regenerable, followed
+by a replacement-instance drill through `H2` and `H3`.

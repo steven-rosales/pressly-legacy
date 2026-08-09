@@ -49,6 +49,9 @@ ladder, emitted one real deployment start-to-success check-in, and preserved the
 verified hourly cron and secondary-destination bindings. This proves `H1` and
 `V2`. The one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE policy
 are approved, and exact 90-day COMPLIANCE retention is independently proven for
-all three versions of the manual secondary triplet. Complete off-host recovery-
-material inventory and redacted retrieval remain unproved, so `H2`, `H3`, and
-`V3` remain open.
+all three versions of the manual secondary triplet. Bitwarden retrieval proves
+the complete file-based bundle, including runtime environments, backup
+passphrase, release identity, and the Lightsail SSH key. Private release-registry
+access, management-account/DNS recovery access, and retrieval of the separately
+stored secondary-writer credential remain unproved, so `H2`, `H3`, and `V3`
+remain open.

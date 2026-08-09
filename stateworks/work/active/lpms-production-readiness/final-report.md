@@ -12,10 +12,11 @@ Cents redelivery has been observed through the repaired path. H1 remains the
 next live-vendor fact gate. Later vendor, production-data, pilot, and recovery
 gates remain open. Recovery H1 and V2 now include the first natural hourly
 dual-destination backup, and exact per-version Object Lock retention is proven.
-Complete off-host recovery-material inventory and redacted retrieval plus the
-replacement-instance drill remain open. Backup and deployment success check-ins
-are proven, while H2D still needs operator notification delivery and recovery
-evidence.
+The checksummed file-based Bitwarden bundle was also retrieved successfully.
+Private release-pull, management-account/DNS, and separately stored secondary-
+writer access retrieval plus the replacement-instance drill remain open. Backup
+and deployment success check-ins are proven, while H2D still needs operator
+notification delivery and recovery evidence.
 
 This report remains intentionally non-terminal until the Stateworks network
 reaches its verified end state.

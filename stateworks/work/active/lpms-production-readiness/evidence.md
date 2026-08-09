@@ -743,6 +743,15 @@ portion of recovery `H2`; that gate remains pending on the complete off-host
 recovery-material inventory and redacted escrow retrieval. `H3` and `V3` remain
 open behind it.
 
+A subsequent Bitwarden download proved the file-based escrow slice: the
+30,720-byte archive was byte-identical to its source at SHA-256
+`d727ed2d1a4ec3276d4e86cc1c540bee3a8bd1133ecc86570d002e1ccc7655ee`, and all
+14 protected members passed strict checksum validation without exposing their
+contents or individual hashes. The bundle contains all 11 runtime environment
+files, the backup passphrase, current release identity, and Lightsail SSH key.
+Recovery `H2` remains pending only on redacted private-release-pull,
+management-account/DNS, and separately stored secondary-writer access retrieval.
+
 These successful check-ins prove execution and Sentry ingestion, not
 operator-notification delivery or recovery. No bounded failure/recovery signal
 was delivered to and acknowledged by the operator, so `H2D` is not advanced.
