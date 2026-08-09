@@ -514,8 +514,10 @@ Authenticator TOTP. No recovery code substituted for TOTP and no account
 identifier or credential entered evidence. Through the isolated application
 route, one explicitly synthetic non-PII write returned HTTP 201 and its
 authoritative read returned HTTP 200. Logout returned HTTP 200, and reuse of
-the revoked session was rejected with HTTP 401. No production customer or
-order payload was copied into the drill.
+the revoked session was rejected with HTTP 401. The application proof did not
+select, expose, replay, or reuse an existing production customer or order
+payload; it operated only on the synthetic non-PII drill record. The restored
+database necessarily contained the production backup's encrypted state.
 
 The application proof finished at `2026-08-09T16:25:10Z`. Measured RTO was
 4,492 seconds (1 hour 14 minutes 52 seconds), below the approved 14,400-second

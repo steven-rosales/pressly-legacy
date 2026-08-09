@@ -305,7 +305,7 @@ tasks:
       - Start the RTO clock at the declared host-loss drill start and calculate RPO from that same timestamp to the selected backup completion timestamp.
       - Build a uniquely named and tagged disposable replacement instance without mounting, mutating, or routing production resources.
       - Recover the exact refreshed release and configuration, restore the selected backup, and authenticate as the Production Owner with the ordinary TOTP. A recovery code must not substitute for ordinary TOTP because that would mask restored MFA or clock failure.
-      - Through isolated DNS or hosts-file routing, prove one explicitly synthetic non-PII application write and authoritative readback plus every public health surface. Never copy a production customer payload into the drill.
+      - Through isolated DNS or hosts-file routing, prove one explicitly synthetic non-PII application write and authoritative readback plus every public health surface. Do not select, expose, replay, or reuse an existing production customer payload during the application proof; the restored database necessarily contains the selected production backup's encrypted state.
       - Require measured RPO at or below one hour and measured RTO at or below four hours. A target value or healthy schedule is not a measured result.
       - After evidence is captured, validate exact names and drill tags before deleting only the disposable instance, isolated routing, synthetic drill data, and other resources created by this drill; read back their absence without deleting production, retained backups, snapshots, or unrelated stopped instances.
     expected_external_state:

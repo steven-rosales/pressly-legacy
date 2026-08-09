@@ -20,7 +20,10 @@ and Control HTTPS health.
 Production Owner authentication with ordinary TOTP passed. One synthetic
 non-PII write returned HTTP 201, its authoritative read returned HTTP 200,
 logout returned HTTP 200, and the revoked session was rejected with HTTP 401.
-No production customer or order payload entered the drill.
+The application proof did not select, expose, replay, or reuse an existing
+production customer or order payload; it operated only on the synthetic
+non-PII drill record. The restored database necessarily contained the
+production backup's encrypted state.
 
 Measured RPO was 3,315 seconds (55 minutes 15 seconds) against the approved
 one-hour limit. Measured RTO was 4,492 seconds (1 hour 14 minutes 52 seconds)
