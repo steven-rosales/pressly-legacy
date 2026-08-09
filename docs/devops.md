@@ -244,8 +244,10 @@ Migrations are forward-only, and H3 must prove that the intended previous
 binary remains compatible with the migrated production database before the
 cutover is approved.
 
-Production runtime values live in mode-600 service-specific files on the
-server, not in GitHub:
+Live production runtime values stay in mode-600 service-specific files on the
+server, never in Git or GitHub. The approved encrypted Bitwarden recovery
+collection holds the separately controlled off-host recovery copy of required
+non-regenerable values and access-recovery artifacts:
 
 ```txt
 /opt/pressly/env/{compose,caddy,web,api,worker,processor,control,postgres,migration,backup}.env
@@ -497,6 +499,8 @@ Caddy is the only public runtime entrypoint.
 
 Postgres stays private.
 
-Secrets stay on the server.
+Live runtime secrets stay on the server and out of Git and GitHub; required
+non-regenerable recovery material has a separately controlled encrypted
+off-host Bitwarden copy.
 
 Backups leave the server.

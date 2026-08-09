@@ -392,3 +392,20 @@ summary: both focused files and all 41 tests passed. The proof covers independen
   off-host Production Owner password plus ordinary TOTP/recovery access
 - `H3`: complete replacement-instance drill
 - `V3`: terminal Stateworks verification after `H2` and `H3` evidence exists
+
+## 2026-08-09 - Authoritative recovery-gate correction
+
+The executable network now separates H2 recovery authority for non-root AWS
+management access, GoDaddy authoritative-DNS access with MFA, Production Owner
+ordinary-TOTP/recovery access, immutable custody, and non-regenerable off-host
+material. It explicitly excludes the live regenerable secondary-writer key from
+required escrow.
+
+H3 now depends on V2 and H2 and cannot create a replacement host until the final
+pre-drill deployed release is read back and the approved off-host attachment is
+refreshed, retrieved, and matched to that exact release. Its verifier requires
+the latest complete immutable triplet available at drill start, ordinary-TOTP
+owner authentication, an isolated non-PII write/read, every health surface,
+measured RPO no greater than one hour, measured RTO no greater than four hours,
+and exact tag-validated drill-only teardown. This graph correction advances no
+task: H2 remains pending, and H3 and V3 remain latent.

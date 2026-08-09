@@ -718,3 +718,17 @@ The runtime contradiction therefore remains explicitly open, and `API-E` must
 not be administratively resolved from health checks or inactivity alone. This
 record does not advance T3, T7, T7A, T7B, V1, or T8 and does not rewrite T6's
 historical dependency-order anomaly.
+
+## 2026-08-09 - API-E human-gate ordering
+
+The executable network now owns the missing runtime closure as human action
+`H1`. It depends on T3, T5, T6, T7, T7A, and T7B, while V1 depends on H1. The
+current next task therefore remains T3; once the repository sequence is
+committed, the graph stops on H1 before final verification rather than silently
+certifying the historical T6 claim.
+
+H1 requires one authenticated GET 200 for an existing non-empty Order detail,
+rendered item proof, no write request, a fixed five-minute Sentry ingestion
+window with no recurrence, and only then `API-E` resolution plus status
+readback. No production Order or customer fact is recorded here, and H1 remains
+pending.

@@ -17,6 +17,9 @@ invariants:
   - A durable restore journal blocks deploy, rollback, backup, and direct role mutation until the exact restore resumes or a confirmation-gated pre-cutover abort retires it.
   - Recovery binds the release, backup, four public health authorities, expected static IP, and provisioned host identity; restart policies remain fenced until durable public verification.
   - Backup success or failure is determined by the backup command, never by Sentry availability or telemetry exit status.
+  - Recoverable AWS management-account access, GoDaddy authoritative-DNS access, and Pressly Production Owner access are separate human authorities and must never be inferred from one another or from a file bundle.
+  - A replacement-host drill uses the exact final pre-drill deployed release from freshly retrieved off-host escrow and the latest complete immutable backup triplet available at drill start.
+  - Recovery proof uses ordinary TOTP authentication, isolated non-PII application writes and reads, measured RPO and RTO, and teardown bounded to uniquely identified drill resources.
   - Secrets, database contents, customer payloads, DSNs, private keys, and recovery passphrases never enter Stateworks evidence.
   - Existing launch and vendor-enablement gates remain stopped until this package and their own human obligations are satisfied.
 
@@ -227,20 +230,39 @@ tasks:
     reads:
       - repo:infra/aws/lightsail/README.md
       - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+      - external:aws-management-account-identity-center-access
+      - external:godaddy-authoritative-dns-administration
+      - external:bitwarden-pressly-recovery-collection
+      - external:pressly-production-owner-recovery-access
     writes:
       - external:approved-RPO-and-RTO
       - external:immutable-secondary-backup
-      - external:off-host-recovery-secret-escrow
+      - external:off-host-non-regenerable-recovery-material
+      - external:recoverable-aws-management-account-access
+      - external:recoverable-godaddy-authoritative-dns-access
+      - external:recoverable-production-owner-access
       - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
+    preconditions:
+      - Repository recovery behavior is verified, and no secret value or customer payload will be recorded as evidence.
+      - AWS management-account access, recovery-account administration, GoDaddy authoritative-DNS access, and Pressly Production Owner access are treated as distinct authorities.
     human_instructions:
-      - Approve explicit maximum data-loss and recovery-time objectives based on business fallback capacity.
-      - Provision an independently administered encrypted secondary copy with Object Lock retention and no delete authority for the production host.
-      - Escrow the backup passphrase, runtime environments, release access, DNS access, and required recovery credentials off host.
-      - Record owners, retention, objective values, and redacted proof only; never record secret values.
+      - Confirm the approved one-hour maximum data-loss objective, four-hour recovery-time objective, and 90-day S3 Object Lock COMPLIANCE retention.
+      - Maintain an independently administered encrypted secondary copy whose production-host writer has no delete or retention-mutation authority; prove exact-version retention rather than inferring it from the bucket default.
+      - Separately prove recoverable non-root IAM Identity Center access to AWS management account `088594414587`; do not use or recover a root credential for this proof.
+      - Separately prove recoverable GoDaddy credential and MFA access to the authoritative DNS administration page for `trypressly.com`; confirm nameserver and record edit controls without changing DNS.
+      - 'Keep an approved encrypted off-host copy of the non-regenerable recovery material and access-recovery artifacts required for host loss: backup passphrase, exact runtime configuration, exact release identity, required host-access key, and Pressly Production Owner password plus ordinary TOTP and a separate recovery path.'
+      - Do not require retrieval or escrow of the live secondary-writer key. Proven recovery-account administration can create or rotate a replacement least-privilege writer for a replacement host.
+      - Retrieve the file bundle from the off-host store, verify its complete inventory and checksum without exposing contents, then remove only the validated temporary copies.
+      - Record owners, retention, objective values, separate access-boundary results, and redacted outcomes only; never record secret values, customer data, TOTP material, or recovery codes.
     expected_external_state:
-      - A compromised production instance cannot erase every usable backup or its recovery credentials.
+      - A compromised production instance cannot erase every usable backup or the non-regenerable material needed to recover it.
+      - The recovery owner can independently enter AWS management account `088594414587`, GoDaddy authoritative DNS administration, and the Pressly Production Owner recovery path without relying on the failed host.
+      - Recovery-account administration can mint a replacement narrow writer, so the live writer key is not an escrow dependency.
     verifier:
-      - Human provides redacted custody, access-boundary, RPO, and RTO evidence plus exact-version Object Lock mode and retain-until readback and a redacted off-host recovery-material retrieval result.
+      - Human provides the approved one-hour RPO, four-hour RTO, and 90-day COMPLIANCE values plus exact-version Object Lock mode and retain-until readback.
+      - Human provides separate dated, redacted proof of non-root AWS management-account access and GoDaddy authoritative-DNS administration with MFA; neither proof is inferred from the other.
+      - Human provides a dated, redacted off-host bundle inventory, checksum retrieval result, and Production Owner password plus ordinary-TOTP/recovery-path availability without disclosing any value.
+      - Evidence states that the live secondary-writer key is regenerable and is not required in escrow.
     rollback: Disable an unsafe replication rule without deleting the existing primary backup history.
     secret_handling: never_show_agent
     status: latent
@@ -252,23 +274,41 @@ tasks:
     owner: human
     surface: aws
     agent_can_verify: false
-    deps: [H1, H2]
+    deps: [V2, H2]
     reads:
       - external:immutable-secondary-backup
-      - external:off-host-recovery-secret-escrow
+      - external:final-pre-drill-deployed-release
+      - external:refreshed-off-host-recovery-material
+      - external:pressly-production-owner-recovery-access
       - repo:infra/aws/docs/restore-postgres.md
     writes:
       - external:disposable-replacement-instance
+      - external:isolated-drill-routing
+      - external:drill-only-application-record
       - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
+    preconditions:
+      - V2 is committed and H2 independently proves immutable custody plus separate recoverable AWS management, GoDaddy authoritative-DNS, and Production Owner access.
+      - The final pre-drill merge has deployed successfully, and no replacement instance is created until the approved off-host attachment is refreshed from that exact release and retrieved checksum verification succeeds.
+      - The drill controller has a unique instance name and drill tags and can enumerate every resource it is authorized to remove before any creation begins.
     human_instructions:
-      - Build a disposable replacement instance without using the production volume.
-      - Recover the exact approved release and configuration from escrow, restore a verified backup, and prove database writes plus all public health surfaces on isolated DNS or hosts-file routing.
-      - Measure achieved recovery point and elapsed recovery time, then destroy only the disposable drill resources after evidence is captured.
+      - After the final pre-drill merge deploys successfully, read back the exact deployed source and five digest-pinned images. Refresh the approved Bitwarden attachment from that exact host state, retrieve it again, and verify its checksum, inventory, and `current-release.json` match before creating the replacement host.
+      - At the declared drill start, select the latest complete immutable secondary triplet whose dump, checksum, and metadata versions all exist with matching identities and COMPLIANCE retention; use exact version-pinned retrieval and record only redacted version and timestamp evidence.
+      - Start the RTO clock at the declared host-loss drill start and calculate RPO from that same timestamp to the selected backup completion timestamp.
+      - Build a uniquely named and tagged disposable replacement instance without mounting, mutating, or routing production resources.
+      - Recover the exact refreshed release and configuration, restore the selected backup, and authenticate as the Production Owner with the ordinary TOTP. A recovery code must not substitute for ordinary TOTP because that would mask restored MFA or clock failure.
+      - Through isolated DNS or hosts-file routing, prove one explicitly synthetic non-PII application write and authoritative readback plus every public health surface. Never copy a production customer payload into the drill.
+      - Require measured RPO at or below one hour and measured RTO at or below four hours. A target value or healthy schedule is not a measured result.
+      - After evidence is captured, validate exact names and drill tags before deleting only the disposable instance, isolated routing, synthetic drill data, and other resources created by this drill; read back their absence without deleting production, retained backups, snapshots, or unrelated stopped instances.
     expected_external_state:
-      - Pressly has one measured end-to-end host-loss recovery proof.
+      - Pressly has one measured end-to-end host-loss recovery proof bound to the exact final pre-drill release, refreshed off-host material, and latest complete immutable triplet available at drill start.
+      - Ordinary-TOTP owner authentication, an isolated non-PII write/read, and all health surfaces succeed within the approved RPO and RTO.
+      - No drill-owned resource remains and no production or unrelated resource was changed or deleted.
     verifier:
-      - Human provides source SHA, backup timestamp, measured RPO/RTO, redacted health/write proof, and cleanup evidence.
-    rollback: Remove only the disposable instance and its isolated routing; never alter production during the drill.
+      - Human provides the post-merge deployed source SHA and five image digests plus a refreshed off-host bundle checksum/inventory whose release identity matches exactly.
+      - Human provides the selected latest complete triplet's redacted immutable version identities and completion timestamp, measured RPO no greater than one hour, and measured RTO no greater than four hours.
+      - Human provides redacted ordinary-TOTP Production Owner authentication, synthetic non-PII application write/read, and isolated health evidence.
+      - Human provides exact tag-validated teardown inventory and absence readback proving only drill-owned resources were removed.
+    rollback: On any failed precondition or verifier, stop the drill and remove only exact tag-validated drill resources and isolated routing; never alter production, retained backups, snapshots, or unrelated resources.
     secret_handling: never_show_agent
     status: latent
     evidence: []

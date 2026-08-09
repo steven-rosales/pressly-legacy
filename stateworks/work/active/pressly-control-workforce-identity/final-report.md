@@ -9,8 +9,8 @@ abandoned `running` marker no longer hides the next repository task.
 
 - T0, T1, T2, T4, T5, and T6 remain historically committed with their existing
   evidence.
-- T3 and T7 are open for current reconciliation. T7A, T7B, V1, and T8 remain
-  unproved and open behind their declared dependencies.
+- T3 and T7 are open for current reconciliation. T7A, T7B, the API-E human gate
+  H1, V1, and T8 remain unproved and open behind their declared dependencies.
 
 ## Verification
 
@@ -27,8 +27,11 @@ abandoned `running` marker no longer hides the next repository task.
 
 - One safe authenticated, read-only production verification is required: open
   an existing non-empty Order detail, confirm its GET succeeds and renders at
-  least one item without any mutation request, then confirm `API-E` has no
-  post-repair recurrence before resolving it. Record no Order or customer data.
+  least one item without any mutation request, then observe a fixed five-minute
+  Sentry ingestion window and confirm `API-E` has no post-repair recurrence
+  before resolving it. The network orders this H1 gate after the remaining
+  repository tasks and before V1, preserving T3 as the current next task. Record
+  no Order or customer data.
 - Employee onboarding and a real invitation-delivery provider remain deferred
   operational adoption concerns.
 

@@ -360,8 +360,15 @@ resource-access path. Prefer a dedicated named role or credential-process
 profile for the secondary. Configure it for the same OS account that runs cron
 and never place access keys in Git, command lines, or cron. If static
 credentials are unavoidable, keep their AWS credentials file mode `0600`,
-escrow and rotate them through the approved off-host process, and verify cron's
-`HOME` resolves the intended profile.
+rotate them through the independently administered recovery account, and verify
+cron's `HOME` resolves the intended profile. Do not make the live secondary
+writer key an off-host escrow prerequisite: recovery-account administration is
+the durable access path and can create or rotate a replacement least-privilege
+writer for a replacement host. Do not add or refresh that live key in the
+recovery inventory. If a legacy escrow copy exists, retire it through the next
+approved credential rotation only after production has switched to the
+replacement and the old key is revoked; never delete a credential still used by
+production merely to align documentation.
 
 Provisioning remains an explicit infrastructure gate. The script neither
 creates a bucket nor changes encryption, versioning, Object Lock, retention, or
@@ -533,6 +540,11 @@ operational bucket that the primary is not immutable disaster recovery. Dated
 90-day default `COMPLIANCE` retention, exact retention on all three inspected
 versions of one encrypted triplet, a narrow no-delete writer, dual-destination
 readback, restore preflight, and a checksummed Bitwarden file-bundle retrieval.
+The approved encrypted off-host boundary holds only material or access-recovery
+artifacts that cannot safely be inferred from a failed host, including the
+backup passphrase, exact runtime configuration and release identity, required
+host access, and Production Owner authentication recovery. It does not require
+the live regenerable secondary-writer key.
 The remaining production proof is:
 
 1. Prove three separate off-host access paths without recording their values:
@@ -550,8 +562,8 @@ The remaining production proof is:
    and tear down only the drill resources.
 
 Versioning and isolated restore drills remain valuable, but neither substitutes
-for the immutable copy, recovery-secret custody, or the complete replacement-
-instance drill.
+for the immutable copy, required non-regenerable recovery-material custody, or
+the complete replacement-instance drill.
 
 Read:
 
