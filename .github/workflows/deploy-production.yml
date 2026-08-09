@@ -37,6 +37,18 @@ jobs:
       - name: Checkout deployment tooling
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+      - name: Report deployment start
+        id: deployment-monitor
+        continue-on-error: true
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_SHA: ${{ inputs.ref }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          SENTRY_DEPLOYMENT_DSN: ${{ secrets.SENTRY_DEPLOYMENT_DSN }}
+          SENTRY_DEPLOYMENT_MONITOR_SLUG: ${{ vars.SENTRY_DEPLOYMENT_MONITOR_SLUG }}
+        run: node tooling/scripts/deployment-monitor.mjs start
+
       - name: Resolve deploy ref
         id: deploy-ref
         shell: bash
@@ -97,6 +109,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ steps.deploy-ref.outputs.sha }}
+          path: release-source
 
       - name: Download verified release evidence
         shell: bash
@@ -115,7 +128,7 @@ jobs:
           EXPECTED_SOURCE_SHA: ${{ steps.deploy-ref.outputs.sha }}
         run: |
           set -euo pipefail
-          node tooling/scripts/release-manifest.mjs validate release/release.json >/dev/null
+          node release-source/tooling/scripts/release-manifest.mjs validate release/release.json >/dev/null
           node - <<'NODE'
           const manifest = require('./release/release.json');
           const output = process.env.GITHUB_OUTPUT;
@@ -196,7 +209,7 @@ jobs:
           )"
           [[ "$remote_dir" =~ ^/tmp/pressly-deploy\.[A-Za-z0-9]+$ ]]
 
-          local_deploy_script='infra/aws/lightsail/deploy.sh'
+          local_deploy_script='release-source/infra/aws/lightsail/deploy.sh'
           remote_deploy_script="$remote_dir/deploy.sh"
           deploy_script_digest="$(sha256sum "$local_deploy_script" | cut -d' ' -f1)"
 
@@ -209,16 +222,33 @@ jobs:
             "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
             "set -euo pipefail; test \"\$(stat -c '%a' '$remote_dir')\" = 700; chmod 700 '$remote_deploy_script'; printf '%s  %s\\n' '$deploy_script_digest' '$remote_deploy_script' | sha256sum --check --status; DEPLOY_SHA='$DEPLOY_SHA' PRESSLY_EXPECTED_PUBLIC_IP='$LIGHTSAIL_HOST' PRESSLY_API_IMAGE='$API_IMAGE' PRESSLY_WEB_IMAGE='$WEB_IMAGE' PRESSLY_WORKER_IMAGE='$WORKER_IMAGE' PRESSLY_PROCESSOR_IMAGE='$PROCESSOR_IMAGE' PRESSLY_CONTROL_IMAGE='$CONTROL_IMAGE' '$remote_deploy_script'"
 
-      - name: Record deployment result
-        if: always()
+      - name: Report deployment result
+        if: ${{ always() }}
+        continue-on-error: true
         shell: bash
         env:
-          DEPLOY_SHA: ${{ steps.deploy-ref.outputs.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_SHA: ${{ inputs.ref }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          DEPLOYMENT_MONITOR_CHECK_IN_ID: ${{ steps.deployment-monitor.outputs.check_in_id }}
+          DEPLOYMENT_MONITOR_STARTED_AT: ${{ steps.deployment-monitor.outputs.started_at }}
           DEPLOY_OUTCOME: ${{ job.status }}
+          DEPLOY_SHA: ${{ steps.deploy-ref.outputs.sha }}
+          SENTRY_DEPLOYMENT_DSN: ${{ secrets.SENTRY_DEPLOYMENT_DSN }}
+          SENTRY_DEPLOYMENT_MONITOR_SLUG: ${{ vars.SENTRY_DEPLOYMENT_MONITOR_SLUG }}
         run: |
+          telemetry_status=0
+          node tooling/scripts/deployment-monitor.mjs finish || telemetry_status=$?
+          if [[ "$telemetry_status" -ne 0 ]]; then
+            echo 'Deployment telemetry helper failed; deployment result remains authoritative.' >&2
+          fi
+
           if [[ "$DEPLOY_OUTCOME" == "success" ]]; then
             event='deployment.succeeded'
             outcome='succeeded'
+          elif [[ "$DEPLOY_OUTCOME" == "cancelled" ]]; then
+            event='deployment.failed'
+            outcome='cancelled'
           else
             event='deployment.failed'
             outcome='failed'
