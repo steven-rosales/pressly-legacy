@@ -1,11 +1,11 @@
 work_id: production-recovery-hardening
 status: active
-updated: 2026-08-09T01:43:00-04:00
+updated: 2026-08-09T11:05:11-04:00
 
 current_focus:
-  - H2
   - H3
-  - 'H1 and V2 are committed. On 2026-08-09, exact d7dde proved the first natural hourly dual-destination backup and the later exact bc098 snapshot preserved the schedule while proving deployment monitoring. The owner approved a one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE retention; exact COMPLIANCE retention is proven for all three manual-triplet versions inspected on that date. A byte-identical, checksummed Bitwarden retrieval proves only the dated 15-member file bundle. Exact release recovery is anonymously accessible, and recovery-account administration makes the narrow writer regenerable. H2 remains open on three separate human proofs: recoverable non-root access to AWS management account 088594414587, recoverable GoDaddy access to the authoritative DNS administration surface with MFA, and off-host Pressly Production Owner password plus ordinary TOTP and recovery access. After this branch is merged, the exact deployed release and Bitwarden attachment must be refreshed and reverified before H3. H3 and V3 are pending and dependency-gated: H3 cannot become ready before H2 commits, and V3 cannot become ready before H3 commits.'
+  - V3
+  - 'H1, V2, and H2 are committed. On 2026-08-09, exact d7dde proved the first natural hourly dual-destination backup and the later exact bc098 snapshot preserved the schedule while proving deployment monitoring. The owner approved a one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE retention; exact COMPLIANCE retention is proven for all three manual-triplet versions inspected on that date. Exact release recovery is anonymously accessible, and recovery-account administration makes the narrow writer regenerable. Dated non-root IAM Identity Center readback proves AWSReservedSSO_AdministratorAccess for subject steven in management account 088594414587 and recovery account 067200612921. Current GoDaddy DNS administration, record-edit controls, and matching ns17/ns18 authoritative nameservers are proven without a DNS mutation. The locally verified exact-ad499be0 15-member bundle was uploaded to Bitwarden, after which the validated local archive and staging directory were deleted and confirmed absent. Steven confirmed the Production Owner password and ordinary TOTP in Google Authenticator are available. Separate GoDaddy MFA-recovery and Owner recovery-code methods are accepted nonblocking pre-launch debt and are not claimed as present. H3 is the next human stop and must freshly retrieve and verify the exact attachment before recovery use; V3 remains pending behind H3.'
 
 tasks:
   T0:
@@ -37,7 +37,7 @@ tasks:
     evidence:
       - stateworks/work/active/production-recovery-hardening/evidence.md#v2---deployed-hourly-recovery-verification
   H2:
-    status: pending
+    status: committed
     evidence:
       - stateworks/work/active/production-recovery-hardening/evidence.md#h2---immutable-secondary-repository-prerequisite
   H3:

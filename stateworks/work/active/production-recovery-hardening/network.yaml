@@ -17,7 +17,7 @@ invariants:
   - A durable restore journal blocks deploy, rollback, backup, and direct role mutation until the exact restore resumes or a confirmation-gated pre-cutover abort retires it.
   - Recovery binds the release, backup, four public health authorities, expected static IP, and provisioned host identity; restart policies remain fenced until durable public verification.
   - Backup success or failure is determined by the backup command, never by Sentry availability or telemetry exit status.
-  - Recoverable AWS management-account access, GoDaddy authoritative-DNS access, and Pressly Production Owner access are separate human authorities and must never be inferred from one another or from a file bundle.
+  - Non-root AWS management and recovery administration, current GoDaddy authoritative-DNS administration, and Pressly Production Owner credential custody are separate human authorities and must never be inferred from one another or from a file bundle.
   - A replacement-host drill uses the exact final pre-drill deployed release from freshly retrieved off-host escrow and the latest complete immutable backup triplet available at drill start.
   - Recovery proof uses ordinary TOTP authentication, isolated non-PII application writes and reads, measured RPO and RTO, and teardown bounded to uniquely identified drill resources.
   - Secrets, database contents, customer payloads, DSNs, private keys, and recovery passphrases never enter Stateworks evidence.
@@ -231,37 +231,43 @@ tasks:
       - repo:infra/aws/lightsail/README.md
       - repo:stateworks/work/active/production-recovery-hardening/evidence.md
       - external:aws-management-account-identity-center-access
+      - external:aws-recovery-account-identity-center-access
       - external:godaddy-authoritative-dns-administration
       - external:bitwarden-pressly-recovery-collection
-      - external:pressly-production-owner-recovery-access
+      - external:pressly-production-owner-credential-material
     writes:
       - external:approved-RPO-and-RTO
       - external:immutable-secondary-backup
       - external:off-host-non-regenerable-recovery-material
       - external:recoverable-aws-management-account-access
-      - external:recoverable-godaddy-authoritative-dns-access
-      - external:recoverable-production-owner-access
+      - external:recoverable-aws-recovery-account-access
+      - external:current-godaddy-authoritative-dns-access
+      - external:off-host-production-owner-credential-material
       - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
     preconditions:
       - Repository recovery behavior is verified, and no secret value or customer payload will be recorded as evidence.
-      - AWS management-account access, recovery-account administration, GoDaddy authoritative-DNS access, and Pressly Production Owner access are treated as distinct authorities.
+      - AWS management-account access, recovery-account administration, current GoDaddy authoritative-DNS access, and Pressly Production Owner credential custody are treated as distinct authorities.
     human_instructions:
       - Confirm the approved one-hour maximum data-loss objective, four-hour recovery-time objective, and 90-day S3 Object Lock COMPLIANCE retention.
       - Maintain an independently administered encrypted secondary copy whose production-host writer has no delete or retention-mutation authority; prove exact-version retention rather than inferring it from the bucket default.
-      - Separately prove recoverable non-root IAM Identity Center access to AWS management account `088594414587`; do not use or recover a root credential for this proof.
-      - Separately prove recoverable GoDaddy credential and MFA access to the authoritative DNS administration page for `trypressly.com`; confirm nameserver and record edit controls without changing DNS.
-      - 'Keep an approved encrypted off-host copy of the non-regenerable recovery material and access-recovery artifacts required for host loss: backup passphrase, exact runtime configuration, exact release identity, required host-access key, and Pressly Production Owner password plus ordinary TOTP and a separate recovery path.'
+      - Separately prove non-root IAM Identity Center `AdministratorAccess` to AWS management account `088594414587` and recovery account `067200612921`; do not use or recover a root credential for either proof.
+      - Separately use the current GoDaddy authentication path to open the authoritative DNS administration page for `trypressly.com`; confirm nameserver and record edit controls without changing DNS.
+      - Record Steven's explicit decision to defer a separate vault-backed GoDaddy MFA-recovery method as accepted nonblocking pre-launch debt; do not claim that backup method is proven.
+      - 'Keep an approved encrypted off-host copy of the non-regenerable recovery material required for host loss: backup passphrase, exact runtime configuration, exact release identity, required host-access key, and Pressly Production Owner password plus ordinary TOTP.'
+      - Record the separate Production Owner recovery-code path as accepted nonblocking pre-launch debt; ordinary TOTP remains mandatory for H3 and the backup path must not be claimed as present.
       - Do not require retrieval or escrow of the live secondary-writer key. Proven recovery-account administration can create or rotate a replacement least-privilege writer for a replacement host.
-      - Retrieve the file bundle from the off-host store, verify its complete inventory and checksum without exposing contents, then remove only the validated temporary copies.
+      - Validate the exact final pre-drill file bundle locally, upload it to the previously retrieval-proven off-host store, then delete and absence-check only the validated local archive and staging directory. H3 performs a fresh independent retrieval and integrity check before using it.
       - Record owners, retention, objective values, separate access-boundary results, and redacted outcomes only; never record secret values, customer data, TOTP material, or recovery codes.
     expected_external_state:
       - A compromised production instance cannot erase every usable backup or the non-regenerable material needed to recover it.
-      - The recovery owner can independently enter AWS management account `088594414587`, GoDaddy authoritative DNS administration, and the Pressly Production Owner recovery path without relying on the failed host.
+      - The recovery owner can independently enter AWS management account `088594414587` and recovery account `067200612921`, administer current GoDaddy authoritative DNS, and obtain the Production Owner password plus ordinary TOTP without relying on the failed host. Actual Owner authentication remains an H3 verifier.
+      - Separate vault-backed GoDaddy MFA-recovery and Production Owner recovery-code methods remain explicitly accepted pre-launch debt and are not represented as present.
       - Recovery-account administration can mint a replacement narrow writer, so the live writer key is not an escrow dependency.
     verifier:
       - Human provides the approved one-hour RPO, four-hour RTO, and 90-day COMPLIANCE values plus exact-version Object Lock mode and retain-until readback.
-      - Human provides separate dated, redacted proof of non-root AWS management-account access and GoDaddy authoritative-DNS administration with MFA; neither proof is inferred from the other.
-      - Human provides a dated, redacted inventory and checksum retrieval result for the exact file bundle, plus separate redacted confirmation of Production Owner password, ordinary-TOTP, and recovery-path availability without disclosing any value.
+      - Human provides separate dated, redacted proof of non-root AWS management- and recovery-account `AdministratorAccess` plus current GoDaddy authoritative-DNS administration, nameserver readback, and record-edit controls; none is inferred from another.
+      - Evidence explicitly identifies the deferred GoDaddy MFA-recovery and Production Owner recovery-code backups as accepted nonblocking pre-launch debt rather than proven controls.
+      - Human provides dated, redacted local inventory/checksum, off-host upload, and validated local-copy deletion results for the exact final pre-drill file bundle, plus separate redacted confirmation of Production Owner password and ordinary-TOTP availability without disclosing any value.
       - Evidence states that the live secondary-writer key is regenerable and is not required in escrow.
     rollback: Disable an unsafe replication rule without deleting the existing primary backup history.
     secret_handling: never_show_agent
@@ -279,7 +285,7 @@ tasks:
       - external:immutable-secondary-backup
       - external:final-pre-drill-deployed-release
       - external:refreshed-off-host-recovery-material
-      - external:pressly-production-owner-recovery-access
+      - external:pressly-production-owner-credential-material
       - repo:infra/aws/docs/restore-postgres.md
     writes:
       - external:disposable-replacement-instance
@@ -287,7 +293,7 @@ tasks:
       - external:drill-only-application-record
       - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
     preconditions:
-      - V2 is committed and H2 independently proves immutable custody plus separate recoverable AWS management, GoDaddy authoritative-DNS, and Production Owner access.
+      - V2 is committed and H2 independently proves immutable custody plus separate non-root AWS management and recovery administration, current GoDaddy authoritative-DNS administration, and Production Owner credential-material availability. Actual Owner authentication remains an H3 verifier.
       - The final pre-drill merge has deployed successfully, and no replacement instance is created until the approved off-host attachment is refreshed from that exact release and retrieved checksum verification succeeds.
       - The drill controller has a unique instance name and drill tags and can enumerate every resource it is authorized to remove before any creation begins.
     human_instructions:

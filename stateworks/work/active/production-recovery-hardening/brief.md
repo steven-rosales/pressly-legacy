@@ -58,10 +58,21 @@ all five exact image manifests and anonymous Git fetch of the exact source prove
 that release recovery needs no stored registry or repository credential.
 Independent recovery-account administration can read the immutable versions
 and create or rotate a replacement narrow writer, so retaining the current
-long-lived writer key is not a recovery prerequisite. The archive does not
-contain or prove AWS management-account login, GoDaddy DNS login and MFA, or the
-Pressly Production Owner password and ordinary TOTP/recovery path. Those three
-separate access proofs remain open under `H2`. After this branch is merged, the
-deployed exact release and escrow attachment must be refreshed and reverified
-before the replacement-instance drill. `H3` and `V3` are pending and
-dependency-gated behind `H2` and `H3`, respectively.
+long-lived writer key is not a recovery prerequisite. Dated non-root IAM
+Identity Center readback now proves Steven can assume `AdministratorAccess` in
+both management account `088594414587` and recovery account `067200612921`.
+Steven also opened the `trypressly.com` GoDaddy DNS administration surface,
+confirmed record-edit controls, and observed the same authoritative
+`ns17.domaincontrol.com` and `ns18.domaincontrol.com` nameservers returned by an
+independent DNS query. He explicitly deferred separate vault-backed GoDaddy MFA
+recovery and Production Owner recovery-code methods as accepted nonblocking
+pre-launch debt; neither backup method is claimed as proven.
+
+`H2` is committed. The locally verified 15-member archive for exact deployed
+release `ad499be0d73f4b5e5112f8bf25660a642d02ec48` was uploaded to Bitwarden;
+the exact local archive and staging directory were then deleted and confirmed
+absent, leaving the vault as the off-host copy. Steven separately confirmed the
+Production Owner password is available and its ordinary TOTP is held in Google
+Authenticator without disclosing any value. H3 must freshly retrieve and verify
+the attachment before use. `H3` and `V3` remain pending and dependency-gated
+behind `H2` and `H3`, respectively.

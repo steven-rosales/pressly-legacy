@@ -228,9 +228,10 @@ natural scheduling; it does not add an Object Lock or escrow claim.
 
 ## H2 - Immutable-secondary repository prerequisite
 
-Status: independent retention and the dated 15-member file-bundle escrow proven;
-AWS management access, GoDaddy DNS administration and MFA, and Production Owner
-application access remain pending as separate human proofs.
+Status: committed. Independent retention, exact current file-bundle custody,
+non-root AWS management and recovery administration, current GoDaddy DNS
+administration, and Production Owner password plus ordinary-TOTP availability
+are proven at the redacted boundary required by H2.
 
 Main at exact source commit
 `a5c768b97cc9dee56bb53de1678563849b6d1f9a` contains optional
@@ -253,14 +254,22 @@ the owner decisions below are separate human evidence.
 - Approved immutable retention: 90 days in S3 Object Lock COMPLIANCE mode.
 - Off-host store: Steven confirmed completion of the Bitwarden baseline
   checklist: protected business vault, Pressly recovery collection and policy
-  note, two-step login, and an offline recovery-code path. Recovery-material
-  escrow and a redacted retrieval test remain unproved.
+  note, two-step login, and an offline recovery-code path. At that evidence
+  point, recovery-material escrow and a redacted retrieval test were unproved;
+  the later dated sections record their completion.
 
 ### H2 external boundary evidence — 2026-08-09
 
 - The secondary destination is a dedicated AWS Organizations member account,
   `067200612921`, reached by Steven through a non-root IAM Identity Center
   assignment. Centralized member-root credential management is enabled.
+- Separate read-only STS results now prove the non-root Identity Center subject
+  `steven` can assume the `AWSReservedSSO_AdministratorAccess` role class in
+  management account `088594414587` and recovery account `067200612921`.
+- Steven opened the `trypressly.com` GoDaddy DNS administration surface, saw
+  record-edit controls, and observed authoritative nameservers
+  `ns17.domaincontrol.com` and `ns18.domaincontrol.com`; an independent DNS query
+  returned the same two authorities. No DNS mutation occurred.
 - `pressly-prod-postgres-recovery-067200612921-use1` is private with all four
   account-level Block Public Access settings enabled, bucket-owner-enforced
   ownership, versioning, `AES256` default encryption, Object Lock enabled, and a
@@ -361,20 +370,60 @@ and its exact access and escrow attachment reverified before `H3`.
 
 Steven's non-root IAM Identity Center `AdministratorAccess` into recovery
 account `067200612921` was independently exercised when he opened the exact S3
-objects and supplied their per-VersionId retention readback. That recovery
-administrator can read retained versions and create or rotate a replacement
-narrow writer for a replacement host. The existing secondary-writer key is
-therefore not a required recovery credential, and requiring escrow retrieval of
-that long-lived key would add unsafe ceremony rather than recoverability. This
-does not authorize removal of a credential still used by the production host.
+objects and supplied their per-VersionId retention readback. The later STS
+readback below proves the same non-root administrator class in both recovery and
+management accounts. The recovery administrator can read retained versions and
+create or rotate a replacement narrow writer for a replacement host. The
+existing secondary-writer key is therefore not a required recovery credential,
+and requiring escrow retrieval of that long-lived key would add unsafe ceremony
+rather than recoverability. This does not authorize removal of a credential
+still used by the production host.
 
-The redacted member list and regenerable-access proof leave three separate
-non-file requirements for `H2`: Steven must prove recoverable non-root access to
-AWS management account `088594414587`; recoverable GoDaddy access to the
-authoritative DNS administration surface with MFA; and off-host Pressly
-Production Owner password plus ordinary TOTP and recovery access. The existing
-file bundle contains and proves none of those three access paths. No DNS mutation
-is required or authorized.
+### H2 independent administration readback — 2026-08-09
+
+At `2026-08-09T10:56:14-04:00`, read-only CLI identity results from the shared
+IAM Identity Center session returned:
+
+```text
+management: account 088594414587, AWSReservedSSO_AdministratorAccess, subject steven
+recovery: account 067200612921, AWSReservedSSO_AdministratorAccess, subject steven
+```
+
+The role-specific suffixes, session token, access-portal URL, passkey flow, and
+all credentials are intentionally omitted. Neither result used or recovered a
+root credential.
+
+Steven separately opened the GoDaddy DNS administration page for
+`trypressly.com`, confirmed the record-edit controls were available, and read
+back `ns17.domaincontrol.com` and `ns18.domaincontrol.com`. A read-only DNS query
+independently returned the same two authoritative nameservers. No DNS record was
+created, edited, or deleted.
+
+Steven explicitly deferred separate vault-backed GoDaddy MFA-recovery and
+Production Owner recovery-code methods until later because Pressly has not
+launched. They are accepted nonblocking pre-launch debt, not proven controls.
+Current authoritative-DNS administration and current Owner password plus
+ordinary-TOTP availability are sufficient for `H2`; actual Owner authentication
+remains an H3 verifier, and the deferred backup methods remain visible for later
+hardening.
+
+The exact deployed release at this evidence point is
+`ad499be0d73f4b5e5112f8bf25660a642d02ec48`. A new local mode-`0600`, 40,960-byte
+15-member archive named
+`pressly-recovery-bundle-ad499be0-20260809T145331Z.tar` was created for that
+exact release with SHA-256
+`5f620640716df4569b4b3afa86a07929485c806762d15e2bc56ba7d09ef04523`.
+Its local inventory and all 14 protected-member checksums were verified. Steven
+uploaded that exact fresh attachment to Bitwarden; the validated local archive
+and staging directory were then deleted and confirmed absent, leaving the vault
+as the off-host copy. The earlier byte-identical Bitwarden retrieval proves the
+vault retrieval path. H3 still requires a fresh independent download and full
+integrity check of this exact attachment before recovery use.
+
+Steven separately confirmed the current Pressly Production Owner password is
+available and its ordinary TOTP is held in Google Authenticator. No archive
+content, individual member hash, password, TOTP seed or value, recovery code, or
+application account identifier is recorded here.
 
 No secret value is recorded here.
 
@@ -387,19 +436,19 @@ summary: both focused files and all 41 tests passed. The proof covers independen
 
 ## Pending evidence
 
-- `H2`: redacted proof of recoverable non-root AWS management-account access,
-  separate recoverable GoDaddy authoritative-DNS administration and MFA, and
-  off-host Production Owner password plus ordinary TOTP/recovery access
 - `H3`: complete replacement-instance drill
-- `V3`: terminal Stateworks verification after `H2` and `H3` evidence exists
+- `V3`: terminal Stateworks verification after `H3` evidence exists
 
 ## 2026-08-09 - Authoritative recovery-gate correction
 
 The executable network now separates H2 recovery authority for non-root AWS
-management access, GoDaddy authoritative-DNS access with MFA, Production Owner
-ordinary-TOTP/recovery access, immutable custody, and non-regenerable off-host
-material. It explicitly excludes the live regenerable secondary-writer key from
-required escrow.
+management and recovery administration, current GoDaddy authoritative-DNS
+access, Production Owner ordinary-TOTP access, immutable custody, and
+non-regenerable off-host material. It explicitly excludes the live regenerable
+secondary-writer key from required escrow. It also records the separate
+vault-backed GoDaddy MFA-recovery and Production Owner recovery-code methods as
+accepted nonblocking pre-launch debt instead of falsely claiming those backup
+controls exist.
 
 H3 now depends on V2 and H2 and cannot create a replacement host until the final
 pre-drill deployed release is read back and the approved off-host attachment is
@@ -407,6 +456,5 @@ refreshed, retrieved, and matched to that exact release. Its verifier requires
 the latest complete immutable triplet available at drill start, ordinary-TOTP
 owner authentication, an isolated non-PII write/read, every health surface,
 measured RPO no greater than one hour, measured RTO no greater than four hours,
-and exact tag-validated drill-only teardown. This graph correction advances no
-task: H2, H3, and V3 remain pending. H3 is dependency-gated behind H2, and V3 is
-dependency-gated behind H3, so neither is currently ready.
+and exact tag-validated drill-only teardown. H2 is now committed. H3 is the next
+human stop, and V3 remains dependency-gated behind H3.
