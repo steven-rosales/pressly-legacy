@@ -245,9 +245,15 @@ binary remains compatible with the migrated production database before the
 cutover is approved.
 
 Live production runtime values stay in mode-600 service-specific files on the
-server, never in Git or GitHub. The approved encrypted Bitwarden recovery
-collection holds the separately controlled off-host recovery copy of required
-non-regenerable values and access-recovery artifacts:
+server, never in Git or GitHub. Bitwarden is the approved encrypted off-host
+recovery boundary. Before recovery H2 can commit, it must hold the separately
+controlled recovery copy of every required non-regenerable value and
+access-recovery artifact, including the Pressly Production Owner password,
+ordinary TOTP enrollment, and separate recovery path. Dated 2026-08-09 evidence
+proves only retrieval and integrity of the 15-member file bundle recorded in the
+production-recovery evidence; it does not yet prove that the Owner, AWS
+management, or GoDaddy access-recovery material is present. The live runtime
+file locations are:
 
 ```txt
 /opt/pressly/env/{compose,caddy,web,api,worker,processor,control,postgres,migration,backup}.env
@@ -499,8 +505,10 @@ Caddy is the only public runtime entrypoint.
 
 Postgres stays private.
 
-Live runtime secrets stay on the server and out of Git and GitHub; required
-non-regenerable recovery material has a separately controlled encrypted
-off-host Bitwarden copy.
+Live runtime secrets stay on the server and out of Git and GitHub. Bitwarden is
+the approved encrypted off-host recovery boundary, but H2 remains open until it
+is proven to contain the Owner authentication/recovery material and every other
+required non-regenerable recovery item; the dated proof currently covers only
+the file bundle.
 
 Backups leave the server.

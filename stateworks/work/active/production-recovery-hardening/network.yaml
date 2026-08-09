@@ -261,7 +261,7 @@ tasks:
     verifier:
       - Human provides the approved one-hour RPO, four-hour RTO, and 90-day COMPLIANCE values plus exact-version Object Lock mode and retain-until readback.
       - Human provides separate dated, redacted proof of non-root AWS management-account access and GoDaddy authoritative-DNS administration with MFA; neither proof is inferred from the other.
-      - Human provides a dated, redacted off-host bundle inventory, checksum retrieval result, and Production Owner password plus ordinary-TOTP/recovery-path availability without disclosing any value.
+      - Human provides a dated, redacted inventory and checksum retrieval result for the exact file bundle, plus separate redacted confirmation of Production Owner password, ordinary-TOTP, and recovery-path availability without disclosing any value.
       - Evidence states that the live secondary-writer key is regenerable and is not required in escrow.
     rollback: Disable an unsafe replication rule without deleting the existing primary backup history.
     secret_handling: never_show_agent
@@ -310,7 +310,7 @@ tasks:
       - Human provides exact tag-validated teardown inventory and absence readback proving only drill-owned resources were removed.
     rollback: On any failed precondition or verifier, stop the drill and remove only exact tag-validated drill resources and isolated routing; never alter production, retained backups, snapshots, or unrelated resources.
     secret_handling: never_show_agent
-    status: latent
+    status: pending
     evidence: []
 
   - id: V3
@@ -333,5 +333,5 @@ tasks:
       - Every human claim is redacted, dated, and independently checkable.
     rollback: Reopen the exact failed task instead of closing the package on incomplete evidence.
     secret_handling: never_show_agent
-    status: latent
+    status: pending
     evidence: []

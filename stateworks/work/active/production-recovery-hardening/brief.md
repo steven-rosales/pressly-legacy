@@ -52,7 +52,7 @@ verified hourly cron and secondary-destination bindings. This proves `H1` and
 `V2`. The one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE policy
 are approved, and exact 90-day COMPLIANCE retention is independently proven for
 all three versions of the manual secondary triplet. Bitwarden retrieval proves
-the complete file-based bundle, including runtime environments, backup
+the dated 15-member file bundle, including runtime environments, backup
 passphrase, release identity, and the Lightsail SSH key. Anonymous readback of
 all five exact image manifests and anonymous Git fetch of the exact source prove
 that release recovery needs no stored registry or repository credential.
@@ -63,4 +63,5 @@ contain or prove AWS management-account login, GoDaddy DNS login and MFA, or the
 Pressly Production Owner password and ordinary TOTP/recovery path. Those three
 separate access proofs remain open under `H2`. After this branch is merged, the
 deployed exact release and escrow attachment must be refreshed and reverified
-before the replacement-instance drill. `H3` and `V3` remain open behind `H2`.
+before the replacement-instance drill. `H3` and `V3` are pending and
+dependency-gated behind `H2` and `H3`, respectively.

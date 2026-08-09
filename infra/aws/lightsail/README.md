@@ -540,10 +540,15 @@ operational bucket that the primary is not immutable disaster recovery. Dated
 90-day default `COMPLIANCE` retention, exact retention on all three inspected
 versions of one encrypted triplet, a narrow no-delete writer, dual-destination
 readback, restore preflight, and a checksummed Bitwarden file-bundle retrieval.
-The approved encrypted off-host boundary holds only material or access-recovery
-artifacts that cannot safely be inferred from a failed host, including the
-backup passphrase, exact runtime configuration and release identity, required
-host access, and Production Owner authentication recovery. It does not require
+Bitwarden is the approved encrypted off-host recovery boundary. Before H2 can
+commit, it must hold every required non-regenerable recovery value and
+access-recovery artifact, including the backup passphrase, exact runtime
+configuration and release identity, required host access, and the Production
+Owner password, ordinary TOTP enrollment, and separate recovery path. The dated
+2026-08-09 proof covers only the retrieved 15-member file bundle: 11 runtime env
+files, `backup-passphrase.txt`, `current-release.json`, the Lightsail private
+key, and `SHA256SUMS`. It does not prove that Production Owner, AWS management,
+or GoDaddy access-recovery material is present. The boundary does not require
 the live regenerable secondary-writer key.
 The remaining production proof is:
 

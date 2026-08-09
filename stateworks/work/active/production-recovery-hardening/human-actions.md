@@ -5,15 +5,16 @@
 `H1` and `V2` are complete. The repaired release, stable operations bundle,
 provisioned host identity, restore preflight, hourly dual-destination schedule,
 and first natural 01:15 UTC execution are proven. Exact per-version 90-day
-Object Lock COMPLIANCE retention and retrieval of the complete file-based
-Bitwarden file bundle are also proven. Anonymous exact-release access is proven,
+Object Lock COMPLIANCE retention and retrieval plus integrity of the dated
+15-member Bitwarden file bundle are also proven. Anonymous exact-release access is proven,
 and recovery-account administration makes the narrow writer regenerable. `H2`
 remains open on three separate access proofs: recoverable non-root access to AWS
 management account `088594414587`, recoverable GoDaddy access to authoritative
 DNS administration with MFA, and off-host Pressly Production Owner password
 plus ordinary TOTP and recovery access. The existing archive proves none of
-those three paths. `H3`, `V3`, the existing LPMS launch gate, and the live-vendor
-gates remain stopped.
+those three paths. `H3` and `V3` are pending but dependency-gated: H3 cannot
+become ready until H2 commits, and V3 cannot become ready until H3 commits. The
+existing LPMS launch gate and live-vendor gates remain stopped.
 
 ## H1 - Publish the repaired release
 
@@ -123,12 +124,13 @@ payload, or secret value is recorded here.
 - The local retrieved archive was mode `0600`; isolated verification directories
   were mode `0700`; all 14 protected members passed strict checksum validation.
   No file contents or individual secret hashes were emitted.
-- This proves vault access, archive retrieval, and file-bundle integrity. It does
-  not by itself prove the remaining non-file access paths listed above.
+- This proves vault access plus retrieval and integrity of that dated 15-member
+  file bundle. It does not prove the remaining non-file access paths listed
+  above.
 - After exact target validation, the two temporary Linux staging directories
   and workstation download were deleted and confirmed absent. The Bitwarden
-  attachment remains authoritative; ordinary deletion is not claimed as
-  forensic media erasure.
+  attachment remains authoritative for that dated file bundle; ordinary
+  deletion is not claimed as forensic media erasure.
 
 ### H2 regenerable-access proof — 2026-08-09
 
@@ -174,7 +176,7 @@ and redacted outcomes. Never record a secret value in this package.
 
 ## H3 - Replacement-instance drill
 
-After `H1` and `H2`, first read back the exact release deployed after this branch
+After `V2` and `H2`, first read back the exact release deployed after this branch
 merges. Regenerate the Bitwarden attachment from that exact host state, retrieve
 it again to an isolated workstation directory, and reverify its checksum and
 complete inventory so `current-release.json` cannot drift from the release being

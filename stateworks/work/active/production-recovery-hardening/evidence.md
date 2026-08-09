@@ -228,9 +228,9 @@ natural scheduling; it does not add an Object Lock or escrow claim.
 
 ## H2 - Immutable-secondary repository prerequisite
 
-Status: independent retention and file escrow proven; AWS management access,
-GoDaddy DNS administration and MFA, and Production Owner application access
-remain pending as separate human proofs.
+Status: independent retention and the dated 15-member file-bundle escrow proven;
+AWS management access, GoDaddy DNS administration and MFA, and Production Owner
+application access remain pending as separate human proofs.
 
 Main at exact source commit
 `a5c768b97cc9dee56bb53de1678563849b6d1f9a` contains optional
@@ -340,8 +340,8 @@ mode-`0700` directories owned by Steven and that the workstation download was a
 regular, non-symlink file, only those three temporary copies were deleted.
 Readback found all three absent, and a bounded home-directory search found no
 matching staging directory or archive. The Bitwarden attachment remains the
-authoritative off-host copy. Normal filesystem deletion is not claimed as
-forensic media erasure.
+authoritative off-host copy of that dated file bundle. Normal filesystem
+deletion is not claimed as forensic media erasure.
 
 ### H2 regenerable release and writer access — 2026-08-09
 
@@ -408,4 +408,5 @@ the latest complete immutable triplet available at drill start, ordinary-TOTP
 owner authentication, an isolated non-PII write/read, every health surface,
 measured RPO no greater than one hour, measured RTO no greater than four hours,
 and exact tag-validated drill-only teardown. This graph correction advances no
-task: H2 remains pending, and H3 and V3 remain latent.
+task: H2, H3, and V3 remain pending. H3 is dependency-gated behind H2, and V3 is
+dependency-gated behind H3, so neither is currently ready.
