@@ -4,9 +4,10 @@
 
 `H1` and `V2` are complete. The repaired release, stable operations bundle,
 provisioned host identity, restore preflight, hourly dual-destination schedule,
-and first natural 01:15 UTC execution are proven. `H2` remains pending on exact
-per-version Object Lock retention and complete off-host escrow retrieval. `H3`,
-the existing LPMS launch gate, and the live-vendor gates remain stopped.
+and first natural 01:15 UTC execution are proven. Exact per-version 90-day
+Object Lock COMPLIANCE retention is also proven. `H2` remains pending on the
+complete off-host recovery-material inventory and a redacted escrow retrieval.
+`H3`, the existing LPMS launch gate, and the live-vendor gates remain stopped.
 
 ## H1 - Publish the repaired release
 
@@ -64,12 +65,13 @@ remains pending despite the approved objectives below.
   recovery-material inventory and redacted retrieval proof remain pending.
 - AWS status: the independently administered account, Object-Locked bucket,
   least-privilege writer, dual-destination readback, and secondary restore
-  preflight are now proven as described below. Exact per-version retention
-  remains pending.
+  preflight are proven as described below. Exact per-version retention is now
+  also proven.
 
-These decisions approve the target policy; they do not prove custody or
-recoverability. No credential, recovery code, DSN, payload, or secret value is
-recorded here.
+These decisions alone approve the target policy; the external evidence below
+proves independent backup custody and preflight recoverability. Complete secret
+escrow and retrieval remain separate. No credential, recovery code, DSN,
+payload, or secret value is recorded here.
 
 ### H2 partial external evidence — 2026-08-09
 
@@ -89,10 +91,16 @@ recorded here.
   claim a version-pinned GET. A later natural hourly run produced a second
   complete dual-destination triplet with matching version-bracketed size, hash,
   and encryption readback.
-- Remaining custody proof: independently read `COMPLIANCE` mode and retain-until
-  timestamps for each exact manual object VersionId; complete the off-host
-  recovery-material inventory and a redacted retrieval test. Bucket defaults and
-  vault setup alone do not satisfy these two checks.
+- Immutable retention: all three current manual-triplet versions independently
+  reported SSE-S3, exact sizes, `COMPLIANCE`, and 90-day retain-until timestamps:
+  `2026-11-07T00:56:17Z`, `2026-11-07T00:56:18Z`, and
+  `2026-11-07T00:56:19Z`. Their exact VersionIds match the upload/readback and
+  restore-preflight evidence in `evidence.md`; bucket defaults were not used as
+  a substitute for object-version proof.
+- Remaining custody proof: complete the off-host recovery-material inventory
+  and a redacted retrieval test for the backup passphrase, runtime
+  configuration, release access, DNS access, and required recovery credentials.
+  Vault setup alone does not satisfy retrieval.
 
 Record only owners, dates, objective values, retention, access-boundary facts,
 and redacted outcomes. Never record a secret value in this package.

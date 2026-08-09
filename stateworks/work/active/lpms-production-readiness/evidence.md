@@ -732,7 +732,16 @@ unchanged, no backup process or restore journal remained, all seven containers
 were running, the six defined health checks were healthy, Caddy was running,
 and all four public and pinned health authorities returned HTTP 200. This proves
 the deployment preserved natural scheduling without advancing `H2D` or the
-remaining immutable-custody gates.
+remaining recovery gates.
+
+Independent recovery-account readback subsequently proved that the three exact
+current versions of the manual secondary triplet use SSE-S3 and 90-day Object
+Lock `COMPLIANCE` retention through
+`2026-11-07T00:56:17Z`/`18Z`/`19Z`. Their VersionIds and exact sizes agree with
+the upload/readback and restore-preflight evidence. This closes the retention
+portion of recovery `H2`; that gate remains pending on the complete off-host
+recovery-material inventory and redacted escrow retrieval. `H3` and `V3` remain
+open behind it.
 
 These successful check-ins prove execution and Sentry ingestion, not
 operator-notification delivery or recovery. No bounded failure/recovery signal

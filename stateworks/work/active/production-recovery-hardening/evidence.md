@@ -228,7 +228,7 @@ natural scheduling; it does not add an Object Lock or escrow claim.
 
 ## H2 - Immutable-secondary repository prerequisite
 
-Status: independent boundary partly proven; human gate pending.
+Status: independent retention proven; escrow human gate pending.
 
 Main at exact source commit
 `a5c768b97cc9dee56bb53de1678563849b6d1f9a` contains optional
@@ -279,14 +279,30 @@ the owner decisions below are separate human evidence.
   writer credential. Complete recovery-material inventory and a redacted
   retrieval from escrow are not yet proven.
 
-Default bucket retention does not prove the retention attached to a particular
-object version, and upload/readback does not infer it. Independent
-`GetObjectRetention` readback for the exact manual triplet VersionIds, including
-`COMPLIANCE` mode and the approximately 90-day retain-until timestamps, remains
-required. Complete off-host recovery-material retrieval also remains required.
-`H2` therefore remains pending despite the independently administered account,
-least-privilege writer, dual uploads, and secondary restore preflight. No secret
-value is recorded here.
+### H2 exact per-version retention — 2026-08-09
+
+Independent readback in recovery account `067200612921` found versioning enabled
+on `pressly-prod-postgres-recovery-067200612921-use1` and proved the actual
+retention attached to all three current versions of the manual secondary
+triplet. This is object-version evidence rather than an inference from the
+bucket default.
+
+| Object                                              | VersionId                          | Current | Bytes     | Encryption        | Retention    | Retain until           |
+| --------------------------------------------------- | ---------------------------------- | ------- | --------- | ----------------- | ------------ | ---------------------- |
+| `postgres/pressly-20260809T005607Z.dump.gpg`        | `Fk.t0adfW.z8ZO3ktGeYWWPszqoPgkMV` | yes     | 5,198,037 | SSE-S3 (`AES256`) | `COMPLIANCE` | `2026-11-07T00:56:17Z` |
+| `postgres/pressly-20260809T005607Z.dump.gpg.sha256` | `PyOJ0XrOYgHd0AARoO94mbC.a6aIjCV.` | yes     | 100       | SSE-S3 (`AES256`) | `COMPLIANCE` | `2026-11-07T00:56:18Z` |
+| `postgres/pressly-20260809T005607Z.dump.gpg.json`   | `0cu6_uXcPqtfXj1uUWqTc3JYnVU5vvWX` | yes     | 206       | SSE-S3 (`AES256`) | `COMPLIANCE` | `2026-11-07T00:56:19Z` |
+
+Each retain-until timestamp is 90 days after its version's upload timestamp.
+The exact VersionIds and sizes agree with the prior manual upload/readback and
+secondary restore-preflight authority. This closes the Object Lock retention
+portion of `H2` without claiming that bucket defaults alone were sufficient.
+
+`H2` remains pending solely because the complete off-host recovery-material
+inventory and a redacted retrieval from escrow are not yet proven. That
+inventory includes the backup passphrase, runtime configuration, release
+access, DNS access, and required recovery credentials. No secret value is
+recorded here.
 
 ```text
 command: VITEST_MAX_WORKERS=2 pnpm exec vitest run tooling/test/postgres-backup-destinations.test.mjs tooling/test/host-operations-monitoring.test.mjs
@@ -297,7 +313,6 @@ summary: both focused files and all 41 tests passed. The proof covers independen
 
 ## Pending evidence
 
-- `H2`: exact per-version Object Lock retention for the manual secondary
-  triplet, complete off-host recovery-material inventory, and redacted escrow
+- `H2`: complete off-host recovery-material inventory and redacted escrow
   retrieval proof
 - `H3`: complete replacement-instance drill

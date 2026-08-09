@@ -10,9 +10,11 @@ webhook sender so launch is not blocked on signing. Retry, store, bag-count,
 reconciliation, and any future signing facts still require live confirmation
 before the pilot evidence is complete. The separate
 `production-recovery-hardening` package is also active. Its repaired release,
-host identity, and stable restore preflight are proven, but the natural
-scheduled backup, immutable custody, approved RPO/RTO, escrow, and replacement-
-instance drill must not be inferred from LPMS repository evidence.
+host identity, stable restore preflight, natural hourly dual-destination backup,
+approved objectives, and exact per-version Object Lock retention are proven.
+Complete off-host recovery-material inventory and retrieval plus the replacement-
+instance drill remain open and must not be inferred from LPMS repository
+evidence.
 
 ## Secret handling
 
@@ -147,6 +149,6 @@ record after it becomes ready.
 - `H6`–`H7`: approve and operate the controlled happy-path pilot.
 - `production-recovery-hardening`: `H1` and `V2` are complete, including the
   first natural hourly dual-destination backup. Exact per-version Object Lock
-  retention, complete off-host recovery-material retrieval, and a replacement-
-  instance drill remain open under `H2` and `H3` before disaster recovery is
-  complete.
+  retention is proven. Complete off-host recovery-material inventory and
+  redacted retrieval plus a replacement-instance drill remain open under `H2`
+  and `H3` before disaster recovery is complete.
