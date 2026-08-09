@@ -13,6 +13,9 @@ LOCK_DIR="${PRESSLY_OPERATION_LOCK_DIR:-$APP_ROOT/run}"
 BACKUP_TIMEOUT="${PRESSLY_BACKUP_TIMEOUT:-25m}"
 HOST_CAPACITY_TIMEOUT="${PRESSLY_HOST_CAPACITY_TIMEOUT:-1m}"
 SENTRY_TIMEOUT="${PRESSLY_SENTRY_TIMEOUT:-20s}"
+DEFAULT_BACKUP_MONITOR_SCHEDULE='15 3 * * *'
+BACKUP_MONITOR_SCHEDULE="${PRESSLY_BACKUP_MONITOR_SCHEDULE-$DEFAULT_BACKUP_MONITOR_SCHEDULE}"
+unset PRESSLY_BACKUP_MONITOR_SCHEDULE
 
 validate_timeout() {
   local name="$1"
@@ -154,6 +157,27 @@ report_sentry_check_in() {
   return 0
 }
 
+report_backup_sentry_check_in() {
+  local operation_status="$1"
+
+  case "$BACKUP_MONITOR_SCHEDULE" in
+    '15 3 * * *' | '15 * * * *') ;;
+    *)
+      echo 'Sentry check-in skipped: PRESSLY_BACKUP_MONITOR_SCHEDULE must be either "15 3 * * *" or "15 * * * *".' >&2
+      return 0
+      ;;
+  esac
+
+  report_sentry_check_in \
+    pressly-postgres-backup \
+    "$BACKUP_MONITOR_SCHEDULE" \
+    30 \
+    30 \
+    1 \
+    1 \
+    "$operation_status"
+}
+
 for command in flock timeout; do
   if ! command -v "$command" >/dev/null; then
     echo "Missing required command: $command" >&2
@@ -185,14 +209,7 @@ case "$OPERATION" in
       "$BACKUP_SCRIPT" || \
       operation_status=$?
 
-    report_sentry_check_in \
-      pressly-postgres-backup \
-      '15 3 * * *' \
-      30 \
-      30 \
-      1 \
-      1 \
-      "$operation_status"
+    report_backup_sentry_check_in "$operation_status"
     exit "$operation_status"
     ;;
   host-capacity)

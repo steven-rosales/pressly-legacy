@@ -110,6 +110,10 @@ const monitoredFixture = ({
   const sentryArgs = join(directory, 'sentry-args');
   const operationMarker = join(directory, 'operation-marker');
   const secondaryMarker = join(directory, 'secondary-marker');
+  const backupMonitorScheduleEnvMarker = join(
+    directory,
+    'backup-monitor-schedule-env-marker',
+  );
   const workerEnv = join(directory, 'worker.env');
   const sentry = join(directory, 'sentry');
   const backup = join(directory, 'backup');
@@ -128,20 +132,25 @@ const monitoredFixture = ({
   );
   executable(
     backup,
-    `#!/bin/sh\nset -eu\nprintf "backup:%s\\n" "$PRESSLY_BACKUP_S3_URI" > "$OPERATION_MARKER"\nif [ -n "\${PRESSLY_BACKUP_SECONDARY_S3_URI:-}" ]; then\n  printf "%s|%s|%s\\n" "$PRESSLY_BACKUP_SECONDARY_S3_URI" "$PRESSLY_BACKUP_SECONDARY_AWS_PROFILE" "$PRESSLY_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER" > "$SECONDARY_MARKER"\nfi\nexit ${backupExit}\n`,
+    `#!/bin/sh\nset -eu\nprintf "backup:%s\\n" "$PRESSLY_BACKUP_S3_URI" > "$OPERATION_MARKER"\nif [ "\${PRESSLY_BACKUP_MONITOR_SCHEDULE+x}" = x ]; then\n  printf "%s" "$PRESSLY_BACKUP_MONITOR_SCHEDULE" > "$BACKUP_MONITOR_SCHEDULE_ENV_MARKER"\nfi\nif [ -n "\${PRESSLY_BACKUP_SECONDARY_S3_URI:-}" ]; then\n  printf "%s|%s|%s\\n" "$PRESSLY_BACKUP_SECONDARY_S3_URI" "$PRESSLY_BACKUP_SECONDARY_AWS_PROFILE" "$PRESSLY_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER" > "$SECONDARY_MARKER"\nfi\nexit ${backupExit}\n`,
   );
   executable(
     capacity,
     '#!/bin/sh\nset -eu\nprintf "host-capacity\\n" > "$OPERATION_MARKER"\n',
   );
 
+  const inheritedEnv = { ...process.env };
+  delete inheritedEnv.PRESSLY_BACKUP_MONITOR_SCHEDULE;
+
   return {
+    backupMonitorScheduleEnvMarker,
     directory,
     operationMarker,
     secondaryMarker,
     sentryArgs,
     env: {
-      ...process.env,
+      ...inheritedEnv,
+      BACKUP_MONITOR_SCHEDULE_ENV_MARKER: backupMonitorScheduleEnvMarker,
       OPERATION_MARKER: operationMarker,
       SECONDARY_MARKER: secondaryMarker,
       PRESSLY_BACKUP_SCRIPT: backup,
@@ -557,6 +566,122 @@ describe('Sentry-monitored host operations', () => {
     expect(args).toContain('sh\n-c\n');
     expect(args).toContain('sentry-check-in\n0\n');
     expect(args).not.toContain('public@sentry.invalid');
+    expect(existsSync(fixture.backupMonitorScheduleEnvMarker)).toBe(false);
+  });
+
+  it('uses an approved hourly schedule only for the backup monitor check-in', () => {
+    const fixture = monitoredFixture();
+    const result = spawnSync(monitoredOperationScript, ['backup'], {
+      env: {
+        ...fixture.env,
+        PRESSLY_BACKUP_MONITOR_SCHEDULE: '15 * * * *',
+        PRESSLY_BACKUP_S3_URI: 's3://backup.example/postgres',
+      },
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    expect(readFile(fixture.operationMarker)).toBe(
+      'backup:s3://backup.example/postgres\n',
+    );
+    const args = readFile(fixture.sentryArgs);
+    expect(args).toContain('--schedule\n15 * * * *\n');
+    expect(args).not.toContain('15 3 * * *');
+    expect(existsSync(fixture.backupMonitorScheduleEnvMarker)).toBe(false);
+    expect(`${result.stdout}${result.stderr}`).not.toContain('15 * * * *');
+  });
+
+  it.each(['', 'private-schedule-sentinel', '0 * * * *', '15 03 * * *'])(
+    'skips telemetry for a malformed backup monitor schedule: %j',
+    (malformedSchedule) => {
+      const fixture = monitoredFixture();
+      const result = spawnSync(monitoredOperationScript, ['backup'], {
+        env: {
+          ...fixture.env,
+          PRESSLY_BACKUP_MONITOR_SCHEDULE: malformedSchedule,
+          PRESSLY_BACKUP_S3_URI: 's3://backup.example/postgres',
+        },
+        encoding: 'utf8',
+      });
+
+      expect(result.status).toBe(0);
+      expect(readFile(fixture.operationMarker)).toBe(
+        'backup:s3://backup.example/postgres\n',
+      );
+      expect(existsSync(fixture.sentryArgs)).toBe(false);
+      expect(existsSync(fixture.backupMonitorScheduleEnvMarker)).toBe(false);
+      expect(result.stderr).toContain(
+        'Sentry check-in skipped: PRESSLY_BACKUP_MONITOR_SCHEDULE',
+      );
+      if (malformedSchedule) {
+        expect(`${result.stdout}${result.stderr}`).not.toContain(
+          malformedSchedule,
+        );
+      }
+    },
+  );
+
+  it('rejects a multiline backup monitor schedule without leaking its value', () => {
+    const malformedSchedule = '15 * * * *\nprivate-monitor-schedule-sentinel';
+    const fixture = monitoredFixture();
+    const result = spawnSync(monitoredOperationScript, ['backup'], {
+      env: {
+        ...fixture.env,
+        PRESSLY_BACKUP_MONITOR_SCHEDULE: malformedSchedule,
+        PRESSLY_BACKUP_S3_URI: 's3://backup.example/postgres',
+      },
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    expect(readFile(fixture.operationMarker)).toBe(
+      'backup:s3://backup.example/postgres\n',
+    );
+    expect(existsSync(fixture.sentryArgs)).toBe(false);
+    expect(existsSync(fixture.backupMonitorScheduleEnvMarker)).toBe(false);
+    expect(`${result.stdout}${result.stderr}`).not.toContain(
+      'private-monitor-schedule-sentinel',
+    );
+  });
+
+  it.each([0, 42, 124])(
+    'preserves backup exit %i when the monitor schedule is invalid',
+    (backupExit) => {
+      const fixture = monitoredFixture({ backupExit });
+      const result = spawnSync(monitoredOperationScript, ['backup'], {
+        env: {
+          ...fixture.env,
+          PRESSLY_BACKUP_MONITOR_SCHEDULE: 'invalid-schedule-sentinel',
+          PRESSLY_BACKUP_S3_URI: 's3://backup.example/postgres',
+        },
+        encoding: 'utf8',
+      });
+
+      expect(result.status).toBe(backupExit);
+      expect(readFile(fixture.operationMarker)).toBe(
+        'backup:s3://backup.example/postgres\n',
+      );
+      expect(existsSync(fixture.sentryArgs)).toBe(false);
+      expect(`${result.stdout}${result.stderr}`).not.toContain(
+        'invalid-schedule-sentinel',
+      );
+    },
+  );
+
+  it('does not apply the backup monitor schedule to host-capacity check-ins', () => {
+    const fixture = monitoredFixture();
+    const result = spawnSync(monitoredOperationScript, ['host-capacity'], {
+      env: {
+        ...fixture.env,
+        PRESSLY_BACKUP_MONITOR_SCHEDULE: '15 * * * *',
+      },
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    const args = readFile(fixture.sentryArgs);
+    expect(args).toContain('--schedule\n*/5 * * * *\n');
+    expect(args).not.toContain('15 * * * *');
   });
 
   it('preserves secondary destination selection through the monitored runner', () => {
