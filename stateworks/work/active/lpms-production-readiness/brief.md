@@ -38,10 +38,10 @@ The committed four-image release tasks and their evidence below describe the
 historical pre-Control release boundary. They remain dated evidence rather than
 current topology. Current deployment and recovery work must prove all five
 application images. The dedicated
-`stateworks/work/active/production-recovery-hardening/` package owns the
+`stateworks/work/done/production-recovery-hardening/` package owns the
 post-deployment rollback, restore, backup-monitoring, immutable-custody, and
-replacement-instance gates; this pilot remains stopped while those gates are
-open.
+replacement-instance gates, all of which are complete. This pilot remains
+stopped on its own live-vendor, production-data, and pilot gates.
 
 ## Historical Verified Starting Point (Superseded)
 

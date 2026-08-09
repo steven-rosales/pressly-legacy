@@ -58,10 +58,39 @@ all five exact image manifests and anonymous Git fetch of the exact source prove
 that release recovery needs no stored registry or repository credential.
 Independent recovery-account administration can read the immutable versions
 and create or rotate a replacement narrow writer, so retaining the current
-long-lived writer key is not a recovery prerequisite. The archive does not
-contain or prove AWS management-account login, GoDaddy DNS login and MFA, or the
-Pressly Production Owner password and ordinary TOTP/recovery path. Those three
-separate access proofs remain open under `H2`. After this branch is merged, the
-deployed exact release and escrow attachment must be refreshed and reverified
-before the replacement-instance drill. `H3` and `V3` are pending and
-dependency-gated behind `H2` and `H3`, respectively.
+long-lived writer key is not a recovery prerequisite. Dated non-root IAM
+Identity Center readback now proves Steven can assume `AdministratorAccess` in
+both management account `088594414587` and recovery account `067200612921`.
+Steven also opened the `trypressly.com` GoDaddy DNS administration surface,
+confirmed record-edit controls, and observed the same authoritative
+`ns17.domaincontrol.com` and `ns18.domaincontrol.com` nameservers returned by an
+independent DNS query. He explicitly deferred separate vault-backed GoDaddy MFA
+recovery and Production Owner recovery-code methods as accepted nonblocking
+pre-launch debt; neither backup method is claimed as proven.
+
+`H2`, `H3`, and `V3` are committed. The replacement-instance drill started at
+`2026-08-09T15:10:18Z` against exact deployed source
+`ad499be0d73f4b5e5112f8bf25660a642d02ec48` and its five digest-pinned images.
+After the RTO clock started, the 15-member Bitwarden archive was freshly
+retrieved, its aggregate checksum and inventory were verified, and its release
+identity matched the deployed source. The latest complete immutable triplet at
+drill start was `pressly-20260809T141503Z.dump.gpg` plus its checksum and
+metadata versions, each protected by Object Lock `COMPLIANCE` retention.
+
+The isolated replacement restored that backup, re-established the database
+roles and grants, ran all seven runtime containers, and returned HTTP 200 from
+the API, Web, Processor, and Control health surfaces. Production Owner login
+with ordinary TOTP passed; one synthetic non-PII write returned HTTP 201, its
+authoritative read returned HTTP 200, logout returned HTTP 200, and the revoked
+session was rejected with HTTP 401. Measured RPO was 3,315 seconds (55 minutes
+15 seconds) against the approved one-hour limit. Measured RTO was 4,492 seconds
+(1 hour 14 minutes 52 seconds) against the approved four-hour limit.
+
+Tag-validated cleanup completed at `2026-08-09T16:25:56Z`: the disposable
+instance was deleted, and readback found zero drill instances, snapshots,
+static IPs, or custom keys. Production DNS was unchanged and no production
+volume was used. Separate vault-backed GoDaddy MFA recovery and Production
+Owner recovery codes remain accepted nonblocking pre-launch debt and are not
+claimed as present. The production-recovery-hardening package is complete;
+the separate LPMS launch and live-vendor gates remain stopped on their own
+obligations.
