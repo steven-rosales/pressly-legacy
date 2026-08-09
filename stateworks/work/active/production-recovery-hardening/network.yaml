@@ -209,7 +209,7 @@ tasks:
     action:
       - Match deployed script hashes to the published source SHA.
       - Verify the root-owned host-identity file has the approved static IP and health authorities, then run the stable restore `--preflight-only` against an approved backup without restoring data.
-      - Observe the first natural 03:15 UTC backup using the new runner and prove local checksum, remote size/version/encryption, and successful or safely skipped telemetry.
+      - Observe the first natural backup at the approved hourly schedule using the deployed runner and prove local checksum, remote size/version/encryption, and successful or safely skipped telemetry.
     verifier:
       - Restore admission, natural scheduling, backup durability, and monitoring independence are proven without exposing credential or payload values.
     rollback: Restore the prior verified cron recipe if the new deployed recipe cannot execute the backup command.
@@ -240,7 +240,7 @@ tasks:
     expected_external_state:
       - A compromised production instance cannot erase every usable backup or its recovery credentials.
     verifier:
-      - Human provides redacted retention, custody, access-boundary, RPO, and RTO evidence.
+      - Human provides redacted custody, access-boundary, RPO, and RTO evidence plus exact-version Object Lock mode and retain-until readback and a redacted off-host recovery-material retrieval result.
     rollback: Disable an unsafe replication rule without deleting the existing primary backup history.
     secret_handling: never_show_agent
     status: latent

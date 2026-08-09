@@ -99,6 +99,27 @@ advance `H2A`–`H2D` or bypass their declared dependencies.
   No synthetic failure was emitted, so the operator notification route remains
   separate `H2D` evidence.
 
+### Operational rebaseline — 2026-08-09
+
+These facts were also collected ahead of the ordered human gates and do not
+advance them:
+
+- Exact release `d7dde6755b7d8c09b81692384a546172fa2651f0` completed protected-main
+  CI, CodeQL, immutable five-image publication, deployment, pinned host readback,
+  and four-surface public health. Its deployed runner completed the first
+  natural `15 * * * *` UTC backup to both the primary and independent secondary
+  destination with exact version, size, hash, encryption, Sentry, and post-run
+  health readback.
+- Exact release `bc0987b98f746cab5d2a97f91c5e3f7892561bb6` completed the same release
+  ladder and one real deployment check-in from `in_progress` to `ok`. It
+  preserved the exact hourly backup and secondary-destination bindings and left
+  all seven services running; the six defined container health checks were
+  healthy and Caddy was running.
+- Successful backup and deployment check-ins prove monitor ingestion, not
+  operator notification. `H2D` still requires a bounded non-PII failure and
+  recovery signal to reach and be acknowledged by the operator-owned
+  destination.
+
 ## Later gates
 
 - `H2A`: read back and reconcile the existing 8 GiB host, static IP, firewall,
@@ -112,8 +133,9 @@ advance `H2A`–`H2D` or bypass their declared dependencies.
   including Control, validate ownership/modes and preflight without printing
   values, and repair only a proven mismatch.
 - `H2D`: read back the existing Worker, host, backup, and deployment monitors,
-  then prove the still-open operator notification route with bounded non-PII
-  test evidence.
+  retain the now-proven backup and deployment success paths, then prove the
+  still-open operator notification route with bounded non-PII failure and
+  recovery evidence.
 
 These pre-provisioned facts do not advance `H2A`–`H2D`; each gate remains
 ordered behind its declared dependency and requires a dated reconciliation
@@ -123,7 +145,8 @@ record after it becomes ready.
 - `H4`–`H5`: bootstrap the real facility and enable Cents delivery under the
   explicitly configured ingress mode.
 - `H6`–`H7`: approve and operate the controlled happy-path pilot.
-- `production-recovery-hardening`: observe the first natural backup, approve
-  RPO/RTO and independent immutable custody, escrow recovery secrets off host,
-  and prove a complete replacement-instance recovery before treating disaster
-  recovery as complete.
+- `production-recovery-hardening`: `H1` and `V2` are complete, including the
+  first natural hourly dual-destination backup. Exact per-version Object Lock
+  retention, complete off-host recovery-material retrieval, and a replacement-
+  instance drill remain open under `H2` and `H3` before disaster recovery is
+  complete.

@@ -4,9 +4,13 @@ Status: active
 
 Repository hardening, combined verification, protected-main publication,
 deployment, host-identity provisioning, and stable restore preflight are
-complete. No live restore was performed.
+complete. The approved hourly schedule has also completed one natural encrypted
+backup to both destinations with exact version, size, hash, encryption, Sentry,
+and post-run health readback. No live restore was performed.
 
-This report remains intentionally incomplete until the first natural scheduled
-backup under the deployed runner, approved RPO/RTO, independently administered
-immutable custody, off-host recovery-secret escrow, and a complete
-replacement-instance drill have all been proven through their declared tasks.
+The one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE policy are
+approved. The independent account, narrow writer, dual upload/readback, and
+secondary restore preflight are proven. This report remains intentionally
+incomplete until exact per-version retention, complete off-host recovery-secret
+escrow retrieval, and a replacement-instance drill are proven through `H2` and
+`H3`.

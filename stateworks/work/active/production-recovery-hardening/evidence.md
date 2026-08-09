@@ -13,7 +13,8 @@ The reported defects were confirmed in the pre-change scripts:
 Read-only production checks on 2026-08-08 found the current release healthy:
 
 - release SHA, current-release metadata, and verified deployment state agreed;
-- all seven Compose services were healthy;
+- all seven Compose services were running, all six defined container health
+  checks were healthy, and Caddy was running;
 - API, Web, Processor, and Control returned HTTP 200;
 - CPU, burst-capacity, and status-check alarms were OK with valid email
   notification;
@@ -108,7 +109,7 @@ main CI: 31271988560, success
 CodeQL: 31271988452, success
 production deployment: 31273257568, success
 time: 2026-08-08
-summary: immutable production artifacts and the normal workflow-run deployment succeeded for the exact source SHA. Repository HEAD, current-release metadata, verified deployment state, and /opt/pressly/ops/current agreed; all seven Compose services were healthy and the four pinned public HTTPS health authorities returned HTTP 200.
+summary: immutable production artifacts and the normal workflow-run deployment succeeded for the exact source SHA. Repository HEAD, current-release metadata, verified deployment state, and /opt/pressly/ops/current agreed; all seven Compose services were running, all six defined container health checks were healthy, Caddy was running, and the four pinned public HTTPS health authorities returned HTTP 200.
 ```
 
 The independently provisioned host identity is owned by `root:root`, has mode
@@ -117,9 +118,41 @@ The independently provisioned host identity is owned by `root:root`, has mode
 No private address, credential, DSN, database URL, or recovery secret is recorded
 here.
 
-## V2 - Deployed recovery admission (partial)
+### Current operational release re-verification — 2026-08-09
 
-Status: running.
+The hourly-capable release was published at exact source SHA
+`d7dde6755b7d8c09b81692384a546172fa2651f0`.
+
+```text
+CodeQL: 31285810375, success
+main CI: 31285810370, success
+production artifacts job: 93175484173, success
+strict required job: 93177475707, success
+release artifact: 9030133529
+release archive SHA-256: 2440f2b0aa265bbe93a053cccaa75fd0a86378c32e90c299981bc0a8bd1223ac
+production deployment: 31286982819, success
+summary: quality, integration, browser, immutable artifact publication, and the workflow-run deployment succeeded for exact d7dde. The artifact contained five expected distinct GHCR repository/digest identities and the exact source SHA. Independent host readback matched current-release, metadata, verified deployment state, repository HEAD, and stable operations source to d7dde; all seven services were running, the six defined container health checks were healthy, Caddy was running, all five application revisions and digests were exact, no restore journal existed, and three rounds of the four public health authorities returned HTTP 200.
+```
+
+The following deployment-monitor release was published at exact source SHA
+`bc0987b98f746cab5d2a97f91c5e3f7892561bb6` without changing the backup
+schedule or secondary-destination contract.
+
+```text
+CodeQL: 31288031106, success
+main CI: 31288031209, success
+quality job: 93180289632, success
+integration job: 93180738996, success
+browser job: 93180738990, success
+production artifacts job: 93181221880, success
+strict required job: 93183226933, success
+production deployment: 31289140630 / job 93183237583, success
+summary: both deployment-monitor workflow steps succeeded and deployment.succeeded exited 0. Sentry check-in 7c2f04ab-fca1-412c-af46-9578354e32a0 moved from in_progress at 01:52:16.909Z to ok under the same identifier after 57.631 seconds. Independent pinned-host readback matched all release pointers, metadata, verified state, repository HEAD, operations source, five image revisions, and operations checksums to bc098. All seven containers were running with zero restarts, the six defined container health checks were healthy, Caddy was running, no restore journal or backup/restore process existed, and API, Web, Processor, and Control returned HTTP 200 through both public and pinned authorities.
+```
+
+## V2 - Deployed hourly recovery verification
+
+Status: committed.
 
 - The deployed stable operations scripts match the published recovery source
   SHA.
@@ -128,16 +161,74 @@ Status: running.
   host-identity authority.
 - The proof performed no restore, created no recovery journal, retained no
   operational lock, and left production healthy.
-- The stable monitored backup runner, private backup log and log rotation are
-  installed; the 03:15 UTC cron schedule is unchanged.
+- The stable monitored backup runner, private backup log, and log rotation are
+  installed.
 
-The first natural 03:15 UTC execution after installation has not occurred. A
-manual invocation or successful preflight cannot prove scheduler execution, so
-`V2` remains open.
+At 00:56 UTC, a monitored manual run under exact `d7dde` created
+`pressly-20260809T005607Z.dump.gpg` plus its checksum and metadata at both the
+primary and independently administered secondary destination. All three
+secondary objects had non-null VersionIds, exact remote size and encrypted-byte
+hash readback, and `AES256` server-side encryption. Each current-object GET was
+bracketed by readback of the same non-null immutable VersionId before and after
+the transfer; the writer did not perform a version-pinned GET. That secure
+downloaded triplet passed the stable restore `--preflight-only` path, performed
+no live restore, created no recovery journal, retained no operational lock, and
+was removed afterward.
+
+```text
+manual secondary dump: 5198037 bytes, VersionId Fk.t0adfW.z8ZO3ktGeYWWPszqoPgkMV
+manual secondary checksum: 100 bytes, VersionId PyOJ0XrOYgHd0AARoO94mbC.a6aIjCV.
+manual secondary metadata: 206 bytes, VersionId 0cu6_uXcPqtfXj1uUWqTc3JYnVU5vvWX
+```
+
+The first natural hourly execution then proved scheduler ownership rather than
+manual command capability:
+
+```text
+cron dispatch: 2026-08-09T01:15:02Z
+backup interval: 2026-08-09T01:15:03Z through 2026-08-09T01:15:21Z
+source and operations SHA: d7dde6755b7d8c09b81692384a546172fa2651f0
+triplet: pressly-20260809T011503Z.dump.gpg and its .sha256 and .json companions
+dump: 5199742 bytes, SHA-256 cfae3cfccc58a097b0ce9e9ae949c3f3cdc9da620c38a8fa758e4433e31233e9
+checksum: 100 bytes, SHA-256 prefix 715fba5d
+metadata: 206 bytes, SHA-256 prefix ff2f0ad5
+local authority: mode 0600
+primary VersionIds: ktN_Q5EU11qKXTQGaPfxJlWsY.F2W2Yx / we1CROBv5PmgkuMmY67W2yWiAL3REEYL / 93kFhvsQzZDPpBEMW4nBock4z0CUyG17
+secondary VersionIds: osfhmZuXWGNbJYgh0G0ODzGF2tzn5fHe / PzXN_yh_HV4DLUtxNX73cg3e9Opmk3hz / W3Ch5NfS7p7_pgS2yc0Eq6jwZIIJ06Cq
+summary: all six VersionIds were non-null. Every current-object primary and secondary GET was bracketed by the same exact VersionId before and after transfer and matched the local size and encrypted-byte hash; no version-pinned GET is claimed. Every object reported AES256, and the secure readback copy was removed.
+```
+
+Sentry recorded the distinct natural check-in at 01:15:23.459Z as `ok` with a
+16-second duration. The `pressly-postgres-backup` monitor was active on
+`15 * * * *` UTC with the next check-in expected at 02:15. Final exact-`d7dde`
+readback found the cron hash stable and no process, lock, or restore journal.
+All seven containers were running with zero restarts, the six defined container
+health checks were healthy, Caddy was running, and all four public and pinned
+health authorities returned HTTP 200. The later exact-`bc098` deployment
+preserved a single hourly cron entry, its monitor schedule, secondary URI,
+profile, expected-owner binding, and host-capacity entry.
+
+This natural run, rather than the manual backup or restore preflight, satisfies
+`V2`'s scheduler, durability, encryption, version, telemetry, and post-run
+health verifier.
+
+The next natural run also crossed the intervening deployment boundary. Under
+exact `bc098`, the unchanged cron dispatched
+`pressly-20260809T021502Z.dump.gpg`; the encrypted dump was 5,206,857 bytes with
+SHA-256
+`24e8a3927f7c2efeacd830b13b1048149af97dda9de5c149088869bcca52aa27`, and its
+100-byte checksum and 206-byte metadata companions passed local mode-`0600`
+validation. Sentry recorded the natural check-in at 02:15:22.301Z as `ok` with
+an 8-second duration and next expected time 03:15. Post-run readback preserved
+the unchanged cron SHA-256 prefix `55a4d05e`, found no backup process or restore
+journal, and found all seven containers running, the six defined health checks
+healthy, Caddy running, and all four public and pinned health authorities
+returning HTTP 200. This corroborates that the later deployment preserved
+natural scheduling; it does not add an Object Lock or escrow claim.
 
 ## H2 - Immutable-secondary repository prerequisite
 
-Status: prerequisite implemented; human gate pending.
+Status: independent boundary partly proven; human gate pending.
 
 Main at exact source commit
 `a5c768b97cc9dee56bb53de1678563849b6d1f9a` contains optional
@@ -163,9 +254,39 @@ the owner decisions below are separate human evidence.
   note, two-step login, and an offline recovery-code path. Recovery-material
   escrow and a redacted retrieval test remain unproved.
 
-No AWS backup account, immutable bucket, writer boundary, retained object,
-secondary restore, or secret value is claimed by this partial evidence. `H2`
-remains open.
+### H2 external boundary evidence — 2026-08-09
+
+- The secondary destination is a dedicated AWS Organizations member account,
+  `067200612921`, reached by Steven through a non-root IAM Identity Center
+  assignment. Centralized member-root credential management is enabled.
+- `pressly-prod-postgres-recovery-067200612921-use1` is private with all four
+  account-level Block Public Access settings enabled, bucket-owner-enforced
+  ownership, versioning, `AES256` default encryption, Object Lock enabled, and a
+  default 90-day `COMPLIANCE` retention rule.
+- The production host uses the no-console
+  `arn:aws:iam::067200612921:user/pressly-secondary-writer` identity through an
+  owner-only profile. Its narrow policy grants only the required bucket
+  discovery, multipart, put, and readback operations under `postgres/`; the
+  bucket policy denies writer deletion and retention mutation. Host STS and
+  expected-owner bucket-location readback succeeded without exposing the key.
+- The manual and natural dual runs above prove that complete encrypted triplets
+  reach both destinations under non-null version identities and exact remote
+  readback. The current manual secondary objects were bracketed by the same
+  immutable VersionIds around their GETs, and the downloaded triplet passed the
+  stable restore preflight; no version-pinned GET is claimed.
+- Steven confirmed a protected Bitwarden Business recovery collection,
+  two-step login, offline account-recovery path, and storage of the secondary
+  writer credential. Complete recovery-material inventory and a redacted
+  retrieval from escrow are not yet proven.
+
+Default bucket retention does not prove the retention attached to a particular
+object version, and upload/readback does not infer it. Independent
+`GetObjectRetention` readback for the exact manual triplet VersionIds, including
+`COMPLIANCE` mode and the approximately 90-day retain-until timestamps, remains
+required. Complete off-host recovery-material retrieval also remains required.
+`H2` therefore remains pending despite the independently administered account,
+least-privilege writer, dual uploads, and secondary restore preflight. No secret
+value is recorded here.
 
 ```text
 command: VITEST_MAX_WORKERS=2 pnpm exec vitest run tooling/test/postgres-backup-destinations.test.mjs tooling/test/host-operations-monitoring.test.mjs
@@ -176,8 +297,7 @@ summary: both focused files and all 41 tests passed. The proof covers independen
 
 ## Pending evidence
 
-- `V2`: first natural 03:15 UTC execution after publication, including local
-  checksum, remote durability/encryption/version evidence, and bounded telemetry
-- `H2`: independent immutable storage, least-privilege writer proof, completed
-  off-host escrow, and retrieval/secondary-restore proof
+- `H2`: exact per-version Object Lock retention for the manual secondary
+  triplet, complete off-host recovery-material inventory, and redacted escrow
+  retrieval proof
 - `H3`: complete replacement-instance drill

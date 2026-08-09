@@ -674,8 +674,70 @@ owned containers, networks, volumes, or images. That verifier-only follow-up
 does not rebind the current V2 application/release proof from exact checkout
 `a5c768b97cc9dee56bb53de1678563849b6d1f9a`.
 
-This current reproof repairs the temporary 2026-07-26 V2 invalidation. It does
-not advance H1 or any later live-vendor, production-data, pilot, or recovery
-gate. In particular, the natural backup, independent immutable custody,
-approved RPO/RTO, off-host escrow, and replacement-instance drill remain open
-under `production-recovery-hardening`.
+This current reproof repairs the temporary 2026-07-26 V2 invalidation. At that
+checkpoint it did not advance H1 or any later live-vendor, production-data,
+pilot, or recovery gate; the natural backup, independent immutable custody,
+approved RPO/RTO, off-host escrow, and replacement-instance drill were still
+open under `production-recovery-hardening`. The operational rebaseline below
+supersedes only those later dated facts and does not rewrite this repository
+proof.
+
+## 2026-08-09 - Current production operations rebaseline
+
+This operational evidence does not rebind the current application/release V2
+proof from exact checkout
+`a5c768b97cc9dee56bb53de1678563849b6d1f9a` and does not advance the ordered
+live-vendor gates.
+
+Exact source `d7dde6755b7d8c09b81692384a546172fa2651f0` passed CodeQL run
+`31285810375`, main CI `31285810370`, immutable artifact publication, strict
+required job `93177475707`, and production deployment `31286982819`. The
+release artifact contained the exact source plus five expected distinct GHCR
+repository/digest identities. Pinned host readback matched release pointers,
+verified state, repository HEAD, operations source, and all five application
+revisions and digests. All seven services were running, the six defined
+container health checks were healthy, Caddy was running, and the four public
+health authorities returned HTTP 200.
+
+That exact operations payload dispatched the first natural approved hourly
+backup at 01:15 UTC. One encrypted dump, checksum, and metadata triplet reached
+both the primary and independent secondary destination under six non-null
+VersionIds. Each current-object GET was bracketed before and after by the same
+non-null immutable VersionId and matched the local size and encrypted-byte hash;
+no version-pinned GET is claimed. All six objects reported `AES256`, the private
+local authority was mode `0600`, and Sentry recorded a distinct natural `ok`
+check-in. Post-run readback found no process, lock, or restore journal. All seven
+services were running, the six defined container health checks were healthy,
+Caddy was running, and all four public health authorities returned HTTP 200.
+The exact object evidence and remaining custody gates are owned by
+`production-recovery-hardening`, where `V2` is now committed.
+
+Exact source `bc0987b98f746cab5d2a97f91c5e3f7892561bb6` then passed CodeQL run
+`31288031106`, main CI `31288031209`, strict required job `93183226933`, and
+production deployment `31289140630`. Both deployment-monitor workflow steps
+succeeded. Sentry check-in `7c2f04ab-fca1-412c-af46-9578354e32a0` moved from
+`in_progress` to `ok` under the same identifier after 57.631 seconds. The
+production deployment monitor remains active, team-owned, unmuted, and routed
+through its intact detector/workflow. Pinned host readback matched every release
+authority and operations checksum to `bc098`, preserved exactly one hourly
+backup entry with its secondary and Sentry bindings, and found all seven
+containers running with zero restarts. The six defined container health checks
+were healthy, Caddy was running, and API, Web, Processor, and Control returned
+HTTP 200.
+
+The next natural 02:15 UTC backup under exact `bc098` also completed with a
+distinct encrypted triplet and Sentry `ok` check-in. Its dump size and hash plus
+the checksum and metadata authorities validated, the cron hash remained
+unchanged, no backup process or restore journal remained, all seven containers
+were running, the six defined health checks were healthy, Caddy was running,
+and all four public and pinned health authorities returned HTTP 200. This proves
+the deployment preserved natural scheduling without advancing `H2D` or the
+remaining immutable-custody gates.
+
+These successful check-ins prove execution and Sentry ingestion, not
+operator-notification delivery or recovery. No bounded failure/recovery signal
+was delivered to and acknowledged by the operator, so `H2D` is not advanced.
+The Control `API-E` issue also remains open under
+`pressly-control-workforce-identity`: its focused projection repair has no
+recurrence, but no authenticated production Order-detail read has yet exercised
+the repaired path.

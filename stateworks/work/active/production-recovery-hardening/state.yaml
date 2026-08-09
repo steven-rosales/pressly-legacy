@@ -1,11 +1,11 @@
 work_id: production-recovery-hardening
 status: active
-updated: 2026-08-08T18:18:00-04:00
+updated: 2026-08-08T22:00:00-04:00
 
 current_focus:
-  - V2
   - H2
-  - The repaired release, deployed operations bundle, host identity, and stable restore preflight are proven. V2 remains running until the first natural 03:15 UTC backup. The owner approved a one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE retention; independent custody, completed escrow with retrieval proof, and replacement-host proof remain explicit external gates.
+  - H3
+  - H1 and V2 are committed. Exact d7dde proved the first natural hourly dual-destination backup and exact bc098 preserved the schedule while proving deployment monitoring. The owner approved a one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE retention. H2 remains pending on exact per-version retention and completed off-host escrow retrieval; H3 and V3 remain open behind it.
 
 tasks:
   T0:
@@ -33,9 +33,9 @@ tasks:
     evidence:
       - stateworks/work/active/production-recovery-hardening/evidence.md#h1---published-recovery-release
   V2:
-    status: running
+    status: committed
     evidence:
-      - stateworks/work/active/production-recovery-hardening/evidence.md#v2---deployed-recovery-admission-partial
+      - stateworks/work/active/production-recovery-hardening/evidence.md#v2---deployed-hourly-recovery-verification
   H2:
     status: pending
     evidence: []

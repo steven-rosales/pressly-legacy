@@ -18,6 +18,10 @@ abandoned `running` marker no longer hides the next repository task.
   execution markers back to pending.
 - The merged Control OTP cleanup is verifier-only evidence. It does not complete
   authentication, workforce, capability, browser, deployment, or human gates.
+- The deployed Control Order-detail projection defect has a focused repository
+  repair and no post-repair Sentry recurrence. Runtime closure remains pending
+  one safe authenticated Order-detail read; health checks alone do not resolve
+  `API-E`.
 
 ## Human Actions
 
@@ -33,5 +37,7 @@ abandoned `running` marker no longer hides the next repository task.
 
 - T5 and T6 remain historically committed despite depending on still-open T3;
   current reconciliation must account for that ordering anomaly.
+- T6's Order-detail path remains runtime-qualified until one authenticated
+  post-repair production read succeeds and `API-E` still shows no recurrence.
 - Cross-application browser proof, layered authorization proof, rendered QA,
   and terminal verification have not been completed.

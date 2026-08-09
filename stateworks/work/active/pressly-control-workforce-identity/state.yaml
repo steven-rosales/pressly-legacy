@@ -1,10 +1,11 @@
 work_id: pressly-control-workforce-identity
 status: active
-updated: 2026-08-08T16:47:00-04:00
+updated: 2026-08-08T22:01:00-04:00
 
 current_focus:
   - T3
   - Reconcile the current Control authentication and workforce-administration proof. The merged OTP cleanup is verifier stability only; T7 and every downstream verification or human gate remain open.
+  - The repaired Order-detail projection is deployed with no Sentry recurrence, but API-E remains open until one safe authenticated post-repair production read succeeds.
 
 tasks:
   T0:

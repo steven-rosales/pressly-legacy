@@ -689,3 +689,32 @@ exit: 0
 time: 2026-08-08T16:46:00-04:00
 summary: the 12-task network is valid, work is not done, no stop reason is asserted, and T3 is the single next ready task. The stale lifecycle deadlock is removed without advancing an unproved gate.
 ```
+
+## 2026-08-09 - Control Order-detail runtime contradiction
+
+Sentry issue `API-E` recorded four production failures on the authenticated
+Control Order-detail read path, last seen at 2026-08-08T21:38Z before the
+repair. That runtime evidence qualified the historical T6 repository claim:
+local route and domain tests had passed, but the deployed projection still
+allowed persistence-only fields to cross the Orders and Control serialization
+boundaries.
+
+Exact source commit `f4dc58dfc3a70f78fcea0afde970f542d1ee01f4`
+replaced spread-based Order-item projection with explicit owned-field
+projections in both the Orders persistence mapper and the API Control adapter.
+It also added unit, Postgres integration, adapter, and route regressions. The
+fix passed its protected-main release and remains present in the subsequently
+deployed exact `d7dde6755b7d8c09b81692384a546172fa2651f0` and
+`bc0987b98f746cab5d2a97f91c5e3f7892561bb6` releases. Independent readback for
+both releases proved the exact five-image identity, all seven services running,
+the six defined container health checks healthy, Caddy running, and HTTP 200 for
+the Control health authority.
+
+No API or Control production error has recurred on the repaired release, and
+`API-E` remains at count four with the same pre-repair last-seen timestamp.
+That absence is supporting evidence only: no safe authenticated
+`/control/orders/:orderId` read has yet exercised the repaired production path.
+The runtime contradiction therefore remains explicitly open, and `API-E` must
+not be administratively resolved from health checks or inactivity alone. This
+record does not advance T3, T7, T7A, T7B, V1, or T8 and does not rewrite T6's
+historical dependency-order anomaly.

@@ -25,20 +25,29 @@ what happens when a release, migration, host, or primary database is not.
 
 - No production release, rollback, restore, host replacement, bucket mutation,
   or secret movement is performed by repository verification.
-- No claim is made that nightly backups satisfy an approved business RPO.
+- Repository verification alone does not prove that a deployed backup schedule
+  satisfies an approved business RPO.
 - The existing launch and live-vendor gates remain stopped.
 
 ## Current External Baseline
 
-On 2026-08-08, the repaired five-image release at source SHA
-`a44216cf83223225ab1caeb32a1e20d616ccce47` passed protected-main CI, CodeQL,
-artifact publication, normal deployment, and public verification. The deployed
-operations bundle and release metadata agree with that SHA; all seven Compose
-services were healthy and API/Web/Processor/Control returned HTTP 200. The
-root-owned host identity was installed and the stable restore preflight accepted
-an approved encrypted backup without restoring data or creating a recovery
-journal.
+On 2026-08-09, the hourly-capable five-image release at exact source SHA
+`d7dde6755b7d8c09b81692384a546172fa2651f0` passed protected-main CI, CodeQL,
+artifact publication, normal deployment, exact host readback, and public
+verification. Its stable runner dispatched the first natural hourly backup at
+01:15 UTC, completed one encrypted triplet at both destinations, reported one
+natural successful Sentry check-in, and left production stable: all seven
+Compose services were running, the six defined container health checks were
+healthy, Caddy was running, and the four pinned public health authorities
+returned HTTP 200. A preceding manual dual backup also passed secondary
+readback and the stable restore `--preflight-only` path without restoring data
+or creating a recovery journal.
 
-This proves publication and restore admission. It does not prove the natural
-03:15 UTC scheduler, approved recovery objectives, independent immutable
-custody, off-host escrow, or replacement-host recovery.
+The immediately following deployment-monitor release at exact source SHA
+`bc0987b98f746cab5d2a97f91c5e3f7892561bb6` passed the same protected release
+ladder, emitted one real deployment start-to-success check-in, and preserved the
+verified hourly cron and secondary-destination bindings. This proves `H1` and
+`V2`. The one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE policy
+are approved, and an independent secondary boundary exists. Exact per-version
+retention and complete off-host escrow retrieval remain unproved, so `H2`,
+`H3`, and `V3` remain open.
