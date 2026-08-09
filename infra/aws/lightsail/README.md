@@ -360,8 +360,15 @@ resource-access path. Prefer a dedicated named role or credential-process
 profile for the secondary. Configure it for the same OS account that runs cron
 and never place access keys in Git, command lines, or cron. If static
 credentials are unavoidable, keep their AWS credentials file mode `0600`,
-escrow and rotate them through the approved off-host process, and verify cron's
-`HOME` resolves the intended profile.
+rotate them through the independently administered recovery account, and verify
+cron's `HOME` resolves the intended profile. Do not make the live secondary
+writer key an off-host escrow prerequisite: recovery-account administration is
+the durable access path and can create or rotate a replacement least-privilege
+writer for a replacement host. Do not add or refresh that live key in the
+recovery inventory. If a legacy escrow copy exists, retire it through the next
+approved credential rotation only after production has switched to the
+replacement and the old key is revoked; never delete a credential still used by
+production merely to align documentation.
 
 Provisioning remains an explicit infrastructure gate. The script neither
 creates a bucket nor changes encryption, versioning, Object Lock, retention, or
@@ -429,21 +436,22 @@ EOF
 ```text
 MAILTO=""
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-15 3 * * * PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres /opt/pressly/ops/current/run-monitored-operation.sh backup >> /var/log/pressly-backup.log 2>&1
+15 * * * * PRESSLY_BACKUP_MONITOR_SCHEDULE='15 * * * *' PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres PRESSLY_BACKUP_SECONDARY_S3_URI=s3://<secondary-bucket>/postgres PRESSLY_BACKUP_SECONDARY_AWS_PROFILE=pressly-secondary-writer PRESSLY_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER=<12-digit-account-id> /opt/pressly/ops/current/run-monitored-operation.sh backup >> /var/log/pressly-backup.log 2>&1
 */5 * * * * /opt/pressly/ops/current/run-monitored-operation.sh host-capacity >/dev/null 2>&1
 ```
 
-The backup monitor schedule defaults to the daily cron expression
-`15 3 * * *`. When the approved one-hour RPO is activated, replace only the
-backup cron entry and pass the matching hourly expression to the runner:
-
-```text
-15 * * * * PRESSLY_BACKUP_MONITOR_SCHEDULE='15 * * * *' PRESSLY_BACKUP_S3_URI=s3://<bucket>/postgres /opt/pressly/ops/current/run-monitored-operation.sh backup >> /var/log/pressly-backup.log 2>&1
-```
+The production owner approved the one-hour RPO target, and the production
+schedule was changed to `15 * * * *` UTC with the same expression passed as
+`PRESSLY_BACKUP_MONITOR_SCHEDULE`. Dated 2026-08-09 evidence includes the first
+natural hourly encrypted triplet to both the primary and independent secondary,
+plus a later natural run that preserved the cadence. That proves the deployed
+schedule and backup path; the achieved RPO is still measured from the exact
+backup selected during the replacement-instance drill.
 
 The cron expression and `PRESSLY_BACKUP_MONITOR_SCHEDULE` must describe the
-same execution cadence. The runner accepts only the daily and hourly
-expressions shown above. An explicitly empty or malformed override skips the
+same execution cadence. The runner accepts only `15 3 * * *` and `15 * * * *`;
+the daily expression remains supported by tooling but is not the approved
+production schedule. An explicitly empty or malformed override skips the
 Sentry check-in without preventing the authoritative backup or replacing its
 exit status.
 
@@ -464,11 +472,12 @@ runner bounds telemetry to 20 seconds and records skipped or failed telemetry
 in the backup log without printing the DSN.
 
 Run both recipes once manually after installation, then read the monitors and
-their successful check-ins back from Sentry. After changing cron, also observe
-the first natural 03:15 UTC execution: a manual run proves the command but not
-the scheduler. A successful `pressly-postgres-backup` check-in means the dump,
-upload, and remote checksum verification all succeeded. The host log is the
-fallback evidence when Sentry is unavailable.
+their successful check-ins back from Sentry. Also observe the first natural
+execution at the installed cadence: the next `:15` UTC execution for the
+approved hourly production recipe. A manual run proves the
+command but not cron. A successful `pressly-postgres-backup` check-in means the
+dump, upload, and remote checksum verification all succeeded. The host log is
+the fallback evidence when Sentry is unavailable.
 
 ## Processor Clean-Slate Maintenance
 
@@ -516,28 +525,50 @@ restarting while that recovery authority is unresolved.
 
 ### Recovery objectives and custody
 
-Nightly backups provide a nominal recovery-point interval of up to 24 hours;
-they do not provide point-in-time recovery. This is a design interval, not an
-approved RPO. Record an owner-approved RPO and RTO before launch, and measure
-the achieved recovery point and elapsed recovery time in every drill.
+The approved recovery objectives are a one-hour RPO and a four-hour RTO, with
+90-day retention in S3 Object Lock `COMPLIANCE` mode for the independently
+administered secondary. Hourly dumps provide discrete recovery points rather
+than point-in-time recovery. The schedule and exact retention on one complete
+manual secondary triplet were proven on 2026-08-09, but neither an approved
+target nor a healthy schedule proves an achieved drill result. Measure the
+selected backup's age and total elapsed recovery time in every replacement-host
+drill and require both values to meet the objectives.
 
-The attached production instance currently has enough bucket authority to
-delete object versions. Treat that bucket as the primary operational copy, not
-immutable disaster recovery. The remaining production proof is:
+The attached production instance has enough authority over the primary
+operational bucket that the primary is not immutable disaster recovery. Dated
+2026-08-09 evidence proves a separate AWS account and secondary bucket with
+90-day default `COMPLIANCE` retention, exact retention on all three inspected
+versions of one encrypted triplet, a narrow no-delete writer, dual-destination
+readback, restore preflight, and a checksummed Bitwarden file-bundle retrieval.
+Bitwarden is the approved encrypted off-host recovery boundary. Before H2 can
+commit, it must hold every required non-regenerable recovery value and
+access-recovery artifact, including the backup passphrase, exact runtime
+configuration and release identity, required host access, and the Production
+Owner password, ordinary TOTP enrollment, and separate recovery path. The dated
+2026-08-09 proof covers only the retrieved 15-member file bundle: 11 runtime env
+files, `backup-passphrase.txt`, `current-release.json`, the Lightsail private
+key, and `SHA256SUMS`. It does not prove that Production Owner, AWS management,
+or GoDaddy access-recovery material is present. The boundary does not require
+the live regenerable secondary-writer key.
+The remaining production proof is:
 
-1. Replicate encrypted backup objects into an independently administered
-   standard S3 boundary with Object Lock retention and no delete authority for
-   the production host.
-2. Escrow the backup passphrase, runtime environment files, release access,
-   DNS access, and required recovery credentials in an approved off-host store.
-   Never place their values in this repository or Stateworks.
-3. Build a replacement instance, recover the exact approved release and
-   configuration from escrow, restore a verified backup, and prove database
-   writes plus every public health endpoint. Record the achieved RPO and RTO.
+1. Prove three separate off-host access paths without recording their values:
+   non-root AWS management-account access, GoDaddy authoritative-DNS
+   administration plus MFA, and the Pressly Production Owner password plus
+   ordinary TOTP and recovery path.
+2. After the final pre-drill merge, read back the exact deployed release,
+   regenerate and retrieve the Bitwarden attachment from that exact host state,
+   and reverify its checksum and inventory. The dated `bc0987b` attachment must
+   not silently stand in for a later release.
+3. Build a replacement instance, recover the exact release and configuration
+   from refreshed escrow, restore the latest complete immutable backup triplet
+   available at drill start, prove ordinary-TOTP owner login, a non-PII database
+   write/read, and every isolated health endpoint, then record achieved RPO/RTO
+   and tear down only the drill resources.
 
 Versioning and isolated restore drills remain valuable, but neither substitutes
-for the immutable copy, recovery-secret custody, or the complete replacement-
-instance drill.
+for the immutable copy, required non-regenerable recovery-material custody, or
+the complete replacement-instance drill.
 
 Read:
 

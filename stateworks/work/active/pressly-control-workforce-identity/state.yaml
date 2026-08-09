@@ -1,11 +1,11 @@
 work_id: pressly-control-workforce-identity
 status: active
-updated: 2026-07-31T12:38:08-04:00
+updated: 2026-08-09T01:30:00-04:00
 
 current_focus:
   - T3
-  - T7
-  - Complete the authentication and Processor capability gates; T7A and T7B are next before V1.
+  - Reconcile the current Control authentication and workforce-administration proof. The merged OTP cleanup is verifier stability only; T7 and every downstream verification or human gate remain open.
+  - The repaired Order-detail projection is deployed with no Sentry recurrence, but API-E remains open behind the current repository sequence until H1 proves one safe authenticated non-empty post-repair production read, the fixed five-minute ingestion window, and issue resolution. T3 remains the single next ready task.
 
 tasks:
   T0:
@@ -21,9 +21,10 @@ tasks:
     evidence:
       - stateworks/work/active/pressly-control-workforce-identity/evidence.md#t2--persist-business-workforce-invitation-and-manager-authority
   T3:
-    status: running
+    status: pending
     evidence:
       - stateworks/work/active/pressly-control-workforce-identity/evidence.md#t3--expose-secure-control-authentication-and-workforce-administration
+      - stateworks/work/active/pressly-control-workforce-identity/evidence.md#2026-08-08---lifecycle-truth-rebaseline
   T4:
     status: committed
     evidence:
@@ -37,12 +38,16 @@ tasks:
     evidence:
       - stateworks/work/active/pressly-control-workforce-identity/evidence.md#t6--deliver-canonical-customer-and-order-management-in-control
   T7:
-    status: running
-    evidence: []
+    status: pending
+    evidence:
+      - stateworks/work/active/pressly-control-workforce-identity/evidence.md#2026-08-08---lifecycle-truth-rebaseline
   T7A:
     status: pending
     evidence: []
   T7B:
+    status: pending
+    evidence: []
+  H1:
     status: pending
     evidence: []
   V1:

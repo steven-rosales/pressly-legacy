@@ -2202,8 +2202,8 @@ const report = {
     syntheticTimeControl: 'The past shift establishes planned boundaries. After each authenticated stage start, only the disposable stage actual-start timestamps are set to their planned boundaries before the authenticated completion command.',
   },
   releaseExercise: {
-    switchedAllFourToReleaseB: true,
-    rolledBackAllFourToReleaseA: true,
+    switchedAllFiveToReleaseB: true,
+    rolledBackAllFiveToReleaseA: true,
     current: JSON.parse(readFileSync(currentPath, 'utf8')),
     previous: JSON.parse(readFileSync(previousPath, 'utf8')),
     content: 'Both synthetic release identities point to the same current-tree build under distinct local tags.',

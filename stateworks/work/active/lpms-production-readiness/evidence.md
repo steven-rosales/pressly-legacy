@@ -614,10 +614,174 @@ production-order execution persistence, forecast contracts, Home, Schedule,
 Production, Intake, and History assumptions after the prior readiness proof.
 
 The historical commands and results below remain valid evidence for their
-recorded revision, but V2 is invalidated for the current worktree. Repository
-proof must be rerun after `lpms-order-control-correctness-hardening` and the
-queued production-order resolution work complete or are explicitly
-rebaselined.
+recorded revision. At this checkpoint, V2 was invalidated for the then-current
+worktree. Both `lpms-order-control-correctness-hardening` and
+`lpms-production-order-resolution-and-identity` later completed; the
+2026-08-08 current five-image V2 reproof below supersedes this temporary
+invalidation.
 
 H1 and later live-vendor, deployment, production-data, and pilot gates remain
 stopped. No live external state was changed.
+
+## 2026-08-08 - Current five-image V2 reproof
+
+Status: committed.
+
+The application and release checkout under this proof was exact source commit
+`a5c768b97cc9dee56bb53de1678563849b6d1f9a`; the only working-tree differences
+during the proof were these Stateworks truth records, not executable
+application or release inputs. The proof includes the completed
+operational-authority, order-control, production-order-resolution, and
+exact-raw-redelivery work. The exact-redelivery repair is recorded canonically in
+`stateworks/work/done/cents-webhook-redelivery-idempotency/` and was merged at
+exact source commit `8dec29e0724ea05340a2586a348991f256c06d81`.
+
+```text
+main CI: 31275127116, success
+CodeQL: 31275126925, success
+production deployment: 31276572639, success
+time: 2026-08-08
+summary: protected-main CI, CodeQL, and the normal production deployment succeeded for the exact Cents repair SHA. This proves publication and deployment, not that a historical real Cents redelivery has traversed the repaired path.
+```
+
+```text
+command: pnpm test:lpms:int
+exit: 0
+time: 2026-08-08
+summary: 178 files and 750 tests passed across the database, Users, Orders, webhook-ingestion, Worker, Production, and final LPMS asset suites. The complete webhook-ingestion PostgreSQL and unit suites include the exact-raw-redelivery regression.
+```
+
+```text
+command: pnpm test:lpms:e2e
+exit: 0
+time: 2026-08-08
+summary: the composed API proof passed 5 files and 55 tests; Processor passed 40 files and 275 tests. Two existing Radix Dialog description warnings remained non-failing test output.
+```
+
+```text
+command: pnpm docker:production:smoke; inspect the redacted report; query disposable Docker resources after teardown
+exit: 0
+time: 2026-08-08T16:48:35-04:00
+summary: all five application images built. The seven-container topology migrated a clean database, exposed only loopback Caddy, proved Web/API/Processor/Control routes, Processor MFA/cookie/CSRF behavior, two signed submitted candidates through acceptance, fulfillment release, intake, scheduling, one completed run and four completed stages, independent API and Worker recovery, and five-image A-to-B-to-A release rotation with durable state preserved. The steady-state snapshot measured 450615050 bytes, 10.49% of the historical 4 GiB floor, with 89.51% observed headroom. Teardown left zero owned containers, networks, volumes, or images. The redacted transient report is /tmp/pressly-v2-smoke-1000-1060023-report.json; no production, Cents, DNS, or deployed cloud endpoint was intentionally contacted.
+```
+
+A follow-up review corrected only the report field names from the retired
+four-image wording to `switchedAllFiveToReleaseB` and
+`rolledBackAllFiveToReleaseA`. The complete disposable smoke reran successfully
+at 2026-08-08T17:17:08-04:00: both fields were true, both release manifests
+contained API, Web, Worker, Processor, and Control, and teardown again left zero
+owned containers, networks, volumes, or images. That verifier-only follow-up
+does not rebind the current V2 application/release proof from exact checkout
+`a5c768b97cc9dee56bb53de1678563849b6d1f9a`.
+
+This current reproof repairs the temporary 2026-07-26 V2 invalidation. At that
+checkpoint it did not advance H1 or any later live-vendor, production-data,
+pilot, or recovery gate; the natural backup, independent immutable custody,
+approved RPO/RTO, off-host escrow, and replacement-instance drill were still
+open under `production-recovery-hardening`. The operational rebaseline below
+supersedes only those later dated facts and does not rewrite this repository
+proof.
+
+## 2026-08-09 - Current production operations rebaseline
+
+This operational evidence does not rebind the current application/release V2
+proof from exact checkout
+`a5c768b97cc9dee56bb53de1678563849b6d1f9a` and does not advance the ordered
+live-vendor gates.
+
+Exact source `d7dde6755b7d8c09b81692384a546172fa2651f0` passed CodeQL run
+`31285810375`, main CI `31285810370`, immutable artifact publication, strict
+required job `93177475707`, and production deployment `31286982819`. The
+release artifact contained the exact source plus five expected distinct GHCR
+repository/digest identities. Pinned host readback matched release pointers,
+verified state, repository HEAD, operations source, and all five application
+revisions and digests. All seven services were running, the six defined
+container health checks were healthy, Caddy was running, and the four public
+health authorities returned HTTP 200.
+
+That exact operations payload dispatched the first natural approved hourly
+backup at 01:15 UTC. One encrypted dump, checksum, and metadata triplet reached
+both the primary and independent secondary destination under six non-null
+VersionIds. Each current-object GET was bracketed before and after by the same
+non-null immutable VersionId and matched the local size and encrypted-byte hash;
+no version-pinned GET is claimed. All six objects reported `AES256`, the private
+local authority was mode `0600`, and Sentry recorded a distinct natural `ok`
+check-in. Post-run readback found no process, lock, or restore journal. All seven
+services were running, the six defined container health checks were healthy,
+Caddy was running, and all four public health authorities returned HTTP 200.
+The exact object evidence and remaining custody gates are owned by
+`production-recovery-hardening`, where `V2` is now committed.
+
+Exact source `bc0987b98f746cab5d2a97f91c5e3f7892561bb6` then passed CodeQL run
+`31288031106`, main CI `31288031209`, strict required job `93183226933`, and
+production deployment `31289140630`. Both deployment-monitor workflow steps
+succeeded. Sentry check-in `7c2f04ab-fca1-412c-af46-9578354e32a0` moved from
+`in_progress` to `ok` under the same identifier after 57.631 seconds. The
+production deployment monitor remains active, team-owned, unmuted, and routed
+through its intact detector/workflow. Pinned host readback matched every release
+authority and operations checksum to `bc098`, preserved exactly one hourly
+backup entry with its secondary and Sentry bindings, and found all seven
+containers running with zero restarts. The six defined container health checks
+were healthy, Caddy was running, and API, Web, Processor, and Control returned
+HTTP 200.
+
+The next natural 02:15 UTC backup under exact `bc098` also completed with a
+distinct encrypted triplet and Sentry `ok` check-in. Its dump size and hash plus
+the checksum and metadata authorities validated, the cron hash remained
+unchanged, no backup process or restore journal remained, all seven containers
+were running, the six defined health checks were healthy, Caddy was running,
+and all four public and pinned health authorities returned HTTP 200. This proves
+the deployment preserved natural scheduling without advancing `H2D` or the
+remaining recovery gates.
+
+Independent recovery-account readback subsequently proved that the three exact
+manual-secondary versions inspected at that time use SSE-S3 and 90-day Object
+Lock `COMPLIANCE` retention through
+`2026-11-07T00:56:17Z`/`18Z`/`19Z`. Their VersionIds and exact sizes agree with
+the upload/readback and restore-preflight evidence. This closes the retention
+portion of recovery `H2`; that gate remains pending on the complete off-host
+recovery-material inventory and redacted escrow retrieval at that evidence
+point. `H3` and `V3` remain open behind it.
+
+A subsequent Bitwarden download proved the file-based escrow slice: the
+30,720-byte archive was byte-identical to its source at SHA-256
+`d727ed2d1a4ec3276d4e86cc1c540bee3a8bd1133ecc86570d002e1ccc7655ee`, and all
+14 protected members passed strict checksum validation without exposing their
+contents or individual hashes. The bundle contains all 11 runtime environment
+files, the backup passphrase, current release identity, and Lightsail SSH key.
+All five exact release image manifests and the exact source SHA were then
+accessed anonymously with isolated Docker and Git configuration. Independently
+exercised recovery-account administration can read immutable versions and
+create or rotate a replacement narrow writer, so neither a release credential
+nor the current long-lived writer key is a required recovery escrow item.
+Recovery `H2` remains pending on three distinct human proofs: recoverable
+non-root AWS management-account access, separate GoDaddy authoritative-DNS
+administration plus MFA, and off-host Production Owner password plus ordinary
+TOTP/recovery access. The dated file bundle contains and proves none of those
+paths. After merge, the exact deployed release and escrow attachment must be
+refreshed and reverified before recovery `H3`; `H3` and `V3` remain open.
+
+These successful check-ins prove execution and Sentry ingestion, not
+operator-notification delivery or recovery. No bounded failure/recovery signal
+was delivered to and acknowledged by the operator, so `H2D` is not advanced.
+Four existing Sentry workflows, IDs `3824547`, `3824545`, `3824558`, and
+`3824618`, were then read back with `config.frequency=0`, enabled production
+scope, preserved detector IDs, and active team-email actions. All four include
+resolved triggers; only worker-critical workflow `3824547` required adding
+`issue_resolved_trigger`. This configuration evidence was collected ahead of
+the ordered human gates. No failure or recovery signal was sent, so the readback
+does not prove operator delivery, does not advance `H2D`, and does not bypass
+`H2D`'s declared dependency on `H2C`.
+
+Exactly three native Lightsail alarms attached to `pressly-44` were separately
+reconciled so `notificationTriggers` is `[ALARM, OK]`. All remained in state
+`OK`, kept the Email contact with notifications enabled, and preserved their
+exact metrics, thresholds, evaluation periods, datapoints, and missing-data
+policies. No `TestAlarm` or synthetic notification was sent. This is
+ahead-of-order configuration repair only: it proves neither operator delivery
+nor recovery, does not advance `H2D`, and does not bypass `H2C`.
+
+The Control `API-E` issue also remains open under
+`pressly-control-workforce-identity`: its focused projection repair has no
+recurrence, but no authenticated production Order-detail read has yet exercised
+the repaired path.

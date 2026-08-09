@@ -610,7 +610,7 @@ of API transport code into the v2 `@pressly/control-experience` module.
   platform.
   Date: 2026-07-29
 
-## Open Risks
+## Historical open risks requiring current reconciliation
 
 - Risk: The current Processor browser session flattens scoped assignments into
   role names.
@@ -636,11 +636,11 @@ of API transport code into the v2 `@pressly/control-experience` module.
   Next step: Add the account root, backfill ancestry, and prove isolation
   before enabling Control list APIs.
 
-- Risk: Control adds a fifth immutable image to a release path that currently
-  validates exactly four.
-  Owner: Agent
-  Next step: update CI, release manifest, deployment, Caddy, Compose, topology
-  smoke tests, and source-SHA verification together.
+- Resolved repository/deployment risk: Control is now the fifth immutable image
+  in CI, release manifests, deployment, Caddy, Compose, topology proof, and
+  source-SHA verification. Current five-image readiness evidence belongs to
+  `lpms-production-readiness`; this historical risk is not a remaining Control
+  blocker.
 
 ## 2026-07-31 planning reconciliation (no implementation claim)
 
@@ -658,3 +658,77 @@ of API transport code into the v2 `@pressly/control-experience` module.
 - This reconciliation updates planning truth only. It makes no product,
   browser-harness, layered-verification, deployment, or operational-completion
   claim and changes no task status or task evidence array.
+
+## 2026-08-08 - Lifecycle truth rebaseline
+
+No active agent or process still owns T3 or T7, and neither task has current
+terminal evidence. Their stale `running` markers therefore return to `pending`.
+This makes T3 schedulable again without claiming that its historical
+implementation notes satisfy the current authentication, workforce,
+authorization, browser, or rendered-product verifiers. T7, T7A, T7B, V1, and
+T8 remain open behind their declared dependencies. The historical T5 and T6
+dependency-order anomaly is preserved and must be reconciled by current proof;
+it is not rewritten as successful sequencing.
+
+The merged Control OTP cleanup is exact source commit
+`bc599b617ce91e276b15e1208be2db16073dca16`. Main CI run `31273563439`, CodeQL
+run `31273563090`, and production deployment run `31275018233` succeeded. That
+change stabilizes React/jsdom cleanup and its regression proof only. It is
+verifier evidence, not completion evidence for any product, domain, security,
+human, or lifecycle task.
+
+The published recovery proof records `control.trypressly.com` healthy over its
+pinned HTTPS authority as part of the five-image deployment. That proves the
+hostname is deployed; it does not satisfy T3, the cross-application browser
+matrix, T7 capability and actor truth, V1 rendered QA, employee onboarding, or
+real invitation delivery.
+
+```text
+command: pnpm stateworks:validate stateworks/work/active/pressly-control-workforce-identity/network.yaml; pnpm stateworks:verify stateworks/work/active/pressly-control-workforce-identity/network.yaml --state stateworks/work/active/pressly-control-workforce-identity/state.yaml; pnpm stateworks:next stateworks/work/active/pressly-control-workforce-identity/network.yaml --state stateworks/work/active/pressly-control-workforce-identity/state.yaml
+exit: 0
+time: 2026-08-08T16:46:00-04:00
+summary: the 12-task network is valid, work is not done, no stop reason is asserted, and T3 is the single next ready task. The stale lifecycle deadlock is removed without advancing an unproved gate.
+```
+
+## 2026-08-09 - Control Order-detail runtime contradiction
+
+Sentry issue `API-E` recorded four production failures on the authenticated
+Control Order-detail read path, last seen at 2026-08-08T21:38Z before the
+repair. That runtime evidence qualified the historical T6 repository claim:
+local route and domain tests had passed, but the deployed projection still
+allowed persistence-only fields to cross the Orders and Control serialization
+boundaries.
+
+Exact source commit `f4dc58dfc3a70f78fcea0afde970f542d1ee01f4`
+replaced spread-based Order-item projection with explicit owned-field
+projections in both the Orders persistence mapper and the API Control adapter.
+It also added unit, Postgres integration, adapter, and route regressions. The
+fix passed its protected-main release and remains present in the subsequently
+deployed exact `d7dde6755b7d8c09b81692384a546172fa2651f0` and
+`bc0987b98f746cab5d2a97f91c5e3f7892561bb6` releases. Independent readback for
+both releases proved the exact five-image identity, all seven services running,
+the six defined container health checks healthy, Caddy running, and HTTP 200 for
+the Control health authority.
+
+No API or Control production error has recurred on the repaired release, and
+`API-E` remains at count four with the same pre-repair last-seen timestamp.
+That absence is supporting evidence only: no safe authenticated
+`/control/orders/:orderId` read has yet exercised the repaired production path.
+The runtime contradiction therefore remains explicitly open, and `API-E` must
+not be administratively resolved from health checks or inactivity alone. This
+record does not advance T3, T7, T7A, T7B, V1, or T8 and does not rewrite T6's
+historical dependency-order anomaly.
+
+## 2026-08-09 - API-E human-gate ordering
+
+The executable network now owns the missing runtime closure as human action
+`H1`. It depends on T3, T5, T6, T7, T7A, and T7B, while V1 depends on H1. The
+current next task therefore remains T3; once the repository sequence is
+committed, the graph stops on H1 before final verification rather than silently
+certifying the historical T6 claim.
+
+H1 requires one authenticated GET 200 for an existing non-empty Order detail,
+rendered item proof, no write request, a fixed five-minute Sentry ingestion
+window with no recurrence, and only then `API-E` resolution plus status
+readback. No production Order or customer fact is recorded here, and H1 remains
+pending.

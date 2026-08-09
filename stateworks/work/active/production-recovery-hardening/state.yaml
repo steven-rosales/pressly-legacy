@@ -1,11 +1,11 @@
 work_id: production-recovery-hardening
 status: active
-updated: 2026-08-08T13:41:03-04:00
+updated: 2026-08-09T01:43:00-04:00
 
 current_focus:
-  - H1
   - H2
-  - Repository recovery hardening and combined verification are complete. Publication, host-identity provisioning, natural scheduling, immutable custody, and replacement-host proof remain explicit external gates.
+  - H3
+  - 'H1 and V2 are committed. On 2026-08-09, exact d7dde proved the first natural hourly dual-destination backup and the later exact bc098 snapshot preserved the schedule while proving deployment monitoring. The owner approved a one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE retention; exact COMPLIANCE retention is proven for all three manual-triplet versions inspected on that date. A byte-identical, checksummed Bitwarden retrieval proves only the dated 15-member file bundle. Exact release recovery is anonymously accessible, and recovery-account administration makes the narrow writer regenerable. H2 remains open on three separate human proofs: recoverable non-root access to AWS management account 088594414587, recoverable GoDaddy access to the authoritative DNS administration surface with MFA, and off-host Pressly Production Owner password plus ordinary TOTP and recovery access. After this branch is merged, the exact deployed release and Bitwarden attachment must be refreshed and reverified before H3. H3 and V3 are pending and dependency-gated: H3 cannot become ready before H2 commits, and V3 cannot become ready before H3 commits.'
 
 tasks:
   T0:
@@ -29,17 +29,20 @@ tasks:
     evidence:
       - stateworks/work/active/production-recovery-hardening/evidence.md#v1---combined-repository-verification
   H1:
-    status: pending
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#h1---published-recovery-release
   V2:
-    status: latent
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#v2---deployed-hourly-recovery-verification
   H2:
     status: pending
-    evidence: []
+    evidence:
+      - stateworks/work/active/production-recovery-hardening/evidence.md#h2---immutable-secondary-repository-prerequisite
   H3:
-    status: latent
+    status: pending
     evidence: []
   V3:
-    status: latent
+    status: pending
     evidence: []

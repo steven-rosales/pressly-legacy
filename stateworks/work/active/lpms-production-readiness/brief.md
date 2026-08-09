@@ -95,9 +95,10 @@ the first external gate:
   idempotency separately closes the crash window between Production projection
   and outbox completion without coupling module transactions.
 
-Historical V2 evidence remains useful but does not prove this new boundary.
-RV1 must rerun repository, database, integration, and isolated Docker-topology
-proof before work returns to H1.
+Historical V2 evidence remains useful but did not prove this new boundary.
+RV1 subsequently re-proved the refactor, and the current five-image V2 reproof
+now includes the completed order-control, production-order-resolution, and
+exact-raw-redelivery changes. H1 remains the next live-vendor gate.
 
 ## Order Authority Rebaseline - 2026-07-28
 
@@ -122,8 +123,9 @@ implemented boundary:
 - Processor action availability, source context, versions, and denial reasons
   are composed on the server.
 
-The completed local proof does not satisfy `RV1` or `H1`. Production readiness
-must still verify the real Cents contract, live identifiers and store binding,
+At the time it was recorded, this completed local proof did not satisfy `RV1`
+or `H1`; RV1 is now committed, while production readiness must still verify the
+real Cents contract, live identifiers and store binding,
 production database migration and reconciliation dry run, fail-closed initial
 posture, deployment topology, alerting, rollback, and same-SHA public health.
 Any ambiguous reconciliation record stops cutover without a lifecycle guess or
@@ -150,9 +152,10 @@ repository and local-runtime boundary:
   operational guard decide a nondestructive resolve, review, or no-op outcome,
   and any operational participation leaves the work unchanged.
 
-This local rebaseline does not satisfy `RV1` or `H1` and makes no deployment,
-production migration, replay, production-data cleanup, live cutover, or pilot
-claim. `H1` remains the current external readiness gate.
+At the time it was recorded, this local rebaseline did not satisfy `RV1` or
+`H1`; RV1 is now committed. It still makes no deployment, production migration,
+replay, production-data cleanup, live cutover, or pilot claim. `H1` remains the
+current external readiness gate.
 
 ## Cents Ingress Authentication Modes
 
@@ -282,9 +285,10 @@ Private Compose network
   -> no public worker or Postgres port
 ```
 
-Use a 4 GB Lightsail instance as the minimum pilot target unless measured
-memory from the four containers proves a smaller existing instance has safe
-headroom. This is a capacity guardrail, not a permanent scaling claim.
+The historical pilot floor was 4 GB. Current production uses an 8 GiB host and
+the current proof measures the complete five-application topology plus Caddy and
+Postgres. Capacity remains an observed operational fact, not a permanent scaling
+claim.
 
 ## Delivery Shape
 
@@ -295,8 +299,11 @@ repo/vendor truth
 release path
   V1 -> T8 -> T9 -> V2 -> R1 -> RV1
 
+current repository reproof
+  [order control, order resolution, exact raw redelivery] -> V2
+
 external gates
-  RV1 -> H1 -> H2A -> H2B -> H2C -> H2D -> H3
+  [V2, RV1] -> H1 -> H2A -> H2B -> H2C -> H2D -> H3
   H3 -> V3 -> H4 -> H5 -> V4 -> H6 -> H7 -> V5
 ```
 
@@ -314,12 +321,15 @@ Stateworks will stop and request the human when these become ready:
   validate delivery, compatibility evidence, and observability; they do not
   grant Cents canonical lifecycle, fulfillment-release, or physical-intake
   authority.
-- `H2A`: provision/resize the Lightsail host, static IP, firewall, time sync,
-  disk headroom, and backup access.
-- `H2B`: add and verify the Processor DNS record.
-- `H2C`: place external env files with an explicit Cents auth mode and reviewed
-  facility bootstrap input without exposing secret values.
-- `H2D`: configure high-signal Worker and deployment alerts.
+- `H2A`: read back and reconcile the provisioned host, static IP, firewall,
+  time, disk, backup access, and capacity for all five applications.
+- `H2B`: read back and reconcile Web, API, Processor, and Control DNS without
+  changing healthy records.
+- `H2C`: read back and reconcile all five applications' external env files,
+  explicit Cents auth mode, and reviewed facility bootstrap input without
+  exposing secret values.
+- `H2D`: read back existing Worker, host, backup, and deployment monitoring and
+  prove operator notification delivery.
 - `H3`: approve and deploy only a main-branch release whose CI produced all
   five immutable digests.
 - `H4`: run the idempotent production bootstrap and verify the real location,
@@ -366,8 +376,8 @@ an unmodeled state change.
   path without exposing a session token to JavaScript storage.
 - Worker health, retries, dead letters, replay, lag, and fatal failure are
   observable and alertable.
-- CI publishes, scans, records, deploys, and rolls back API, Web, Worker, and
-  Processor as one immutable release.
+- CI publishes, scans, records, deploys, and rolls back API, Web, Worker,
+  Processor, and Control as one immutable release.
 - Caddy exposes only the intended HTTPS routes; worker and Postgres stay
   private.
 - Human setup, webhook smoke under the configured mode, facility bootstrap,

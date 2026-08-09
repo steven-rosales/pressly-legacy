@@ -17,6 +17,7 @@ invariants:
   - The final active owner cannot be suspended, ended, or stripped of ownership.
   - Managers cannot grant authority beyond their own active business and location scope, cannot create owners, and cannot escalate themselves.
   - Control creates canonical Users and Orders only through their owning modules and never writes Production state directly.
+  - A repaired production Order-detail contradiction is not closed from health or inactivity alone; one authenticated non-empty read, a fixed Sentry ingestion wait, and no recurrence are required before issue resolution and final verification.
   - Processor and Control use app-specific Secure, HttpOnly, SameSite cookies and server-owned CSRF policy; browser JavaScript receives no session credential.
   - Browser navigation and controls are driven by server-computed capabilities for the selected business and location; role-string arithmetic is not product authority.
   - Control and Processor share the same shadcn and Tailwind design language without importing business behavior across application boundaries.
@@ -428,6 +429,48 @@ tasks:
     status: pending
     evidence: []
 
+  - id: H1
+    title: Verify and close the API-E production Order-detail contradiction
+    type: human_action
+    owner: human
+    surface: sentry
+    agent_can_verify: false
+    deps:
+      - T3
+      - T5
+      - T6
+      - T7
+      - T7A
+      - T7B
+    reads:
+      - external:control-production-order-detail
+      - external:sentry-api-e
+      - repo:stateworks/work/active/pressly-control-workforce-identity/evidence.md
+    writes:
+      - external:sentry-api-e-status
+      - repo:stateworks/work/active/pressly-control-workforce-identity/human-actions.md
+    preconditions:
+      - The focused Order-item projection repair is present in the exact deployed release and `API-E` has no known post-repair event before the bounded proof begins.
+      - An authorized Control user can select one existing Order known to contain at least one item without creating or correcting production data.
+    human_instructions:
+      - Sign in to `control.trypressly.com` as an authorized user, open Orders, clear the browser Fetch/XHR log, and open one existing Order known to contain at least one item.
+      - 'Verify the authenticated Order-detail GET returns HTTP 200 with `ok: true`, includes at least one item, and renders that item in the detail surface.'
+      - Confirm the proof emitted no POST, PUT, PATCH, or DELETE request. Do not create, correct, save, or otherwise mutate an Order.
+      - Record only the proof timestamp and redacted outcome. Do not record or capture the URL, Order ID, customer data, response payload, or a production-data screenshot.
+      - Starting after the successful GET, wait a fixed five minutes for Sentry ingestion, then read back `API-E` and confirm its event count and last-seen timestamp show no post-repair recurrence.
+      - Resolve `API-E` only after every prior condition succeeds, then read back the resolved status. If the GET fails, the detail is empty, a write occurs, or any new event appears, leave the issue unresolved and return the defect to repository diagnosis.
+    expected_external_state:
+      - One authenticated non-empty production Order-detail read succeeds without mutation and remains free of a Sentry recurrence after the full five-minute ingestion window.
+      - '`API-E` is resolved only after that evidence exists.'
+    verifier:
+      - 'Human provides a dated, redacted result showing GET 200, `ok: true`, at least one rendered item, and no write request or production-data disclosure.'
+      - Human provides the five-minute start and end times plus Sentry count and last-seen readback showing no post-repair recurrence.
+      - Human provides final `API-E` resolved-status readback; inactivity or health checks alone are insufficient.
+    rollback: If any verifier fails, do not resolve `API-E`; preserve or return it to unresolved state and reopen the exact Order-detail defect for diagnosis without mutating production Orders.
+    secret_handling: never_show_agent
+    status: pending
+    evidence: []
+
   - id: V1
     title: Verify security, domain, UI, and deployment boundaries
     type: verification
@@ -440,6 +483,7 @@ tasks:
       - T7
       - T7A
       - T7B
+      - H1
     reads:
       - repo:packages
       - repo:modules

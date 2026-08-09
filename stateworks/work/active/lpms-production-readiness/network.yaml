@@ -633,7 +633,7 @@ tasks:
     evidence: []
 
   - id: V2
-    title: Prove the release and production topology offline
+    title: Prove the current five-image release and production topology offline
     type: verification
     owner: agent
     surface: repo
@@ -643,7 +643,10 @@ tasks:
     reads:
       - repo:.github/workflows
       - repo:infra/aws/lightsail
-      - repo:all-four-Dockerfiles
+      - repo:all-five-Dockerfiles
+      - repo:stateworks/work/done/lpms-order-control-correctness-hardening
+      - repo:stateworks/work/done/lpms-production-order-resolution-and-identity
+      - repo:stateworks/work/done/cents-webhook-redelivery-idempotency
       - repo:stateworks/work/active/lpms-production-readiness/evidence.md
     writes:
       - repo:stateworks/work/active/lpms-production-readiness/evidence.md
@@ -651,19 +654,22 @@ tasks:
       - Placeholder env files contain no production secrets.
       - The proof runs on an isolated host or disposable local Compose project.
     action:
-      - Build all four images, migrate a clean database, start the production Compose shape, and exercise Caddy routing locally.
-      - Prove API and Processor health, worker heartbeat and projection, signed webhook receipt, processor auth, and Web health through only the intended ingress.
+      - Build all five application images, migrate a clean database, start the production Compose shape, and exercise Caddy routing locally.
+      - Prove API, Web, Processor, and Control health, worker heartbeat and projection, signed webhook receipt, and Processor authentication through only the intended ingress and durable boundaries.
       - Restart API and Worker independently and prove operational state resumes.
-      - Run a synthetic four-image release-selection switch and rollback against disposable current-schema data, including release metadata and durable-state preservation.
-      - Measure steady-state container memory and record whether the 4 GB pilot floor leaves safe headroom.
+      - Run a synthetic five-image release-selection switch and rollback against disposable current-schema data, including release metadata and durable-state preservation.
+      - Re-run the current LPMS integration and composed happy-path proofs, including exact raw redelivery, after the completed order-control, resolution, and exact-redelivery changes.
+      - Measure steady-state container memory and retain the existing 4 GB floor only as a historical minimum; production currently uses an 8 GiB host.
     postconditions:
       - The exact production topology is locally operable and reversible without real vendor or cloud state.
       - Evidence records image identities, routes, health, restart, rollback, and resource measurements.
     verifier:
-      - pnpm docker:lpms:build
-      - Production Compose config and isolated smoke script exit zero.
+      - pnpm test:lpms:int
+      - pnpm test:lpms:e2e
+      - pnpm docker:production:smoke
+      - Production Compose config and isolated five-image smoke script exit zero.
       - Only Caddy publishes host ports in the rendered production config.
-      - Four-image release switching and rollback restore the expected synthetic source SHA and healthy services.
+      - Five-image release switching and rollback restore the expected synthetic source SHA and healthy services.
       - No demo mode or synthetic runtime row appears without an explicit test fixture command.
     rollback:
       - Tear down the disposable project and volumes after evidence is captured; do not touch production.
@@ -788,6 +794,7 @@ tasks:
     surface: other
     agent_can_verify: false
     deps:
+      - V2
       - RV1
     reads:
       - repo:stateworks/work/active/lpms-production-readiness/brief.md
@@ -818,7 +825,7 @@ tasks:
     evidence: []
 
   - id: H2A
-    title: Provision the Lightsail host and network boundary
+    title: Reconcile the provisioned Lightsail host and network boundary
     type: human_action
     owner: human
     surface: aws
@@ -834,25 +841,25 @@ tasks:
       - external:host-firewall
       - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
     human_instructions:
-      - Confirm or resize the production Lightsail instance to at least 4 GB RAM unless V2 measurements prove the current size has safe headroom.
-      - Attach and verify a static IP without removing the current Web or API address.
-      - Allow public 80 and 443. While the GitHub-hosted deploy runner has no stable egress, rate-limit public SSH, require keys, disable root login, pin the host key, and allow only the deployment user. Do not expose Postgres, API container, Processor container, or Worker ports directly.
-      - Confirm disk headroom, encrypted backup access, host time synchronization, Docker availability, and the existing deployment user's restricted access.
-      - Record only redacted instance size, static IP suffix, firewall rules, disk headroom, and time-sync result in human-actions.md.
+      - Read back the existing 8 GiB Lightsail instance, 160 GiB disk, attached static IP, Docker availability, encrypted-backup access, host time synchronization, disk headroom, and restricted deployment-user access.
+      - Confirm the host has measured headroom for all five applications — API, Web, Worker, Processor, and Control — plus Caddy and Postgres. Do not resize a healthy host merely to satisfy this gate.
+      - Read back public 80 and 443 plus the rate-limited key-only SSH boundary. Confirm root login remains disabled and Postgres plus every application container port remain private.
+      - If any readback differs from the approved baseline, stop and record the mismatch before changing instance size, static IP, firewall, SSH, or backup access. Repair only the proven mismatch through its normal operational procedure.
+      - Record only redacted instance size, static IP suffix, firewall rules, disk headroom, time-sync result, backup-access result, and reconciliation outcome in human-actions.md.
     expected_external_state:
-      - The host has capacity for the four applications plus Caddy and Postgres.
+      - The provisioned host has capacity for API, Web, Worker, Processor, and Control plus Caddy and Postgres.
       - One stable static IP is attached and only Caddy ingress plus the hardened deployment SSH boundary can reach the host.
       - Host time and backup prerequisites are healthy.
     verifier:
-      - Human provides redacted instance, static-IP, firewall, disk, time-sync, and backup-access evidence.
+      - Human provides dated redacted instance, static-IP, firewall, application-count, disk, time-sync, backup-access, and no-change-or-repair evidence.
     rollback:
-      - Restore the prior instance plan and firewall only if the existing services remain healthy; retain the static IP when removing it would disrupt current DNS.
+      - No rollback is required for readback. If a proven mismatch requires repair, retain the static IP and restore the last healthy instance or firewall setting if that repair fails.
     secret_handling: never_show_agent
     status: pending
     evidence: []
 
   - id: H2B
-    title: Configure the processor DNS record
+    title: Reconcile the deployed public DNS records
     type: human_action
     owner: human
     surface: dns
@@ -864,25 +871,24 @@ tasks:
       - external:Lightsail-static-IP
       - repo:infra/aws/lightsail/Caddyfile
     writes:
-      - external:processor-DNS-record
+      - external:Web-API-Processor-Control-DNS-records
       - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
     human_instructions:
-      - Create the processor hostname record pointing to the verified Lightsail static IP without changing the Web or API records.
-      - Use a low temporary TTL for launch and raise it only after the pilot is stable.
-      - Confirm the record from at least two independent resolvers and record only hostname, record type, TTL, and redacted resolution in human-actions.md.
+      - Read back Web, API, Processor, and Control records from at least two independent resolvers and compare their redacted answers with the verified Lightsail static IP and four approved HTTPS authorities.
+      - Record each hostname, record type, TTL, redacted resolution, and HTTPS result without changing a healthy record or TTL.
+      - If a record is missing or mismatched, stop and record the discrepancy before applying the smallest provider-side repair. Do not change an unrelated healthy hostname.
     expected_external_state:
-      - The processor hostname resolves consistently to the production static IP.
-      - Existing Web and API hostnames continue resolving unchanged.
+      - Web, API, Processor, and Control resolve consistently to the approved production ingress and their HTTPS health surfaces remain successful.
     verifier:
-      - Agent can verify public DNS resolution and compare it with the human-provided redacted static-IP proof.
+      - Agent can verify all four public resolutions and HTTPS authorities and compare them with the human-provided redacted static-IP proof.
     rollback:
-      - Remove only the new processor record if launch is abandoned; do not alter existing Web or API DNS.
+      - No rollback is required for readback. If a repair regresses resolution, restore only that record's last known healthy value and TTL.
     secret_handling: none
     status: pending
     evidence: []
 
   - id: H2C
-    title: Place production env, HMAC, and bootstrap configuration
+    title: Reconcile production env, Cents mode, and bootstrap configuration
     type: human_action
     owner: human
     surface: local_secret_store
@@ -897,29 +903,29 @@ tasks:
     writes:
       - external:/opt/pressly/env
       - external:/opt/pressly/config/lpms-bootstrap.json
-      - external:Cents-current-HMAC-key
+      - external:Cents-auth-secret-boundary
       - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
     human_instructions:
-      - Create compose, caddy, web, api, worker, processor, postgres, migration, and backup env files under /opt/pressly/env with owner-only 0600 permissions.
-      - Generate at least 32 random bytes for the current Cents HMAC key in the approved secret boundary and place it only in the API env file; do not paste it into chat, Git, Stateworks, shell history, or screenshots.
-      - Leave the previous-key slot empty for first launch and document the rotation procedure that temporarily accepts current and previous keys.
-      - Configure the Processor same-origin API path, Worker runtime settings, database URLs, existing auth and observability values, and feature flags using the documented production names.
-      - Prepare /opt/pressly/config/lpms-bootstrap.json from the repo example with actual location, timezone, stations, machines, effective capacities, folding configuration, and initial pulse settings. Keep sourceLocationBindings empty until the Cents store identifier is confirmed; never use a placeholder binding in production.
-      - Validate files through the deployment preflight without printing values and record only file names, modes, owner, bootstrap hash, and pass/fail outcome in human-actions.md.
+      - Read back the existing compose, caddy, web, api, worker, processor, control, postgres, migration, and backup env files under /opt/pressly/env. Confirm required files are owner-only mode 0600 without printing or copying values.
+      - Reconcile the configured Cents authentication mode with the approved H1 contract. Verify required secret presence inside the approved boundary without exposing values; do not generate, rotate, or move a key unless a proven mismatch requires its normal secret-rotation procedure.
+      - Confirm Processor and Control use their documented same-origin API paths and that API, Web, Worker, Processor, Control, database, auth, and observability settings use the current production names.
+      - Read back /opt/pressly/config/lpms-bootstrap.json and reconcile its redacted hash and reviewed location, timezone, stations, machines, effective capacities, folding configuration, pulse settings, and confirmed source bindings. Never add a placeholder or unconfirmed vendor binding.
+      - Run deployment preflight without printing values. If a file, mode, owner, runtime binding, or bootstrap fact differs, record the discrepancy and repair only that proven mismatch.
+      - Record only file names, modes, owner, configured auth-mode name, bootstrap hash, preflight outcome, and no-change-or-repair result in human-actions.md.
     expected_external_state:
-      - Required env and bootstrap files exist outside the repository with 0600 permissions and correct ownership; the facility manifest does not require an unconfirmed vendor binding.
-      - A current HMAC key exists in the API secret boundary but Cents delivery is not enabled.
+      - Required env and bootstrap files for all five applications and their infrastructure exist outside the repository with 0600 permissions and correct ownership; the facility manifest contains no unconfirmed vendor binding.
+      - The configured Cents authentication mode has its required secret material in the approved boundary, and no secret value enters evidence.
       - Bootstrap input reflects operator-reviewed facility facts.
     verifier:
-      - Human provides redacted file-mode, owner, preflight, and bootstrap-hash evidence without values.
+      - Human provides dated redacted file-mode, owner, five-application closure, auth-mode, preflight, bootstrap-hash, and no-change-or-repair evidence without values.
     rollback:
-      - Securely remove unused configuration and revoke the HMAC key if launch is abandoned; do not delete existing production env files needed by Web or API.
+      - No rollback is required for readback. If a repair fails, restore the prior approved file from escrow and do not delete environment files required by any running application.
     secret_handling: never_show_agent
     status: pending
     evidence: []
 
   - id: H2D
-    title: Configure worker and deployment alerts
+    title: Reconcile worker, host, backup, and deployment alerts
     type: human_action
     owner: human
     surface: sentry
@@ -935,16 +941,16 @@ tasks:
       - external:deployment-alert-rules
       - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
     human_instructions:
-      - Reuse the existing server observability destination and distinguish runtime=worker rather than creating an unnecessary monitoring stack.
-      - Alert on missing heartbeat, oldest pending age, dead letters, repeated retries, fatal exit, and failed deployment with thresholds from the verified runbook.
-      - Route alerts to an operator-owned destination and send one synthetic non-PII test signal per rule.
-      - Record redacted rule names, thresholds, destination name, and test outcomes in human-actions.md.
+      - Read back the existing Worker progress monitor, host-capacity and backup monitors, native Lightsail alarms, and deployment-failure routing. Reuse the existing server observability destination and distinguish runtime=worker rather than creating duplicate rules or a second stack.
+      - Reconcile missing heartbeat, oldest pending age, dead letters, repeated retries, fatal exit, host capacity, backup staleness, and failed deployment thresholds with the verified runbooks.
+      - Confirm every high-signal route reaches an operator-owned destination. Existing successful check-ins prove monitor ingestion, not notification delivery; send bounded synthetic non-PII failures and recovery signals through the approved test path.
+      - Record dated redacted rule names, thresholds, destination name, test outcomes, and no-change-or-repair result in human-actions.md.
     expected_external_state:
-      - Worker and deployment failures reach an operator without paging on normal idle polls.
+      - Worker, host-capacity, backup-staleness, native-host, and deployment failures reach an operator without paging on normal idle polls.
     verifier:
-      - Human provides redacted alert configuration and one successful test result per high-signal rule.
+      - Human provides redacted alert configuration and successful operator-delivery plus recovery evidence for every high-signal route.
     rollback:
-      - Disable noisy or unsafe new rules while preserving existing API and Web alerts.
+      - No rollback is required for readback. Disable only a noisy or unsafe repair while preserving the last healthy Worker, host, backup, API, Web, and deployment alerts.
     secret_handling: never_show_agent
     status: pending
     evidence: []
