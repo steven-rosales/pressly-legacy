@@ -452,10 +452,10 @@ That is acceptable only because backups leave the box.
 Required production backup path:
 
 ```txt
-nightly encrypted pg_dump
-upload to S3 or Lightsail object storage
-retain recent backups
-test restore manually
+hourly encrypted pg_dump at :15 UTC
+upload the same triplet to the primary and independent S3 secondary
+retain secondary versions for 90 days in Object Lock COMPLIANCE mode
+verify readback every run and prove replacement-host restore separately
 ```
 
 The backup script is:
@@ -464,7 +464,7 @@ The backup script is:
 infra/aws/lightsail/backup-postgres.sh
 ```
 
-The nightly production recipe wraps this script with the
+The hourly production recipe wraps this script with the
 `pressly-postgres-backup` Sentry Cron monitor. A successful check-in therefore
 means the encrypted dump, checksum, and metadata were uploaded and the remote
 encrypted bytes passed the script's readback checksum. A missing, timed-out, or
@@ -473,6 +473,17 @@ The host independently prevents overlapping backups and terminates one after
 25 minutes, leaving five minutes for Sentry to report failure before its
 30-minute check-in timeout. Production cron requires the host timezone to stay
 `Etc/UTC` and declares a fixed system path that includes `/usr/local/bin`.
+
+Steven approved a one-hour RPO, four-hour RTO, and 90-day Object Lock
+`COMPLIANCE` target. Dated 2026-08-09 evidence proves the deployed hourly
+dual-destination schedule, natural successful executions, and exact retention
+on the three inspected versions of one secondary triplet. This is schedule and
+custody evidence, not a completed recovery drill: the achieved RPO and RTO stay
+open until a disposable replacement host restores the latest complete immutable
+triplet available at drill start. Before that drill, separately prove
+recoverable non-root AWS management access, GoDaddy authoritative-DNS access
+with MFA, and the Pressly Production Owner password plus ordinary TOTP/recovery
+path; then refresh and reverify the post-merge exact release in Bitwarden escrow.
 
 Lightsail snapshots are useful, but they do not replace database dumps.
 

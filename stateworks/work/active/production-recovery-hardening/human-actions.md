@@ -6,11 +6,14 @@
 provisioned host identity, restore preflight, hourly dual-destination schedule,
 and first natural 01:15 UTC execution are proven. Exact per-version 90-day
 Object Lock COMPLIANCE retention and retrieval of the complete file-based
-Bitwarden bundle are also proven. Anonymous exact-release access is proven, and
-recovery-account administration makes the narrow writer regenerable. `H2`
-remains pending only on read-only management-account access to the authoritative
-DNS administration surface. `H3`, the existing LPMS launch gate, and the
-live-vendor gates remain stopped.
+Bitwarden file bundle are also proven. Anonymous exact-release access is proven,
+and recovery-account administration makes the narrow writer regenerable. `H2`
+remains open on three separate access proofs: recoverable non-root access to AWS
+management account `088594414587`, recoverable GoDaddy access to authoritative
+DNS administration with MFA, and off-host Pressly Production Owner password
+plus ordinary TOTP and recovery access. The existing archive proves none of
+those three paths. `H3`, `V3`, the existing LPMS launch gate, and the live-vendor
+gates remain stopped.
 
 ## H1 - Publish the repaired release
 
@@ -46,8 +49,8 @@ against an approved backup before recovery readiness is claimed.
 Approve explicit RPO and RTO values. Provision an independently administered,
 encrypted, Object-Locked secondary backup boundary for which the production
 host has no delete authority. Escrow the backup passphrase, runtime
-configuration, release access, DNS access, and required recovery credentials in
-an approved off-host store.
+configuration, release access, AWS management access, authoritative-DNS access,
+and required application recovery credentials in an approved off-host store.
 
 The merged secondary-destination support is only a repository prerequisite. It
 can upload one encrypted triplet to independently verified primary and
@@ -62,10 +65,11 @@ remains pending despite the approved objectives below.
 - Approved RPO: one hour.
 - Approved RTO: four hours.
 - Approved immutable retention: 90 days in S3 Object Lock COMPLIANCE mode.
-- Vault status: Steven confirmed completion of the Bitwarden baseline
+- Vault status at this evidence point: Steven confirmed completion of the Bitwarden baseline
   checklist: protected business vault, Pressly recovery collection and policy
-  note, two-step login, and an offline recovery-code path. The complete
-  recovery-material inventory and redacted retrieval proof remain pending.
+  note, two-step login, and an offline recovery-code path. The file-bundle
+  inventory and retrieval were proven later; the three non-file access paths
+  listed in the current status remain pending.
 - AWS status: the independently administered account, Object-Locked bucket,
   least-privilege writer, dual-destination readback, and secondary restore
   preflight are proven as described below. Exact per-version retention is now
@@ -104,8 +108,9 @@ payload, or secret value is recorded here.
   retrieval test were incomplete. The file-based archive retrieval below
   satisfies the backup passphrase, runtime configuration, release identity, and
   Lightsail SSH-key portion. The later credential-free release and
-  regenerable-writer proof satisfies two remaining non-file paths; only
-  management-account/DNS recovery access remains.
+  regenerable-writer proof close those two recovery dependencies. They do not
+  prove AWS management-account login, GoDaddy DNS login and MFA, or the Pressly
+  Production Owner password and ordinary TOTP/recovery path.
 
 ### H2 Bitwarden bundle retrieval — 2026-08-09
 
@@ -142,19 +147,43 @@ payload, or secret value is recorded here.
   create or rotate a replacement least-privilege writer. Retrieving the current
   long-lived writer key is not a recovery gate and would be unsafe ceremony;
   this does not authorize deleting a credential still used by production.
-- Remaining `H2` action: provide redacted, read-only proof that Steven can enter
-  management account `088594414587` and reach the authoritative DNS
-  administration surface. Do not mutate DNS.
+- The exact deployed release above is a dated 2026-08-09 snapshot, not a durable
+  assertion about what is current after this branch merges.
+
+### H2 remaining human access proofs
+
+Complete each proof independently and record only the redacted outcome and date:
+
+1. Use the off-host non-root recovery path to enter AWS management account
+   `088594414587` and obtain a read-only account-identity result. Do not use or
+   recover a root credential for this proof.
+2. Use the separate off-host GoDaddy credential and MFA recovery path to open the
+   authoritative DNS administration page for `trypressly.com`, confirm the
+   nameserver and record edit controls are available, and make no DNS change.
+3. Confirm the off-host Pressly Production Owner credential includes the
+   password, ordinary TOTP, and a separate recovery path. H3 must authenticate
+   with the ordinary TOTP; do not substitute a recovery code, because that would
+   mask a broken restored MFA or clock configuration.
+
+Do not paste a password, passkey, TOTP seed, TOTP value, recovery code, session
+credential, customer identifier, or DNS record value into Stateworks, Git,
+terminal output, screenshots, or agent messages.
 
 Record only owners, dates, objective values, retention, access-boundary facts,
 and redacted outcomes. Never record a secret value in this package.
 
 ## H3 - Replacement-instance drill
 
-After `H1` and `H2`, build a disposable replacement instance, recover the exact
-release and configuration from escrow, restore a verified backup, prove writes
-and all public health surfaces through isolated routing, measure achieved RPO
-and RTO, and remove only the drill resources.
+After `H1` and `H2`, first read back the exact release deployed after this branch
+merges. Regenerate the Bitwarden attachment from that exact host state, retrieve
+it again to an isolated workstation directory, and reverify its checksum and
+complete inventory so `current-release.json` cannot drift from the release being
+drilled. Then build a disposable replacement instance, restore the latest
+complete immutable backup triplet available at drill start, prove a Production
+Owner login with ordinary TOTP, prove an isolated non-PII application write and
+read plus all public health surfaces through isolated routing, measure achieved
+RPO and RTO, and remove only the drill resources. Do not reuse the dated
+`bc0987b` archive without that post-merge refresh.
 
 ## Evidence template
 

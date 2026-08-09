@@ -14,10 +14,15 @@ gates remain open. Recovery H1 and V2 now include the first natural hourly
 dual-destination backup, and exact per-version Object Lock retention is proven.
 The checksummed file-based Bitwarden bundle was also retrieved successfully.
 Exact release access is anonymous, and proven recovery-account administration
-can regenerate a replacement narrow writer. Read-only management-account access
-to authoritative DNS plus the replacement-instance drill remain open. Backup
-and deployment success check-ins are proven, while H2D still needs operator
-notification delivery and recovery evidence.
+can regenerate a replacement narrow writer. Separate recoverable access to the
+AWS management account, GoDaddy authoritative DNS with MFA, and the Production
+Owner password plus ordinary TOTP/recovery path remain open. The exact deployed
+release and escrow attachment still require post-merge refresh before the open
+replacement-instance drill. Backup and deployment success check-ins are proven.
+Four Sentry workflows and all three `pressly-44` Lightsail alarms also have
+dated ahead-of-order failure/recovery-trigger configuration readback. No
+synthetic notification was sent, so H2D remains formally behind H2C and still
+needs operator delivery and recovery evidence.
 
 This report remains intentionally non-terminal until the Stateworks network
 reaches its verified end state.

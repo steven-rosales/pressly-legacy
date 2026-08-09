@@ -1,15 +1,15 @@
 work_id: lpms-production-readiness
 status: active
-updated: 2026-08-09T00:42:00-04:00
+updated: 2026-08-09T01:13:00-04:00
 
 current_focus:
   - H1
   - Unsigned documented-vendor compatibility was authorized for launch; live retry, store, bag-count, reconciliation, and any future signing facts remain to be confirmed.
   - The current production release contains five application images; committed four-image tasks are historical pre-Control evidence.
   - Current five-image repository proof is bound to exact checkout a5c768b97cc9dee56bb53de1678563849b6d1f9a and includes the completed operational-authority, order-control, production-order-resolution, and exact-raw-redelivery changes.
-  - Current production is exact bc0987b98f746cab5d2a97f91c5e3f7892561bb6 with verified five-image identity and deployment monitoring. All seven services are running; six defined container health checks are healthy, Caddy is running, and four public health surfaces return HTTP 200. This operational fact does not rebind the local V2 proof.
-  - Production-recovery V2 is committed after the first natural hourly dual-destination backup, exact per-version Object Lock COMPLIANCE retention is proven, and the checksummed file-based Bitwarden bundle was retrieved. Exact release access is anonymous, and recovery-account administration can regenerate a narrow writer. H2 remains pending only on read-only management-account access to the authoritative DNS administration surface; H3 and V3 remain open, and all live-vendor and pilot gates remain stopped.
-  - Backup and deployment success check-ins prove Sentry ingestion, not the operator delivery and recovery evidence still required by H2D.
+  - At the 2026-08-09 operational readback, production was exact bc0987b98f746cab5d2a97f91c5e3f7892561bb6 with verified five-image identity and deployment monitoring. All seven services were running; six defined container health checks were healthy, Caddy was running, and four public health surfaces returned HTTP 200. This dated operational fact does not rebind the local V2 proof or assert the post-merge release.
+  - Production-recovery V2 is committed after the first natural hourly dual-destination backup, exact per-version Object Lock COMPLIANCE retention is proven, and the checksummed file-based Bitwarden bundle was retrieved. Exact release access is anonymous, and recovery-account administration can regenerate a narrow writer. Recovery H2 remains open on separate AWS management-account, GoDaddy authoritative-DNS plus MFA, and Production Owner password plus ordinary TOTP/recovery proofs; the exact deployed release and escrow attachment must be refreshed after merge before H3. Recovery H3 and V3 remain open, and all live-vendor and pilot gates remain stopped.
+  - Backup and deployment success check-ins prove Sentry ingestion, not the operator delivery and recovery evidence still required by H2D. Four existing Sentry workflows and all three pressly-44 Lightsail alarm recovery triggers were reconciled ahead of order on 2026-08-09, but no synthetic notification was sent; H2D remains formally behind H2C and is not advanced.
 
 tasks:
   T0:

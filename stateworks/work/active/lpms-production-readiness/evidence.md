@@ -735,7 +735,7 @@ the deployment preserved natural scheduling without advancing `H2D` or the
 remaining recovery gates.
 
 Independent recovery-account readback subsequently proved that the three exact
-current versions of the manual secondary triplet use SSE-S3 and 90-day Object
+manual-secondary versions inspected at that time use SSE-S3 and 90-day Object
 Lock `COMPLIANCE` retention through
 `2026-11-07T00:56:17Z`/`18Z`/`19Z`. Their VersionIds and exact sizes agree with
 the upload/readback and restore-preflight evidence. This closes the retention
@@ -754,12 +754,33 @@ accessed anonymously with isolated Docker and Git configuration. Independently
 exercised recovery-account administration can read immutable versions and
 create or rotate a replacement narrow writer, so neither a release credential
 nor the current long-lived writer key is a required recovery escrow item.
-Recovery `H2` remains pending only on redacted read-only proof of
-management-account access to the authoritative DNS administration surface.
+Recovery `H2` remains pending on three distinct human proofs: recoverable
+non-root AWS management-account access, separate GoDaddy authoritative-DNS
+administration plus MFA, and off-host Production Owner password plus ordinary
+TOTP/recovery access. The dated file bundle contains and proves none of those
+paths. After merge, the exact deployed release and escrow attachment must be
+refreshed and reverified before recovery `H3`; `H3` and `V3` remain open.
 
 These successful check-ins prove execution and Sentry ingestion, not
 operator-notification delivery or recovery. No bounded failure/recovery signal
 was delivered to and acknowledged by the operator, so `H2D` is not advanced.
+Four existing Sentry workflows, IDs `3824547`, `3824545`, `3824558`, and
+`3824618`, were then read back with `config.frequency=0`, enabled production
+scope, preserved detector IDs, and active team-email actions. All four include
+resolved triggers; only worker-critical workflow `3824547` required adding
+`issue_resolved_trigger`. This configuration evidence was collected ahead of
+the ordered human gates. No failure or recovery signal was sent, so the readback
+does not prove operator delivery, does not advance `H2D`, and does not bypass
+`H2D`'s declared dependency on `H2C`.
+
+Exactly three native Lightsail alarms attached to `pressly-44` were separately
+reconciled so `notificationTriggers` is `[ALARM, OK]`. All remained in state
+`OK`, kept the Email contact with notifications enabled, and preserved their
+exact metrics, thresholds, evaluation periods, datapoints, and missing-data
+policies. No `TestAlarm` or synthetic notification was sent. This is
+ahead-of-order configuration repair only: it proves neither operator delivery
+nor recovery, does not advance `H2D`, and does not bypass `H2C`.
+
 The Control `API-E` issue also remains open under
 `pressly-control-workforce-identity`: its focused projection repair has no
 recurrence, but no authenticated production Order-detail read has yet exercised

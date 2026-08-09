@@ -1,11 +1,11 @@
 work_id: production-recovery-hardening
 status: active
-updated: 2026-08-09T00:42:00-04:00
+updated: 2026-08-09T01:13:00-04:00
 
 current_focus:
   - H2
   - H3
-  - H1 and V2 are committed. Exact d7dde proved the first natural hourly dual-destination backup and exact bc098 preserved the schedule while proving deployment monitoring. The owner approved a one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE retention; exact COMPLIANCE retention is proven for all three current manual-triplet versions. A byte-identical, checksummed Bitwarden retrieval proves the complete file bundle. Exact release recovery is anonymously accessible, and recovery-account administration makes the narrow writer regenerable. H2 remains pending only on read-only management-account access to the authoritative DNS administration surface; H3 and V3 remain open behind it.
+  - H1 and V2 are committed. On 2026-08-09, exact d7dde proved the first natural hourly dual-destination backup and the later exact bc098 snapshot preserved the schedule while proving deployment monitoring. The owner approved a one-hour RPO, four-hour RTO, and 90-day Object Lock COMPLIANCE retention; exact COMPLIANCE retention is proven for all three manual-triplet versions inspected on that date. A byte-identical, checksummed Bitwarden retrieval proves the complete file-based bundle only. Exact release recovery is anonymously accessible, and recovery-account administration makes the narrow writer regenerable. H2 remains open on three separate human proofs: recoverable non-root access to AWS management account 088594414587, recoverable GoDaddy access to the authoritative DNS administration surface with MFA, and off-host Pressly Production Owner password plus ordinary TOTP and recovery access. After this branch is merged, the exact deployed release and Bitwarden attachment must be refreshed and reverified before H3. H3 and V3 remain open behind H2.
 
 tasks:
   T0:

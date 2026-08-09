@@ -16,9 +16,12 @@ A byte-identical, checksummed Bitwarden download also proves the file-based
 recovery bundle. Anonymous access to every exact image manifest and the exact
 source SHA is proven, and recovery-account administration makes a replacement
 narrow writer regenerable.
-Read-only management-account access to authoritative DNS plus the
-replacement-instance drill remain open and must not be inferred from LPMS
-repository evidence.
+Three separate recovery access paths remain open: non-root AWS management
+account access, GoDaddy authoritative-DNS administration plus MFA, and the
+Pressly Production Owner password plus ordinary TOTP/recovery path. The exact
+deployed release and escrow attachment must also be refreshed after merge before
+the replacement-instance drill. None may be inferred from LPMS repository
+evidence.
 
 ## Secret handling
 
@@ -125,6 +128,22 @@ advance them:
   operator notification. `H2D` still requires a bounded non-PII failure and
   recovery signal to reach and be acknowledged by the operator-owned
   destination.
+- Four existing Sentry workflows, IDs `3824547`, `3824545`, `3824558`, and
+  `3824618`, were reconciled with `config.frequency=0`. All four read back
+  enabled, production-scoped, team-owned, with their detector IDs and active
+  team-email actions preserved, and all now include resolved triggers. Only the
+  worker-critical workflow `3824547` required adding
+  `issue_resolved_trigger`; the other three already had it. This configuration
+  readback was collected ahead of the ordered gate. No failure or recovery
+  signal was sent, so it does not prove operator delivery, does not advance
+  `H2D`, and does not bypass `H2D`'s dependency on `H2C`.
+- Exactly three native Lightsail alarms attached to `pressly-44` were separately
+  reconciled so `notificationTriggers` is `[ALARM, OK]`. All three remained in
+  state `OK`, kept the Email contact with notifications enabled, and preserved
+  their exact metrics, thresholds, evaluation periods, datapoints, and
+  missing-data policies. No `TestAlarm` or synthetic notification was sent.
+  This is ahead-of-order configuration repair only: it proves neither operator
+  delivery nor recovery, does not advance `H2D`, and does not bypass `H2C`.
 
 ## Later gates
 
@@ -155,6 +174,8 @@ record after it becomes ready.
   first natural hourly dual-destination backup. Exact per-version Object Lock
   retention and retrieval of the checksummed file bundle are proven. Exact
   release access is anonymous, and the recovery-account administrator can
-  regenerate a narrow writer. Read-only management-account access to
-  authoritative DNS plus a replacement-instance drill remain open under `H2`
-  and `H3` before disaster recovery is complete.
+  regenerate a narrow writer. Separate recoverable access to AWS management
+  account `088594414587`, GoDaddy authoritative DNS with MFA, and the Pressly
+  Production Owner password plus ordinary TOTP/recovery path remain open under
+  recovery `H2`. Post-merge release/escrow refresh, `H3`, and `V3` also remain
+  open before disaster recovery is complete.

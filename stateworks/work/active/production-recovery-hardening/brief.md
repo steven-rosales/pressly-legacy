@@ -3,8 +3,9 @@
 ## Purpose
 
 Close the final recovery-path defects found after the first healthy production
-deployment. The deployed platform is currently healthy; this package concerns
-what happens when a release, migration, host, or primary database is not.
+deployment. Dated readback on 2026-08-09 found the deployed platform healthy;
+this package concerns what happens when a release, migration, host, or primary
+database is not.
 
 ## Outcomes
 
@@ -43,7 +44,8 @@ returned HTTP 200. A preceding manual dual backup also passed secondary
 readback and the stable restore `--preflight-only` path without restoring data
 or creating a recovery journal.
 
-The immediately following deployment-monitor release at exact source SHA
+At the 2026-08-09 observation point, the immediately following
+deployment-monitor release at exact source SHA
 `bc0987b98f746cab5d2a97f91c5e3f7892561bb6` passed the same protected release
 ladder, emitted one real deployment start-to-success check-in, and preserved the
 verified hourly cron and secondary-destination bindings. This proves `H1` and
@@ -56,6 +58,9 @@ all five exact image manifests and anonymous Git fetch of the exact source prove
 that release recovery needs no stored registry or repository credential.
 Independent recovery-account administration can read the immutable versions
 and create or rotate a replacement narrow writer, so retaining the current
-long-lived writer key is not a recovery prerequisite. Read-only proof of
-management-account access to the authoritative DNS administration surface is
-the only remaining `H2` gate; `H3` and `V3` remain open behind it.
+long-lived writer key is not a recovery prerequisite. The archive does not
+contain or prove AWS management-account login, GoDaddy DNS login and MFA, or the
+Pressly Production Owner password and ordinary TOTP/recovery path. Those three
+separate access proofs remain open under `H2`. After this branch is merged, the
+deployed exact release and escrow attachment must be refreshed and reverified
+before the replacement-instance drill. `H3` and `V3` remain open behind `H2`.

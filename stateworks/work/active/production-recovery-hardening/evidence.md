@@ -228,8 +228,9 @@ natural scheduling; it does not add an Object Lock or escrow claim.
 
 ## H2 - Immutable-secondary repository prerequisite
 
-Status: independent retention and file escrow proven; DNS administration access
-pending.
+Status: independent retention and file escrow proven; AWS management access,
+GoDaddy DNS administration and MFA, and Production Owner application access
+remain pending as separate human proofs.
 
 Main at exact source commit
 `a5c768b97cc9dee56bb53de1678563849b6d1f9a` contains optional
@@ -284,9 +285,9 @@ the owner decisions below are separate human evidence.
 
 Independent readback in recovery account `067200612921` found versioning enabled
 on `pressly-prod-postgres-recovery-067200612921-use1` and proved the actual
-retention attached to all three current versions of the manual secondary
-triplet. This is object-version evidence rather than an inference from the
-bucket default.
+retention attached to the three manual-secondary versions inspected at that
+time. This is dated object-version evidence rather than an inference from the
+bucket default or an assertion about a later current version.
 
 | Object                                              | VersionId                          | Current | Bytes     | Encryption        | Retention    | Retain until           |
 | --------------------------------------------------- | ---------------------------------- | ------- | --------- | ----------------- | ------------ | ---------------------- |
@@ -345,16 +346,18 @@ forensic media erasure.
 ### H2 regenerable release and writer access — 2026-08-09
 
 Read-only release recovery was proven without using an existing credential. At
-exact deployed source `bc0987b98f746cab5d2a97f91c5e3f7892561bb6`, the live
+the 2026-08-09 observation point, exact deployed source
+`bc0987b98f746cab5d2a97f91c5e3f7892561bb6` had a live
 `current-release.json` named five digest-pinned API, Web, Worker, Processor, and
 Control images. From a fresh mode-`0700` `DOCKER_CONFIG` with no `config.json`,
 `docker manifest inspect` succeeded anonymously for every exact digest
 reference. With global and system Git configuration disabled, an empty
 `credential.helper`, terminal prompting disabled, and `GIT_ASKPASS=/bin/false`,
 anonymous `ls-remote` matched public `main` to exact `bc0987b`, and an anonymous
-depth-one fetch of that exact SHA succeeded. The current release's Git and GHCR
-access is therefore public and regenerable; no stored repository or registry
-credential is required for recovery.
+depth-one fetch of that exact SHA succeeded. Git and GHCR access for that exact
+release is therefore public and regenerable; no stored repository or registry
+credential is required to recover it. The post-merge release must be read back
+and its exact access and escrow attachment reverified before `H3`.
 
 Steven's non-root IAM Identity Center `AdministratorAccess` into recovery
 account `067200612921` was independently exercised when he opened the exact S3
@@ -365,10 +368,13 @@ therefore not a required recovery credential, and requiring escrow retrieval of
 that long-lived key would add unsafe ceremony rather than recoverability. This
 does not authorize removal of a credential still used by the production host.
 
-The redacted member list and regenerable-access proof now leave one non-file
-access requirement for `H2`: Steven must provide read-only proof that he can
-enter management account `088594414587` and reach the authoritative DNS
-administration surface. No DNS mutation is required or authorized.
+The redacted member list and regenerable-access proof leave three separate
+non-file requirements for `H2`: Steven must prove recoverable non-root access to
+AWS management account `088594414587`; recoverable GoDaddy access to the
+authoritative DNS administration surface with MFA; and off-host Pressly
+Production Owner password plus ordinary TOTP and recovery access. The existing
+file bundle contains and proves none of those three access paths. No DNS mutation
+is required or authorized.
 
 No secret value is recorded here.
 
@@ -381,6 +387,8 @@ summary: both focused files and all 41 tests passed. The proof covers independen
 
 ## Pending evidence
 
-- `H2`: redacted read-only proof of management-account access to the
-  authoritative DNS administration surface
+- `H2`: redacted proof of recoverable non-root AWS management-account access,
+  separate recoverable GoDaddy authoritative-DNS administration and MFA, and
+  off-host Production Owner password plus ordinary TOTP/recovery access
 - `H3`: complete replacement-instance drill
+- `V3`: terminal Stateworks verification after `H2` and `H3` evidence exists

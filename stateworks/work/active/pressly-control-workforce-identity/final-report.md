@@ -25,8 +25,12 @@ abandoned `running` marker no longer hides the next repository task.
 
 ## Human Actions
 
-- None currently required by this work package. Employee onboarding and a real
-  invitation-delivery provider remain deferred operational adoption concerns.
+- One safe authenticated, read-only production verification is required: open
+  an existing non-empty Order detail, confirm its GET succeeds and renders at
+  least one item without any mutation request, then confirm `API-E` has no
+  post-repair recurrence before resolving it. Record no Order or customer data.
+- Employee onboarding and a real invitation-delivery provider remain deferred
+  operational adoption concerns.
 
 ## Commits
 
