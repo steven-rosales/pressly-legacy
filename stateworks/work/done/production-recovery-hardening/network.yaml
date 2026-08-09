@@ -1,6 +1,6 @@
 work_id: production-recovery-hardening
 title: Failure-safe deployment rollback and production-shaped recovery
-status: active
+status: complete
 
 goal:
   - Make release rollback and migration-state recording conservative under partial failure.
@@ -44,7 +44,7 @@ tasks:
       - repo:stateworks/work/active/lpms-production-readiness
       - external:production-health-and-backup-metadata
     writes:
-      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+      - repo:stateworks/work/done/production-recovery-hardening/evidence.md
     action:
       - Reproduce the reported rollback, migration classification, restore, and monitoring failure modes.
       - Record a read-only production baseline without exposing secrets or customer data.
@@ -54,7 +54,7 @@ tasks:
     secret_handling: never_show_agent
     status: committed
     evidence:
-      - stateworks/work/active/production-recovery-hardening/evidence.md#t0---baseline
+      - stateworks/work/done/production-recovery-hardening/evidence.md#t0---baseline
 
   - id: T1
     title: Make deploy and rollback state failure-safe
@@ -82,7 +82,7 @@ tasks:
     secret_handling: none
     status: committed
     evidence:
-      - stateworks/work/active/production-recovery-hardening/evidence.md#t1---failure-safe-deploy-and-rollback
+      - stateworks/work/done/production-recovery-hardening/evidence.md#t1---failure-safe-deploy-and-rollback
 
   - id: T2
     title: Implement a production-shaped database restore
@@ -116,7 +116,7 @@ tasks:
     secret_handling: never_show_agent
     status: committed
     evidence:
-      - stateworks/work/active/production-recovery-hardening/evidence.md#t2---production-shaped-database-restore
+      - stateworks/work/done/production-recovery-hardening/evidence.md#t2---production-shaped-database-restore
 
   - id: T3
     title: Decouple backup execution from Sentry
@@ -142,7 +142,7 @@ tasks:
     secret_handling: never_show_agent
     status: committed
     evidence:
-      - stateworks/work/active/production-recovery-hardening/evidence.md#t3---backup-remains-authoritative
+      - stateworks/work/done/production-recovery-hardening/evidence.md#t3---backup-remains-authoritative
 
   - id: V1
     title: Verify repository recovery behavior
@@ -154,7 +154,7 @@ tasks:
     reads:
       - repo
     writes:
-      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+      - repo:stateworks/work/done/production-recovery-hardening/evidence.md
     action:
       - Run shell syntax, focused failure-path tests, the disposable restore proof, Stateworks validation, architecture checks, and the full repository gates.
       - Review the combined diff for rollback, recovery, secret-handling, and cleanup regressions.
@@ -164,7 +164,7 @@ tasks:
     secret_handling: none
     status: committed
     evidence:
-      - stateworks/work/active/production-recovery-hardening/evidence.md#v1---combined-repository-verification
+      - stateworks/work/done/production-recovery-hardening/evidence.md#v1---combined-repository-verification
 
   - id: H1
     title: Review and publish the repaired production release
@@ -174,12 +174,12 @@ tasks:
     agent_can_verify: false
     deps: [V1]
     reads:
-      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+      - repo:stateworks/work/done/production-recovery-hardening/evidence.md
       - external:GitHub-required-checks
     writes:
       - external:main-branch
       - external:production-release
-      - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
+      - repo:stateworks/work/done/production-recovery-hardening/human-actions.md
     human_instructions:
       - Review the recovery diff and disposable proof; merge only through protected main after strict CI and CodeQL pass.
       - Observe the exact main release and normal workflow-run deployment to terminal success.
@@ -192,8 +192,9 @@ tasks:
       - Main CI, CodeQL, immutable artifact publication, deployment, and public health succeed for one exact source SHA.
     rollback: Use the repaired exact-manifest rollback procedure if deployment does not verify publicly.
     secret_handling: never_show_agent
-    status: latent
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/production-recovery-hardening/evidence.md#h1---published-recovery-release
 
   - id: V2
     title: Observe deployed recovery scripts and natural backup schedule
@@ -208,7 +209,7 @@ tasks:
       - external:production-cron-and-Sentry-monitor
       - external:private-versioned-backup-metadata
     writes:
-      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+      - repo:stateworks/work/done/production-recovery-hardening/evidence.md
     action:
       - Match deployed script hashes to the published source SHA.
       - Verify the root-owned host-identity file has the approved static IP and health authorities, then run the stable restore `--preflight-only` against an approved backup without restoring data.
@@ -217,8 +218,9 @@ tasks:
       - Restore admission, natural scheduling, backup durability, and monitoring independence are proven without exposing credential or payload values.
     rollback: Restore the prior verified cron recipe if the new deployed recipe cannot execute the backup command.
     secret_handling: never_show_agent
-    status: latent
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/production-recovery-hardening/evidence.md#v2---deployed-hourly-recovery-verification
 
   - id: H2
     title: Approve recovery objectives and independent custody
@@ -229,7 +231,7 @@ tasks:
     deps: [V1]
     reads:
       - repo:infra/aws/lightsail/README.md
-      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
+      - repo:stateworks/work/done/production-recovery-hardening/evidence.md
       - external:aws-management-account-identity-center-access
       - external:aws-recovery-account-identity-center-access
       - external:godaddy-authoritative-dns-administration
@@ -243,7 +245,7 @@ tasks:
       - external:recoverable-aws-recovery-account-access
       - external:current-godaddy-authoritative-dns-access
       - external:off-host-production-owner-credential-material
-      - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
+      - repo:stateworks/work/done/production-recovery-hardening/human-actions.md
     preconditions:
       - Repository recovery behavior is verified, and no secret value or customer payload will be recorded as evidence.
       - AWS management-account access, recovery-account administration, current GoDaddy authoritative-DNS access, and Pressly Production Owner credential custody are treated as distinct authorities.
@@ -271,8 +273,9 @@ tasks:
       - Evidence states that the live secondary-writer key is regenerable and is not required in escrow.
     rollback: Disable an unsafe replication rule without deleting the existing primary backup history.
     secret_handling: never_show_agent
-    status: latent
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/production-recovery-hardening/evidence.md#h2---immutable-secondary-repository-prerequisite
 
   - id: H3
     title: Run a complete replacement-instance recovery drill
@@ -291,7 +294,7 @@ tasks:
       - external:disposable-replacement-instance
       - external:isolated-drill-routing
       - external:drill-only-application-record
-      - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
+      - repo:stateworks/work/done/production-recovery-hardening/human-actions.md
     preconditions:
       - V2 is committed and H2 independently proves immutable custody plus separate non-root AWS management and recovery administration, current GoDaddy authoritative-DNS administration, and Production Owner credential-material availability. Actual Owner authentication remains an H3 verifier.
       - The final pre-drill merge has deployed successfully, and no replacement instance is created until the approved off-host attachment is refreshed from that exact release and retrieved checksum verification succeeds.
@@ -316,8 +319,10 @@ tasks:
       - Human provides exact tag-validated teardown inventory and absence readback proving only drill-owned resources were removed.
     rollback: On any failed precondition or verifier, stop the drill and remove only exact tag-validated drill resources and isolated routing; never alter production, retained backups, snapshots, or unrelated resources.
     secret_handling: never_show_agent
-    status: pending
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/production-recovery-hardening/evidence.md#h3---complete-replacement-instance-recovery-drill
+      - stateworks/work/done/production-recovery-hardening/human-actions.md#h3-evidence---2026-08-09
 
   - id: V3
     title: Close recovery hardening
@@ -327,11 +332,11 @@ tasks:
     agent_can_verify: true
     deps: [V2, H3]
     reads:
-      - repo:stateworks/work/active/production-recovery-hardening/evidence.md
-      - repo:stateworks/work/active/production-recovery-hardening/human-actions.md
+      - repo:stateworks/work/done/production-recovery-hardening/evidence.md
+      - repo:stateworks/work/done/production-recovery-hardening/human-actions.md
     writes:
-      - repo:stateworks/work/active/production-recovery-hardening/state.yaml
-      - repo:stateworks/work/active/production-recovery-hardening/final-report.md
+      - repo:stateworks/work/done/production-recovery-hardening/state.yaml
+      - repo:stateworks/work/done/production-recovery-hardening/final-report.md
     action:
       - Verify repository, deployed schedule, immutable custody, and replacement-instance evidence agree with the declared invariants.
     verifier:
@@ -339,5 +344,7 @@ tasks:
       - Every human claim is redacted, dated, and independently checkable.
     rollback: Reopen the exact failed task instead of closing the package on incomplete evidence.
     secret_handling: never_show_agent
-    status: pending
-    evidence: []
+    status: committed
+    evidence:
+      - stateworks/work/done/production-recovery-hardening/evidence.md#v3---recovery-hardening-closure
+      - stateworks/work/done/production-recovery-hardening/final-report.md

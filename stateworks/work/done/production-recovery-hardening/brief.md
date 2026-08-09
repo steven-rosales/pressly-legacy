@@ -68,11 +68,29 @@ independent DNS query. He explicitly deferred separate vault-backed GoDaddy MFA
 recovery and Production Owner recovery-code methods as accepted nonblocking
 pre-launch debt; neither backup method is claimed as proven.
 
-`H2` is committed. The locally verified 15-member archive for exact deployed
-release `ad499be0d73f4b5e5112f8bf25660a642d02ec48` was uploaded to Bitwarden;
-the exact local archive and staging directory were then deleted and confirmed
-absent, leaving the vault as the off-host copy. Steven separately confirmed the
-Production Owner password is available and its ordinary TOTP is held in Google
-Authenticator without disclosing any value. H3 must freshly retrieve and verify
-the attachment before use. `H3` and `V3` remain pending and dependency-gated
-behind `H2` and `H3`, respectively.
+`H2`, `H3`, and `V3` are committed. The replacement-instance drill started at
+`2026-08-09T15:10:18Z` against exact deployed source
+`ad499be0d73f4b5e5112f8bf25660a642d02ec48` and its five digest-pinned images.
+After the RTO clock started, the 15-member Bitwarden archive was freshly
+retrieved, its aggregate checksum and inventory were verified, and its release
+identity matched the deployed source. The latest complete immutable triplet at
+drill start was `pressly-20260809T141503Z.dump.gpg` plus its checksum and
+metadata versions, each protected by Object Lock `COMPLIANCE` retention.
+
+The isolated replacement restored that backup, re-established the database
+roles and grants, ran all seven runtime containers, and returned HTTP 200 from
+the API, Web, Processor, and Control health surfaces. Production Owner login
+with ordinary TOTP passed; one synthetic non-PII write returned HTTP 201, its
+authoritative read returned HTTP 200, logout returned HTTP 200, and the revoked
+session was rejected with HTTP 401. Measured RPO was 3,315 seconds (55 minutes
+15 seconds) against the approved one-hour limit. Measured RTO was 4,492 seconds
+(1 hour 14 minutes 52 seconds) against the approved four-hour limit.
+
+Tag-validated cleanup completed at `2026-08-09T16:25:56Z`: the disposable
+instance was deleted, and readback found zero drill instances, snapshots,
+static IPs, or custom keys. Production DNS was unchanged and no production
+volume was used. Separate vault-backed GoDaddy MFA recovery and Production
+Owner recovery codes remain accepted nonblocking pre-launch debt and are not
+claimed as present. The production-recovery-hardening package is complete;
+the separate LPMS launch and live-vendor gates remain stopped on their own
+obligations.

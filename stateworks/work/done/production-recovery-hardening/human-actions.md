@@ -2,26 +2,21 @@
 
 ## Status
 
-`H1` and `V2` are complete. The repaired release, stable operations bundle,
-provisioned host identity, restore preflight, hourly dual-destination schedule,
-and first natural 01:15 UTC execution are proven. Exact per-version 90-day
-Object Lock COMPLIANCE retention and retrieval plus integrity of the dated
-15-member Bitwarden file bundle are also proven. Anonymous exact-release access is proven,
-and recovery-account administration makes the narrow writer regenerable. Dated
-non-root IAM Identity Center readback now proves Steven's
-`AdministratorAccess` to management account `088594414587` and recovery account
-`067200612921`. Current GoDaddy DNS administration is also proven through the
-opened `trypressly.com` DNS surface, visible record-edit controls, and matching
-authoritative nameservers. Steven explicitly deferred a separate vault-backed
-GoDaddy MFA-recovery method as accepted nonblocking pre-launch debt; it is not
-claimed as present. The separate Production Owner recovery-code path is accepted
-as the same nonblocking pre-launch debt and is likewise not claimed as present.
-`H2` is complete: the exact deployed `ad499be0` bundle is now the off-host
-Bitwarden copy after its validated local archive and staging directory were
-deleted and confirmed absent, and Steven confirmed the Production Owner password
-plus ordinary TOTP in Google Authenticator are available without exposing any
-value. `H3` is now the human stop; `V3` remains dependency-gated behind it. The
-existing LPMS launch gate and live-vendor gates remain stopped.
+`H1`, `V2`, `H2`, `H3`, and `V3` are complete. The repaired release, deployed
+natural hourly dual-destination backup, exact-version immutable retention,
+independent administration, and exact-release Bitwarden custody are proven.
+The replacement-instance drill freshly retrieved and verified that escrow,
+restored the latest complete immutable triplet available at drill start,
+authenticated the Production Owner with ordinary TOTP, exercised an isolated
+synthetic non-PII write and authoritative read, passed every public health
+surface, met the approved RPO and RTO, and removed every drill-owned cloud
+resource.
+
+No further human action is required by this package. Separate vault-backed
+GoDaddy MFA recovery and Production Owner recovery codes remain accepted
+nonblocking pre-launch debt and are not claimed as present or tested. The
+existing LPMS launch, live-vendor, production-data, and pilot gates remain
+stopped under their own package.
 
 ## H1 - Publish the repaired release
 
@@ -206,30 +201,39 @@ and redacted outcomes. Never record a secret value in this package.
 
 ## H3 - Replacement-instance drill
 
-After `V2` and `H2`, use the final pre-drill deployed release. At this evidence
-point that release is exact `ad499be0d73f4b5e5112f8bf25660a642d02ec48`; its
-fresh attachment is now stored in Bitwarden and must be freshly retrieved and
-reverified before use. If the deployed release changes before H3 starts,
-regenerate, upload, and retrieve the attachment again so
-`current-release.json` cannot drift from the release being drilled. Then build a
-disposable replacement instance, restore the latest complete immutable backup
-triplet available at drill start, prove a Production Owner login with ordinary
-TOTP, prove an isolated non-PII application write and read plus all public health
-surfaces through isolated routing, measure achieved RPO and RTO, and remove only
-the drill resources.
+### H3 evidence - 2026-08-09
 
-## Evidence template
+- Owner: Steven, with the drill controller providing sanitized verification.
+- Drill: uniquely named and tagged `20260809-01` disposable replacement.
+- Exact source:
+  `ad499be0d73f4b5e5112f8bf25660a642d02ec48`, with all five immutable image
+  identities recorded in `evidence.md`.
+- Fresh escrow: the 15-member archive was retrieved after the RTO clock
+  started; its whole-archive checksum, aggregate inventory, all 14 protected
+  members, and `current-release.json` matched the exact drilled release. No
+  member contents or individual secret hashes were recorded.
+- Selected recovery point: latest complete exact-version immutable triplet
+  `pressly-20260809T141503Z.dump.gpg` plus checksum and metadata; every version
+  reported `AES256` and Object Lock `COMPLIANCE` retention.
+- Approved RPO: 3,600 seconds. Achieved RPO: 3,315 seconds (55 minutes 15
+  seconds), passed.
+- Approved RTO: 14,400 seconds. Achieved RTO: 4,492 seconds (1 hour 14 minutes
+  52 seconds), passed.
+- Restore: exact deployment admission, database schema and role validation,
+  all seven runtime containers, and API, Web, Processor, and Control HTTPS
+  health passed through isolated routing. Production DNS was unchanged and no
+  production volume was used.
+- Application: ordinary-TOTP Production Owner authentication passed; a
+  synthetic non-PII write returned HTTP 201, authoritative read returned HTTP
+  200, logout returned HTTP 200, and the revoked session was rejected with HTTP 401.
+- Cleanup: before deletion the controller required exact instance name
+  `pressly-recovery-drill-20260809-01` and the exact three-entry ownership map
+  `pressly:purpose=recovery-drill`, `pressly:drill-id=20260809-01`, and
+  `pressly:source-sha=ad499be0d73f4b5e5112f8bf25660a642d02ec48`.
+  Tag-bounded teardown completed at `2026-08-09T16:25:56Z`; readback found zero
+  drill instances, snapshots, static IPs, or custom keys, and exact cleanup
+  removed private and transient controller state.
 
-- Date:
-- Owner:
-- Source SHA:
-- Workflow/run identifiers:
-- Approved RPO:
-- Approved RTO:
-- Immutable retention and independent-administration proof:
-- Off-host escrow proof:
-- Replacement backup timestamp:
-- Achieved recovery point:
-- Achieved recovery time:
-- Redacted application write and health result:
-- Disposable-resource cleanup result:
+Do not paste or add credentials, application account identifiers, TOTP
+material, recovery codes, public addresses, customer data, or individual secret
+hashes to this completed package.

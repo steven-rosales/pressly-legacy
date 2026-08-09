@@ -9,19 +9,14 @@ explicitly authorized temporary unsigned compatibility with Cents' documented
 webhook sender so launch is not blocked on signing. Retry, store, bag-count,
 reconciliation, and any future signing facts still require live confirmation
 before the pilot evidence is complete. The separate
-`production-recovery-hardening` package is also active. Its repaired release,
-host identity, stable restore preflight, natural hourly dual-destination backup,
-approved objectives, and exact per-version Object Lock retention are proven.
-A byte-identical, checksummed Bitwarden download also proves the file-based
-recovery bundle. Anonymous access to every exact image manifest and the exact
-source SHA is proven, and recovery-account administration makes a replacement
-narrow writer regenerable.
-Three separate recovery access paths remain open: non-root AWS management
-account access, GoDaddy authoritative-DNS administration plus MFA, and the
-Pressly Production Owner password plus ordinary TOTP/recovery path. The exact
-deployed release and escrow attachment must also be refreshed after merge before
-the replacement-instance drill. None may be inferred from LPMS repository
-evidence.
+`stateworks/work/done/production-recovery-hardening/` package is complete: it
+proves the repaired release, natural hourly dual-destination backup,
+exact-version Object Lock retention, independent administration, exact-release
+escrow, and the measured replacement-instance drill. Current GoDaddy DNS
+administration and ordinary Production Owner TOTP were proven; separate
+vault-backed GoDaddy MFA recovery and Production Owner recovery codes remain
+accepted nonblocking pre-launch debt and are not claimed as present. None of
+that completion advances this package's live-vendor or pilot gates.
 
 ## Secret handling
 
@@ -170,12 +165,9 @@ record after it becomes ready.
 - `H4`–`H5`: bootstrap the real facility and enable Cents delivery under the
   explicitly configured ingress mode.
 - `H6`–`H7`: approve and operate the controlled happy-path pilot.
-- `production-recovery-hardening`: `H1` and `V2` are complete, including the
-  first natural hourly dual-destination backup. Exact per-version Object Lock
-  retention and retrieval of the checksummed file bundle are proven. Exact
-  release access is anonymous, and the recovery-account administrator can
-  regenerate a narrow writer. Separate recoverable access to AWS management
-  account `088594414587`, GoDaddy authoritative DNS with MFA, and the Pressly
-  Production Owner password plus ordinary TOTP/recovery path remain open under
-  recovery `H2`. Post-merge release/escrow refresh, `H3`, and `V3` also remain
-  open before disaster recovery is complete.
+- `production-recovery-hardening`: complete under
+  `stateworks/work/done/production-recovery-hardening/`; `H1` through `V3` are
+  committed after exact-release escrow, measured replacement recovery,
+  ordinary-TOTP application proof, and tag-bounded cleanup. Separate
+  vault-backed GoDaddy MFA recovery and Production Owner recovery codes remain
+  accepted nonblocking pre-launch debt, not proven controls.

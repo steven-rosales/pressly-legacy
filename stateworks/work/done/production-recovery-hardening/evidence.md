@@ -434,27 +434,168 @@ time: 2026-08-08T16:45:24-04:00
 summary: both focused files and all 41 tests passed. The proof covers independent primary and optional secondary destination attempts and readback, distinct bucket/account admission, exact backup authority despite missing or failing telemetry, and private bounded fallback logging. It configures no AWS resource and proves no external H2 fact.
 ```
 
-## Pending evidence
+## H3 - Complete replacement-instance recovery drill
 
-- `H3`: complete replacement-instance drill
-- `V3`: terminal Stateworks verification after `H3` evidence exists
+Status: committed.
 
-## 2026-08-09 - Authoritative recovery-gate correction
+The disposable drill `20260809-01` declared host loss and started the RTO clock
+at `2026-08-09T15:10:18Z`. It was bound to exact deployed source
+`ad499be0d73f4b5e5112f8bf25660a642d02ec48` and these five immutable images:
 
-The executable network now separates H2 recovery authority for non-root AWS
-management and recovery administration, current GoDaddy authoritative-DNS
-access, Production Owner ordinary-TOTP access, immutable custody, and
-non-regenerable off-host material. It explicitly excludes the live regenerable
-secondary-writer key from required escrow. It also records the separate
-vault-backed GoDaddy MFA-recovery and Production Owner recovery-code methods as
-accepted nonblocking pre-launch debt instead of falsely claiming those backup
-controls exist.
+```text
+api: ghcr.io/steven-rosales/pressly/api@sha256:828173066dd3448c6f16d32b5bf328b96ca72777d9807d10c814d19a1f49740c
+web: ghcr.io/steven-rosales/pressly/web@sha256:b330699713624bc678754ca32e34e5dd25a93700cfbabcdd102aa503bde1f568
+worker: ghcr.io/steven-rosales/pressly/worker@sha256:662752d7abebf4acd76917f91154d2980d5a8792f3b0342d0e303f35b4bdc5ed
+processor: ghcr.io/steven-rosales/pressly/processor@sha256:1e167097bed661cc13d21cfbeb9be8c2db32936103300e739f4959648dd7f799
+control: ghcr.io/steven-rosales/pressly/control@sha256:51805dc00307ed311f286a78b11b5d21340496f201552f3f3f268c71da54fc9c
+```
 
-H3 now depends on V2 and H2 and cannot create a replacement host until the final
-pre-drill deployed release is read back and the approved off-host attachment is
-refreshed, retrieved, and matched to that exact release. Its verifier requires
-the latest complete immutable triplet available at drill start, ordinary-TOTP
-owner authentication, an isolated non-PII write/read, every health surface,
-measured RPO no greater than one hour, measured RTO no greater than four hours,
-and exact tag-validated drill-only teardown. H2 is now committed. H3 is the next
-human stop, and V3 remains dependency-gated behind H3.
+### Fresh escrow admission
+
+The exact Bitwarden attachment was retrieved after the RTO clock started. Its
+whole-archive SHA-256 was
+`5f620640716df4569b4b3afa86a07929485c806762d15e2bc56ba7d09ef04523`;
+its aggregate archive-inventory SHA-256 was
+`784707b1a63b9296b0193387916f8737e353b7aa96bbfa2e9e00b060f1032550`.
+The archive held 15 members: `SHA256SUMS`, the Lightsail key, backup
+passphrase, `current-release.json`, and the 11 runtime environment files for
+Compose, Caddy, Web, API, Worker, Processor, Control, PostgreSQL, migrations,
+database roles, and backup. All 14 protected members passed the archive's
+checksum manifest without emitting contents or individual member hashes.
+`current-release.json` matched exact source `ad499be0` and the five image
+identities above.
+
+### Immutable recovery point and measured RPO
+
+The latest complete immutable triplet available at drill start was
+`pressly-20260809T141503Z.dump.gpg` and its checksum and metadata companions.
+Its recovery-point timestamp was `2026-08-09T14:15:03Z`; all three exact
+versions were present by `2026-08-09T14:15:16Z`. Each reported `AES256`
+server-side encryption and Object Lock `COMPLIANCE` retention. Redacted exact
+version identities and retain-until readback were:
+
+```text
+dump: 5,303,438 bytes; last modified 2026-08-09T14:15:14Z
+VersionId SHA-256: 7aa4d3777db169b79f7eec23e3cf8f8e7e44151e9d8769964fef672eb268f396
+retain until: 2026-11-07T14:15:13.594000Z
+
+checksum: 100 bytes; last modified 2026-08-09T14:15:15Z
+VersionId SHA-256: 18ce5f230a3554501bbe0f015145a0202a2ba25c645ad133537a87fcf9c5bbac
+retain until: 2026-11-07T14:15:14.661000Z
+
+metadata: 206 bytes; last modified 2026-08-09T14:15:16Z
+VersionId SHA-256: 565ecf6b923704ddeef0991716dbd4851831ed570c95280ba7d290dce487cd3a
+retain until: 2026-11-07T14:15:15.665000Z
+```
+
+Measured RPO was 3,315 seconds (55 minutes 15 seconds), below the approved
+3,600-second maximum. This is the controller-measured recovery-point result,
+not an inference from the hourly schedule.
+
+### Isolated restore and application proof
+
+Before recovered-state handling, the controller stopped database and
+application writers, closed host and Docker-published ingress, and blocked
+runtime external egress. The disposable replacement used no production volume
+and changed no production DNS. During mandatory on-host deployment and restore
+probes, temporary HTTPS exposure was enabled only after that fence; final host,
+Docker, and Lightsail HTTPS admission was narrowed to the operator's redacted
+IPv4 `/32` before application proof. TLS used a drill-internal CA.
+
+The exact current operations bundle passed deployment admission. The encrypted
+backup restored to `public_verified`; schema and role validation passed; all
+seven runtime containers passed recovery health; and runtime egress checks
+proved all seven containers were blocked outside the Compose subnet while Web
+could still reach the internal API health surface. The isolated API, Web,
+Processor, and Control HTTPS health surfaces each returned HTTP 200.
+
+Steven authenticated as the Production Owner with the ordinary Google
+Authenticator TOTP. No recovery code substituted for TOTP and no account
+identifier or credential entered evidence. Through the isolated application
+route, one explicitly synthetic non-PII write returned HTTP 201 and its
+authoritative read returned HTTP 200. Logout returned HTTP 200, and reuse of
+the revoked session was rejected with HTTP 401. No production customer or
+order payload was copied into the drill.
+
+The application proof finished at `2026-08-09T16:25:10Z`. Measured RTO was
+4,492 seconds (1 hour 14 minutes 52 seconds), below the approved 14,400-second
+maximum.
+
+### Tag-bounded cleanup
+
+Cleanup passed at `2026-08-09T16:25:56Z`. Before deletion, the controller
+required the exact instance name `pressly-recovery-drill-20260809-01` and this
+exact three-entry tag map, rejecting any extra, missing, or different entry:
+
+```text
+pressly:purpose=recovery-drill
+pressly:drill-id=20260809-01
+pressly:source-sha=ad499be0d73f4b5e5112f8bf25660a642d02ec48
+```
+
+The exact drill-tagged disposable instance was deleted. Readback found zero
+remaining drill instances, snapshots, static IPs, or custom keys. Instance
+deletion removed the isolated synthetic record and drill-only routing.
+Production DNS remained unchanged, no production volume was used, and no
+retained backup, production resource, snapshot, or unrelated stopped instance
+was removed. Exact cleanup also removed the private escrow tree, recovered
+secret material, public-address state, SSH authority, TLS authority, and all
+controller transient files; only mode-`0600` sanitized evidence/state and the
+mode-`0700` controller scripts remain locally.
+
+The authoritative sanitized evidence source for these H3 facts was the private
+controller output `h3-evidence.json`, mode `0600`, captured on 2026-08-09 after
+cleanup, with SHA-256
+`1b461ea7c8d68bce3ab0a59dda3403cbe31282f8c73bd10c6cd3f494eb407c38`.
+Its terminal authority is `phase=complete` and `cleanup=passed`. The raw
+write-ahead phase marker intentionally remains `cleanup_in_progress`; controller
+status resolves the terminal JSON first, and the cleanup fixture rejects a raw
+marker as completion authority. The independently reviewed controller and
+remote-script SHA-256 values were
+`54dbe7c14038eabb6bf9b2fb0328eaf6ccaab49adf64717383ba5fb9e7b4e672`
+and `8c4a39e9ec007c77bda5b1e1f3ede7aa1bf5b3f7c126660bab7d8e102f8623e8`,
+respectively. Stateworks records only redacted operational results; the private
+file, public address, credentials, secret values, customer data, and individual
+secret hashes are not committed.
+
+## V3 - Recovery hardening closure
+
+Status: committed.
+
+V3 reconciled every dependency and invariant at the evidence boundary:
+
+- `V1` proves the repository rollback, restore, backup-authority, and failure
+  behavior rather than inferring it from a healthy deployment.
+- `H1` and `V2` prove protected-main publication, deployed stable scripts, and
+  a natural hourly dual-destination backup rather than a manual-only schedule.
+- `H2` proves approved objectives, independently administered immutable
+  retention, non-root AWS recovery authority, current DNS administration, and
+  freshly uploaded exact-release escrow without treating the regenerable
+  writer key as secret custody.
+- `H3` proves a real disposable replacement, exact-version restore, ordinary
+  TOTP authentication, isolated non-PII write/read behavior, every health
+  surface, measured RPO and RTO, and tag-bounded teardown.
+- The H3 source SHA, escrow release identity, and all five image identities
+  agree exactly. RPO and RTO derive from recorded UTC endpoints and satisfy the
+  approved limits. Cleanup readback is terminal and contains no inferred
+  absence claim.
+
+```text
+commands:
+  pnpm stateworks:validate, stateworks:verify, and stateworks:next for:
+    stateworks/work/done/production-recovery-hardening
+    stateworks/work/active/lpms-production-readiness
+    stateworks/work/active/pressly-control-workforce-identity
+  prettier --check for the completed package and current moved-package cross-references
+  git diff --check
+  git diff --quiet ad499be0d73f4b5e5112f8bf25660a642d02ec48 -- . ':(exclude)stateworks/**'
+exit: 0
+time: 2026-08-09T12:40:20-04:00
+summary: all three networks validated. Recovery reported done=yes, no stop reasons, zero ready tasks, and no next batch across 10 committed tasks. LPMS remained stopped at its human H1, and Control retained its existing next T3; neither separate package was advanced. Formatting and diff checks passed, and every repository change since the drilled ad499 source is confined to Stateworks. The isolated worktree lacked dependencies, so the commands used the dependency-bearing main checkout at exact ad499 to execute byte-identical Stateworks tooling against absolute paths in this worktree.
+```
+
+Separate vault-backed GoDaddy MFA recovery and Production Owner recovery codes
+remain accepted nonblocking pre-launch debt. They are not represented as
+present or tested. Existing LPMS launch, live-vendor, production-data, and pilot
+gates remain separate and stopped on their own evidence; completing recovery
+hardening does not advance them.
