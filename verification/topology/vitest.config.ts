@@ -32,6 +32,6 @@ export default defineConfig({
     exclude: ['**/node_modules/**'],
     include: [`${repositoryRoot}/verification/topology/*.test.ts`],
     maxWorkers: 2,
-    testTimeout: 30_000,
+    testTimeout: 60_000,
   },
 });

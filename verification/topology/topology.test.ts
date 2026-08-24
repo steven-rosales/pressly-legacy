@@ -763,8 +763,13 @@ const countBy = <Value>(
   return Object.freeze(counts);
 };
 
+let resolvedArtifactsPromise:
+  | ReturnType<typeof resolvePresslyArtifacts>
+  | undefined;
+
 const expectResolvedArtifacts = async () => {
-  const resolution = await resolvePresslyArtifacts();
+  const resolution = await (resolvedArtifactsPromise ??=
+    resolvePresslyArtifacts());
   expect(resolution.kind).toBe('ready');
   return resolution.kind === 'ready' ? resolution.artifacts : [];
 };
