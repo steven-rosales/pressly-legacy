@@ -3,11 +3,29 @@ import { stripVTControlCharacters } from 'node:util';
 import type { CliInteractiveFrame } from '@pressly/cells';
 import { describe, expect, it } from 'vitest';
 
-const previousForceColor = process.env['FORCE_COLOR'];
-process.env['FORCE_COLOR'] = '1';
-const { makeInkCliTty } = await import('../../src/ink-tty.tsx');
-if (previousForceColor === undefined) delete process.env['FORCE_COLOR'];
-else process.env['FORCE_COLOR'] = previousForceColor;
+const restoreEnvironment = (key: string, value: string | undefined): void => {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+};
+
+const loadInteractiveInkTty = async () => {
+  const previousCi = process.env['CI'];
+  const previousContinuousIntegration = process.env['CONTINUOUS_INTEGRATION'];
+  const previousForceColor = process.env['FORCE_COLOR'];
+  try {
+    // Ink snapshots CI mode at import time; this proof exercises its TTY path.
+    process.env['CI'] = 'false';
+    process.env['CONTINUOUS_INTEGRATION'] = 'false';
+    process.env['FORCE_COLOR'] = '1';
+    return await import('../../src/ink-tty.tsx');
+  } finally {
+    restoreEnvironment('CI', previousCi);
+    restoreEnvironment('CONTINUOUS_INTEGRATION', previousContinuousIntegration);
+    restoreEnvironment('FORCE_COLOR', previousForceColor);
+  }
+};
+
+const { makeInkCliTty } = await loadInteractiveInkTty();
 
 type PseudoTty = Readonly<{
   stdin: NodeJS.ReadStream;
