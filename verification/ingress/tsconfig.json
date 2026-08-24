@@ -1,0 +1,30 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "rewriteRelativeImportExtensions": true,
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "types": ["node", "vitest"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../platform/postgres/tsconfig.json"
+    },
+    {
+      "path": "../../platform/testing/tsconfig.json"
+    },
+    {
+      "path": "../../systems/ingress/tsconfig.json"
+    },
+    {
+      "path": "../../topology/tsconfig.build.json"
+    }
+  ]
+}

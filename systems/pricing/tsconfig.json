@@ -1,0 +1,34 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "rewriteRelativeImportExtensions": true,
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "dist",
+    "node_modules",
+    "src/**/*.spec.ts",
+    "src/testing/**/*.fixture.ts"
+  ],
+  "references": [
+    {
+      "path": "../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../platform/postgres/tsconfig.json"
+    },
+    {
+      "path": "../../platform/testing/tsconfig.json"
+    },
+    {
+      "path": "../../platform/time/tsconfig.json"
+    }
+  ]
+}

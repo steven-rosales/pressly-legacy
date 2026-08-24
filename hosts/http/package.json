@@ -1,0 +1,53 @@
+{
+  "name": "@pressly/http-host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/public.d.ts",
+      "import": "./dist/runtime/public.js",
+      "default": "./dist/runtime/public.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.runtime.json",
+    "clean": "rm -rf dist dist-runtime",
+    "dev": "node --watch --import tsx main.ts",
+    "start": "node dist-runtime/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.runtime.json --noEmit && tsc -p tsconfig.test.json",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run"
+  },
+  "dependencies": {
+    "@pressly/cells": "workspace:*",
+    "@pressly/config": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/generated": "workspace:*",
+    "@pressly/generated-runtime": "workspace:*",
+    "@pressly/http": "workspace:*",
+    "@pressly/logging": "workspace:*",
+    "@pressly/observability": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "@sentry/node": "^10.69.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "tsx": "4.23.11",
+    "typescript": "latest",
+    "vitest": "^4.1.10"
+  }
+}

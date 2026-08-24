@@ -1,0 +1,107 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false,
+    "rootDir": "../..",
+    "types": ["node", "vitest"],
+    "paths": {
+      "@pressly/access-system/authentication": [
+        "../../systems/access/src/model/authentication/public.ts"
+      ],
+      "@pressly/access-system/authorization": [
+        "../../systems/access/src/model/authorization/public.ts"
+      ],
+      "@pressly/cells/id-source": ["../../platform/cells/src/id-source.ts"],
+      "@pressly/cells/id-source/node": [
+        "../../platform/cells/src/id-source.node.ts"
+      ],
+      "@pressly/cells/result": ["../../platform/cells/src/result.ts"],
+      "@pressly/config": ["../../platform/config/src/index.ts"],
+      "@pressly/codec": ["../../platform/codec/src/index.ts"],
+      "@pressly/codec/node": ["../../platform/codec/src/node.ts"],
+      "@pressly/codec/zod": ["../../platform/codec/src/zod.ts"],
+      "@pressly/errors/*": ["../../platform/errors/src/*.ts"],
+      "@pressly/http": ["../../platform/http/src/index.ts"],
+      "@pressly/http/express": ["../../platform/http/src/express/index.ts"],
+      "@pressly/ingress-system": ["../../systems/ingress/src/public.ts"],
+      "@pressly/logging": ["../../platform/logging/src/index.ts"],
+      "@pressly/observability": ["../../platform/observability/src/index.ts"],
+      "@pressly/time": ["../../platform/time/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../../experiences/control/tsconfig.json"
+    },
+    {
+      "path": "../../experiences/customer/tsconfig.json"
+    },
+    {
+      "path": "../../experiences/processor/tsconfig.json"
+    },
+    {
+      "path": "../../generated/tsconfig.json"
+    },
+    {
+      "path": "../../hosts/http/tsconfig.json"
+    },
+    {
+      "path": "../../platform/auth/tsconfig.json"
+    },
+    {
+      "path": "../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../platform/codec/tsconfig.json"
+    },
+    {
+      "path": "../../platform/config/tsconfig.json"
+    },
+    {
+      "path": "../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../platform/http/tsconfig.json"
+    },
+    {
+      "path": "../../platform/logging/tsconfig.json"
+    },
+    {
+      "path": "../../platform/observability/tsconfig.json"
+    },
+    {
+      "path": "../../platform/postgres/tsconfig.json"
+    },
+    {
+      "path": "../../platform/testing/tsconfig.json"
+    },
+    {
+      "path": "../../platform/time/tsconfig.json"
+    },
+    {
+      "path": "../../systems/access/tsconfig.json"
+    },
+    {
+      "path": "../../systems/customers/tsconfig.json"
+    },
+    {
+      "path": "../../systems/ingress/tsconfig.json"
+    },
+    {
+      "path": "../../systems/orders/tsconfig.json"
+    },
+    {
+      "path": "../../systems/pricing/tsconfig.json"
+    },
+    {
+      "path": "../../systems/production/tsconfig.json"
+    },
+    {
+      "path": "../../topology/tsconfig.build.json"
+    }
+  ]
+}

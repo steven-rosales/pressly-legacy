@@ -1,0 +1,20 @@
+import { surface } from "./cli.ts"
+import { contract } from "./contract.ts"
+import { declareCommandCell } from "@pressly/cells"
+
+export const productionBootstrapConcurrencyKey =
+  "control.cli-bootstrap-production"
+
+export const adminCliProductionBootstrapCellDeclaration = declareCommandCell({
+  id: "control.cli-bootstrap-production.v2",
+  authentication: "none",
+  contract,
+  consistency: {
+    transaction: "none",
+    concurrency: "partitioned",
+    concurrencyKey: () => productionBootstrapConcurrencyKey,
+  },
+  idempotency: { required: false },
+  surfaces: [surface],
+  observability: { operation: "control.cli.bootstrap_production_v2" },
+})

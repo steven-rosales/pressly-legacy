@@ -7,7 +7,7 @@ The current production shape is:
 ```txt
 GitHub Actions
   -> SSH into Lightsail
-  -> /opt/pressly/repo/infra/aws/lightsail/deploy.sh
+  -> /opt/pressly/repo/deploy/aws/lightsail/deploy.sh
   -> Docker Compose
     -> caddy
     -> web
@@ -61,15 +61,15 @@ Branch rollback is too vague because the branch can move.
 Support this:
 
 ```bash
-DEPLOY_REF=main /opt/pressly/repo/infra/aws/lightsail/deploy.sh
-DEPLOY_REF=<git-sha> /opt/pressly/repo/infra/aws/lightsail/deploy.sh
-DEPLOY_REF=<tag> /opt/pressly/repo/infra/aws/lightsail/deploy.sh
+DEPLOY_REF=main /opt/pressly/repo/deploy/aws/lightsail/deploy.sh
+DEPLOY_REF=<git-sha> /opt/pressly/repo/deploy/aws/lightsail/deploy.sh
+DEPLOY_REF=<tag> /opt/pressly/repo/deploy/aws/lightsail/deploy.sh
 ```
 
 Keep this working for compatibility:
 
 ```bash
-DEPLOY_BRANCH=main /opt/pressly/repo/infra/aws/lightsail/deploy.sh
+DEPLOY_BRANCH=main /opt/pressly/repo/deploy/aws/lightsail/deploy.sh
 ```
 
 The script should write:
@@ -86,16 +86,16 @@ Each file should contain a git SHA.
 Change:
 
 ```txt
-infra/aws/lightsail/deploy.sh
+deploy/aws/lightsail/deploy.sh
 .github/workflows/deploy-production.yml
-infra/aws/lightsail/README.md
-infra/aws/lightsail/.env.production.example
+deploy/aws/lightsail/README.md
+deploy/aws/lightsail/.env.production.example
 ```
 
 Add:
 
 ```txt
-infra/aws/lightsail/rollback.sh
+deploy/aws/lightsail/rollback.sh
 ```
 
 ### Step 1: Add DEPLOY_REF To deploy.sh
@@ -170,7 +170,7 @@ This means a failed deploy does not mark itself as current.
 
 ### Step 3: Add rollback.sh
 
-Create `infra/aws/lightsail/rollback.sh`.
+Create `deploy/aws/lightsail/rollback.sh`.
 
 Shape:
 
@@ -180,7 +180,7 @@ set -euo pipefail
 
 APP_ROOT="${PRESSLY_APP_ROOT:-/opt/pressly}"
 PREVIOUS_RELEASE_FILE="${PRESSLY_PREVIOUS_RELEASE_FILE:-$APP_ROOT/previous-release}"
-DEPLOY_SCRIPT="${PRESSLY_DEPLOY_SCRIPT:-$APP_ROOT/repo/infra/aws/lightsail/deploy.sh}"
+DEPLOY_SCRIPT="${PRESSLY_DEPLOY_SCRIPT:-$APP_ROOT/repo/deploy/aws/lightsail/deploy.sh}"
 
 if [[ ! -f "$PREVIOUS_RELEASE_FILE" ]]; then
   echo "Missing previous release file: $PREVIOUS_RELEASE_FILE" >&2
@@ -202,7 +202,7 @@ DEPLOY_REF="$previous_sha" "$DEPLOY_SCRIPT"
 Make it executable:
 
 ```bash
-chmod +x infra/aws/lightsail/rollback.sh
+chmod +x deploy/aws/lightsail/rollback.sh
 ```
 
 ### Step 4: Update GitHub Actions
@@ -230,7 +230,7 @@ ssh \
   -i ~/.ssh/lightsail \
   -o IdentitiesOnly=yes \
   "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
-  "DEPLOY_REF='$DEPLOY_REF' /opt/pressly/repo/infra/aws/lightsail/deploy.sh"
+  "DEPLOY_REF='$DEPLOY_REF' /opt/pressly/repo/deploy/aws/lightsail/deploy.sh"
 ```
 
 ### Step 5: Update Docs And Env Example
@@ -244,16 +244,16 @@ Add optional env docs:
 # PRESSLY_PREVIOUS_RELEASE_FILE=/opt/pressly/previous-release
 ```
 
-Add manual rollback command to `infra/aws/lightsail/README.md`:
+Add manual rollback command to `deploy/aws/lightsail/README.md`:
 
 ```bash
-/opt/pressly/repo/infra/aws/lightsail/rollback.sh
+/opt/pressly/repo/deploy/aws/lightsail/rollback.sh
 ```
 
 Also document exact rollback by SHA:
 
 ```bash
-DEPLOY_REF=<known-good-sha> /opt/pressly/repo/infra/aws/lightsail/deploy.sh
+DEPLOY_REF=<known-good-sha> /opt/pressly/repo/deploy/aws/lightsail/deploy.sh
 ```
 
 ### Verification
@@ -278,7 +278,7 @@ Rollback test:
 
 ```bash
 ssh ubuntu@18.232.228.111
-/opt/pressly/repo/infra/aws/lightsail/rollback.sh
+/opt/pressly/repo/deploy/aws/lightsail/rollback.sh
 curl -f https://api.trypressly.com/health/ready
 curl -f https://trypressly.com/health
 ```
@@ -372,7 +372,7 @@ later maintenance: drop full_name
 
 ### Step 2: Link It From The AWS README
 
-In `infra/aws/lightsail/README.md`, add a short migration warning near deploy instructions:
+In `deploy/aws/lightsail/README.md`, add a short migration warning near deploy instructions:
 
 ```txt
 Production deploys assume migrations are backward-compatible.
@@ -410,14 +410,14 @@ Do not run the first restore test against the production Postgres volume.
 Update:
 
 ```txt
-infra/aws/lightsail/restore-postgres.md
-infra/aws/lightsail/README.md
+deploy/aws/lightsail/restore-postgres.md
+deploy/aws/lightsail/README.md
 ```
 
 Optional add:
 
 ```txt
-infra/aws/lightsail/restore-postgres-drill.md
+deploy/aws/lightsail/restore-postgres-drill.md
 ```
 
 ### Step 1: Download A Backup
@@ -567,7 +567,7 @@ No code change is required for uptime checks.
 Optional doc update:
 
 ```txt
-infra/aws/lightsail/README.md
+deploy/aws/lightsail/README.md
 ```
 
 Add the Sentry monitor URLs and Slack channel name after you create them.
@@ -632,7 +632,7 @@ Then restart production:
 cd /opt/pressly/repo
 docker compose \
   --env-file /opt/pressly/.env.production \
-  -f infra/aws/lightsail/docker-compose.production.yml \
+  -f deploy/aws/lightsail/docker-compose.production.yml \
   up -d --wait
 ```
 

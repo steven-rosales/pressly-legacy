@@ -1,0 +1,41 @@
+import { bindCell, declareCommandCell } from '@pressly/cells';
+import { reconcileProductionLocationContract } from './contract.ts';
+import {
+  makeExecuteReconcileProductionLocation,
+  type ReconcileProductionLocationDependencies,
+} from './execute.ts';
+import type {
+  ReconcileProductionLocationCommand,
+  ReconcileProductionLocationResult,
+} from './types.ts';
+import { reconcileProductionLocationOperationId } from './types.ts';
+
+export const reconcileProductionLocationCellDeclaration = declareCommandCell<
+  ReconcileProductionLocationCommand,
+  ReconcileProductionLocationResult,
+  never
+>({
+  id: reconcileProductionLocationOperationId,
+  authentication: 'none',
+  contract: reconcileProductionLocationContract,
+  consistency: {
+    transaction: 'required',
+    concurrency: 'partitioned',
+    concurrencyKey: (input) => input.location.id,
+  },
+  idempotency: { required: false },
+  surfaces: [],
+  emits: [],
+  consumes: [],
+  observability: {
+    operation: 'access.reconcile_production_location',
+  },
+});
+
+export const makeReconcileProductionLocationCell = (
+  dependencies: ReconcileProductionLocationDependencies,
+) =>
+  bindCell(
+    reconcileProductionLocationCellDeclaration,
+    makeExecuteReconcileProductionLocation(dependencies),
+  );

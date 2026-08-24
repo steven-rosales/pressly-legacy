@@ -8,7 +8,7 @@ or acceptance results. A numbered folder may lack the context needed to explain
 when, how, or why its images were captured.
 
 For current Processor design rules, use
-[apps/processor/DESIGN.md](../../apps/processor/DESIGN.md). For current delivery
+[hosts/browser/processor/DESIGN.md](../../hosts/browser/processor/DESIGN.md). For current delivery
 status and verified evidence, use the relevant active Stateworks work item.
 
 Do not delete unreviewed artifacts merely because their context is incomplete.

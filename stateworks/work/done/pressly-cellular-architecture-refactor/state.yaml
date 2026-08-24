@@ -1,0 +1,124 @@
+work_id: pressly-cellular-architecture-refactor
+status: complete
+updated: 2026-08-23T11:46:44-04:00
+
+current_focus:
+  - complete
+  - The cellular architecture refactor is complete locally, fully evidenced, and archived without claiming deployment, vendor acceptance, capacity, or pilot proof.
+
+tasks:
+  T0:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#activation-and-baseline
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t0---reconcile-authority-and-establish-the-completion-matrix
+  T1:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t1---freeze-external-and-distributed-behavior
+  T2:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t2---introduce-cellular-primitives-topology-catalogs-and-dual-enforcement
+  T3:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t3-groundwork---extract-the-advance-stage-decision
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t3-single-writer-api-cutover-and-legacy-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t3-processor-experience-and-generated-browser-client
+  T4:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-inventory-and-migration-sequence
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-representative-command-and-query-checkpoint
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-representative-leaf-deletion-and-permanent-conformance
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-live-feed-and-processor-transport-cutover
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-authenticated-context-boundary
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-floor-command-and-core-query-batch
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-floor-and-core-query-deletion-plus-preview-cutover
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-admission-and-intake-command-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-scheduling-inventory-and-create-shift-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-change-resolution-deletion-and-source-closed-single-authority
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-inactive-scheduling-cell-proof-batch
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-manage-resources-cli-cutover-and-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-load-schedule-generated-route-cutover-and-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-inactive-processor-shadow-query-batch
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-publish-config-cutover-and-after-input-authorization-correction
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-selected-route-after-input-authorization-audit
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-update-shift-cutover-and-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-headless-query-parity-and-production-owned-read-models
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-postgresql-fixture-isolation-hardening
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-online-placement-cell-batch-and-proven-shared-mechanism
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-backlog-command-and-preview-single-authority-cutover
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-apply-fulfillment-demand-reaction-proof
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-accept-schedule-cutover-and-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-complete-headless-processor-query-authority-proof
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-list-order-control-base-query-cutover-and-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-inactive-processor-server-experience-boundary
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-commit-order-route-cutover-and-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-canonical-production-scheduling-algorithms
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-seven-query-processor-experience-activation
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-seven-query-legacy-deletion-and-permanent-conformance
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-create-schedule-canonical-authority-cutover-and-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-start-schedule-cutover-and-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-replace-shift-selection-cutover-and-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t4-placement-cutover-and-phase-closure
+  T5:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-pre-implementation-authority-and-cutover-audit
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s1-inactive-generic-jobs-mechanism
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s2-inactive-orders-outbox-authority
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s3-order-outbox-single-binding-cutover-and-deletion
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s4-inactive-ingress-state-authority
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s4-s5-webhook-reaction-cutover-contract
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s4b-inactive-ingress-processing-reaction
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s4c-inactive-orders-intake-authority
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s4d-inactive-production-source-closure-authority
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s4e-api-and-cli-ingress-state-cutover
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s4f-inactive-worker-webhook-queue-adapter
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s4g-webhook-cross-system-flow-conformance
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t5-s5-single-binding-webhook-cutover-legacy-deletion-and-phase-closure
+  T6:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-t8-pre-implementation-authority-and-deployment-audit
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s1-inactive-http-boundary-profile-mechanism
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s2-inactive-customers-authority
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s2b-customers-to-orders-transaction-capabilities
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s3-inactive-access-authority
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s4-inactive-pricing-authority
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s1b-complete-realm-neutral-http-protocol
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s5-inactive-access-facing-experiences
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s5b-browser-host-entrypoint-cutover
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s5c-generated-browser-protocol-cutover
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s6-inactive-complete-orders-authority
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s6c-inactive-complete-api-target-composition
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s6d-generated-http-catalog-cutover
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s7-inactive-generic-cli-mechanism
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s7b-generated-cli-registry-cutover
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s1c-conditional-parsing-and-expected-failure-observation
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s8-inactive-credential-mechanism-authority
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-s6b-inactive-orders-http-boundaries
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-phase-closure-remaining-system-cutover-and-legacy-deletion
+  T7:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-t8-pre-implementation-authority-and-deployment-audit
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t7-implementation-ready-contract-and-schema-ownership-audit
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t7-contract-and-schema-source-ownership-closure
+  T8:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-t8-pre-implementation-authority-and-deployment-audit
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t8---delete-the-legacy-architecture-and-custom-compiler
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t6-t8-pre-implementation-authority-and-deployment-audit
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#v1---prove-repository-behavior-architecture-and-deployment-parity
+  T9:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md#t9---close-evidence-and-archive-completed-work
+      - stateworks/work/done/pressly-cellular-architecture-refactor/final-report.md

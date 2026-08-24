@@ -1,0 +1,27 @@
+{
+  "name": "@pressly/scheduling-verification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test vitest.config.ts vitest.postgres.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --config vitest.config.ts --exclude '**/*.int.test.ts'",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run --config vitest.postgres.config.ts --no-file-parallelism test/create-shift.conformance.int.test.ts test/create-schedule.conformance.int.test.ts test/load-schedule.conformance.int.test.ts test/publish-scheduler-config.conformance.int.test.ts test/update-shift.conformance.int.test.ts test/accept-schedule.conformance.int.test.ts test/start-schedule.conformance.int.test.ts test/replace-shift-selection.conformance.int.test.ts test/placement-bundle.conformance.int.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@pressly/access-system": "workspace:*",
+    "@pressly/cells": "workspace:*",
+    "@pressly/experience-processor": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/production-system": "workspace:*",
+    "@pressly/testkit": "workspace:*",
+    "@pressly/topology": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

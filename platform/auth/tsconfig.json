@@ -1,0 +1,16 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../errors/tsconfig.json"
+    }
+  ]
+}

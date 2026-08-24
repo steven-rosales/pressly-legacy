@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(import.meta.dirname, '../..');
 const productionCompose = resolve(
   root,
-  'infra/aws/lightsail/docker-compose.production.yml',
+  'deploy/aws/lightsail/docker-compose.production.yml',
 );
 const fixtureDirectory = resolve(root, 'tooling/fixtures/production-topology');
 const smokeCompose = resolve(fixtureDirectory, 'docker-compose.smoke.yml');
@@ -114,9 +114,23 @@ describe('offline production topology smoke harness', () => {
       'resume_lpms_after_api_restart',
       'finish_lpms_live_flow',
       'offline-smoke-live-placement-v1',
+      "stage.nextAction?.state !== 'terminal'",
+      "stage.nextAction.reason !== 'stage_completed'",
       'processor_csrf_rejected',
       'invalid_session',
-      'apps/cli/dist/commands/bootstrap-owner.command.js',
+      'hosts/cli/dist/main.js bootstrap owner',
+      'hosts/cli/dist/main.js bootstrap production',
+      'PRESSLY_BOOTSTRAP_BUSINESS_SLUG=offline-smoke',
+      "PRESSLY_BOOTSTRAP_BUSINESS_DISPLAY_NAME='Offline Smoke'",
+      'OWNER_REPLAY_JSON',
+      '--actor-id "$OWNER_ID"',
+      'access_production_locations',
+      'owner and owner-local location rows do not exactly match the bootstrap manifest',
+      'node --import tsx tooling/postgres/migrate.ts',
+      'node --import tsx tooling/http-route-census/main.ts',
+      '--origin http://api:4000',
+      'generated-http-route-mount-census',
+      'mounted HTTP dispatch reachability only',
       'docker stats --no-stream',
     ])
       expect(script).toContain(proofRail);
@@ -124,12 +138,89 @@ describe('offline production topology smoke harness', () => {
     expect(script).not.toMatch(/\bgit\s+(?:fetch|checkout|switch|reset)\b/);
     expect(script).not.toMatch(/\bgh\s/);
     expect(script).not.toContain('trypressly.com');
-    expect(script).not.toContain(
-      'modules/security/identity/dist/composition/bootstrap-owner.composition.js',
-    );
     expect(script).not.toContain('OfflineSmoke!Passphrase2026');
+    expect(script).not.toContain('stage.allowedActions');
     expect(script).not.toContain("demand_key in ('cents:order");
     expect(script).toContain("randomBytes(24).toString('base64url') + 'Aa1!'");
+    expect(script.indexOf('bootstrap owner')).toBeLessThan(
+      script.indexOf('bootstrap production'),
+    );
+    expect(script).not.toContain(
+      '--actor-id 00000000-0000-4000-8000-000000000901',
+    );
+  });
+
+  it('matches both owner-local location rows exactly to the bootstrap manifest', () => {
+    const script = readFileSync(smokeScript, 'utf8');
+    const proof = script.slice(
+      script.indexOf('[[ "$(bootstrap_manifest_scalar'),
+      script.indexOf("echo '[v2] starting release-a"),
+    );
+
+    expect(script).toContain('-v "bootstrap_manifest=$manifest_json"');
+    expect(proof).toContain(
+      ":'bootstrap_manifest'::jsonb -> 'location' as location",
+    );
+    expect(proof).toContain(
+      "business_accounts where id = '00000000-0000-4000-8000-000000000100' and slug = 'offline-smoke' and status = 'active'",
+    );
+    for (const owner of ['access_location', 'production_location']) {
+      expect(
+        proof.split(`${owner}.id = expected.location ->> 'id'`),
+      ).toHaveLength(3);
+      expect(proof).toContain(
+        `${owner}.business_id = (expected.location ->> 'businessId')::uuid`,
+      );
+      expect(proof).toContain(`${owner}.name = expected.location ->> 'name'`);
+      expect(proof).toContain(
+        `${owner}.timezone = expected.location ->> 'timezone'`,
+      );
+      expect(proof).toContain(
+        `${owner}.is_active = (expected.location ->> 'isActive')::boolean`,
+      );
+    }
+    expect(proof).toContain("== '1|1|1|1|1'");
+    expect(proof).not.toContain("== '1|1|1'");
+    expect(script).toContain("== '2|2|32|0'");
+  });
+
+  it('enrolls the workforce owner only through the cookie-backed Control realm', () => {
+    const script = readFileSync(smokeScript, 'utf8');
+    const enrollment = script.slice(
+      script.indexOf('enroll_owner_mfa() {'),
+      script.indexOf('\nprobe_routes() {'),
+    );
+
+    expect(enrollment).toContain(
+      'local origin="https://control.pressly.test:${CADDY_PORT}"',
+    );
+    expect(enrollment).toContain('${origin}/api/control/auth/login');
+    expect(enrollment).toContain('${origin}/api/control/auth/mfa/enrollment');
+    expect(enrollment).toContain(
+      '${origin}/api/control/auth/mfa/enrollment/confirm',
+    );
+    expect(enrollment).toContain('--cookie-jar "$cookie_jar"');
+    expect(enrollment.match(/--cookie "\$cookie_jar"/g)).toHaveLength(2);
+    expect(enrollment.match(/--header "Origin: \$origin"/g)).toHaveLength(3);
+    expect(enrollment.match(/--header "@\$csrf_header"/g)).toHaveLength(2);
+    expect(enrollment).toContain("session?.status !== 'authenticated'");
+    expect(enrollment).toContain(
+      'session?.principal?.identityId !== expectedIdentityId',
+    );
+    expect(enrollment).toContain(
+      '!/^[A-Za-z0-9_-]{43}$/.test(session.csrfToken)',
+    );
+    expect(enrollment).toContain(
+      'rm -f "$confirmation_request" "$cookie_jar" "$csrf_header"',
+    );
+    expect(enrollment).not.toContain('https://api.pressly.test');
+    expect(enrollment).not.toContain('${origin}/auth/login');
+    expect(enrollment).not.toContain('Authorization:');
+    expect(enrollment).not.toContain('accessToken');
+    expect(script).toContain(
+      'enrolling MFA for the synthetic owner through the Control cookie and CSRF boundary',
+    );
+    expect(script).not.toContain('general HTTPS authentication boundary');
   });
 
   it('fails closed before using a remote Docker host override', () => {
@@ -211,7 +302,7 @@ describe('offline production topology smoke harness', () => {
     for (const service of ['api', 'web', 'worker', 'processor', 'control']) {
       expect(config.services[service].build).toMatchObject({
         context: root,
-        dockerfile: `apps/${service}/Dockerfile`,
+        dockerfile: `deploy/images/${service}/Dockerfile`,
       });
       expect(config.services[service].read_only).toBe(true);
     }
@@ -297,6 +388,32 @@ describe('offline production topology smoke harness', () => {
     expect(report).not.toContain('OWNER_PASSWORD');
     expect(report).not.toContain('PRESSLY_SMOKE_CENTS_HMAC_KEY');
     expect(report).not.toContain('LPMS_CSRF_TOKEN');
+  });
+
+  it('runs the generated HTTP route mount census only after the composed API is healthy', () => {
+    const script = readFileSync(smokeScript, 'utf8');
+    const execution = script.slice(
+      script.indexOf("echo '[v2] starting release-a and proving Caddy routes'"),
+    );
+    const composeUpIndex = execution.indexOf(
+      'compose up -d --wait --wait-timeout 180 api web worker processor control caddy',
+    );
+    const healthIndex = execution.indexOf('wait_for_health api');
+    const censusIndex = execution.indexOf(
+      'run_generated_http_route_mount_census',
+    );
+
+    expect(composeUpIndex).toBeGreaterThan(-1);
+    expect(healthIndex).toBeGreaterThan(composeUpIndex);
+    expect(censusIndex).toBeGreaterThan(healthIndex);
+    expect(script).toContain(
+      "catalogSource !== '@pressly/generated/http-catalog:httpRouteManifest'",
+    );
+    expect(script).toContain('report.routes.length !== report.routeCount');
+    expect(script).toContain('route.status === 404');
+    expect(script).toContain('route.status === 405');
+    expect(script).toContain('route.status >= 500');
+    expect(script).toContain('generatedHttpRouteMountCensus: JSON.parse(');
   });
 
   it('uses internal TLS and secret-free synthetic fixtures', () => {

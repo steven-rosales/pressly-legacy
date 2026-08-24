@@ -1,0 +1,119 @@
+{
+  "name": "@pressly/experience-processor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js",
+      "default": "./dist/browser.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    },
+    "./contracts/operational-order": {
+      "types": "./dist/contracts/operational-order.d.ts",
+      "import": "./dist/contracts/operational-order.js",
+      "default": "./dist/contracts/operational-order.js"
+    },
+    "./contracts/authentication-v1": {
+      "types": "./dist/contracts/authentication-v1.d.ts",
+      "import": "./dist/contracts/authentication-v1.js",
+      "default": "./dist/contracts/authentication-v1.js"
+    },
+    "./contracts/production-board": {
+      "types": "./dist/contracts/production-board.d.ts",
+      "import": "./dist/contracts/production-board.js",
+      "default": "./dist/contracts/production-board.js"
+    },
+    "./contracts/production-history": {
+      "types": "./dist/contracts/production-history.d.ts",
+      "import": "./dist/contracts/production-history.js",
+      "default": "./dist/contracts/production-history.js"
+    },
+    "./contracts/production-order-backlog": {
+      "types": "./dist/contracts/production-order-backlog.d.ts",
+      "import": "./dist/contracts/production-order-backlog.js",
+      "default": "./dist/contracts/production-order-backlog.js"
+    },
+    "./contracts/production-order-control": {
+      "types": "./dist/contracts/production-order-control.d.ts",
+      "import": "./dist/contracts/production-order-control.js",
+      "default": "./dist/contracts/production-order-control.js"
+    },
+    "./contracts/production-workspace": {
+      "types": "./dist/contracts/production-workspace.d.ts",
+      "import": "./dist/contracts/production-workspace.js",
+      "default": "./dist/contracts/production-workspace.js"
+    },
+    "./contracts/remaining-day-forecast": {
+      "types": "./dist/contracts/remaining-day-forecast.d.ts",
+      "import": "./dist/contracts/remaining-day-forecast.js",
+      "default": "./dist/contracts/remaining-day-forecast.js"
+    },
+    "./testing/browser-subscribe-changes": {
+      "types": "./dist/features/live/subscribe-changes/client.d.ts",
+      "import": "./dist/features/live/subscribe-changes/client.js",
+      "default": "./dist/features/live/subscribe-changes/client.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.2.8",
+    "@pressly/access-system": "workspace:*",
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/orders-system": "workspace:*",
+    "@pressly/production-system": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "@tabler/icons-react": "^3.44.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "date-fns": "^4.4.0",
+    "embla-carousel-react": "^8.6.0",
+    "i18next": "^26.3.6",
+    "input-otp": "^1.4.2",
+    "next-themes": "^0.4.6",
+    "radix-ui": "^1.5.0",
+    "react": "^19.2.6",
+    "react-day-picker": "^10.0.1",
+    "react-dom": "^19.2.6",
+    "react-i18next": "^17.0.10",
+    "react-resizable-panels": "^4.11.2",
+    "react-router-dom": "^7.18.2",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0",
+    "vaul": "^1.1.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@pressly/testkit": "workspace:*",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "jsdom": "^28.1.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

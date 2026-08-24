@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const root = resolve(import.meta.dirname, '../..');
-const backupScript = resolve(root, 'infra/aws/lightsail/backup-postgres.sh');
+const backupScript = resolve(root, 'deploy/aws/lightsail/backup-postgres.sh');
 const fixtures = [];
 
 afterEach(() => {

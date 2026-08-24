@@ -1,0 +1,30 @@
+{
+  "extends": "../../tooling/typescript/base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "references": [
+    {
+      "path": "../../experiences/control/tsconfig.json"
+    },
+    {
+      "path": "../../experiences/customer/tsconfig.json"
+    },
+    {
+      "path": "../../experiences/processor/tsconfig.json"
+    },
+    {
+      "path": "../../hosts/http/tsconfig.json"
+    },
+    {
+      "path": "../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../systems/access/tsconfig.json"
+    }
+  ]
+}

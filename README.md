@@ -72,8 +72,10 @@ without inventing progress that an operator has not confirmed.
 
 ```mermaid
 flowchart LR
-    Cents["Cents webhooks"] --> Records["Canonical users and orders"]
-    Records --> Forecast["Demand outlook"]
+    Cents["Cents webhooks"] --> Ingress["Durable ingress"]
+    Ingress --> Candidate["Incoming order candidate"]
+    Candidate --> Records["Canonical customer and order"]
+    Records --> Forecast["Production demand outlook"]
     Intake["Physical bag intake"] --> Plan["Capacity-aware shift plan"]
     Forecast --> Plan
     Plan --> Run["Live production"]
@@ -86,10 +88,10 @@ fulfillment types—without making the floor engine Cents-specific.
 
 ## More than a clickable prototype
 
-The product is backed by a working API, Worker, PostgreSQL model, and production
-runtime. The implementation includes:
+The product is backed by HTTP and job hosts, a PostgreSQL model, and a
+production runtime. The implementation includes:
 
-- canonical Users and Orders with exact external identity links;
+- canonical Customers and Orders with exact external identity links;
 - source-version ordering, idempotency, retries, and inspectable dead letters;
 - immutable schedule revisions and server-authoritative start checks;
 - optimistic concurrency around shift selection and live queue changes;
@@ -110,6 +112,11 @@ pnpm install
 pnpm docker:up
 ```
 
+VS Code resolves `@pressly/*` workspace packages from their referenced source
+projects, so a package build is not required for editor type resolution. After
+changing workspace package dependencies, regenerate those references with
+`pnpm typescript:references:write`.
+
 Then open:
 
 - Processor: [http://localhost:4173](http://localhost:4173)
@@ -120,16 +127,21 @@ Stop the stack with `pnpm docker:down`.
 
 ## Repository guide
 
-- `apps/processor` — the production-floor application
-- `apps/api` — HTTP delivery, authentication, and application composition
-- `apps/worker` — durable webhook and fulfillment projection jobs
-- `modules/business` — Orders, Pricing, Production, and Users authorities
-- `modules/security` — Identity and framework-free Authorization authorities
-- `modules/integration` — durable external-system interaction authorities
-- `modules/experience` — Control and Processor cross-domain workflows
-- `packages` — shared contracts, database schema, time, money, and runtime tools
+- `systems` — Access, Customers, Orders, Pricing, Production, and Ingress
+  business authorities
+- `experiences` — Customer, Control, and Processor workflows, features, and
+  presentation
+- `hosts` — generic HTTP, jobs, CLI, and browser process boundaries
+- `platform` — business-neutral auth, cell, codec, configuration, error, HTTP,
+  job, logging, observability, PostgreSQL, testing, and time mechanisms
+- `topology` — the hand-authored deployment selection and owner assembly
+- `generated` — deterministic catalogs, browser clients, architecture maps,
+  and executable runtime bindings
+- `verification` — cross-owner conformance, flow, and migration proof
+- `deploy` — container and infrastructure packaging
+- `platform/postgres/migrations` — the immutable migration ledger
 - [`docs/architecture.md`](docs/architecture.md) — system boundaries and data flow
-- [`docs/module-architecture.md`](docs/module-architecture.md) — executable
+- [`docs/module-architecture.md`](docs/module-architecture.md) — cell and system
   placement, dependency, and file-role rules
 
 ## Project status

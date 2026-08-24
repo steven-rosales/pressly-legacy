@@ -1,0 +1,605 @@
+{
+  "name": "@pressly/production-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./model": {
+      "types": "./dist/model/public.d.ts",
+      "import": "./dist/model/public.js",
+      "default": "./dist/model/public.js"
+    },
+    "./observability/metrics": {
+      "types": "./dist/observability/metrics.d.ts",
+      "import": "./dist/observability/metrics.js",
+      "default": "./dist/observability/metrics.js"
+    },
+    "./observability/signals": {
+      "types": "./dist/observability/signals.d.ts",
+      "import": "./dist/observability/signals.js",
+      "default": "./dist/observability/signals.js"
+    },
+    "./capabilities/list-recent-order-activity-v1": {
+      "types": "./dist/contracts/list-recent-order-activity-v1.d.ts",
+      "import": "./dist/contracts/list-recent-order-activity-v1.js",
+      "default": "./dist/contracts/list-recent-order-activity-v1.js"
+    },
+    "./capabilities/resolve-fulfillment-references-v1": {
+      "types": "./dist/contracts/resolve-fulfillment-references-v1.d.ts",
+      "import": "./dist/contracts/resolve-fulfillment-references-v1.js",
+      "default": "./dist/contracts/resolve-fulfillment-references-v1.js"
+    },
+    "./capabilities/apply-fulfillment-demand-job": {
+      "types": "./dist/cells/demand/apply-fulfillment-demand/job-delivery.d.ts",
+      "import": "./dist/cells/demand/apply-fulfillment-demand/job-delivery.js",
+      "default": "./dist/cells/demand/apply-fulfillment-demand/job-delivery.js"
+    },
+    "./contracts/demand/change-admission": {
+      "types": "./dist/cells/demand/change-admission/boundary.d.ts",
+      "import": "./dist/cells/demand/change-admission/boundary.js",
+      "default": "./dist/cells/demand/change-admission/boundary.js"
+    },
+    "./contracts/demand/change-order-resolution": {
+      "types": "./dist/cells/demand/change-order-resolution/boundary.d.ts",
+      "import": "./dist/cells/demand/change-order-resolution/boundary.js",
+      "default": "./dist/cells/demand/change-order-resolution/boundary.js"
+    },
+    "./contracts/demand/commit-order-backlog": {
+      "types": "./dist/cells/demand/commit-order-backlog/boundary.d.ts",
+      "import": "./dist/cells/demand/commit-order-backlog/boundary.js",
+      "default": "./dist/cells/demand/commit-order-backlog/boundary.js"
+    },
+    "./contracts/demand/preview-order-backlog": {
+      "types": "./dist/cells/demand/preview-order-backlog/boundary.d.ts",
+      "import": "./dist/cells/demand/preview-order-backlog/boundary.js",
+      "default": "./dist/cells/demand/preview-order-backlog/boundary.js"
+    },
+    "./contracts/demand/record-order-intake": {
+      "types": "./dist/cells/demand/record-order-intake/boundary.d.ts",
+      "import": "./dist/cells/demand/record-order-intake/boundary.js",
+      "default": "./dist/cells/demand/record-order-intake/boundary.js"
+    },
+    "./contracts/demand/set-order-priority": {
+      "types": "./dist/cells/demand/set-order-priority/boundary.d.ts",
+      "import": "./dist/cells/demand/set-order-priority/boundary.js",
+      "default": "./dist/cells/demand/set-order-priority/boundary.js"
+    },
+    "./contracts/floor/advance-stage": {
+      "types": "./dist/cells/floor/advance-stage/boundary.d.ts",
+      "import": "./dist/cells/floor/advance-stage/boundary.js",
+      "default": "./dist/cells/floor/advance-stage/boundary.js"
+    },
+    "./contracts/floor/assign-stage-machines": {
+      "types": "./dist/cells/floor/assign-stage-machines/boundary.d.ts",
+      "import": "./dist/cells/floor/assign-stage-machines/boundary.js",
+      "default": "./dist/cells/floor/assign-stage-machines/boundary.js"
+    },
+    "./contracts/floor/freeze-batch-membership": {
+      "types": "./dist/cells/floor/freeze-batch-membership/boundary.d.ts",
+      "import": "./dist/cells/floor/freeze-batch-membership/boundary.js",
+      "default": "./dist/cells/floor/freeze-batch-membership/boundary.js"
+    },
+    "./contracts/floor/reconcile-batch-progress": {
+      "types": "./dist/cells/floor/reconcile-batch-progress/boundary.d.ts",
+      "import": "./dist/cells/floor/reconcile-batch-progress/boundary.js",
+      "default": "./dist/cells/floor/reconcile-batch-progress/boundary.js"
+    },
+    "./contracts/floor/unfreeze-batch-membership": {
+      "types": "./dist/cells/floor/unfreeze-batch-membership/boundary.d.ts",
+      "import": "./dist/cells/floor/unfreeze-batch-membership/boundary.js",
+      "default": "./dist/cells/floor/unfreeze-batch-membership/boundary.js"
+    },
+    "./contracts/orders/list-orders": {
+      "types": "./dist/cells/orders/list-orders/boundary.d.ts",
+      "import": "./dist/cells/orders/list-orders/boundary.js",
+      "default": "./dist/cells/orders/list-orders/boundary.js"
+    },
+    "./contracts/orders/list-order-control": {
+      "types": "./dist/cells/orders/list-order-control/boundary.d.ts",
+      "import": "./dist/cells/orders/list-order-control/boundary.js",
+      "default": "./dist/cells/orders/list-order-control/boundary.js"
+    },
+    "./contracts/queries/load-board": {
+      "types": "./dist/cells/queries/load-board/boundary.d.ts",
+      "import": "./dist/cells/queries/load-board/boundary.js",
+      "default": "./dist/cells/queries/load-board/boundary.js"
+    },
+    "./contracts/queries/load-remaining-day-forecast": {
+      "types": "./dist/cells/queries/load-remaining-day-forecast/boundary.d.ts",
+      "import": "./dist/cells/queries/load-remaining-day-forecast/boundary.js",
+      "default": "./dist/cells/queries/load-remaining-day-forecast/boundary.js"
+    },
+    "./contracts/queries/load-workspace": {
+      "types": "./dist/cells/queries/load-workspace/boundary.d.ts",
+      "import": "./dist/cells/queries/load-workspace/boundary.js",
+      "default": "./dist/cells/queries/load-workspace/boundary.js"
+    },
+    "./contracts/resources/list-locations": {
+      "types": "./dist/cells/resources/list-locations/boundary.d.ts",
+      "import": "./dist/cells/resources/list-locations/boundary.js",
+      "default": "./dist/cells/resources/list-locations/boundary.js"
+    },
+    "./contracts/resources/manage-resources": {
+      "types": "./dist/cells/resources/manage-resources/boundary.d.ts",
+      "import": "./dist/cells/resources/manage-resources/boundary.js",
+      "default": "./dist/cells/resources/manage-resources/boundary.js"
+    },
+    "./contracts/scheduling/accept-schedule": {
+      "types": "./dist/cells/scheduling/accept-schedule/boundary.d.ts",
+      "import": "./dist/cells/scheduling/accept-schedule/boundary.js",
+      "default": "./dist/cells/scheduling/accept-schedule/boundary.js"
+    },
+    "./contracts/scheduling/create-schedule": {
+      "types": "./dist/cells/scheduling/create-schedule/boundary.d.ts",
+      "import": "./dist/cells/scheduling/create-schedule/boundary.js",
+      "default": "./dist/cells/scheduling/create-schedule/boundary.js"
+    },
+    "./contracts/scheduling/create-shift": {
+      "types": "./dist/cells/scheduling/create-shift/boundary.d.ts",
+      "import": "./dist/cells/scheduling/create-shift/boundary.js",
+      "default": "./dist/cells/scheduling/create-shift/boundary.js"
+    },
+    "./contracts/scheduling/load-schedule": {
+      "types": "./dist/cells/scheduling/load-schedule/boundary.d.ts",
+      "import": "./dist/cells/scheduling/load-schedule/boundary.js",
+      "default": "./dist/cells/scheduling/load-schedule/boundary.js"
+    },
+    "./contracts/scheduling/publish-scheduler-config": {
+      "types": "./dist/cells/scheduling/publish-scheduler-config/boundary.d.ts",
+      "import": "./dist/cells/scheduling/publish-scheduler-config/boundary.js",
+      "default": "./dist/cells/scheduling/publish-scheduler-config/boundary.js"
+    },
+    "./contracts/scheduling/replace-shift-selection": {
+      "types": "./dist/cells/scheduling/replace-shift-selection/boundary.d.ts",
+      "import": "./dist/cells/scheduling/replace-shift-selection/boundary.js",
+      "default": "./dist/cells/scheduling/replace-shift-selection/boundary.js"
+    },
+    "./contracts/scheduling/start-schedule": {
+      "types": "./dist/cells/scheduling/start-schedule/boundary.d.ts",
+      "import": "./dist/cells/scheduling/start-schedule/boundary.js",
+      "default": "./dist/cells/scheduling/start-schedule/boundary.js"
+    },
+    "./contracts/scheduling/update-shift": {
+      "types": "./dist/cells/scheduling/update-shift/boundary.d.ts",
+      "import": "./dist/cells/scheduling/update-shift/boundary.js",
+      "default": "./dist/cells/scheduling/update-shift/boundary.js"
+    },
+    "./contracts/read-models/production-board": {
+      "types": "./dist/read-models/production-board/contract.d.ts",
+      "import": "./dist/read-models/production-board/contract.js",
+      "default": "./dist/read-models/production-board/contract.js"
+    },
+    "./contracts/read-models/production-history": {
+      "types": "./dist/read-models/production-history/contract.d.ts",
+      "import": "./dist/read-models/production-history/contract.js",
+      "default": "./dist/read-models/production-history/contract.js"
+    },
+    "./contracts/read-models/production-order": {
+      "types": "./dist/read-models/production-order/contract.d.ts",
+      "import": "./dist/read-models/production-order/contract.js",
+      "default": "./dist/read-models/production-order/contract.js"
+    },
+    "./contracts/read-models/production-order-backlog": {
+      "types": "./dist/read-models/production-order-backlog/contract.d.ts",
+      "import": "./dist/read-models/production-order-backlog/contract.js",
+      "default": "./dist/read-models/production-order-backlog/contract.js"
+    },
+    "./contracts/read-models/production-order-control": {
+      "types": "./dist/read-models/production-order-control/contract.d.ts",
+      "import": "./dist/read-models/production-order-control/contract.js",
+      "default": "./dist/read-models/production-order-control/contract.js"
+    },
+    "./contracts/read-models/production-order-placement": {
+      "types": "./dist/read-models/production-order-placement/contract.d.ts",
+      "import": "./dist/read-models/production-order-placement/contract.js",
+      "default": "./dist/read-models/production-order-placement/contract.js"
+    },
+    "./contracts/read-models/production-resources": {
+      "types": "./dist/read-models/production-resources/contract.d.ts",
+      "import": "./dist/read-models/production-resources/contract.js",
+      "default": "./dist/read-models/production-resources/contract.js"
+    },
+    "./contracts/read-models/production-schedule": {
+      "types": "./dist/read-models/production-schedule/contract.d.ts",
+      "import": "./dist/read-models/production-schedule/contract.js",
+      "default": "./dist/read-models/production-schedule/contract.js"
+    },
+    "./models/order-route-proposal": {
+      "types": "./dist/model/order-route-proposal/model.d.ts",
+      "import": "./dist/model/order-route-proposal/model.js",
+      "default": "./dist/model/order-route-proposal/model.js"
+    },
+    "./models/production-schedule": {
+      "types": "./dist/model/production-schedule/model.d.ts",
+      "import": "./dist/model/production-schedule/model.js",
+      "default": "./dist/model/production-schedule/model.js"
+    },
+    "./operations/demand/apply-fulfillment-demand/types": {
+      "types": "./dist/cells/demand/apply-fulfillment-demand/types.d.ts",
+      "import": "./dist/cells/demand/apply-fulfillment-demand/types.js",
+      "default": "./dist/cells/demand/apply-fulfillment-demand/types.js"
+    },
+    "./operations/demand/change-admission/types": {
+      "types": "./dist/cells/demand/change-admission/types.d.ts",
+      "import": "./dist/cells/demand/change-admission/types.js",
+      "default": "./dist/cells/demand/change-admission/types.js"
+    },
+    "./operations/demand/change-order-resolution/types": {
+      "types": "./dist/cells/demand/change-order-resolution/types.d.ts",
+      "import": "./dist/cells/demand/change-order-resolution/types.js",
+      "default": "./dist/cells/demand/change-order-resolution/types.js"
+    },
+    "./operations/demand/commit-order-backlog/cell": {
+      "types": "./dist/cells/demand/commit-order-backlog/cell.d.ts",
+      "import": "./dist/cells/demand/commit-order-backlog/cell.js",
+      "default": "./dist/cells/demand/commit-order-backlog/cell.js"
+    },
+    "./operations/demand/commit-order-backlog/contract": {
+      "types": "./dist/cells/demand/commit-order-backlog/contract.d.ts",
+      "import": "./dist/cells/demand/commit-order-backlog/contract.js",
+      "default": "./dist/cells/demand/commit-order-backlog/contract.js"
+    },
+    "./operations/demand/commit-order-backlog/types": {
+      "types": "./dist/cells/demand/commit-order-backlog/types.d.ts",
+      "import": "./dist/cells/demand/commit-order-backlog/types.js",
+      "default": "./dist/cells/demand/commit-order-backlog/types.js"
+    },
+    "./operations/demand/preview-order-backlog/contract": {
+      "types": "./dist/cells/demand/preview-order-backlog/contract.d.ts",
+      "import": "./dist/cells/demand/preview-order-backlog/contract.js",
+      "default": "./dist/cells/demand/preview-order-backlog/contract.js"
+    },
+    "./operations/demand/preview-order-backlog/execute": {
+      "types": "./dist/cells/demand/preview-order-backlog/execute.d.ts",
+      "import": "./dist/cells/demand/preview-order-backlog/execute.js",
+      "default": "./dist/cells/demand/preview-order-backlog/execute.js"
+    },
+    "./operations/demand/record-order-intake/types": {
+      "types": "./dist/cells/demand/record-order-intake/types.d.ts",
+      "import": "./dist/cells/demand/record-order-intake/types.js",
+      "default": "./dist/cells/demand/record-order-intake/types.js"
+    },
+    "./operations/demand/resolve-source-closed-fulfillment/types": {
+      "types": "./dist/cells/demand/resolve-source-closed-fulfillment/types.d.ts",
+      "import": "./dist/cells/demand/resolve-source-closed-fulfillment/types.js",
+      "default": "./dist/cells/demand/resolve-source-closed-fulfillment/types.js"
+    },
+    "./operations/demand/set-order-priority/types": {
+      "types": "./dist/cells/demand/set-order-priority/types.d.ts",
+      "import": "./dist/cells/demand/set-order-priority/types.js",
+      "default": "./dist/cells/demand/set-order-priority/types.js"
+    },
+    "./operations/floor/advance-stage/confirmation": {
+      "types": "./dist/cells/floor/advance-stage/confirmation.d.ts",
+      "import": "./dist/cells/floor/advance-stage/confirmation.js",
+      "default": "./dist/cells/floor/advance-stage/confirmation.js"
+    },
+    "./operations/floor/advance-stage/execute": {
+      "types": "./dist/cells/floor/advance-stage/execute.d.ts",
+      "import": "./dist/cells/floor/advance-stage/execute.js",
+      "default": "./dist/cells/floor/advance-stage/execute.js"
+    },
+    "./operations/floor/advance-stage/idempotency": {
+      "types": "./dist/cells/floor/advance-stage/idempotency.d.ts",
+      "import": "./dist/cells/floor/advance-stage/idempotency.js",
+      "default": "./dist/cells/floor/advance-stage/idempotency.js"
+    },
+    "./operations/floor/advance-stage/postgres": {
+      "types": "./dist/cells/floor/advance-stage/postgres.d.ts",
+      "import": "./dist/cells/floor/advance-stage/postgres.js",
+      "default": "./dist/cells/floor/advance-stage/postgres.js"
+    },
+    "./operations/floor/advance-stage/types": {
+      "types": "./dist/cells/floor/advance-stage/types.d.ts",
+      "import": "./dist/cells/floor/advance-stage/types.js",
+      "default": "./dist/cells/floor/advance-stage/types.js"
+    },
+    "./operations/floor/assign-stage-machines/execute": {
+      "types": "./dist/cells/floor/assign-stage-machines/execute.d.ts",
+      "import": "./dist/cells/floor/assign-stage-machines/execute.js",
+      "default": "./dist/cells/floor/assign-stage-machines/execute.js"
+    },
+    "./operations/floor/assign-stage-machines/idempotency": {
+      "types": "./dist/cells/floor/assign-stage-machines/idempotency.d.ts",
+      "import": "./dist/cells/floor/assign-stage-machines/idempotency.js",
+      "default": "./dist/cells/floor/assign-stage-machines/idempotency.js"
+    },
+    "./operations/floor/assign-stage-machines/postgres": {
+      "types": "./dist/cells/floor/assign-stage-machines/postgres.d.ts",
+      "import": "./dist/cells/floor/assign-stage-machines/postgres.js",
+      "default": "./dist/cells/floor/assign-stage-machines/postgres.js"
+    },
+    "./operations/floor/freeze-batch-membership/execute": {
+      "types": "./dist/cells/floor/freeze-batch-membership/execute.d.ts",
+      "import": "./dist/cells/floor/freeze-batch-membership/execute.js",
+      "default": "./dist/cells/floor/freeze-batch-membership/execute.js"
+    },
+    "./operations/floor/freeze-batch-membership/idempotency": {
+      "types": "./dist/cells/floor/freeze-batch-membership/idempotency.d.ts",
+      "import": "./dist/cells/floor/freeze-batch-membership/idempotency.js",
+      "default": "./dist/cells/floor/freeze-batch-membership/idempotency.js"
+    },
+    "./operations/floor/freeze-batch-membership/postgres": {
+      "types": "./dist/cells/floor/freeze-batch-membership/postgres.d.ts",
+      "import": "./dist/cells/floor/freeze-batch-membership/postgres.js",
+      "default": "./dist/cells/floor/freeze-batch-membership/postgres.js"
+    },
+    "./operations/floor/reconcile-batch-progress/execute": {
+      "types": "./dist/cells/floor/reconcile-batch-progress/execute.d.ts",
+      "import": "./dist/cells/floor/reconcile-batch-progress/execute.js",
+      "default": "./dist/cells/floor/reconcile-batch-progress/execute.js"
+    },
+    "./operations/floor/reconcile-batch-progress/idempotency": {
+      "types": "./dist/cells/floor/reconcile-batch-progress/idempotency.d.ts",
+      "import": "./dist/cells/floor/reconcile-batch-progress/idempotency.js",
+      "default": "./dist/cells/floor/reconcile-batch-progress/idempotency.js"
+    },
+    "./operations/floor/reconcile-batch-progress/postgres": {
+      "types": "./dist/cells/floor/reconcile-batch-progress/postgres.d.ts",
+      "import": "./dist/cells/floor/reconcile-batch-progress/postgres.js",
+      "default": "./dist/cells/floor/reconcile-batch-progress/postgres.js"
+    },
+    "./operations/floor/unfreeze-batch-membership/execute": {
+      "types": "./dist/cells/floor/unfreeze-batch-membership/execute.d.ts",
+      "import": "./dist/cells/floor/unfreeze-batch-membership/execute.js",
+      "default": "./dist/cells/floor/unfreeze-batch-membership/execute.js"
+    },
+    "./operations/floor/unfreeze-batch-membership/idempotency": {
+      "types": "./dist/cells/floor/unfreeze-batch-membership/idempotency.d.ts",
+      "import": "./dist/cells/floor/unfreeze-batch-membership/idempotency.js",
+      "default": "./dist/cells/floor/unfreeze-batch-membership/idempotency.js"
+    },
+    "./operations/floor/unfreeze-batch-membership/postgres": {
+      "types": "./dist/cells/floor/unfreeze-batch-membership/postgres.d.ts",
+      "import": "./dist/cells/floor/unfreeze-batch-membership/postgres.js",
+      "default": "./dist/cells/floor/unfreeze-batch-membership/postgres.js"
+    },
+    "./operations/history/list-activity/contract": {
+      "types": "./dist/cells/history/list-activity/contract.d.ts",
+      "import": "./dist/cells/history/list-activity/contract.js",
+      "default": "./dist/cells/history/list-activity/contract.js"
+    },
+    "./operations/history/list-activity/types": {
+      "types": "./dist/cells/history/list-activity/types.d.ts",
+      "import": "./dist/cells/history/list-activity/types.js",
+      "default": "./dist/cells/history/list-activity/types.js"
+    },
+    "./operations/history/list-plans/contract": {
+      "types": "./dist/cells/history/list-plans/contract.d.ts",
+      "import": "./dist/cells/history/list-plans/contract.js",
+      "default": "./dist/cells/history/list-plans/contract.js"
+    },
+    "./operations/history/list-plans/types": {
+      "types": "./dist/cells/history/list-plans/types.d.ts",
+      "import": "./dist/cells/history/list-plans/types.js",
+      "default": "./dist/cells/history/list-plans/types.js"
+    },
+    "./operations/history/list-runs/contract": {
+      "types": "./dist/cells/history/list-runs/contract.d.ts",
+      "import": "./dist/cells/history/list-runs/contract.js",
+      "default": "./dist/cells/history/list-runs/contract.js"
+    },
+    "./operations/history/list-runs/types": {
+      "types": "./dist/cells/history/list-runs/types.d.ts",
+      "import": "./dist/cells/history/list-runs/types.js",
+      "default": "./dist/cells/history/list-runs/types.js"
+    },
+    "./operations/history/load-run/contract": {
+      "types": "./dist/cells/history/load-run/contract.d.ts",
+      "import": "./dist/cells/history/load-run/contract.js",
+      "default": "./dist/cells/history/load-run/contract.js"
+    },
+    "./operations/history/load-run/types": {
+      "types": "./dist/cells/history/load-run/types.d.ts",
+      "import": "./dist/cells/history/load-run/types.js",
+      "default": "./dist/cells/history/load-run/types.js"
+    },
+    "./operations/live/subscribe-changes/types": {
+      "types": "./dist/cells/live/subscribe-changes/types.d.ts",
+      "import": "./dist/cells/live/subscribe-changes/types.js",
+      "default": "./dist/cells/live/subscribe-changes/types.js"
+    },
+    "./operations/orders/commit-order-route/types": {
+      "types": "./dist/cells/orders/commit-order-route/types.d.ts",
+      "import": "./dist/cells/orders/commit-order-route/types.js",
+      "default": "./dist/cells/orders/commit-order-route/types.js"
+    },
+    "./operations/orders/list-order-control/contract": {
+      "types": "./dist/cells/orders/list-order-control/contract.d.ts",
+      "import": "./dist/cells/orders/list-order-control/contract.js",
+      "default": "./dist/cells/orders/list-order-control/contract.js"
+    },
+    "./operations/orders/list-order-control/types": {
+      "types": "./dist/cells/orders/list-order-control/types.d.ts",
+      "import": "./dist/cells/orders/list-order-control/types.js",
+      "default": "./dist/cells/orders/list-order-control/types.js"
+    },
+    "./operations/orders/list-orders/contract": {
+      "types": "./dist/cells/orders/list-orders/contract.d.ts",
+      "import": "./dist/cells/orders/list-orders/contract.js",
+      "default": "./dist/cells/orders/list-orders/contract.js"
+    },
+    "./operations/orders/list-orders/types": {
+      "types": "./dist/cells/orders/list-orders/types.d.ts",
+      "import": "./dist/cells/orders/list-orders/types.js",
+      "default": "./dist/cells/orders/list-orders/types.js"
+    },
+    "./operations/queries/load-board/contract": {
+      "types": "./dist/cells/queries/load-board/contract.d.ts",
+      "import": "./dist/cells/queries/load-board/contract.js",
+      "default": "./dist/cells/queries/load-board/contract.js"
+    },
+    "./operations/queries/load-board/postgres": {
+      "types": "./dist/cells/queries/load-board/postgres.d.ts",
+      "import": "./dist/cells/queries/load-board/postgres.js",
+      "default": "./dist/cells/queries/load-board/postgres.js"
+    },
+    "./operations/queries/load-board/types": {
+      "types": "./dist/cells/queries/load-board/types.d.ts",
+      "import": "./dist/cells/queries/load-board/types.js",
+      "default": "./dist/cells/queries/load-board/types.js"
+    },
+    "./operations/queries/load-remaining-day-forecast/contract": {
+      "types": "./dist/cells/queries/load-remaining-day-forecast/contract.d.ts",
+      "import": "./dist/cells/queries/load-remaining-day-forecast/contract.js",
+      "default": "./dist/cells/queries/load-remaining-day-forecast/contract.js"
+    },
+    "./operations/queries/load-remaining-day-forecast/execute": {
+      "types": "./dist/cells/queries/load-remaining-day-forecast/execute.d.ts",
+      "import": "./dist/cells/queries/load-remaining-day-forecast/execute.js",
+      "default": "./dist/cells/queries/load-remaining-day-forecast/execute.js"
+    },
+    "./operations/queries/load-workspace/contract": {
+      "types": "./dist/cells/queries/load-workspace/contract.d.ts",
+      "import": "./dist/cells/queries/load-workspace/contract.js",
+      "default": "./dist/cells/queries/load-workspace/contract.js"
+    },
+    "./operations/queries/load-workspace/execute": {
+      "types": "./dist/cells/queries/load-workspace/execute.d.ts",
+      "import": "./dist/cells/queries/load-workspace/execute.js",
+      "default": "./dist/cells/queries/load-workspace/execute.js"
+    },
+    "./operations/resources/list-locations/contract": {
+      "types": "./dist/cells/resources/list-locations/contract.d.ts",
+      "import": "./dist/cells/resources/list-locations/contract.js",
+      "default": "./dist/cells/resources/list-locations/contract.js"
+    },
+    "./operations/resources/list-locations/types": {
+      "types": "./dist/cells/resources/list-locations/types.d.ts",
+      "import": "./dist/cells/resources/list-locations/types.js",
+      "default": "./dist/cells/resources/list-locations/types.js"
+    },
+    "./operations/resources/manage-resources/types": {
+      "types": "./dist/cells/resources/manage-resources/types.d.ts",
+      "import": "./dist/cells/resources/manage-resources/types.js",
+      "default": "./dist/cells/resources/manage-resources/types.js"
+    },
+    "./operations/scheduling/accept-schedule/cell": {
+      "types": "./dist/cells/scheduling/accept-schedule/cell.d.ts",
+      "import": "./dist/cells/scheduling/accept-schedule/cell.js",
+      "default": "./dist/cells/scheduling/accept-schedule/cell.js"
+    },
+    "./operations/scheduling/accept-schedule/contract": {
+      "types": "./dist/cells/scheduling/accept-schedule/contract.d.ts",
+      "import": "./dist/cells/scheduling/accept-schedule/contract.js",
+      "default": "./dist/cells/scheduling/accept-schedule/contract.js"
+    },
+    "./operations/scheduling/accept-schedule/types": {
+      "types": "./dist/cells/scheduling/accept-schedule/types.d.ts",
+      "import": "./dist/cells/scheduling/accept-schedule/types.js",
+      "default": "./dist/cells/scheduling/accept-schedule/types.js"
+    },
+    "./operations/scheduling/create-schedule/types": {
+      "types": "./dist/cells/scheduling/create-schedule/types.d.ts",
+      "import": "./dist/cells/scheduling/create-schedule/types.js",
+      "default": "./dist/cells/scheduling/create-schedule/types.js"
+    },
+    "./operations/scheduling/create-shift/types": {
+      "types": "./dist/cells/scheduling/create-shift/types.d.ts",
+      "import": "./dist/cells/scheduling/create-shift/types.js",
+      "default": "./dist/cells/scheduling/create-shift/types.js"
+    },
+    "./operations/scheduling/load-schedule/types": {
+      "types": "./dist/cells/scheduling/load-schedule/types.d.ts",
+      "import": "./dist/cells/scheduling/load-schedule/types.js",
+      "default": "./dist/cells/scheduling/load-schedule/types.js"
+    },
+    "./operations/scheduling/publish-scheduler-config/contract": {
+      "types": "./dist/cells/scheduling/publish-scheduler-config/contract.d.ts",
+      "import": "./dist/cells/scheduling/publish-scheduler-config/contract.js",
+      "default": "./dist/cells/scheduling/publish-scheduler-config/contract.js"
+    },
+    "./operations/scheduling/publish-scheduler-config/types": {
+      "types": "./dist/cells/scheduling/publish-scheduler-config/types.d.ts",
+      "import": "./dist/cells/scheduling/publish-scheduler-config/types.js",
+      "default": "./dist/cells/scheduling/publish-scheduler-config/types.js"
+    },
+    "./operations/scheduling/replace-shift-selection/cell": {
+      "types": "./dist/cells/scheduling/replace-shift-selection/cell.d.ts",
+      "import": "./dist/cells/scheduling/replace-shift-selection/cell.js",
+      "default": "./dist/cells/scheduling/replace-shift-selection/cell.js"
+    },
+    "./operations/scheduling/replace-shift-selection/idempotency": {
+      "types": "./dist/cells/scheduling/replace-shift-selection/idempotency.d.ts",
+      "import": "./dist/cells/scheduling/replace-shift-selection/idempotency.js",
+      "default": "./dist/cells/scheduling/replace-shift-selection/idempotency.js"
+    },
+    "./operations/scheduling/replace-shift-selection/postgres": {
+      "types": "./dist/cells/scheduling/replace-shift-selection/postgres.d.ts",
+      "import": "./dist/cells/scheduling/replace-shift-selection/postgres.js",
+      "default": "./dist/cells/scheduling/replace-shift-selection/postgres.js"
+    },
+    "./operations/scheduling/replace-shift-selection/types": {
+      "types": "./dist/cells/scheduling/replace-shift-selection/types.d.ts",
+      "import": "./dist/cells/scheduling/replace-shift-selection/types.js",
+      "default": "./dist/cells/scheduling/replace-shift-selection/types.js"
+    },
+    "./operations/scheduling/start-schedule/types": {
+      "types": "./dist/cells/scheduling/start-schedule/types.d.ts",
+      "import": "./dist/cells/scheduling/start-schedule/types.js",
+      "default": "./dist/cells/scheduling/start-schedule/types.js"
+    },
+    "./operations/scheduling/update-shift/cell": {
+      "types": "./dist/cells/scheduling/update-shift/cell.d.ts",
+      "import": "./dist/cells/scheduling/update-shift/cell.js",
+      "default": "./dist/cells/scheduling/update-shift/cell.js"
+    },
+    "./operations/scheduling/update-shift/contract": {
+      "types": "./dist/cells/scheduling/update-shift/contract.d.ts",
+      "import": "./dist/cells/scheduling/update-shift/contract.js",
+      "default": "./dist/cells/scheduling/update-shift/contract.js"
+    },
+    "./operations/scheduling/update-shift/types": {
+      "types": "./dist/cells/scheduling/update-shift/types.d.ts",
+      "import": "./dist/cells/scheduling/update-shift/types.js",
+      "default": "./dist/cells/scheduling/update-shift/types.js"
+    },
+    "./testing/assembly": {
+      "types": "./dist/system.d.ts",
+      "import": "./dist/system.js",
+      "default": "./dist/system.js"
+    },
+    "./testing/result-unit-of-work-observer": {
+      "types": "./dist/postgres/result-unit-of-work-observer.d.ts",
+      "import": "./dist/postgres/result-unit-of-work-observer.js",
+      "default": "./dist/postgres/result-unit-of-work-observer.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/production-schema.d.ts",
+      "import": "./dist/schema/production-schema.js",
+      "default": "./dist/schema/production-schema.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run src --exclude '**/*.int.spec.ts'",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run --config vitest.postgres.config.ts --no-file-parallelism"
+  },
+  "dependencies": {
+    "@pressly/access-system": "workspace:*",
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/jobs": "workspace:*",
+    "@pressly/observability": "workspace:*",
+    "@pressly/orders-system": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@pressly/testkit": "workspace:*",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

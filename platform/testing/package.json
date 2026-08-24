@@ -1,0 +1,70 @@
+{
+  "name": "@pressly/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./database": {
+      "types": "./dist/database.d.ts",
+      "import": "./dist/database.js",
+      "default": "./dist/database.js"
+    },
+    "./clock": {
+      "types": "./dist/clock.d.ts",
+      "import": "./dist/clock.js",
+      "default": "./dist/clock.js"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js",
+      "default": "./dist/http.js"
+    },
+    "./id-source": {
+      "types": "./dist/id-source.d.ts",
+      "import": "./dist/id-source.js",
+      "default": "./dist/id-source.js"
+    },
+    "./result": {
+      "types": "./dist/result.d.ts",
+      "import": "./dist/result.js",
+      "default": "./dist/result.js"
+    },
+    "./operation-proof": {
+      "types": "./dist/operation-proof.d.ts",
+      "import": "./dist/operation-proof.js",
+      "default": "./dist/operation-proof.js"
+    },
+    "./experience-feature-proof": {
+      "types": "./dist/experience-feature-proof.d.ts",
+      "import": "./dist/experience-feature-proof.js",
+      "default": "./dist/experience-feature-proof.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src test vitest.config.ts --no-error-on-unmatched-pattern --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --config vitest.config.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pressly/cells": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/time": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,12 +1,19 @@
 # Frontend Effects
 
-Frontend runtime code lives in:
+Customer frontend meaning and concrete browser effects are separated:
 
 ```txt
-apps/web/src/common/
-  core/
-  adapters/
-  config/
+experiences/customer/src/web/
+  actions/
+  composition/model/
+  telemetry/model/
+  transport/model/
+
+hosts/browser/customer/src/
+  composition/
+  configuration/
+  telemetry/
+  transport/
 ```
 
 ## Core
@@ -50,7 +57,8 @@ those ports for a runtime.
 ## Runtime Composition
 
 The browser runtime is composed in
-`apps/web/src/common/adapters/runtime/web-core-context.tsx`.
+`hosts/browser/customer/src/composition/web-core-context.tsx`. Generated
+runtime binds the host mechanisms to the Customer Experience core.
 
 `WebCoreProvider` injects:
 
@@ -64,7 +72,7 @@ The browser runtime is composed in
 Components access the composed runtime through `useWebCore`.
 
 The server runtime is composed separately in
-`apps/web/src/common/adapters/runtime/server-web-core.ts`. Server composition
+`hosts/browser/customer/src/composition/server-web-core.ts`. Server composition
 uses server-safe context and request adapters and does not initialize browser
 analytics.
 

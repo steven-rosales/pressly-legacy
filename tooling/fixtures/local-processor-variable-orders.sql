@@ -196,6 +196,7 @@ VALUES
 CREATE TEMPORARY TABLE fixture_users ON COMMIT DROP AS
 SELECT
   user_spec.*,
+  '00000000-0000-4000-8000-000000000100'::uuid AS business_id,
   (
     'b1000000-0000-4000-8000-'
     || lpad(user_spec.ordinal::text, 12, '0')
@@ -210,6 +211,7 @@ FROM fixture_user_specs AS user_spec;
 
 INSERT INTO users (
   id,
+  business_id,
   version,
   first_name,
   last_name,
@@ -222,6 +224,7 @@ INSERT INTO users (
 )
 SELECT
   user_id,
+  business_id,
   1,
   first_name,
   last_name,
@@ -343,6 +346,7 @@ VALUES
 CREATE TEMPORARY TABLE fixture_orders ON COMMIT DROP AS
 SELECT
   order_spec.*,
+  '00000000-0000-4000-8000-000000000100'::uuid AS business_id,
   (
     'a1000000-0000-4000-8000-'
     || lpad(order_spec.ordinal::text, 12, '0')
@@ -392,7 +396,14 @@ FROM fixture_order_specs AS order_spec;
 
 INSERT INTO orders (
   id,
-  customer_user_id,
+  business_id,
+  customer_id,
+  customer_version,
+  customer_first_name,
+  customer_last_name,
+  customer_business_name,
+  customer_phone,
+  customer_email,
   customer_resolution,
   display_number,
   state,
@@ -406,9 +417,39 @@ INSERT INTO orders (
 )
 SELECT
   fixture_order.order_id,
+  fixture_order.business_id,
   CASE
     WHEN fixture_order.customer_resolution = 'resolved'
       THEN fixture_user.user_id
+    ELSE NULL
+  END,
+  CASE
+    WHEN fixture_order.customer_resolution = 'resolved' THEN 1
+    ELSE NULL
+  END,
+  CASE
+    WHEN fixture_order.customer_resolution = 'resolved'
+      THEN fixture_user.first_name
+    ELSE NULL
+  END,
+  CASE
+    WHEN fixture_order.customer_resolution = 'resolved'
+      THEN fixture_user.last_name
+    ELSE NULL
+  END,
+  CASE
+    WHEN fixture_order.customer_resolution = 'resolved'
+      THEN fixture_user.business_name
+    ELSE NULL
+  END,
+  CASE
+    WHEN fixture_order.customer_resolution = 'resolved'
+      THEN fixture_user.phone
+    ELSE NULL
+  END,
+  CASE
+    WHEN fixture_order.customer_resolution = 'resolved'
+      THEN fixture_user.email
     ELSE NULL
   END,
   fixture_order.customer_resolution,
@@ -427,6 +468,7 @@ LEFT JOIN fixture_users AS fixture_user
 
 INSERT INTO order_items (
   id,
+  business_id,
   order_id,
   line_key,
   item_type,
@@ -442,6 +484,7 @@ INSERT INTO order_items (
 )
 SELECT
   order_item_id,
+  business_id,
   order_id,
   'wash-fold',
   'service',
@@ -462,26 +505,26 @@ FROM fixture_orders;
 
 INSERT INTO order_fulfillments (
   id,
+  business_id,
   order_id,
   type_code,
   location_id,
   release_state,
   estimated_weight_lbs,
   estimated_weight_source,
-  bag_count,
   version,
   created_at,
   updated_at
 )
 SELECT
   fulfillment_id,
+  business_id,
   order_id,
   'wash_fold',
   'pressly-one',
   release_state,
   weight_lbs,
   CASE WHEN weight_lbs IS NULL THEN NULL ELSE 'source_estimate' END,
-  NULL,
   1,
   now(),
   now()
@@ -507,7 +550,7 @@ FROM fixture_orders;
 INSERT INTO order_source_customer_refs (
   order_source_link_id,
   external_user_id,
-  resolved_user_id,
+  resolved_customer_id,
   resolution,
   observed_at,
   updated_at
@@ -631,10 +674,8 @@ INSERT INTO order_demands (
   projection_hash,
   admission_state,
   commercial_state,
-  demand_key,
   display_reference,
   location_id,
-  revision_hash,
   revision_at,
   phase,
   estimated_weight_lbs,
@@ -650,10 +691,8 @@ SELECT
   projection_hash,
   admission_state,
   commercial_state,
-  'fulfillment:' || fulfillment_id::text,
   order_code,
   'pressly-one',
-  revision_hash,
   now() - make_interval(mins => ordinal),
   demand_phase,
   weight_lbs,

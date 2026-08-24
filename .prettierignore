@@ -1,5 +1,6 @@
 node_modules
 dist
+dist-runtime
 build
 .next
 .turbo
@@ -11,6 +12,9 @@ test-results
 pnpm-lock.yaml
 .env
 .env.*
-apps/web/next-env.d.ts
-infra/aws/lightsail/Caddyfile
+hosts/browser/customer/next-env.d.ts
+tooling/typescript/dependency-cruiser.generated.json
+platform/postgres/migrations/meta
+deploy/aws/lightsail/Caddyfile
 .agents/skills/shadcn
+.agents/skills/refactor

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { appendFile } from 'node:fs/promises';
 import { pathToFileURL, URL, URLSearchParams } from 'node:url';
-import { toolingError } from '../../packages/errors/src/tooling-error.mjs';
+import { toolingError } from '../../platform/errors/src/tooling-error.mjs';
 import { selectDeploySha } from './deployment-selection.mjs';
 
 const clientName = 'pressly-deployment-monitor';

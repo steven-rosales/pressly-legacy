@@ -4,9 +4,10 @@ import { expect, test } from 'vitest';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../..');
 const liveToolingRoots = [
+  'deploy/aws/lightsail',
   'stateworks/tooling',
-  'tooling/architecture',
   'tooling/browser-e2e',
+  'tooling/eslint',
   'tooling/scripts',
 ];
 const liveToolingFiles = ['tooling/cents-webhook.postman_collection.json'];
@@ -65,6 +66,32 @@ test('live repository tooling delegates native throwable construction to Errors 
   const violations = files.flatMap((file) => {
     const source = readFileSync(path.join(repositoryRoot, file), 'utf8');
     return [...source.matchAll(nativeThrowable)].map(
+      (match) => `${file}:${lineNumberAt(source, match.index)}`,
+    );
+  });
+
+  expect(violations).toEqual([]);
+});
+
+test('live executable tooling has no alternate scripting runtime dependency', () => {
+  const forbiddenRuntimeName = ['py', 'thon'].join('');
+  const forbiddenRuntime = new RegExp(
+    `\\b${forbiddenRuntimeName}(?:3(?:\\.[0-9]+)?)?\\b|\\.[pP][yY]\\b`,
+    'giu',
+  );
+  const files = [
+    ...liveToolingRoots.flatMap(filesBelow),
+    ...liveToolingFiles,
+  ].filter(
+    (file) =>
+      !file.includes('/test/') &&
+      !file.includes('.test.') &&
+      !file.includes('.spec.'),
+  );
+
+  const violations = files.flatMap((file) => {
+    const source = readFileSync(path.join(repositoryRoot, file), 'utf8');
+    return [...source.matchAll(forbiddenRuntime)].map(
       (match) => `${file}:${lineNumberAt(source, match.index)}`,
     );
   });

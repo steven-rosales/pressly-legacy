@@ -1,694 +1,396 @@
-# Module Architecture
+# Cell and System Placement
 
-This document is the placement contract for backend application and domain
-code. It is intentionally strict. A repository expected to grow by hundreds
-of thousands of lines cannot make ownership, dependency direction, or effect
-boundaries matters of taste.
+This is the placement contract for Pressly source.
 
-The compiler and ESLint rules are the executable authority. This document
-explains the decisions they encode.
-
-## 1. The Four Questions
-
-Place new code by answering these questions in order:
-
-1. **Who owns the meaning?**
-2. **Is this an application feature or a reusable foundation?**
-3. **Is the operation pure or effectful?**
-4. **Does the data cross a trust or process boundary?**
-
-Do not begin with a suffix or an implementation mechanism. Begin with the
-business or application meaning.
+There is one grammar:
 
 ```text
-new behavior or data
-  |
-  +-- one business authority owns its meaning
-  |     -> modules/<family>/<authority>
-  |
-  +-- coordinates multiple peer authorities for one operator experience
-  |     -> modules/experience/<experience>, using injected ports
-  |
-  +-- reusable technical algebra or mechanism
-  |     -> packages/<owner>
-  |
-  +-- process startup, transport, framework, or concrete runtime wiring
-  |     -> apps/<process>
-  |
-  +-- serialized input or output crossing a trust/process boundary
-        -> packages/contracts/<boundary>
+systems own durable meaning
+cells own observable operations
+experiences own cross-system workflows and presentation
+hosts own protocols, frameworks, and process lifecycle
+platform owns business-neutral mechanisms
+topology selects the deployment
+generated records that selection
 ```
 
-If no single owner can be named, the design is not ready to be placed.
-`common`, `shared`, `utils`, `helpers`, `services`, and `platform` are not
-owners.
+## Placement Decision
 
-## 2. Repository Authorities
+Answer these questions in order:
 
-The target backend authority tree is:
+1. Who owns the meaning?
+2. Is this one observable operation or stable shared language?
+3. Which parts decide and which parts perform effects?
+4. Does the value cross a trust, process, or durable boundary?
 
 ```text
-modules/
-  business/
-    orders/
-    pricing/
-    production/
-    users/
-  security/
-    identity/
-    authorization/
-  integration/
-    webhook-ingestion/
-  experience/
-    control/
-    processor/
+one durable business authority
+  -> systems/<owner>
+
+one command, query, reaction, process, or subscription
+  -> systems/<owner>/src/cells/<namespace>/<verb-object>
+
+one cross-system user workflow or browser feature
+  -> experiences/<experience>
+
+one Experience-owned operation
+  -> experiences/<experience>/src/cells/<namespace>/<verb-object>
+
+business-neutral mechanism
+  -> platform/<mechanism>
+
+protocol, framework, or process lifecycle
+  -> hosts/<protocol>
+
+deployment selection and construction
+  -> topology/
+
+mechanically derived catalog, client, map, or binding
+  -> generated/
+
+container or infrastructure packaging
+  -> deploy/
 ```
 
-The families describe the kind of authority, not a dependency hierarchy.
-Modules remain isolated peers:
+If no semantic owner can be named, stop. `common`, `shared`, `utils`,
+`helpers`, and `services` are not owners.
 
-- `business` owns product state and business behavior.
-- `security` owns authentication identity and authorization decisions.
-- `integration` owns durable interaction with external systems.
-- `experience` owns cross-domain application workflows for a specific
-  operator experience.
-
-One module never imports another module. An app composes peer modules by
-injecting narrow capabilities into ports. An experience module can request an
-Orders or Production capability through a port, but cannot import either
-module's package.
+## Canonical Owners
 
 ```text
-apps compose
-modules decide
-packages enable
-contracts parse and serialize boundaries
+systems/{access,customers,ingress,orders,pricing,production}/
+experiences/{control,customer,processor}/
+hosts/{http,jobs,cli}/
+hosts/browser/{control,customer,processor}/
+platform/{auth,cells,codec,config,errors,http,jobs,logging,
+          observability,postgres,testing,time}/
+topology/
+generated/
+verification/
+deploy/
 ```
 
-## 3. Universal Module Shape
+Do not add another top-level source grammar.
 
-Every module uses the same physical grammar:
+## System Shape
+
+A System normally has this shape:
 
 ```text
-modules/<family>/<authority>/
-  module.architecture.ts
+systems/<owner>/
   src/
-    features/
+    cells/
       <namespace>/
         <verb-object>/
-          <verb-object>.<role>.ts
-    foundations/
-      language/
-        <concept>/
-      algorithms/
-        <algorithm>/
-      ports/
-        <capability>/
-      adapters/
-        <mechanism>/
-          <capability>/
-    composition/
-      <authority>.composition.ts
-    main.ts
-    public.ts
-  test/
-    features/
-    foundations/
-    integration/
-    support/
+    capabilities/       versioned capabilities offered to other owners
+    contracts/          genuinely shared public owner contracts
+    model/              stable owner language and pure algorithms
+    postgres/           genuinely shared owner persistence
+    schema/             owner schema factories
+    system.ts           owner assembly
+    public.ts           explicit public surface
+  package.json
 ```
 
-Namespaces group related features for traversal. Leaves have architectural
-meaning. A namespace may not contain loose source files.
+Directories are optional. Create only the roles the owner needs.
 
-`main.ts` is the module composition root. `public.ts` is its stable surface.
-Those are the only files permitted directly under `src`.
+Feature-local behavior and persistence stay in the cell. Promote language or
+mechanisms only after source-observed reuse proves that a wider semantic owner
+is clearer.
 
-Both root surfaces enumerate every exported value and type. Export-star and
-aliased compatibility re-exports are forbidden: they hide surface growth and
-make the canonical application name ambiguous. Rename a symbol at its
-semantic owner, then publish that name explicitly.
+System assembly constructs cells and exposes an immutable record of named
+cells and capabilities. It does not implement result-dependent business
+branches.
 
-Every other source file exports only declarations it owns. These forms are
-forbidden outside a declared surface:
+## Cell Shape
+
+A cell owns one stable operation ID.
+
+```text
+systems/production/src/cells/floor/advance-stage/
+  cell.ts
+  contract.ts
+  decide.ts
+  execute.ts
+  postgres.ts
+  http.ts
+  events.ts
+  decide.spec.ts
+  execute.spec.ts
+  contract.spec.ts
+  postgres.int.spec.ts
+```
+
+This is an example, not a file quota.
+
+| Role            | Responsibility                                            |
+| --------------- | --------------------------------------------------------- |
+| `cell.ts`       | immutable declaration and binding                         |
+| `contract.ts`   | versioned serialized input, output, and expected failures |
+| `decide.ts`     | pure decision from complete facts                         |
+| `execute.ts`    | effect sequencing and atomic intent                       |
+| `postgres.ts`   | operation-owned SQL, locking, mapping, and persistence    |
+| `http.ts`       | framework-neutral HTTP mapping                            |
+| `job.ts`        | framework-neutral job mapping                             |
+| `cli.ts`        | framework-neutral CLI mapping                             |
+| `events.ts`     | produced or consumed message contracts                    |
+| `*.spec.ts`     | local contract, decision, executor, and protocol proof    |
+| `*.int.spec.ts` | real mechanism proof, normally PostgreSQL                 |
+
+Existing precise names such as `.usecase.ts`, `.policy.ts`, `.repo.ts`, and
+`.persistence.mapper.ts` remain valid when they name the role honestly.
+
+One independently nameable operation means one cell. A cell does not import a
+sibling cell's private implementation. Connect operations through System
+assembly and a narrow capability with explicit meaning.
+
+## Cell Declaration
+
+The declaration is immutable operational data. It states:
+
+- stable `<owner>.<verb-object>.v<version>` identity;
+- command, query, reaction, process, or subscription kind;
+- authentication and authorization requirements;
+- input, output, and expected-failure contract versions;
+- transaction, concurrency, and idempotency requirements;
+- HTTP, job, CLI, or event-stream surfaces;
+- emitted and consumed message contracts;
+- retry and timeout policy when applicable; and
+- a bounded observability operation name.
+
+Topology selects declarations and records their public source location and
+assembly key. A cell is deployed only through that checked selection.
+
+Do not hide route, retry, authorization, or idempotency behavior in host or
+topology branches.
+
+## Experience Shape
+
+An Experience coordinates public system capabilities and owns its own
+workflow and presentation language.
+
+```text
+experiences/<experience>/
+  src/
+    cells/                 Experience-owned observable operations
+    features/              browser features and component-local state
+    presentation/          reusable Experience presentation language
+    projections/           Experience-owned read projections, when earned
+    experience.ts          explicit assembly
+    public.ts              explicit public surface
+  package.json
+```
+
+An Experience may import public system contracts and capabilities. It may not
+import system cells, models, repositories, schema, or private source.
+
+Browser features own interaction and presentation state. Backend systems remain
+authoritative for eligibility, capacity, lifecycle, authorization, and durable
+truth.
+
+## Host Shape
+
+A host contains process and mechanism effects only.
+
+```text
+hosts/http/                Express and HTTP process lifecycle
+hosts/jobs/                polling, leases, retry timing, shutdown
+hosts/cli/                 arguments, streams, files, prompts, exit
+hosts/browser/<surface>/   framework entrypoints and browser globals
+```
+
+Hosts consume generated catalogs or runtime bindings. They do not handwrite
+business routes, jobs, operation lists, or owner construction.
+
+Environment, process arguments, stdin/stdout, files, signals, global browser
+objects, SDK initialization, and exit behavior belong here.
+
+## Platform Shape
+
+Platform code is reusable only when it is business-neutral.
+
+Good Platform concepts include:
+
+- transactions, pools, and migration runners;
+- codecs and boundary parsing mechanisms;
+- clocks and ID sources;
+- generic authentication and cryptographic mechanisms;
+- generic HTTP and job execution;
+- structured logging and observation sinks;
+- test database safety and operation-proof registration.
+
+Platform code does not know Pressly capabilities, routes, table meaning,
+workflow states, or business owner names.
+
+## Topology, Generated, and Deploy
+
+Topology may know which owners exist because deployment selection is its job.
+It may construct several owners and connect public capabilities. It does not
+make business decisions or interpret protocols.
+
+Generated output contains only deterministic catalogs, clients, maps, and
+runtime bindings. Never edit it by hand.
+
+Deploy owns Dockerfiles, Compose/release packaging, and infrastructure assets.
+It may name image and process identities. It does not become a source owner.
+
+## Contracts and Boundaries
+
+The producer owns serialized values.
+
+- Cell contracts stay beside the owning operation.
+- Shared producer contracts move to the owning System only after genuine reuse.
+- Experience workflow contracts stay with the Experience.
+- Generic JSON, cursor, time, and digest codecs stay in Platform.
+
+Contracts contain serialized data and schema versions. They do not contain
+repositories, database rows, domain entities, framework requests, or vendor
+SDK types.
+
+Parse `unknown` at the boundary. Map synchronously into application language.
+Do not use package-root imports to expose unrelated contracts.
+
+## Decisions and Effects
+
+Pure decisions receive complete facts:
+
+```text
+facts + command/query -> decision or result
+```
+
+Pure roles do not read databases, clocks, environment, random sources,
+filesystem, network, logs, or process state.
+
+Executors read as a linear protocol:
+
+```text
+load replay receipt
+-> load authoritative facts under the required lock
+-> decide
+-> commit mutation
+-> append messages and audit
+-> save receipt
+-> return typed result
+```
+
+Business branching belongs in the decision. Replay, transaction, and mechanism
+sequencing belong in the executor.
+
+Create a port only for a real replacement or ownership boundary. Do not wrap a
+single concrete function in ceremonial factories, managers, or repositories.
+
+## Persistence
+
+Each System owns its schema factory. Topology alone composes the complete
+business schema.
+
+Operation-specific SQL stays in the cell. Precisely shared owner persistence
+is allowed only when at least two cells use the same semantic capability for
+the same reason.
+
+Every database-controlled write has real PostgreSQL proof for applicable
+semantics:
+
+- successful commit;
+- expected rejection without partial state;
+- unexpected failure rollback;
+- same-payload replay;
+- divergent-key conflict;
+- same-key concurrency;
+- declared optimistic or partitioned race; and
+- state-message atomicity.
+
+Mocks do not prove locks, uniqueness, isolation, rollback, or leases.
+
+## Failures
+
+Expected failures are typed data in the cell contract. They contain business
+meaning, not HTTP status codes or retry instructions.
+
+Unexpected mechanism, configuration, corruption, and invariant failures use
+explicit `@pressly/errors/*` subpaths. Construct unexpected throwables only
+through that owner.
+
+Protocol presentation belongs to the host boundary. Job retry disposition
+belongs to the job mechanism and cell declaration.
+
+## Public Surfaces
+
+Each owner exports the smallest supported surface:
+
+- versioned contracts;
+- declarations selected by topology;
+- assembly functions;
+- narrow capabilities; and
+- explicitly supported browser or read-model contracts.
+
+Non-surface files export only declarations they own. They do not import and
+re-export a symbol or create an identity alias.
+
+Direct named re-exports belong only in declared owner or package entrypoints.
+Export-star and aliased compatibility re-exports are forbidden.
+
+## Operation Proof
+
+Every selected operation has executable typed proof in its exact cell
+directory.
 
 ```ts
-export { Thing } from './thing.ts';
-
-import type { Thing } from './thing.ts';
-export type { Thing };
-
-import type { Thing } from './thing.ts';
-export type RenamedThing = Thing;
-```
-
-The consumer imports `Thing` from `thing.ts`, its semantic owner. If a local
-shape adds an invariant or performs a real transformation, it is a new
-declaration rather than a relay. Formal module, package, and app entrypoints
-may use direct named re-exports because curating an external API is their
-function; they still publish canonical names rather than compatibility aliases.
-
-### Production reference authority
-
-Production is the scale reference for a large authority. Its feature tree is
-organized by operator intent, not by transport or persistence mechanism:
-
-```text
-features/
-  demand/
-    apply-fulfillment-demand/
-    change-admission/
-    change-order-resolution/
-    resolve-source-closed-fulfillment/
-    record-order-intake/
-    preview-production-order-backlog/
-    commit-production-order-backlog/
-    set-order-priority/
-  floor/
-    advance-stage/
-    assign-stage-machines/
-    manage-batch-membership/
-    reconcile-batch-progress/
-  history/{list-activity,list-plans,list-runs,load-run}/
-  orders/{list-order-control,list-orders,route-order}/
-  queries/{load-board,load-remaining-day-forecast,load-workspace}/
-  resources/
-    list-locations/
-    manage-resources/
-    create-production-shift/
-    update-production-shift/
-  scheduling/
-    accept-schedule/
-    create-schedule/
-    load-schedule/
-    place-order/
-    publish-config/
-    replace-shift-selection/
-    start-schedule/
-```
-
-Its shared language, algorithms, effects, and mechanisms are separate and
-directed:
-
-```text
-foundations/
-  language/      intrinsic rules, lifecycle graphs, commands, and read language
-  algorithms/    named versioned scheduling and forecast implementations
-  ports/         Production signal effect declarations
-  adapters/
-    errors/      expected Production failure to outer AppError mapping
-    signals/     null/default signal implementation
-    postgres/    board, command, execution, History, order, scheduling adapters
-```
-
-`defineProductionRules` compiles the immutable intrinsic rule set.
-`defineProductionAlgorithmRegistry` compiles the immutable approved version
-registry. Runtime apps may supply repositories, Clock, IdSource, and signal
-effects; they may not inject alternate Production rules or an arbitrary
-scheduler. A new policy belongs in a named language foundation. A new
-algorithm must be versioned, registered explicitly, and preserve historical
-version readability. Neither creates a new top-level Policy or Computation
-authority.
-
-## 4. Feature or Foundation
-
-A **feature** is an independently nameable application action or query. Its
-name is a verb-object phrase such as `load-pricing-catalog`,
-`publish-pricing-change`, or `advance-production-stage`.
-
-A feature owns the types and transformations that only it uses. It does not
-import a sibling feature. If two features need the same concept, ask why:
-
-```text
-shared by two feature leaves
-  |
-  +-- same identity, invariant, lifecycle, or vocabulary
-  |     -> foundations/language/<concept>
-  |
-  +-- same deterministic calculation with a named strategy/version
-  |     -> foundations/algorithms/<algorithm>
-  |
-  +-- same required effect with a genuine replacement axis
-  |     -> foundations/ports/<capability>
-  |
-  +-- same implementation of a shared port or mechanism
-  |     -> foundations/adapters/<mechanism>/<capability>
-  |
-  +-- merely similar code with different meaning
-        -> keep it in each owning feature
-```
-
-A foundation is promoted only after reuse or domain continuity is proven. It
-must be narrowly named and may never become a local junk drawer. Foundations
-do not import their consumers. Foundation-to-foundation dependencies are
-directed and declared in `module.architecture.ts`.
-
-Promotion is formal data, not reviewer intuition:
-
-```text
-feature-owned by default
-  |
-  +-- imported by two or more independent feature leaves
-  |     -> basis: reuse
-  |
-  +-- one continuity-bearing domain concept is intentionally stable even
-  |   before a second feature exists
-  |     -> basis: continuity
-  |
-  +-- neither proof exists
-        -> keep the port, repository, mapper, and transformation in the leaf
-```
-
-The architecture compiler counts both direct feature consumers and consumers
-reached through source-observed foundation imports. A reuse-based foundation
-with fewer than two feature consumers is rejected. Continuity is reserved for
-identity-bearing domain language and must be declared explicitly; it is not a
-way to exempt a technical store or helper from the reuse rule.
-
-When an adapter foundation implements a shared replacement axis, it names that
-exact port with manifest `implements` metadata. Reused concrete persistence
-primitives do not acquire a fake port solely to satisfy topology. A repository
-that exists for one use case stays beside that use case, even when it queries a
-large table or uses the same database client as other repositories. Table
-ownership does not imply application ownership, and a collection of unrelated
-CRUD methods is not a capability.
-
-The manifest is an exact allowlist, not a claim about imports. Every declared
-owner edge must have source evidence, every observed owner edge must be
-declared, and an `implements` edge must have real type conformance evidence in
-the adapter. This prevents a stale or embellished manifest from manufacturing
-foundation reuse.
-
-Not every feature needs every role. Empty controller, repository, policy, or
-model files are forbidden. A headless query may only need a port and use case;
-a pure policy may only need a policy file.
-
-A feature leaf owns at most one `*.usecase.ts` file. Two independently named
-application operations are two verb-object features, even when one delegates
-to the other. Split them into sibling leaves and connect them through a narrow
-port in composition; feature leaves never import one another.
-
-## 5. Dependency Direction
-
-Inside a feature, dependencies point from mechanisms toward decisions:
-
-```text
-route -> controller -> usecase -> policy / projection / lifecycle
-  |          |            |
-  |          |            +-> port <- repo / adapter
-  |          |
-  |          +-> contract mapper
-  |
-  +-> boundary contract
-```
-
-Domain language does not know about application orchestration. Application
-orchestration does not know about concrete persistence or transport.
-
-The normal functional flow is:
-
-```text
-parse
-  -> map boundary value
-  -> load facts
-  -> decide or derive
-  -> commit a plan
-  -> write audit/outbox atomically where required
-  -> map boundary result
-```
-
-Pure code may use local mutation when it is observationally pure and clearer
-or materially faster. Purity forbids observable effects, not efficient local
-implementation.
-
-## 6. Role Vocabulary
-
-The suffix is a type-level architectural declaration. It determines the
-meaning of a file and the dependencies and effects available to it.
-
-| Suffix            | Meaning                                                            | Position and constraints                                                                 |
-| ----------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `.entity.ts`      | Identity-bearing domain state with continuity over time            | Pure domain language; no protocol, SQL, framework, clock, or random access               |
-| `.value.ts`       | Validated identityless domain value                                | Pure domain language; construction protects its invariant                                |
-| `.event.ts`       | Immutable fact that occurred                                       | Pure data and constructors; no delivery mechanism                                        |
-| `.lifecycle.ts`   | State/event transition graph                                       | Pure and total over declared states/events; illegal transitions are typed data           |
-| `.model.ts`       | Application command, query, facts, proposal, result, or read model | Feature/application language; not a synonym for entity or database row                   |
-| `.policy.ts`      | Pure business decision or rule                                     | Synchronous and deterministic from explicit input                                        |
-| `.projection.ts`  | Pure derived view                                                  | Synchronous transformation with no ambient state                                         |
-| `.algorithm.ts`   | Named, versioned heuristic or optimizer                            | Pure; selection is from an approved registry, not arbitrary runtime injection            |
-| `.failure.ts`     | Expected rejection                                                 | Discriminated data returned in `Result`, not thrown                                      |
-| `.error.ts`       | Unexpected error construction or normalization                     | Produces repository-standard throwable errors; never an expected branch                  |
-| `.port.ts`        | Required effect or genuine replacement axis                        | Declarations only; no runtime value or implementation                                    |
-| `.repo.ts`        | Persistence implementation                                         | Implements a port or feature persistence boundary; may use DB mechanisms                 |
-| `.adapter.ts`     | Non-persistence mechanism implementation                           | Implements a port for HTTP, crypto, vendor SDK, filesystem, or runtime mechanism         |
-| `.route.ts`       | Transport registration                                             | Owns paths/methods/middleware order, not decisions                                       |
-| `.controller.ts`  | Boundary orchestration and presentation                            | Maps validated contract values into the use case and maps outcomes back to transport     |
-| `.middleware.ts`  | Transport interception                                             | Framework-specific request lifecycle only                                                |
-| `.command.ts`     | Explicit executable command value or command boundary              | Use only when the command itself has behavior or identity beyond a model type            |
-| `.usecase.ts`     | Application orchestration                                          | Loads through ports, calls pure decisions, and commits effects; no SQL or framework APIs |
-| `.composition.ts` | Explicit object/function graph construction                        | The only module area expected to know multiple feature and adapter constructors          |
-
-Qualified mapper suffixes are mandatory:
-
-- `.contract.mapper.ts` translates validated wire values and application
-  values.
-- `.persistence.mapper.ts` translates stored rows and domain/application
-  values.
-- `.projection.mapper.ts` translates one internal read representation into a
-  derived view.
-
-Bare `.mapper.ts` is forbidden because it hides which boundary is being
-crossed. Every qualified mapper is a synchronous, deterministic
-transformation. If the operation awaits a port, loads facts, reads a request,
-or otherwise sequences effects, that outer operation is an `.adapter.ts` or
-`.usecase.ts` which invokes the pure mapper after the effect completes.
-
-### Entity versus model
-
-Use `.entity.ts` only when all of these are true:
-
-1. The value has a stable identity.
-2. The identity continues across multiple state changes.
-3. The module owns invariants governing those changes.
-4. Callers reason about the same thing before and after a transition.
-
-Use `.model.ts` for application inputs, outputs, facts, proposals, and read
-models. Renaming every model to entity would erase the distinction and make
-the architecture less precise.
-
-Names such as `Stored*`, `Persisted*`, `*Row`, and `*Record` normally describe
-a representation, not an entity. Raw rows stay behind a persistence mapper.
-If a hydrated value really is the module's continuity-bearing aggregate, give
-it the business name (`Order`, `ServiceFulfillment`, `ProductionShift`) rather
-than preserving the mechanism that loaded it in its type name.
-
-Production demonstrates the positive and negative cases. `ProductionShift`
-and `ScheduleProposal` are entities because the same identity continues across
-module-owned lifecycle transitions. Board rows, History records, placement
-contexts, commands, mutation results, and persisted snapshots are models or
-projections even when they contain IDs; they do not become entities merely
-because storage can identify them.
-
-## 7. Effects and Ports
-
-Effects must be visible in function signatures and construction:
-
-- time uses `Clock` from `@pressly/time`;
-- identifiers use `IdSource` from `@pressly/kernel`;
-- atomic execution uses `UnitOfWork` from `@pressly/kernel` with construction
-  owned by `@pressly/db`;
-- atomic work that can reject after partial writes uses `ResultUnitOfWork` and
-  `defineResultUnitOfWork`; the DB adapter privately translates `Result.err`
-  into rollback, while application code keeps the rejection as typed data;
-- persistence is behind feature or shared module ports;
-- HTTP mechanisms come from `@pressly/http`;
-- logging and observation are injected sinks;
-- cryptography, network, queues, filesystems, and vendor SDKs are adapters.
-
-Do not create aliases such as `PricingClockPort = Clock`. The package type is
-already the technical algebra. A feature-local port is justified only when it
-adds application meaning, narrows semantics, or represents a real replacement
-axis.
-
-Port files contain declarations only. Constructors, default implementations,
-fallbacks, environment reads, and mutable registries belong elsewhere.
-
-## 8. Failures, Errors, and HTTP Problems
-
-There are three different things and they must remain different:
-
-```text
-expected application outcome
-  -> <feature>.failure.ts
-  -> Result<Value, FeatureFailure>
-  -> handled exhaustively by caller/controller
-
-unexpected mechanism or invariant failure
-  -> normalized AppError throwable
-  -> observed once at a process edge
-  -> safe diagnostic metadata retained
-
-HTTP presentation
-  -> status and problem response at controller/middleware edge
-  -> never embedded in domain policy
-```
-
-Expected failures include current-state conflicts, ineligibility, missing
-business records, and policy rejections a caller can reasonably act on. They
-are discriminated values with stable codes. They do not contain HTTP status
-codes. When a validation failure needs a distinction, use application meaning
-such as `malformed` versus `semantic`; the edge chooses 400 versus 422.
-
-Unexpected failures include unavailable databases, corrupt stored rows,
-impossible invariants, broken configuration, and programming defects. Use the
-explicit `@pressly/errors/app-error` and `@pressly/errors/factories` surfaces
-to construct or normalize them. Live source in apps, modules, other packages,
-and executable repository tooling never constructs, calls, or subclasses a
-native throwable directly. Native construction is owned by the Errors package.
-TypeScript uses an explicit `@pressly/errors/*` subpath; pre-install checkout
-tooling uses `packages/errors/src/tooling-error.mjs`. Tests may use native
-values only as deliberate fault fixtures.
-
-Never catch an unexpected error merely to convert it into an expected business
-failure. Never return an HTTP-shaped `AppError` as the domain failure type.
-Application features must not throw private `Error` subclasses merely to roll
-back an expected rejection; use the result-aware unit-of-work factory instead.
-API controllers, Worker jobs, and CLI commands map a module failure into an
-`AppError` only where that process needs transport or retry semantics.
-
-### The HTTP request/error algebra
-
-Express has one promise boundary and one unexpected-error observer. Do not add
-`catchAsync`, `Promise.resolve(handler(...)).catch(next)`, or local catch-and-
-rethrow wrappers in routes, controllers, or middleware. Express 5 forwards a
-rejected handler promise to the registered outer error middleware.
-
-Validated endpoints use `defineValidatedController` from
-`@pressly/http/express`:
-
-```text
-unknown request value
-  -> controller.validate parses synchronously exactly once
-  -> fingerprint-protected typed boundary input
-  -> controller.handle returns the application promise directly
-  -> expected Result is presented by the controller
-  -> unexpected rejection reaches the single API error middleware
-```
-
-Routes normally register the returned `validate` and `handle` pair in that
-order. When authorization needs validated route scope but must precede command
-body parsing, the same factory exposes typed per-location validators:
-
-```text
-authenticate
-  -> controller.validators.params
-  -> authorize
-  -> controller.validators.body
-  -> controller.handle
-```
-
-An established location-specific validation response is declared as
-`invalidRequest` data on the same factory definition. It may select the error
-code, safe message, and supported validation status; it must not become a
-route-local parser, callback-based throwable hook, or second validation
-boundary.
-
-All configured locations must be validated exactly once. The boundary is
-deliberately request-bound: incomplete or duplicate validation, mixing
-handlers from different definitions, or mutating parsed request data before
-handling fails closed as an invariant error. Request schemas are synchronous,
-pure wire parsers; asynchronous authorization or lookup belongs after parsing
-in middleware or the use case. The controller receives its validated input
-explicitly; application code does not recover types by casting `req.body`,
-`req.query`, or `req.params` later.
-
-This is primarily a correctness and ownership rule. Removing redundant promise
-wrappers also avoids adding gratuitous microtasks, but ordinary promise
-forwarding is not itself a starvation hazard. Starvation comes from unbounded
-promise production or CPU work without yielding, which belongs in workload
-and process design rather than error-wrapper folklore.
-
-## 9. Contracts and Unknown Values
-
-`@pressly/contracts` owns wire formats, not application language.
-
-Put a schema in Contracts only when the value crosses at least one of these:
-
-- an untrusted client/server boundary;
-- a process boundary such as API to worker;
-- a durable serialized event boundary;
-- a versioned external integration boundary.
-
-Contracts may contain schemas, serialized command/result types inferred from
-those schemas, and boundary version information. They must not contain domain
-entities, repository types, use-case interfaces, database rows, policies, or
-module-internal `Date`-rich models.
-
-Open-ended serialized fields use the strict `JsonValue` algebra from
-`@pressly/codec`, not `unknown`, `object`, or `Record<string, unknown>`. A
-runtime boundary that accepts arbitrary JSON uses `jsonValueSchema` from
-`@pressly/codec/zod`. Persistence mappers guard decoded database values before
-they enter application language. `undefined`, non-finite numbers, dates,
-class instances, and cyclic objects are not JSON and fail closed.
-
-Durable application ports accept `JsonObject` or a closed serialized union,
-never inward `unknown`. A typed pure projection must explicitly select fields,
-normalize supported representations, and omit absent optional fields before a
-value reaches the port. Generic `JSON.stringify` round trips are not mappers:
-they silently erase `undefined`, invoke class serialization, and weaken the
-application boundary. Adapters validate stored JSON again when reading it.
-
-The boundary sequence is explicit:
-
-```text
-unknown
-  -> contract schema parse
-  -> trusted serialized contract value
-  -> .contract.mapper.ts
-  -> application model
-```
-
-Outbound data follows the reverse path. Modules should import Contracts only
-from route/controller/contract-mapper roles. Inner application and domain code
-must not depend on wire schemas.
-
-Contracts expose explicit subpaths by boundary and no package-root application
-surface. Module source imports a Contract only from a route or a qualified
-contract mapper; controllers receive already validated boundary values and
-mapper-owned translations.
-
-## 10. Reusable Patterns and Factories
-
-A design pattern earns a reusable factory only when all of these are true:
-
-1. At least two real consumers share the same semantics, not merely similar
-   syntax.
-2. The varying and invariant parts can be expressed in a small typed input.
-3. The returned shape makes effects and control flow explicit.
-4. The factory removes duplicated policy or failure-prone wiring.
-5. A direct function would no longer be clearer.
-
-Factories live in a package when technically reusable, or in a module
-foundation when domain-specific. Feature-local `.factory.ts` files are
-forbidden. Patterns remain functions and immutable data; they do not introduce
-base classes, service locators, or hidden registries.
-
-Examples of earned factories include state-machine construction, bound cursor
-codecs, unit-of-work construction, and cookie CSRF protection. A generic
-repository, universal policy engine, or dependency-injection container is not
-earned by this architecture.
-
-## 11. Composition
-
-Composition is explicit and shallow:
-
-```text
-package mechanism
-  -> module adapter/repository
-  -> module feature use case
-  -> module public capability
-  -> app transport/job/page composition
-```
-
-Module composition may connect its own features, foundations, and adapters.
-App composition may connect multiple peer module public capabilities. No
-module reaches across a peer boundary, and no app imports a module's internal
-path.
-
-Composition constructs and injects; it does not inspect application results to
-recreate feature behavior. Result-dependent signal, audit, notification, or
-observation selection belongs to the use case that knows what the result
-means. The app supplies the concrete sink, and non-replay and after-commit
-semantics remain explicit in that use case.
-
-Process effects such as environment reads, arguments, stdin/stdout, process
-signals, exit codes, and runtime shutdown belong to the owning app. Modules
-receive only the already-derived data or narrow capability they require.
-
-Prefer construction functions returning immutable records of named
-capabilities. Do not use decorators, reflection, runtime class scanning,
-mutable service registries, or ambient singletons.
-
-## 12. Tests Mirror Ownership
-
-Tests use the same map as production code:
-
-```text
-test/features/<namespace>/<feature>/...
-test/foundations/<category>/<foundation>/...
-test/integration/...
-test/support/...
-```
-
-- Pure policy, lifecycle, projection, and algorithm tests prove exhaustive
-  decisions and invariants.
-- Use-case tests inject deterministic clocks, IDs, ports, and repositories.
-- Adapter/repository integration tests prove representation and mechanism
-  behavior.
-- Contract tests prove parsing and serialization at unknown boundaries.
-- App tests prove composition and transport behavior.
-
-Tests do not import sibling feature internals merely for convenience. Shared
-builders belong in `test/support`, not source foundations.
-
-## 13. Manifest as Formal Data
-
-Every module declares its allowed structure as immutable data:
-
-```ts
-export default defineModule({
-  id: 'business/pricing',
-  packageName: '@pressly/pricing',
-  features: defineNamespace({
-    catalog: defineNamespace({
-      'load-pricing-catalog': defineFeature.httpQuery({
-        dependsOn: ['language/pricing'],
-      }),
-    }),
-  }),
-  foundations: {
-    language: defineNamespace({
-      pricing: defineFoundation.language(),
-    }),
-  },
+proveOperation({
+  operationId: 'production.advance-stage.v1',
+  declaration: advanceStageCellDeclaration,
+  layer: 'postgres',
+  scenarios: [
+    {
+      name: 'one optimistic contender commits',
+      proves: ['postgres-commit', 'declared-concurrency-race'],
+      run: proveOptimisticRace,
+    },
+  ],
 });
 ```
 
-The manifest is not descriptive documentation. It is compiled into filesystem
-and import constraints, then checked for exact agreement with source-observed
-type and runtime imports. New feature profiles, roles, or dependency edges
-require an intentional architecture change with compiler tests. Unused
-declarations and undeclared observed edges both fail the architecture gate.
+The operation ID, layer, scenario name, and claims remain literal. The strict
+verifier rejects bare proof references, owner-root matrices, import-closure
+credit, cross-system fallback, missing claims, and shared cell paths.
 
-Run `pnpm architecture:cohesion` to inspect the deterministic foundation
-report. It shows each foundation's basis, implemented port when present,
-implementation evidence, declared and observed direct consumers, declared and
-observed transitive consumers, and whether reuse is earned.
-`pnpm architecture:check` fails on unearned promotions and manifest/source
-drift.
+Cross-system conformance and browser workflows remain valuable, but they never
+replace missing local proof.
 
-## 14. Review Checklist
+## Forbidden Residue
 
-Before accepting a new file or feature, verify:
+Do not introduce:
 
-1. Its semantic owner is unambiguous.
-2. A feature name describes an application action or query.
-3. Shared code has earned a narrowly named foundation or package owner.
-4. The suffix accurately declares meaning and dependency position.
-5. Pure decisions have no ambient effects.
-6. Every effect is visible through a package algebra or application port.
-7. Expected failures are typed data; unexpected failures use the error
-   language; HTTP mapping is at the edge.
-8. Unknown values are parsed once and mapped explicitly.
-9. Peer modules are composed only by an app.
-10. Tests mirror the same ownership tree.
-11. Each feature leaf has at most one use-case file, and module root surfaces
-    use explicit canonical exports.
-12. Every internal import resolves to the semantic declaration owner; only a
-    declared API surface re-exports symbols.
-13. `module.architecture.ts`, architecture lint, typecheck, tests, and build
-    all pass.
+- `apps/`, `modules/`, `packages/`, or `infra/` source roots;
+- compatibility or legacy directories;
+- central business contract or schema authorities;
+- generic `common`, `shared`, `utils`, `helpers`, or `services` buckets;
+- sibling-cell private imports;
+- host business branches;
+- runtime filesystem discovery;
+- export-star or identity aliases;
+- business behavior generated from metadata; or
+- a package per cell.
 
-If a proposed placement needs an exception to this decision tree, change the
-architecture deliberately. Do not hide the exception behind a vague directory
-or suffix.
+## Review Checklist
+
+Before treating a structural change as complete:
+
+1. Name the semantic owner and verb-object operation.
+2. Confirm one selected operation resolves to one `cell.ts`.
+3. Keep contracts, decisions, effects, persistence, protocol mapping, and tests
+   local when applicable.
+4. Verify dependency direction and explicit public surfaces.
+5. Verify every required typed proof claim executes locally.
+6. Run architecture, lint, type, affected unit, PostgreSQL, browser, and build
+   gates in proportion to risk.
+7. Delete the replaced source and compatibility residue.
+
+Run at minimum:
+
+```bash
+pnpm architecture:check
+pnpm lint:architecture
+pnpm typecheck
+pnpm test:topology
+```

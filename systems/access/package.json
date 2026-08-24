@@ -1,0 +1,111 @@
+{
+  "name": "@pressly/access-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./authentication": {
+      "types": "./dist/model/authentication/public.d.ts",
+      "import": "./dist/model/authentication/public.js",
+      "default": "./dist/model/authentication/public.js"
+    },
+    "./authorization": {
+      "types": "./dist/model/authorization/public.d.ts",
+      "import": "./dist/model/authorization/public.js",
+      "default": "./dist/model/authorization/public.js"
+    },
+    "./password-policy": {
+      "types": "./dist/model/language/password-strength.d.ts",
+      "import": "./dist/model/language/password-strength.js",
+      "default": "./dist/model/language/password-strength.js"
+    },
+    "./capabilities/order-location-facts-v1": {
+      "types": "./dist/contracts/order-location-facts-v1.d.ts",
+      "import": "./dist/contracts/order-location-facts-v1.js",
+      "default": "./dist/contracts/order-location-facts-v1.js"
+    },
+    "./capabilities/experience-access-v1": {
+      "types": "./dist/contracts/experience-access-v1.d.ts",
+      "import": "./dist/contracts/experience-access-v1.js",
+      "default": "./dist/contracts/experience-access-v1.js"
+    },
+    "./capabilities/production-actor-read-v1": {
+      "types": "./dist/contracts/production-actor-read-v1.d.ts",
+      "import": "./dist/contracts/production-actor-read-v1.js",
+      "default": "./dist/contracts/production-actor-read-v1.js"
+    },
+    "./capabilities/production-scope-reconciliation-v1": {
+      "types": "./dist/contracts/production-scope-reconciliation-v1.d.ts",
+      "import": "./dist/contracts/production-scope-reconciliation-v1.js",
+      "default": "./dist/contracts/production-scope-reconciliation-v1.js"
+    },
+    "./contracts/reconcile-production-location-v1": {
+      "types": "./dist/cells/scopes/reconcile-production-location/types.d.ts",
+      "import": "./dist/cells/scopes/reconcile-production-location/types.js",
+      "default": "./dist/cells/scopes/reconcile-production-location/types.js"
+    },
+    "./assembly/production-capabilities": {
+      "types": "./dist/assembly/production-capabilities.postgres.d.ts",
+      "import": "./dist/assembly/production-capabilities.postgres.js",
+      "default": "./dist/assembly/production-capabilities.postgres.js"
+    },
+    "./assembly/production-location-authority": {
+      "types": "./dist/assembly/production-location-authority.d.ts",
+      "import": "./dist/assembly/production-location-authority.js",
+      "default": "./dist/assembly/production-location-authority.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/public.d.ts",
+      "import": "./dist/schema/public.js",
+      "default": "./dist/schema/public.js"
+    },
+    "./contracts/access-operations-v2": {
+      "types": "./dist/contracts/access-operations-v2.d.ts",
+      "import": "./dist/contracts/access-operations-v2.js",
+      "default": "./dist/contracts/access-operations-v2.js"
+    },
+    "./testing/assembly": {
+      "types": "./dist/system.d.ts",
+      "import": "./dist/system.js",
+      "default": "./dist/system.js"
+    },
+    "./testing/authorization": {
+      "types": "./dist/authorization.d.ts",
+      "import": "./dist/authorization.js",
+      "default": "./dist/authorization.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run src --exclude '**/*.int.spec.ts'",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run --config vitest.postgres.config.ts --no-file-parallelism"
+  },
+  "dependencies": {
+    "@pressly/auth-platform": "workspace:*",
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/logging": "workspace:*",
+    "@pressly/observability": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@pressly/testkit": "workspace:*",
+    "@types/node": "^25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

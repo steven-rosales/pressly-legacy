@@ -1,0 +1,48 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2023", "DOM"],
+    "jsx": "react-jsx",
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../../experiences/control/tsconfig.json"
+    },
+    {
+      "path": "../../experiences/customer/tsconfig.json"
+    },
+    {
+      "path": "../../experiences/processor/tsconfig.json"
+    },
+    {
+      "path": "../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../platform/codec/tsconfig.json"
+    },
+    {
+      "path": "../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../platform/http/tsconfig.json"
+    },
+    {
+      "path": "../../platform/postgres/tsconfig.json"
+    },
+    {
+      "path": "../../platform/time/tsconfig.json"
+    },
+    {
+      "path": "../../topology/tsconfig.build.json"
+    },
+    {
+      "path": "../tsconfig.json"
+    }
+  ]
+}

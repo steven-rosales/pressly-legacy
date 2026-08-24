@@ -38,29 +38,32 @@ should the system allow it?
 
 ## Code Ownership
 
-`packages/auth` owns the small security language and interpreter.
+`systems/access` owns the small authentication and authorization language and
+interpreter exposed through `./authentication` and `./authorization`.
 
 It defines principals, assignments, scopes, resources, policy rules,
 conditions, and decisions.
 
-`modules/security/identity` authenticates callers.
+`platform/auth` owns business-neutral credential mechanisms: password hashing,
+opaque tokens, recovery codes, secret encryption, TOTP, cookies, and CSRF
+proofs. It owns no Pressly identity, role, scope, session, or policy meaning.
 
-It verifies credentials and sessions, then loads trusted principal facts.
-It should not know pricing policy.
+The same Access system authenticates callers and owns Pressly access policy.
 
-`modules/security/authorization` owns framework-free application authorization
-policy.
+It verifies credentials and sessions, loads trusted principal facts, and maps
+business requests into authorization actions, resources, and policies.
 
-It maps business requests into authorization actions, resources, and policies.
+`systems/<owner>` owns actor-neutral business behavior after Access has allowed
+the operation.
 
-`modules/business/<module>` owns business behavior.
+`experiences/control` and `experiences/processor` own cross-system user
+workflows and capability projections.
 
-It should receive an already-authorized command and execute business rules.
+`hosts/http`, generated catalogs, and `generated/runtime` compose the
+protocol pipeline.
 
-`apps/api` composes the pipeline.
-
-It wires middleware and routes.
-It should not become the owner of policy logic.
+They wire authentication, request context, authorization, and cell execution
+without becoming owners of Pressly policy.
 
 ## Authentication Nouns
 
@@ -76,7 +79,7 @@ bearer token
 service key
 ```
 
-A credential proves nothing until the auth module verifies it.
+A credential proves nothing until an Access authentication cell verifies it.
 
 ### Identity
 
@@ -125,6 +128,8 @@ type Principal = {
   kind: 'human' | 'service';
   displayName: string;
   email?: string;
+  audience?: 'customer';
+  customerId?: string;
   sessionId?: string;
   sessionIssuedAt?: Date;
   sessionExpiresAt?: Date;
@@ -174,9 +179,24 @@ This principal has this role inside this boundary, optionally during this time w
 Examples:
 
 ```ts
-{ role: 'owner', scope: globalScope() }
-{ role: 'admin', scope: locationScope('pressly-main') }
-{ role: 'operator', scope: resourceScope('order', 'order_123') }
+{
+  role: 'owner',
+  scope: businessScope('pressly'),
+  state: 'active',
+  version: 1,
+}
+{
+  role: 'manager',
+  scope: locationScope('pressly-main'),
+  state: 'active',
+  version: 1,
+}
+{
+  role: 'operator',
+  scope: locationScope('pressly-main'),
+  state: 'active',
+  version: 1,
+}
 ```
 
 An assignment does not directly allow an action.
@@ -192,13 +212,8 @@ Examples:
 
 ```txt
 owner
-admin
+manager
 operator
-customer
-driver
-service
-developer
-ci
 ```
 
 Roles are not enough by themselves.
@@ -206,13 +221,13 @@ Roles are not enough by themselves.
 This is incomplete:
 
 ```txt
-Junnior is an admin.
+Junnior is a manager.
 ```
 
 This is the actual security statement:
 
 ```txt
-Junnior has the admin role within this scope.
+Junnior has the manager role within this scope.
 ```
 
 ### Scope
@@ -227,6 +242,10 @@ business
 location
 resource
 ```
+
+Persisted workforce grants use business or location scope. Global and resource
+scopes remain authorization-language resource shapes; they are not legacy
+workforce grant paths.
 
 Scope coverage is intentionally conservative:
 
@@ -257,7 +276,7 @@ Examples:
 ```txt
 pricing:plan
 pricing:publish
-auth:user:manage
+auth:access:change
 auth:session:revoke
 ```
 
@@ -372,24 +391,11 @@ with one of these roles
 whose scope covers the resource scope?
 ```
 
-Example:
+Example for facility-scoped work:
 
 ```txt
 assignment:
-  owner at global scope
-
-resource:
-  pricing catalog at global scope
-
-result:
-  passes
-```
-
-Example for later facility-scoped work:
-
-```txt
-assignment:
-  admin at location pressly-main
+  manager at location pressly-main
 
 resource:
   order at location pressly-main
@@ -402,7 +408,7 @@ Different location:
 
 ```txt
 assignment:
-  admin at location pressly-main
+  manager at location pressly-main
 
 resource:
   order at location pressly-west
@@ -425,7 +431,8 @@ resource:
 
 policy:
   allow pricing:publish when:
-    - principal has owner role in scope
+    - principal has an active owner grant
+    - current session has MFA assurance
     - session is fresh
 ```
 
@@ -437,7 +444,7 @@ principal:
 
 principal attributes:
   identityActive: true
-  assignment: owner at global scope
+  assignment: active owner at business scope
 
 environment:
   sessionAgeMinutes is within the fresh-session limit
@@ -455,7 +462,7 @@ global pricing resource.
 
 A protected HTTP route should read like this:
 
-1. Validate request shape with `@pressly/contracts`.
+1. Validate request shape with the operation owner's published contract.
 2. Authenticate the session.
 3. Load `Principal` and `PrincipalAttributes`.
 4. Build the authorization `Resource`.
@@ -470,17 +477,18 @@ Contracts validate request and response shape.
 
 They should not decide who may do something.
 
-Business modules execute business behavior.
+Business systems execute business behavior.
 
 They should not know how a principal received authority.
 
-The Authorization module decides authorization.
+The Access system decides authorization.
 
-They should know actions, resources, and policy rules.
+It owns actions, resources, and policy rules.
 
-Auth modules authenticate and load trusted facts.
+Access authenticates and loads trusted facts through platform credential
+mechanisms.
 
-They should not know pricing, orders, or other business-specific policy.
+Platform mechanisms should not know pricing, Orders, or Pressly access policy.
 
 ## Adding A Protected Operation
 
@@ -489,8 +497,9 @@ When adding a new protected operation:
 1. Add or reuse an `Action`.
 2. Decide what `Resource` is being touched.
 3. Decide the resource `Scope`.
-4. Add policy rules in `modules/security/authorization`.
-5. Wire route middleware to authenticate, build the resource, and authorize.
+4. Add policy rules under `systems/access/src/model/authorization`.
+5. Wire the generated boundary profile and API provider to authenticate, build
+   the resource, and authorize.
 6. Keep the business use case actor-neutral.
 7. Add tests for allow, deny, stale session, missing assignment, and wrong scope.
 

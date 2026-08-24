@@ -3,8 +3,8 @@ set -euo pipefail
 umask 077
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-export PRESSLY_TOOLING_ERROR_FACTORY_PATH="$ROOT_DIR/packages/errors/src/tooling-error.mjs"
-PRODUCTION_COMPOSE="$ROOT_DIR/infra/aws/lightsail/docker-compose.production.yml"
+export PRESSLY_TOOLING_ERROR_FACTORY_PATH="$ROOT_DIR/platform/errors/src/tooling-error.mjs"
+PRODUCTION_COMPOSE="$ROOT_DIR/deploy/aws/lightsail/docker-compose.production.yml"
 SMOKE_FIXTURE_DIR="$ROOT_DIR/tooling/fixtures/production-topology"
 SMOKE_COMPOSE="$SMOKE_FIXTURE_DIR/docker-compose.smoke.yml"
 
@@ -86,6 +86,7 @@ REPORT_PATH="${PRESSLY_SMOKE_REPORT_PATH:-/tmp/${PROJECT_NAME}-report.json}"
 [[ ! -e "$REPORT_PATH" ]] || fail "report path already exists: $REPORT_PATH"
 REPORT_CREATED=false
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pressly-v2-smoke.XXXXXX")"
+HTTP_ROUTE_CENSUS_REPORT="$WORK_DIR/generated-http-route-mount-census.json"
 MFA_TOTP_SECRET_FILE="$WORK_DIR/owner-mfa-totp-secret.txt"
 MFA_TOTP_COUNTER_FILE="$WORK_DIR/owner-mfa-totp-counter.txt"
 
@@ -289,13 +290,35 @@ wait_for_health() {
 }
 
 run_migrations() {
-  compose --profile tools run --rm --workdir /repo/packages/db migrate \
-    node node_modules/drizzle-kit/bin.cjs migrate --config drizzle.config.ts
+  compose --profile tools run --rm --workdir /repo migrate \
+    node --import tsx tooling/postgres/migrate.ts
+}
+
+seed_pricing() {
+  compose --profile tools run --rm --workdir /repo migrate \
+    node --import tsx tooling/postgres/seed-pricing.ts
 }
 
 database_scalar() {
   local sql="$1"
   compose exec -T postgres psql -v ON_ERROR_STOP=1 -U pressly -d pressly -Atc "$sql"
+}
+
+bootstrap_manifest_scalar() {
+  local sql="$1"
+  local manifest_json
+  manifest_json="$(node --input-type=module - "$SMOKE_FIXTURE_DIR/production-bootstrap.json" <<'NODE'
+import { readFileSync } from 'node:fs';
+const manifest = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+process.stdout.write(JSON.stringify(manifest));
+NODE
+)"
+  compose exec -T postgres psql \
+    -v ON_ERROR_STOP=1 \
+    -v "bootstrap_manifest=$manifest_json" \
+    -U pressly \
+    -d pressly \
+    -At <<<"$sql"
 }
 
 assert_release_images() {
@@ -464,10 +487,11 @@ NODE
 }
 
 enroll_owner_mfa() {
-  local origin="https://api.pressly.test:${CADDY_PORT}"
+  local origin="https://control.pressly.test:${CADDY_PORT}"
   local login_request="$WORK_DIR/owner-mfa-login-request.json"
   local login_response="$WORK_DIR/owner-mfa-login-response.json"
-  local authorization_header="$WORK_DIR/owner-mfa-authorization.header"
+  local cookie_jar="$WORK_DIR/owner-mfa-control-cookies.txt"
+  local csrf_header="$WORK_DIR/owner-mfa-control-csrf.header"
   local enrollment_response="$WORK_DIR/owner-mfa-enrollment-response.json"
   local confirmation_request="$WORK_DIR/owner-mfa-confirmation-request.json"
   local confirmation_response="$WORK_DIR/owner-mfa-confirmation-response.json"
@@ -493,27 +517,32 @@ enroll_owner_mfa() {
     --show-error \
     --output "$login_response" \
     --write-out '%{http_code}' \
-    --resolve "api.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    --resolve "control.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    --cookie-jar "$cookie_jar" \
+    --header "Origin: $origin" \
     --header 'Content-Type: application/json' \
     --data-binary "@$login_request" \
-    "${origin}/auth/login")"
+    "${origin}/api/control/auth/login")"
   rm -f "$login_request"
   [[ "$status" == 200 ]] ||
     fail "owner MFA login returned $status; expected 200; $(public_api_error_summary "$login_response")."
 
-  node --input-type=module - "$login_response" "$authorization_header" <<'NODE'
+  node --input-type=module - "$login_response" "$csrf_header" "$OWNER_ID" <<'NODE'
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
 const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
-const [responsePath, headerPath] = process.argv.slice(2);
+const [responsePath, headerPath, expectedIdentityId] = process.argv.slice(2);
 const response = JSON.parse(readFileSync(responsePath, 'utf8'));
-const accessToken = response?.data?.accessToken;
-if (response?.ok !== true || typeof accessToken !== 'string' || accessToken.length < 32)
-  throw smokeFailure('General owner login did not return a usable authenticated session token.');
-if (/[\r\n]/.test(accessToken))
-  throw smokeFailure('General owner login returned an invalid authenticated session token.');
-writeFileSync(headerPath, `Authorization: ${['Bearer', accessToken].join(' ')}\n`, {
+const session = response?.data;
+if (
+  response?.ok !== true ||
+  session?.status !== 'authenticated' ||
+  session?.principal?.identityId !== expectedIdentityId ||
+  typeof session?.csrfToken !== 'string' ||
+  !/^[A-Za-z0-9_-]{43}$/.test(session.csrfToken)
+) throw smokeFailure('Control owner login did not establish the expected cookie-backed authenticated session.');
+writeFileSync(headerPath, `X-CSRF-Token: ${session.csrfToken}\n`, {
   flag: 'wx',
   mode: 0o600,
 });
@@ -527,10 +556,12 @@ NODE
     --show-error \
     --output "$enrollment_response" \
     --write-out '%{http_code}' \
-    --resolve "api.pressly.test:${CADDY_PORT}:127.0.0.1" \
-    --header "@$authorization_header" \
+    --resolve "control.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    --cookie "$cookie_jar" \
+    --header "Origin: $origin" \
+    --header "@$csrf_header" \
     --request POST \
-    "${origin}/auth/mfa/enrollment")"
+    "${origin}/api/control/auth/mfa/enrollment")"
   [[ "$status" == 200 ]] ||
     fail "owner MFA enrollment returned $status; expected 200; $(public_api_error_summary "$enrollment_response")."
 
@@ -577,12 +608,14 @@ NODE
     --show-error \
     --output "$confirmation_response" \
     --write-out '%{http_code}' \
-    --resolve "api.pressly.test:${CADDY_PORT}:127.0.0.1" \
-    --header "@$authorization_header" \
+    --resolve "control.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    --cookie "$cookie_jar" \
+    --header "Origin: $origin" \
+    --header "@$csrf_header" \
     --header 'Content-Type: application/json' \
     --data-binary "@$confirmation_request" \
-    "${origin}/auth/mfa/enrollment/confirm")"
-  rm -f "$confirmation_request" "$authorization_header"
+    "${origin}/api/control/auth/mfa/enrollment/confirm")"
+  rm -f "$confirmation_request" "$cookie_jar" "$csrf_header"
   [[ "$status" == 200 ]] ||
     fail "owner MFA confirmation returned $status; expected 200; $(public_api_error_summary "$confirmation_response")."
 
@@ -608,6 +641,7 @@ NODE
 
 probe_routes() {
   probe_ok web.pressly.test /health
+  probe_ok web.pressly.test /services-pricing/wash-fold
   probe_ok api.pressly.test /health/ready
   probe_ok processor.pressly.test /
   probe_ok processor.pressly.test /health
@@ -615,6 +649,56 @@ probe_routes() {
   probe_ok control.pressly.test /
   probe_ok control.pressly.test /health
   probe_ok control.pressly.test /api/health/ready
+
+  local wash_fold_pricing="$WORK_DIR/wash-fold-pricing.json"
+  local dry_cleaning_pricing="$WORK_DIR/dry-cleaning-pricing.json"
+  curl \
+    --noproxy '*' \
+    --insecure \
+    --fail \
+    --silent \
+    --show-error \
+    --resolve "api.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    "https://api.pressly.test:${CADDY_PORT}/pricing/services/wash-fold/pricing" \
+    > "$wash_fold_pricing"
+  curl \
+    --noproxy '*' \
+    --insecure \
+    --fail \
+    --silent \
+    --show-error \
+    --resolve "api.pressly.test:${CADDY_PORT}:127.0.0.1" \
+    "https://api.pressly.test:${CADDY_PORT}/pricing/services/dry-cleaning/pricing" \
+    > "$dry_cleaning_pricing"
+  node --input-type=module - "$wash_fold_pricing" "$dry_cleaning_pricing" <<'NODE'
+import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
+const [washFoldPath, dryCleaningPath] = process.argv.slice(2);
+const readCatalog = (path, serviceSlug, expectedCount) => {
+  const response = JSON.parse(readFileSync(path, 'utf8'));
+  if (
+    response?.ok !== true ||
+    response?.data?.serviceSlug !== serviceSlug ||
+    response?.data?.currency !== 'USD' ||
+    response.data.items?.length !== expectedCount
+  ) throw smokeFailure(`Pricing catalog ${serviceSlug} did not match its protected public contract.`);
+  return response.data.items;
+};
+const price = (items, name) => items.find((item) => item.name === name)?.priceCents;
+const washFold = readCatalog(washFoldPath, 'wash-fold', 8);
+const dryCleaning = readCatalog(dryCleaningPath, 'dry-cleaning', 24);
+if (
+  price(washFold, 'Wash & Fold') !== 167 ||
+  price(washFold, 'Minimum') !== 3000 ||
+  price(washFold, 'Delivery Fee') !== 0 ||
+  price(washFold, 'Hang Dry') !== 295 ||
+  price(dryCleaning, 'Minimum') !== 3000 ||
+  price(dryCleaning, 'Delivery Fee') !== 0 ||
+  price(dryCleaning, 'Launder & Press') !== 395
+) throw smokeFailure('Seeded Pricing values differ from the protected public catalog.');
+NODE
 
   local auth_response="$WORK_DIR/processor-auth.json"
   local auth_status
@@ -636,6 +720,40 @@ const smokeFailure = (message) => toolingError({ code: 'production_topology_smok
 const response = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (response?.error?.code !== 'processor_session_missing')
   throw smokeFailure('Processor auth route did not return its expected unauthenticated boundary.');
+NODE
+}
+
+run_generated_http_route_mount_census() {
+  if ! compose --profile tools run --rm -T --no-deps --workdir /repo migrate \
+    node --import tsx tooling/http-route-census/main.ts \
+    --origin http://api:4000 > "$HTTP_ROUTE_CENSUS_REPORT"; then
+    fail 'generated HTTP route mount census found an unmounted route, unsupported method, server failure, or network failure.'
+  fi
+
+  node --input-type=module - "$HTTP_ROUTE_CENSUS_REPORT" <<'NODE'
+import { readFileSync } from 'node:fs';
+
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
+const report = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (
+  report?.proof !== 'generated-http-route-mount-census' ||
+  report?.catalogSource !== '@pressly/generated/http-catalog:httpRouteManifest' ||
+  report?.scope !== 'mounted HTTP dispatch reachability only' ||
+  report?.passed !== true ||
+  !Number.isSafeInteger(report.routeCount) ||
+  report.routeCount <= 0 ||
+  report.failureCount !== 0 ||
+  !Array.isArray(report.routes) ||
+  report.routes.length !== report.routeCount ||
+  report.routes.some(
+    (route) =>
+      route.status === 404 ||
+      route.status === 405 ||
+      route.status >= 500 ||
+      route.outcome === 'failure',
+  )
+) throw smokeFailure('Generated HTTP route mount census report is invalid or incomplete.');
 NODE
 }
 
@@ -1941,7 +2059,12 @@ if (
   orderIds.size !== 2 ||
   !orderIds.has(process.env.EXPECTED_FIRST_ORDER_ID) ||
   !orderIds.has(process.env.EXPECTED_LIVE_ORDER_ID) ||
-  batch.stages.some((stage) => stage.status !== 'completed' || stage.allowedActions.length !== 0) ||
+  batch.stages.some(
+    (stage) =>
+      stage.status !== 'completed' ||
+      stage.nextAction?.state !== 'terminal' ||
+      stage.nextAction.reason !== 'stage_completed',
+  ) ||
   board.eligibleOrders.length !== 0
 ) throw smokeFailure('The completed run-ID board did not preserve the full execution history.');
 NODE
@@ -1999,29 +2122,96 @@ run_migrations
 [[ "$(database_scalar 'select (select count(*) from webhook_events) + (select count(*) from production_orders);')" == 0 ]] ||
   fail 'clean migration unexpectedly contained runtime demand or production rows.'
 
-echo '[v2] applying the explicit synthetic facility bootstrap fixture'
-compose --profile tools run --rm --workdir /repo migrate \
-  node apps/cli/dist/commands/bootstrap-production.command.js \
-  --file /repo/tooling/fixtures/production-topology/production-bootstrap.json \
-  --actor-id 00000000-0000-4000-8000-000000000901 \
-  --idempotency-key offline-smoke-bootstrap-v1 \
-  --apply >/dev/null
+echo '[v2] seeding and checking the protected public Pricing catalog'
+seed_pricing
+[[ "$(database_scalar "select concat((select count(*) from pricing_services), '|', (select count(*) from pricing_sets), '|', (select count(*) from pricing_items), '|', (select count(*) from pricing_change_events));")" == '2|2|32|0' ]] ||
+  fail 'Pricing seed did not create the exact protected catalog graph.'
 
-echo '[v2] bootstrapping one synthetic owner through the password-stdin boundary'
-printf '%s\n' "$OWNER_PASSWORD" | \
+echo '[v2] atomically bootstrapping the synthetic Access business and owner'
+OWNER_BOOTSTRAP_JSON="$(printf '%s\n' "$OWNER_PASSWORD" | \
   compose --profile tools run --rm -T \
+    --env PRESSLY_BOOTSTRAP_BUSINESS_ID=00000000-0000-4000-8000-000000000100 \
+    --env PRESSLY_BOOTSTRAP_BUSINESS_SLUG=offline-smoke \
+    --env PRESSLY_BOOTSTRAP_BUSINESS_DISPLAY_NAME='Offline Smoke' \
     --env PRESSLY_BOOTSTRAP_OWNER_EMAIL=owner@offline.pressly.test \
     --env PRESSLY_BOOTSTRAP_OWNER_CONFIRM=bootstrap-first-owner \
     --workdir /repo \
     migrate \
-    node apps/cli/dist/commands/bootstrap-owner.command.js \
-    --password-stdin >/dev/null
+    node hosts/cli/dist/main.js bootstrap owner \
+    --password-stdin)"
+OWNER_REPLAY_JSON="$(printf '%s\n' "$OWNER_PASSWORD" | \
+  compose --profile tools run --rm -T \
+    --env PRESSLY_BOOTSTRAP_BUSINESS_ID=00000000-0000-4000-8000-000000000100 \
+    --env PRESSLY_BOOTSTRAP_BUSINESS_SLUG=offline-smoke \
+    --env PRESSLY_BOOTSTRAP_BUSINESS_DISPLAY_NAME='Offline Smoke' \
+    --env PRESSLY_BOOTSTRAP_OWNER_EMAIL=owner@offline.pressly.test \
+    --env PRESSLY_BOOTSTRAP_OWNER_CONFIRM=bootstrap-first-owner \
+    --workdir /repo \
+    migrate \
+    node hosts/cli/dist/main.js bootstrap owner \
+    --password-stdin)"
+OWNER_ID="$(node --input-type=module - "$OWNER_BOOTSTRAP_JSON" "$OWNER_REPLAY_JSON" <<'NODE'
+const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_PATH);
+const [createdSource, replayedSource] = process.argv.slice(2);
+const created = JSON.parse(createdSource);
+const replayed = JSON.parse(replayedSource);
+if (created.replayed !== false || replayed.replayed !== true || replayed.identityId !== created.identityId)
+  throw toolingError({ code: 'production_topology_smoke_failure', message: 'Owner bootstrap did not prove fresh creation followed by exact replay.' });
+process.stdout.write(created.identityId);
+NODE
+)"
+
+echo '[v2] applying the explicit synthetic facility bootstrap fixture'
+compose --profile tools run --rm --workdir /repo migrate \
+  node hosts/cli/dist/main.js bootstrap production \
+  --file /repo/tooling/fixtures/production-topology/production-bootstrap.json \
+  --actor-id "$OWNER_ID" \
+  --idempotency-key offline-smoke-bootstrap-v1 \
+  --apply >/dev/null
+[[ "$(bootstrap_manifest_scalar "with expected as (
+  select :'bootstrap_manifest'::jsonb -> 'location' as location
+)
+select concat(
+  (select count(*) from business_accounts where id = '00000000-0000-4000-8000-000000000100' and slug = 'offline-smoke' and status = 'active'),
+  '|',
+  (select count(*)
+   from access_production_locations access_location
+   cross join expected
+   where access_location.id = expected.location ->> 'id'),
+  '|',
+  (select count(*)
+   from access_production_locations access_location
+   cross join expected
+   where access_location.id = expected.location ->> 'id'
+     and access_location.business_id = (expected.location ->> 'businessId')::uuid
+     and access_location.name = expected.location ->> 'name'
+     and access_location.timezone = expected.location ->> 'timezone'
+     and access_location.is_active = (expected.location ->> 'isActive')::boolean),
+  '|',
+  (select count(*)
+   from production_locations production_location
+   cross join expected
+   where production_location.id = expected.location ->> 'id'),
+  '|',
+  (select count(*)
+   from production_locations production_location
+   cross join expected
+   where production_location.id = expected.location ->> 'id'
+     and production_location.business_id = (expected.location ->> 'businessId')::uuid
+     and production_location.name = expected.location ->> 'name'
+     and production_location.timezone = expected.location ->> 'timezone'
+     and production_location.is_active = (expected.location ->> 'isActive')::boolean)
+);")" == '1|1|1|1|1' ]] ||
+  fail 'owner and owner-local location rows do not exactly match the bootstrap manifest.'
 
 echo '[v2] starting release-a and proving Caddy routes'
 compose up -d --wait --wait-timeout 180 api web worker processor control caddy
 assert_release_images release-a
+wait_for_health api
 probe_routes
-echo '[v2] enrolling MFA for the synthetic owner through the general HTTPS authentication boundary'
+echo '[v2] invoking every generated HTTP method and path through the composed API runtime'
+run_generated_http_route_mount_census
+echo '[v2] enrolling MFA for the synthetic owner through the Control cookie and CSRF boundary'
 enroll_owner_mfa
 echo '[v2] proving production HTTPS cookie, session restoration, and CSRF behavior through Caddy'
 prove_processor_cookie_auth
@@ -2143,12 +2333,13 @@ node --input-type=module - \
   "$WORK_DIR/memory.json" \
   "$WORK_DIR/current-release.json" \
   "$WORK_DIR/previous-release.json" \
+  "$HTTP_ROUTE_CENSUS_REPORT" \
   "$REPORT_PATH" \
   "$PROJECT_NAME" \
   "$CADDY_PORT" <<'NODE'
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const [memoryPath, currentPath, previousPath, reportPath, project, caddyPort] = process.argv.slice(2);
+const [memoryPath, currentPath, previousPath, routeCensusPath, reportPath, project, caddyPort] = process.argv.slice(2);
 const report = {
   proof: 'lpms-v2-offline-production-topology',
   completedAt: new Date().toISOString(),
@@ -2158,11 +2349,26 @@ const report = {
     bind: `https://127.0.0.1:${caddyPort}`,
     onlyCaddyPublished: true,
     localTls: 'Caddy internal CA with curl certificate verification disabled only for this disposable proof.',
-    routes: ['web:/health', 'api:/health/ready', 'processor:/', 'processor:/api/health/ready', 'processor:/api/processor/auth/session', 'processor:/api/order-management/locations/:locationId/incoming-orders', 'processor:/api/order-management/locations/:locationId/fulfillments/:fulfillmentId/release', 'processor:/api/production/locations/:locationId/runs/:productionRunId/board'],
+    routes: ['web:/health', 'web:/services-pricing/wash-fold', 'api:/health/ready', 'api:/pricing/services/:serviceSlug/pricing', 'processor:/', 'processor:/api/health/ready', 'processor:/api/processor/auth/session', 'processor:/api/order-management/locations/:locationId/incoming-orders', 'processor:/api/order-management/locations/:locationId/fulfillments/:fulfillmentId/release', 'processor:/api/production/locations/:locationId/runs/:productionRunId/board'],
   },
+  generatedHttpRouteMountCensus: JSON.parse(
+    readFileSync(routeCensusPath, 'utf8'),
+  ),
   database: {
     cleanMigration: true,
     explicitSyntheticBootstrap: true,
+    pricing: {
+      serviceCount: 2,
+      activeSetCount: 2,
+      itemCount: 32,
+      protectedValues: {
+        washFoldPerLbCents: 167,
+        deliveryFeeCents: 0,
+        hangDryCents: 295,
+        launderPressCents: 395,
+      },
+      publicApiChecked: true,
+    },
     signedSubmittedReceiptCount: 2,
     ignoredReceiptCount: 3,
     incomingProposalCount: 2,

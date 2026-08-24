@@ -1,0 +1,25 @@
+{
+  "extends": "../../../tooling/typescript/base.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2022", "DOM"],
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["src/control-browser-host.ts"],
+  "references": [
+    {
+      "path": "../../../experiences/control/tsconfig.json"
+    },
+    {
+      "path": "../../../generated/runtime/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/http/tsconfig.json"
+    }
+  ]
+}

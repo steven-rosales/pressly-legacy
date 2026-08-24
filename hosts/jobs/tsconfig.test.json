@@ -1,0 +1,46 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": "../..",
+    "types": ["node", "vitest"],
+    "paths": {
+      "@pressly/cells": ["../../platform/cells/src/public.ts"],
+      "@pressly/codec": ["../../platform/codec/src/index.ts"],
+      "@pressly/errors/*": ["../../platform/errors/src/*.ts"],
+      "@pressly/jobs": ["../../platform/jobs/src/public.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../../generated/runtime/tsconfig.json"
+    },
+    {
+      "path": "../../generated/tsconfig.json"
+    },
+    {
+      "path": "../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../platform/config/tsconfig.json"
+    },
+    {
+      "path": "../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../platform/jobs/tsconfig.json"
+    },
+    {
+      "path": "../../platform/logging/tsconfig.json"
+    },
+    {
+      "path": "../../platform/observability/tsconfig.json"
+    },
+    {
+      "path": "../../platform/time/tsconfig.json"
+    }
+  ]
+}

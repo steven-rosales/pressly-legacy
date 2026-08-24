@@ -1,0 +1,29 @@
+{
+  "name": "@pressly/time",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src test vitest.config.ts --no-error-on-unmatched-pattern --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --config vitest.config.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pressly/cells": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "vitest": "^4.1.10"
+  }
+}

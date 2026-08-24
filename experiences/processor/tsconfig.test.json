@@ -1,0 +1,53 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "exactOptionalPropertyTypes": false,
+    "noEmit": true,
+    "rootDir": ".",
+    "jsx": "react-jsx",
+    "types": [
+      "node",
+      "vite/client",
+      "vitest/globals",
+      "@testing-library/jest-dom"
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.json",
+    "test/**/*.ts",
+    "test/**/*.tsx",
+    "vitest.config.ts"
+  ],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../platform/codec/tsconfig.json"
+    },
+    {
+      "path": "../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../platform/testing/tsconfig.json"
+    },
+    {
+      "path": "../../platform/time/tsconfig.json"
+    },
+    {
+      "path": "../../systems/access/tsconfig.json"
+    },
+    {
+      "path": "../../systems/orders/tsconfig.json"
+    },
+    {
+      "path": "../../systems/production/tsconfig.json"
+    }
+  ]
+}

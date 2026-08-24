@@ -1,7 +1,13 @@
 services:
+  api:
+    environment:
+      API_CONTROL_MUTATION_RATE_LIMIT: '120'
+
   caddy:
     depends_on: !override
       api:
+        condition: service_healthy
+      web:
         condition: service_healthy
       processor:
         condition: service_healthy

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { toolingError } from '../../packages/errors/src/tooling-error.mjs';
+import { toolingError } from '../../platform/errors/src/tooling-error.mjs';
 
 const shaPattern = /^[0-9a-f]{40}$/;
 const imagePattern = /^(ghcr\.io\/[a-z0-9._/-]+)@sha256:([0-9a-f]{64})$/;

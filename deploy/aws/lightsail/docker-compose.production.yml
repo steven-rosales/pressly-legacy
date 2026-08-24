@@ -1,0 +1,305 @@
+name: pressly-production
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
+services:
+  caddy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    pids_limit: 100
+    mem_limit: 128m
+    logging: *default-logging
+    env_file:
+      - path: ${PRESSLY_CADDY_ENV_FILE:-/opt/pressly/env/caddy.env}
+        required: false
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+      processor:
+        condition: service_healthy
+      control:
+        condition: service_healthy
+
+  web:
+    restart: unless-stopped
+    image: ${PRESSLY_WEB_IMAGE:?PRESSLY_WEB_IMAGE must be an immutable digest}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    mem_limit: 512m
+    logging: *default-logging
+    env_file:
+      - path: ${PRESSLY_WEB_ENV_FILE:-/opt/pressly/env/web.env}
+        required: false
+    expose:
+      - '3000'
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1001,gid=1001
+      - /app/hosts/browser/customer/.next/cache:rw,nosuid,nodev,size=128m,uid=1001,gid=1001
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://127.0.0.1:3000/health'').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    restart: unless-stopped
+    image: ${PRESSLY_API_IMAGE:?PRESSLY_API_IMAGE must be an immutable digest}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    mem_limit: 512m
+    logging: *default-logging
+    env_file:
+      - path: ${PRESSLY_API_ENV_FILE:-/opt/pressly/env/api.env}
+        required: false
+    environment:
+      FEATURE_METRICS_ENABLED: 'true'
+      NODE_ENV: production
+      SENTRY_ENABLED: 'true'
+      SENTRY_RELEASE: ${PRESSLY_RELEASE_SHA:?PRESSLY_RELEASE_SHA must be the deployed source SHA}
+    expose:
+      - '4000'
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1001,gid=1001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://127.0.0.1:4000/health/ready'').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    restart: unless-stopped
+    image: ${PRESSLY_WORKER_IMAGE:?PRESSLY_WORKER_IMAGE must be an immutable digest}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 150
+    mem_limit: 384m
+    logging: *default-logging
+    env_file:
+      - path: ${PRESSLY_WORKER_ENV_FILE:-/opt/pressly/env/worker.env}
+        required: false
+    environment:
+      NODE_ENV: production
+      SENTRY_ENABLED: 'true'
+      SENTRY_RELEASE: ${PRESSLY_RELEASE_SHA:?PRESSLY_RELEASE_SHA must be the deployed source SHA}
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=1001,gid=1001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', 'hosts/jobs/dist/runtime/healthcheck.js']
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 6
+
+  processor:
+    restart: unless-stopped
+    image: ${PRESSLY_PROCESSOR_IMAGE:?PRESSLY_PROCESSOR_IMAGE must be an immutable digest}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+    pids_limit: 100
+    mem_limit: 128m
+    logging: *default-logging
+    env_file:
+      - path: ${PRESSLY_PROCESSOR_ENV_FILE:-/opt/pressly/env/processor.env}
+        required: false
+    expose:
+      - '80'
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+      - /var/cache/nginx:rw,noexec,nosuid,nodev,size=32m
+      - /var/run:rw,noexec,nosuid,nodev,size=4m
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'wget -qO- http://127.0.0.1/health >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  control:
+    restart: unless-stopped
+    image: ${PRESSLY_CONTROL_IMAGE:?PRESSLY_CONTROL_IMAGE must be an immutable digest}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+    pids_limit: 100
+    mem_limit: 128m
+    logging: *default-logging
+    env_file:
+      - path: ${PRESSLY_CONTROL_ENV_FILE:-/opt/pressly/env/control.env}
+        required: false
+    expose:
+      - '80'
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+      - /var/cache/nginx:rw,noexec,nosuid,nodev,size=32m
+      - /var/run:rw,noexec,nosuid,nodev,size=4m
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'wget -qO- http://127.0.0.1/health >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    profiles: ['tools']
+    image: ${PRESSLY_API_IMAGE:?PRESSLY_API_IMAGE must be an immutable digest}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    mem_limit: 512m
+    logging: *default-logging
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1001,gid=1001
+    env_file:
+      - path: ${PRESSLY_MIGRATION_ENV_FILE:-/opt/pressly/env/migration.env}
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backup:
+    profiles: ['tools']
+    image: postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 100
+    mem_limit: 512m
+    logging: *default-logging
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    env_file:
+      - path: ${PRESSLY_BACKUP_ENV_FILE:-/opt/pressly/env/backup.env}
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  restore:
+    profiles: ['tools']
+    image: postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 100
+    mem_limit: 512m
+    logging: *default-logging
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    env_file:
+      - path: ${PRESSLY_MIGRATION_ENV_FILE:-/opt/pressly/env/migration.env}
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    pids_limit: 200
+    mem_limit: 1g
+    logging: *default-logging
+    env_file:
+      - path: ${PRESSLY_POSTGRES_ENV_FILE:-/opt/pressly/env/postgres.env}
+        required: false
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+      - /var/run/postgresql:rw,nosuid,nodev,size=16m,uid=999,gid=999
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U $${POSTGRES_USER:-pressly} -d $${POSTGRES_DB:-pressly}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

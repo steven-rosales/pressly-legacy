@@ -18,20 +18,20 @@ import { afterEach, describe, expect, it } from 'vitest';
 const root = resolve(import.meta.dirname, '../..');
 const capacityScript = resolve(
   root,
-  'infra/aws/lightsail/check-host-capacity.sh',
+  'deploy/aws/lightsail/check-host-capacity.sh',
 );
 const monitoredOperationScript = resolve(
   root,
-  'infra/aws/lightsail/run-monitored-operation.sh',
+  'deploy/aws/lightsail/run-monitored-operation.sh',
 );
-const backupScript = resolve(root, 'infra/aws/lightsail/backup-postgres.sh');
+const backupScript = resolve(root, 'deploy/aws/lightsail/backup-postgres.sh');
 const configureDatabaseRolesScript = resolve(
   root,
-  'infra/aws/lightsail/configure-database-roles.sh',
+  'deploy/aws/lightsail/configure-database-roles.sh',
 );
 const productionCompose = resolve(
   root,
-  'infra/aws/lightsail/docker-compose.production.yml',
+  'deploy/aws/lightsail/docker-compose.production.yml',
 );
 const fixtures = [];
 

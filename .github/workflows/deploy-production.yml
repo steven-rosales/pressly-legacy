@@ -209,18 +209,26 @@ jobs:
           )"
           [[ "$remote_dir" =~ ^/tmp/pressly-deploy\.[A-Za-z0-9]+$ ]]
 
-          local_deploy_script='release-source/infra/aws/lightsail/deploy.sh'
+          local_deploy_script='release-source/deploy/aws/lightsail/deploy.sh'
+          local_deployment_tooling='release-source/deploy/aws/lightsail/deployment-tooling.mjs'
+          local_tooling_error_factory='release-source/platform/errors/src/tooling-error.mjs'
           remote_deploy_script="$remote_dir/deploy.sh"
+          remote_deployment_tooling="$remote_dir/deployment-tooling.mjs"
+          remote_tooling_error_factory="$remote_dir/tooling-error.mjs"
           deploy_script_digest="$(sha256sum "$local_deploy_script" | cut -d' ' -f1)"
+          deployment_tooling_digest="$(sha256sum "$local_deployment_tooling" | cut -d' ' -f1)"
+          tooling_error_factory_digest="$(sha256sum "$local_tooling_error_factory" | cut -d' ' -f1)"
 
           scp "${ssh_args[@]}" \
             "$local_deploy_script" \
-            "$LIGHTSAIL_USER@$LIGHTSAIL_HOST:$remote_deploy_script"
+            "$local_deployment_tooling" \
+            "$local_tooling_error_factory" \
+            "$LIGHTSAIL_USER@$LIGHTSAIL_HOST:$remote_dir/"
 
           ssh \
             "${ssh_args[@]}" \
             "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
-            "set -euo pipefail; test \"\$(stat -c '%a' '$remote_dir')\" = 700; chmod 700 '$remote_deploy_script'; printf '%s  %s\\n' '$deploy_script_digest' '$remote_deploy_script' | sha256sum --check --status; DEPLOY_SHA='$DEPLOY_SHA' PRESSLY_EXPECTED_PUBLIC_IP='$LIGHTSAIL_HOST' PRESSLY_API_IMAGE='$API_IMAGE' PRESSLY_WEB_IMAGE='$WEB_IMAGE' PRESSLY_WORKER_IMAGE='$WORKER_IMAGE' PRESSLY_PROCESSOR_IMAGE='$PROCESSOR_IMAGE' PRESSLY_CONTROL_IMAGE='$CONTROL_IMAGE' '$remote_deploy_script'"
+            "set -euo pipefail; test \"\$(stat -c '%a' '$remote_dir')\" = 700; chmod 700 '$remote_deploy_script' '$remote_deployment_tooling' '$remote_tooling_error_factory'; printf '%s  %s\\n%s  %s\\n%s  %s\\n' '$deploy_script_digest' '$remote_deploy_script' '$deployment_tooling_digest' '$remote_deployment_tooling' '$tooling_error_factory_digest' '$remote_tooling_error_factory' | sha256sum --check --strict --status; DEPLOY_SHA='$DEPLOY_SHA' PRESSLY_DEPLOY_TOOLING_FILE='$remote_deployment_tooling' PRESSLY_TOOLING_ERROR_FACTORY_PATH='$remote_tooling_error_factory' PRESSLY_EXPECTED_PUBLIC_IP='$LIGHTSAIL_HOST' PRESSLY_API_IMAGE='$API_IMAGE' PRESSLY_WEB_IMAGE='$WEB_IMAGE' PRESSLY_WORKER_IMAGE='$WORKER_IMAGE' PRESSLY_PROCESSOR_IMAGE='$PROCESSOR_IMAGE' PRESSLY_CONTROL_IMAGE='$CONTROL_IMAGE' '$remote_deploy_script'"
 
       - name: Report deployment result
         if: ${{ always() }}

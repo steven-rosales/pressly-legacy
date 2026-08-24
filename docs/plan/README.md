@@ -14,7 +14,7 @@ reference. It remains at this path because durable Stateworks decisions and
 historical evidence link to it.
 
 Its role is to explain aggregates, workflows, calculations, and data shape. The
-implemented contracts, schema, migrations, and production modules remain the
+implemented contracts, schema, migrations, and Production System remain the
 source of truth for shipped behavior.
 
 ## Historical Plans

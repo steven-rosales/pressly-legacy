@@ -15,7 +15,7 @@ Search structured API logs for the exact request ID:
 ```bash
 docker compose \
   --env-file /opt/pressly/env/compose.env \
-  -f /opt/pressly/repo/infra/aws/lightsail/docker-compose.production.yml \
+  -f /opt/pressly/repo/deploy/aws/lightsail/docker-compose.production.yml \
   logs --since 30m api | rg '<request-id>'
 ```
 

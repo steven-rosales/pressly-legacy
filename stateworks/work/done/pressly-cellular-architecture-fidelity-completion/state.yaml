@@ -1,0 +1,78 @@
+work_id: pressly-cellular-architecture-fidelity-completion
+status: complete
+updated: 2026-08-24T15:25:26-04:00
+
+current_focus:
+  - complete
+  - Option 2, exact plan fidelity, complete local proof, residue cleanup, reporting, and archival are complete.
+
+tasks:
+  F0:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f0---restore-the-original-plans-as-the-acceptance-authority
+  F1:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f1---consolidate-generic-mechanisms-and-eliminate-packages
+  F2:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f2---move-backend-processes-into-hosts-and-topology
+  F3:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f3---move-browser-applications-into-experiences-and-browser-hosts
+  F4:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f4---make-access-customers-and-pricing-operations-literal-cells
+  F5:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f5---make-ingress-and-orders-operations-literal-cells
+  F6:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f6---finish-production-and-experience-operation-locality
+  F7:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f7---replace-heuristic-definition-of-done-with-semantic-evidence
+  F8:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f8---delete-source-residue-and-reconcile-the-final-tree
+  H1:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#h1---four-protected-plan-contradictions
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/human-actions.md#h1---protected-plan-boundary-decision
+  O2A:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#o2a---remove-orders-and-customers-cross-system-database-seams
+  O2B:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#o2b---remove-production-and-access-cross-system-database-seams
+  O2C:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#o2c---replace-the-database-history-with-one-clean-pricing-preserving-baseline
+  O2D:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#o2d---delete-boundary-exceptions-and-enforce-literal-database-ownership
+  O2E:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#o2e---prove-the-clean-topology-through-docker-endpoints-and-chromium
+  V1:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#v1---prove-exact-plan-fidelity-behavior-and-deployment-parity
+  T9:
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#t9---report-and-archive-exact-completion

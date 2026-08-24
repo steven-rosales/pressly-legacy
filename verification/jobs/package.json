@@ -1,0 +1,32 @@
+{
+  "name": "@pressly/jobs-verification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist",
+    "lint": "eslint test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/ingress-system": "workspace:*",
+    "@pressly/jobs": "workspace:*",
+    "@pressly/jobs-host": "workspace:*",
+    "@pressly/logging": "workspace:*",
+    "@pressly/observability": "workspace:*",
+    "@pressly/orders-system": "workspace:*",
+    "@pressly/production-system": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "@pressly/topology": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

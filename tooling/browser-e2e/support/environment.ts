@@ -53,6 +53,8 @@ const runtimeFile = (name: string, fileName: string): string => {
 };
 
 export const browserEnvironment = Object.freeze({
+  webOrigin: localOrigin('PRESSLY_BROWSER_E2E_WEB_ORIGIN', 'web.pressly.test'),
+  apiOrigin: localOrigin('PRESSLY_BROWSER_E2E_API_ORIGIN', 'api.pressly.test'),
   controlOrigin: localOrigin(
     'PRESSLY_BROWSER_E2E_CONTROL_ORIGIN',
     'control.pressly.test',
@@ -73,6 +75,8 @@ export const browserEnvironment = Object.freeze({
 });
 
 export const allowedBrowserHostnames = new Set([
+  'web.pressly.test',
+  'api.pressly.test',
   'control.pressly.test',
   'processor.pressly.test',
 ]);

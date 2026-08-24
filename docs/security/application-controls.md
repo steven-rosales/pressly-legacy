@@ -16,7 +16,7 @@ session and CSRF boundary where those concerns determine request safety.
 | SSRF protection           | Not triggered               | Add before user-directed outbound requests |
 | CSRF protection           | Active for browser sessions | Processor and Control browser boundaries   |
 | Request validation        | Active                      | HTTP adapters and API body parsers         |
-| SQL injection prevention  | Active                      | `@pressly/db` query boundary and CI        |
+| SQL injection prevention  | Active                      | `@pressly/postgres/query` boundary and CI  |
 | Rate limiting             | Active                      | API ingress                                |
 | Safe errors and telemetry | Active                      | API error boundary and security event sink |
 
@@ -27,17 +27,17 @@ It does not mean that an empty middleware file protects the application.
 
 Controls live at the narrowest boundary that can enforce them consistently:
 
-| Boundary             | Responsibility                                                           |
-| -------------------- | ------------------------------------------------------------------------ |
-| `apps/api`           | Ingress composition, browser protocol policy, limits, and error handling |
-| `apps/web`           | Browser execution policy and safe rendering                              |
-| `packages/http`      | Reusable HTTP parsing and response mechanics                             |
-| `packages/contracts` | Runtime schemas for cross-boundary payloads                              |
-| `packages/db`        | Parameterized query surface and database-role verification               |
-| Feature HTTP adapter | Applies the schema and maps validated input into a use case              |
+| Boundary                  | Responsibility                                                           |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `hosts/http`              | Browser protocol policy, limits, framework lifecycle, and error handling |
+| `hosts/browser/customer`  | Browser execution policy and framework-safe rendering                    |
+| `platform/http`           | Reusable HTTP parsing and response mechanisms                            |
+| Owning cell or Experience | Runtime schemas and presentation for cross-boundary payloads             |
+| `platform/postgres`       | Parameterized query, transaction, and database-health mechanisms         |
+| Cell-owned HTTP adapter   | Applies the schema and maps validated input into application language    |
 
 Business use cases should not parse Express requests or implement browser protocols.
-The API composition root should not own feature-specific validation rules.
+The HTTP host and topology should not own feature-specific validation rules.
 
 ## CORS
 
@@ -59,9 +59,8 @@ Non-browser clients such as `curl` and malicious servers do not have to enforce 
 
 ### Implementation
 
-The API policy lives in
-`apps/api/src/http/middleware/cors.middleware.ts` and is composed before routes
-in `apps/api/src/bootstrap/api.composition.ts`.
+The API policy lives in `hosts/http/src/runtime/middleware/cors.ts` and is
+composed before generated routes by the HTTP host.
 
 The policy:
 
@@ -87,8 +86,7 @@ Pressly code owns the policy decision: which origins, methods, and headers are a
 
 ## Browser Security Headers
 
-The API applies `helmet()` before all routes from
-`apps/api/src/bootstrap/api.composition.ts`.
+The HTTP host applies `helmet()` before all generated routes.
 It removes the Express disclosure header and adds baseline browser defenses such as content-type sniffing protection, frame restrictions, transport security, and referrer policy.
 
 The web application owns the meaningful browser execution policy because it serves executable pages.
@@ -130,8 +128,10 @@ Do not apply HTML sanitization indiscriminately to ordinary JSON or plain text.
 
 ### Content Security Policy
 
-The active CSP builder lives in `apps/web/src/common/security/content-security-policy.ts`.
-Next.js attaches the resulting `Content-Security-Policy` header to every web response through `apps/web/next.config.ts`.
+The active CSP builder lives in
+`hosts/browser/customer/src/security/content-security-policy.ts`. Next.js
+attaches the resulting `Content-Security-Policy` header to every customer web
+response through `hosts/browser/customer/next.config.ts`.
 
 The policy restricts:
 
@@ -216,10 +216,12 @@ session restore returns an app-specific, session-bound CSRF proof. Each browser
 application keeps only its own proof in memory and sends it in `X-CSRF-Token`
 on unsafe requests.
 
-The boundaries are composed independently in:
+The realm protocols are declared independently and bound once at the API
+composition root:
 
-- `apps/api/src/http/processor/session/processor-session.boundary.ts`
-- `apps/api/src/http/control/session/control-session.boundary.ts`
+- `experiences/control/src/auth/boundary-profiles.ts`
+- `experiences/processor/src/server/authentication/boundary-profiles.ts`
+- `topology/runtime/http/bootstrap/target-authentication-providers.ts`
 
 They apply the same protocol without sharing host authority:
 
@@ -249,17 +251,12 @@ policy first.
 HTTP input is untrusted even when TypeScript gives the handler a static type.
 Runtime parsing must establish the type before a controller or use case consumes the value.
 
-`defineValidatedController` from `@pressly/http/express` binds the body, query,
-and path schemas from `packages/contracts` to the one controller allowed to
-consume their output. Its synchronous `validate` handler parses once and its
-`handle` function receives the typed, fingerprint-protected value explicitly.
-When route
-scope must be authorized before a command body is inspected, its typed
-`validators.params` and `validators.body` handlers preserve that order while
-still assembling one controller input. Missing, repeated, mixed, or mutated
-validation fails closed. A failed parse throws the standard validation
-`AppError`, which the single outer API error middleware presents as a
-structured `400` response without invoking the use case.
+Each HTTP surface names the owning cell contract and boundary profile. The
+generated catalog and generic HTTP host parse the declared body, query, and
+path once at the profile-controlled phase, then pass the decoded value to
+authorization and execution. Missing, repeated, mixed, or mutated validation
+fails closed. Expected validation failures are presented by the owning
+surface; unexpected failures reach the single outer API error middleware.
 
 Request schemas are synchronous and pure. Async lookup, authorization, or
 other effects belong in middleware or the application use case, not a Zod
@@ -269,8 +266,7 @@ Boundary schemas for mutable commands use strict objects so unknown properties a
 
 ### Parsing Limits
 
-`apps/api/src/bootstrap/api.composition.ts` applies controls before route
-composition:
+The HTTP host applies controls before generated route composition:
 
 - JSON content types are required on routes that accept JSON bodies.
 - Login bodies are limited to `8kb`.
@@ -285,13 +281,13 @@ Smaller route-specific parsers run before the global parser, so a sensitive endp
 
 ### Feature Rule
 
-Every new HTTP route must:
+Every new HTTP surface must:
 
-1. Define its boundary schema in `packages/contracts` when the payload crosses an application boundary.
-2. Construct one `defineValidatedController` and register its `validate`
-   function before its paired `handle` function. If authorization depends on
-   route params and must hide body validity, use `validators.params`, then
-   authorize, then `validators.body`, then `handle`.
+1. Define its boundary schema beside the owning cell or Experience operation
+   and publish only the consumer-safe contract subpath.
+2. Declare the exact parser, validation phase, authentication, authorization,
+   rate-limit, context, and failure-presentation requirements in its boundary
+   profile.
 3. Add a route-specific body limit when `64kb` is unnecessarily large.
 4. Reject undeclared fields for state-changing commands.
 5. Test malformed values, unknown properties, boundary sizes, and valid parsed output.
@@ -335,9 +331,10 @@ A valid-looking value can still become dangerous when inserted into SQL text inc
 
 ### Query Boundary
 
-Application and module code access database query primitives through `@pressly/db`.
+Application persistence code accesses database query primitives through
+`@pressly/postgres/query`.
 
-`packages/db/src/query.ts` exposes:
+That explicit subpath exposes:
 
 - Drizzle's parameterizing query operators, such as `eq`, `and`, and `lte`.
 - A tagged `sql` function that binds each interpolation as a parameter.
@@ -379,11 +376,13 @@ Unsafe names are rejected before any query executes.
 
 ### Automated Enforcement
 
-`packages/db/test/sql-safety.test.ts` scans source files under `apps`, `modules`, and `packages`.
+`platform/postgres/test/sql-safety.test.ts` scans executable source under
+Experiences, generated output, hosts, Platform, Systems, and Topology.
 
 CI fails when it finds:
 
-- A direct `drizzle-orm` import outside `packages/db/src`.
+- A direct `drizzle-orm` import outside the Postgres mechanism, an owning
+  system schema, the exact owner test-schema fixtures, or migration tooling.
 - A call to `sql.raw(...)` anywhere in scanned source.
 - An unsafe table name passed to the test truncation helper.
 
@@ -394,8 +393,10 @@ A future adapter cannot casually bypass parameterization without making CI fail.
 
 ### Trusted Exceptions and Limits
 
-Code inside `packages/db/src` remains a trusted boundary.
-Schema definitions, migrations, seeds, health checks, and test infrastructure may require static SQL or direct Drizzle access.
+Mechanism code inside `platform/postgres`, System-owned schema definitions,
+the exact owner test-schema fixtures, and migration or seed tooling under
+`tooling/postgres` and Topology are reviewed exceptions. The allowlist names
+those locations; it is not a general exemption for owner or Platform source.
 
 The current controls do not protect against:
 
@@ -449,7 +450,7 @@ This makes one request traceable across security decisions without accepting a c
 
 ### Safe Event Data
 
-Security event names and fields are defined in `packages/logging`.
+Security event names and fields are defined in `platform/logging`.
 Serialization redacts nested credentials, bearer values, request bodies, and database URL passwords.
 
 Alert candidates include:
@@ -486,9 +487,9 @@ Revisit this document when a feature adds any of these capabilities:
 Run the control-focused package tests after changing these boundaries:
 
 ```bash
-pnpm -F @pressly/api test
-pnpm -F @pressly/web test
-pnpm -F @pressly/db test
+pnpm -F @pressly/http-host test
+pnpm -F @pressly/customer-browser-host test
+pnpm -F @pressly/postgres test
 pnpm -F @pressly/logging test
 ```
 

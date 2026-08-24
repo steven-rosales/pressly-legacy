@@ -1,0 +1,26 @@
+{
+  "name": "@pressly/ingress-verification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --exclude 'test/**/*.int.test.ts'",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run test/ingress.conformance.int.test.ts --config vitest.config.ts --no-file-parallelism"
+  },
+  "dependencies": {
+    "@pressly/errors": "workspace:*",
+    "@pressly/ingress-system": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/topology": "workspace:*"
+  },
+  "devDependencies": {
+    "@pressly/testkit": "workspace:*",
+    "@types/node": "^25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

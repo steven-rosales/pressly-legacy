@@ -1,0 +1,87 @@
+{
+  "name": "@pressly/topology",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/public.js",
+  "types": "./dist/src/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/public.d.ts",
+      "import": "./dist/src/public.js",
+      "default": "./dist/src/public.js"
+    },
+    "./pressly": {
+      "types": "./dist/pressly.topology.d.ts",
+      "import": "./dist/pressly.topology.js",
+      "default": "./dist/pressly.topology.js"
+    },
+    "./postgres-schema": {
+      "types": "./dist/pressly-postgres-schema.d.ts",
+      "import": "./dist/pressly-postgres-schema.js",
+      "default": "./dist/pressly-postgres-schema.js"
+    },
+    "./runtime/http": {
+      "types": "./dist/runtime/http/public.d.ts",
+      "import": "./dist/runtime/http/public.js",
+      "default": "./dist/runtime/http/public.js"
+    },
+    "./runtime/jobs": {
+      "types": "./dist/runtime/jobs/public.d.ts",
+      "import": "./dist/runtime/jobs/public.js",
+      "default": "./dist/runtime/jobs/public.js"
+    },
+    "./runtime/cli": {
+      "types": "./dist/runtime/cli/public.d.ts",
+      "import": "./dist/runtime/cli/public.js",
+      "default": "./dist/runtime/cli/public.js"
+    },
+    "./runtime/browser": {
+      "types": "./dist/runtime/browser/public.d.ts",
+      "import": "./dist/runtime/browser/public.js",
+      "default": "./dist/runtime/browser/public.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check:generated": "tsx tooling/check-generated.ts",
+    "clean": "rm -rf dist",
+    "explain": "tsx tooling/explain.ts",
+    "generate": "tsx tooling/generate.ts",
+    "generate:migrations": "drizzle-kit generate --config tooling/drizzle.config.ts",
+    "lint": "eslint src runtime tooling *.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --config ../verification/topology/vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@pressly/access-system": "workspace:*",
+    "@pressly/auth-platform": "workspace:*",
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/config": "workspace:*",
+    "@pressly/customers-system": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/experience-control": "workspace:*",
+    "@pressly/experience-customer": "workspace:*",
+    "@pressly/experience-processor": "workspace:*",
+    "@pressly/ingress-system": "workspace:*",
+    "@pressly/jobs": "workspace:*",
+    "@pressly/http": "workspace:*",
+    "@pressly/logging": "workspace:*",
+    "@pressly/observability": "workspace:*",
+    "@pressly/orders-system": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/pricing-system": "workspace:*",
+    "@pressly/production-system": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "drizzle-kit": "^0.31.10",
+    "prettier": "^3.8.3",
+    "tsx": "^4.23.11",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

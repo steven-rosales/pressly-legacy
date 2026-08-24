@@ -14,7 +14,7 @@ services:
     pull_policy: never
     build:
       context: ${PRESSLY_SMOKE_REPO_ROOT:?}
-      dockerfile: apps/web/Dockerfile
+      dockerfile: deploy/images/web/Dockerfile
       args:
         API_BASE_URL: http://api:4000
         NEXT_PUBLIC_API_BASE_URL: https://api.pressly.test:${PRESSLY_SMOKE_CADDY_PORT:?}
@@ -29,7 +29,7 @@ services:
     pull_policy: never
     build:
       context: ${PRESSLY_SMOKE_REPO_ROOT:?}
-      dockerfile: apps/api/Dockerfile
+      dockerfile: deploy/images/api/Dockerfile
       target: runner
     env_file: !override
       - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/api.env.example
@@ -51,7 +51,7 @@ services:
     pull_policy: never
     build:
       context: ${PRESSLY_SMOKE_REPO_ROOT:?}
-      dockerfile: apps/worker/Dockerfile
+      dockerfile: deploy/images/worker/Dockerfile
       target: runner
     env_file: !override
       - path: ${PRESSLY_SMOKE_FIXTURE_DIR:?}/env/worker.env.example
@@ -63,7 +63,7 @@ services:
     pull_policy: never
     build:
       context: ${PRESSLY_SMOKE_REPO_ROOT:?}
-      dockerfile: apps/processor/Dockerfile
+      dockerfile: deploy/images/processor/Dockerfile
       target: runner
       args:
         VITE_API_URL: /api
@@ -79,7 +79,7 @@ services:
     pull_policy: never
     build:
       context: ${PRESSLY_SMOKE_REPO_ROOT:?}
-      dockerfile: apps/control/Dockerfile
+      dockerfile: deploy/images/control/Dockerfile
       target: runner
       args:
         VITE_API_URL: /api

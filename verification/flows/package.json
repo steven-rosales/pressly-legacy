@@ -1,0 +1,33 @@
+{
+  "name": "@pressly/flow-verification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist",
+    "lint": "eslint test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --passWithNoTests --exclude '**/*.int.test.ts'",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run --config vitest.config.ts --no-file-parallelism",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@pressly/access-system": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/generated": "workspace:*",
+    "@pressly/ingress-system": "workspace:*",
+    "@pressly/jobs": "workspace:*",
+    "@pressly/jobs-host": "workspace:*",
+    "@pressly/logging": "workspace:*",
+    "@pressly/observability": "workspace:*",
+    "@pressly/orders-system": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/production-system": "workspace:*",
+    "@pressly/testkit": "workspace:*",
+    "@pressly/topology": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

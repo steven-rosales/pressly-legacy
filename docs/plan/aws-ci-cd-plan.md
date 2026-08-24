@@ -166,12 +166,12 @@ package.json
 
 ```txt
 .github/workflows/deploy-production.yml
-infra/aws/lightsail/Caddyfile
-infra/aws/lightsail/docker-compose.production.yml
-infra/aws/lightsail/deploy.sh
-infra/aws/lightsail/backup-postgres.sh
-infra/aws/lightsail/restore-postgres.md
-infra/aws/lightsail/README.md
+deploy/aws/lightsail/Caddyfile
+deploy/aws/lightsail/docker-compose.production.yml
+deploy/aws/lightsail/deploy.sh
+deploy/aws/lightsail/backup-postgres.sh
+deploy/aws/lightsail/restore-postgres.md
+deploy/aws/lightsail/README.md
 ```
 
 Optional:
@@ -312,7 +312,7 @@ Lightsail firewall should match this.
 Add:
 
 ```txt
-infra/aws/lightsail/docker-compose.production.yml
+deploy/aws/lightsail/docker-compose.production.yml
 ```
 
 Shape:
@@ -387,7 +387,7 @@ The final implementation should use one stable convention:
 ```txt
 Keep the repo at /opt/pressly/repo.
 Keep secrets at /opt/pressly/.env.production.
-Run compose through /opt/pressly/repo/infra/aws/lightsail/docker-compose.production.yml.
+Run compose through /opt/pressly/repo/deploy/aws/lightsail/docker-compose.production.yml.
 ```
 
 Do not mix both.
@@ -397,7 +397,7 @@ Do not mix both.
 Add:
 
 ```txt
-infra/aws/lightsail/Caddyfile
+deploy/aws/lightsail/Caddyfile
 ```
 
 Shape:
@@ -472,7 +472,7 @@ chmod 600 /opt/pressly/.env.production
 Add:
 
 ```txt
-infra/aws/lightsail/deploy.sh
+deploy/aws/lightsail/deploy.sh
 ```
 
 Shape:
@@ -484,7 +484,7 @@ set -euo pipefail
 APP_ROOT="${PRESSLY_APP_ROOT:-/opt/pressly}"
 REPO_DIR="${PRESSLY_REPO_DIR:-$APP_ROOT/repo}"
 ENV_FILE="${PRESSLY_ENV_FILE:-$APP_ROOT/.env.production}"
-COMPOSE_FILE="${PRESSLY_COMPOSE_FILE:-$REPO_DIR/infra/aws/lightsail/docker-compose.production.yml}"
+COMPOSE_FILE="${PRESSLY_COMPOSE_FILE:-$REPO_DIR/deploy/aws/lightsail/docker-compose.production.yml}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 
 cd "$REPO_DIR"
@@ -532,7 +532,7 @@ Workflow shape:
 manual workflow_dispatch
 production environment approval
 SSH into Lightsail
-run /opt/pressly/repo/infra/aws/lightsail/deploy.sh
+run /opt/pressly/repo/deploy/aws/lightsail/deploy.sh
 ```
 
 GitHub secrets:
@@ -552,7 +552,7 @@ This workflow should not contain app secrets.
 Add:
 
 ```txt
-infra/aws/lightsail/backup-postgres.sh
+deploy/aws/lightsail/backup-postgres.sh
 ```
 
 Shape:
@@ -567,7 +567,7 @@ mkdir -p "$backup_dir"
 
 docker compose \
   --env-file /opt/pressly/.env.production \
-  -f /opt/pressly/repo/infra/aws/lightsail/docker-compose.production.yml \
+  -f /opt/pressly/repo/deploy/aws/lightsail/docker-compose.production.yml \
   exec -T postgres pg_dump -U pressly -d pressly \
   | gzip \
   | gpg --symmetric --cipher-algo AES256 --batch --passphrase-file /opt/pressly/backup-passphrase.txt \
@@ -581,7 +581,7 @@ find "$backup_dir" -type f -name '*.sql.gz.gpg' -mtime +7 -delete
 Run nightly with cron:
 
 ```txt
-15 3 * * * /opt/pressly/repo/infra/aws/lightsail/backup-postgres.sh >> /var/log/pressly-backup.log 2>&1
+15 3 * * * /opt/pressly/repo/deploy/aws/lightsail/backup-postgres.sh >> /var/log/pressly-backup.log 2>&1
 ```
 
 Backup rules:
@@ -687,7 +687,7 @@ App rollback:
 ```bash
 cd /opt/pressly/repo
 git checkout <known-good-sha>
-docker compose --env-file /opt/pressly/.env.production -f infra/aws/lightsail/docker-compose.production.yml up -d --build
+docker compose --env-file /opt/pressly/.env.production -f deploy/aws/lightsail/docker-compose.production.yml up -d --build
 ```
 
 Database rollback:

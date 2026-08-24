@@ -1,0 +1,131 @@
+{
+  "name": "@pressly/experience-control",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js",
+      "default": "./dist/browser.js"
+    },
+    "./contracts/authentication-v1": {
+      "types": "./dist/browser/contracts/authentication.d.ts",
+      "import": "./dist/browser/contracts/authentication.js",
+      "default": "./dist/browser/contracts/authentication.js"
+    },
+    "./contracts/customers-v1": {
+      "types": "./dist/browser/contracts/customers.d.ts",
+      "import": "./dist/browser/contracts/customers.js",
+      "default": "./dist/browser/contracts/customers.js"
+    },
+    "./contracts/invitations-v1": {
+      "types": "./dist/browser/contracts/invitations.d.ts",
+      "import": "./dist/browser/contracts/invitations.js",
+      "default": "./dist/browser/contracts/invitations.js"
+    },
+    "./contracts/orders-v1": {
+      "types": "./dist/browser/contracts/orders.d.ts",
+      "import": "./dist/browser/contracts/orders.js",
+      "default": "./dist/browser/contracts/orders.js"
+    },
+    "./contracts/security-v1": {
+      "types": "./dist/browser/contracts/security.d.ts",
+      "import": "./dist/browser/contracts/security.js",
+      "default": "./dist/browser/contracts/security.js"
+    },
+    "./contracts/workforce-v1": {
+      "types": "./dist/browser/contracts/workforce.d.ts",
+      "import": "./dist/browser/contracts/workforce.js",
+      "default": "./dist/browser/contracts/workforce.js"
+    },
+    "./contracts/cli-v1": {
+      "types": "./dist/cli/contracts-v1.d.ts",
+      "import": "./dist/cli/contracts-v1.js",
+      "default": "./dist/cli/contracts-v1.js"
+    },
+    "./cli/runtime": {
+      "types": "./dist/cli/runtime.d.ts",
+      "import": "./dist/cli/runtime.js",
+      "default": "./dist/cli/runtime.js"
+    },
+    "./cli/presentation": {
+      "types": "./dist/cli/presentation.d.ts",
+      "import": "./dist/cli/presentation.js",
+      "default": "./dist/cli/presentation.js"
+    },
+    "./operations/access/resolve-access/cell": {
+      "types": "./dist/cells/access/resolve-access/cell.d.ts",
+      "import": "./dist/cells/access/resolve-access/cell.js",
+      "default": "./dist/cells/access/resolve-access/cell.js"
+    },
+    "./testing/assembly": {
+      "types": "./dist/control-experience.d.ts",
+      "import": "./dist/control-experience.js",
+      "default": "./dist/control-experience.js"
+    },
+    "./testing/auth-boundaries": {
+      "types": "./dist/auth/boundary-profiles.d.ts",
+      "import": "./dist/auth/boundary-profiles.js",
+      "default": "./dist/auth/boundary-profiles.js"
+    },
+    "./testing/management-boundaries": {
+      "types": "./dist/management/boundary-profiles.d.ts",
+      "import": "./dist/management/boundary-profiles.js",
+      "default": "./dist/management/boundary-profiles.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.2.8",
+    "@pressly/access-system": "workspace:*",
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/customers-system": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/http": "workspace:*",
+    "@pressly/ingress-system": "workspace:*",
+    "@pressly/orders-system": "workspace:*",
+    "@pressly/production-system": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "@tabler/icons-react": "^3.44.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
+    "i18next": "^26.3.6",
+    "input-otp": "^1.4.2",
+    "radix-ui": "^1.5.0",
+    "react": "^19.2.6",
+    "react-day-picker": "^10.0.1",
+    "react-dom": "^19.2.6",
+    "react-i18next": "^17.0.10",
+    "react-router-dom": "^7.18.2",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@pressly/testkit": "workspace:*",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "jsdom": "^28.1.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

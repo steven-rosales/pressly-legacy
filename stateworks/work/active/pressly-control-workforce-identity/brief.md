@@ -30,24 +30,28 @@ surface.
   it owns a human's relationship to one Pressly business.
 - Scoped access grants remain independently versioned and auditable; they own
   roles and location authority without becoming customer profiles.
-- Users owns canonical customer profiles and remains independent of login.
+- Customers owns canonical customer profiles and remains independent of login.
 - Orders owns canonical commercial orders and fulfillment release.
 - Production consumes only canonical source-neutral fulfillment events.
 
 ## Architecture Authority
 
-- `modules/experience/control` owns Control-specific cross-domain application
-  orchestration, business/location scoping, capabilities, application
-  destinations, and Control projections.
-- Identity, Users, and Orders remain independent authorities. The API
-  composition root adapts their public capabilities to narrow Control-owned
-  ports; the Control Experience module imports no peer module package.
-- `apps/api/src/http/control` owns HTTP validation and presentation plus
-  cookie/session/CSRF mechanics. It does not own Control business policy.
-- `apps/control` consumes serialized Control contracts and owns presentation
-  state only.
+- `experiences/control` owns Control-specific cross-system orchestration,
+  business/location scoping, serialized management boundaries, capabilities,
+  application destinations, and Control projections.
+- Access, Customers, and Orders remain independent system authorities. API
+  target-owner composition injects their public cells and narrow capabilities
+  into the Control Experience; the Experience imports no private cell, runtime,
+  persistence, or peer schema.
+- Topology selects the Control operations, generated catalogs carry their
+  static registrations, and the generic HTTP host interprets them.
+  `hosts/http` owns authentication, cookie and CSRF mechanics, rate limits,
+  request context, and final error observation; Topology runtime injects the
+  checked owner-specific providers. Neither owns Control business policy.
+- `experiences/control` owns serialized Control workflows and presentation;
+  `hosts/browser/control` retains only browser framework and process effects.
 - Expected peer rejections are classified into typed Control failure data at
-  the API composition edge. Unexpected database, invariant, configuration, or
+  the Experience boundary. Unexpected database, invariant, configuration, or
   programming failures remain throwable `AppError` values and are never
   disguised as expected `Result` data.
 - Control language uses semantic roles, not transport convenience: workforce

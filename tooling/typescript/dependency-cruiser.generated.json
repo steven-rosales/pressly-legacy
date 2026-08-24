@@ -1,0 +1,1001 @@
+{
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@/*": [
+        "hosts/browser/customer/src/*"
+      ],
+      "@pressly/access-system": [
+        "systems/access/src/public.ts"
+      ],
+      "@pressly/access-system/assembly/production-capabilities": [
+        "systems/access/src/assembly/production-capabilities.postgres.ts"
+      ],
+      "@pressly/access-system/assembly/production-location-authority": [
+        "systems/access/src/assembly/production-location-authority.ts"
+      ],
+      "@pressly/access-system/authentication": [
+        "systems/access/src/model/authentication/public.ts"
+      ],
+      "@pressly/access-system/authorization": [
+        "systems/access/src/model/authorization/public.ts"
+      ],
+      "@pressly/access-system/capabilities/experience-access-v1": [
+        "systems/access/src/contracts/experience-access-v1.ts"
+      ],
+      "@pressly/access-system/capabilities/order-location-facts-v1": [
+        "systems/access/src/contracts/order-location-facts-v1.ts"
+      ],
+      "@pressly/access-system/capabilities/production-actor-read-v1": [
+        "systems/access/src/contracts/production-actor-read-v1.ts"
+      ],
+      "@pressly/access-system/capabilities/production-scope-reconciliation-v1": [
+        "systems/access/src/contracts/production-scope-reconciliation-v1.ts"
+      ],
+      "@pressly/access-system/contracts/access-operations-v2": [
+        "systems/access/src/contracts/access-operations-v2.ts"
+      ],
+      "@pressly/access-system/contracts/reconcile-production-location-v1": [
+        "systems/access/src/cells/scopes/reconcile-production-location/types.ts"
+      ],
+      "@pressly/access-system/password-policy": [
+        "systems/access/src/model/language/password-strength.ts"
+      ],
+      "@pressly/access-system/schema": [
+        "systems/access/src/schema/public.ts"
+      ],
+      "@pressly/access-system/testing/assembly": [
+        "systems/access/src/system.ts"
+      ],
+      "@pressly/access-system/testing/authorization": [
+        "systems/access/src/authorization.ts"
+      ],
+      "@pressly/auth-platform/cookies": [
+        "platform/auth/src/cookies.ts"
+      ],
+      "@pressly/auth-platform/csrf": [
+        "platform/auth/src/csrf.ts"
+      ],
+      "@pressly/auth-platform/hmac-sha256": [
+        "platform/auth/src/hmac-sha256.ts"
+      ],
+      "@pressly/auth-platform/passwords": [
+        "platform/auth/src/passwords.ts"
+      ],
+      "@pressly/auth-platform/recovery-codes": [
+        "platform/auth/src/recovery-codes.ts"
+      ],
+      "@pressly/auth-platform/secret-box": [
+        "platform/auth/src/secret-box.ts"
+      ],
+      "@pressly/auth-platform/tokens": [
+        "platform/auth/src/tokens.ts"
+      ],
+      "@pressly/auth-platform/totp": [
+        "platform/auth/src/totp.ts"
+      ],
+      "@pressly/cells": [
+        "platform/cells/src/public.ts"
+      ],
+      "@pressly/cells/command-context": [
+        "platform/cells/src/command-context.ts"
+      ],
+      "@pressly/cells/id-source": [
+        "platform/cells/src/id-source.ts"
+      ],
+      "@pressly/cells/id-source/node": [
+        "platform/cells/src/id-source.node.ts"
+      ],
+      "@pressly/cells/operation-proof": [
+        "platform/cells/src/operation-proof.ts"
+      ],
+      "@pressly/cells/result": [
+        "platform/cells/src/result.ts"
+      ],
+      "@pressly/cells/state-machine": [
+        "platform/cells/src/state-machine.ts"
+      ],
+      "@pressly/cells/unit-of-work": [
+        "platform/cells/src/unit-of-work.ts"
+      ],
+      "@pressly/cli-host": [
+        "hosts/cli/src/public.ts"
+      ],
+      "@pressly/cli-host/ink": [
+        "hosts/cli/src/ink-tty.tsx"
+      ],
+      "@pressly/cli-host/process": [
+        "hosts/cli/src/runtime/process-runtime.ts"
+      ],
+      "@pressly/codec": [
+        "platform/codec/src/index.ts"
+      ],
+      "@pressly/codec/node": [
+        "platform/codec/src/node.ts"
+      ],
+      "@pressly/codec/sha256": [
+        "platform/codec/src/sha256.ts"
+      ],
+      "@pressly/codec/utc-iso": [
+        "platform/codec/src/utc-iso.ts"
+      ],
+      "@pressly/codec/zod": [
+        "platform/codec/src/zod.ts"
+      ],
+      "@pressly/config": [
+        "platform/config/src/index.ts"
+      ],
+      "@pressly/customers-system": [
+        "systems/customers/src/public.ts"
+      ],
+      "@pressly/customers-system/capabilities/customer-management-v1": [
+        "systems/customers/src/contracts/customer-management-v1.ts"
+      ],
+      "@pressly/customers-system/capabilities/customer-reference-v1": [
+        "systems/customers/src/contracts/customer-reference-v1.ts"
+      ],
+      "@pressly/customers-system/capabilities/resolve-exact-source-customer-v1": [
+        "systems/customers/src/contracts/resolve-exact-source-customer-v1.ts"
+      ],
+      "@pressly/customers-system/operations/profiles/create-customer/types": [
+        "systems/customers/src/cells/profiles/create-customer/types.ts"
+      ],
+      "@pressly/customers-system/operations/profiles/get-customer/types": [
+        "systems/customers/src/cells/profiles/get-customer/types.ts"
+      ],
+      "@pressly/customers-system/operations/profiles/list-customers/types": [
+        "systems/customers/src/cells/profiles/list-customers/types.ts"
+      ],
+      "@pressly/customers-system/operations/profiles/update-customer/types": [
+        "systems/customers/src/cells/profiles/update-customer/types.ts"
+      ],
+      "@pressly/customers-system/operations/sources/resolve-exact-source-customer/types": [
+        "systems/customers/src/cells/sources/resolve-exact-source-customer/types.ts"
+      ],
+      "@pressly/customers-system/schema": [
+        "systems/customers/src/schema/public.ts"
+      ],
+      "@pressly/customers-system/testing/assembly": [
+        "systems/customers/src/system.ts"
+      ],
+      "@pressly/customers-verification": [
+        "verification/customers/src/public.ts"
+      ],
+      "@pressly/errors/abort-reason": [
+        "platform/errors/src/abort-reason.ts"
+      ],
+      "@pressly/errors/app-error": [
+        "platform/errors/src/app-error.ts"
+      ],
+      "@pressly/errors/factories": [
+        "platform/errors/src/factories.ts"
+      ],
+      "@pressly/errors/presentation": [
+        "platform/errors/src/presentation.ts"
+      ],
+      "@pressly/errors/tooling-error": [
+        "platform/errors/src/tooling-error.mjs"
+      ],
+      "@pressly/experience-control": [
+        "experiences/control/src/public.ts"
+      ],
+      "@pressly/experience-control/browser": [
+        "experiences/control/src/browser.ts"
+      ],
+      "@pressly/experience-control/cli/presentation": [
+        "experiences/control/src/cli/presentation.ts"
+      ],
+      "@pressly/experience-control/cli/runtime": [
+        "experiences/control/src/cli/runtime.ts"
+      ],
+      "@pressly/experience-control/contracts/authentication-v1": [
+        "experiences/control/src/browser/contracts/authentication.ts"
+      ],
+      "@pressly/experience-control/contracts/cli-v1": [
+        "experiences/control/src/cli/contracts-v1.ts"
+      ],
+      "@pressly/experience-control/contracts/customers-v1": [
+        "experiences/control/src/browser/contracts/customers.ts"
+      ],
+      "@pressly/experience-control/contracts/invitations-v1": [
+        "experiences/control/src/browser/contracts/invitations.ts"
+      ],
+      "@pressly/experience-control/contracts/orders-v1": [
+        "experiences/control/src/browser/contracts/orders.ts"
+      ],
+      "@pressly/experience-control/contracts/security-v1": [
+        "experiences/control/src/browser/contracts/security.ts"
+      ],
+      "@pressly/experience-control/contracts/workforce-v1": [
+        "experiences/control/src/browser/contracts/workforce.ts"
+      ],
+      "@pressly/experience-control/operations/access/resolve-access/cell": [
+        "experiences/control/src/cells/access/resolve-access/cell.ts"
+      ],
+      "@pressly/experience-control/testing/assembly": [
+        "experiences/control/src/control-experience.ts"
+      ],
+      "@pressly/experience-control/testing/auth-boundaries": [
+        "experiences/control/src/auth/boundary-profiles.ts"
+      ],
+      "@pressly/experience-control/testing/management-boundaries": [
+        "experiences/control/src/management/boundary-profiles.ts"
+      ],
+      "@pressly/experience-customer": [
+        "experiences/customer/src/public.ts"
+      ],
+      "@pressly/experience-customer/browser": [
+        "experiences/customer/src/browser.ts"
+      ],
+      "@pressly/experience-customer/testing/assembly": [
+        "experiences/customer/src/customer-experience.ts"
+      ],
+      "@pressly/experience-customer/testing/auth-boundaries": [
+        "experiences/customer/src/auth/boundary-profiles.ts"
+      ],
+      "@pressly/experience-customer/web": [
+        "experiences/customer/src/web.ts"
+      ],
+      "@pressly/experience-customer/web-client": [
+        "experiences/customer/src/web-client.ts"
+      ],
+      "@pressly/experience-processor": [
+        "experiences/processor/src/public.ts"
+      ],
+      "@pressly/experience-processor/browser": [
+        "experiences/processor/src/browser.ts"
+      ],
+      "@pressly/experience-processor/contracts/authentication-v1": [
+        "experiences/processor/src/contracts/authentication-v1.ts"
+      ],
+      "@pressly/experience-processor/contracts/operational-order": [
+        "experiences/processor/src/contracts/operational-order.ts"
+      ],
+      "@pressly/experience-processor/contracts/production-board": [
+        "experiences/processor/src/contracts/production-board.ts"
+      ],
+      "@pressly/experience-processor/contracts/production-history": [
+        "experiences/processor/src/contracts/production-history.ts"
+      ],
+      "@pressly/experience-processor/contracts/production-order-backlog": [
+        "experiences/processor/src/contracts/production-order-backlog.ts"
+      ],
+      "@pressly/experience-processor/contracts/production-order-control": [
+        "experiences/processor/src/contracts/production-order-control.ts"
+      ],
+      "@pressly/experience-processor/contracts/production-workspace": [
+        "experiences/processor/src/contracts/production-workspace.ts"
+      ],
+      "@pressly/experience-processor/contracts/remaining-day-forecast": [
+        "experiences/processor/src/contracts/remaining-day-forecast.ts"
+      ],
+      "@pressly/experience-processor/server": [
+        "experiences/processor/src/server.ts"
+      ],
+      "@pressly/experience-processor/testing/browser-subscribe-changes": [
+        "experiences/processor/src/features/live/subscribe-changes/client.ts"
+      ],
+      "@pressly/generated-runtime/browser/control": [
+        "generated/runtime/src/browser/control.ts"
+      ],
+      "@pressly/generated-runtime/browser/customer": [
+        "generated/runtime/src/browser/customer.ts"
+      ],
+      "@pressly/generated-runtime/browser/customer-client": [
+        "generated/runtime/src/browser/customer-client.ts"
+      ],
+      "@pressly/generated-runtime/browser/processor": [
+        "generated/runtime/src/browser/processor.ts"
+      ],
+      "@pressly/generated-runtime/cli": [
+        "generated/runtime/src/cli.ts"
+      ],
+      "@pressly/generated-runtime/http": [
+        "generated/runtime/src/http.ts"
+      ],
+      "@pressly/generated-runtime/jobs": [
+        "generated/runtime/src/jobs.ts"
+      ],
+      "@pressly/generated/architecture-map": [
+        "generated/architecture-map.ts"
+      ],
+      "@pressly/generated/cli-catalog": [
+        "generated/cli-catalog.ts"
+      ],
+      "@pressly/generated/clients/control": [
+        "generated/clients/control.ts"
+      ],
+      "@pressly/generated/clients/customer": [
+        "generated/clients/customer.ts"
+      ],
+      "@pressly/generated/clients/processor": [
+        "generated/clients/processor.ts"
+      ],
+      "@pressly/generated/event-stream-catalog": [
+        "generated/event-stream-catalog.ts"
+      ],
+      "@pressly/generated/http-catalog": [
+        "generated/http-catalog.ts"
+      ],
+      "@pressly/generated/job-catalog": [
+        "generated/job-catalog.ts"
+      ],
+      "@pressly/generated/observability-catalog": [
+        "generated/observability-catalog.ts"
+      ],
+      "@pressly/http": [
+        "platform/http/src/index.ts"
+      ],
+      "@pressly/http-host": [
+        "hosts/http/src/public.ts"
+      ],
+      "@pressly/http-host/runtime": [
+        "hosts/http/src/runtime/public.ts"
+      ],
+      "@pressly/http/express": [
+        "platform/http/src/express/index.ts"
+      ],
+      "@pressly/http/host-boundary": [
+        "platform/http/src/host-boundary.ts"
+      ],
+      "@pressly/ingress-system": [
+        "systems/ingress/src/public.ts"
+      ],
+      "@pressly/ingress-system/capabilities/process-inbound-event-job": [
+        "systems/ingress/src/capabilities/process-inbound-event-job/public.ts"
+      ],
+      "@pressly/ingress-system/capabilities/source-location-bindings-v1": [
+        "systems/ingress/src/cells/bindings/reconcile-source-location-bindings/model.ts"
+      ],
+      "@pressly/ingress-system/contracts/cents-v1": [
+        "systems/ingress/src/contracts/cents-v1.ts"
+      ],
+      "@pressly/ingress-system/contracts/webhook-ingestion-v1": [
+        "systems/ingress/src/contracts/webhook-ingestion-v1.ts"
+      ],
+      "@pressly/ingress-system/models/inbox": [
+        "systems/ingress/src/model/inbox.ts"
+      ],
+      "@pressly/ingress-system/models/quarantine": [
+        "systems/ingress/src/model/quarantine.ts"
+      ],
+      "@pressly/ingress-system/observability/metrics": [
+        "systems/ingress/src/observability/metrics.ts"
+      ],
+      "@pressly/ingress-system/operations/bindings/reconcile-source-location-bindings/types": [
+        "systems/ingress/src/cells/bindings/reconcile-source-location-bindings/types.ts"
+      ],
+      "@pressly/ingress-system/operations/bindings/resolve-source-location/types": [
+        "systems/ingress/src/cells/bindings/resolve-source-location/types.ts"
+      ],
+      "@pressly/ingress-system/operations/inbox/claim-events/types": [
+        "systems/ingress/src/cells/inbox/claim-events/types.ts"
+      ],
+      "@pressly/ingress-system/operations/inbox/dead-letter-event/types": [
+        "systems/ingress/src/cells/inbox/dead-letter-event/types.ts"
+      ],
+      "@pressly/ingress-system/operations/inbox/list-dead-events/cell": [
+        "systems/ingress/src/cells/inbox/list-dead-events/cell.ts"
+      ],
+      "@pressly/ingress-system/operations/inbox/list-dead-events/http": [
+        "systems/ingress/src/cells/inbox/list-dead-events/http.ts"
+      ],
+      "@pressly/ingress-system/operations/inbox/replay-dead-event/cell": [
+        "systems/ingress/src/cells/inbox/replay-dead-event/cell.ts"
+      ],
+      "@pressly/ingress-system/operations/inbox/replay-dead-event/http": [
+        "systems/ingress/src/cells/inbox/replay-dead-event/http.ts"
+      ],
+      "@pressly/ingress-system/operations/inbox/replay-dead-event/types": [
+        "systems/ingress/src/cells/inbox/replay-dead-event/types.ts"
+      ],
+      "@pressly/ingress-system/operations/inbox/retry-event/types": [
+        "systems/ingress/src/cells/inbox/retry-event/types.ts"
+      ],
+      "@pressly/ingress-system/operations/processing/process-inbound-event/cell": [
+        "systems/ingress/src/cells/processing/process-inbound-event/cell.ts"
+      ],
+      "@pressly/ingress-system/operations/processing/process-inbound-event/contract": [
+        "systems/ingress/src/cells/processing/process-inbound-event/contract.ts"
+      ],
+      "@pressly/ingress-system/operations/processing/process-inbound-event/job": [
+        "systems/ingress/src/cells/processing/process-inbound-event/job.ts"
+      ],
+      "@pressly/ingress-system/operations/processing/process-inbound-event/types": [
+        "systems/ingress/src/cells/processing/process-inbound-event/types.ts"
+      ],
+      "@pressly/ingress-system/operations/quarantine/link-webhook-receipt/types": [
+        "systems/ingress/src/cells/quarantine/link-webhook-receipt/types.ts"
+      ],
+      "@pressly/ingress-system/operations/sources/receive-cents-webhook/execute": [
+        "systems/ingress/src/cells/sources/receive-cents-webhook/execute.ts"
+      ],
+      "@pressly/ingress-system/operations/sources/receive-cents-webhook/response-signals": [
+        "systems/ingress/src/cells/sources/receive-cents-webhook/response-signals.ts"
+      ],
+      "@pressly/ingress-system/schema": [
+        "systems/ingress/src/schema/public.ts"
+      ],
+      "@pressly/ingress-system/sources/cents": [
+        "systems/ingress/src/sources/cents/public.ts"
+      ],
+      "@pressly/ingress-system/testing/assembly": [
+        "systems/ingress/src/system.ts"
+      ],
+      "@pressly/jobs": [
+        "platform/jobs/src/public.ts"
+      ],
+      "@pressly/jobs-host": [
+        "hosts/jobs/src/public.ts"
+      ],
+      "@pressly/jobs-host/durable-execution": [
+        "hosts/jobs/src/durable-execution.ts"
+      ],
+      "@pressly/jobs-host/process": [
+        "hosts/jobs/src/process-main.ts"
+      ],
+      "@pressly/jobs-host/runtime-support": [
+        "hosts/jobs/src/runtime-support.ts"
+      ],
+      "@pressly/logging": [
+        "platform/logging/src/index.ts"
+      ],
+      "@pressly/observability": [
+        "platform/observability/src/index.ts"
+      ],
+      "@pressly/observability/metric-catalog-algebra": [
+        "platform/observability/src/metric-catalog-algebra.ts"
+      ],
+      "@pressly/orders-system": [
+        "systems/orders/src/public.ts"
+      ],
+      "@pressly/orders-system/capabilities/list-recent-order-audit-v1": [
+        "systems/orders/src/contracts/list-recent-order-audit-v1.ts"
+      ],
+      "@pressly/orders-system/capabilities/order-management-v1": [
+        "systems/orders/src/contracts/order-management-v1.ts"
+      ],
+      "@pressly/orders-system/capabilities/order-outbox-job": [
+        "systems/orders/src/capabilities/order-outbox-job/public.ts"
+      ],
+      "@pressly/orders-system/capabilities/resolve-canonical-orders-by-fulfillment-v1": [
+        "systems/orders/src/contracts/resolve-canonical-orders-by-fulfillment-v1.ts"
+      ],
+      "@pressly/orders-system/contracts/fulfillment-demand-changed-v2": [
+        "systems/orders/src/contracts/fulfillment-demand-changed-v2.ts"
+      ],
+      "@pressly/orders-system/http/order-management": [
+        "systems/orders/src/http/order-management.ts"
+      ],
+      "@pressly/orders-system/models/canonical-order/policy": [
+        "systems/orders/src/model/canonical-order/policy.ts"
+      ],
+      "@pressly/orders-system/models/order-outbox": [
+        "systems/orders/src/model/order-outbox/model.ts"
+      ],
+      "@pressly/orders-system/operations/fulfillment/release-fulfillment/cell": [
+        "systems/orders/src/cells/fulfillment/release-fulfillment/cell.ts"
+      ],
+      "@pressly/orders-system/operations/fulfillment/withdraw-fulfillment/cell": [
+        "systems/orders/src/cells/fulfillment/withdraw-fulfillment/cell.ts"
+      ],
+      "@pressly/orders-system/operations/intake/accept-incoming-order-proposal/cell": [
+        "systems/orders/src/cells/intake/accept-incoming-order-proposal/cell.ts"
+      ],
+      "@pressly/orders-system/operations/intake/close-incoming-order-source/types": [
+        "systems/orders/src/cells/intake/close-incoming-order-source/types.ts"
+      ],
+      "@pressly/orders-system/operations/intake/list-incoming-order-proposals/cell": [
+        "systems/orders/src/cells/intake/list-incoming-order-proposals/cell.ts"
+      ],
+      "@pressly/orders-system/operations/intake/propose-incoming-order/types": [
+        "systems/orders/src/cells/intake/propose-incoming-order/types.ts"
+      ],
+      "@pressly/orders-system/operations/intake/reject-incoming-order-proposal/cell": [
+        "systems/orders/src/cells/intake/reject-incoming-order-proposal/cell.ts"
+      ],
+      "@pressly/orders-system/operations/intake/restore-incoming-order-proposal/cell": [
+        "systems/orders/src/cells/intake/restore-incoming-order-proposal/cell.ts"
+      ],
+      "@pressly/orders-system/operations/lifecycle/cancel-order/cell": [
+        "systems/orders/src/cells/lifecycle/cancel-order/cell.ts"
+      ],
+      "@pressly/orders-system/operations/lifecycle/complete-order/cell": [
+        "systems/orders/src/cells/lifecycle/complete-order/cell.ts"
+      ],
+      "@pressly/orders-system/operations/lifecycle/correct-order/cell": [
+        "systems/orders/src/cells/lifecycle/correct-order/cell.ts"
+      ],
+      "@pressly/orders-system/operations/lifecycle/create-order/cell": [
+        "systems/orders/src/cells/lifecycle/create-order/cell.ts"
+      ],
+      "@pressly/orders-system/operations/lifecycle/create-order/types": [
+        "systems/orders/src/cells/lifecycle/create-order/types.ts"
+      ],
+      "@pressly/orders-system/operations/outbox/claim-order-outbox/types": [
+        "systems/orders/src/cells/outbox/claim-order-outbox/types.ts"
+      ],
+      "@pressly/orders-system/operations/outbox/complete-order-outbox/types": [
+        "systems/orders/src/cells/outbox/complete-order-outbox/types.ts"
+      ],
+      "@pressly/orders-system/operations/outbox/dead-letter-order-outbox/types": [
+        "systems/orders/src/cells/outbox/dead-letter-order-outbox/types.ts"
+      ],
+      "@pressly/orders-system/operations/outbox/retry-order-outbox/types": [
+        "systems/orders/src/cells/outbox/retry-order-outbox/types.ts"
+      ],
+      "@pressly/orders-system/operations/queries/get-canonical-order/cell": [
+        "systems/orders/src/cells/queries/get-canonical-order/cell.ts"
+      ],
+      "@pressly/orders-system/operations/queries/list-canonical-orders/cell": [
+        "systems/orders/src/cells/queries/list-canonical-orders/cell.ts"
+      ],
+      "@pressly/orders-system/schema": [
+        "systems/orders/src/schema/public.ts"
+      ],
+      "@pressly/orders-system/testing/assembly": [
+        "systems/orders/src/system.ts"
+      ],
+      "@pressly/orders-system/testing/http-boundary": [
+        "systems/orders/src/http/order-management-boundary.ts"
+      ],
+      "@pressly/orders-verification": [
+        "verification/orders/src/public.ts"
+      ],
+      "@pressly/postgres/advisory-lock": [
+        "platform/postgres/src/advisory-lock.postgres.ts"
+      ],
+      "@pressly/postgres/client": [
+        "platform/postgres/src/client.ts"
+      ],
+      "@pressly/postgres/health": [
+        "platform/postgres/src/health.ts"
+      ],
+      "@pressly/postgres/migration-ledger": [
+        "platform/postgres/src/migration-ledger.ts"
+      ],
+      "@pressly/postgres/migration-runner": [
+        "platform/postgres/src/migration-runner.ts"
+      ],
+      "@pressly/postgres/query": [
+        "platform/postgres/src/query.ts"
+      ],
+      "@pressly/postgres/testing": [
+        "platform/postgres/src/testing.ts"
+      ],
+      "@pressly/postgres/unit-of-work": [
+        "platform/postgres/src/unit-of-work.ts"
+      ],
+      "@pressly/pricing-system": [
+        "systems/pricing/src/public.ts"
+      ],
+      "@pressly/pricing-system/http/catalog": [
+        "systems/pricing/src/http/catalog.ts"
+      ],
+      "@pressly/pricing-system/models/pricing-change": [
+        "systems/pricing/src/model/pricing-change.ts"
+      ],
+      "@pressly/pricing-system/operations/catalog/load-pricing-catalog/cell": [
+        "systems/pricing/src/cells/catalog/load-pricing-catalog/cell.ts"
+      ],
+      "@pressly/pricing-system/operations/pricebook/plan-pricing-change/cell": [
+        "systems/pricing/src/cells/pricebook/plan-pricing-change/cell.ts"
+      ],
+      "@pressly/pricing-system/operations/pricebook/publish-pricing-change/cell": [
+        "systems/pricing/src/cells/pricebook/publish-pricing-change/cell.ts"
+      ],
+      "@pressly/pricing-system/schema": [
+        "systems/pricing/src/schema/public.ts"
+      ],
+      "@pressly/pricing-system/seeding/pricing": [
+        "systems/pricing/src/seeding/seed-pricing.postgres.ts"
+      ],
+      "@pressly/pricing-system/testing/assembly": [
+        "systems/pricing/src/system.ts"
+      ],
+      "@pressly/pricing-verification": [
+        "verification/pricing/src/public.ts"
+      ],
+      "@pressly/production-system": [
+        "systems/production/src/public.ts"
+      ],
+      "@pressly/production-system/capabilities/apply-fulfillment-demand-job": [
+        "systems/production/src/cells/demand/apply-fulfillment-demand/job-delivery.ts"
+      ],
+      "@pressly/production-system/capabilities/list-recent-order-activity-v1": [
+        "systems/production/src/contracts/list-recent-order-activity-v1.ts"
+      ],
+      "@pressly/production-system/capabilities/resolve-fulfillment-references-v1": [
+        "systems/production/src/contracts/resolve-fulfillment-references-v1.ts"
+      ],
+      "@pressly/production-system/contracts/demand/change-admission": [
+        "systems/production/src/cells/demand/change-admission/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/demand/change-order-resolution": [
+        "systems/production/src/cells/demand/change-order-resolution/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/demand/commit-order-backlog": [
+        "systems/production/src/cells/demand/commit-order-backlog/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/demand/preview-order-backlog": [
+        "systems/production/src/cells/demand/preview-order-backlog/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/demand/record-order-intake": [
+        "systems/production/src/cells/demand/record-order-intake/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/demand/set-order-priority": [
+        "systems/production/src/cells/demand/set-order-priority/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/floor/advance-stage": [
+        "systems/production/src/cells/floor/advance-stage/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/floor/assign-stage-machines": [
+        "systems/production/src/cells/floor/assign-stage-machines/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/floor/freeze-batch-membership": [
+        "systems/production/src/cells/floor/freeze-batch-membership/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/floor/reconcile-batch-progress": [
+        "systems/production/src/cells/floor/reconcile-batch-progress/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/floor/unfreeze-batch-membership": [
+        "systems/production/src/cells/floor/unfreeze-batch-membership/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/orders/list-order-control": [
+        "systems/production/src/cells/orders/list-order-control/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/orders/list-orders": [
+        "systems/production/src/cells/orders/list-orders/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/queries/load-board": [
+        "systems/production/src/cells/queries/load-board/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/queries/load-remaining-day-forecast": [
+        "systems/production/src/cells/queries/load-remaining-day-forecast/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/queries/load-workspace": [
+        "systems/production/src/cells/queries/load-workspace/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/read-models/production-board": [
+        "systems/production/src/read-models/production-board/contract.ts"
+      ],
+      "@pressly/production-system/contracts/read-models/production-history": [
+        "systems/production/src/read-models/production-history/contract.ts"
+      ],
+      "@pressly/production-system/contracts/read-models/production-order": [
+        "systems/production/src/read-models/production-order/contract.ts"
+      ],
+      "@pressly/production-system/contracts/read-models/production-order-backlog": [
+        "systems/production/src/read-models/production-order-backlog/contract.ts"
+      ],
+      "@pressly/production-system/contracts/read-models/production-order-control": [
+        "systems/production/src/read-models/production-order-control/contract.ts"
+      ],
+      "@pressly/production-system/contracts/read-models/production-order-placement": [
+        "systems/production/src/read-models/production-order-placement/contract.ts"
+      ],
+      "@pressly/production-system/contracts/read-models/production-resources": [
+        "systems/production/src/read-models/production-resources/contract.ts"
+      ],
+      "@pressly/production-system/contracts/read-models/production-schedule": [
+        "systems/production/src/read-models/production-schedule/contract.ts"
+      ],
+      "@pressly/production-system/contracts/resources/list-locations": [
+        "systems/production/src/cells/resources/list-locations/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/resources/manage-resources": [
+        "systems/production/src/cells/resources/manage-resources/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/scheduling/accept-schedule": [
+        "systems/production/src/cells/scheduling/accept-schedule/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/scheduling/create-schedule": [
+        "systems/production/src/cells/scheduling/create-schedule/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/scheduling/create-shift": [
+        "systems/production/src/cells/scheduling/create-shift/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/scheduling/load-schedule": [
+        "systems/production/src/cells/scheduling/load-schedule/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/scheduling/publish-scheduler-config": [
+        "systems/production/src/cells/scheduling/publish-scheduler-config/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/scheduling/replace-shift-selection": [
+        "systems/production/src/cells/scheduling/replace-shift-selection/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/scheduling/start-schedule": [
+        "systems/production/src/cells/scheduling/start-schedule/boundary.ts"
+      ],
+      "@pressly/production-system/contracts/scheduling/update-shift": [
+        "systems/production/src/cells/scheduling/update-shift/boundary.ts"
+      ],
+      "@pressly/production-system/model": [
+        "systems/production/src/model/public.ts"
+      ],
+      "@pressly/production-system/models/order-route-proposal": [
+        "systems/production/src/model/order-route-proposal/model.ts"
+      ],
+      "@pressly/production-system/models/production-schedule": [
+        "systems/production/src/model/production-schedule/model.ts"
+      ],
+      "@pressly/production-system/observability/metrics": [
+        "systems/production/src/observability/metrics.ts"
+      ],
+      "@pressly/production-system/observability/signals": [
+        "systems/production/src/observability/signals.ts"
+      ],
+      "@pressly/production-system/operations/demand/apply-fulfillment-demand/types": [
+        "systems/production/src/cells/demand/apply-fulfillment-demand/types.ts"
+      ],
+      "@pressly/production-system/operations/demand/change-admission/types": [
+        "systems/production/src/cells/demand/change-admission/types.ts"
+      ],
+      "@pressly/production-system/operations/demand/change-order-resolution/types": [
+        "systems/production/src/cells/demand/change-order-resolution/types.ts"
+      ],
+      "@pressly/production-system/operations/demand/commit-order-backlog/cell": [
+        "systems/production/src/cells/demand/commit-order-backlog/cell.ts"
+      ],
+      "@pressly/production-system/operations/demand/commit-order-backlog/contract": [
+        "systems/production/src/cells/demand/commit-order-backlog/contract.ts"
+      ],
+      "@pressly/production-system/operations/demand/commit-order-backlog/types": [
+        "systems/production/src/cells/demand/commit-order-backlog/types.ts"
+      ],
+      "@pressly/production-system/operations/demand/preview-order-backlog/contract": [
+        "systems/production/src/cells/demand/preview-order-backlog/contract.ts"
+      ],
+      "@pressly/production-system/operations/demand/preview-order-backlog/execute": [
+        "systems/production/src/cells/demand/preview-order-backlog/execute.ts"
+      ],
+      "@pressly/production-system/operations/demand/record-order-intake/types": [
+        "systems/production/src/cells/demand/record-order-intake/types.ts"
+      ],
+      "@pressly/production-system/operations/demand/resolve-source-closed-fulfillment/types": [
+        "systems/production/src/cells/demand/resolve-source-closed-fulfillment/types.ts"
+      ],
+      "@pressly/production-system/operations/demand/set-order-priority/types": [
+        "systems/production/src/cells/demand/set-order-priority/types.ts"
+      ],
+      "@pressly/production-system/operations/floor/advance-stage/confirmation": [
+        "systems/production/src/cells/floor/advance-stage/confirmation.ts"
+      ],
+      "@pressly/production-system/operations/floor/advance-stage/execute": [
+        "systems/production/src/cells/floor/advance-stage/execute.ts"
+      ],
+      "@pressly/production-system/operations/floor/advance-stage/idempotency": [
+        "systems/production/src/cells/floor/advance-stage/idempotency.ts"
+      ],
+      "@pressly/production-system/operations/floor/advance-stage/postgres": [
+        "systems/production/src/cells/floor/advance-stage/postgres.ts"
+      ],
+      "@pressly/production-system/operations/floor/advance-stage/types": [
+        "systems/production/src/cells/floor/advance-stage/types.ts"
+      ],
+      "@pressly/production-system/operations/floor/assign-stage-machines/execute": [
+        "systems/production/src/cells/floor/assign-stage-machines/execute.ts"
+      ],
+      "@pressly/production-system/operations/floor/assign-stage-machines/idempotency": [
+        "systems/production/src/cells/floor/assign-stage-machines/idempotency.ts"
+      ],
+      "@pressly/production-system/operations/floor/assign-stage-machines/postgres": [
+        "systems/production/src/cells/floor/assign-stage-machines/postgres.ts"
+      ],
+      "@pressly/production-system/operations/floor/freeze-batch-membership/execute": [
+        "systems/production/src/cells/floor/freeze-batch-membership/execute.ts"
+      ],
+      "@pressly/production-system/operations/floor/freeze-batch-membership/idempotency": [
+        "systems/production/src/cells/floor/freeze-batch-membership/idempotency.ts"
+      ],
+      "@pressly/production-system/operations/floor/freeze-batch-membership/postgres": [
+        "systems/production/src/cells/floor/freeze-batch-membership/postgres.ts"
+      ],
+      "@pressly/production-system/operations/floor/reconcile-batch-progress/execute": [
+        "systems/production/src/cells/floor/reconcile-batch-progress/execute.ts"
+      ],
+      "@pressly/production-system/operations/floor/reconcile-batch-progress/idempotency": [
+        "systems/production/src/cells/floor/reconcile-batch-progress/idempotency.ts"
+      ],
+      "@pressly/production-system/operations/floor/reconcile-batch-progress/postgres": [
+        "systems/production/src/cells/floor/reconcile-batch-progress/postgres.ts"
+      ],
+      "@pressly/production-system/operations/floor/unfreeze-batch-membership/execute": [
+        "systems/production/src/cells/floor/unfreeze-batch-membership/execute.ts"
+      ],
+      "@pressly/production-system/operations/floor/unfreeze-batch-membership/idempotency": [
+        "systems/production/src/cells/floor/unfreeze-batch-membership/idempotency.ts"
+      ],
+      "@pressly/production-system/operations/floor/unfreeze-batch-membership/postgres": [
+        "systems/production/src/cells/floor/unfreeze-batch-membership/postgres.ts"
+      ],
+      "@pressly/production-system/operations/history/list-activity/contract": [
+        "systems/production/src/cells/history/list-activity/contract.ts"
+      ],
+      "@pressly/production-system/operations/history/list-activity/types": [
+        "systems/production/src/cells/history/list-activity/types.ts"
+      ],
+      "@pressly/production-system/operations/history/list-plans/contract": [
+        "systems/production/src/cells/history/list-plans/contract.ts"
+      ],
+      "@pressly/production-system/operations/history/list-plans/types": [
+        "systems/production/src/cells/history/list-plans/types.ts"
+      ],
+      "@pressly/production-system/operations/history/list-runs/contract": [
+        "systems/production/src/cells/history/list-runs/contract.ts"
+      ],
+      "@pressly/production-system/operations/history/list-runs/types": [
+        "systems/production/src/cells/history/list-runs/types.ts"
+      ],
+      "@pressly/production-system/operations/history/load-run/contract": [
+        "systems/production/src/cells/history/load-run/contract.ts"
+      ],
+      "@pressly/production-system/operations/history/load-run/types": [
+        "systems/production/src/cells/history/load-run/types.ts"
+      ],
+      "@pressly/production-system/operations/live/subscribe-changes/types": [
+        "systems/production/src/cells/live/subscribe-changes/types.ts"
+      ],
+      "@pressly/production-system/operations/orders/commit-order-route/types": [
+        "systems/production/src/cells/orders/commit-order-route/types.ts"
+      ],
+      "@pressly/production-system/operations/orders/list-order-control/contract": [
+        "systems/production/src/cells/orders/list-order-control/contract.ts"
+      ],
+      "@pressly/production-system/operations/orders/list-order-control/types": [
+        "systems/production/src/cells/orders/list-order-control/types.ts"
+      ],
+      "@pressly/production-system/operations/orders/list-orders/contract": [
+        "systems/production/src/cells/orders/list-orders/contract.ts"
+      ],
+      "@pressly/production-system/operations/orders/list-orders/types": [
+        "systems/production/src/cells/orders/list-orders/types.ts"
+      ],
+      "@pressly/production-system/operations/queries/load-board/contract": [
+        "systems/production/src/cells/queries/load-board/contract.ts"
+      ],
+      "@pressly/production-system/operations/queries/load-board/postgres": [
+        "systems/production/src/cells/queries/load-board/postgres.ts"
+      ],
+      "@pressly/production-system/operations/queries/load-board/types": [
+        "systems/production/src/cells/queries/load-board/types.ts"
+      ],
+      "@pressly/production-system/operations/queries/load-remaining-day-forecast/contract": [
+        "systems/production/src/cells/queries/load-remaining-day-forecast/contract.ts"
+      ],
+      "@pressly/production-system/operations/queries/load-remaining-day-forecast/execute": [
+        "systems/production/src/cells/queries/load-remaining-day-forecast/execute.ts"
+      ],
+      "@pressly/production-system/operations/queries/load-workspace/contract": [
+        "systems/production/src/cells/queries/load-workspace/contract.ts"
+      ],
+      "@pressly/production-system/operations/queries/load-workspace/execute": [
+        "systems/production/src/cells/queries/load-workspace/execute.ts"
+      ],
+      "@pressly/production-system/operations/resources/list-locations/contract": [
+        "systems/production/src/cells/resources/list-locations/contract.ts"
+      ],
+      "@pressly/production-system/operations/resources/list-locations/types": [
+        "systems/production/src/cells/resources/list-locations/types.ts"
+      ],
+      "@pressly/production-system/operations/resources/manage-resources/types": [
+        "systems/production/src/cells/resources/manage-resources/types.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/accept-schedule/cell": [
+        "systems/production/src/cells/scheduling/accept-schedule/cell.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/accept-schedule/contract": [
+        "systems/production/src/cells/scheduling/accept-schedule/contract.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/accept-schedule/types": [
+        "systems/production/src/cells/scheduling/accept-schedule/types.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/create-schedule/types": [
+        "systems/production/src/cells/scheduling/create-schedule/types.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/create-shift/types": [
+        "systems/production/src/cells/scheduling/create-shift/types.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/load-schedule/types": [
+        "systems/production/src/cells/scheduling/load-schedule/types.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/publish-scheduler-config/contract": [
+        "systems/production/src/cells/scheduling/publish-scheduler-config/contract.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/publish-scheduler-config/types": [
+        "systems/production/src/cells/scheduling/publish-scheduler-config/types.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/replace-shift-selection/cell": [
+        "systems/production/src/cells/scheduling/replace-shift-selection/cell.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/replace-shift-selection/idempotency": [
+        "systems/production/src/cells/scheduling/replace-shift-selection/idempotency.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/replace-shift-selection/postgres": [
+        "systems/production/src/cells/scheduling/replace-shift-selection/postgres.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/replace-shift-selection/types": [
+        "systems/production/src/cells/scheduling/replace-shift-selection/types.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/start-schedule/types": [
+        "systems/production/src/cells/scheduling/start-schedule/types.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/update-shift/cell": [
+        "systems/production/src/cells/scheduling/update-shift/cell.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/update-shift/contract": [
+        "systems/production/src/cells/scheduling/update-shift/contract.ts"
+      ],
+      "@pressly/production-system/operations/scheduling/update-shift/types": [
+        "systems/production/src/cells/scheduling/update-shift/types.ts"
+      ],
+      "@pressly/production-system/schema": [
+        "systems/production/src/schema/production-schema.ts"
+      ],
+      "@pressly/production-system/testing/assembly": [
+        "systems/production/src/system.ts"
+      ],
+      "@pressly/production-system/testing/result-unit-of-work-observer": [
+        "systems/production/src/postgres/result-unit-of-work-observer.ts"
+      ],
+      "@pressly/testkit": [
+        "platform/testing/src/index.ts"
+      ],
+      "@pressly/testkit/clock": [
+        "platform/testing/src/clock.ts"
+      ],
+      "@pressly/testkit/database": [
+        "platform/testing/src/database.ts"
+      ],
+      "@pressly/testkit/experience-feature-proof": [
+        "platform/testing/src/experience-feature-proof.ts"
+      ],
+      "@pressly/testkit/http": [
+        "platform/testing/src/http.ts"
+      ],
+      "@pressly/testkit/id-source": [
+        "platform/testing/src/id-source.ts"
+      ],
+      "@pressly/testkit/operation-proof": [
+        "platform/testing/src/operation-proof.ts"
+      ],
+      "@pressly/testkit/result": [
+        "platform/testing/src/result.ts"
+      ],
+      "@pressly/time": [
+        "platform/time/src/index.ts"
+      ],
+      "@pressly/topology": [
+        "topology/src/public.ts"
+      ],
+      "@pressly/topology/postgres-schema": [
+        "topology/pressly-postgres-schema.ts"
+      ],
+      "@pressly/topology/pressly": [
+        "topology/pressly.topology.ts"
+      ],
+      "@pressly/topology/runtime/browser": [
+        "topology/runtime/browser/public.ts"
+      ],
+      "@pressly/topology/runtime/cli": [
+        "topology/runtime/cli/public.ts"
+      ],
+      "@pressly/topology/runtime/http": [
+        "topology/runtime/http/public.ts"
+      ],
+      "@pressly/topology/runtime/jobs": [
+        "topology/runtime/jobs/public.ts"
+      ],
+      "@test/*": [
+        "experiences/customer/test/web/*"
+      ],
+      "#customer/*": [
+        "experiences/customer/src/web/*"
+      ]
+    }
+  },
+  "files": [
+    "../../topology/pressly.topology.ts"
+  ]
+}

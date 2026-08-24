@@ -1,0 +1,192 @@
+{
+  "name": "@pressly/orders-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./contracts/fulfillment-demand-changed-v2": {
+      "types": "./dist/contracts/fulfillment-demand-changed-v2.d.ts",
+      "import": "./dist/contracts/fulfillment-demand-changed-v2.js",
+      "default": "./dist/contracts/fulfillment-demand-changed-v2.js"
+    },
+    "./capabilities/list-recent-order-audit-v1": {
+      "types": "./dist/contracts/list-recent-order-audit-v1.d.ts",
+      "import": "./dist/contracts/list-recent-order-audit-v1.js",
+      "default": "./dist/contracts/list-recent-order-audit-v1.js"
+    },
+    "./capabilities/order-management-v1": {
+      "types": "./dist/contracts/order-management-v1.d.ts",
+      "import": "./dist/contracts/order-management-v1.js",
+      "default": "./dist/contracts/order-management-v1.js"
+    },
+    "./capabilities/resolve-canonical-orders-by-fulfillment-v1": {
+      "types": "./dist/contracts/resolve-canonical-orders-by-fulfillment-v1.d.ts",
+      "import": "./dist/contracts/resolve-canonical-orders-by-fulfillment-v1.js",
+      "default": "./dist/contracts/resolve-canonical-orders-by-fulfillment-v1.js"
+    },
+    "./capabilities/order-outbox-job": {
+      "types": "./dist/capabilities/order-outbox-job/public.d.ts",
+      "import": "./dist/capabilities/order-outbox-job/public.js",
+      "default": "./dist/capabilities/order-outbox-job/public.js"
+    },
+    "./http/order-management": {
+      "types": "./dist/http/order-management.d.ts",
+      "import": "./dist/http/order-management.js",
+      "default": "./dist/http/order-management.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/public.d.ts",
+      "import": "./dist/schema/public.js",
+      "default": "./dist/schema/public.js"
+    },
+    "./models/canonical-order/policy": {
+      "types": "./dist/model/canonical-order/policy.d.ts",
+      "import": "./dist/model/canonical-order/policy.js",
+      "default": "./dist/model/canonical-order/policy.js"
+    },
+    "./models/order-outbox": {
+      "types": "./dist/model/order-outbox/model.d.ts",
+      "import": "./dist/model/order-outbox/model.js",
+      "default": "./dist/model/order-outbox/model.js"
+    },
+    "./operations/fulfillment/release-fulfillment/cell": {
+      "types": "./dist/cells/fulfillment/release-fulfillment/cell.d.ts",
+      "import": "./dist/cells/fulfillment/release-fulfillment/cell.js",
+      "default": "./dist/cells/fulfillment/release-fulfillment/cell.js"
+    },
+    "./operations/fulfillment/withdraw-fulfillment/cell": {
+      "types": "./dist/cells/fulfillment/withdraw-fulfillment/cell.d.ts",
+      "import": "./dist/cells/fulfillment/withdraw-fulfillment/cell.js",
+      "default": "./dist/cells/fulfillment/withdraw-fulfillment/cell.js"
+    },
+    "./operations/intake/accept-incoming-order-proposal/cell": {
+      "types": "./dist/cells/intake/accept-incoming-order-proposal/cell.d.ts",
+      "import": "./dist/cells/intake/accept-incoming-order-proposal/cell.js",
+      "default": "./dist/cells/intake/accept-incoming-order-proposal/cell.js"
+    },
+    "./operations/intake/close-incoming-order-source/types": {
+      "types": "./dist/cells/intake/close-incoming-order-source/types.d.ts",
+      "import": "./dist/cells/intake/close-incoming-order-source/types.js",
+      "default": "./dist/cells/intake/close-incoming-order-source/types.js"
+    },
+    "./operations/intake/list-incoming-order-proposals/cell": {
+      "types": "./dist/cells/intake/list-incoming-order-proposals/cell.d.ts",
+      "import": "./dist/cells/intake/list-incoming-order-proposals/cell.js",
+      "default": "./dist/cells/intake/list-incoming-order-proposals/cell.js"
+    },
+    "./operations/intake/propose-incoming-order/types": {
+      "types": "./dist/cells/intake/propose-incoming-order/types.d.ts",
+      "import": "./dist/cells/intake/propose-incoming-order/types.js",
+      "default": "./dist/cells/intake/propose-incoming-order/types.js"
+    },
+    "./operations/intake/reject-incoming-order-proposal/cell": {
+      "types": "./dist/cells/intake/reject-incoming-order-proposal/cell.d.ts",
+      "import": "./dist/cells/intake/reject-incoming-order-proposal/cell.js",
+      "default": "./dist/cells/intake/reject-incoming-order-proposal/cell.js"
+    },
+    "./operations/intake/restore-incoming-order-proposal/cell": {
+      "types": "./dist/cells/intake/restore-incoming-order-proposal/cell.d.ts",
+      "import": "./dist/cells/intake/restore-incoming-order-proposal/cell.js",
+      "default": "./dist/cells/intake/restore-incoming-order-proposal/cell.js"
+    },
+    "./operations/lifecycle/cancel-order/cell": {
+      "types": "./dist/cells/lifecycle/cancel-order/cell.d.ts",
+      "import": "./dist/cells/lifecycle/cancel-order/cell.js",
+      "default": "./dist/cells/lifecycle/cancel-order/cell.js"
+    },
+    "./operations/lifecycle/complete-order/cell": {
+      "types": "./dist/cells/lifecycle/complete-order/cell.d.ts",
+      "import": "./dist/cells/lifecycle/complete-order/cell.js",
+      "default": "./dist/cells/lifecycle/complete-order/cell.js"
+    },
+    "./operations/lifecycle/correct-order/cell": {
+      "types": "./dist/cells/lifecycle/correct-order/cell.d.ts",
+      "import": "./dist/cells/lifecycle/correct-order/cell.js",
+      "default": "./dist/cells/lifecycle/correct-order/cell.js"
+    },
+    "./operations/lifecycle/create-order/cell": {
+      "types": "./dist/cells/lifecycle/create-order/cell.d.ts",
+      "import": "./dist/cells/lifecycle/create-order/cell.js",
+      "default": "./dist/cells/lifecycle/create-order/cell.js"
+    },
+    "./operations/lifecycle/create-order/types": {
+      "types": "./dist/cells/lifecycle/create-order/types.d.ts",
+      "import": "./dist/cells/lifecycle/create-order/types.js",
+      "default": "./dist/cells/lifecycle/create-order/types.js"
+    },
+    "./operations/outbox/claim-order-outbox/types": {
+      "types": "./dist/cells/outbox/claim-order-outbox/types.d.ts",
+      "import": "./dist/cells/outbox/claim-order-outbox/types.js",
+      "default": "./dist/cells/outbox/claim-order-outbox/types.js"
+    },
+    "./operations/outbox/complete-order-outbox/types": {
+      "types": "./dist/cells/outbox/complete-order-outbox/types.d.ts",
+      "import": "./dist/cells/outbox/complete-order-outbox/types.js",
+      "default": "./dist/cells/outbox/complete-order-outbox/types.js"
+    },
+    "./operations/outbox/dead-letter-order-outbox/types": {
+      "types": "./dist/cells/outbox/dead-letter-order-outbox/types.d.ts",
+      "import": "./dist/cells/outbox/dead-letter-order-outbox/types.js",
+      "default": "./dist/cells/outbox/dead-letter-order-outbox/types.js"
+    },
+    "./operations/outbox/retry-order-outbox/types": {
+      "types": "./dist/cells/outbox/retry-order-outbox/types.d.ts",
+      "import": "./dist/cells/outbox/retry-order-outbox/types.js",
+      "default": "./dist/cells/outbox/retry-order-outbox/types.js"
+    },
+    "./operations/queries/get-canonical-order/cell": {
+      "types": "./dist/cells/queries/get-canonical-order/cell.d.ts",
+      "import": "./dist/cells/queries/get-canonical-order/cell.js",
+      "default": "./dist/cells/queries/get-canonical-order/cell.js"
+    },
+    "./operations/queries/list-canonical-orders/cell": {
+      "types": "./dist/cells/queries/list-canonical-orders/cell.d.ts",
+      "import": "./dist/cells/queries/list-canonical-orders/cell.js",
+      "default": "./dist/cells/queries/list-canonical-orders/cell.js"
+    },
+    "./testing/assembly": {
+      "types": "./dist/system.d.ts",
+      "import": "./dist/system.js",
+      "default": "./dist/system.js"
+    },
+    "./testing/http-boundary": {
+      "types": "./dist/http/order-management-boundary.d.ts",
+      "import": "./dist/http/order-management-boundary.js",
+      "default": "./dist/http/order-management-boundary.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run src --exclude '**/*.int.spec.ts'",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run --config vitest.postgres.config.ts --no-file-parallelism"
+  },
+  "dependencies": {
+    "@pressly/access-system": "workspace:*",
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/customers-system": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/jobs": "workspace:*",
+    "@pressly/logging": "workspace:*",
+    "@pressly/observability": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@pressly/testkit": "workspace:*",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

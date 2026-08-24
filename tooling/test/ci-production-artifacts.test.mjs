@@ -5,50 +5,83 @@ import { describe, expect, it } from 'vitest';
 
 const workflowPath = new URL('../../.github/workflows/ci.yml', import.meta.url);
 const workflowSource = await readFile(workflowPath, 'utf8');
+const rootManifest = JSON.parse(
+  await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
+);
+const commandVerificationManifest = JSON.parse(
+  await readFile(
+    new URL('../../verification/commands/package.json', import.meta.url),
+    'utf8',
+  ),
+);
+const ordersVerificationManifest = JSON.parse(
+  await readFile(
+    new URL('../../verification/orders/package.json', import.meta.url),
+    'utf8',
+  ),
+);
+const integrationRunner = await readFile(
+  new URL('../scripts/run-integration-tests.sh', import.meta.url),
+  'utf8',
+);
 const nodeRuntimeDockerfiles = Object.fromEntries(
   await Promise.all(
     ['api', 'web', 'worker'].map(async (application) => [
       application,
       await readFile(
-        new URL(`../../apps/${application}/Dockerfile`, import.meta.url),
+        new URL(
+          `../../deploy/images/${application}/Dockerfile`,
+          import.meta.url,
+        ),
         'utf8',
       ),
     ]),
   ),
 );
 const processorDockerfile = await readFile(
-  new URL('../../apps/processor/Dockerfile', import.meta.url),
+  new URL('../../deploy/images/processor/Dockerfile', import.meta.url),
   'utf8',
 );
 const processorBuildConfig = await readFile(
-  new URL('../../apps/processor/vite.config.ts', import.meta.url),
+  new URL('../../hosts/browser/processor/vite.config.ts', import.meta.url),
   'utf8',
 );
 const controlDockerfile = await readFile(
-  new URL('../../apps/control/Dockerfile', import.meta.url),
+  new URL('../../deploy/images/control/Dockerfile', import.meta.url),
   'utf8',
 );
 const controlBuildConfig = await readFile(
-  new URL('../../apps/control/vite.config.ts', import.meta.url),
+  new URL('../../hosts/browser/control/vite.config.ts', import.meta.url),
   'utf8',
 );
 const webBuildConfig = await readFile(
-  new URL('../../apps/web/next.config.ts', import.meta.url),
+  new URL('../../hosts/browser/customer/next.config.ts', import.meta.url),
+  'utf8',
+);
+const customerGlobalStyles = await readFile(
+  new URL(
+    '../../hosts/browser/customer/src/styles/globals.css',
+    import.meta.url,
+  ),
   'utf8',
 );
 const restoreRunbook = await readFile(
-  new URL('../../infra/aws/docs/restore-postgres.md', import.meta.url),
+  new URL('../../deploy/aws/docs/restore-postgres.md', import.meta.url),
   'utf8',
 );
 const restoreScript = await readFile(
-  new URL('../../infra/aws/lightsail/restore-postgres.sh', import.meta.url),
+  new URL('../../deploy/aws/lightsail/restore-postgres.sh', import.meta.url),
   'utf8',
 );
 const restoreProof = await readFile(
   new URL(
-    '../../infra/aws/lightsail/restore-postgres-proof.sh',
+    '../../deploy/aws/lightsail/restore-postgres-proof.sh',
     import.meta.url,
   ),
+  'utf8',
+);
+const deploymentTooling = await readFile(
+  new URL('../../deploy/aws/lightsail/deployment-tooling.mjs', import.meta.url),
   'utf8',
 );
 const workflow = parse(workflowSource);
@@ -110,9 +143,96 @@ const runtimeStage = (dockerfile) => {
 };
 
 describe('five-image CI release', () => {
+  it('includes relocated Customer presentation classes in the production Tailwind build', () => {
+    expect(customerGlobalStyles).toContain(
+      "@source '../../../../../experiences/customer/src/web/**/*.{ts,tsx}';",
+    );
+  });
+
+  it('keeps one permanent conformance gate with the relocated scenarios selected', () => {
+    const expectedCommands = [
+      'pnpm --filter @pressly/access-verification test:postgres',
+      'pnpm --filter @pressly/customers-verification test:postgres',
+      'pnpm --filter @pressly/orders-verification test:postgres',
+      'pnpm --filter @pressly/pricing-verification test:postgres',
+      'pnpm --filter @pressly/ingress-verification test:postgres',
+      'pnpm --filter @pressly/orders-outbox-verification test:postgres',
+      'pnpm --filter @pressly/command-verification test:postgres',
+      'pnpm --filter @pressly/query-verification test:postgres',
+      'pnpm --filter @pressly/scheduling-verification test:postgres',
+      'pnpm --filter @pressly/flow-verification test:postgres',
+    ];
+
+    expect(rootManifest.scripts['test:conformance']).toBe(
+      'bash tooling/scripts/run-integration-tests.sh conformance',
+    );
+    expect(rootManifest.scripts['test:systems:int']).toBe(
+      'bash tooling/scripts/run-integration-tests.sh systems',
+    );
+    expect(integrationRunner).toContain('  systems)');
+    for (const system of [
+      'access',
+      'customers',
+      'orders',
+      'pricing',
+      'ingress',
+      'production',
+    ])
+      expect(integrationRunner).toContain(
+        `pnpm -F @pressly/${system}-system test:postgres`,
+      );
+    expect(integrationRunner).toContain('  conformance)');
+    for (const command of expectedCommands)
+      expect(integrationRunner).toContain(command.replace('--filter', '-F'));
+    expect(rootManifest.scripts['verify:refactor']).toContain(
+      'pnpm test:conformance',
+    );
+    expect(rootManifest.scripts['verify:refactor']).toContain(
+      'pnpm test:browser:smoke',
+    );
+    expect(commandVerificationManifest.scripts['test:postgres']).toContain(
+      'test/advance-stage.conformance.int.test.ts',
+    );
+    expect(ordersVerificationManifest.scripts['test:postgres']).toContain(
+      'test/incoming-order-intake.conformance.int.test.ts',
+    );
+  });
+
+  it('hydrates cached API and Worker installs from the complete lockfile', () => {
+    const dockerfiles = new Map([
+      ['api', 2],
+      ['worker', 1],
+    ]);
+
+    for (const [application, expectedOfflineInstalls] of dockerfiles) {
+      const source = nodeRuntimeDockerfiles[application];
+      const fetchIndex = source.indexOf('RUN pnpm fetch --frozen-lockfile');
+      const firstWorkspaceCopyIndex = source.indexOf('COPY . .');
+
+      expect(source, application).toContain(
+        'COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./',
+      );
+      expect(fetchIndex, `${application} fetches before workspace copy`).toBe(
+        source.lastIndexOf('RUN pnpm fetch --frozen-lockfile'),
+      );
+      expect(fetchIndex, application).toBeGreaterThanOrEqual(0);
+      expect(firstWorkspaceCopyIndex, application).toBeGreaterThan(fetchIndex);
+      expect(
+        source.match(/^RUN pnpm install --offline --frozen-lockfile$/gm) ?? [],
+        application,
+      ).toHaveLength(expectedOfflineInstalls);
+      expect(source, application).not.toMatch(
+        /^RUN pnpm install --frozen-lockfile$/m,
+      );
+      expect(source, application).not.toMatch(
+        /^COPY apps\/.*\/package\.json /m,
+      );
+    }
+  });
+
   it('builds the process-owned bootstrap commands into the API tools image', () => {
     expect(nodeRuntimeDockerfiles.api).toContain(
-      'pnpm turbo build --filter=@pressly/api... --filter=@pressly/cli...',
+      'pnpm turbo build --filter=@pressly/http-host... --filter=@pressly/cli-host...',
     );
   });
 
@@ -133,13 +253,13 @@ describe('five-image CI release', () => {
       workflow.jobs['web-docker-build'].steps.find(
         (candidate) => candidate.name === 'Build web image',
       ).with,
-    ).toMatchObject({ file: 'apps/web/Dockerfile', push: false });
+    ).toMatchObject({ file: 'deploy/images/web/Dockerfile', push: false });
     expect(
       workflow.jobs['api-docker-build'].steps.find(
         (candidate) => candidate.name === 'Build API image',
       ).with,
     ).toMatchObject({
-      file: 'apps/api/Dockerfile',
+      file: 'deploy/images/api/Dockerfile',
       target: 'runner',
       push: false,
     });
@@ -153,7 +273,7 @@ describe('five-image CI release', () => {
         (candidate) => candidate.name === 'Build LPMS image',
       ).with,
     ).toMatchObject({
-      file: 'apps/${{ matrix.app }}/Dockerfile',
+      file: 'deploy/images/${{ matrix.app }}/Dockerfile',
       target: 'runner',
       push: false,
     });
@@ -169,9 +289,77 @@ describe('five-image CI release', () => {
     expect(
       workflow.jobs['integration-tests'].steps.find(
         (candidate) =>
-          candidate.name === 'LPMS production repository integration tests',
+          candidate.name === 'Production-system PostgreSQL integration tests',
       )?.run,
-    ).toBe('pnpm -F @pressly/production test:integration');
+    ).toBe('pnpm -F @pressly/production-system test:postgres');
+    for (const [name, command] of [
+      [
+        'Customers-system PostgreSQL integration tests',
+        'pnpm -F @pressly/customers-system test:postgres',
+      ],
+      [
+        'Customers permanent conformance tests',
+        'pnpm -F @pressly/customers-verification test:postgres',
+      ],
+      [
+        'Orders-system PostgreSQL integration tests',
+        'pnpm -F @pressly/orders-system test:postgres',
+      ],
+      [
+        'Orders permanent conformance tests',
+        'pnpm -F @pressly/orders-verification test:postgres',
+      ],
+      [
+        'Pricing-system PostgreSQL integration tests',
+        'pnpm -F @pressly/pricing-system test:postgres',
+      ],
+      [
+        'Pricing permanent conformance tests',
+        'pnpm -F @pressly/pricing-verification test:postgres',
+      ],
+    ]) {
+      expect(
+        workflow.jobs['integration-tests'].steps.find(
+          (candidate) => candidate.name === name,
+        )?.run,
+      ).toBe(command);
+      expect(integrationRunner).toContain(command);
+    }
+    expect(integrationRunner).not.toMatch(
+      /pnpm -F @pressly\/(?:users|orders|pricing) (?:test|test:integration)/,
+    );
+    expect(
+      workflow.jobs['integration-tests'].steps.find(
+        (candidate) => candidate.name === 'Ingress permanent conformance tests',
+      )?.run,
+    ).toBe('pnpm -F @pressly/ingress-verification test:postgres');
+    expect(
+      workflow.jobs['integration-tests'].steps.find(
+        (candidate) =>
+          candidate.name === 'Orders-outbox permanent conformance tests',
+      )?.run,
+    ).toBe('pnpm -F @pressly/orders-outbox-verification test:postgres');
+    for (const [name, command] of [
+      [
+        'Production command conformance tests',
+        'pnpm -F @pressly/command-verification test:postgres',
+      ],
+      [
+        'Production query conformance tests',
+        'pnpm -F @pressly/query-verification test:postgres',
+      ],
+      [
+        'Production scheduling conformance tests',
+        'pnpm -F @pressly/scheduling-verification test:postgres',
+      ],
+    ]) {
+      expect(
+        workflow.jobs['integration-tests'].steps.find(
+          (candidate) => candidate.name === name,
+        )?.run,
+      ).toBe(command);
+      expect(integrationRunner).toContain(command);
+    }
 
     const resolveImages = step('Resolve image names').run;
     for (const [application, names] of Object.entries(applications)) {
@@ -180,7 +368,7 @@ describe('five-image CI release', () => {
       );
       expect(builds).toHaveLength(1);
       expect(builds[0].with).toMatchObject({
-        file: `apps/${application}/Dockerfile`,
+        file: `deploy/images/${application}/Dockerfile`,
         target: 'runner',
         load: true,
         tags: `\${{ steps.images.outputs.${application}_tag }}`,
@@ -320,18 +508,20 @@ describe('five-image CI release', () => {
     expect(processorDockerfile).not.toMatch(/ARG SENTRY_AUTH_TOKEN/);
     expect(processorDockerfile).not.toMatch(/ENV SENTRY_AUTH_TOKEN/);
     expect(processorDockerfile).toContain(
-      'pnpm exec turbo build --filter=@pressly/processor^... --concurrency=2',
+      'pnpm exec turbo build --filter=@pressly/processor-browser-host^... --concurrency=2',
     );
     expect(processorDockerfile).toContain(
-      'pnpm --filter @pressly/processor build',
+      'pnpm --filter @pressly/processor-browser-host build',
     );
     expect(processorDockerfile).not.toContain(
-      'pnpm exec turbo build --filter=@pressly/processor... --concurrency=2',
+      'pnpm exec turbo build --filter=@pressly/processor-browser-host... --concurrency=2',
     );
     expect(
       processorDockerfile.indexOf('export SENTRY_AUTH_TOKEN='),
     ).toBeLessThan(
-      processorDockerfile.indexOf('pnpm --filter @pressly/processor build'),
+      processorDockerfile.indexOf(
+        'pnpm --filter @pressly/processor-browser-host build',
+      ),
     );
 
     const controlBuild = step('Build Control image once').with;
@@ -355,14 +545,18 @@ describe('five-image CI release', () => {
     expect(controlDockerfile).not.toMatch(/ARG SENTRY_AUTH_TOKEN/);
     expect(controlDockerfile).not.toMatch(/ENV SENTRY_AUTH_TOKEN/);
     expect(controlDockerfile).toContain(
-      'pnpm exec turbo build --filter=@pressly/control^... --concurrency=2',
+      'pnpm exec turbo build --filter=@pressly/control-browser-host^... --concurrency=2',
     );
-    expect(controlDockerfile).toContain('pnpm --filter @pressly/control build');
+    expect(controlDockerfile).toContain(
+      'pnpm --filter @pressly/control-browser-host build',
+    );
     expect(controlDockerfile).not.toContain(
-      'pnpm exec turbo build --filter=@pressly/control... --concurrency=2',
+      'pnpm exec turbo build --filter=@pressly/control-browser-host... --concurrency=2',
     );
     expect(controlDockerfile.indexOf('export SENTRY_AUTH_TOKEN=')).toBeLessThan(
-      controlDockerfile.indexOf('pnpm --filter @pressly/control build'),
+      controlDockerfile.indexOf(
+        'pnpm --filter @pressly/control-browser-host build',
+      ),
     );
   });
 
@@ -377,8 +571,8 @@ describe('five-image CI release', () => {
       );
     }
     for (const buildConfig of [processorBuildConfig, controlBuildConfig])
-      expect(buildConfig).toContain(
-        'filesToDeleteAfterUpload: "./dist/**/*.map"',
+      expect(buildConfig).toMatch(
+        /filesToDeleteAfterUpload:\s*['"]\.\/dist\/\*\*\/\*\.map['"]/,
       );
   });
 
@@ -643,7 +837,10 @@ describe('production restore runbook', () => {
   it('restores a clean candidate and validates it before promotion or restart', () => {
     const restoreIndex = restoreScript.indexOf('restore pg_restore');
     const migrateIndex = restoreScript.indexOf(
-      'migrate node node_modules/drizzle-kit/bin.cjs migrate',
+      'migrate node --import tsx tooling/postgres/migrate.ts',
+    );
+    const ledgerVerificationIndex = restoreScript.indexOf(
+      'migrate node --import tsx tooling/postgres/verify-restored-migration.ts',
     );
     const candidateValidationIndex = restoreScript.indexOf(
       'validate_database "$CANDIDATE_DATABASE"',
@@ -686,7 +883,8 @@ describe('production restore runbook', () => {
     );
     expect(restoreIndex).toBeGreaterThanOrEqual(0);
     expect(migrateIndex).toBeGreaterThan(restoreIndex);
-    expect(candidateValidationIndex).toBeGreaterThan(migrateIndex);
+    expect(ledgerVerificationIndex).toBeGreaterThan(migrateIndex);
+    expect(candidateValidationIndex).toBeGreaterThan(ledgerVerificationIndex);
     expect(promotionIndex).toBeGreaterThan(candidateValidationIndex);
     expect(restoreScript).toMatch(/complete_cutover\n\s+finish_restore/);
     expect(writerStartIndex).toBeGreaterThanOrEqual(0);
@@ -761,17 +959,15 @@ describe('production restore runbook', () => {
     expect(restoreScript).toContain('CURRENT_RELEASE_FILE=');
     expect(restoreScript).toContain('CURRENT_RELEASE_METADATA_FILE=');
     expect(restoreScript).toContain('DEPLOYMENT_STATE_FILE=');
-    expect(restoreScript).toContain('object_pairs_hook=unique_object');
-    expect(restoreScript).toContain("('verified', 'succeeded', 0)");
-    expect(restoreScript).toContain(
+    expect(deploymentTooling).toContain('deployment_json_duplicate_field');
+    expect(deploymentTooling).toContain("state.phase === 'verified'");
+    expect(deploymentTooling).toContain(
       'deployment state does not match current release metadata',
     );
-    expect(restoreScript).toContain(
+    expect(deploymentTooling).toContain(
       'application image repositories must be distinct',
     );
-    expect(restoreScript).toContain(
-      'application image digests must be distinct',
-    );
+    expect(deploymentTooling).toContain('image digests must be distinct.');
     expect(identityIndex).toBeGreaterThan(sourceIndex);
     expect(composeConfigIndex).toBeGreaterThan(identityIndex);
     expect(restoreProof).toContain('caller-stale-api:latest');
@@ -779,6 +975,12 @@ describe('production restore runbook', () => {
   });
 
   it('rejects dirty recovery inputs and journals a crash-resumable cutover', () => {
+    const approvedReleaseIndex = restoreProof.indexOf(
+      'create_approved_release',
+    );
+    const imageBuildIndex = restoreProof.indexOf(
+      "echo '[restore-proof] building the current API tools image.'",
+    );
     const journalStartIndex = restoreScript.indexOf(
       'restore_journal_operation \\\n    start',
     );
@@ -793,7 +995,47 @@ describe('production restore runbook', () => {
     expect(restoreScript).toContain(
       'status --porcelain --untracked-files=all --',
     );
+    expect(restoreScript).toContain(
+      'MIGRATION_META_DIR="$(dirname "$MIGRATION_JOURNAL")"',
+    );
+    expect(restoreScript).toContain(
+      'MIGRATION_DIR="$(dirname "$MIGRATION_META_DIR")"',
+    );
     expect(restoreScript).toContain('"$MIGRATION_DIR"');
+    expect(restoreProof).toContain(
+      'APPROVED_RELEASE_DIR="$WORK_DIR/approved-release"',
+    );
+    expect(restoreProof).toContain(
+      'git -C "$APPROVED_RELEASE_DIR" commit --quiet',
+    );
+    expect(restoreProof).toContain('PRESSLY_REPO_DIR="$APPROVED_RELEASE_DIR"');
+    expect(restoreProof).toContain(
+      'PRESSLY_COMPOSE_FILE="$APPROVED_COMPOSE_FILE"',
+    );
+    expect(restoreProof).toContain(
+      'PRESSLY_DATABASE_ROLES_SQL="$APPROVED_ROLE_SQL"',
+    );
+    expect(restoreProof).toContain(
+      'PRESSLY_MIGRATION_JOURNAL="$APPROVED_MIGRATION_JOURNAL"',
+    );
+    expect(restoreProof).toContain(
+      "echo '[restore-proof] proving approved recovery inputs are exact and fail-closed.'",
+    );
+    expect(restoreProof).toContain(
+      'git -C "$APPROVED_RELEASE_DIR" commit --quiet --allow-empty',
+    );
+    expect(restoreProof).toContain(
+      'git -C "$APPROVED_RELEASE_DIR" rm --cached --quiet',
+    );
+    expect(restoreProof).toContain(
+      'UNTRACKED_MIGRATION="$APPROVED_MIGRATION_DIR/restore-proof-untracked.sql"',
+    );
+    expect(restoreProof).toContain(
+      'approved_release_gate=head-mismatch,untracked-compose,dirty-compose,dirty-role,dirty-migration,untracked-migration',
+    );
+    expect(restoreProof).not.toContain('PRESSLY_REPO_DIR="$ROOT_DIR"');
+    expect(approvedReleaseIndex).toBeGreaterThanOrEqual(0);
+    expect(imageBuildIndex).toBeGreaterThan(approvedReleaseIndex);
     expect(restoreScript).toContain('RESTORE_JOURNAL_FILE=');
     expect(restoreScript).toContain(
       'RESTORE_JOURNAL_CANONICAL="$(readlink -m -- "$RESTORE_JOURNAL_FILE")"',
@@ -801,8 +1043,8 @@ describe('production restore runbook', () => {
     expect(restoreScript).toContain(
       '"$RESTORE_JOURNAL_FILE" -ef "$RESTORE_EVIDENCE_FILE"',
     );
-    expect(restoreScript).toContain('os.fsync(handle.fileno())');
-    expect(restoreScript).toContain('os.fsync(directory_descriptor)');
+    expect(deploymentTooling).toContain('fsyncSync(temporary.descriptor)');
+    expect(deploymentTooling).toContain('fsyncDirectory(directory)');
     expect(restoreScript).toContain('write_restore_phase candidate_ready');
     expect(journalStartIndex).toBeGreaterThanOrEqual(0);
     expect(writerStopIndex).toBeGreaterThan(journalStartIndex);
@@ -831,15 +1073,13 @@ describe('production restore runbook', () => {
     );
 
     expect(restoreScript).toContain('/etc/pressly/host-identity.json');
-    expect(restoreScript).toContain(
+    expect(deploymentTooling).toContain(
       'host identity must be root-owned mode 0644',
     );
-    expect(restoreScript).toContain(
+    expect(deploymentTooling).toContain(
       'host identity directory must be root-owned and not group/world writable',
     );
-    expect(restoreScript).toContain(
-      "'publicHealthTarget': public_health_target",
-    );
+    expect(deploymentTooling).toContain('publicHealthTarget,');
     expect(restoreScript).toContain('getent ahostsv4 "$hostname"');
     expect(restoreScript).toContain('expected_address_found=true');
     expect(restoreScript).toContain('unexpected_address_found=true');
@@ -918,7 +1158,7 @@ describe('production restore runbook', () => {
 
   it('supports exact pre-cutover abort and first-rollout bundle recovery', () => {
     expect(restoreScript).toContain('--abort-pre-cutover');
-    expect(restoreScript).toContain("'aborting': {'aborting'}");
+    expect(deploymentTooling).toContain("aborting: new Set(['aborting'])");
     expect(restoreScript).toContain(
       'proof_kill_after after_abort_candidate_drop',
     );
@@ -939,7 +1179,7 @@ describe('production restore runbook', () => {
     );
     expect(restoreProof).toContain('after_abort_candidate_drop');
     expect(restoreProof).toContain('post-rename abort unexpectedly passed');
-    expect(restoreScript).toContain("journal['resumeServices'] = True");
+    expect(deploymentTooling).toContain('journal.resumeServices = true');
   });
 
   it('rejects stale quarantine collisions before cutover', () => {
@@ -967,11 +1207,11 @@ describe('production restore runbook', () => {
   });
 
   it('admits exact unresolved deployment shapes without erasing recovery evidence', () => {
-    expect(restoreScript).toContain("state.get('schemaVersion') == 2");
-    expect(restoreScript).toContain(
+    expect(deploymentTooling).toContain('state.schemaVersion === 2');
+    expect(deploymentTooling).toContain(
       'current release must exactly match recoveryTarget or rollbackPrevious',
     );
-    expect(restoreScript).toContain('unresolvedDeploymentState');
+    expect(deploymentTooling).toContain('unresolvedDeploymentState');
     expect(restoreScript).toContain('postgres-restore-last.json');
     expect(restoreProof).toContain(
       'write_recovering_unverified_state previous',
@@ -982,7 +1222,7 @@ describe('production restore runbook', () => {
   it('builds an actual N-1 backup and requires the current migration on restore', () => {
     expect(restoreProof).toContain('const removed = journal.entries.pop()');
     expect(restoreProof).toContain(
-      '--volume "$N_MINUS_ONE_MIGRATIONS:/repo/packages/db/src/migrations:ro"',
+      '--volume "$N_MINUS_ONE_MIGRATIONS:/repo/platform/postgres/migrations:ro"',
     );
     expect(restoreProof).toContain(
       'the current release migration was not applied to the N-1 backup',

@@ -110,17 +110,27 @@ export const fetchSameOriginJson = async (
   init?: Readonly<{
     method?: string;
     headers?: Readonly<Record<string, string>>;
+    body?: unknown;
   }>,
 ): Promise<BrowserJsonResponse> =>
   page.evaluate(
     async ({ requestPath, requestInit }) => {
+      const encodedBody =
+        requestInit?.body === undefined
+          ? undefined
+          : JSON.stringify(requestInit.body);
       const response = await fetch(requestPath, {
         ...(requestInit?.method === undefined
           ? {}
           : { method: requestInit.method }),
-        ...(requestInit?.headers === undefined
-          ? {}
-          : { headers: requestInit.headers }),
+        headers: {
+          Accept: 'application/json',
+          ...(encodedBody === undefined
+            ? {}
+            : { 'Content-Type': 'application/json' }),
+          ...requestInit?.headers,
+        },
+        ...(encodedBody === undefined ? {} : { body: encodedBody }),
         credentials: 'same-origin',
       });
       return {

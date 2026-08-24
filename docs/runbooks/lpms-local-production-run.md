@@ -55,7 +55,7 @@ Processor: http://localhost:4173
 API:       http://localhost:4000
 ```
 
-Sign in to Processor as the local owner or admin. If ingress is not configured,
+Sign in to Processor as the local owner or manager. If ingress is not configured,
 complete [Cents Webhook Local Proof](./cents-webhook.md) through its Postman
 setup section first.
 

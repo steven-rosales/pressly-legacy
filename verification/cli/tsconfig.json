@@ -1,0 +1,50 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false,
+    "rootDir": "../..",
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../../experiences/control/tsconfig.json"
+    },
+    {
+      "path": "../../generated/tsconfig.json"
+    },
+    {
+      "path": "../../hosts/cli/tsconfig.json"
+    },
+    {
+      "path": "../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../platform/http/tsconfig.json"
+    },
+    {
+      "path": "../../platform/postgres/tsconfig.json"
+    },
+    {
+      "path": "../../platform/time/tsconfig.json"
+    },
+    {
+      "path": "../../systems/access/tsconfig.json"
+    },
+    {
+      "path": "../../systems/ingress/tsconfig.json"
+    },
+    {
+      "path": "../../systems/production/tsconfig.json"
+    },
+    {
+      "path": "../../topology/tsconfig.build.json"
+    }
+  ]
+}

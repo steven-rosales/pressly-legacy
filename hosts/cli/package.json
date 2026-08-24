@@ -1,0 +1,58 @@
+{
+  "name": "@pressly/cli-host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "pressly-admin": "./dist/main.js"
+  },
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./ink": {
+      "types": "./dist/ink-tty.d.ts",
+      "import": "./dist/ink-tty.js",
+      "default": "./dist/ink-tty.js"
+    },
+    "./process": {
+      "types": "./dist/runtime/process-runtime.d.ts",
+      "import": "./dist/runtime/process-runtime.js",
+      "default": "./dist/runtime/process-runtime.js"
+    }
+  },
+  "scripts": {
+    "build:workspace-deps": "pnpm --dir ../.. exec turbo build --filter=@pressly/cli-host... --concurrency=2",
+    "dev": "pnpm run build:workspace-deps && tsx src/main.ts",
+    "start": "node dist/main.js",
+    "bootstrap:owner": "pnpm run build:workspace-deps && tsx src/main.ts bootstrap owner",
+    "bootstrap:production": "pnpm run build:workspace-deps && tsx src/main.ts bootstrap production",
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run"
+  },
+  "dependencies": {
+    "@pressly/cells": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/generated-runtime": "workspace:*",
+    "@pressly/http": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "dotenv": "^17.4.2",
+    "ink": "^6.8.0",
+    "react": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "tsx": "4.23.11",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,100 +1,169 @@
 # How to Read the Repository
 
-This guide will teach you how to read the repository of Pressly.
+Read Pressly by following one operation through the checked topology. Do not
+start with folders in isolation.
 
 ## Mental Model
 
-The repository rule is:
-
-- apps compose
-- modules decide
-- packages enable
-- contracts validate serialized boundaries
-
-A good flowchart:
-
-```txt
-  Human['Human / browser / external system']
-  App['App process / API, Worker, CLI, Web']
-  Contract['Serialized Contract']
-  Public['Module public surface']
-  UseCase['Verb object use case']
-  Core['Pure policy / lifecycle / projection / algorithms']
-  Port['Required port']
-  Adapter['Repository / adapter']
-  Mechanism['PostgreSQL / network / crypto / runtime']
-
-  Human -> App
-  App -> Contract
-  Contract -> Public
-  Public -> UseCase
-  UseCase -> Core
-  UseCase -> Port
-  Adapter -implements-> Port
-  Adapter -> Mechanism
+```text
+system or Experience owns meaning
+  -> cell owns one operation
+  -> topology selects it
+  -> generated catalog or client records the selection
+  -> generic host executes the protocol
+  -> app supplies process effects or browser presentation
 ```
 
-## Traversing
+The six durable systems are Access, Customers, Ingress, Orders, Pricing, and
+Production. Control, Customer, and Processor Experiences coordinate public
+capabilities across those systems.
 
-An app answers: 'What exists in this process, and how is it wired'
+## Start With Current Authority
 
-- API: `apps/api/src/main.ts` -> runtime -> `apps/api/src/bootstrap/api.composition.ts`
-- Worker: `apps/worker/src/main.ts` -> `apps/worker/src/bootstrap/worker-jobs.composition.ts`
-- CLI: `main.ts` -> command parsing -> injected capability
-- Control/Processor/Web: framework entry -> app composition -> selected feature
+Before product or domain work:
 
-Look at `apps/api/src/bootstrap/api-capabilities.composition.ts` that shows which modules exist together and where one module's public capability is adpated into another module's port.
+1. Read `stateworks/memory/index.yaml`.
+2. Load the relevant domain context pack.
+3. Inspect `stateworks/work/active` and `stateworks/work/queued`.
+4. Treat code, migrations, and runtime contracts as implementation truth.
 
-Then find the semantic authority. The authority tree is:
+Stateworks memory preserves durable meaning. Active work preserves unfinished
+status and proof. Historical plans and completed work do not override the
+current checkout.
 
-```txt
-business/
-  orders
-  pricing
-  production
-  users
+## Find an Operation
 
-security/
-  identity
-  authorization
+If you know its stable ID, ask topology:
 
-integration/
-  webhook-digestion
-
-experience/
-  control
-  processor
+```bash
+pnpm architecture:explain -- production.advance-stage.v1
 ```
 
-When you know the owner, the `module.architecture.ts` tells you what the module can do, the features that are commands and queries, which foundations exist, what each feature may depend upon, and which dependencies are deliberately absent.
+The explanation names the owner, cell source, assembly key, consistency,
+authorization, surfaces, messages, consumers, and observability identity.
 
-Once you're in the module, read it from outside inward:
+If you do not know the ID, search the generated inventory:
 
-1. `public.ts` - what other workspaces are allowed to consume
-2. `main.ts` - canonical module-level construction exports
-3. `composition/*.composition.ts` - how the module is assembled
-4. `module.architecture.ts` - the complete internal ownership and depndency map
-5. One selected verb-object feature
+```bash
+rg -n "advance-stage|Advance stage" generated/architecture-map.ts
+```
 
-You'll then want to read the module contents, which should be read per feature. Choose a question, for example:
+Then read outward to inward:
 
-- How is a stage advanced?
-- How is a pricing change published?
-- How is a webhook claimed?
-- How is a customer listed?
-- How is an order projected into Production?
+1. `topology/pressly.topology.ts` — is the operation deployed?
+2. `generated/architecture-map.ts` — what does deployment expose?
+3. Owner `public.ts` and `system.ts` — how is the cell assembled?
+4. `cells/<namespace>/<verb-object>/cell.ts` — what is declared?
+5. `contract.ts` or `boundary.ts` — what crosses the boundary?
+6. `types.ts` or `.model.ts` — what does the application mean?
+7. `decide.ts`, `.policy.ts`, or `.lifecycle.ts` — what is pure?
+8. `execute.ts` or `.usecase.ts` — which effects occur and in what order?
+9. `postgres.ts`, `*.repo.ts`, or adapters — how are effects implemented?
+10. Colocated and `verification/*` tests — what is actually proved?
 
-Then enter:
+## Trace a Protocol
 
-`features/<namespace>/<verb-object>`
+### HTTP or SSE
 
-Read the leaf in this order:
+```text
+hosts/http/src/main.ts
+  -> generated/runtime HTTP binding
+  -> generated/http-catalog.ts or generated/event-stream-catalog.ts
+  -> selected system or Experience cell
+```
 
-1. `.model.ts` and `.failure.ts` - vocabulary, inputs, results, expected rejection
-2. `.usecase.ts` - orchestration and effect order
-3. `.policy.ts`, `.lifecycle.ts`, `.projection.ts`, `.algorithm.ts` - pure decisions
-4. `.port.ts` - required facts or effects
-5. `.repo.ts` or `.adpater.ts` - concrete mechanisms
-6. Qualified mapper - where representation changes
-7. `.controller.ts` and `.route.ts` - protocol representation
-8. `Mirrored tests - executable proof
+The cell owns the structural surface. `topology/pressly-http-boundaries.ts`
+owns deployment boundary profiles. The HTTP host supplies concrete
+authentication, authorization, CSRF, rate-limit, context, observation, and
+lifecycle providers.
+
+### Jobs
+
+```text
+hosts/jobs/src/main.ts
+  -> generated/runtime jobs binding
+  -> generated/job-catalog.ts
+  -> Ingress or Production reaction
+  -> owner-owned durable queue capability
+```
+
+The generated catalog contains the selected job identities and retry facts.
+The Jobs host owns polling, heartbeat, lease delivery, observation, and
+shutdown; Systems own durable queue state and business disposition.
+
+### CLI
+
+```text
+hosts/cli/src/main.ts
+  -> generated/runtime CLI binding
+  -> generated/cli-catalog.ts
+  -> Access or Control-owned cell
+```
+
+The host owns environment, stdin/stdout, prompts, token storage, signals, and
+exit behavior. The owner cell owns the command meaning.
+
+### Browser
+
+```text
+frontend entry
+  -> hosts/browser/<experience>
+  -> generated/runtime browser binding
+  -> experiences/<experience>
+  -> generated/clients/<experience>.ts
+  -> generated HTTP operation
+```
+
+Browser models own presentation state only. Server capabilities and cell
+contracts remain authoritative.
+
+## Trace State
+
+For database behavior, follow:
+
+```text
+cell executor
+  -> owner Postgres adapter
+  -> injected owner schema segment
+  -> systems/<owner>/src/schema
+  -> topology/pressly-postgres-schema.ts
+```
+
+The table definition lives with the owning system. Foreign keys never cross
+owner boundaries; topology composes the independent owner segments without
+joining their persistence authority. Cross-system identity moves through
+data-only contracts and explicit reconciliation. Upgrade order lives
+separately in `platform/postgres/migrations`; the clean pre-user epoch is one
+immutable, append-only ledger, not a schema owner.
+
+For cross-system behavior, look for a versioned public capability or durable
+message. A direct peer-schema or peer-private-cell import is a defect.
+
+## Read the Generated Graph Safely
+
+Generated files are useful indexes:
+
+- `architecture-map.ts` — every selected operation and consumer;
+- `http-catalog.ts` — executable HTTP selection and profiles;
+- `job-catalog.ts` — selected Worker reactions;
+- `cli-catalog.ts` — CLI program and commands;
+- `event-stream-catalog.ts` — selected subscriptions;
+- `clients/*.ts` — browser-safe operations per Experience.
+
+Never edit them. Change an owner declaration or topology, then run:
+
+```bash
+pnpm architecture:generate
+pnpm architecture:generated:check
+```
+
+## Three Useful Questions
+
+When traversal becomes confusing, ask:
+
+1. Which owner can change this meaning?
+2. Which cell is the one observable operation?
+3. Is this file deciding, translating, or performing an effect?
+
+Those answers should lead to one system or Experience, one cell, and one
+checked path into the deployed graph.

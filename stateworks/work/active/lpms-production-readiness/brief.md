@@ -70,30 +70,37 @@ as current repository claims:
 T0 re-checks and later validation evidence, not this superseded baseline, decide
 the current repository state.
 
-## Current Module Boundary
+## Current Successor Authority Boundary
 
-The post-V2 refactor adds a deliberate change-control pair, `R1 -> RV1`, before
-the first external gate:
+The active cellular migration names the following source authorities for
+current and future verification. Historical R1 and RV1 evidence below still
+describes the then-current module boundary and is not rewritten:
 
-- `modules/integration/webhook-ingestion` owns generic durable inbox lifecycle,
-  dead letters, replay, and source-location bindings.
-- `apps/api/src/http/webhooks/cents` owns Cents authentication and wire
-  normalization.
-- `apps/worker` owns the `source:subjectType` consumer registry, composes webhook
-  ingestion with Orders observation capabilities, and separately projects the
-  Orders outbox into Production.
-- `modules/business/orders` retains typed external observations, applies
-  claim-scoped source authority only to non-lifecycle fields, owns explicit
-  commercial and fulfillment-release commands backed by directed graphs, and
-  emits versioned `fulfillment_demand_changed` outbox events.
-- `modules/business/production` accepts a canonical
-  `ApplyFulfillmentDemand` projection and contains no Cents, webhook, receipt,
-  lease, or CRM language. It owns physical bag count through versioned operator
-  intake.
+- `systems/ingress` is the successor authority for durable inbox lifecycle,
+  quarantine, dead letters, replay, source-location bindings, and claimed-event
+  processing.
+- `systems/ingress/src/cells/sources/receive-cents-webhook` owns Cents
+  authentication policy and wire normalization; `hosts/http` owns exact
+  raw-body and protocol mechanics.
+- `hosts/jobs` owns generic job process lifecycle. Ingress and Orders own their
+  durable queue capabilities, and generated topology binds the Ingress reaction
+  first and the Production demand reaction second in one sequential Worker
+  loop.
+- `systems/customers` owns canonical customer profiles and the narrow,
+  versioned capabilities Orders uses without reading customer tables.
+- `systems/orders` owns incoming proposal/source-close intake, canonical
+  commercial and fulfillment-release behavior, and durable outbox delivery
+  state. The deleted legacy Orders package is not a current source authority.
+- `systems/production` consumes canonical fulfillment demand and owns physical
+  intake, planning, and floor execution without Cents, webhook, receipt, lease,
+  or CRM language.
 - Stable source-revision handling closes the crash window between Orders
   observation and inbox completion. Stable `order-outbox:<event-id>`
   idempotency separately closes the crash window between Production projection
-  and outbox completion without coupling module transactions.
+  and outbox completion without coupling the durable transactions.
+
+This successor pointer does not claim the cellular migration, production
+readiness, deployment, or any human gate complete.
 
 Historical V2 evidence remains useful but did not prove this new boundary.
 RV1 subsequently re-proved the refactor, and the current five-image V2 reproof
@@ -352,7 +359,7 @@ outcomes only.
 - Advanced or distributed optimization beyond the deterministic fixed-pulse
   scheduler.
 - Washer/dryer hardware integration.
-- Splitting modules into independently deployed services.
+- Splitting systems into independently deployed services.
 - A message broker or orchestration platform.
 
 An exception encountered during the pilot stops LPMS operation for that work;

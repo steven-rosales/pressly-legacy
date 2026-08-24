@@ -129,10 +129,9 @@ root, checks out the verified target release under `release-source`, hashes
 that release's deploy script, stages it in a random mode-700 directory on
 Lightsail, verifies the transferred hash, and executes that staged script. The
 separate checkout means an older manually selected release cannot remove or
-replace the terminal telemetry helper. The historical first four-image cutover
-established the other half of this rule: invoking the script from an old host
-checkout could continue running old deployment logic even after Git checks out
-the new commit.
+replace the terminal telemetry helper. Invoking the script from the host's
+existing checkout could otherwise continue running stale deployment logic even
+after Git checks out the selected commit.
 
 Immediately after the first checkout, the repository-owned deployment monitor
 validates the event type and exact `workflow_run.head_sha` or manual full SHA,
@@ -194,7 +193,7 @@ PRESSLY_WEB_IMAGE=<digest-reference> \
 PRESSLY_WORKER_IMAGE=<digest-reference> \
 PRESSLY_PROCESSOR_IMAGE=<digest-reference> \
 PRESSLY_CONTROL_IMAGE=<digest-reference> \
-  ./infra/aws/lightsail/deploy.sh --preflight-only
+  ./deploy/aws/lightsail/deploy.sh --preflight-only
 ```
 
 That mode validates prerequisites, public DNS against the expected static IPv4
@@ -223,26 +222,17 @@ target. `--resume-unverified` accepts only that exact identity. The JSON release
 record is authoritative; the plain SHA pointer is derived and replaced first so
 an interruption cannot falsely declare a new release active.
 
-Host release metadata is discriminated. Normal current and rollback records use
-`five-image-v1` and require all five distinct digest-qualified images from one
-full source SHA. Before checkout, migration, or Compose mutation, deploy writes
-the validated current record atomically as the rollback target. A failed
-upgrade therefore rolls back to the release that was active immediately before
-that attempt.
+Current and rollback records use only `five-image-v1` and require all five
+distinct digest-qualified images from one full source SHA. Before checkout,
+migration, or Compose mutation, deploy writes the validated current record
+atomically as the rollback target. A failed upgrade therefore rolls back to the
+release that was active immediately before that attempt. Unknown formats,
+partial manifests, mixed release identities, and extra fields are rejected.
 
-Rollback retains explicit compatibility with complete pre-Control
-`four-image-v1` records and restores them without inventing a Control image.
-For the historical first four-image cutover only, deploy can also normalize the
-exact API/Web metadata produced by the old host script into a marked
-`legacy-two-image-v1` rollback record. Rollback may use that marked record to
-check out the old two-image Compose and run it with `--remove-orphans`. It does
-not accept an unmarked, arbitrary, or mixed partial manifest. New deployments
-write only complete `five-image-v1` metadata.
-
-This mechanism proves release selection, not historical compatibility.
-Migrations are forward-only, and H3 must prove that the intended previous
-binary remains compatible with the migrated production database before the
-cutover is approved.
+This mechanism proves release selection and execution, not whether a prior
+binary can run against the newly migrated production database. Migrations are
+forward-only, so that exact binary/database pairing must be verified before a
+release is approved.
 
 Live production runtime values stay in mode-600 service-specific files on the
 server, never in Git or GitHub. Bitwarden is the approved encrypted off-host
@@ -289,7 +279,7 @@ prevents image builds from receiving deployment SSH access.
 The production Compose stack lives in:
 
 ```txt
-infra/aws/lightsail/docker-compose.production.yml
+deploy/aws/lightsail/docker-compose.production.yml
 ```
 
 Public traffic should only reach Caddy:
@@ -369,12 +359,28 @@ background, waits for its health gates, and then returns control to the shell:
 - LPMS processor
 - Pressly Control
 
-The API startup also applies the idempotent local topology fixture at
+The one-shot local `bootstrap` service applies the idempotent topology fixture at
 `tooling/fixtures/pressly-one.production-bootstrap.json`. It creates the active
 `Pressly One` location, its known 22-washer and 22-dryer capacity, four fixed
 pulse stages, and the synthetic `tooling-store-001` Cents binding. It creates no
 orders. Repeated startup replays the same bootstrap command instead of mutating
 the topology again.
+
+Before `pnpm docker:up`, provide the local owner password through the
+Compose-backed secret source; it is never placed in the command or container
+environment:
+
+```bash
+export PRESSLY_LOCAL_BOOTSTRAP_OWNER_PASSWORD='<strong local password>'
+```
+
+The bootstrap service first invokes the restart-safe Access owner bootstrap. That operation
+creates or replays the `Pressly One` business and first owner atomically. Only
+then does Control reconcile the Access-owned location, Production-owned local
+projection, and Ingress source binding. A different existing owner or business
+causes a typed conflict instead of rewriting local credentials or ancestry.
+The API and Worker wait for successful bootstrap completion and never receive or
+mount the owner-password secret.
 
 This fixture is local-development configuration only. Production still uses an
 operator-reviewed manifest outside the repository as described in the launch
@@ -421,7 +427,7 @@ authentication cases.
 
 Local Docker is for development and integration testing.
 
-Production Docker is composed by the Lightsail files under `infra/aws/lightsail`.
+Production Docker is composed by the Lightsail files under `deploy/aws/lightsail`.
 
 ## Host Maintenance
 
@@ -469,7 +475,7 @@ verify readback every run and prove replacement-host restore separately
 The backup script is:
 
 ```txt
-infra/aws/lightsail/backup-postgres.sh
+deploy/aws/lightsail/backup-postgres.sh
 ```
 
 The hourly production recipe wraps this script with the
