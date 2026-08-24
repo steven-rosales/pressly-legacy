@@ -8,12 +8,7 @@
     "noEmit": true,
     "rootDir": ".",
     "jsx": "react-jsx",
-    "types": [
-      "node",
-      "vite/client",
-      "vitest/globals",
-      "@testing-library/jest-dom"
-    ]
+    "types": ["node", "vitest/globals", "@testing-library/jest-dom"]
   },
   "include": [
     "src/**/*.ts",
