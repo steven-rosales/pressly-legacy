@@ -286,6 +286,23 @@ describe('five-image CI release', () => {
     expect(production.needs).toEqual(['integration-tests', 'browser-e2e']);
     expect(workflow.jobs['integration-tests'].needs).toEqual(['quality']);
     expect(workflow.jobs['browser-e2e'].needs).toEqual(['quality']);
+    const integrationSteps = workflow.jobs['integration-tests'].steps;
+    const postgresClientIndex = integrationSteps.findIndex(
+      (candidate) => candidate.name === 'Install PostgreSQL 18 client',
+    );
+    const migrationLedgerIndex = integrationSteps.findIndex(
+      (candidate) =>
+        candidate.name === 'PostgreSQL migration ledger integration tests',
+    );
+    const postgresClient = integrationSteps[postgresClientIndex]?.run;
+    expect(workflow.jobs['integration-tests'].services.postgres.image).toMatch(
+      /^postgres:18[.]/,
+    );
+    expect(postgresClient).toContain('pgdg/apt.postgresql.org.sh -y');
+    expect(postgresClient).toContain('postgresql-client-18');
+    expect(postgresClient).toContain('/usr/lib/postgresql/18/bin');
+    expect(postgresClientIndex).toBeGreaterThanOrEqual(0);
+    expect(postgresClientIndex).toBeLessThan(migrationLedgerIndex);
     expect(
       workflow.jobs['integration-tests'].steps.find(
         (candidate) =>
