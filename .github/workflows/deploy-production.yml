@@ -3,9 +3,33 @@ name: deploy production
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Explicit production operation
+        required: true
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - reconcile-rollback
+          - clean-epoch
+          - resume-clean-epoch
+          - recover-clean-epoch
       ref:
         description: Full commit SHA with a successful CI run
         required: true
+        type: string
+      expected_current_sha:
+        description: Maintenance only - exact currently verified release SHA
+        required: false
+        type: string
+      expected_unverified_sha:
+        description: Rollback reconciliation only - exact failed release SHA
+        required: false
+        type: string
+      confirmation:
+        description: Maintenance confirmation bound to the operation and SHAs
+        required: false
+        type: string
 
   workflow_run:
     workflows:
@@ -34,11 +58,148 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
 
     steps:
+      - name: Validate deployment admission
+        id: deployment-admission
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_OPERATION: ${{ inputs.operation }}
+          PRODUCTION_DEPLOYMENT_ADMISSION: ${{ vars.PRODUCTION_DEPLOYMENT_ADMISSION }}
+          EXPECTED_CURRENT_SHA: ${{ inputs.expected_current_sha }}
+          EXPECTED_UNVERIFIED_SHA: ${{ inputs.expected_unverified_sha }}
+          RECOVERY_CONFIRMATION: ${{ inputs.confirmation }}
+          MANUAL_SHA: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+
+          case "$PRODUCTION_DEPLOYMENT_ADMISSION" in
+            open | paused) ;;
+            *)
+              echo 'PRODUCTION_DEPLOYMENT_ADMISSION must be exactly open or paused.' >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ "$EVENT_NAME" == 'workflow_run' ]]; then
+            if [[ "$PRODUCTION_DEPLOYMENT_ADMISSION" == 'open' ]]; then
+              operation='deploy'
+            else
+              operation='skip'
+            fi
+          else
+            operation="$REQUESTED_OPERATION"
+          fi
+
+          case "$operation" in
+            skip)
+              if [[ "$EVENT_NAME" != 'workflow_run' ]]; then
+                echo 'Only an automatic deployment may be skipped by admission.' >&2
+                exit 1
+              fi
+              ;;
+            deploy)
+              if [[ "$PRODUCTION_DEPLOYMENT_ADMISSION" != 'open' ]]; then
+                echo 'Manual deployment is refused while production admission is paused.' >&2
+                exit 1
+              fi
+              if [[
+                -n "$EXPECTED_CURRENT_SHA" ||
+                -n "$EXPECTED_UNVERIFIED_SHA" ||
+                -n "$RECOVERY_CONFIRMATION"
+              ]]; then
+                echo 'Recovery-only inputs must be empty for a normal deployment.' >&2
+                exit 1
+              fi
+              ;;
+            reconcile-rollback)
+              if [[ "$EVENT_NAME" != 'workflow_dispatch' ]]; then
+                echo 'Rollback reconciliation is available only by manual dispatch.' >&2
+                exit 1
+              fi
+              if [[ "$PRODUCTION_DEPLOYMENT_ADMISSION" != 'paused' ]]; then
+                echo 'Rollback reconciliation requires paused production admission.' >&2
+                exit 1
+              fi
+              if [[
+                ! "$EXPECTED_CURRENT_SHA" =~ ^[0-9a-f]{40}$ ||
+                ! "$EXPECTED_UNVERIFIED_SHA" =~ ^[0-9a-f]{40}$ ||
+                "$EXPECTED_CURRENT_SHA" == "$EXPECTED_UNVERIFIED_SHA"
+              ]]; then
+                echo 'Recovery SHAs must be distinct full lowercase commit SHAs.' >&2
+                exit 1
+              fi
+              expected_confirmation="RECONCILE_ROLLBACK:$EXPECTED_UNVERIFIED_SHA:$EXPECTED_CURRENT_SHA"
+              if [[ "$RECOVERY_CONFIRMATION" != "$expected_confirmation" ]]; then
+                echo 'Rollback reconciliation confirmation is absent or incorrect.' >&2
+                exit 1
+              fi
+              ;;
+            clean-epoch | resume-clean-epoch)
+              if [[ "$EVENT_NAME" != 'workflow_dispatch' ]]; then
+                echo 'Clean-epoch cutover is available only by manual dispatch.' >&2
+                exit 1
+              fi
+              if [[ "$PRODUCTION_DEPLOYMENT_ADMISSION" != 'paused' ]]; then
+                echo 'Clean-epoch cutover requires paused production admission.' >&2
+                exit 1
+              fi
+              if [[
+                ! "$EXPECTED_CURRENT_SHA" =~ ^[0-9a-f]{40}$ ||
+                ! "$MANUAL_SHA" =~ ^[0-9a-f]{40}$ ||
+                "$EXPECTED_CURRENT_SHA" == "$MANUAL_SHA" ||
+                -n "$EXPECTED_UNVERIFIED_SHA"
+              ]]; then
+                echo 'Clean-epoch inputs must bind distinct current and target SHAs without a rollback SHA.' >&2
+                exit 1
+              fi
+              expected_confirmation="CUTOVER:clean-owner-epoch-v1:$EXPECTED_CURRENT_SHA:$MANUAL_SHA"
+              if [[ "$RECOVERY_CONFIRMATION" != "$expected_confirmation" ]]; then
+                echo 'Clean-epoch confirmation is absent or incorrect.' >&2
+                exit 1
+              fi
+              ;;
+            recover-clean-epoch)
+              if [[ "$EVENT_NAME" != 'workflow_dispatch' ]]; then
+                echo 'Clean-epoch recovery is available only by manual dispatch.' >&2
+                exit 1
+              fi
+              if [[ "$PRODUCTION_DEPLOYMENT_ADMISSION" != 'paused' ]]; then
+                echo 'Clean-epoch recovery requires paused production admission.' >&2
+                exit 1
+              fi
+              if [[
+                ! "$EXPECTED_CURRENT_SHA" =~ ^[0-9a-f]{40}$ ||
+                ! "$MANUAL_SHA" =~ ^[0-9a-f]{40}$ ||
+                "$EXPECTED_CURRENT_SHA" == "$MANUAL_SHA" ||
+                -n "$EXPECTED_UNVERIFIED_SHA"
+              ]]; then
+                echo 'Clean-epoch recovery must bind distinct legacy and target SHAs without a rollback SHA.' >&2
+                exit 1
+              fi
+              expected_confirmation="RECOVER_CLEAN_EPOCH:clean-owner-epoch-v1:$EXPECTED_CURRENT_SHA:$MANUAL_SHA"
+              if [[ "$RECOVERY_CONFIRMATION" != "$expected_confirmation" ]]; then
+                echo 'Clean-epoch recovery confirmation is absent or incorrect.' >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Unsupported production operation: $operation" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "operation=$operation" >> "$GITHUB_OUTPUT"
+
       - name: Checkout deployment tooling
+        if: steps.deployment-admission.outputs.operation != 'skip'
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Report deployment start
         id: deployment-monitor
+        if: >
+          steps.deployment-admission.outputs.operation == 'deploy' ||
+          steps.deployment-admission.outputs.operation == 'clean-epoch' ||
+          steps.deployment-admission.outputs.operation == 'resume-clean-epoch'
         continue-on-error: true
         shell: bash
         env:
@@ -51,6 +212,7 @@ jobs:
 
       - name: Resolve deploy ref
         id: deploy-ref
+        if: steps.deployment-admission.outputs.operation != 'skip'
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -85,6 +247,7 @@ jobs:
 
       - name: Resolve successful CI run
         id: ci-run
+        if: steps.deployment-admission.outputs.operation != 'skip'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -106,12 +269,14 @@ jobs:
           echo "id=$run_id" >> "$GITHUB_OUTPUT"
 
       - name: Checkout deployed release tooling
+        if: steps.deployment-admission.outputs.operation != 'skip'
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ steps.deploy-ref.outputs.sha }}
           path: release-source
 
       - name: Download verified release evidence
+        if: steps.deployment-admission.outputs.operation != 'skip'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -123,6 +288,7 @@ jobs:
 
       - name: Validate immutable release manifest
         id: release
+        if: steps.deployment-admission.outputs.operation != 'skip'
         shell: bash
         env:
           EXPECTED_SOURCE_SHA: ${{ steps.deploy-ref.outputs.sha }}
@@ -139,6 +305,7 @@ jobs:
           NODE
 
       - name: Install SSH key
+        if: steps.deployment-admission.outputs.operation != 'skip'
         shell: bash
         env:
           LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
@@ -151,6 +318,7 @@ jobs:
           chmod 600 ~/.ssh/lightsail
 
       - name: Install verified Lightsail host key
+        if: steps.deployment-admission.outputs.operation != 'skip'
         shell: bash
         env:
           LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
@@ -162,6 +330,7 @@ jobs:
           ssh-keygen -F "$LIGHTSAIL_HOST" -f ~/.ssh/known_hosts >/dev/null
 
       - name: Reconcile pinned Lightsail Node runtime
+        if: steps.deployment-admission.outputs.operation != 'skip'
         shell: bash
         env:
           LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
@@ -267,6 +436,10 @@ jobs:
             "set -euo pipefail; test \"\$(uname -m)\" = '$remote_arch'; printf '%s  %s\n' '$node_archive_sha256' '$remote_node_archive' | sha256sum --check --strict --status; tar -xzf '$remote_node_archive' -C '$remote_node_dir'; test \"\$('$remote_node_binary' --version)\" = '$expected_version'; sudo -n install -o root -g root -m 0755 '$remote_node_binary' /usr/local/bin/node; test \"\$(node --version)\" = '$expected_version'; node --input-type=module -e 'await import(\"node:fs\")'"
 
       - name: Run deployment
+        if: >
+          steps.deployment-admission.outputs.operation == 'deploy' ||
+          steps.deployment-admission.outputs.operation == 'clean-epoch' ||
+          steps.deployment-admission.outputs.operation == 'resume-clean-epoch'
         shell: bash
         env:
           LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
@@ -277,6 +450,12 @@ jobs:
           WORKER_IMAGE: ${{ steps.release.outputs.worker_image }}
           PROCESSOR_IMAGE: ${{ steps.release.outputs.processor_image }}
           CONTROL_IMAGE: ${{ steps.release.outputs.control_image }}
+          OPERATION: ${{ steps.deployment-admission.outputs.operation }}
+          CLEAN_EPOCH_CONFIRMATION: ${{ inputs.confirmation }}
+          CLEAN_EPOCH_BACKUP_S3_URI: ${{ secrets.PRESSLY_BACKUP_S3_URI }}
+          CLEAN_EPOCH_BACKUP_SECONDARY_S3_URI: ${{ secrets.PRESSLY_BACKUP_SECONDARY_S3_URI }}
+          CLEAN_EPOCH_BACKUP_SECONDARY_AWS_PROFILE: ${{ secrets.PRESSLY_BACKUP_SECONDARY_AWS_PROFILE }}
+          CLEAN_EPOCH_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER: ${{ secrets.PRESSLY_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER }}
         run: |
           set -euo pipefail
 
@@ -320,6 +499,37 @@ jobs:
           remote_deploy_script="$remote_dir/deploy.sh"
           remote_deployment_tooling="$remote_dir/deployment-tooling.mjs"
           remote_tooling_error_factory="$remote_dir/tooling-error.mjs"
+          deploy_arguments=()
+          clean_epoch_environment=''
+          case "$OPERATION" in
+            deploy) ;;
+            clean-epoch | resume-clean-epoch)
+              if [[
+                ! "$CLEAN_EPOCH_BACKUP_S3_URI" =~ ^s3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]/[A-Za-z0-9._/-]+$ ||
+                ! "$CLEAN_EPOCH_BACKUP_SECONDARY_S3_URI" =~ ^s3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]/[A-Za-z0-9._/-]+$ ||
+                "$CLEAN_EPOCH_BACKUP_S3_URI" == "$CLEAN_EPOCH_BACKUP_SECONDARY_S3_URI" ||
+                ! "$CLEAN_EPOCH_BACKUP_SECONDARY_AWS_PROFILE" =~ ^[A-Za-z0-9][A-Za-z0-9_.@+-]*$ ||
+                ! "$CLEAN_EPOCH_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER" =~ ^[0-9]{12}$
+              ]]; then
+                echo 'Clean-epoch backup destinations are absent or invalid.' >&2
+                exit 1
+              fi
+              if [[ "$OPERATION" == 'clean-epoch' ]]; then
+                deploy_arguments+=(--clean-epoch-cutover)
+              else
+                deploy_arguments+=(--resume-unverified --clean-epoch-cutover)
+              fi
+              clean_epoch_environment="PRESSLY_CLEAN_EPOCH_CONFIRM='$CLEAN_EPOCH_CONFIRMATION' PRESSLY_BACKUP_S3_URI='$CLEAN_EPOCH_BACKUP_S3_URI' PRESSLY_BACKUP_SECONDARY_S3_URI='$CLEAN_EPOCH_BACKUP_SECONDARY_S3_URI' PRESSLY_BACKUP_SECONDARY_AWS_PROFILE='$CLEAN_EPOCH_BACKUP_SECONDARY_AWS_PROFILE' PRESSLY_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER='$CLEAN_EPOCH_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER'"
+              ;;
+            *)
+              echo "Unsupported deployment operation: $OPERATION" >&2
+              exit 1
+              ;;
+          esac
+          remote_deploy_arguments=''
+          if [[ "${#deploy_arguments[@]}" -gt 0 ]]; then
+            printf -v remote_deploy_arguments ' %q' "${deploy_arguments[@]}"
+          fi
           deploy_script_digest="$(sha256sum "$local_deploy_script" | cut -d' ' -f1)"
           deployment_tooling_digest="$(sha256sum "$local_deployment_tooling" | cut -d' ' -f1)"
           tooling_error_factory_digest="$(sha256sum "$local_tooling_error_factory" | cut -d' ' -f1)"
@@ -333,7 +543,104 @@ jobs:
           ssh \
             "${ssh_args[@]}" \
             "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
-            "set -euo pipefail; test \"\$(stat -c '%a' '$remote_dir')\" = 700; chmod 700 '$remote_deploy_script' '$remote_deployment_tooling' '$remote_tooling_error_factory'; printf '%s  %s\\n%s  %s\\n%s  %s\\n' '$deploy_script_digest' '$remote_deploy_script' '$deployment_tooling_digest' '$remote_deployment_tooling' '$tooling_error_factory_digest' '$remote_tooling_error_factory' | sha256sum --check --strict --status; DEPLOY_SHA='$DEPLOY_SHA' PRESSLY_DEPLOY_TOOLING_FILE='$remote_deployment_tooling' PRESSLY_TOOLING_ERROR_FACTORY_PATH='$remote_tooling_error_factory' PRESSLY_EXPECTED_PUBLIC_IP='$LIGHTSAIL_HOST' PRESSLY_API_IMAGE='$API_IMAGE' PRESSLY_WEB_IMAGE='$WEB_IMAGE' PRESSLY_WORKER_IMAGE='$WORKER_IMAGE' PRESSLY_PROCESSOR_IMAGE='$PROCESSOR_IMAGE' PRESSLY_CONTROL_IMAGE='$CONTROL_IMAGE' '$remote_deploy_script'"
+            "set -euo pipefail; test \"\$(stat -c '%a' '$remote_dir')\" = 700; chmod 700 '$remote_deploy_script' '$remote_deployment_tooling' '$remote_tooling_error_factory'; printf '%s  %s\\n%s  %s\\n%s  %s\\n' '$deploy_script_digest' '$remote_deploy_script' '$deployment_tooling_digest' '$remote_deployment_tooling' '$tooling_error_factory_digest' '$remote_tooling_error_factory' | sha256sum --check --strict --status; $clean_epoch_environment DEPLOY_SHA='$DEPLOY_SHA' PRESSLY_DEPLOY_TOOLING_FILE='$remote_deployment_tooling' PRESSLY_TOOLING_ERROR_FACTORY_PATH='$remote_tooling_error_factory' PRESSLY_EXPECTED_PUBLIC_IP='$LIGHTSAIL_HOST' PRESSLY_API_IMAGE='$API_IMAGE' PRESSLY_WEB_IMAGE='$WEB_IMAGE' PRESSLY_WORKER_IMAGE='$WORKER_IMAGE' PRESSLY_PROCESSOR_IMAGE='$PROCESSOR_IMAGE' PRESSLY_CONTROL_IMAGE='$CONTROL_IMAGE' '$remote_deploy_script'$remote_deploy_arguments"
+
+      - name: Reconcile exact failed release through stable rollback
+        if: steps.deployment-admission.outputs.operation == 'reconcile-rollback'
+        shell: bash
+        env:
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USER: ${{ secrets.LIGHTSAIL_USER }}
+          EXPECTED_CURRENT_SHA: ${{ inputs.expected_current_sha }}
+          EXPECTED_UNVERIFIED_SHA: ${{ inputs.expected_unverified_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$LIGHTSAIL_HOST" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+            echo 'LIGHTSAIL_HOST must be an IPv4 address.' >&2
+            exit 1
+          fi
+          IFS=. read -r host_a host_b host_c host_d <<< "$LIGHTSAIL_HOST"
+          for host_octet in "$host_a" "$host_b" "$host_c" "$host_d"; do
+            if (( 10#$host_octet > 255 )); then
+              echo 'LIGHTSAIL_HOST must be an IPv4 address.' >&2
+              exit 1
+            fi
+          done
+
+          ssh_args=(
+            -i ~/.ssh/lightsail
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+          )
+          remote_dir=''
+          cleanup_remote() {
+            if [[ -n "$remote_dir" ]]; then
+              ssh "${ssh_args[@]}" \
+                "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
+                "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup_remote EXIT
+
+          remote_dir="$(
+            ssh "${ssh_args[@]}" \
+              "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
+              'umask 077; mktemp -d /tmp/pressly-recovery.XXXXXXXX'
+          )"
+          [[ "$remote_dir" =~ ^/tmp/pressly-recovery\.[A-Za-z0-9]+$ ]]
+
+          local_recovery_guard='release-source/tooling/scripts/production-recovery-guard.mjs'
+          local_tooling_error_factory='release-source/platform/errors/src/tooling-error.mjs'
+          remote_recovery_guard="$remote_dir/production-recovery-guard.mjs"
+          remote_tooling_error_factory="$remote_dir/tooling-error.mjs"
+          recovery_guard_digest="$(sha256sum "$local_recovery_guard" | cut -d' ' -f1)"
+          tooling_error_factory_digest="$(sha256sum "$local_tooling_error_factory" | cut -d' ' -f1)"
+
+          scp "${ssh_args[@]}" \
+            "$local_recovery_guard" \
+            "$local_tooling_error_factory" \
+            "$LIGHTSAIL_USER@$LIGHTSAIL_HOST:$remote_dir/"
+
+          ssh \
+            "${ssh_args[@]}" \
+            "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
+            "set -euo pipefail; test \"\$(stat -c '%a' '$remote_dir')\" = 700; chmod 700 '$remote_recovery_guard' '$remote_tooling_error_factory'; printf '%s  %s\\n%s  %s\\n' '$recovery_guard_digest' '$remote_recovery_guard' '$tooling_error_factory_digest' '$remote_tooling_error_factory' | sha256sum --check --strict --status; exec 9>/opt/pressly/deploy.lock; if ! flock -n 9; then echo 'Another deployment, rollback, or restore is already running.' >&2; exit 75; fi; export PRESSLY_DEPLOY_LOCK_HELD=1 PRESSLY_TOOLING_ERROR_FACTORY_PATH='$remote_tooling_error_factory'; checkout_sha=\"\$(git -C /opt/pressly/repo rev-parse --verify HEAD)\"; node '$remote_recovery_guard' preflight '$EXPECTED_CURRENT_SHA' '$EXPECTED_UNVERIFIED_SHA' /opt/pressly/deployment-state.json /opt/pressly/current-release /opt/pressly/current-release.json /opt/pressly/previous-release /opt/pressly/previous-release.json \"\$checkout_sha\" /opt/pressly/ops/current; PRESSLY_EXPECTED_PUBLIC_IP='$LIGHTSAIL_HOST' /opt/pressly/ops/current/rollback.sh; checkout_sha=\"\$(git -C /opt/pressly/repo rev-parse --verify HEAD)\"; node '$remote_recovery_guard' verify '$EXPECTED_CURRENT_SHA' '$EXPECTED_UNVERIFIED_SHA' /opt/pressly/deployment-state.json /opt/pressly/current-release /opt/pressly/current-release.json /opt/pressly/previous-release /opt/pressly/previous-release.json \"\$checkout_sha\" /opt/pressly/ops/current"
+
+      - name: Recover exact legacy database and release pairing
+        if: steps.deployment-admission.outputs.operation == 'recover-clean-epoch'
+        shell: bash
+        env:
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USER: ${{ secrets.LIGHTSAIL_USER }}
+          EXPECTED_LEGACY_SHA: ${{ inputs.expected_current_sha }}
+          EXPECTED_TARGET_SHA: ${{ steps.deploy-ref.outputs.sha }}
+          RECOVERY_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$LIGHTSAIL_HOST" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+            echo 'LIGHTSAIL_HOST must be an IPv4 address.' >&2
+            exit 1
+          fi
+          IFS=. read -r host_a host_b host_c host_d <<< "$LIGHTSAIL_HOST"
+          for host_octet in "$host_a" "$host_b" "$host_c" "$host_d"; do
+            if (( 10#$host_octet > 255 )); then
+              echo 'LIGHTSAIL_HOST must be an IPv4 address.' >&2
+              exit 1
+            fi
+          done
+
+          ssh_args=(
+            -i ~/.ssh/lightsail
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+          )
+          recovery_entrypoint='/opt/pressly/ops/candidate/recover-clean-epoch.sh'
+          ssh \
+            "${ssh_args[@]}" \
+            "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
+            "set -euo pipefail; exec 9>/opt/pressly/deploy.lock; if ! flock -n 9; then echo 'Another deployment, rollback, restore, or cutover is already running.' >&2; exit 75; fi; test -x '$recovery_entrypoint'; export PRESSLY_DEPLOY_LOCK_HELD=1 PRESSLY_EXPECTED_PUBLIC_IP='$LIGHTSAIL_HOST' PRESSLY_CLEAN_EPOCH_EXPECTED_LEGACY_SHA='$EXPECTED_LEGACY_SHA' PRESSLY_CLEAN_EPOCH_EXPECTED_TARGET_SHA='$EXPECTED_TARGET_SHA' PRESSLY_CLEAN_EPOCH_RECOVERY_CONFIRM='$RECOVERY_CONFIRMATION'; '$recovery_entrypoint' --preflight-only; '$recovery_entrypoint'"
 
       - name: Report deployment result
         if: ${{ always() }}
@@ -347,9 +654,23 @@ jobs:
           DEPLOYMENT_MONITOR_STARTED_AT: ${{ steps.deployment-monitor.outputs.started_at }}
           DEPLOY_OUTCOME: ${{ job.status }}
           DEPLOY_SHA: ${{ steps.deploy-ref.outputs.sha }}
+          OPERATION: ${{ steps.deployment-admission.outputs.operation }}
           SENTRY_DEPLOYMENT_DSN: ${{ secrets.SENTRY_DEPLOYMENT_DSN }}
           SENTRY_DEPLOYMENT_MONITOR_SLUG: ${{ vars.SENTRY_DEPLOYMENT_MONITOR_SLUG }}
         run: |
+          if [[ "$OPERATION" == 'skip' ]]; then
+            echo 'Automatic production deployment skipped while admission is paused.'
+            exit 0
+          fi
+
+          if [[
+            "$OPERATION" == 'reconcile-rollback' ||
+            "$OPERATION" == 'recover-clean-epoch'
+          ]]; then
+            echo "Production operation completed: $OPERATION"
+            exit 0
+          fi
+
           telemetry_status=0
           node tooling/scripts/deployment-monitor.mjs finish || telemetry_status=$?
           if [[ "$telemetry_status" -ne 0 ]]; then

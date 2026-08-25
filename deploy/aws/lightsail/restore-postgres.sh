@@ -65,6 +65,7 @@ CURRENT_RELEASE_METADATA_FILE="${PRESSLY_CURRENT_RELEASE_METADATA_FILE:-$APP_ROO
 DEPLOYMENT_STATE_FILE="${PRESSLY_DEPLOYMENT_STATE_FILE:-$APP_ROOT/deployment-state.json}"
 RESTORE_JOURNAL_FILE="${PRESSLY_RESTORE_JOURNAL_FILE:-$APP_ROOT/postgres-restore.json}"
 RESTORE_EVIDENCE_FILE="${PRESSLY_RESTORE_EVIDENCE_FILE:-$APP_ROOT/postgres-restore-last.json}"
+CLEAN_EPOCH_JOURNAL_FILE="${PRESSLY_CLEAN_EPOCH_JOURNAL_FILE:-$APP_ROOT/postgres-clean-epoch.json}"
 SERVICE_FENCE_FILE="$APP_ROOT/postgres-restore-fence.compose.yml"
 HOST_IDENTITY_FILE="${PRESSLY_HOST_IDENTITY_FILE:-/etc/pressly/host-identity.json}"
 API_HEALTH_URL_OVERRIDE="${PRESSLY_API_HEALTH_URL:-}"
@@ -158,6 +159,9 @@ esac
 for command in curl docker flock getent git gpg grep node readlink sed sha256sum stat; do
   command -v "$command" >/dev/null || fail "$command is required."
 done
+if [[ -e "$CLEAN_EPOCH_JOURNAL_FILE" || -L "$CLEAN_EPOCH_JOURNAL_FILE" ]]; then
+  fail "active clean-epoch journal blocks Postgres restore: $CLEAN_EPOCH_JOURNAL_FILE"
+fi
 for required_tooling_file in \
   "$DEPLOY_TOOLING_FILE" \
   "$PRESSLY_TOOLING_ERROR_FACTORY_PATH"; do

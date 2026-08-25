@@ -4,16 +4,34 @@ set -euo pipefail
 preflight_only=false
 resume_unverified=false
 rollback_release=false
-case "${1:-}" in
-  '') ;;
-  --preflight-only) preflight_only=true ;;
-  --resume-unverified) resume_unverified=true ;;
-  --rollback) rollback_release=true ;;
-  *)
-    echo "Usage: deploy.sh [--preflight-only|--resume-unverified|--rollback]" >&2
-    exit 2
-    ;;
-esac
+clean_epoch_cutover=false
+clean_epoch_resume_admission=''
+for argument in "$@"; do
+  case "$argument" in
+    --preflight-only) preflight_only=true ;;
+    --resume-unverified) resume_unverified=true ;;
+    --rollback) rollback_release=true ;;
+    --clean-epoch-cutover) clean_epoch_cutover=true ;;
+    *)
+      echo "Usage: deploy.sh [--preflight-only|--resume-unverified|--rollback] [--clean-epoch-cutover]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+selected_modes=0
+[[ "$preflight_only" == true ]] && selected_modes=$((selected_modes + 1))
+[[ "$rollback_release" == true ]] && selected_modes=$((selected_modes + 1))
+[[ "$clean_epoch_cutover" == true ]] && selected_modes=$((selected_modes + 1))
+if ((selected_modes > 1)); then
+  echo "Preflight, rollback, and clean-epoch cutover modes are mutually exclusive." >&2
+  exit 2
+fi
+if [[ "$resume_unverified" == true && \
+  ( "$preflight_only" == true || "$rollback_release" == true ) ]]; then
+  echo "Only a normal or clean-epoch deployment can resume an unverified target." >&2
+  exit 2
+fi
 
 APP_ROOT="${PRESSLY_APP_ROOT:-/opt/pressly}"
 DEPLOY_LOCK_FILE="${PRESSLY_DEPLOY_LOCK_FILE:-$APP_ROOT/deploy.lock}"
@@ -52,6 +70,9 @@ CURRENT_RELEASE_METADATA_FILE="${PRESSLY_CURRENT_RELEASE_METADATA_FILE:-$APP_ROO
 PREVIOUS_RELEASE_METADATA_FILE="${PRESSLY_PREVIOUS_RELEASE_METADATA_FILE:-$APP_ROOT/previous-release.json}"
 DEPLOYMENT_STATE_FILE="${PRESSLY_DEPLOYMENT_STATE_FILE:-$APP_ROOT/deployment-state.json}"
 RESTORE_JOURNAL_FILE="${PRESSLY_RESTORE_JOURNAL_FILE:-$APP_ROOT/postgres-restore.json}"
+CLEAN_EPOCH_JOURNAL_FILE="${PRESSLY_CLEAN_EPOCH_JOURNAL_FILE:-$APP_ROOT/postgres-clean-epoch.json}"
+CLEAN_EPOCH_SCRIPT="${PRESSLY_CLEAN_EPOCH_SCRIPT:-$REPO_DIR/deploy/aws/lightsail/cutover-clean-epoch.sh}"
+CLEAN_EPOCH_FENCE_FILE="${PRESSLY_CLEAN_EPOCH_FENCE_FILE:-$APP_ROOT/postgres-clean-epoch-fence.compose.yml}"
 PRESSLY_API_IMAGE="${PRESSLY_API_IMAGE:-}"
 PRESSLY_WEB_IMAGE="${PRESSLY_WEB_IMAGE:-}"
 PRESSLY_WORKER_IMAGE="${PRESSLY_WORKER_IMAGE:-}"
@@ -95,6 +116,16 @@ refuse_active_restore() {
   if [[ -e "$RESTORE_JOURNAL_FILE" || -L "$RESTORE_JOURNAL_FILE" ]]; then
     echo "Active Postgres restore journal blocks deployment: $RESTORE_JOURNAL_FILE" >&2
     exit 75
+  fi
+  if [[ -e "$CLEAN_EPOCH_JOURNAL_FILE" || -L "$CLEAN_EPOCH_JOURNAL_FILE" ]]; then
+    if [[ "$clean_epoch_cutover" != true ]]; then
+      echo "Active clean-epoch journal blocks ordinary deployment: $CLEAN_EPOCH_JOURNAL_FILE" >&2
+      exit 75
+    fi
+    if [[ "$resume_unverified" != true ]]; then
+      echo "An interrupted clean-epoch cutover requires exact --resume-unverified admission." >&2
+      exit 75
+    fi
   fi
 }
 
@@ -163,7 +194,36 @@ deployment_state_operation() {
 
 guard_deployment_state() {
   if [[ "$resume_unverified" == true ]]; then
-    deployment_state_operation "guard" "resume" "-" "-" "-"
+    if [[
+      "$clean_epoch_cutover" == true &&
+      ( -e "$CLEAN_EPOCH_JOURNAL_FILE" || -L "$CLEAN_EPOCH_JOURNAL_FILE" )
+    ]]; then
+      clean_epoch_resume_admission="$(
+        node "$DEPLOY_TOOLING_FILE" clean-epoch-finalization-admission \
+          "$CLEAN_EPOCH_JOURNAL_FILE" \
+          "$DEPLOYMENT_STATE_FILE" \
+          "${DEPLOY_SHA,,}" \
+          "$PRESSLY_API_IMAGE" \
+          "$PRESSLY_WEB_IMAGE" \
+          "$PRESSLY_WORKER_IMAGE" \
+          "$PRESSLY_PROCESSOR_IMAGE" \
+          "$PRESSLY_CONTROL_IMAGE"
+      )"
+      case "$clean_epoch_resume_admission" in
+        resume)
+          deployment_state_operation "guard" "resume" "-" "-" "-"
+          ;;
+        finalize)
+          echo 'Resuming an exact verified clean-epoch target to reconcile its retained journal.'
+          ;;
+        *)
+          echo 'Clean-epoch finalization admission returned an invalid result.' >&2
+          exit 1
+          ;;
+      esac
+    else
+      deployment_state_operation "guard" "resume" "-" "-" "-"
+    fi
   elif [[ "$rollback_release" == true ]]; then
     local rollback_admission
     rollback_admission="$(
@@ -364,6 +424,15 @@ on_exit() {
     "$deployment_completed" != true &&
     "$exit_code" -ne 0
   ]]; then
+    if [[
+      "$clean_epoch_cutover" == true &&
+      ( -e "$CLEAN_EPOCH_JOURNAL_FILE" || -L "$CLEAN_EPOCH_JOURNAL_FILE" ) &&
+      -x "$CLEAN_EPOCH_SCRIPT"
+    ]]; then
+      if ! "$CLEAN_EPOCH_SCRIPT" fail-safe; then
+        echo "Failed to preserve the clean-epoch service fence." >&2
+      fi
+    fi
     if [[ "$deployment_state_tracking_started" == true ]]; then
       if [[ "$recovery_in_progress" == true ]]; then
         if ! write_failed_recovery_state "$exit_code"; then
@@ -640,6 +709,10 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "Missing compose file: $COMPOSE_FILE" >&2
   exit 1
 fi
+if [[ "$clean_epoch_cutover" == true && ! -x "$CLEAN_EPOCH_SCRIPT" ]]; then
+  echo "Missing executable clean-epoch cutover: $CLEAN_EPOCH_SCRIPT" >&2
+  exit 1
+fi
 docker compose \
   --profile tools \
   --env-file "$COMPOSE_ENV_FILE" \
@@ -690,6 +763,10 @@ fi
 target_runtime_mutation_started=true
 deployment_state_tracking_started=true
 
+if [[ "$clean_epoch_cutover" == true ]]; then
+  "$CLEAN_EPOCH_SCRIPT" prepare
+fi
+
 docker compose \
   --profile tools \
   --env-file "$COMPOSE_ENV_FILE" \
@@ -697,14 +774,27 @@ docker compose \
   run --rm --workdir /repo migrate \
   node --import tsx tooling/postgres/migrate.ts
 
+runtime_compose_files=(-f "$COMPOSE_FILE")
+if [[ "$clean_epoch_cutover" == true ]]; then
+  if [[
+    ! -f "$CLEAN_EPOCH_FENCE_FILE" ||
+    -L "$CLEAN_EPOCH_FENCE_FILE" ||
+    "$(stat -c '%a' "$CLEAN_EPOCH_FENCE_FILE")" != 600
+  ]]; then
+    echo "Clean-epoch service fence must be a mode-600 regular file: $CLEAN_EPOCH_FENCE_FILE" >&2
+    exit 1
+  fi
+  runtime_compose_files+=(-f "$CLEAN_EPOCH_FENCE_FILE")
+fi
+
 docker compose \
   --env-file "$COMPOSE_ENV_FILE" \
-  -f "$COMPOSE_FILE" \
+  "${runtime_compose_files[@]}" \
   up -d --remove-orphans --wait
 
 docker compose \
   --env-file "$COMPOSE_ENV_FILE" \
-  -f "$COMPOSE_FILE" \
+  "${runtime_compose_files[@]}" \
   ps
 
 # DNS may change during checkout, migration, or container replacement. Recheck
@@ -721,6 +811,10 @@ wait_for_health "Control" "$CONTROL_HEALTH_URL"
 # routes every public surface here before release metadata or verified state
 # can become authoritative.
 preflight_health_hostnames
+
+if [[ "$clean_epoch_cutover" == true ]]; then
+  "$CLEAN_EPOCH_SCRIPT" mark-public-verified
+fi
 
 deployed_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 current_release_tmp="$(mktemp "${CURRENT_RELEASE_FILE}.tmp.XXXXXX")"
@@ -762,6 +856,9 @@ if [[ "$rollback_release" != true ]]; then
 fi
 
 write_deployment_state "verified" "succeeded" "0"
+if [[ "$clean_epoch_cutover" == true ]]; then
+  "$CLEAN_EPOCH_SCRIPT" finalize
+fi
 deployment_completed=true
 
 echo "Deployed source SHA: $target_sha"

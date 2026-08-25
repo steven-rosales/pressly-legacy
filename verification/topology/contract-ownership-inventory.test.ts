@@ -128,6 +128,7 @@ const ownerExportInventory = Object.freeze({
     './operations/catalog/load-pricing-catalog/cell',
     './operations/pricebook/plan-pricing-change/cell',
     './operations/pricebook/publish-pricing-change/cell',
+    './postgres/clean-epoch-pricing',
     './schema',
     './seeding/pricing',
     './testing/assembly',

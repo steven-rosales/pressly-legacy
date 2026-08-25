@@ -248,6 +248,20 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+  clean-epoch-recovery-proof:
+    name: ci clean epoch recovery proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout complete release history
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Prove destructive epoch recovery and hard-kill resumption
+        run: bash deploy/aws/lightsail/recover-clean-epoch-proof.sh
+
   web-docker-build:
     name: ci web docker build
     if: github.ref != 'refs/heads/main'
@@ -739,6 +753,7 @@ jobs:
       - quality
       - integration-tests
       - browser-e2e
+      - clean-epoch-recovery-proof
       - web-docker-build
       - api-docker-build
       - lpms-docker-build
@@ -755,6 +770,7 @@ jobs:
           QUALITY_RESULT: ${{ needs.quality.result }}
           INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
           BROWSER_RESULT: ${{ needs.browser-e2e.result }}
+          CLEAN_EPOCH_RECOVERY_RESULT: ${{ needs.clean-epoch-recovery-proof.result }}
           WEB_BUILD_RESULT: ${{ needs.web-docker-build.result }}
           API_BUILD_RESULT: ${{ needs.api-docker-build.result }}
           LPMS_BUILD_RESULT: ${{ needs.lpms-docker-build.result }}
@@ -775,6 +791,7 @@ jobs:
           expect_result quality "$QUALITY_RESULT" success
           expect_result integration-tests "$INTEGRATION_RESULT" success
           expect_result browser-e2e "$BROWSER_RESULT" success
+          expect_result clean-epoch-recovery-proof "$CLEAN_EPOCH_RECOVERY_RESULT" success
 
           if [[ "$EVENT_NAME" == push && "$REF" == refs/heads/main ]]; then
             expect_result web-docker-build "$WEB_BUILD_RESULT" skipped

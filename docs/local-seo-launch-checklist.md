@@ -5,14 +5,16 @@ enforced in code.
 
 ## Launch Hygiene
 
-- Point `trypressly.com` to the new Vercel site before submitting the sitemap.
+- Confirm `trypressly.com` resolves to the production AWS/Lightsail address
+  before submitting the sitemap.
 - Confirm these URLs serve the new Next.js app, not Squarespace:
   - `https://trypressly.com/robots.txt`
   - `https://trypressly.com/sitemap.xml`
   - `https://trypressly.com/new-jersey`
 - Submit `https://trypressly.com/sitemap.xml` in Google Search Console and Bing
   Webmaster Tools after DNS cutover.
-- Check the Vercel redirect behavior for old Squarespace URLs:
+- Check the AWS/Caddy-served Next.js redirect behavior for old Squarespace
+  URLs:
   - `/home`
   - `/blog`
   - `/blog/cost-of-wash-and-fold-laundry-service-in-new-jersey`

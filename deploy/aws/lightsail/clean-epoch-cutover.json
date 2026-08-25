@@ -1,0 +1,277 @@
+{
+  "schemaVersion": 1,
+  "operationId": "postgres.clean-owner-epoch.v1",
+  "cutoverId": "clean-owner-epoch-v1",
+  "legacyReleaseSha": "f0d38b7d6b8a5576f62760bd984439def4351a1e",
+  "legacyLedgerSha256": "c91f202242118f9d515198e843a587c8746afab85515716697d86eb682090fa2",
+  "targetJournalSha256": "4b3a8eac8cde509ce43ae8e9b2f1608a7ce40f30548978250715a1d157a69e2a",
+  "targetTreeSha256": "8436950407887c0eb5ada951921dc80b56b03d96c03a9303d6c202a3b74dcbc6",
+  "candidateDatabasePrefix": "pressly_epoch_",
+  "legacy": {
+    "sourceCommit": "f0d38b7d6b8a5576f62760bd984439def4351a1e",
+    "journalSha256": "18421b8899eba1d88a9fad35c73435bcb6a7bfeb3f43b748b1d04d0d150c3dc3",
+    "orderedTreeSha256": "4fc34cdebe6899dc9a8d9ac5dabc4ba508657400f68291d474bd4431076e7c53",
+    "orderedLedgerSha256": "c91f202242118f9d515198e843a587c8746afab85515716697d86eb682090fa2",
+    "ledgerTupleFormat": "id|hash|created_at\\n",
+    "entries": [
+      {
+        "id": 1,
+        "hash": "5c4107137b3f2d5881a25211a50c7c3d4222e2a2e7fdd2d0cd3086a750b23cfe",
+        "createdAt": 1778523826077,
+        "tag": "0001_pricing"
+      },
+      {
+        "id": 2,
+        "hash": "2ad57bdab20efea9c72eec9138c016c85f1e4a42ca46b8813b134411800e624b",
+        "createdAt": 1779135973885,
+        "tag": "0002_pricing_change_events"
+      },
+      {
+        "id": 3,
+        "hash": "ac7394b443e3c6b244214212b0b1b3b9f2515e089ba8d8ccd21ce3755ea7ecc9",
+        "createdAt": 1779995454095,
+        "tag": "0003_confused_vivisector"
+      },
+      {
+        "id": 4,
+        "hash": "8d01083a73059ae3e373eb1163761a069cb413df1b0fb81c63cd3a7f84a14ecc",
+        "createdAt": 1780334987332,
+        "tag": "0004_luxuriant_pyro"
+      },
+      {
+        "id": 5,
+        "hash": "d105b900eb2fb30c776742ccbda202696cc8ac20bcf9215a459ad78c11e2ae46",
+        "createdAt": 1782064444714,
+        "tag": "0005_stale_lizard"
+      },
+      {
+        "id": 6,
+        "hash": "b85b318c18df8b824d0d74a705aee022971dc23e94724c81220fd301a47b9d9f",
+        "createdAt": 1782240081284,
+        "tag": "0006_remove_pricing_location_scope"
+      },
+      {
+        "id": 7,
+        "hash": "55e48454f4bcfb4a1d96f4e204786d9a8e68ddc5afa8dfe0c42b960115b3bfff",
+        "createdAt": 1782326715201,
+        "tag": "0007_rename_auth_identities"
+      },
+      {
+        "id": 8,
+        "hash": "b172a95aad53755cada8384aadc5cd9f8f8aa93d311331110a5b07d10d79114e",
+        "createdAt": 1782751889744,
+        "tag": "0008_giant_cassandra_nova"
+      },
+      {
+        "id": 9,
+        "hash": "d5c4090ac7ff9d51c96e4543c4f828e9d3db6168a5d6072d8fc412f9b35d9933",
+        "createdAt": 1782753174389,
+        "tag": "0009_daily_radioactive_man"
+      },
+      {
+        "id": 10,
+        "hash": "0e890e9298f8449d4cc4abf5eb1f7328e69d38d2a119b648157e22a7f4a83741",
+        "createdAt": 1783712208251,
+        "tag": "0010_lpms_v1"
+      },
+      {
+        "id": 11,
+        "hash": "8f48302e1f675150269de6991be6817d8f6736189b07e8f77a48f26805e9dd0b",
+        "createdAt": 1783712245089,
+        "tag": "0011_lpms_active_stage"
+      },
+      {
+        "id": 12,
+        "hash": "bd593a17d2fb1bc04e475bc6cce8c372da513e87f88ce7a4b07b6a94667b5188",
+        "createdAt": 1783870308304,
+        "tag": "0012_lpms-production-readiness"
+      },
+      {
+        "id": 13,
+        "hash": "2bad309d294cb8aeb79527cbb10f50d1d79afeebc86353b70c685e38c8daff46",
+        "createdAt": 1783870568245,
+        "tag": "0013_lpms-location-closure"
+      },
+      {
+        "id": 14,
+        "hash": "373518e255c4bb9889cfe92b11a72e4070b5e8f5a492cac5d4519e18964e32ff",
+        "createdAt": 1783871543131,
+        "tag": "0014_lpms-receipt-classification"
+      },
+      {
+        "id": 15,
+        "hash": "b5e97b24590df55b9aae394891ba6a37370141caecb9763f1ec07b347be99360",
+        "createdAt": 1783883793077,
+        "tag": "0015_lpms-module-boundaries"
+      },
+      {
+        "id": 16,
+        "hash": "3e1acdcbe56d154dd65d9d39411aaa8bbfd463b9dfc9a440dd8436b7951ed5db",
+        "createdAt": 1784045430335,
+        "tag": "0016_lpms-run-centered-online-scheduling"
+      },
+      {
+        "id": 17,
+        "hash": "e93ba01a5e1bfad3c76894aef03c9af38603c7e7bf8610213ea8f57253792d97",
+        "createdAt": 1784078876429,
+        "tag": "0017_production_live_revisions"
+      },
+      {
+        "id": 18,
+        "hash": "06da62988fc3ed28023386c50688546094f6390af61b7e0d88db1c64da4b0679",
+        "createdAt": 1784137564354,
+        "tag": "0018_stage_boundary_provenance"
+      },
+      {
+        "id": 19,
+        "hash": "7d93fcef066f08165032db74450a23d1143c850d1aecc4c7ba046bc595c8e330",
+        "createdAt": 1784139827000,
+        "tag": "0019_production-batch-lifecycle-timestamps"
+      },
+      {
+        "id": 20,
+        "hash": "f5ef8f598bded966b6a04096df35c8b9303979eef71e23b91394c282ee87a0cf",
+        "createdAt": 1784159769678,
+        "tag": "0020_fair_karma"
+      },
+      {
+        "id": 21,
+        "hash": "0af7b9b1b4c2c3a8176a357c226bf1235c9a0dff6fc554dc8528690221b0ecc2",
+        "createdAt": 1784421352992,
+        "tag": "0021_lpms-demand-lifecycle-outlook"
+      },
+      {
+        "id": 22,
+        "hash": "580be66dbdd23baf071d75ea949b617e5dc642fbd586e1e997fea8f4029dedd9",
+        "createdAt": 1784473873714,
+        "tag": "0022_cents-webhook-quarantine"
+      },
+      {
+        "id": 23,
+        "hash": "08e361152ba880679567b07d1164dfab2dcd33ff11de660c085b7b04ad3e41b0",
+        "createdAt": 1784488962291,
+        "tag": "0023_lpms-shift-order-selection"
+      },
+      {
+        "id": 24,
+        "hash": "d969174c0d4493e075b89f0a1bce8fbd5b4d2427bea1d8fbd5275b3993fe43ca",
+        "createdAt": 1784648760659,
+        "tag": "0024_source-neutral-users-orders"
+      },
+      {
+        "id": 25,
+        "hash": "f04b07c6e425d4cc1346d876e48fb42428a86a8478076e5ce32adda931c9ece0",
+        "createdAt": 1784650868423,
+        "tag": "0025_source-neutral-production-demand"
+      },
+      {
+        "id": 26,
+        "hash": "a31453f18f10337b03e47b33fab60e41844c752050ea395b10cbf1a31e9e8b4b",
+        "createdAt": 1784653585686,
+        "tag": "0026_source-neutral-command-context"
+      },
+      {
+        "id": 27,
+        "hash": "43f65ca7784a301fbcd5272b22f3091234aa2d5b419e0fb4fd225ce4157aa884",
+        "createdAt": 1784669814711,
+        "tag": "0027_order-outbox-dead-letter"
+      },
+      {
+        "id": 28,
+        "hash": "9263c356e62e9eac863d8a21b884f19c51ad2343e05329febbd2dd12a98c82e7",
+        "createdAt": 1784671630048,
+        "tag": "0028_order-source-lifecycle-code"
+      },
+      {
+        "id": 29,
+        "hash": "02db9b789ed6a0d500461a11f4d69b2a1e451b0b6292e60dac4bd4703d363289",
+        "createdAt": 1784778904031,
+        "tag": "0029_lpms-production-admission-override"
+      },
+      {
+        "id": 30,
+        "hash": "2a9075f24c7c3c7c73fe7bbbc9e5c45a1a1d4baedea01b400e0e670d1e4d0aea",
+        "createdAt": 1784821300758,
+        "tag": "0030_prelaunch-cents-order-cleanup"
+      },
+      {
+        "id": 31,
+        "hash": "bbda5e57a4d05dcb9eec5c6de20dffb4040e003faca6835a7c8102ebfb9e43bb",
+        "createdAt": 1784995491531,
+        "tag": "0031_repair-empty-production-execution-graphs"
+      },
+      {
+        "id": 32,
+        "hash": "0c8d84b429ea66244130dd85a0a1bc17e97432a25854a4ff17a01eb1e9798923",
+        "createdAt": 1785092398637,
+        "tag": "0032_production-order-execution-state"
+      },
+      {
+        "id": 33,
+        "hash": "244e63823ef02274d1a8c9ea447a264710c227180d8aa0ac90da97369c7e992e",
+        "createdAt": 1785123974771,
+        "tag": "0033_production-order-resolution"
+      },
+      {
+        "id": 34,
+        "hash": "ccbe14a5e269bfafcf8ef5a6b92f8f7694d6a2c79aed431f10a0f245e90ab813",
+        "createdAt": 1785167093009,
+        "tag": "0034_prelaunch-processor-data-reset"
+      },
+      {
+        "id": 35,
+        "hash": "eee4281c7b96b351c08922b84559f16f1b531c69192d4fab0e350b39a87db0d8",
+        "createdAt": 1785250283597,
+        "tag": "0035_order-source-authority-evidence"
+      },
+      {
+        "id": 36,
+        "hash": "5248fc101a2d6ff67e59bcd801148b8b0e6ca175096d23dec35db40767a24dfb",
+        "createdAt": 1785290057022,
+        "tag": "0036_incoming-order-proposals"
+      },
+      {
+        "id": 37,
+        "hash": "1b42dd6ebcec20b135b633f4a76bcd90ae1bf4402c94567a0a7e9b11725c739c",
+        "createdAt": 1785342289615,
+        "tag": "0037_submitted_candidate_lifecycle"
+      },
+      {
+        "id": 38,
+        "hash": "26729e8f2e14a2d26ea5977d59c8dc1e0ba8c0f4503d9062abd3ce9a4f9205f5",
+        "createdAt": 1785372876882,
+        "tag": "0038_smooth_omega_sentinel"
+      },
+      {
+        "id": 39,
+        "hash": "db47ae48b06003c6b09fcd5aa575a347c6dae0cfc967a2a24a36bc34e7621a2b",
+        "createdAt": 1785524290895,
+        "tag": "0039_fantastic_energizer"
+      },
+      {
+        "id": 40,
+        "hash": "85a3ba672c3037bb5248f5ac0050c6452139c76ea2c9d9a05fd89ad266956df5",
+        "createdAt": 1786065143044,
+        "tag": "0040_flashy_colossus"
+      }
+    ]
+  },
+  "target": {
+    "entryCount": 2,
+    "journalSha256": "4b3a8eac8cde509ce43ae8e9b2f1608a7ce40f30548978250715a1d157a69e2a",
+    "orderedTreeSha256": "8436950407887c0eb5ada951921dc80b56b03d96c03a9303d6c202a3b74dcbc6",
+    "orderedLedgerSha256": "627f1c15f986a6b1af3ee4f456ad4c9c3cc0cf4de90748c1c8bed812b7524f65",
+    "publicTableCount": 59,
+    "publicEnumCount": 6
+  },
+  "preservation": {
+    "owner": "pricing",
+    "copyOrder": [
+      "pricing_services",
+      "pricing_sets",
+      "pricing_items",
+      "pricing_change_events"
+    ],
+    "discard": "all-non-pricing-data"
+  }
+}

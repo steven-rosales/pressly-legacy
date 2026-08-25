@@ -26,23 +26,69 @@ guessing at reverse SQL during an incident.
 
 ## One-Time Pre-User Clean Epoch
 
-Pressly used one explicit exception before customer production data existed:
-the compatibility-era non-Pricing schema and migration history were replaced
-by a clean owner-local baseline. Pricing was excluded from the destructive
-scope and had to retain its schema, catalog values, contracts, seed behavior,
-and public rendering exactly.
+Pressly permits one explicit exception before customer production data exists:
+the compatibility-era non-Pricing schema and migration history may be replaced
+by a clean owner-local baseline. Pricing is excluded from the destructive scope
+and must retain its schema, catalog values, contracts, seed behavior, and public
+rendering exactly.
 
-This was a coordinated database-epoch cutover, not a normal deploy or a
-precedent for rewriting history. It required fenced writers, recoverable old
+This is a coordinated database-epoch cutover, not a normal deploy or a
+precedent for rewriting history. It requires fenced writers, recoverable old
 database and migration artifacts, a fresh backup and restore proof, a clean
 database apply from `template0`, exact Pricing equivalence, role verification,
 and full application/runtime proof. Backups from before the cutover remain
 paired with the old release and ledger.
 
-After that cutover, the clean-epoch ledger is immutable and append-only. All
+After successful cutover, the clean-epoch ledger is immutable and append-only. All
 future production changes follow the additive guidance below unless a new,
 explicitly approved breaking-release plan satisfies the destructive
 checklist.
+
+The production transition is implemented as the one-time
+`clean-owner-epoch-v1` maintenance operation. It is never selected by an
+automatic deploy. The operation:
+
+1. Requires production deployment admission to be paused and binds the exact
+   verified legacy and target release SHAs.
+2. Creates an encrypted backup, verifies readback from the configured primary
+   and independent secondary S3 destinations, and completes the isolated
+   restore drill.
+3. Stops Caddy, API, and Worker and disables their restart policies.
+4. Verifies every tuple in the authorized 40-row legacy migration ledger.
+5. Creates a candidate database from `template0`, configures the database
+   roles, and applies the two immutable clean-epoch migrations.
+6. Copies all columns of `pricing_services`, `pricing_sets`, `pricing_items`,
+   and `pricing_change_events` in one transaction. UUIDs, timestamps, JSON,
+   inactive sets, and change history are preserved exactly; no non-Pricing
+   rows are copied.
+7. Requires identical canonical Pricing digests, `59` public tables, `6`
+   public enums, and the exact two-row target ledger.
+8. Renames the legacy database into a connection-disabled quarantine and
+   promotes the candidate. The legacy database and backup are retained.
+9. Starts the exact five-image target, verifies private and public health, and
+   only then commits release metadata and retires the cutover journal.
+
+An interrupted operation leaves the durable cutover journal and service fence
+in place. Only the same target may use `resume-clean-epoch`. Never delete the
+journal or start the legacy application against the clean database.
+
+If that exact target cannot be completed, the paused, manual-only
+`recover-clean-epoch` operation is the sole paired abort path. It removes
+surviving migration, backup, and restore tool containers; restores the retained
+legacy database from every journaled rename topology; restores database
+connections and the runtime role's `CONNECT`; and starts only the six-field
+journaled legacy release identity. It verifies the exact 40-row ledger, five
+running image digests, deployment metadata/state, and public health before it
+retires the journal as `aborted` evidence. Every interruption is retried through
+the same exact operation and confirmation:
+
+```text
+RECOVER_CLEAN_EPOCH:clean-owner-epoch-v1:<legacy-sha>:<target-sha>
+```
+
+Ordinary `rollback.sh` and `restore-postgres.sh` continue to refuse an active
+clean-epoch journal; they cannot create an application/database cross-epoch
+pairing.
 
 ## Allowed In Normal Deploys
 

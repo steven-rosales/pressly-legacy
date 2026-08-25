@@ -31,6 +31,11 @@
       "import": "./dist/model/pricing-change.js",
       "default": "./dist/model/pricing-change.js"
     },
+    "./postgres/clean-epoch-pricing": {
+      "types": "./dist/postgres/clean-epoch-pricing.postgres.d.ts",
+      "import": "./dist/postgres/clean-epoch-pricing.postgres.js",
+      "default": "./dist/postgres/clean-epoch-pricing.postgres.js"
+    },
     "./operations/catalog/load-pricing-catalog/cell": {
       "types": "./dist/cells/catalog/load-pricing-catalog/cell.d.ts",
       "import": "./dist/cells/catalog/load-pricing-catalog/cell.js",
@@ -62,6 +67,7 @@
   },
   "dependencies": {
     "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/postgres": "workspace:*",
     "@pressly/time": "workspace:*",

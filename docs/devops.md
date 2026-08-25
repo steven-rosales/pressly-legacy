@@ -265,8 +265,18 @@ LIGHTSAIL_USER
 LIGHTSAIL_SSH_KEY
 LIGHTSAIL_SSH_KNOWN_HOSTS
 SENTRY_DEPLOYMENT_DSN
+PRESSLY_BACKUP_S3_URI
+PRESSLY_BACKUP_SECONDARY_S3_URI
+PRESSLY_BACKUP_SECONDARY_AWS_PROFILE
+PRESSLY_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER
 SENTRY_DEPLOYMENT_MONITOR_SLUG (environment variable)
+PRODUCTION_DEPLOYMENT_ADMISSION (environment variable)
 ```
+
+The four masked backup settings bind the one-time clean database epoch to the
+same primary and independently administered secondary destinations used by the
+host backup schedule. The cutover refuses to rename a database unless both
+destinations upload and read back the encrypted dump, checksum, and metadata.
 
 The separate main-only `release-production` environment owns Web, Processor,
 and Control Sentry DSNs, the source-map upload token, Sentry project

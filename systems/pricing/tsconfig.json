@@ -19,6 +19,9 @@
       "path": "../../platform/cells/tsconfig.json"
     },
     {
+      "path": "../../platform/codec/tsconfig.json"
+    },
+    {
       "path": "../../platform/errors/tsconfig.json"
     },
     {

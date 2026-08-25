@@ -21,9 +21,15 @@ SELECT format(
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pressly_backup')
 \gexec
 
-ALTER ROLE pressly_migration PASSWORD :'migration_password';
-ALTER ROLE pressly_runtime PASSWORD :'runtime_password';
-ALTER ROLE pressly_backup PASSWORD :'backup_password';
+ALTER ROLE pressly_migration
+  LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+  PASSWORD :'migration_password';
+ALTER ROLE pressly_runtime
+  LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+  PASSWORD :'runtime_password';
+ALTER ROLE pressly_backup
+  LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+  PASSWORD :'backup_password';
 
 ALTER DATABASE :"database_name" OWNER TO pressly_migration;
 ALTER SCHEMA public OWNER TO pressly_migration;

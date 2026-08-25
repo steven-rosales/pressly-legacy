@@ -585,6 +585,9 @@
       "@pressly/pricing-system/operations/pricebook/publish-pricing-change/cell": [
         "systems/pricing/src/cells/pricebook/publish-pricing-change/cell.ts"
       ],
+      "@pressly/pricing-system/postgres/clean-epoch-pricing": [
+        "systems/pricing/src/postgres/clean-epoch-pricing.postgres.ts"
+      ],
       "@pressly/pricing-system/schema": [
         "systems/pricing/src/schema/public.ts"
       ],

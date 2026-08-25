@@ -153,6 +153,27 @@ const runBackup = (fixture, env = {}) =>
     encoding: 'utf8',
   });
 
+const runBackupWithInheritedLock = (fixture, env = {}) => {
+  const lock = join(fixture.directory, 'inherited-backup.lock');
+  return spawnSync(
+    'bash',
+    [
+      '-c',
+      'exec 8>"$INHERITED_BACKUP_LOCK"; flock --nonblock 8; exec "$BACKUP_SCRIPT"',
+    ],
+    {
+      env: {
+        ...fixture.env,
+        ...env,
+        BACKUP_SCRIPT: backupScript,
+        INHERITED_BACKUP_LOCK: lock,
+        PRESSLY_BACKUP_LOCK_HELD: 'true',
+      },
+      encoding: 'utf8',
+    },
+  );
+};
+
 const callsFor = (fixture) =>
   readFileSync(fixture.awsCalls, 'utf8')
     .trim()
@@ -164,6 +185,52 @@ const callsFor = (fixture) =>
     });
 
 describe('Postgres backup destinations', () => {
+  it('reuses an exact inherited backup lock for a larger maintenance operation', () => {
+    const fixture = backupFixture();
+    const result = runBackupWithInheritedLock(fixture);
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(fixture.dockerCalls, 'utf8')).toBe('run\n');
+  });
+
+  it('rejects an inherited-lock claim without the inherited descriptor', () => {
+    const fixture = backupFixture();
+    const result = spawnSync(
+      'bash',
+      ['-c', 'exec 8>&-; exec "$BACKUP_SCRIPT"'],
+      {
+        env: {
+          ...fixture.env,
+          BACKUP_SCRIPT: backupScript,
+          PRESSLY_BACKUP_LOCK_HELD: 'true',
+        },
+        encoding: 'utf8',
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Inherited Postgres backup lock is invalid.',
+    );
+    expect(existsSync(fixture.dockerCalls)).toBe(false);
+  });
+
+  it('creates an explicitly local encrypted diagnostic backup without AWS access', () => {
+    const fixture = backupFixture();
+    const result = runBackup(fixture, {
+      PRESSLY_BACKUP_LOCAL_ONLY: 'true',
+      PRESSLY_BACKUP_S3_URI: '',
+    });
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(fixture.dockerCalls, 'utf8')).toBe('run\n');
+    expect(existsSync(fixture.awsCalls)).toBe(false);
+    expect(result.stdout).toContain('Backup object: local:');
+    expect(result.stdout).toContain('Backup file: ');
+    expect(result.stdout).toContain('Local encrypted backup SHA-256:');
+    expect(result.stdout).not.toContain('verified after upload');
+  });
+
   it('keeps one-destination operation backward compatible', () => {
     const fixture = backupFixture();
     const result = runBackup(fixture);

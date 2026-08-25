@@ -16,6 +16,8 @@ rebuilds application source.
   backups/postgres/          short-lived encrypted local copies
   backup-passphrase.txt      mode 600; retain an offline recovery copy
   deployment-state.json     exact attempted or unverified release identity
+  postgres-clean-epoch.json active one-time cutover journal, when present
+  postgres-clean-epoch-last.json completed or aborted clean-epoch evidence
   current-release.json       active release format, SHA, and image digests
   previous-release.json      immediate rollback release identity
 ```
@@ -98,6 +100,27 @@ image digests to `deploy.sh`. It stages and verifies `deploy.sh` from that exact
 target checkout before execution; it does not trust the deployment logic from
 the currently checked-out host release.
 
+The production environment variable `PRODUCTION_DEPLOYMENT_ADMISSION` is an
+explicit release gate. It must be `open` for normal manual or automatic
+deployment. `paused` suppresses automatic deployment and refuses manual normal
+deployment while allowing only the explicitly confirmed maintenance operations
+in the workflow. Unknown or missing values never deploy.
+
+`reconcile-rollback` validates the complete failed deployment identity and the
+stable operations bundle before invoking `/opt/pressly/ops/current/rollback.sh`.
+It never edits `deployment-state.json`. `clean-epoch` is the one-time,
+Pricing-preserving pre-user database replacement described in
+`docs/ops/production-migrations.md`; `resume-clean-epoch` admits only the same
+target after an interruption. `recover-clean-epoch` is the separately confirmed
+paired recovery to the exact journaled legacy database and five-image release.
+All three clean-epoch operations are manual-only and require paused production
+admission. Their confirmation values are exact:
+
+```text
+CUTOVER:clean-owner-epoch-v1:<legacy-sha>:<target-sha>
+RECOVER_CLEAN_EPOCH:clean-owner-epoch-v1:<legacy-sha>:<target-sha>
+```
+
 The workflow also supplies the verified Lightsail static IPv4 address. Before
 any release snapshot, checkout, migration, or Compose mutation, deploy requires
 every applicable public hostname to resolve to that address. This catches a
@@ -119,6 +142,14 @@ rollback and incident reconciliation instead when the intended target changed.
 `current-release.json` is authoritative; the plain `current-release` SHA file
 is a derived integrity pointer and is replaced before the authoritative JSON so
 an interrupted two-file update cannot falsely declare a release active.
+
+The one-time clean database epoch additionally uses the mode-600
+`postgres-clean-epoch.json` journal and `postgres-clean-epoch-fence.compose.yml`
+service fence. Successful cutover or paired legacy recovery moves the journal
+to `postgres-clean-epoch-last.json`; its `phase` is `public_verified` for the
+new epoch or `aborted` for restored legacy. The evidence binds the retained
+database, backup checksum, and both exact five-image identities. Do not remove
+the retained database without a separate retention decision.
 
 After Compose reports the private services healthy, deploy polls the public
 API, Web, Processor, and Control routes with bounded timeouts and retries. This
@@ -276,8 +307,9 @@ bundle is available at `/opt/pressly/ops/candidate` before migrations begin, so
 the first hardened release can still be recovered in a fresh shell if it
 fails before `current` exists. Rollback never advances or downgrades either
 stable bundle pointer. Each stable entrypoint verifies the complete payload
-before execution. `restore-postgres-proof.sh` remains repository-only because
-it is a disposable local proof harness, not production host-control tooling.
+before execution. `restore-postgres-proof.sh` and
+`recover-clean-epoch-proof.sh` remain repository-only because they are
+disposable local proof harnesses, not production host-control tooling.
 
 Rollback requires one complete `five-image-v1` record with five distinct
 immutable image digests and one full source SHA. Unknown release formats,
@@ -503,6 +535,7 @@ operational records and confirms the preserved configuration counts.
 ```text
 bad application release, data is sound -> rollback.sh
 data corruption or machine loss        -> restore-postgres.md
+active clean database epoch cannot finish -> recover-clean-epoch workflow
 practice and evidence                   -> restore-postgres-drill.md
 ```
 
