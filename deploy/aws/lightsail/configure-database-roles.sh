@@ -13,6 +13,7 @@ DEPLOY_LOCK_FILE="${PRESSLY_DEPLOY_LOCK_FILE:-$APP_ROOT/deploy.lock}"
 OPERATION_LOCK_DIR="${PRESSLY_OPERATION_LOCK_DIR:-$APP_ROOT/run}"
 BACKUP_LOCK_FILE="$OPERATION_LOCK_DIR/postgres-backup.lock"
 RESTORE_JOURNAL_FILE="${PRESSLY_RESTORE_JOURNAL_FILE:-$APP_ROOT/postgres-restore.json}"
+CLEAN_EPOCH_JOURNAL_FILE="${PRESSLY_CLEAN_EPOCH_JOURNAL_FILE:-$APP_ROOT/postgres-clean-epoch.json}"
 POSTGRES_IMAGE='postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a'
 
 # Compose validates all required image variables even when only Postgres starts.
@@ -42,6 +43,10 @@ if ! flock --nonblock 8; then
 fi
 if [[ -e "$RESTORE_JOURNAL_FILE" || -L "$RESTORE_JOURNAL_FILE" ]]; then
   echo "Active Postgres restore journal blocks database role changes: $RESTORE_JOURNAL_FILE" >&2
+  exit 75
+fi
+if [[ -e "$CLEAN_EPOCH_JOURNAL_FILE" || -L "$CLEAN_EPOCH_JOURNAL_FILE" ]]; then
+  echo "Active clean-epoch journal blocks standalone role changes: $CLEAN_EPOCH_JOURNAL_FILE" >&2
   exit 75
 fi
 

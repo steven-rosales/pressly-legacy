@@ -22,6 +22,84 @@ afterAll(async () => {
 });
 
 describe('database roles', () => {
+  it('keeps every application role non-privileged and migration-owned objects exact', async () => {
+    const roles = await migration`
+      select rolname, rolcanlogin, rolsuper, rolcreatedb, rolcreaterole,
+             rolreplication, rolbypassrls
+      from pg_roles
+      where rolname in ('pressly_migration', 'pressly_runtime', 'pressly_backup')
+      order by rolname
+    `;
+    expect(roles).toEqual([
+      {
+        rolname: 'pressly_backup',
+        rolcanlogin: true,
+        rolsuper: false,
+        rolcreatedb: false,
+        rolcreaterole: false,
+        rolreplication: false,
+        rolbypassrls: false,
+      },
+      {
+        rolname: 'pressly_migration',
+        rolcanlogin: true,
+        rolsuper: false,
+        rolcreatedb: false,
+        rolcreaterole: false,
+        rolreplication: false,
+        rolbypassrls: false,
+      },
+      {
+        rolname: 'pressly_runtime',
+        rolcanlogin: true,
+        rolsuper: false,
+        rolcreatedb: false,
+        rolcreaterole: false,
+        rolreplication: false,
+        rolbypassrls: false,
+      },
+    ]);
+
+    const [ownership] = await migration`
+      select
+        (select pg_get_userbyid(datdba) from pg_database where datname = current_database()) as database_owner,
+        (
+          select count(*)::integer
+          from pg_namespace
+          where nspname in ('public', 'drizzle')
+            and pg_get_userbyid(nspowner) <> 'pressly_migration'
+        ) as wrong_schema_owners,
+        (
+          select count(*)::integer
+          from pg_class relation
+          join pg_namespace namespace on namespace.oid = relation.relnamespace
+          where namespace.nspname in ('public', 'drizzle')
+            and relation.relkind in ('r', 'p', 'S', 'v', 'm')
+            and pg_get_userbyid(relation.relowner) <> 'pressly_migration'
+        ) as wrong_relation_owners,
+        (
+          select count(*)::integer
+          from pg_proc procedure
+          join pg_namespace namespace on namespace.oid = procedure.pronamespace
+          where namespace.nspname in ('public', 'drizzle')
+            and pg_get_userbyid(procedure.proowner) <> 'pressly_migration'
+            and not exists (
+              select 1
+              from pg_depend dependency
+              where dependency.classid = 'pg_proc'::regclass
+                and dependency.objid = procedure.oid
+                and dependency.deptype = 'e'
+            )
+        ) as wrong_function_owners
+    `;
+    expect(ownership).toEqual({
+      database_owner: 'pressly_migration',
+      wrong_schema_owners: 0,
+      wrong_relation_owners: 0,
+      wrong_function_owners: 0,
+    });
+  });
+
   it('allows normal application DML through the runtime role', async () => {
     const email = `db-role-${Date.now()}@pressly.test`;
 

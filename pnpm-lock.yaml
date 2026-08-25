@@ -1380,6 +1380,9 @@ importers:
       '@pressly/cells':
         specifier: workspace:*
         version: link:../../platform/cells
+      '@pressly/codec':
+        specifier: workspace:*
+        version: link:../../platform/codec
       '@pressly/errors':
         specifier: workspace:*
         version: link:../../platform/errors

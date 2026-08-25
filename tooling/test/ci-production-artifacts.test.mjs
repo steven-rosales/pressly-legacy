@@ -279,6 +279,28 @@ describe('five-image CI release', () => {
     });
   });
 
+  it('requires the real clean-epoch hard-kill recovery proof on every CI run', () => {
+    const recovery = workflow.jobs['clean-epoch-recovery-proof'];
+    const checkout = recovery.steps.find(
+      (candidate) => candidate.name === 'Checkout complete release history',
+    );
+    const proof = recovery.steps.find(
+      (candidate) =>
+        candidate.name ===
+        'Prove destructive epoch recovery and hard-kill resumption',
+    );
+
+    expect(recovery.name).toBe('ci clean epoch recovery proof');
+    expect(recovery['timeout-minutes']).toBe(20);
+    expect(checkout.with['fetch-depth']).toBe(0);
+    expect(proof.run).toBe(
+      'bash deploy/aws/lightsail/recover-clean-epoch-proof.sh',
+    );
+    expect(rootManifest.scripts['test:clean-epoch-recovery']).toBe(
+      'bash deploy/aws/lightsail/recover-clean-epoch-proof.sh',
+    );
+  });
+
   it('builds each main release image once and binds it to one source SHA', () => {
     expect(production.if).toBe(
       "github.event_name == 'push' && github.ref == 'refs/heads/main'",
@@ -603,6 +625,7 @@ describe('five-image CI release', () => {
       'quality',
       'integration-tests',
       'browser-e2e',
+      'clean-epoch-recovery-proof',
       'web-docker-build',
       'api-docker-build',
       'lpms-docker-build',
@@ -613,6 +636,9 @@ describe('five-image CI release', () => {
       (candidate) => candidate.name === 'Verify required CI paths',
     );
     expect(gate.env.BROWSER_RESULT).toBe('${{ needs.browser-e2e.result }}');
+    expect(gate.env.CLEAN_EPOCH_RECOVERY_RESULT).toBe(
+      '${{ needs.clean-epoch-recovery-proof.result }}',
+    );
     expect(gate.env.LPMS_BUILD_RESULT).toBe(
       '${{ needs.lpms-docker-build.result }}',
     );
@@ -621,6 +647,7 @@ describe('five-image CI release', () => {
       QUALITY_RESULT: 'success',
       INTEGRATION_RESULT: 'success',
       BROWSER_RESULT: 'success',
+      CLEAN_EPOCH_RECOVERY_RESULT: 'success',
     };
     const mainPush = runBash(gate.run, {
       ...baseResults,

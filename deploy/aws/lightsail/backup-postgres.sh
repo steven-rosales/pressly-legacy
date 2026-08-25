@@ -11,7 +11,9 @@ COMPOSE_FILE="${PRESSLY_COMPOSE_FILE:-$REPO_DIR/deploy/aws/lightsail/docker-comp
 BACKUP_DIR="${PRESSLY_BACKUP_DIR:-$APP_ROOT/backups/postgres}"
 PASSPHRASE_FILE="${PRESSLY_BACKUP_PASSPHRASE_FILE:-$APP_ROOT/backup-passphrase.txt}"
 LOCK_DIR="${PRESSLY_OPERATION_LOCK_DIR:-$APP_ROOT/run}"
+BACKUP_LOCK_FILE="$LOCK_DIR/postgres-backup.lock"
 RESTORE_JOURNAL_FILE="${PRESSLY_RESTORE_JOURNAL_FILE:-$APP_ROOT/postgres-restore.json}"
+CLEAN_EPOCH_JOURNAL_FILE="${PRESSLY_CLEAN_EPOCH_JOURNAL_FILE:-$APP_ROOT/postgres-clean-epoch.json}"
 RETENTION_DAYS="${PRESSLY_BACKUP_RETENTION_DAYS:-14}"
 S3_URI="${PRESSLY_BACKUP_S3_URI:-}"
 AWS_PROFILE_NAME="${PRESSLY_BACKUP_AWS_PROFILE:-}"
@@ -19,6 +21,8 @@ EXPECTED_BUCKET_OWNER="${PRESSLY_BACKUP_AWS_EXPECTED_BUCKET_OWNER:-}"
 SECONDARY_S3_URI="${PRESSLY_BACKUP_SECONDARY_S3_URI:-}"
 SECONDARY_AWS_PROFILE_NAME="${PRESSLY_BACKUP_SECONDARY_AWS_PROFILE:-}"
 SECONDARY_EXPECTED_BUCKET_OWNER="${PRESSLY_BACKUP_SECONDARY_AWS_EXPECTED_BUCKET_OWNER:-}"
+LOCAL_ONLY="${PRESSLY_BACKUP_LOCAL_ONLY:-false}"
+BACKUP_LOCK_HELD="${PRESSLY_BACKUP_LOCK_HELD:-false}"
 POSTGRES_IMAGE='postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a'
 
 validate_profile_name() {
@@ -135,14 +139,41 @@ for file in "$COMPOSE_ENV_FILE" "$BACKUP_ENV_FILE" "$PASSPHRASE_FILE"; do
   fi
 done
 
-if [[ -z "$S3_URI" || ! "$S3_URI" =~ ^s3://[^/]+/.+ ]]; then
-  echo "PRESSLY_BACKUP_S3_URI must be an S3 bucket prefix." >&2
+case "$LOCAL_ONLY" in
+  true|false) ;;
+  *)
+    echo "PRESSLY_BACKUP_LOCAL_ONLY must be true or false." >&2
+    exit 1
+    ;;
+esac
+case "$BACKUP_LOCK_HELD" in
+  true|false) ;;
+  *)
+    echo "PRESSLY_BACKUP_LOCK_HELD must be true or false." >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$LOCAL_ONLY" == false ]]; then
+  if [[ -z "$S3_URI" || ! "$S3_URI" =~ ^s3://[^/]+/.+ ]]; then
+    echo "PRESSLY_BACKUP_S3_URI must be an S3 bucket prefix." >&2
+    exit 1
+  fi
+elif [[ -n "$S3_URI" ]]; then
+  echo "PRESSLY_BACKUP_S3_URI must be empty for a local-only backup." >&2
   exit 1
 fi
 
 validate_profile_name PRESSLY_BACKUP_AWS_PROFILE "$AWS_PROFILE_NAME"
 validate_expected_bucket_owner \
   PRESSLY_BACKUP_AWS_EXPECTED_BUCKET_OWNER "$EXPECTED_BUCKET_OWNER"
+
+if [[ "$LOCAL_ONLY" == true && \
+  ( -n "$SECONDARY_S3_URI" || -n "$SECONDARY_AWS_PROFILE_NAME" || \
+    -n "$SECONDARY_EXPECTED_BUCKET_OWNER" ) ]]; then
+  echo "Secondary AWS settings are unavailable for a local-only backup." >&2
+  exit 1
+fi
 
 if [[ -z "$SECONDARY_S3_URI" && \
   ( -n "$SECONDARY_AWS_PROFILE_NAME" || -n "$SECONDARY_EXPECTED_BUCKET_OWNER" ) ]]; then
@@ -171,7 +202,11 @@ if [[ -n "$SECONDARY_S3_URI" ]]; then
   fi
 fi
 
-for command in aws docker flock gpg sha256sum; do
+required_commands=(docker flock gpg sha256sum)
+if [[ "$LOCAL_ONLY" == false ]]; then
+  required_commands+=(aws)
+fi
+for command in "${required_commands[@]}"; do
   command -v "$command" >/dev/null || {
     echo "$command is required." >&2
     exit 1
@@ -180,28 +215,42 @@ done
 
 mkdir -p "$LOCK_DIR"
 chmod 700 "$LOCK_DIR"
-exec 9> "$LOCK_DIR/postgres-backup.lock"
-if ! flock --nonblock 9; then
-  echo "Another Postgres backup or restore is already running." >&2
-  exit 75
+if [[ "$BACKUP_LOCK_HELD" == true ]]; then
+  if ! flock --nonblock 8; then
+    echo "Inherited Postgres backup lock is invalid." >&2
+    exit 1
+  fi
+else
+  exec 8> "$BACKUP_LOCK_FILE"
+  if ! flock --nonblock 8; then
+    echo "Another Postgres backup or restore is already running." >&2
+    exit 75
+  fi
+  export PRESSLY_BACKUP_LOCK_HELD=true
 fi
 if [[ -e "$RESTORE_JOURNAL_FILE" || -L "$RESTORE_JOURNAL_FILE" ]]; then
   echo "Active Postgres restore journal blocks backup: $RESTORE_JOURNAL_FILE" >&2
   exit 75
 fi
-
-destination_preflight_status=0
-verify_destination_owner \
-  primary "$S3_URI" "$AWS_PROFILE_NAME" "$EXPECTED_BUCKET_OWNER" || \
-  destination_preflight_status=1
-if [[ -n "$SECONDARY_S3_URI" ]]; then
-  verify_destination_owner \
-    secondary "$SECONDARY_S3_URI" "$SECONDARY_AWS_PROFILE_NAME" \
-    "$SECONDARY_EXPECTED_BUCKET_OWNER" || destination_preflight_status=1
+if [[ -e "$CLEAN_EPOCH_JOURNAL_FILE" || -L "$CLEAN_EPOCH_JOURNAL_FILE" ]]; then
+  echo "Active clean-epoch journal blocks unrelated backup: $CLEAN_EPOCH_JOURNAL_FILE" >&2
+  exit 75
 fi
-if [[ "$destination_preflight_status" -ne 0 ]]; then
-  echo "Backup destination preflight failed." >&2
-  exit "$destination_preflight_status"
+
+if [[ "$LOCAL_ONLY" == false ]]; then
+  destination_preflight_status=0
+  verify_destination_owner \
+    primary "$S3_URI" "$AWS_PROFILE_NAME" "$EXPECTED_BUCKET_OWNER" || \
+    destination_preflight_status=1
+  if [[ -n "$SECONDARY_S3_URI" ]]; then
+    verify_destination_owner \
+      secondary "$SECONDARY_S3_URI" "$SECONDARY_AWS_PROFILE_NAME" \
+      "$SECONDARY_EXPECTED_BUCKET_OWNER" || destination_preflight_status=1
+  fi
+  if [[ "$destination_preflight_status" -ne 0 ]]; then
+    echo "Backup destination preflight failed." >&2
+    exit "$destination_preflight_status"
+  fi
 fi
 
 mkdir -p "$BACKUP_DIR"
@@ -214,6 +263,9 @@ backup_file="$BACKUP_DIR/$basename"
 checksum_file="$backup_file.sha256"
 metadata_file="$backup_file.json"
 object_uri="${S3_URI%/}/$basename"
+if [[ "$LOCAL_ONLY" == true ]]; then
+  object_uri="local:$backup_file"
+fi
 secondary_object_uri=''
 if [[ -n "$SECONDARY_S3_URI" ]]; then
   secondary_object_uri="${SECONDARY_S3_URI%/}/$basename"
@@ -236,28 +288,35 @@ printf '{"createdAt":"%s","object":"%s","sha256":"%s","sizeBytes":%s}\n' \
   "$created_at" "$object_uri" "$checksum" "$size_bytes" > "$metadata_file"
 chmod 600 "$checksum_file" "$metadata_file"
 
-destination_status=0
-upload_and_verify_destination \
-  primary "$S3_URI" "$AWS_PROFILE_NAME" || \
-  destination_status=1
-if [[ -n "$SECONDARY_S3_URI" ]]; then
+if [[ "$LOCAL_ONLY" == false ]]; then
+  destination_status=0
   upload_and_verify_destination \
-    secondary "$SECONDARY_S3_URI" "$SECONDARY_AWS_PROFILE_NAME" || \
+    primary "$S3_URI" "$AWS_PROFILE_NAME" || \
     destination_status=1
-fi
-if [[ "$destination_status" -ne 0 ]]; then
-  echo "Backup did not verify at every configured destination." >&2
-  exit "$destination_status"
+  if [[ -n "$SECONDARY_S3_URI" ]]; then
+    upload_and_verify_destination \
+      secondary "$SECONDARY_S3_URI" "$SECONDARY_AWS_PROFILE_NAME" || \
+      destination_status=1
+  fi
+  if [[ "$destination_status" -ne 0 ]]; then
+    echo "Backup did not verify at every configured destination." >&2
+    exit "$destination_status"
+  fi
 fi
 
 find "$BACKUP_DIR" -type f \( -name '*.dump.gpg' -o -name '*.dump.gpg.sha256' -o -name '*.dump.gpg.json' \) \
   -mtime +"$RETENTION_DAYS" -delete
 
 echo "Backup object: $object_uri"
+echo "Backup file: $backup_file"
 if [[ -n "$secondary_object_uri" ]]; then
   echo "Secondary backup object: $secondary_object_uri"
 fi
 echo "Recovery point: $created_at"
 echo "Encrypted bytes: $size_bytes"
-echo "Every configured destination read back the same encrypted triplet."
-echo "SHA-256 verified after upload: $checksum"
+if [[ "$LOCAL_ONLY" == true ]]; then
+  echo "Local encrypted backup SHA-256: $checksum"
+else
+  echo "Every configured destination read back the same encrypted triplet."
+  echo "SHA-256 verified after upload: $checksum"
+fi

@@ -974,7 +974,16 @@ const durableInstallReleasePair = ([
   releasePath,
   metadataTemporary,
   metadataPath,
+  killAfterReleasePointer,
 ]) => {
+  if (
+    killAfterReleasePointer !== undefined &&
+    !new Set(['true', 'false']).has(killAfterReleasePointer)
+  )
+    return fail(
+      'deployment_release_pair_killpoint_invalid',
+      'release pair killpoint must be exactly true or false',
+    );
   for (const path of [releaseTemporary, metadataTemporary]) {
     const descriptor = openSync(path, constants.O_RDONLY);
     try {
@@ -984,6 +993,7 @@ const durableInstallReleasePair = ([
     }
   }
   renameSync(releaseTemporary, releasePath);
+  if (killAfterReleasePointer === 'true') process.kill(process.pid, 'SIGKILL');
   renameSync(metadataTemporary, metadataPath);
   for (const directory of new Set([
     dirname(resolve(releasePath)),
@@ -1010,9 +1020,17 @@ const installOpsBundle = (args) => {
     'backup-postgres.sh',
     'check-host-capacity.sh',
     'configure-database-roles.sh',
+    'cutover-clean-epoch.sh',
+    'recover-clean-epoch.sh',
     'restore-postgres-drill.sh',
     'restore-postgres.sh',
     'run-monitored-operation.sh',
+  ];
+  const recoveryAssetNames = [
+    'Caddyfile',
+    'clean-epoch-cutover.json',
+    'clean-epoch-legacy-compose.override.yml',
+    'docker-compose.production.yml',
   ];
   if (!new Set(['candidate', 'current']).has(linkName))
     return fail(
@@ -1021,6 +1039,7 @@ const installOpsBundle = (args) => {
     );
   const sourceEntries = [
     ...shellNames.map((name) => [name, join(sourceDirectory, name)]),
+    ...recoveryAssetNames.map((name) => [name, join(sourceDirectory, name)]),
     ['deployment-tooling.mjs', helperSource],
     ['tooling-error.mjs', errorFactorySource],
   ];
@@ -1037,10 +1056,12 @@ const installOpsBundle = (args) => {
       );
   }
   const wrapper = (name) => {
-    const deployBinding =
+    const siblingBinding =
       name === 'rollback.sh'
         ? 'export PRESSLY_DEPLOY_SCRIPT="$bundle_dir/deploy.sh"\n'
-        : '';
+        : name === 'recover-clean-epoch.sh'
+          ? 'export PRESSLY_CLEAN_EPOCH_ROLLBACK_SCRIPT="$bundle_dir/rollback.sh"\nexport PRESSLY_CLEAN_EPOCH_OPS_SOURCE_SHA_FILE="$bundle_dir/source-sha"\nexport PRESSLY_CLEAN_EPOCH_DECLARATION="$bundle_dir/payload/clean-epoch-cutover.json"\nexport PRESSLY_COMPOSE_FILE="$bundle_dir/payload/docker-compose.production.yml"\nexport PRESSLY_CLEAN_EPOCH_LEGACY_COMPOSE_OVERRIDE_FILE="$bundle_dir/payload/clean-epoch-legacy-compose.override.yml"\n'
+          : '';
     return `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -1051,7 +1072,7 @@ if ! (cd "$bundle_dir" && sha256sum --check --strict --status SHA256SUMS); then
 fi
 export PRESSLY_DEPLOY_TOOLING_FILE="$bundle_dir/payload/deployment-tooling.mjs"
 export PRESSLY_TOOLING_ERROR_FACTORY_PATH="$bundle_dir/payload/tooling-error.mjs"
-${deployBinding}exec "$bundle_dir/payload/${name}" "$@"
+${siblingBinding}exec "$bundle_dir/payload/${name}" "$@"
 `;
   };
   const wrappers = new Map(shellNames.map((name) => [name, wrapper(name)]));
@@ -1729,6 +1750,418 @@ const restoreTransitions = Object.freeze({
 });
 const databaseIdentifierPattern = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/u;
 
+const cleanEpochJournalFields = Object.freeze([
+  'schemaVersion',
+  'cutoverId',
+  'legacyReleaseSha',
+  'legacyReleaseIdentity',
+  'legacyLedgerSha256',
+  'backupBasename',
+  'backupSha256',
+  'targetReleaseIdentity',
+  'targetJournalSha256',
+  'targetTreeSha256',
+  'targetDatabase',
+  'candidateDatabase',
+  'quarantineDatabase',
+  'pricingSha256',
+  'phase',
+  'updatedAt',
+]);
+const cleanEpochPhases = Object.freeze([
+  'preparing',
+  'candidate_ready',
+  'legacy_quarantined',
+  'candidate_promoted',
+  'validated',
+  'public_verified',
+  'aborting',
+  'aborted',
+]);
+const cleanEpochTransitions = Object.freeze({
+  preparing: new Set(['preparing', 'candidate_ready', 'aborting']),
+  candidate_ready: new Set([
+    'candidate_ready',
+    'legacy_quarantined',
+    'aborting',
+  ]),
+  legacy_quarantined: new Set([
+    'legacy_quarantined',
+    'candidate_promoted',
+    'aborting',
+  ]),
+  candidate_promoted: new Set(['candidate_promoted', 'validated', 'aborting']),
+  validated: new Set(['validated', 'public_verified', 'aborting']),
+  public_verified: new Set(['public_verified', 'aborting']),
+  aborting: new Set(['aborting']),
+  aborted: new Set(),
+});
+
+const cleanEpochJournalOperation = (args) => {
+  const [
+    path,
+    evidencePath,
+    action,
+    cutoverId,
+    legacySourceSha,
+    legacyApiImage,
+    legacyWebImage,
+    legacyWorkerImage,
+    legacyProcessorImage,
+    legacyControlImage,
+    legacyLedgerSha256,
+    backupBasename,
+    backupSha256,
+    targetSourceSha,
+    apiImage,
+    webImage,
+    workerImage,
+    processorImage,
+    controlImage,
+    targetJournalSha256,
+    targetTreeSha256,
+    targetDatabase,
+    proposedCandidate,
+    proposedQuarantine,
+    requestedPhase,
+    requestedPricingSha256,
+  ] = args;
+  const targetReleaseIdentity = {
+    releaseFormat: 'five-image-v1',
+    sourceSha: targetSourceSha,
+    apiImage,
+    webImage,
+    workerImage,
+    processorImage,
+    controlImage,
+  };
+  const legacyReleaseIdentity = {
+    releaseFormat: 'five-image-v1',
+    sourceSha: legacySourceSha,
+    apiImage: legacyApiImage,
+    webImage: legacyWebImage,
+    workerImage: legacyWorkerImage,
+    processorImage: legacyProcessorImage,
+    controlImage: legacyControlImage,
+  };
+  const cutoverIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+  const digestPattern = /^[0-9a-f]{64}$/u;
+
+  const validateInvocationValues = () => {
+    if (!cutoverIdPattern.test(cutoverId ?? ''))
+      return fail(
+        'clean_epoch_cutover_id_invalid',
+        'clean epoch cutover ID is invalid',
+      );
+    if (!shaPattern.test(legacySourceSha ?? ''))
+      return fail(
+        'clean_epoch_legacy_release_invalid',
+        'clean epoch legacy release SHA is invalid',
+      );
+    validateGhcrIdentity(legacyReleaseIdentity, 'clean epoch legacy release');
+    for (const [field, value] of [
+      ['legacyLedgerSha256', legacyLedgerSha256],
+      ['backupSha256', backupSha256],
+      ['targetJournalSha256', targetJournalSha256],
+      ['targetTreeSha256', targetTreeSha256],
+    ])
+      if (!digestPattern.test(value ?? ''))
+        return fail(
+          'clean_epoch_digest_invalid',
+          `clean epoch ${field} is invalid`,
+        );
+    if (
+      !/^pressly-[0-9]{8}T[0-9]{6}Z[.]dump[.]gpg$/u.test(backupBasename ?? '')
+    )
+      return fail(
+        'clean_epoch_backup_basename_invalid',
+        'clean epoch backup basename is invalid',
+      );
+    validateGhcrIdentity(targetReleaseIdentity, 'clean epoch target release');
+    for (const database of [
+      targetDatabase,
+      proposedCandidate,
+      proposedQuarantine,
+    ])
+      if (!databaseIdentifierPattern.test(database ?? ''))
+        return fail(
+          'clean_epoch_database_invalid',
+          'clean epoch database name is invalid',
+        );
+    if (
+      new Set([targetDatabase, proposedCandidate, proposedQuarantine]).size !==
+      3
+    )
+      return fail(
+        'clean_epoch_databases_not_distinct',
+        'clean epoch database names must be distinct',
+      );
+    if (
+      requestedPricingSha256 !== '-' &&
+      !digestPattern.test(requestedPricingSha256 ?? '')
+    )
+      return fail(
+        'clean_epoch_pricing_digest_invalid',
+        'clean epoch Pricing digest is invalid',
+      );
+  };
+
+  const load = () => {
+    const value = readStrictObject(path, 'clean epoch journal');
+    if (!exactKeys(value, cleanEpochJournalFields))
+      return fail(
+        'clean_epoch_journal_fields_invalid',
+        'clean epoch journal fields are incomplete or unknown',
+      );
+    if (value.schemaVersion !== 1)
+      return fail(
+        'clean_epoch_journal_schema_invalid',
+        'clean epoch journal schemaVersion is invalid',
+      );
+    if (!cutoverIdPattern.test(value.cutoverId ?? ''))
+      return fail(
+        'clean_epoch_journal_id_invalid',
+        'clean epoch journal cutover ID is invalid',
+      );
+    if (!shaPattern.test(value.legacyReleaseSha ?? ''))
+      return fail(
+        'clean_epoch_journal_legacy_release_invalid',
+        'clean epoch journal legacy release SHA is invalid',
+      );
+    for (const field of [
+      'legacyLedgerSha256',
+      'backupSha256',
+      'targetJournalSha256',
+      'targetTreeSha256',
+    ])
+      if (!digestPattern.test(value[field] ?? ''))
+        return fail(
+          'clean_epoch_journal_digest_invalid',
+          `clean epoch journal ${field} is invalid`,
+        );
+    if (
+      !/^pressly-[0-9]{8}T[0-9]{6}Z[.]dump[.]gpg$/u.test(
+        value.backupBasename ?? '',
+      )
+    )
+      return fail(
+        'clean_epoch_journal_backup_basename_invalid',
+        'clean epoch journal backup basename is invalid',
+      );
+    validateGhcrIdentity(
+      value.legacyReleaseIdentity,
+      'clean epoch journal legacy release',
+    );
+    if (value.legacyReleaseIdentity.sourceSha !== value.legacyReleaseSha)
+      return fail(
+        'clean_epoch_journal_legacy_identity_mismatch',
+        'clean epoch journal legacy release identity does not match its SHA',
+      );
+    validateGhcrIdentity(
+      value.targetReleaseIdentity,
+      'clean epoch journal target release',
+    );
+    for (const field of [
+      'targetDatabase',
+      'candidateDatabase',
+      'quarantineDatabase',
+    ])
+      if (!databaseIdentifierPattern.test(value[field] ?? ''))
+        return fail(
+          'clean_epoch_journal_database_invalid',
+          `clean epoch journal ${field} is invalid`,
+        );
+    if (
+      new Set([
+        value.targetDatabase,
+        value.candidateDatabase,
+        value.quarantineDatabase,
+      ]).size !== 3
+    )
+      return fail(
+        'clean_epoch_journal_databases_not_distinct',
+        'clean epoch journal database names must be distinct',
+      );
+    const prefix = escapeRegex(value.targetDatabase.slice(0, 24));
+    if (
+      !new RegExp(`^${prefix}_epoch_candidate_[0-9]{14}_[0-9]+$`, 'u').test(
+        value.candidateDatabase,
+      )
+    )
+      return fail(
+        'clean_epoch_journal_candidate_not_owned',
+        'clean epoch candidate database is not cutover-owned',
+      );
+    if (
+      !new RegExp(`^${prefix}_epoch_legacy_[0-9]{14}_[0-9]+$`, 'u').test(
+        value.quarantineDatabase,
+      )
+    )
+      return fail(
+        'clean_epoch_journal_quarantine_not_owned',
+        'clean epoch quarantine database is not cutover-owned',
+      );
+    if (
+      value.pricingSha256 !== null &&
+      !digestPattern.test(value.pricingSha256)
+    )
+      return fail(
+        'clean_epoch_journal_pricing_invalid',
+        'clean epoch journal Pricing digest is invalid',
+      );
+    if (!cleanEpochPhases.includes(value.phase))
+      return fail(
+        'clean_epoch_journal_phase_invalid',
+        'clean epoch journal phase is invalid',
+      );
+    if (
+      !new Set(['preparing', 'aborting', 'aborted']).has(value.phase) &&
+      value.pricingSha256 === null
+    )
+      return fail(
+        'clean_epoch_journal_pricing_missing',
+        'clean epoch journal Pricing digest is missing',
+      );
+    parseCanonicalTimestamp(value.updatedAt, 'clean epoch journal updatedAt');
+    return value;
+  };
+
+  const validateInvocation = (value) => {
+    const expected = {
+      cutoverId,
+      legacyReleaseSha: legacySourceSha,
+      legacyReleaseIdentity,
+      legacyLedgerSha256,
+      backupBasename,
+      backupSha256,
+      targetReleaseIdentity,
+      targetJournalSha256,
+      targetTreeSha256,
+      targetDatabase,
+    };
+    for (const [field, expectedValue] of Object.entries(expected))
+      if (!deepEqual(value[field], expectedValue))
+        return fail(
+          'clean_epoch_journal_invocation_mismatch',
+          `clean epoch journal ${field} does not match this invocation`,
+        );
+  };
+
+  try {
+    validateInvocationValues();
+    let journal;
+    if (action === 'start') {
+      if (existsSync(path)) {
+        journal = load();
+        validateInvocation(journal);
+      } else {
+        journal = {
+          schemaVersion: 1,
+          cutoverId,
+          legacyReleaseSha: legacySourceSha,
+          legacyReleaseIdentity,
+          legacyLedgerSha256,
+          backupBasename,
+          backupSha256,
+          targetReleaseIdentity,
+          targetJournalSha256,
+          targetTreeSha256,
+          targetDatabase,
+          candidateDatabase: proposedCandidate,
+          quarantineDatabase: proposedQuarantine,
+          pricingSha256: null,
+          phase: 'preparing',
+          updatedAt: currentTimestamp(),
+        };
+        durableWriteJson(path, journal);
+      }
+    } else if (action === 'inspect') {
+      journal = load();
+      validateInvocation(journal);
+    } else if (action === 'write') {
+      if (!cleanEpochPhases.includes(requestedPhase))
+        return fail(
+          'clean_epoch_requested_phase_invalid',
+          'requested clean epoch phase is invalid',
+        );
+      journal = load();
+      validateInvocation(journal);
+      if (
+        journal.candidateDatabase !== proposedCandidate ||
+        journal.quarantineDatabase !== proposedQuarantine
+      )
+        return fail(
+          'clean_epoch_journal_database_identity_changed',
+          'clean epoch journal database identity changed',
+        );
+      if (!cleanEpochTransitions[journal.phase].has(requestedPhase))
+        return fail(
+          'clean_epoch_journal_transition_invalid',
+          'clean epoch journal phase transition is invalid',
+        );
+      if (requestedPhase === 'candidate_ready') {
+        if (requestedPricingSha256 === '-')
+          return fail(
+            'clean_epoch_candidate_pricing_required',
+            'candidate-ready clean epoch journal requires a Pricing digest',
+          );
+        journal.pricingSha256 = requestedPricingSha256;
+      } else if (
+        requestedPricingSha256 !== '-' &&
+        journal.pricingSha256 !== requestedPricingSha256
+      )
+        return fail(
+          'clean_epoch_pricing_digest_changed',
+          'clean epoch Pricing digest changed after candidate preparation',
+        );
+      journal.phase = requestedPhase;
+      journal.updatedAt = currentTimestamp();
+      durableWriteJson(path, journal);
+    } else if (action === 'complete') {
+      journal = load();
+      validateInvocation(journal);
+      if (journal.phase !== 'public_verified')
+        return fail(
+          'clean_epoch_complete_phase_invalid',
+          `cannot complete clean epoch cutover from ${journal.phase}`,
+        );
+      durableWriteJson(evidencePath, journal);
+      durableUnlink(path);
+      return;
+    } else if (action === 'abort') {
+      journal = load();
+      validateInvocation(journal);
+      if (journal.phase !== 'aborting')
+        return fail(
+          'clean_epoch_abort_phase_invalid',
+          `cannot abort clean epoch cutover from ${journal.phase}`,
+        );
+      const evidence = {
+        ...journal,
+        phase: 'aborted',
+        updatedAt: currentTimestamp(),
+      };
+      durableWriteJson(evidencePath, evidence);
+      durableUnlink(path);
+      return;
+    } else {
+      return fail(
+        'clean_epoch_journal_operation_invalid',
+        'clean epoch journal operation is invalid',
+      );
+    }
+    process.stdout.write(
+      `${journal.phase}\n${journal.candidateDatabase}\n${journal.quarantineDatabase}\n${journal.pricingSha256 ?? '-'}\n`,
+    );
+  } catch (cause) {
+    return fail(
+      'clean_epoch_journal_rejected',
+      `Clean epoch journal rejected: ${errorMessage(cause)}.`,
+      cause,
+    );
+  }
+};
+
 const restoreJournalOperation = (args) => {
   const [
     path,
@@ -2249,7 +2682,225 @@ const jsonFileField = ([path, field]) => {
   process.stdout.write(`${fieldValue}\n`);
 };
 
+const jsonFileNestedStringField = ([path, objectField, field]) => {
+  const value = readStrictObject(path, path);
+  const nested = value[objectField];
+  if (!isObject(nested))
+    return fail(
+      'deployment_json_object_field_invalid',
+      `JSON object field is missing or invalid: ${objectField}`,
+    );
+  const fieldValue = nested[field];
+  if (typeof fieldValue !== 'string')
+    return fail(
+      'deployment_json_nested_field_invalid',
+      `JSON nested field must be a string: ${objectField}.${field}`,
+    );
+  process.stdout.write(`${fieldValue}\n`);
+};
+
+const cleanEpochRecoveryAdmission = ([
+  currentPointerPath,
+  currentMetadataPath,
+  previousMetadataPath,
+  deploymentStatePath,
+  legacySourceSha,
+  legacyApiImage,
+  legacyWebImage,
+  legacyWorkerImage,
+  legacyProcessorImage,
+  legacyControlImage,
+  targetSourceSha,
+  targetApiImage,
+  targetWebImage,
+  targetWorkerImage,
+  targetProcessorImage,
+  targetControlImage,
+]) => {
+  if (!shaPattern.test(legacySourceSha ?? ''))
+    return fail(
+      'clean_epoch_recovery_legacy_sha_invalid',
+      'clean epoch recovery legacy release SHA is invalid',
+    );
+  const legacy = {
+    releaseFormat: 'five-image-v1',
+    sourceSha: legacySourceSha,
+    apiImage: legacyApiImage,
+    webImage: legacyWebImage,
+    workerImage: legacyWorkerImage,
+    processorImage: legacyProcessorImage,
+    controlImage: legacyControlImage,
+  };
+  validateGhcrIdentity(legacy, 'clean epoch recovery legacy release');
+  const target = {
+    releaseFormat: 'five-image-v1',
+    sourceSha: targetSourceSha,
+    apiImage: targetApiImage,
+    webImage: targetWebImage,
+    workerImage: targetWorkerImage,
+    processorImage: targetProcessorImage,
+    controlImage: targetControlImage,
+  };
+  validateGhcrIdentity(target, 'clean epoch recovery target release');
+
+  const currentPointer = readFileSync(currentPointerPath, 'utf8');
+  if (!/^[0-9a-f]{40}\n$/u.test(currentPointer))
+    return fail(
+      'clean_epoch_recovery_current_pointer_invalid',
+      'clean epoch recovery current release pointer is invalid',
+    );
+  const currentRelease = readStrictObject(
+    currentMetadataPath,
+    'clean epoch recovery current release',
+  );
+  validateReleaseRecord(currentRelease, 'clean epoch recovery current release');
+
+  const deploymentState = readStrictObject(
+    deploymentStatePath,
+    'clean epoch recovery deployment state',
+  );
+  const stateKind = validateDeploymentState(deploymentState);
+  const currentPointerSha = currentPointer.slice(0, -1);
+  const pointerPairMatches = currentPointerSha === currentRelease.sourceSha;
+  const exactLegacyCommitTear =
+    currentPointerSha === legacySourceSha &&
+    sameIdentity(currentRelease, target) &&
+    stateKind === 'standard' &&
+    new Set(['running_unverified', 'verified']).has(deploymentState.phase) &&
+    sameIdentity(deploymentState, target);
+  const exactForwardCommitTear =
+    currentPointerSha === targetSourceSha &&
+    sameIdentity(currentRelease, legacy) &&
+    stateKind === 'standard' &&
+    deploymentState.phase === 'running_unverified' &&
+    sameIdentity(deploymentState, target);
+  if (!pointerPairMatches && !exactLegacyCommitTear && !exactForwardCommitTear)
+    return fail(
+      'clean_epoch_recovery_current_release_mismatch',
+      'clean epoch recovery current release pointer and metadata differ outside the exact legacy commit window',
+    );
+  if (
+    pointerPairMatches &&
+    stateKind === 'standard' &&
+    deploymentState.phase === 'verified' &&
+    deploymentState.outcome === 'succeeded' &&
+    deploymentState.exitCode === 0 &&
+    sameIdentity(currentRelease, legacy) &&
+    sameIdentity(currentRelease, deploymentState)
+  ) {
+    process.stdout.write('legacy_verified\n');
+    return;
+  }
+
+  let rollbackTarget;
+  if (stateKind === 'recovery') {
+    rollbackTarget = deploymentState.recoveryTarget;
+  } else {
+    if (!new Set(['running_unverified', 'verified']).has(deploymentState.phase))
+      return fail(
+        'clean_epoch_recovery_deployment_phase_invalid',
+        `clean epoch recovery cannot continue from deployment phase ${deploymentState.phase}`,
+      );
+    rollbackTarget = readStrictObject(
+      previousMetadataPath,
+      'clean epoch recovery rollback release',
+    );
+    validateReleaseRecord(
+      rollbackTarget,
+      'clean epoch recovery rollback release',
+    );
+  }
+  if (!sameIdentity(rollbackTarget, legacy))
+    return fail(
+      'clean_epoch_recovery_rollback_target_mismatch',
+      'clean epoch recovery rollback target is not the exact journaled legacy release',
+    );
+  process.stdout.write('rollback_required\n');
+};
+
+const cleanEpochFinalizationAdmission = ([
+  journalPath,
+  deploymentStatePath,
+  targetSourceSha,
+  apiImage,
+  webImage,
+  workerImage,
+  processorImage,
+  controlImage,
+]) => {
+  const target = {
+    releaseFormat: 'five-image-v1',
+    sourceSha: targetSourceSha,
+    apiImage,
+    webImage,
+    workerImage,
+    processorImage,
+    controlImage,
+  };
+  validateGhcrIdentity(target, 'clean epoch finalization target');
+
+  const journal = readStrictObject(
+    journalPath,
+    'clean epoch finalization journal',
+  );
+  if (
+    !exactKeys(journal, cleanEpochJournalFields) ||
+    journal.schemaVersion !== 1 ||
+    journal.phase !== 'public_verified'
+  )
+    return fail(
+      'clean_epoch_finalization_journal_invalid',
+      'clean epoch finalization requires an exact public_verified journal',
+    );
+  validateGhcrIdentity(
+    journal.legacyReleaseIdentity,
+    'clean epoch finalization legacy release',
+  );
+  validateGhcrIdentity(
+    journal.targetReleaseIdentity,
+    'clean epoch finalization target release',
+  );
+  if (
+    journal.legacyReleaseIdentity.sourceSha !== journal.legacyReleaseSha ||
+    !sameIdentity(journal.targetReleaseIdentity, target)
+  )
+    return fail(
+      'clean_epoch_finalization_identity_mismatch',
+      'clean epoch finalization journal identity differs from the exact target',
+    );
+
+  const deploymentState = readStrictObject(
+    deploymentStatePath,
+    'clean epoch finalization deployment state',
+  );
+  const stateKind = validateDeploymentState(deploymentState);
+  if (stateKind !== 'standard' || !sameIdentity(deploymentState, target))
+    return fail(
+      'clean_epoch_finalization_state_mismatch',
+      'clean epoch finalization deployment state differs from the exact target',
+    );
+  if (deploymentState.phase === 'running_unverified') {
+    process.stdout.write('resume\n');
+    return;
+  }
+  if (
+    deploymentState.phase === 'verified' &&
+    deploymentState.outcome === 'succeeded' &&
+    deploymentState.exitCode === 0
+  ) {
+    process.stdout.write('finalize\n');
+    return;
+  }
+  return fail(
+    'clean_epoch_finalization_state_invalid',
+    'clean epoch finalization state is neither resumable nor verified',
+  );
+};
+
 const commandHandlers = Object.freeze({
+  'clean-epoch-finalization-admission': cleanEpochFinalizationAdmission,
+  'clean-epoch-journal-operation': cleanEpochJournalOperation,
+  'clean-epoch-recovery-admission': cleanEpochRecoveryAdmission,
   'deployment-state-operation': deploymentStateOperation,
   'durably-install-release-pair': durableInstallReleasePair,
   'ensure-service-fence': ensureServiceFence,
@@ -2258,6 +2909,7 @@ const commandHandlers = Object.freeze({
   'host-identity-bindings': hostIdentityBindings,
   'install-ops-bundle': installOpsBundle,
   'json-file-field': jsonFileField,
+  'json-file-nested-string-field': jsonFileNestedStringField,
   'json-source-sha': jsonSourceSha,
   'proof-remove-fence-phase': ([path]) => durableUnlink(path),
   'proof-write-fence-phase': proofWriteFencePhase,

@@ -240,7 +240,6 @@ export default withSentryConfig(nextConfig, {
   tunnelRoute: '/monitoring',
 
   webpack: {
-    automaticVercelMonitors: true,
     treeshake: {
       removeDebugLogging: true,
     },

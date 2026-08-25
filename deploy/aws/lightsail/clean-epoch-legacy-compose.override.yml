@@ -1,0 +1,9 @@
+services:
+  web:
+    tmpfs: !override
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1001,gid=1001
+      - ${PRESSLY_CLEAN_EPOCH_LEGACY_WEB_CACHE_PATH:?PRESSLY_CLEAN_EPOCH_LEGACY_WEB_CACHE_PATH is required}:rw,nosuid,nodev,size=128m,uid=1001,gid=1001
+
+  worker:
+    healthcheck:
+      disable: true

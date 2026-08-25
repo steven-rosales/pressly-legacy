@@ -187,12 +187,23 @@ const createHostFixture = (currentMetadata) => {
   );
   mkdirSync(resolve(compose, '..'), { recursive: true });
   writeFileSync(compose, 'services: {}\n');
+  for (const assetName of [
+    'Caddyfile',
+    'clean-epoch-cutover.json',
+    'clean-epoch-legacy-compose.override.yml',
+  ])
+    copyFileSync(
+      join(root, 'deploy/aws/lightsail', assetName),
+      join(repoDirectory, 'deploy/aws/lightsail', assetName),
+    );
   for (const scriptName of [
     'deploy.sh',
     'rollback.sh',
     'backup-postgres.sh',
     'check-host-capacity.sh',
     'configure-database-roles.sh',
+    'cutover-clean-epoch.sh',
+    'recover-clean-epoch.sh',
     'restore-postgres-drill.sh',
     'restore-postgres.sh',
     'run-monitored-operation.sh',
@@ -1770,6 +1781,8 @@ describe('release deployment identity', () => {
       'backup-postgres.sh',
       'check-host-capacity.sh',
       'configure-database-roles.sh',
+      'cutover-clean-epoch.sh',
+      'recover-clean-epoch.sh',
       'restore-postgres-drill.sh',
       'restore-postgres.sh',
       'run-monitored-operation.sh',
@@ -1779,6 +1792,20 @@ describe('release deployment identity', () => {
       expect(manifest).toContain(`  ${scriptName}\n`);
       expect(manifest).toContain(`  payload/${scriptName}\n`);
     }
+    for (const assetName of [
+      'Caddyfile',
+      'clean-epoch-cutover.json',
+      'clean-epoch-legacy-compose.override.yml',
+      'docker-compose.production.yml',
+    ]) {
+      expect(existsSync(join(opsCurrent, 'payload', assetName))).toBe(true);
+      expect(manifest).toContain(`  payload/${assetName}\n`);
+    }
+    expect(
+      readFileSync(join(opsCurrent, 'recover-clean-epoch.sh'), 'utf8'),
+    ).toContain(
+      'PRESSLY_CLEAN_EPOCH_DECLARATION="$bundle_dir/payload/clean-epoch-cutover.json"',
+    );
     expect(manifest).not.toContain('restore-postgres-proof.sh');
     expect(readFileSync(join(opsCurrent, 'deploy.sh'), 'utf8')).toContain(
       'sha256sum --check --strict --status SHA256SUMS',
