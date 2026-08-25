@@ -86,6 +86,7 @@
     "docker:lpms:build": "docker compose build api worker processor",
     "docker:production:smoke": "bash tooling/scripts/production-topology-smoke.sh",
     "test:clean-epoch-recovery": "bash deploy/aws/lightsail/recover-clean-epoch-proof.sh",
+    "test:restore-postgres-drill": "bash deploy/aws/lightsail/restore-postgres-drill-proof.sh",
     "test:int": "bash tooling/scripts/run-integration-tests.sh all",
     "stateworks:validate": "tsx stateworks/tooling/validate-network.ts",
     "stateworks:next": "tsx stateworks/tooling/next-batch.ts",

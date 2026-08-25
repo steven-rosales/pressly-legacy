@@ -38,6 +38,22 @@ The script verifies the encrypted checksum, restores with `pg_restore`, checks
 the public schema and `auth_identities`, reports recovery time, and destroys the
 disposable container and volume.
 
+## Final-Postmaster Readiness Proof
+
+Run the repository-only regression proof after changing the isolated drill or
+its PostgreSQL image:
+
+```bash
+pnpm test:restore-postgres-drill
+```
+
+The proof deliberately holds PostgreSQL 18's temporary initialization
+postmaster open, demonstrates that `pg_isready` succeeds before PID 1 becomes
+the final `postgres` process, and then exercises the actual drill with a real
+encrypted custom archive. It also forces one disposable startup failure to
+prove container state and logs are emitted before complete cleanup. CI runs
+this proof as part of the required clean-epoch recovery job.
+
 ## Production-Shaped Disposable Proof
 
 Run the heavier proof after changing the restore workflow or before accepting a

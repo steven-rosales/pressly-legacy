@@ -1807,6 +1807,7 @@ describe('release deployment identity', () => {
       'PRESSLY_CLEAN_EPOCH_DECLARATION="$bundle_dir/payload/clean-epoch-cutover.json"',
     );
     expect(manifest).not.toContain('restore-postgres-proof.sh');
+    expect(manifest).not.toContain('restore-postgres-drill-proof.sh');
     expect(readFileSync(join(opsCurrent, 'deploy.sh'), 'utf8')).toContain(
       'sha256sum --check --strict --status SHA256SUMS',
     );

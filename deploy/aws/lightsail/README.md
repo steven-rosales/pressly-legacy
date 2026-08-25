@@ -307,9 +307,10 @@ bundle is available at `/opt/pressly/ops/candidate` before migrations begin, so
 the first hardened release can still be recovered in a fresh shell if it
 fails before `current` exists. Rollback never advances or downgrades either
 stable bundle pointer. Each stable entrypoint verifies the complete payload
-before execution. `restore-postgres-proof.sh` and
-`recover-clean-epoch-proof.sh` remain repository-only because they are
-disposable local proof harnesses, not production host-control tooling.
+before execution. `restore-postgres-drill-proof.sh`,
+`restore-postgres-proof.sh`, and `recover-clean-epoch-proof.sh` remain
+repository-only because they are disposable local proof harnesses, not
+production host-control tooling.
 
 Rollback requires one complete `five-image-v1` record with five distinct
 immutable image digests and one full source SHA. Unknown release formats,
