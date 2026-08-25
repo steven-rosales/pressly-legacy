@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "turbo dev --concurrency=2",
     "build": "turbo build --concurrency=2",
-    "build:integration-deps": "turbo build --filter='@pressly/http-host^...' --concurrency=2",
+    "build:integration-deps": "turbo build --filter='@pressly/http-host...' --concurrency=2",
     "typecheck": "turbo typecheck --concurrency=2 && pnpm typecheck:browser && pnpm typecheck:postgres-tooling && pnpm typecheck:http-route-census",
     "typecheck:browser": "tsc -p tooling/browser-e2e/tsconfig.json --noEmit",
     "typecheck:postgres-tooling": "tsc -p tooling/postgres/tsconfig.json --noEmit",

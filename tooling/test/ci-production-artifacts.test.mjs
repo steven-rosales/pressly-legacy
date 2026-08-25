@@ -286,6 +286,9 @@ describe('five-image CI release', () => {
     expect(production.needs).toEqual(['integration-tests', 'browser-e2e']);
     expect(workflow.jobs['integration-tests'].needs).toEqual(['quality']);
     expect(workflow.jobs['browser-e2e'].needs).toEqual(['quality']);
+    expect(rootManifest.scripts['build:integration-deps']).toBe(
+      "turbo build --filter='@pressly/http-host...' --concurrency=2",
+    );
     const integrationSteps = workflow.jobs['integration-tests'].steps;
     const postgresClientIndex = integrationSteps.findIndex(
       (candidate) => candidate.name === 'Install PostgreSQL 18 client',
