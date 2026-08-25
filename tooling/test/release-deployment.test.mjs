@@ -138,6 +138,14 @@ const writeCommandStubs = (directory) => {
       'fi',
       'if [ "$1" = "checkout" ] && [ "${2:-}" = "--detach" ]; then',
       '  printf "%s\\n" "$3" > "$GIT_CHECKOUT_STATE_FILE"',
+      '  if [ "${CREATE_TARGET_COMPOSE_ON_CHECKOUT:-false}" = "true" ]; then',
+      '    if [ "$3" = "$INVOCATION_CHECKOUT_SHA" ]; then',
+      '      rm -f "$TARGET_COMPOSE_FILE"',
+      '    else',
+      '      mkdir -p "$(dirname "$TARGET_COMPOSE_FILE")"',
+      '      printf "services: {}\\n" > "$TARGET_COMPOSE_FILE"',
+      '    fi',
+      '  fi',
       '  if [ "${REPLACE_REPO_TOOLING_ON_TARGET:-false}" = "true" ]; then',
       '    if [ "$3" = "$INVOCATION_CHECKOUT_SHA" ]; then',
       '      cp "$HARDENED_DEPLOY_SCRIPT" "$PRESSLY_REPO_DIR/deploy/aws/lightsail/deploy.sh"',
@@ -347,6 +355,79 @@ describe('release deployment identity', () => {
     expect(workflow).not.toContain(
       "PROCESSOR_IMAGE='$PROCESSOR_IMAGE' /opt/pressly/repo/deploy/aws/lightsail/deploy.sh",
     );
+  });
+
+  it('reconciles a checksum-pinned Node 24 runtime before deployment', () => {
+    const workflow = readFileSync(
+      resolve(root, '.github/workflows/deploy-production.yml'),
+      'utf8',
+    );
+    const hostKey = workflow.indexOf(
+      '- name: Install verified Lightsail host key',
+    );
+    const reconcile = workflow.indexOf(
+      '- name: Reconcile pinned Lightsail Node runtime',
+    );
+    const deploy = workflow.indexOf('- name: Run deployment');
+
+    expect(hostKey).toBeGreaterThan(0);
+    expect(reconcile).toBeGreaterThan(hostKey);
+    expect(deploy).toBeGreaterThan(reconcile);
+    expect(workflow).toContain("node_version='24.18.0'");
+    expect(workflow).toContain(
+      "node_archive_sha256='783130984963db7ba9cbd01089eaf2c2efb055c7c1693c943174b967b3050cb8'",
+    );
+    expect(workflow).toContain(
+      "node_archive_sha256='6b4484c2190274175df9aa8f28e2d758a819cb1c1fe6ab481e2f95b463ab8508'",
+    );
+    expect(workflow).toContain('sha256sum --check --strict --status');
+    expect(workflow).toContain('sudo -n install -o root -g root -m 0755');
+    expect(workflow).toContain('/usr/local/bin/node');
+    expect(workflow).toContain('await import(\\"node:fs\\")');
+  });
+
+  it('validates canonical Compose only from the selected target checkout', () => {
+    const deploy = readFileSync(deployScript, 'utf8');
+    const checkout = deploy.indexOf('git checkout --detach "$DEPLOY_SHA"');
+    const targetComposeCheck = deploy.indexOf(
+      'if [[ ! -f "$COMPOSE_FILE" ]]',
+      checkout,
+    );
+    const candidateInstall = deploy.indexOf(
+      'install_ops_bundle "$target_sha" "candidate"',
+    );
+
+    expect(checkout).toBeGreaterThan(0);
+    expect(targetComposeCheck).toBeGreaterThan(checkout);
+    expect(candidateInstall).toBeGreaterThan(targetComposeCheck);
+    expect(deploy).toContain(
+      '# requiring a compatibility copy in the currently deployed checkout',
+    );
+  });
+
+  it('crosses a source-root cutover before requiring canonical Compose', () => {
+    const fixture = createHostFixture(
+      fiveImageMetadata({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+      }),
+    );
+    rmSync(fixture.compose);
+
+    const result = spawnSync('bash', [deployScript], {
+      encoding: 'utf8',
+      env: deploymentEnv(fixture, {
+        CREATE_TARGET_COMPOSE_ON_CHECKOUT: 'true',
+        TARGET_COMPOSE_FILE: fixture.compose,
+      }),
+    });
+
+    expect(result.status, result.stderr).toBe(0);
+    const commands = readFileSync(fixture.commandLog, 'utf8');
+    expect(commands.indexOf(`git checkout --detach ${sha}`)).toBeLessThan(
+      commands.indexOf('docker compose --profile tools'),
+    );
+    expect(existsSync(fixture.compose)).toBe(true);
   });
 
   it('documents the dry host preflight and file-scoped production bootstrap', () => {

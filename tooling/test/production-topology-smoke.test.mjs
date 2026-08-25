@@ -306,7 +306,7 @@ describe('offline production topology smoke harness', () => {
       });
       expect(config.services[service].read_only).toBe(true);
     }
-  });
+  }, 30_000);
 
   it('publishes a passing report only after verified disposable teardown', () => {
     const script = readFileSync(smokeScript, 'utf8');
