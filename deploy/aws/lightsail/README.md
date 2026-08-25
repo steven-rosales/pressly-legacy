@@ -22,7 +22,10 @@ rebuilds application source.
 
 ## First Setup
 
-1. Install Docker, Git, AWS CLI, GnuPG, and Node.js 24.
+1. Install Docker, Git, AWS CLI, GnuPG, and Node.js 24. The deployment
+   workflow reconciles the host to its checksum-pinned Node.js 24 runtime when
+   the exact runtime is absent; the deployment operator therefore needs
+   passwordless `sudo` for that system-wide install.
 2. Clone the repository to `/opt/pressly/repo`.
 3. Copy each `deploy/aws/docs/env/*.example` file to `/opt/pressly/env/`
    without `.example`, replace placeholders, then run:

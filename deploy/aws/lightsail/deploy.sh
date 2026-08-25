@@ -541,11 +541,6 @@ for env_file in "${required_env_files[@]}"; do
   fi
 done
 
-if [[ ! -f "$COMPOSE_FILE" ]]; then
-  echo "Missing compose file: $COMPOSE_FILE" >&2
-  exit 1
-fi
-
 # Public DNS is a release prerequisite, not a post-migration discovery. Check
 # every hostname that this release format will probe before snapshotting the
 # verified release or allowing checkout, migrations, or Compose mutation.
@@ -580,6 +575,10 @@ if [[ "$preflight_only" == true ]]; then
   preflight_sha="$(git rev-parse --verify "$DEPLOY_SHA^{commit}")"
   if [[ "$preflight_sha" != "${DEPLOY_SHA,,}" ]]; then
     echo "Resolved commit $preflight_sha does not match requested commit $DEPLOY_SHA." >&2
+    exit 1
+  fi
+  if [[ ! -f "$COMPOSE_FILE" ]]; then
+    echo "Missing compose file: $COMPOSE_FILE" >&2
     exit 1
   fi
   docker compose \
@@ -634,18 +633,25 @@ if [[ -n "$(
   exit 1
 fi
 
+# Validate deployment selection from the target checkout. Keeping this after
+# the reversible checkout lets a release move a canonical source path without
+# requiring a compatibility copy in the currently deployed checkout.
+if [[ ! -f "$COMPOSE_FILE" ]]; then
+  echo "Missing compose file: $COMPOSE_FILE" >&2
+  exit 1
+fi
+docker compose \
+  --profile tools \
+  --env-file "$COMPOSE_ENV_FILE" \
+  -f "$COMPOSE_FILE" \
+  config --quiet
+
 # Make this exact, checksummed control-plane revision discoverable before the
 # first database or runtime mutation. It is only a recovery candidate here;
 # the stable current pointer advances after the normal release verifies.
 if [[ "$rollback_release" != true ]]; then
   install_ops_bundle "$target_sha" "candidate"
 fi
-
-docker compose \
-  --profile tools \
-  --env-file "$COMPOSE_ENV_FILE" \
-  -f "$COMPOSE_FILE" \
-  config --quiet
 
 docker compose \
   --profile tools \
