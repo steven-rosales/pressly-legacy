@@ -259,6 +259,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Prove isolated Postgres restore drill lifecycle
+        run: bash deploy/aws/lightsail/restore-postgres-drill-proof.sh
+
       - name: Prove destructive epoch recovery and hard-kill resumption
         run: bash deploy/aws/lightsail/recover-clean-epoch-proof.sh
 

@@ -301,6 +301,22 @@ describe('five-image CI release', () => {
     );
   });
 
+  it('proves the isolated Postgres drill waits for the final postmaster', () => {
+    const recovery = workflow.jobs['clean-epoch-recovery-proof'];
+    const proof = recovery.steps.find(
+      (candidate) =>
+        candidate.name === 'Prove isolated Postgres restore drill lifecycle',
+    );
+
+    expect(proof.run).toBe(
+      'bash deploy/aws/lightsail/restore-postgres-drill-proof.sh',
+    );
+    expect(recovery.if).toBeUndefined();
+    expect(rootManifest.scripts['test:restore-postgres-drill']).toBe(
+      'bash deploy/aws/lightsail/restore-postgres-drill-proof.sh',
+    );
+  });
+
   it('builds each main release image once and binds it to one source SHA', () => {
     expect(production.if).toBe(
       "github.event_name == 'push' && github.ref == 'refs/heads/main'",
