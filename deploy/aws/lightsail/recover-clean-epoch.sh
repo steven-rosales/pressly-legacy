@@ -656,6 +656,7 @@ verify_runtime_identity() {
 verify_legacy_worker_health() {
   local container_id
   local healthcheck_json
+  local attempt
   local -a healthcheck=()
   container_id="$(compose ps -q worker)"
   [[ -n "$container_id" ]] || fail 'legacy worker container is not running'
@@ -678,7 +679,16 @@ NODE
   )
   (( ${#healthcheck[@]} > 0 )) ||
     fail 'legacy Worker image has no executable baked healthcheck'
-  docker exec "$container_id" "${healthcheck[@]}" >/dev/null
+  for ((attempt = 1; attempt <= HEALTH_MAX_ATTEMPTS; attempt += 1)); do
+    if docker exec "$container_id" "${healthcheck[@]}" >/dev/null; then
+      echo 'Worker recovery health check passed.'
+      return 0
+    fi
+    if ((attempt < HEALTH_MAX_ATTEMPTS)); then
+      sleep "$HEALTH_RETRY_DELAY_SECONDS"
+    fi
+  done
+  fail "Worker recovery health check failed after $HEALTH_MAX_ATTEMPTS attempts"
 }
 
 start_and_verify_legacy_runtime() {
@@ -690,7 +700,7 @@ start_and_verify_legacy_runtime() {
     PRESSLY_PROCESSOR_IMAGE="$LEGACY_PROCESSOR_IMAGE" \
     PRESSLY_CONTROL_IMAGE="$LEGACY_CONTROL_IMAGE"
   ensure_service_fence
-  fenced_compose up -d --remove-orphans --wait
+  fenced_compose up -d --remove-orphans
   for binding in \
     "api $LEGACY_API_IMAGE" \
     "web $LEGACY_WEB_IMAGE" \

@@ -104,6 +104,13 @@ describe('clean database epoch deployment evidence', () => {
     expect(legacyOverride).not.toMatch(/(?:apps|infra|modules|packages)\//u);
     expect(recovery).toContain('derive_legacy_web_cache_path');
     expect(recovery).toContain('verify_legacy_worker_health');
+    expect(recovery).toContain('fenced_compose up -d --remove-orphans\n');
+    expect(recovery).not.toContain(
+      'fenced_compose up -d --remove-orphans --wait',
+    );
+    expect(recovery).toContain(
+      'Worker recovery health check failed after $HEALTH_MAX_ATTEMPTS attempts',
+    );
   });
 
   it('materializes the exact restart-no override consumed by clean-epoch deploy', () => {
