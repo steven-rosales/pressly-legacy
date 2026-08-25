@@ -287,7 +287,7 @@ describe('five-image CI release', () => {
     expect(workflow.jobs['integration-tests'].needs).toEqual(['quality']);
     expect(workflow.jobs['browser-e2e'].needs).toEqual(['quality']);
     expect(rootManifest.scripts['build:integration-deps']).toBe(
-      "turbo build --filter='@pressly/http-host...' --concurrency=2",
+      "turbo build --filter='@pressly/http-host...' --filter='@pressly/jobs-host...' --concurrency=2",
     );
     const integrationSteps = workflow.jobs['integration-tests'].steps;
     const postgresClientIndex = integrationSteps.findIndex(
