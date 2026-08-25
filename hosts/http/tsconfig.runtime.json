@@ -1,0 +1,43 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "composite": false,
+    "rootDir": ".",
+    "outDir": "dist-runtime",
+    "tsBuildInfoFile": "dist-runtime/tsconfig.tsbuildinfo"
+  },
+  "include": ["main.ts"],
+  "exclude": ["dist", "dist-runtime", "node_modules"],
+  "references": [
+    {
+      "path": "../../generated/runtime/tsconfig.json"
+    },
+    {
+      "path": "../../generated/tsconfig.json"
+    },
+    {
+      "path": "../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../platform/config/tsconfig.json"
+    },
+    {
+      "path": "../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../platform/http/tsconfig.json"
+    },
+    {
+      "path": "../../platform/logging/tsconfig.json"
+    },
+    {
+      "path": "../../platform/observability/tsconfig.json"
+    },
+    {
+      "path": "../../platform/postgres/tsconfig.json"
+    },
+    {
+      "path": "../../platform/time/tsconfig.json"
+    }
+  ]
+}

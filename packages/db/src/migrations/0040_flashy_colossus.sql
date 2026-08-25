@@ -1,2 +1,0 @@
-CREATE INDEX "production_runs_location_created_id_idx" ON "production_runs" USING btree ("location_id","created_at","id");--> statement-breakpoint
-CREATE INDEX "schedule_runs_location_created_id_idx" ON "schedule_runs" USING btree ("location_id","created_at","id");

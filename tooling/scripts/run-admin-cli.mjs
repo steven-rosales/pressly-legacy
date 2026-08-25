@@ -71,7 +71,7 @@ const runLocal = async () => {
 
   const buildCode = await runCaptured(
     'pnpm',
-    ['--silent', '-F', '@pressly/cli', 'run', 'build:workspace-deps'],
+    ['--silent', '-F', '@pressly/cli-host', 'run', 'build:workspace-deps'],
     'Admin CLI build',
   );
 
@@ -80,7 +80,7 @@ const runLocal = async () => {
   return runInherited('pnpm', [
     '--silent',
     '-F',
-    '@pressly/cli',
+    '@pressly/cli-host',
     'exec',
     'tsx',
     'src/main.ts',
@@ -102,14 +102,14 @@ if ! pnpm install --frozen-lockfile --silent >"$install_log" 2>&1; then
   exit 1
 fi
 
-if ! pnpm --silent -F @pressly/cli run build:workspace-deps >"$build_log" 2>&1; then
+if ! pnpm --silent -F @pressly/cli-host run build:workspace-deps >"$build_log" 2>&1; then
   echo "Admin CLI build failed." >&2
   echo >&2
   cat "$build_log" >&2
   exit 1
 fi
 
-pnpm --silent -F @pressly/cli exec tsx src/main.ts -- "$@"
+pnpm --silent -F @pressly/cli-host exec tsx src/main.ts -- "$@"
 `;
 
 const runDocker = async () => {

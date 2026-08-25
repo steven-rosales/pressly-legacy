@@ -1,304 +1,198 @@
 # CLI Composition And Data Flow
 
-Purpose: explain how `apps/cli` turns terminal input into parsed commands,
-API calls, session reads/writes, output, and exit codes.
+Purpose: explain how Pressly CLI entrypoints reach selected owner cells while
+keeping process effects in `hosts/cli`.
 
-Use this when adding or changing a CLI feature.
-
-## Quick Map
+## Runtime Map
 
 ```txt
-main.ts
-  -> app.ts
-    -> shell/run-cli.ts
-      -> features/<feature>/args.ts
-      -> features/<feature>/application/*
-      -> features/<feature>/adapters/*
-      -> shell/api-client.ts + shell/session-store.ts
-      -> features/<feature>/presentation/*
-      -> stdout/stderr + exit code
+topology
+  -> generated/cli-catalog.ts
+    -> Access bootstrap-owner cell
+    -> Control auth, pricing, and production-bootstrap cells
+
+hosts/cli entrypoint
+  -> generated/runtime CLI binding
+    -> generated catalog view for that entrypoint
+    -> generic CLI executor
+      -> selected owner cell
+      -> host-owned API, session, DB, stdin, output, and Ink adapters
 ```
 
-Short version:
+There is one command registry: `generated/cli-catalog.ts`.
 
-```txt
-entrypoint -> composition root -> shell runner -> feature -> adapter -> API
-```
+The generated runtime filters that catalog by process entrypoint. The host does
+not declare another command list.
 
-## Runtime Roles
+## Entrypoints
 
-`src/main.ts` is the process boundary.
+`pressly-admin` exposes ten commands:
 
-- Loads `apps/cli/.env.local`.
-- Passes `process.argv.slice(2)`, `process.env`, and stdio into `runPresslyCli`.
-- Sets `process.exitCode`.
+- `auth login`
+- `auth session`
+- `auth logout`
+- `auth mfa-enroll`
+- `auth mfa-confirm`
+- `auth mfa-recovery-codes`
+- `auth mfa-remove`
+- `pricing show`
+- `pricing plan`
+- `pricing publish`
 
-`src/app.ts` is the composition root.
+Two package scripts expose one bootstrap command each:
 
-- Creates one shared `sessionStore`.
-- Builds the feature list.
-- Injects concrete API clients into each feature.
-- Calls `runCli({ argv, env, io, features })`.
+- `bootstrap:owner` prefixes synthetic argv with `bootstrap owner`.
+- `bootstrap:production` prefixes synthetic argv with `bootstrap production`.
 
-Current composition:
+The bootstrap files under `src/commands/` are thin process boundaries. Command
+parsing and presentation remain owner-driven.
 
-```txt
-sessionStore = makeSessionStore()
-auth    -> makeApiAuthClient(env, sessionStore)
-pricing -> makeApiPricingClient(env, sessionStore)
-runCli(...)
-```
+## Ownership
 
-`src/shell/run-cli.ts` is the generic shell runner.
+Control Experience owns:
 
-- Handles top-level help.
-- Finds the feature namespace from the first positional argument.
-- Calls `feature.parse(argv)`.
-- Builds the feature client with `feature.makeClient(env)`.
-- Runs plain mode or Ink mode.
-- Writes output/errors.
-- Closes the client in `finally`.
+- auth and pricing CLI contracts, decisions, and presentation;
+- production bootstrap preview/apply orchestration;
+- exact program, group-help, and unknown-command bytes;
+- interactive pricing frames and key decisions.
 
-Plain mode runs when `--json` is passed, the feature sets
-`interactive: false`, or `stdout` is not a TTY.
+Access System owns:
 
-Interactive mode renders:
+- the bootstrap-owner contract and CLI surface;
+- the narrow `makeAccessBootstrapCliSystem` generated assembly;
+- the atomic initial business/owner PostgreSQL bootstrap and password-hash
+  failure semantics.
 
-```txt
-render(feature.createView({ command, client }))
-```
+The generic CLI host owns only business-neutral mechanics:
 
-## Feature Shape
+- command resolution and option parsing;
+- argument, stdin, context, and capability sequencing;
+- plain presentation routing;
+- the opaque interactive session protocol.
 
-`src/shell/feature.ts` defines the shared feature contract:
+## Host-Owned Effects
 
-```txt
-namespace    auth, pricing, etc.
-usage        help text
-parse        argv -> typed command or help
-makeClient   env -> client
-run          command + client -> Result
-present      output -> human text
-serialize    output -> JSON value
-createView   command + client -> Ink element
-interactive  defaults to true
-```
+`hosts/cli/src/runtime/` supplies process capabilities to generated runtime and
+owner cells.
 
-Use this folder shape:
+### API
 
-```txt
-src/features/<feature>/
-  index.ts
-  cli.ts
-  args.ts
-  application/
-    command.ts
-    ports.ts
-  adapters/
-    api-client.ts
-  presentation/
-    presenter.ts
-    <Feature>CliView.tsx
-```
+- `PRESSLY_API_URL` is trimmed.
+- Empty or missing values default to `http://localhost:4000`.
+- HTTPS is required for every non-loopback API URL.
+- Plain HTTP is accepted only for the exact loopback hosts `localhost`,
+  `127.0.0.1`, and `[::1]`.
+- URL credentials and non-HTTP(S) schemes are rejected before a client is
+  created. Rejection diagnostics never include the supplied URL bytes.
+- API clients are created only for a valid auth or pricing command.
+- Auth commands use the Control-owned `/control/cli/auth/*` bearer realm;
+  Customer `/auth/*` routes remain Customer-only and `/control/auth/*` remains
+  the browser cookie/CSRF realm.
+- The client closes once after the command.
+- A command error has priority over a later client-close error.
 
-File responsibilities:
+### Auth secret input
 
-- `index.ts`: public exports for `app.ts` and tests.
-- `cli.ts`: wires the feature with `makeCliFeature`.
-- `args.ts`: parses raw `argv` into a typed command.
-- `application/command.ts`: decides what operation to run.
-- `application/ports.ts`: defines the client interface the command needs.
-- `adapters/api-client.ts`: implements the port with HTTP/session effects.
-- `presentation/presenter.ts`: renders human text and JSON values.
-- `<Feature>CliView.tsx`: optional Ink state machine.
+Authentication secrets are redirected-stdin data, never command arguments,
+environment variables, temporary files, or diagnostic fields.
 
-## Feature Data Flow
+- `auth login` accepts `--email` plus the boolean `--secret-stdin` marker. Its
+  stdin is a JSON object with required `password` and, when MFA is required,
+  exactly one of `mfaCode` or `recoveryCode`.
+- `auth mfa-confirm` accepts only the boolean `--secret-stdin` marker. Its
+  stdin is the plain UTF-8 enrollment confirmation code.
+- Login stdin is capped at 4,096 bytes; confirmation stdin is capped at 128
+  bytes. Both reject a TTY so secrets cannot be entered accidentally into an
+  echoing terminal.
+- A secret manager or other trusted producer should write directly to the
+  command's pipe. Do not stage the producer output in a shell variable or
+  file, and do not enable shell command tracing around the pipe.
+- Legacy `--password`, `--mfa-code`, `--recovery-code`, and `--code` value
+  options, and positional secret values, are rejected before API execution.
 
-Raw command:
+### Session file
 
-```txt
-pressly-admin pricing publish --service wash-fold --set delivery_fee=4.95 --reason "Update" --yes
-```
-
-`args.ts` parses raw strings into a command object:
-
-```txt
-PricingCliCommand
-  action: publish
-  serviceSlug: wash-fold
-  items: [...]
-  reason: Update
-  confirm: true
-  json: false
-```
-
-`application/command.ts` runs the use case through a port:
-
-```txt
-show    -> client.loadCatalog(...)
-plan    -> client.planChange(...)
-publish -> client.publishChange(...)
-```
-
-The command should not know API URLs, HTTP paths, bearer tokens, `fetch`,
-session storage, or terminal rendering.
-
-Those belong to adapters, shell helpers, and presentation.
-
-## API And Session Flow
-
-`adapters/api-client.ts` implements the application port.
-
-Adapter responsibilities:
-
-- Read `PRESSLY_API_URL`.
-- Build endpoint paths.
-- Read/write/clear sessions when needed.
-- Add bearer tokens.
-- Call `requestApi`.
-- Return `Result<value, AppError>`.
-
-`src/shell/api-client.ts` owns HTTP mechanics:
-
-- Default API URL is `http://localhost:4000`.
-- Requests use `fetch`.
-- JSON bodies set `content-type: application/json`.
-- Bearer tokens become `Authorization: Bearer <token>`.
-- API responses must be `{ ok: true, data }` or `{ ok: false, error }`.
-- API failures become `AppError`.
-
-`src/shell/session-store.ts` owns local session persistence:
+The default path is:
 
 ```txt
 ~/.config/pressly/admin-session.json
 ```
 
-Session operations:
+- Reads validate the stored authenticated-session contract.
+- Parent directories use mode `0o700`.
+- The session file uses mode `0o600`.
+- Login writes only an authenticated session.
+- Logout clears only after successful remote revocation when a session exists.
 
-- `read()`: stored login result or `undefined`.
-- `write(session)`: create directory and write session JSON.
-- `clear()`: remove session file.
+### Bootstrap database
 
-Permissions:
+- `DATABASE_URL` is read only after a bootstrap command parses.
+- Each bootstrap process creates one lazy database runtime with
+  `maxConnections: 1`.
+- The runtime closes in `finally` behavior on success or failure.
+- Owner bootstrap opens the runtime before reading redirected password bytes.
+- Owner bootstrap normalizes explicit business slug and display-name context,
+  atomically creates the initial Access business and owner graph, and reports a
+  replay only for the same active business, normalized owner email, and
+  verified password. A divergent retry cannot replace credentials.
+- Owner context is supplied through `PRESSLY_BOOTSTRAP_BUSINESS_ID`,
+  `PRESSLY_BOOTSTRAP_BUSINESS_SLUG`,
+  `PRESSLY_BOOTSTRAP_BUSINESS_DISPLAY_NAME`,
+  `PRESSLY_BOOTSTRAP_OWNER_EMAIL`, and
+  `PRESSLY_BOOTSTRAP_OWNER_CONFIRM`; the password remains stdin-only.
+- Owner password stdin is bounded to 4,096 bytes by the host while streaming;
+  excess input is rejected before Access executes.
+- Production bootstrap validates a fully read manifest against a one-MiB
+  ceiling, then maps it into Access, Production, and Ingress authority inputs.
 
-- Directory: `0o700`.
-- Session file: `0o600`.
-
-Current session flow:
-
-```txt
-auth login
-  -> POST /auth/login
-  -> write returned session
-
-pricing commands
-  -> read session
-  -> send accessToken as bearer token
-
-auth logout
-  -> POST /auth/logout when a session exists
-  -> clear session
-```
-
-## Output Flow
-
-Plain output uses the feature result:
+Production apply order is fixed:
 
 ```txt
-command.json ? feature.serialize(output) : feature.present(output)
+Access location preview
+production preview
+source-location bindings preview
+Access location apply
+production apply
+source-location bindings apply
 ```
 
-Rules:
+Any rejected preview stops every apply operation.
 
-- Human text lives in `presentation/presenter.ts`.
-- JSON output should return data, not terminal-formatted text.
-- Errors go through shell error helpers.
-- Unknown thrown errors are normalized into `AppError`.
+### Interactive pricing
 
-Interactive output uses Ink.
+The owner drives frames and key decisions through a neutral interactive
+session. The host adapts that session to Ink.
 
-Pricing is the current example:
+- Informational progress is cyan.
+- The publish confirmation prompt is yellow.
+- Plan and result lines use the default terminal color.
+- `y` publishes.
+- `n` or Escape cancels with exit code `1`.
+- `--json` bypasses Ink.
 
-- Plain pricing uses `runPricingCommand`.
-- Interactive pricing uses `PricingCliView.tsx`.
-- Shared conversion stays in `application/command.ts` when both paths need it.
+## Adding Or Changing A Command
 
-## Boundary Rules
+1. Change the owning cell or Experience surface.
+2. Add the command to the checked topology.
+3. Regenerate `generated/cli-catalog.ts`.
+4. Keep new process effects behind a narrow capability in `hosts/cli`.
+5. Add released-byte and lifecycle proof under `hosts/cli/test/runtime/`.
 
-Allowed:
+Do not add a host-local command registry, import one owner from another, or
+move domain decisions into the host or Ink adapter.
 
-- `app.ts` composes features.
-- `cli.ts` wires files inside one feature.
-- `args.ts` imports command types.
-- `application/command.ts` imports ports and shared contracts/errors.
-- `adapters/*` imports ports and shell effect helpers.
-- `presentation/*` imports output types and formatting helpers.
+## Verification
 
-Avoid:
+Run:
 
-- One feature importing another feature.
-- `application/*` importing `adapters/*`.
-- `application/*` importing `presentation/*`.
-- `application/*` importing `args.ts`, `cli.ts`, or `index.ts`.
-- HTTP details inside application commands.
-- terminal rendering inside adapters.
-
-The architecture test enforces:
-
-```txt
-features cannot import other features
-application code cannot import same-feature outer layers
+```bash
+pnpm --filter @pressly/cli-host lint
+pnpm --filter @pressly/cli-host typecheck
+pnpm --filter @pressly/cli-host test
+pnpm --filter @pressly/cli-host build
+pnpm architecture:check
+pnpm lint:architecture
 ```
 
-## Add A Feature
-
-1. Create `src/features/<feature>/application/ports.ts`.
-2. Create `src/features/<feature>/application/command.ts`.
-3. Create `src/features/<feature>/args.ts`.
-4. Create `src/features/<feature>/adapters/api-client.ts`.
-5. Create `src/features/<feature>/presentation/presenter.ts`.
-6. Add an Ink view only if the feature needs interactive state.
-7. Create `src/features/<feature>/cli.ts`.
-8. Export from `src/features/<feature>/index.ts`.
-9. Compose the feature in `src/app.ts`.
-10. Add tests under `apps/cli/test/features/<feature>/`.
-
-Minimum `cli.ts` shape:
-
-```ts
-export const makeExampleCli = (deps: ExampleCliDeps = defaultDeps) =>
-  makeCliFeature<ExampleCliCommand, ExampleClient, ExampleCliOutput>({
-    namespace: 'example',
-    usage,
-    parse: parseExampleCliCommand,
-    makeClient: deps.makeExampleClient,
-    run: runExampleCommand,
-    present: presentExampleOutput,
-    serialize: serializeExampleOutput,
-    interactive: false,
-    createView: () => createElement(Text, null, ''),
-  });
-```
-
-Minimum `app.ts` composition:
-
-```ts
-makeExampleCli({
-  makeExampleClient: (env) => makeApiExampleClient(env, sessionStore),
-});
-```
-
-## Test Checklist
-
-Cover parser success/errors, command behavior with a fake client, adapter paths
-and HTTP details, human/JSON output, and Ink behavior only for interactive
-features.
-
-Keep this passing:
-
-```txt
-pnpm -F @pressly/cli test
-pnpm -F @pressly/cli typecheck
-pnpm -F @pressly/cli typecheck:test
-pnpm -F @pressly/cli lint
-```
+PostgreSQL changes to bootstrap owner also require the Access one-worker
+integration gate.

@@ -1,0 +1,43 @@
+{
+  "extends": "../tooling/typescript/node.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["dist", "node_modules", "runtime"],
+  "references": [
+    {
+      "path": "../experiences/control/tsconfig.json"
+    },
+    {
+      "path": "../experiences/customer/tsconfig.json"
+    },
+    {
+      "path": "../experiences/processor/tsconfig.json"
+    },
+    {
+      "path": "../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../systems/access/tsconfig.json"
+    },
+    {
+      "path": "../systems/customers/tsconfig.json"
+    },
+    {
+      "path": "../systems/ingress/tsconfig.json"
+    },
+    {
+      "path": "../systems/orders/tsconfig.json"
+    },
+    {
+      "path": "../systems/pricing/tsconfig.json"
+    },
+    {
+      "path": "../systems/production/tsconfig.json"
+    }
+  ]
+}

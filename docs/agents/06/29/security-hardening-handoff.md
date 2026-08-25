@@ -76,7 +76,7 @@ drill creates and destroys an isolated database volume.
 
 Do these in order:
 
-1. Create every `/opt/pressly/env/*.env` file from `infra/aws/docs/env/`, replace
+1. Create every `/opt/pressly/env/*.env` file from `deploy/aws/docs/env/`, replace
    placeholders, and set mode `600`.
 2. Rotate production DB credentials and run `configure-database-roles.sh`.
 3. Add a read-only GHCR pull credential on Lightsail and verify one image pull.

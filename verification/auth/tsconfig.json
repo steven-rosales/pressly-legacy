@@ -1,0 +1,27 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../..",
+    "types": ["node", "vitest"],
+    "paths": {
+      "@pressly/auth-platform/*": ["../../platform/auth/src/*.ts"],
+      "@pressly/codec": ["../../platform/codec/src/index.ts"],
+      "@pressly/errors/*": ["../../platform/errors/src/*.ts"],
+      "@pressly/http/express": ["../../platform/http/src/express/index.ts"]
+    }
+  },
+  "include": ["test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../../platform/auth/tsconfig.json"
+    },
+    {
+      "path": "../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../platform/http/tsconfig.json"
+    }
+  ]
+}

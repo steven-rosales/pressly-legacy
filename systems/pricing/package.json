@@ -1,0 +1,77 @@
+{
+  "name": "@pressly/pricing-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./http/catalog": {
+      "types": "./dist/http/catalog.d.ts",
+      "import": "./dist/http/catalog.js",
+      "default": "./dist/http/catalog.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/public.d.ts",
+      "import": "./dist/schema/public.js",
+      "default": "./dist/schema/public.js"
+    },
+    "./seeding/pricing": {
+      "types": "./dist/seeding/seed-pricing.postgres.d.ts",
+      "import": "./dist/seeding/seed-pricing.postgres.js",
+      "default": "./dist/seeding/seed-pricing.postgres.js"
+    },
+    "./models/pricing-change": {
+      "types": "./dist/model/pricing-change.d.ts",
+      "import": "./dist/model/pricing-change.js",
+      "default": "./dist/model/pricing-change.js"
+    },
+    "./operations/catalog/load-pricing-catalog/cell": {
+      "types": "./dist/cells/catalog/load-pricing-catalog/cell.d.ts",
+      "import": "./dist/cells/catalog/load-pricing-catalog/cell.js",
+      "default": "./dist/cells/catalog/load-pricing-catalog/cell.js"
+    },
+    "./operations/pricebook/plan-pricing-change/cell": {
+      "types": "./dist/cells/pricebook/plan-pricing-change/cell.d.ts",
+      "import": "./dist/cells/pricebook/plan-pricing-change/cell.js",
+      "default": "./dist/cells/pricebook/plan-pricing-change/cell.js"
+    },
+    "./operations/pricebook/publish-pricing-change/cell": {
+      "types": "./dist/cells/pricebook/publish-pricing-change/cell.d.ts",
+      "import": "./dist/cells/pricebook/publish-pricing-change/cell.js",
+      "default": "./dist/cells/pricebook/publish-pricing-change/cell.js"
+    },
+    "./testing/assembly": {
+      "types": "./dist/system.d.ts",
+      "import": "./dist/system.js",
+      "default": "./dist/system.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run src --exclude '**/*.int.spec.ts'",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run --config vitest.postgres.config.ts --no-file-parallelism"
+  },
+  "dependencies": {
+    "@pressly/cells": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@pressly/testkit": "workspace:*",
+    "@types/node": "^25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

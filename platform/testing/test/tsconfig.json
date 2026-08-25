@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.test.json",
+  "references": [
+    {
+      "path": "../../cells/tsconfig.json"
+    },
+    {
+      "path": "../../errors/tsconfig.json"
+    },
+    {
+      "path": "../../postgres/tsconfig.json"
+    },
+    {
+      "path": "../../time/tsconfig.json"
+    }
+  ]
+}

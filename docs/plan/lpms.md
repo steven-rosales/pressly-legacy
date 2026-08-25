@@ -40,8 +40,9 @@ source-neutral outbox projection and owns scheduling and physical execution.
 - Treat bag count as operator-observed Pressly truth. A compatibility
   `bagCount` field in an external or version-one projection envelope is evidence
   only and never creates or changes intake.
-- Keep all modules isolated. Application composition roots inject public
-  capabilities; modules never import or declare dependencies on one another.
+- Keep semantic owners isolated. Systems never import peer internals; they use
+  only public versioned capabilities or messages and never read or write a peer
+  system's schema.
 - Treat scheduler output as a proposal.
 - Treat `schedule_run` as an immutable proposal.
 - Treat `production_run`, `production_batch`, `stage_run`, and versioned production records as operational truth.
@@ -137,13 +138,14 @@ command queue.
 
 ## External Demand Ingestion
 
-Webhook delivery is an integration concern, not a Production capability. The
-generic `webhook-ingestion` module owns durable receipt, deduplication, claims,
-leases, retries, dead letters, replay, and external-location bindings. It does
-not know how any downstream module interprets an event.
+Webhook delivery is an Ingress concern, not a Production capability. The
+Ingress System owns durable receipt, deduplication, claims, leases, retries,
+dead letters, replay, and external-location bindings. Its generic inbox cells
+do not know how a downstream System interprets an event.
 
 Cents-specific authentication and wire translation live under
-`apps/api/src/http/webhooks/cents`. The Worker adapter may submit one immutable
+`systems/ingress/src/cells/sources/receive-cents-webhook`. The Ingress reaction
+may submit one immutable
 incoming-Order candidate only for exact `SUBMITTED`. Exact `COMPLETED` or
 `CANCELED` may close an unresolved candidate or create an exact-identity
 tombstone. Every other Cents lifecycle value is acknowledged as evidence only.
@@ -167,7 +169,7 @@ Cents webhook
 -> commit
 -> return a success response
 
-apps/worker
+hosts/jobs
 -> webhook-ingestion claims a pending event with a recoverable lease
 -> the source/subject dispatcher selects the Cents order consumer
 -> exact SUBMITTED resolves the source-location binding and proposes a candidate
@@ -201,7 +203,7 @@ explicit first-party Pressly command
 ```
 
 The candidate transaction and inbox-completion transaction are intentionally
-separate because isolated modules do not share repositories or transactions.
+separate because isolated systems do not share repositories or transactions.
 Exact source identity, immutable candidate evidence, and terminal tombstones
 make a reclaimed event a safe replay. Acceptance, canonical creation, candidate resolution, and
 the Orders outbox event are atomic; projection into Production is separately at
@@ -222,8 +224,8 @@ The worker provides at-least-once processing:
 - Retry transient database, network, and lock failures with bounded
   exponential backoff and jitter.
 - Mark permanently invalid events as `dead` and alert for manual review.
-- Dispatch through injected consumers; neither `webhook-ingestion` nor
-  Production imports the other module.
+- Dispatch through injected consumers; Ingress and Production do not import
+  each other's private cells or model.
 
 If a reliable Cents read API is later verified, a recovery job may submit
 missed receipts through the same submitted-candidate classifier. It cannot
@@ -341,7 +343,7 @@ source_location_bindings
 primary key(source, external_location_id)
 ```
 
-Bindings are bootstrapped at an application composition root. Facility
+Bindings are bootstrapped through topology-owned deployment assembly. Facility
 bootstrap may use an empty binding manifest until a vendor location identifier
 is confirmed; the empty manifest is a non-destructive no-op. Existing bindings
 cannot be silently reassigned, deactivated, or removed by a convergence run.
@@ -1251,10 +1253,11 @@ production_batch
 
 ## Runtime Boundaries
 
-The API and Worker are application composition roots. They connect isolated
-module peers through public ports; modules never call one another. The API
-authenticates callers and vendor requests, validates transport input, and
-invokes the correct application use case. It does not own production rules.
+The HTTP and Jobs hosts are generic process roots. Generated catalogs connect
+them to topology-selected cells, while isolated systems communicate only
+through public capabilities or messages. The HTTP host interprets
+authentication and transport validation before invoking the selected cell; it
+does not own production rules.
 
 ```text
 Laundry Processor
@@ -1303,12 +1306,13 @@ Boundary responsibilities:
 - `production policies` are pure decisions over explicit inputs.
 - `optimization` is pure computation that returns a proposal and performs no
   database writes.
-- `apps/api/vendors` owns vendor authentication and wire normalization.
-- `apps/worker` owns source consumers, module composition, reconciliation
-  adapters, and runtime polling.
+- `systems/ingress` owns vendor authentication, wire normalization, source
+  consumers, and reconciliation behavior.
+- `hosts/jobs` owns generic runtime polling, leases, heartbeats, retry timing,
+  observation, and shutdown.
 - Postgres durably stores ingested observations, canonical Orders aggregates
   and outbox events, schedule proposals, operator-recorded intake, and accepted
-  production execution. Ownership still follows the module and aggregate
+  production execution. Ownership still follows the system and aggregate
   boundaries above; the database is not a substitute for transition policy.
 
 The Processor does not poll workspace state. Each committed `work_event`
@@ -1653,39 +1657,40 @@ There is no washer/dryer hardware integration in v1.
 
 The current repository implements the happy-path slice described above:
 
-- `modules/business/production/src/foundations/algorithms` owns the approved,
-  deterministic fixed-pulse and stable online-placement algorithms without
-  I/O.
-- `modules/business/production/src/foundations/language` owns intrinsic
+- `systems/production/src/model` owns the approved deterministic fixed-pulse,
+  demand-outlook, and stable online-placement algorithms plus intrinsic
   eligibility, schedule acceptance, machine assignment, Start, membership,
-  placement, whole-order routing, and stage-transition decisions.
-- `modules/integration/webhook-ingestion` owns source-neutral durable ingestion,
-  encrypted-receipt quarantine persistence, retention purge, deduplication,
-  leases, retries, dead letters, replay, and source-location bindings.
-- `modules/business/orders` owns immutable incoming candidates, their
-  submitted-candidate graph, exact-identity tombstones and acceptance,
-  explicit commercial and fulfillment-release commands backed by directed
-  graphs, and versioned fulfillment demand through a transactional outbox.
-- `modules/business/production` owns the source-neutral Orders demand
-  projection, operator-recorded physical intake, planning, acceptance, Start,
-  online insertion, execution, idempotency, transactions, server-paginated
-  order/history projections, whole-order routing, controllers, and routes.
-  Its source contains no vendor, webhook, receipt, lease, or CRM concepts.
-- `apps/api` owns the explicit Cents authentication policy, exact raw-byte
-  encryption, and wire normalization, composes the isolated modules, and
-  applies authentication, authorization, validation, and HTTP error mapping.
-  HMAC remains available; the initial vendor-compatible mode is explicitly
-  unsigned.
-- `apps/worker` composes webhook ingestion with Orders through a declarative
-  source/subject consumer registry, and separately projects the Orders outbox
-  into Production. The Cents consumer proposes only exact `SUBMITTED`
-  candidates, records exact `COMPLETED` or `CANCELED` source closure, and
-  acknowledges every other status without a canonical effect. Exact source
-  identity, immutable candidate evidence, terminal tombstones, and
-  outbox-event idempotency close the crash windows. Until a Cents read API is
-  verified, supported recovery is bounded manual replay through the normal
-  ingestion path.
-- `apps/processor` is an authenticated, live-only operator surface for location
+  placement, whole-order routing, and stage-transition decisions without I/O.
+- `systems/ingress` owns source-neutral durable ingestion, encrypted-receipt
+  quarantine persistence, retention purge, deduplication, leases, retries,
+  dead letters, replay, source-location bindings, and claimed-event decisions.
+- `systems/customers` owns canonical customer profiles and exposes only narrow,
+  versioned capabilities to Orders; Orders does not read customer tables.
+- `systems/orders` owns immutable incoming candidates, their submitted-candidate
+  graph, exact-identity tombstones and acceptance, explicit commercial and
+  fulfillment-release commands backed by directed graphs, and versioned
+  fulfillment demand through a transactional outbox.
+- `systems/production` owns the source-neutral Orders demand projection,
+  operator-recorded physical intake, planning, acceptance, Start, online
+  insertion, execution, idempotency, transactions, server-paginated
+  order/history projections, and whole-order routing. Its source contains no
+  vendor, webhook, receipt, lease, or CRM concepts.
+- `systems/ingress` owns explicit Cents authentication policy, exact raw-byte
+  encryption, wire normalization, and source reactions. `hosts/http` owns raw
+  request and protocol lifecycle, while Topology and generated catalogs select
+  the operation. HMAC remains available; the initial vendor-compatible mode is
+  explicitly unsigned.
+- `hosts/jobs` owns generic queue execution and process lifecycle. Generated
+  job entries run the Ingress reaction first and the Orders-outbox-to-Production
+  reaction second; the corresponding queue capabilities remain with Ingress
+  and Orders. Exact `SUBMITTED` proposes a candidate, exact `COMPLETED` or
+  `CANCELED` records source closure, and every other status is acknowledged
+  without a canonical effect. Exact source identity, immutable candidate
+  evidence, terminal tombstones, and outbox-event idempotency close the crash
+  windows. Until a Cents read API is verified, supported recovery is bounded
+  manual replay through the normal ingestion path.
+- `experiences/processor` is the authenticated, live-only operator workflow and
+  presentation owner for location
   discovery, a compact operational Home, a dedicated server-paginated Orders
   workspace, read-only History, Intake, Forecast, Configuration, resumable
   workspace reads, the Compute/Accept/Start lifecycle, run-ID boards, pending
@@ -1869,8 +1874,9 @@ Order-demand revision ordering uses source occurrence time, not inbox arrival
 time or an invented numeric source version.
 Dead webhook events remain available for inspection and replay.
 Workers cannot bypass production command invariants.
-Modules never import or declare dependencies on other modules; apps compose
-their public ports.
+Systems never import peer internals or schemas; topology composes public owner
+assemblies and capabilities, while hosts interpret protocols and process
+lifecycle.
 The scheduler cannot mutate execution state directly.
 work_event is the authoritative mutation ledger and audit trail.
 Operational tables are the current-state projections for reads.

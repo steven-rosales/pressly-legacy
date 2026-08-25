@@ -1,4 +1,10 @@
 packages:
-  - 'apps/*'
-  - 'packages/*'
-  - 'modules/*/*'
+  - 'hosts/*'
+  - 'hosts/browser/*'
+  - 'systems/*'
+  - 'experiences/*'
+  - 'platform/*'
+  - 'topology'
+  - 'generated'
+  - 'generated/*'
+  - 'verification/*'

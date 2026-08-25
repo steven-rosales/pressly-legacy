@@ -29,7 +29,7 @@ delta, then regenerate it with the Stateworks tooling.
 | Need                                              | Read                                                          |
 | ------------------------------------------------- | ------------------------------------------------------------- |
 | Repository boundaries and dependency direction    | [Architecture](./architecture.md)                             |
-| Backend module placement, suffixes, and failures  | [Module architecture](./module-architecture.md)               |
+| Cell and system placement, roles, and failures    | [Cell and system placement](./module-architecture.md)         |
 | LPMS domain model and scheduling concepts         | [LPMS model](./plan/lpms.md)                                  |
 | CI, Docker, deployment, and recovery              | [Devops](./devops.md)                                         |
 | Signals, Sentry, alerts, and incident correlation | [Observability](./observability.md)                           |
@@ -37,7 +37,7 @@ delta, then regenerate it with the Stateworks tooling.
 | Application security controls                     | [Application controls](./security/application-controls.md)    |
 | Authentication and authorization                  | [Authentication and authorization](./security/authz-authn.md) |
 | Test commands and test boundaries                 | [Test guide](./test-guide.md)                                 |
-| Processor visual and interaction rules            | [Processor design](../apps/processor/DESIGN.md)               |
+| Processor visual and interaction rules            | [Processor design](../hosts/browser/processor/DESIGN.md)      |
 
 `docs/plan/lpms.md` is the exception inside `docs/plan`: it remains a living,
 rich modeling reference because Stateworks decisions and historical evidence
@@ -72,7 +72,7 @@ stateworks/memory/domains/<domain>/memory.yaml       durable decisions
 stateworks/memory/domains/<domain>/context-pack.md   generated context
 stateworks/work/active/<work>/state.yaml             current task state
 stateworks/work/active/<work>/human-actions.md       current human gates
-stateworks/work/active/<work>/evidence.md             accumulated proof
+stateworks/work/active/<work>/evidence.md            accumulated proof
 stateworks/work/done/<work>/                          historical completion record
 ```
 

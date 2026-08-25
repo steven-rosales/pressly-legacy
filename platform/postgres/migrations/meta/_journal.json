@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1787581892887,
+      "tag": "0000_clean_owner_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787581895215,
+      "tag": "0001_owner_database_mechanisms",
+      "breakpoints": true
+    }
+  ]
+}

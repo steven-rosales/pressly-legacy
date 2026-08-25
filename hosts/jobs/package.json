@@ -1,0 +1,60 @@
+{
+  "name": "@pressly/jobs-host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./durable-execution": {
+      "types": "./dist/durable-execution.d.ts",
+      "import": "./dist/durable-execution.js",
+      "default": "./dist/durable-execution.js"
+    },
+    "./process": {
+      "types": "./dist/process-main.d.ts",
+      "import": "./dist/process-main.js",
+      "default": "./dist/process-main.js"
+    },
+    "./runtime-support": {
+      "types": "./dist/runtime-support.d.ts",
+      "import": "./dist/runtime-support.js",
+      "default": "./dist/runtime-support.js"
+    }
+  },
+  "scripts": {
+    "build:workspace-deps": "pnpm --dir ../.. exec turbo build --filter=@pressly/jobs-host... --concurrency=2",
+    "dev": "pnpm run build:workspace-deps && node --watch --import tsx src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run"
+  },
+  "dependencies": {
+    "@pressly/cells": "workspace:*",
+    "@pressly/config": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/generated": "workspace:*",
+    "@pressly/generated-runtime": "workspace:*",
+    "@pressly/jobs": "workspace:*",
+    "@pressly/logging": "workspace:*",
+    "@pressly/observability": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "@sentry/node": "^10.69.0",
+    "dotenv": "^17.4.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "4.23.11",
+    "typescript": "latest",
+    "vitest": "^4.1.10"
+  }
+}

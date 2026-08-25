@@ -1,0 +1,177 @@
+{
+  "name": "@pressly/ingress-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./contracts/cents-v1": {
+      "types": "./dist/contracts/cents-v1.d.ts",
+      "import": "./dist/contracts/cents-v1.js",
+      "default": "./dist/contracts/cents-v1.js"
+    },
+    "./contracts/webhook-ingestion-v1": {
+      "types": "./dist/contracts/webhook-ingestion-v1.d.ts",
+      "import": "./dist/contracts/webhook-ingestion-v1.js",
+      "default": "./dist/contracts/webhook-ingestion-v1.js"
+    },
+    "./capabilities/process-inbound-event-job": {
+      "types": "./dist/capabilities/process-inbound-event-job/public.d.ts",
+      "import": "./dist/capabilities/process-inbound-event-job/public.js",
+      "default": "./dist/capabilities/process-inbound-event-job/public.js"
+    },
+    "./capabilities/source-location-bindings-v1": {
+      "types": "./dist/cells/bindings/reconcile-source-location-bindings/model.d.ts",
+      "import": "./dist/cells/bindings/reconcile-source-location-bindings/model.js",
+      "default": "./dist/cells/bindings/reconcile-source-location-bindings/model.js"
+    },
+    "./observability/metrics": {
+      "types": "./dist/observability/metrics.d.ts",
+      "import": "./dist/observability/metrics.js",
+      "default": "./dist/observability/metrics.js"
+    },
+    "./sources/cents": {
+      "types": "./dist/sources/cents/public.d.ts",
+      "import": "./dist/sources/cents/public.js",
+      "default": "./dist/sources/cents/public.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/public.d.ts",
+      "import": "./dist/schema/public.js",
+      "default": "./dist/schema/public.js"
+    },
+    "./models/inbox": {
+      "types": "./dist/model/inbox.d.ts",
+      "import": "./dist/model/inbox.js",
+      "default": "./dist/model/inbox.js"
+    },
+    "./models/quarantine": {
+      "types": "./dist/model/quarantine.d.ts",
+      "import": "./dist/model/quarantine.js",
+      "default": "./dist/model/quarantine.js"
+    },
+    "./operations/bindings/reconcile-source-location-bindings/types": {
+      "types": "./dist/cells/bindings/reconcile-source-location-bindings/types.d.ts",
+      "import": "./dist/cells/bindings/reconcile-source-location-bindings/types.js",
+      "default": "./dist/cells/bindings/reconcile-source-location-bindings/types.js"
+    },
+    "./operations/bindings/resolve-source-location/types": {
+      "types": "./dist/cells/bindings/resolve-source-location/types.d.ts",
+      "import": "./dist/cells/bindings/resolve-source-location/types.js",
+      "default": "./dist/cells/bindings/resolve-source-location/types.js"
+    },
+    "./operations/inbox/claim-events/types": {
+      "types": "./dist/cells/inbox/claim-events/types.d.ts",
+      "import": "./dist/cells/inbox/claim-events/types.js",
+      "default": "./dist/cells/inbox/claim-events/types.js"
+    },
+    "./operations/inbox/dead-letter-event/types": {
+      "types": "./dist/cells/inbox/dead-letter-event/types.d.ts",
+      "import": "./dist/cells/inbox/dead-letter-event/types.js",
+      "default": "./dist/cells/inbox/dead-letter-event/types.js"
+    },
+    "./operations/inbox/list-dead-events/cell": {
+      "types": "./dist/cells/inbox/list-dead-events/cell.d.ts",
+      "import": "./dist/cells/inbox/list-dead-events/cell.js",
+      "default": "./dist/cells/inbox/list-dead-events/cell.js"
+    },
+    "./operations/inbox/list-dead-events/http": {
+      "types": "./dist/cells/inbox/list-dead-events/http.d.ts",
+      "import": "./dist/cells/inbox/list-dead-events/http.js",
+      "default": "./dist/cells/inbox/list-dead-events/http.js"
+    },
+    "./operations/inbox/replay-dead-event/cell": {
+      "types": "./dist/cells/inbox/replay-dead-event/cell.d.ts",
+      "import": "./dist/cells/inbox/replay-dead-event/cell.js",
+      "default": "./dist/cells/inbox/replay-dead-event/cell.js"
+    },
+    "./operations/inbox/replay-dead-event/http": {
+      "types": "./dist/cells/inbox/replay-dead-event/http.d.ts",
+      "import": "./dist/cells/inbox/replay-dead-event/http.js",
+      "default": "./dist/cells/inbox/replay-dead-event/http.js"
+    },
+    "./operations/inbox/replay-dead-event/types": {
+      "types": "./dist/cells/inbox/replay-dead-event/types.d.ts",
+      "import": "./dist/cells/inbox/replay-dead-event/types.js",
+      "default": "./dist/cells/inbox/replay-dead-event/types.js"
+    },
+    "./operations/inbox/retry-event/types": {
+      "types": "./dist/cells/inbox/retry-event/types.d.ts",
+      "import": "./dist/cells/inbox/retry-event/types.js",
+      "default": "./dist/cells/inbox/retry-event/types.js"
+    },
+    "./operations/processing/process-inbound-event/cell": {
+      "types": "./dist/cells/processing/process-inbound-event/cell.d.ts",
+      "import": "./dist/cells/processing/process-inbound-event/cell.js",
+      "default": "./dist/cells/processing/process-inbound-event/cell.js"
+    },
+    "./operations/processing/process-inbound-event/contract": {
+      "types": "./dist/cells/processing/process-inbound-event/contract.d.ts",
+      "import": "./dist/cells/processing/process-inbound-event/contract.js",
+      "default": "./dist/cells/processing/process-inbound-event/contract.js"
+    },
+    "./operations/processing/process-inbound-event/job": {
+      "types": "./dist/cells/processing/process-inbound-event/job.d.ts",
+      "import": "./dist/cells/processing/process-inbound-event/job.js",
+      "default": "./dist/cells/processing/process-inbound-event/job.js"
+    },
+    "./operations/processing/process-inbound-event/types": {
+      "types": "./dist/cells/processing/process-inbound-event/types.d.ts",
+      "import": "./dist/cells/processing/process-inbound-event/types.js",
+      "default": "./dist/cells/processing/process-inbound-event/types.js"
+    },
+    "./operations/quarantine/link-webhook-receipt/types": {
+      "types": "./dist/cells/quarantine/link-webhook-receipt/types.d.ts",
+      "import": "./dist/cells/quarantine/link-webhook-receipt/types.js",
+      "default": "./dist/cells/quarantine/link-webhook-receipt/types.js"
+    },
+    "./operations/sources/receive-cents-webhook/execute": {
+      "types": "./dist/cells/sources/receive-cents-webhook/execute.d.ts",
+      "import": "./dist/cells/sources/receive-cents-webhook/execute.js",
+      "default": "./dist/cells/sources/receive-cents-webhook/execute.js"
+    },
+    "./operations/sources/receive-cents-webhook/response-signals": {
+      "types": "./dist/cells/sources/receive-cents-webhook/response-signals.d.ts",
+      "import": "./dist/cells/sources/receive-cents-webhook/response-signals.js",
+      "default": "./dist/cells/sources/receive-cents-webhook/response-signals.js"
+    },
+    "./testing/assembly": {
+      "types": "./dist/system.d.ts",
+      "import": "./dist/system.js",
+      "default": "./dist/system.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run src --exclude '**/*.int.spec.ts'",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run --config vitest.postgres.config.ts --no-file-parallelism"
+  },
+  "dependencies": {
+    "@pressly/auth-platform": "workspace:*",
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/jobs": "workspace:*",
+    "@pressly/logging": "workspace:*",
+    "@pressly/observability": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@pressly/testkit": "workspace:*",
+    "@types/node": "^25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["node", "vitest"]
+  },
+  "include": ["test/**/*.ts", "vitest.config.ts", "vitest.postgres.config.ts"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../../platform/postgres/tsconfig.json"
+    },
+    {
+      "path": "../../systems/pricing/tsconfig.json"
+    },
+    {
+      "path": "../../topology/tsconfig.build.json"
+    }
+  ]
+}

@@ -1,8 +1,6 @@
 import type { Browser, Page } from '@playwright/test';
-import {
-  controlAuthenticatedSessionSchema,
-  processorAuthenticatedSessionSchema,
-} from '@pressly/contracts/auth';
+import { controlAuthenticatedSessionSchema } from '@pressly/experience-control/contracts/authentication-v1';
+import { processorAuthenticatedSessionSchema } from '@pressly/experience-processor/contracts/authentication-v1';
 import { enableMfa, signIn } from '../support/authentication';
 import {
   expect,

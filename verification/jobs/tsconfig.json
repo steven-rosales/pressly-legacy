@@ -1,0 +1,48 @@
+{
+  "extends": "../../tooling/typescript/node.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../..",
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../../hosts/jobs/tsconfig.json"
+    },
+    {
+      "path": "../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../platform/codec/tsconfig.json"
+    },
+    {
+      "path": "../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../platform/jobs/tsconfig.json"
+    },
+    {
+      "path": "../../platform/logging/tsconfig.json"
+    },
+    {
+      "path": "../../platform/observability/tsconfig.json"
+    },
+    {
+      "path": "../../platform/time/tsconfig.json"
+    },
+    {
+      "path": "../../systems/ingress/tsconfig.json"
+    },
+    {
+      "path": "../../systems/orders/tsconfig.json"
+    },
+    {
+      "path": "../../systems/production/tsconfig.json"
+    },
+    {
+      "path": "../../topology/tsconfig.build.json"
+    }
+  ]
+}

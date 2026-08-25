@@ -1,0 +1,39 @@
+{
+  "authentication": {
+    "signInTitle": "Sign in to Processor",
+    "verifyTitle": "Verify your identity",
+    "signInDescription": "Use your Pressly operator account. Your session stays in a protected browser cookie.",
+    "verifyDescription": "Complete the server-held challenge to open the production workspace.",
+    "failed": "Sign-in needs attention",
+    "email": "Email",
+    "password": "Password",
+    "verificationMethod": "Verification method",
+    "authenticatorCode": "Authenticator code",
+    "recoveryCode": "Recovery code",
+    "sixDigitCode": "Six-digit code",
+    "invalidCode": "Enter a valid {{kind}} code.",
+    "sixDigit": "six-digit",
+    "recovery": "recovery",
+    "signIn": "Sign in",
+    "verifyAndContinue": "Verify and continue",
+    "backToSignIn": "Back to sign in",
+    "restoring": "Restoring session",
+    "sessionExpired": "Your session expired. Sign in again to continue.",
+    "accessNotAssigned": "Processor access is not assigned",
+    "accessNotAssignedDescription": "{{name}} is authenticated, but this workspace is limited to owners, managers, and production operators.",
+    "signOutFailed": "Sign out failed",
+    "errors": {
+      "invalidCredentials": "The email or password is incorrect.",
+      "rateLimited": "Too many sign-in attempts were made. Wait a few minutes, then try again.",
+      "invalidMfaCode": "That verification code is incorrect. Enter the current code and try again.",
+      "expiredMfaChallenge": "This verification attempt expired. Return to sign in and start again.",
+      "unavailable": "Processor cannot reach the sign-in service. Check your connection and try again.",
+      "invalidResponse": "The sign-in service returned an unreadable response. Reload Processor before trying again.",
+      "forbidden": "This account is not allowed to open Processor.",
+      "loginFailed": "Processor could not sign you in. Check your details and connection, then try again.",
+      "verificationFailed": "Processor could not verify this code. Return to sign in if the challenge has expired.",
+      "restoreFailed": "Processor could not restore your session. Sign in again to continue.",
+      "logoutFailed": "Processor could not confirm that you were signed out. Check your connection and try again."
+    }
+  }
+}

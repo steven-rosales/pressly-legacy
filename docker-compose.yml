@@ -1,5 +1,9 @@
 name: pressly
 
+secrets:
+  local_bootstrap_owner_password:
+    environment: PRESSLY_LOCAL_BOOTSTRAP_OWNER_PASSWORD
+
 services:
   postgres:
     image: postgres:18-bookworm
@@ -41,11 +45,51 @@ services:
       timeout: 5s
       retries: 10
 
+  bootstrap:
+    image: pressly-api:local
+    build:
+      context: .
+      dockerfile: deploy/images/api/Dockerfile
+      target: dev
+    environment:
+      CI: 'true'
+      NODE_ENV: development
+      DATABASE_URL: postgres://pressly:pressly@postgres:5432/pressly
+      PRESSLY_BOOTSTRAP_BUSINESS_ID: 00000000-0000-4000-8000-000000000100
+      PRESSLY_BOOTSTRAP_BUSINESS_SLUG: pressly-one
+      PRESSLY_BOOTSTRAP_BUSINESS_DISPLAY_NAME: Pressly One
+      PRESSLY_BOOTSTRAP_OWNER_EMAIL: ${PRESSLY_LOCAL_BOOTSTRAP_OWNER_EMAIL:-owner@local.pressly.test}
+      PRESSLY_BOOTSTRAP_OWNER_CONFIRM: bootstrap-first-owner
+    depends_on:
+      postgres:
+        condition: service_healthy
+    secrets:
+      - local_bootstrap_owner_password
+    command: >-
+      sh -c "pnpm install --frozen-lockfile
+      && pnpm db:migrate
+      && pnpm db:seed:pricing
+      && pnpm -F @pressly/cli-host build:workspace-deps
+      && OWNER_BOOTSTRAP_RESULT=$$(cat /run/secrets/local_bootstrap_owner_password
+      | node hosts/cli/dist/main.js bootstrap owner --password-stdin)
+      && OWNER_ID=$$(node -p 'JSON.parse(process.argv[1]).identityId'
+      \"$$OWNER_BOOTSTRAP_RESULT\")
+      && node hosts/cli/dist/main.js bootstrap production
+      --file /repo/tooling/fixtures/pressly-one.production-bootstrap.json
+      --actor-id $$OWNER_ID
+      --idempotency-key local-pressly-one-topology-$$(sha256sum
+      /repo/tooling/fixtures/pressly-one.production-bootstrap.json | cut -c1-16)
+      --apply"
+    volumes:
+      - .:/repo
+      - pressly_node_modules:/repo/node_modules
+    restart: 'no'
+
   api:
     image: pressly-api:local
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: deploy/images/api/Dockerfile
       target: dev
     ports:
       - '${API_PORT:-4000}:4000'
@@ -69,17 +113,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
     command: >-
       sh -c "pnpm install --frozen-lockfile
-      && pnpm -F @pressly/db migrate
-      && pnpm -F @pressly/db seed:pricing
-      && pnpm -F @pressly/cli bootstrap:production --
-      --file /repo/tooling/fixtures/pressly-one.production-bootstrap.json
-      --actor-id 00000000-0000-4000-8000-000000000001
-      --idempotency-key local-pressly-one-topology-$$(sha256sum
-      /repo/tooling/fixtures/pressly-one.production-bootstrap.json | cut -c1-16)
-      --apply
-      && pnpm -F @pressly/api dev"
+      && pnpm -F @pressly/http-host dev"
     volumes:
       - .:/repo
       - pressly_node_modules:/repo/node_modules
@@ -97,7 +135,7 @@ services:
     image: ${PRESSLY_WEB_IMAGE:-pressly-web:local}
     build:
       context: .
-      dockerfile: apps/web/Dockerfile
+      dockerfile: deploy/images/web/Dockerfile
       extra_hosts:
         - 'host.docker.internal:host-gateway'
       args:
@@ -131,7 +169,7 @@ services:
     image: pressly-worker:local
     build:
       context: .
-      dockerfile: apps/worker/Dockerfile
+      dockerfile: deploy/images/worker/Dockerfile
       target: runner
     environment:
       NODE_ENV: development
@@ -146,13 +184,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   processor:
     image: pressly-processor:local
     build:
       context: .
-      dockerfile: apps/processor/Dockerfile
+      dockerfile: deploy/images/processor/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
         VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
@@ -175,7 +215,7 @@ services:
     image: pressly-control:local
     build:
       context: .
-      dockerfile: apps/control/Dockerfile
+      dockerfile: deploy/images/control/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
         VITE_SENTRY_DSN: ${CONTROL_SENTRY_DSN:-}

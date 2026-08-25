@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "types": ["vite/client", "node", "vitest/globals"]
+  },
+  "include": ["src", "test", "vitest.config.ts"],
+  "references": [
+    {
+      "path": "../../../experiences/control/tsconfig.json"
+    },
+    {
+      "path": "../../../generated/runtime/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/http/tsconfig.json"
+    }
+  ]
+}

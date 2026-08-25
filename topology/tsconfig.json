@@ -1,0 +1,76 @@
+{
+  "extends": "../tooling/typescript/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "..",
+    "paths": {
+      "@pressly/cells": ["../platform/cells/src/public.ts"]
+    },
+    "types": ["node"]
+  },
+  "files": [],
+  "include": ["./**/*.ts", "../platform/cells/src/**/*.ts"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    {
+      "path": "../experiences/control/tsconfig.json"
+    },
+    {
+      "path": "../experiences/customer/tsconfig.json"
+    },
+    {
+      "path": "../experiences/processor/tsconfig.json"
+    },
+    {
+      "path": "../platform/auth/tsconfig.json"
+    },
+    {
+      "path": "../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../platform/codec/tsconfig.json"
+    },
+    {
+      "path": "../platform/config/tsconfig.json"
+    },
+    {
+      "path": "../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../platform/http/tsconfig.json"
+    },
+    {
+      "path": "../platform/jobs/tsconfig.json"
+    },
+    {
+      "path": "../platform/logging/tsconfig.json"
+    },
+    {
+      "path": "../platform/observability/tsconfig.json"
+    },
+    {
+      "path": "../platform/postgres/tsconfig.json"
+    },
+    {
+      "path": "../platform/time/tsconfig.json"
+    },
+    {
+      "path": "../systems/access/tsconfig.json"
+    },
+    {
+      "path": "../systems/customers/tsconfig.json"
+    },
+    {
+      "path": "../systems/ingress/tsconfig.json"
+    },
+    {
+      "path": "../systems/orders/tsconfig.json"
+    },
+    {
+      "path": "../systems/pricing/tsconfig.json"
+    },
+    {
+      "path": "../systems/production/tsconfig.json"
+    }
+  ]
+}

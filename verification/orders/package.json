@@ -1,0 +1,36 @@
+{
+  "name": "@pressly/orders-verification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/public.js",
+  "types": "./dist/src/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/public.d.ts",
+      "import": "./dist/src/public.js",
+      "default": "./dist/src/public.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --exclude 'test/**/*.int.test.ts'",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run test/orders.native.int.test.ts test/orders.conformance.int.test.ts test/incoming-order-intake.conformance.int.test.ts --config vitest.config.ts --no-file-parallelism"
+  },
+  "dependencies": {
+    "@pressly/access-system": "workspace:*",
+    "@pressly/customers-system": "workspace:*",
+    "@pressly/orders-system": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/topology": "workspace:*"
+  },
+  "devDependencies": {
+    "@pressly/testkit": "workspace:*",
+    "@types/node": "^25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

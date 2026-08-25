@@ -1,0 +1,25 @@
+{
+  "name": "@pressly/migrations-verification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist",
+    "lint": "eslint test vitest.config.ts vitest.postgres.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --config vitest.config.ts",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run --config vitest.postgres.config.ts --no-file-parallelism",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@pressly/postgres": "workspace:*",
+    "@pressly/pricing-system": "workspace:*",
+    "@pressly/topology": "workspace:*",
+    "postgres": "^3.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "extends": "../../tooling/typescript/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false,
+    "rootDir": "../..",
+    "paths": {
+      "@pressly/cells": ["../../platform/cells/src/public.ts"],
+      "@pressly/topology": ["../../topology/src/public.ts"],
+      "@pressly/topology/postgres-schema": [
+        "../../topology/pressly-postgres-schema.ts"
+      ]
+    },
+    "types": ["node", "vitest/globals"]
+  },
+  "files": [],
+  "include": [
+    "./**/*.ts",
+    "../../platform/cells/src/**/*.ts",
+    "../../topology/**/*.ts",
+    "../../generated/**/*.ts"
+  ],
+  "exclude": ["node_modules", "../../generated/runtime/**"],
+  "references": [
+    {
+      "path": "../../experiences/control/tsconfig.json"
+    },
+    {
+      "path": "../../experiences/processor/tsconfig.json"
+    },
+    {
+      "path": "../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../systems/access/tsconfig.json"
+    },
+    {
+      "path": "../../systems/ingress/tsconfig.json"
+    },
+    {
+      "path": "../../systems/orders/tsconfig.json"
+    },
+    {
+      "path": "../../systems/pricing/tsconfig.json"
+    },
+    {
+      "path": "../../systems/production/tsconfig.json"
+    },
+    {
+      "path": "../../topology/tsconfig.build.json"
+    }
+  ]
+}

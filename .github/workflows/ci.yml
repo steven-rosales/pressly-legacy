@@ -86,8 +86,40 @@ jobs:
       PRESSLY_TEST_MIGRATION_DATABASE_URL: postgres://pressly_migration:pressly_migration_test@localhost:5432/pressly_test
       PRESSLY_TEST_RUNTIME_DATABASE_URL: postgres://pressly_runtime:pressly_runtime_test@localhost:5432/pressly_test
       PRESSLY_TEST_BACKUP_DATABASE_URL: postgres://pressly_backup:pressly_backup_test@localhost:5432/pressly_test
+      PRESSLY_POSTGRES_LEDGER_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
       PRESSLY_TEST_DATABASE_URL: postgres://pressly_runtime:pressly_runtime_test@localhost:5432/pressly_test
       PRESSLY_TEST_DATABASE_RESET_URL: postgres://pressly_migration:pressly_migration_test@localhost:5432/pressly_test
+      PRESSLY_CUSTOMERS_SYSTEM_TEST_DATABASE_URL: postgres://pressly_runtime:pressly_runtime_test@localhost:5432/pressly_test
+      PRESSLY_CUSTOMERS_SYSTEM_TEST_DATABASE_RESET_URL: postgres://pressly_migration:pressly_migration_test@localhost:5432/pressly_test
+      PRESSLY_CUSTOMERS_CONFORMANCE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_ACCESS_NATIVE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_ACCESS_CONFORMANCE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_ORDERS_INTAKE_CELL_TEST_DATABASE_URL: postgres://pressly_runtime:pressly_runtime_test@localhost:5432/pressly_test
+      PRESSLY_ORDERS_INTAKE_CELL_TEST_DATABASE_RESET_URL: postgres://pressly_migration:pressly_migration_test@localhost:5432/pressly_test
+      PRESSLY_ORDERS_SYSTEM_TEST_DATABASE_URL: postgres://pressly_runtime:pressly_runtime_test@localhost:5432/pressly_test
+      PRESSLY_ORDERS_SYSTEM_TEST_DATABASE_RESET_URL: postgres://pressly_migration:pressly_migration_test@localhost:5432/pressly_test
+      PRESSLY_ORDERS_CONFORMANCE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_ORDERS_CAPABILITIES_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_ORDERS_NATIVE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_PRICING_SYSTEM_TEST_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_PRICING_CONFORMANCE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_INGRESS_CONFORMANCE_DATABASE_URL: postgres://pressly_runtime:pressly_runtime_test@localhost:5432/pressly_test
+      PRESSLY_INGRESS_CONFORMANCE_DATABASE_RESET_URL: postgres://pressly_migration:pressly_migration_test@localhost:5432/pressly_test
+      PRESSLY_ORDERS_OUTBOX_CONFORMANCE_DATABASE_URL: postgres://pressly_runtime:pressly_runtime_test@localhost:5432/pressly_test
+      PRESSLY_ORDERS_OUTBOX_CONFORMANCE_DATABASE_RESET_URL: postgres://pressly_migration:pressly_migration_test@localhost:5432/pressly_test
+      PRESSLY_ORDERS_INTAKE_CONFORMANCE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_APPLY_FULFILLMENT_DEMAND_CONFORMANCE_DATABASE_URL: postgres://pressly_runtime:pressly_runtime_test@localhost:5432/pressly_test
+      PRESSLY_APPLY_FULFILLMENT_DEMAND_CONFORMANCE_DATABASE_RESET_URL: postgres://pressly_migration:pressly_migration_test@localhost:5432/pressly_test
+      PRESSLY_SOURCE_CLOSED_CONFORMANCE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_ATTEMPT_PLACEMENT_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_WEBHOOK_FLOW_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_ORDER_OUTBOX_FLOW_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_ACCEPT_SCHEDULE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_CREATE_SCHEDULE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_PLACEMENT_CONFORMANCE_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_PUBLISH_SCHEDULER_CONFIG_DATABASE_URL: postgres://pressly_migration:pressly_migration_test@localhost:5432/pressly_test
+      PRESSLY_REPLACE_SHIFT_SELECTION_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
+      PRESSLY_UPDATE_SHIFT_ADMIN_DATABASE_URL: postgres://pressly:pressly@localhost:5432/postgres
 
     steps:
       - name: Checkout
@@ -96,13 +128,31 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup-pnpm
 
+      - name: Install PostgreSQL 18 client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo env DEBIAN_FRONTEND=noninteractive \
+            apt-get install -y --no-install-recommends \
+              ca-certificates postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo env DEBIAN_FRONTEND=noninteractive \
+            apt-get install -y --no-install-recommends postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+          for client in psql createdb dropdb pg_dump pg_restore; do
+            version="$(/usr/lib/postgresql/18/bin/$client --version)"
+            echo "$version"
+            [[ "$version" == *"(PostgreSQL) 18."* ]]
+          done
+
       - name: Build integration workspace
         run: pnpm build:integration-deps
 
       - name: Configure database roles
         run: |
           docker run --rm --network host \
-            -v "$GITHUB_WORKSPACE/infra/postgres:/sql:ro" \
+            -v "$GITHUB_WORKSPACE/deploy/postgres:/sql:ro" \
             postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a \
             psql "$PRESSLY_TEST_ADMIN_DATABASE_URL" \
               -v database_name=pressly_test \
@@ -112,31 +162,58 @@ jobs:
               -f /sql/configure-roles.sql
 
       - name: Run migrations as migration role
-        run: DATABASE_URL="$PRESSLY_TEST_MIGRATION_DATABASE_URL" pnpm -F @pressly/db migrate
+        run: DATABASE_URL="$PRESSLY_TEST_MIGRATION_DATABASE_URL" pnpm db:migrate
 
-      - name: Database privilege integration tests
-        run: pnpm -F @pressly/db test:integration
+      - name: Migration and database privilege integration tests
+        run: pnpm -F @pressly/migrations-verification test:postgres
 
-      - name: Auth integration tests
-        run: pnpm -F @pressly/identity test:integration
+      - name: PostgreSQL migration ledger integration tests
+        run: pnpm -F @pressly/postgres test:postgres
 
-      - name: Users integration tests
-        run: pnpm -F @pressly/users test:integration
+      - name: Access-system PostgreSQL integration tests
+        run: pnpm -F @pressly/access-system test:postgres
 
-      - name: Orders integration tests
-        run: pnpm -F @pressly/orders test:integration
+      - name: Access permanent conformance tests
+        run: pnpm -F @pressly/access-verification test:postgres
 
-      - name: Pricing integration tests
-        run: pnpm -F @pressly/pricing test:integration
+      - name: Customers-system PostgreSQL integration tests
+        run: pnpm -F @pressly/customers-system test:postgres
 
-      - name: Webhook-ingestion lease integration tests
-        run: pnpm -F @pressly/webhook-ingestion test:integration
+      - name: Customers permanent conformance tests
+        run: pnpm -F @pressly/customers-verification test:postgres
 
-      - name: LPMS production repository integration tests
-        run: pnpm -F @pressly/production test:integration
+      - name: Orders-system PostgreSQL integration tests
+        run: pnpm -F @pressly/orders-system test:postgres
 
-      - name: API integration tests
-        run: pnpm -F @pressly/api test:integration
+      - name: Orders permanent conformance tests
+        run: pnpm -F @pressly/orders-verification test:postgres
+
+      - name: Pricing-system PostgreSQL integration tests
+        run: pnpm -F @pressly/pricing-system test:postgres
+
+      - name: Pricing permanent conformance tests
+        run: pnpm -F @pressly/pricing-verification test:postgres
+
+      - name: Ingress-system PostgreSQL integration tests
+        run: pnpm -F @pressly/ingress-system test:postgres
+
+      - name: Ingress permanent conformance tests
+        run: pnpm -F @pressly/ingress-verification test:postgres
+
+      - name: Orders-outbox permanent conformance tests
+        run: pnpm -F @pressly/orders-outbox-verification test:postgres
+
+      - name: Production-system PostgreSQL integration tests
+        run: pnpm -F @pressly/production-system test:postgres
+
+      - name: Production command conformance tests
+        run: pnpm -F @pressly/command-verification test:postgres
+
+      - name: Production query conformance tests
+        run: pnpm -F @pressly/query-verification test:postgres
+
+      - name: Production scheduling conformance tests
+        run: pnpm -F @pressly/scheduling-verification test:postgres
 
       - name: LPMS composed happy-path proof
         run: pnpm test:lpms:e2e
@@ -158,8 +235,8 @@ jobs:
       - name: Install Chromium with system dependencies
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run disposable browser smoke
-        run: pnpm test:browser:smoke
+      - name: Run full disposable browser E2E
+        run: pnpm test:browser:e2e
 
       - name: Upload synthetic browser diagnostics
         if: always()
@@ -190,7 +267,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          file: apps/web/Dockerfile
+          file: deploy/images/web/Dockerfile
           push: false
           build-args: |
             NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
@@ -218,7 +295,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          file: apps/api/Dockerfile
+          file: deploy/images/api/Dockerfile
           target: runner
           push: false
           cache-from: type=gha,scope=pressly-api
@@ -250,7 +327,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          file: apps/${{ matrix.app }}/Dockerfile
+          file: deploy/images/${{ matrix.app }}/Dockerfile
           target: runner
           push: false
           cache-from: type=gha,scope=pressly-${{ matrix.app }}
@@ -350,7 +427,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          file: apps/api/Dockerfile
+          file: deploy/images/api/Dockerfile
           target: runner
           load: true
           tags: ${{ steps.images.outputs.api_tag }}
@@ -362,7 +439,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          file: apps/web/Dockerfile
+          file: deploy/images/web/Dockerfile
           target: runner
           load: true
           tags: ${{ steps.images.outputs.web_tag }}
@@ -384,7 +461,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          file: apps/worker/Dockerfile
+          file: deploy/images/worker/Dockerfile
           target: runner
           load: true
           tags: ${{ steps.images.outputs.worker_tag }}
@@ -396,7 +473,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          file: apps/processor/Dockerfile
+          file: deploy/images/processor/Dockerfile
           target: runner
           load: true
           tags: ${{ steps.images.outputs.processor_tag }}
@@ -418,7 +495,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          file: apps/control/Dockerfile
+          file: deploy/images/control/Dockerfile
           target: runner
           load: true
           tags: ${{ steps.images.outputs.control_tag }}

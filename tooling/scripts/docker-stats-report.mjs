@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { toolingError } from '../../packages/errors/src/tooling-error.mjs';
+import { toolingError } from '../../platform/errors/src/tooling-error.mjs';
 
 export const PILOT_MEMORY_FLOOR_BYTES = 4 * 1024 ** 3;
 export const REQUIRED_RESERVE_PERCENT = 30;

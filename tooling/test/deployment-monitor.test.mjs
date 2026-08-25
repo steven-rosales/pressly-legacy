@@ -394,7 +394,7 @@ describe('deployment workflow monitor isolation', () => {
       'node release-source/tooling/scripts/release-manifest.mjs',
     );
     expect(workflow).toContain(
-      "local_deploy_script='release-source/infra/aws/lightsail/deploy.sh'",
+      "local_deploy_script='release-source/deploy/aws/lightsail/deploy.sh'",
     );
     expect(
       workflow.match(/tooling\/scripts\/deployment-monitor\.mjs/g),

@@ -1,0 +1,65 @@
+{
+  "name": "@pressly/cells",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./command-context": {
+      "types": "./dist/command-context.d.ts",
+      "import": "./dist/command-context.js",
+      "default": "./dist/command-context.js"
+    },
+    "./id-source": {
+      "types": "./dist/id-source.d.ts",
+      "import": "./dist/id-source.js",
+      "default": "./dist/id-source.js"
+    },
+    "./id-source/node": {
+      "types": "./dist/id-source.node.d.ts",
+      "import": "./dist/id-source.node.js",
+      "default": "./dist/id-source.node.js"
+    },
+    "./result": {
+      "types": "./dist/result.d.ts",
+      "import": "./dist/result.js",
+      "default": "./dist/result.js"
+    },
+    "./state-machine": {
+      "types": "./dist/state-machine.d.ts",
+      "import": "./dist/state-machine.js",
+      "default": "./dist/state-machine.js"
+    },
+    "./unit-of-work": {
+      "types": "./dist/unit-of-work.d.ts",
+      "import": "./dist/unit-of-work.js",
+      "default": "./dist/unit-of-work.js"
+    },
+    "./operation-proof": {
+      "types": "./dist/operation-proof.d.ts",
+      "import": "./dist/operation-proof.js",
+      "default": "./dist/operation-proof.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "lint": "eslint src test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
+  },
+  "dependencies": {
+    "@pressly/errors": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

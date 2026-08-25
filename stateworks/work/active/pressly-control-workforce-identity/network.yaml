@@ -16,7 +16,7 @@ invariants:
   - Suspending or ending workforce access removes effective grants and revokes relevant sessions immediately.
   - The final active owner cannot be suspended, ended, or stripped of ownership.
   - Managers cannot grant authority beyond their own active business and location scope, cannot create owners, and cannot escalate themselves.
-  - Control creates canonical Users and Orders only through their owning modules and never writes Production state directly.
+  - Control creates canonical Customers and Orders only through their owning systems and never writes Production state directly.
   - A repaired production Order-detail contradiction is not closed from health or inactivity alone; one authenticated non-empty read, a fixed Sentry ingestion wait, and no recurrence are required before issue resolution and final verification.
   - Processor and Control use app-specific Secure, HttpOnly, SameSite cookies and server-owned CSRF policy; browser JavaScript receives no session credential.
   - Browser navigation and controls are driven by server-computed capabilities for the selected business and location; role-string arithmetic is not product authority.
@@ -45,13 +45,13 @@ tasks:
       - memory:domain:order-management/context-pack
       - repo:stateworks/work/done/security-hardening
       - repo:stateworks/work/queued/future-distributed-authentication
-      - repo:packages/db/src/schema/auth.schema.ts
-      - repo:modules/security/identity
-      - repo:modules/business/users
-      - repo:modules/business/orders
-      - repo:modules/security/authorization
-      - repo:apps/api
-      - repo:apps/processor
+      - repo:systems/access/src/schema
+      - repo:systems/access
+      - repo:systems/customers
+      - repo:systems/orders
+      - repo:systems/access/src/model/authorization
+      - repo:hosts/http
+      - repo:experiences/processor
       - repo:docs/architecture.md
     writes:
       - repo:stateworks/work/active/pressly-control-workforce-identity/evidence.md
@@ -78,27 +78,27 @@ tasks:
     deps:
       - T0
     reads:
-      - repo:packages/kernel/src/state-machine.ts
+      - repo:platform/cells/src/state-machine.ts
       - memory:domain:order-management/context-pack
       - memory:domain:laundry-production/context-pack
       - repo:stateworks/work/active/pressly-control-workforce-identity/evidence.md
     writes:
       - repo:stateworks/memory/index.yaml
       - repo:stateworks/memory/domains/identity-access
-      - repo:modules/security/identity/src/foundations/language/workforce-invitation
-      - repo:modules/security/identity/src/foundations/language/workforce-membership
-      - repo:modules/security/identity/src/foundations/language/access-grant
-      - repo:modules/security/identity/test/foundations/language
+      - repo:systems/access/src/model/language/workforce-invitation
+      - repo:systems/access/src/model/language/workforce-membership
+      - repo:systems/access/src/model/language/access-grant
+      - repo:systems/access/src/model/language
     action:
       - Create source-backed Identity Access memory for business membership, invitation, scoped grants, app sessions, and role/capability decisions.
-      - Define invitation, workforce-membership, and access-grant graphs with the shared kernel state-machine interpreter.
+      - Define invitation, workforce-membership, and access-grant graphs with the `@pressly/cells/state-machine` interpreter.
       - Enumerate every allowed and denied transition and make terminal states explicit.
     verifier:
       - Identity Access memory, source session, accepted delta, generated context pack, and memory index validate.
       - Context pack regenerates deterministically.
       - Graph tests enumerate every state and event edge plus terminal denials for all three lifecycles.
     rollback:
-      - Remove the new unreferenced domain and graph module if validation fails before persistence ships.
+      - Remove the new unreferenced model and graph source if validation fails before persistence ships.
     secret_handling: none
     status: pending
     evidence: []
@@ -112,22 +112,24 @@ tasks:
     deps:
       - T1
     reads:
-      - repo:packages/db/src/schema/auth.schema.ts
-      - repo:packages/db/src/schema/users.schema.ts
-      - repo:packages/db/src/schema/orders.schema.ts
-      - repo:packages/db/src/schema/laundry-production.schema.ts
-      - repo:packages/auth/src/authorization
-      - repo:modules/security/identity
-      - repo:modules/security/identity
+      - repo:systems/access/src/schema
+      - repo:systems/customers/src/schema
+      - repo:systems/orders/src/schema
+      - repo:systems/production/src/schema
+      - repo:systems/access/src/model/authorization
+      - repo:systems/access
     writes:
-      - repo:packages/db/src/schema
-      - repo:packages/db/src/migrations
-      - repo:packages/db/test
-      - repo:packages/auth/src/authorization
-      - repo:packages/auth/test
-      - repo:modules/security/identity
-      - repo:packages/contracts/src
-      - repo:packages/contracts/test
+      - repo:topology/pressly-postgres-schema.ts
+      - repo:systems/customers/src/schema
+      - repo:systems/orders/src/schema
+      - repo:systems/production/src/schema
+      - repo:platform/postgres/migrations
+      - repo:verification/migrations
+      - repo:systems/access/src/model/authorization
+      - repo:systems/access/src/model/authorization
+      - repo:systems/access
+      - repo:experiences/control/src/browser/contracts
+      - repo:verification/topology
     action:
       - Persist the Pressly business account, location ancestry, workforce memberships, hashed invitations, versions, lifecycle timestamps, and scoped intended grants inside the Auth security aggregate.
       - Add business ancestry and database constraints to canonical customers, Orders, fulfillments, and Production locations before exposing management-plane list APIs.
@@ -153,20 +155,24 @@ tasks:
     deps:
       - T2
     reads:
-      - repo:modules/security/identity
-      - repo:modules/security/identity
-      - repo:modules/security/authorization
-      - repo:apps/api/src/http/processor/session
-      - repo:apps/api/src/bootstrap
-      - repo:packages/contracts/src
+      - repo:systems/access
+      - repo:systems/access/src/model/authorization
+      - repo:experiences/processor/src/server/authentication
+      - repo:topology/runtime/http/bootstrap
+      - repo:experiences/control/src/auth
+      - repo:experiences/control/src/browser/contracts
+      - repo:hosts/http
+      - repo:generated/http-catalog.ts
     writes:
-      - repo:modules/security/identity
-      - repo:modules/security/authorization
-      - repo:apps/api/src/http/control
-      - repo:apps/api/src/bootstrap
-      - repo:apps/api/test/control
-      - repo:packages/contracts/src
-      - repo:packages/contracts/test
+      - repo:systems/access
+      - repo:systems/access/src/model/authorization
+      - repo:experiences/control/src/auth
+      - repo:topology/runtime/http/bootstrap
+      - repo:verification/access-experiences
+      - repo:experiences/control/src/browser/contracts
+      - repo:topology/pressly.topology.ts
+      - repo:generated/http-catalog.ts
+      - repo:verification/topology
     action:
       - Add app-specific Control login, session restore, logout, CSRF, invite acceptance, MFA enrollment, and Auth-owned workforce administration routes.
       - Enforce exact origin, conservative body limits, per-IP and per-identity throttles, generic authentication failures, safe audit metadata, and no-store security headers.
@@ -182,7 +188,7 @@ tasks:
     evidence: []
 
   - id: T4
-    title: Create app-owned shadcn foundations and the Control shell
+    title: Create Experience-owned shadcn foundations and the Control shell
     type: primitive
     owner: agent
     surface: repo
@@ -190,31 +196,31 @@ tasks:
     deps:
       - T2
     reads:
-      - repo:apps/processor/components.json
-      - repo:apps/processor/src/components/ui
-      - repo:apps/processor/src/app/app-shell.tsx
-      - repo:apps/processor/src/index.css
-      - repo:apps/processor/package.json
+      - repo:experiences/processor/components.json
+      - repo:experiences/processor/src/browser/components/ui
+      - repo:experiences/processor/src/browser/shell/app-shell.tsx
+      - repo:hosts/browser/processor/src/index.css
+      - repo:experiences/processor/package.json
       - repo:docker-compose.yml
-      - repo:infra/aws/lightsail
+      - repo:deploy/aws/lightsail
     writes:
-      - repo:apps/control
-      - repo:apps/control/src/components/ui
-      - repo:apps/control/src/components/layout
-      - repo:apps/control/src/index.css
-      - repo:apps/processor/src/app/app-shell.tsx
-      - repo:apps/processor/src/components/layout
-      - repo:apps/processor/src/components/ui
-      - repo:apps/processor/src/index.css
+      - repo:experiences/control
+      - repo:experiences/control/src/browser/components/ui
+      - repo:experiences/control/src/browser/components/layout
+      - repo:hosts/browser/control/src/index.css
+      - repo:experiences/processor/src/browser/shell/app-shell.tsx
+      - repo:experiences/processor/src/browser/components/layout
+      - repo:experiences/processor/src/browser/components/ui
+      - repo:hosts/browser/processor/src/index.css
       - repo:docker-compose.yml
-      - repo:infra/aws/lightsail
+      - repo:deploy/aws/lightsail
       - repo:tooling
     action:
-      - Keep shadcn primitives, semantic Tailwind tokens, typography, and shell mechanisms owned by each frontend under apps while preserving one consistent design language.
+      - Keep shadcn primitives and semantic Tailwind tokens with each owning Experience, and keep browser-global typography and startup CSS with its generic browser host, while preserving one consistent design language.
       - Create the Control runtime, authentication shell, responsive navigation, loading/error/empty states, and authorized Pressly app switcher.
       - Preserve Processor visual and interaction behavior while linking authorized users to control.trypressly.com.
     verifier:
-      - Processor and Control build from app-owned semantic tokens and shadcn primitives with no cross-application UI package or import.
+      - Processor and Control build from Experience-owned semantic tokens and shadcn primitives with no cross-Experience UI package or import.
       - Processor regression tests pass without a visual or scrolling regression.
       - App switcher is keyboard accessible, mobile accessible, external-origin safe, and hides unauthorized destinations.
       - Docker and production proxy configuration validate without exposing private API or session ports.
@@ -234,13 +240,13 @@ tasks:
       - T3
       - T4
     reads:
-      - repo:apps/control
-      - repo:apps/api/src/http/control
-      - repo:packages/contracts/src
+      - repo:experiences/control
+      - repo:experiences/control
+      - repo:experiences/control/src/browser/contracts
     writes:
-      - repo:apps/control/src/features/team
-      - repo:apps/control/src/features/security
-      - repo:apps/control/test
+      - repo:experiences/control/src/features/team
+      - repo:experiences/control/src/features/security
+      - repo:experiences/control/test
     action:
       - Implement team and invitation lists, issue/copy/revoke/resend invitation, invite acceptance and password setup, role/location assignment, suspend/reactivate/end, session revocation, MFA enrollment, and safe audit history.
       - Show plain-language access previews and keep security-sensitive confirmations explicit without making routine employee work cumbersome.
@@ -264,27 +270,45 @@ tasks:
       - T3
       - T4
     reads:
-      - repo:modules/business/users
-      - repo:modules/business/orders
-      - repo:apps/api/src/http/order-management
-      - repo:apps/control
+      - repo:systems/customers
+      - repo:systems/orders
+      - repo:systems/orders/src/http/order-management-boundary.ts
+      - repo:experiences/control/src/management/customers
+      - repo:experiences/control/src/management/orders
+      - repo:generated/http-catalog.ts
+      - repo:topology/runtime/http/bootstrap/app.ts
+      - repo:experiences/control
       - memory:domain:order-management/context-pack
     writes:
-      - repo:modules/business/users
-      - repo:modules/business/orders
-      - repo:modules/security/authorization
-      - repo:apps/api/src/http/control
-      - repo:apps/api/test/control
-      - repo:apps/control/src/features/customers
-      - repo:apps/control/src/features/orders
-      - repo:apps/control/test
-      - repo:packages/contracts/src
-      - repo:packages/contracts/test
+      - repo:systems/customers
+      - repo:systems/orders
+      - repo:systems/access/src/model/authorization/commercial
+      - repo:experiences/control/src/management/customers
+      - repo:experiences/control/src/management/orders
+      - repo:topology/pressly.topology.ts
+      - repo:generated/http-catalog.ts
+      - repo:generated/clients/control.ts
+      - repo:topology/runtime/http/bootstrap/app.ts
+      - repo:verification/http/test/bootstrap
+      - repo:experiences/control/src/features/customers
+      - repo:experiences/control/src/features/orders
+      - repo:experiences/control/test
+      - repo:verification/customers
+      - repo:verification/orders
     action:
-      - Add business-scoped customer and canonical Order list, search, detail, create, and supported correction commands through the owning modules.
+      - Add business-scoped customer and canonical Order list, search, detail, create, and supported correction commands through the owning systems and Control Experience.
       - Make first-party Order creation select or create one explicit canonical customer and create source-neutral fulfillment without fuzzy identity merging.
       - Keep fulfillment release explicit and route downstream Production effects only through the transactional outbox.
     verifier:
+      - pnpm --filter @pressly/customers-system test
+      - pnpm --filter @pressly/customers-system test:postgres
+      - pnpm --filter @pressly/customers-verification test:postgres
+      - pnpm --filter @pressly/orders-system test
+      - pnpm --filter @pressly/orders-system test:postgres
+      - pnpm --filter @pressly/orders-verification test:postgres
+      - pnpm --filter @pressly/experience-control test
+      - pnpm --filter @pressly/http-verification test
+      - pnpm --filter @pressly/experience-control test
       - API and domain tests cover authorization, business/location isolation, pagination, idempotency, version conflict, exact customer identity, duplicate signals, and outbox atomicity.
       - Control tests cover recognizable identity, forms, tables, filtering, pagination, creation review, and safe expected failures.
       - Control cannot write Production tables or submit target Production states.
@@ -304,20 +328,29 @@ tasks:
       - T3
       - T4
     reads:
-      - repo:apps/api/src/http/processor
-      - repo:apps/processor/src/app
-      - repo:modules/security/authorization/src/features/operations/authorize-production
-      - repo:modules/business/production/src
+      - repo:experiences/processor/src/server/authentication
+      - repo:hosts/http/src/runtime/catalog-middleware.ts
+      - repo:topology/runtime/http/bootstrap/app.ts
+      - repo:experiences/processor/src/browser
+      - repo:experiences/processor
+      - repo:systems/access/src/model/authorization/operations/authorize-production
+      - repo:systems/production/src/cells
     writes:
-      - repo:apps/api/src/http/processor
-      - repo:apps/api/test/processor
-      - repo:apps/processor/src/app
-      - repo:apps/processor/test
-      - repo:modules/security/authorization/src/features/operations/authorize-production
-      - repo:modules/business/production/src
-      - repo:modules/business/production/test
-      - repo:packages/contracts/src
-      - repo:packages/contracts/test
+      - repo:hosts/http/src/runtime/catalog-middleware.ts
+      - repo:topology/runtime/http/bootstrap/app.ts
+      - repo:verification/http/test/bootstrap
+      - repo:experiences/processor/src/browser
+      - repo:experiences/processor/test
+      - repo:experiences/processor/src
+      - repo:experiences/processor/test
+      - repo:systems/access/src/model/authorization/operations/authorize-production
+      - repo:systems/production/src/cells
+      - repo:verification/commands
+      - repo:verification/queries
+      - repo:verification/scheduling
+      - repo:experiences/processor/src/contracts
+      - repo:systems/production/src/cells
+      - repo:verification/topology
     action:
       - Replace unscoped role arrays and browser role arithmetic with server-derived selected-location capabilities.
       - Filter navigation and actions without weakening API guards.
@@ -346,10 +379,11 @@ tasks:
       - T6
       - T7
     reads:
-      - repo:apps/api
-      - repo:apps/control
-      - repo:apps/processor
-      - repo:packages/db
+      - repo:hosts/http
+      - repo:experiences/customer
+      - repo:experiences/control
+      - repo:experiences/processor
+      - repo:platform/postgres
       - repo:tooling
       - repo:.github/workflows/ci.yml
       - repo:docs/test-guide.md
@@ -365,12 +399,12 @@ tasks:
       - repo:docs/test-guide.md
     action:
       - Add one isolated Playwright workspace under tooling/browser-e2e with typed fixtures, semantic page support, and root convenience commands that do not join the fast Turbo test gate.
-      - Run Control and Processor through their real browser boundaries against the real API and a dedicated migrated PostgreSQL test database seeded only with deterministic synthetic identities, businesses, locations, and work.
+      - Run Web, Control, and Processor through their real browser boundaries against the real API and a dedicated migrated PostgreSQL test database seeded only with deterministic synthetic identities, businesses, locations, and work.
       - Prove representative owner, manager, and operator workflows, app switching, session isolation, server-owned capabilities, persisted effects, keyboard and focus behavior, serious accessibility violations, and unexpected browser-console failures without duplicating the full authorization matrix in the browser.
       - Add a required browser-e2e CI job, deterministic startup and teardown, bounded diagnostic retries that never convert a flaky result to success, and sanitized failure artifacts.
     verifier:
       - pnpm test remains browser- and Docker-free while the dedicated root browser-E2E command runs the isolated Playwright package.
-      - The browser suite starts from a migrated synthetic test database, reaches API, Control, and Processor readiness explicitly, and uses no production credentials, customer payloads, arbitrary sleeps, or browser-stored session credentials.
+      - The browser suite starts from a migrated synthetic test database, reaches API, Web, Control, and Processor readiness explicitly, and uses no production credentials, customer payloads, arbitrary sleeps, or browser-stored session credentials.
       - Required workflows pass in Chromium with no serious accessibility violation, unexpected console error, hidden API authorization failure, or persisted-state mismatch.
       - CI fails on failed or retry-only flaky tests and retains bounded HTML, machine-readable result, trace, screenshot, video, and redacted service-log artifacts for diagnosis.
     rollback:
@@ -391,38 +425,43 @@ tasks:
       - T6
       - T7
     reads:
-      - repo:packages/auth
-      - repo:modules/security/identity
-      - repo:modules/business/users
-      - repo:modules/business/orders
-      - repo:modules/business/production
-      - repo:modules/security/authorization
-      - repo:modules/business/production/src/foundations/language
-      - repo:packages/contracts
-      - repo:apps/api
+      - repo:systems/access
+      - repo:systems/customers
+      - repo:systems/orders
+      - repo:systems/production
+      - repo:systems/access/src/model/authorization
+      - repo:systems/production/src/model
+      - repo:experiences/control/src/browser/contracts
+      - repo:experiences/processor/src/contracts
+      - repo:systems/production/src/cells
+      - repo:verification/topology
+      - repo:hosts/http
     writes:
-      - repo:packages/auth/test
-      - repo:modules/security/identity/test
-      - repo:modules/business/users/test
-      - repo:modules/business/orders/test
-      - repo:modules/business/production/test
-      - repo:modules/security/authorization/test
-      - repo:modules/business/production/test/foundations/language
-      - repo:packages/contracts/test
-      - repo:apps/api/test/control
-      - repo:apps/api/test/security
+      - repo:systems/access/src
+      - repo:verification/access
+      - repo:verification/customers
+      - repo:verification/orders
+      - repo:systems/production/src
+      - repo:systems/access/src/model/authorization
+      - repo:verification/access
+      - repo:verification/commands
+      - repo:verification/queries
+      - repo:verification/scheduling
+      - repo:verification/topology
+      - repo:verification/access-experiences
+      - repo:verification/http/test/security
       - repo:tooling/scripts/run-integration-tests.sh
     action:
       - Add table-driven API authorization proofs for owner, manager, operator, insufficient-MFA, suspended, ended, wrong-business, and wrong-location identities so server enforcement remains authoritative when UI controls are absent.
       - Exhaust every finite lifecycle state-and-event pair at the owning pure policy, prove replay and idempotency at the use-case boundary, and prove mutation races and isolation against real PostgreSQL where concurrency is part of the contract.
-      - Verify representative API producer envelopes and Control and Processor consumer parsing against the same shared Zod contracts without introducing duplicate schemas or a generic contract platform.
-      - Include the existing Users, Orders, and API integration suites in the repository's all-integration entry point so Control persistence and query paths cannot silently fall outside CI.
+      - Verify representative API producer envelopes and Control and Processor consumer parsing against the producer-owned public Zod contracts without introducing duplicate schemas or a generic contract platform.
+      - Include the Customers-system, Orders-system, permanent Customers and Orders conformance, and API integration suites in the repository's all-integration entry point so Control persistence and query paths cannot silently fall outside CI.
     verifier:
       - Pure lifecycle tests enumerate every allowed and denied state-event pair, including terminal states, without IO or a property-testing dependency for finite graphs.
       - Authorization tests prove both allow and deny outcomes at the API boundary for every supported workforce posture and exact business or location scope.
       - Idempotency tests prove same-key replay and conflicting replay behavior; concurrency tests use the dedicated test database and leave authoritative rows and audit evidence consistent.
-      - Producer responses and browser consumers accept the same shared contracts and fail closed on incompatible shapes.
-      - The all-integration command runs database, Auth, Users, Orders, Pricing, webhook-ingestion, Production, and API integration suites against a database whose name is explicitly test-only.
+      - Producer responses and browser consumers accept the same producer-owned public contracts and fail closed on incompatible shapes.
+      - The all-integration command runs database, Auth, Customers-system, Orders-system, Pricing-system, Ingress-system, Production-system, permanent system conformance and flow, and API integration suites against databases whose names are explicitly test-only.
     rollback:
       - Revert only the added tests and integration-runner coverage; do not weaken product guards, lifecycle graphs, database constraints, or shared contracts to make a verifier pass.
     secret_handling: none
@@ -485,15 +524,21 @@ tasks:
       - T7B
       - H1
     reads:
-      - repo:packages
-      - repo:modules
-      - repo:apps/api
-      - repo:apps/control
-      - repo:apps/processor
+      - repo:platform
+      - repo:systems
+      - repo:experiences
+      - repo:hosts
+      - repo:platform
+      - repo:topology
+      - repo:generated
+      - repo:verification
+      - repo:hosts/http
+      - repo:experiences/control
+      - repo:experiences/processor
       - repo:tooling/browser-e2e
       - repo:.github/workflows/ci.yml
       - repo:docker-compose.yml
-      - repo:infra/aws/lightsail
+      - repo:deploy/aws/lightsail
     writes:
       - repo:stateworks/work/active/pressly-control-workforce-identity/evidence.md
       - repo:stateworks/work/active/pressly-control-workforce-identity/design-qa.md

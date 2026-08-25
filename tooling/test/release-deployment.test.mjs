@@ -14,8 +14,16 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const root = resolve(import.meta.dirname, '../..');
-const deployScript = resolve(root, 'infra/aws/lightsail/deploy.sh');
-const rollbackScript = resolve(root, 'infra/aws/lightsail/rollback.sh');
+const deployScript = resolve(root, 'deploy/aws/lightsail/deploy.sh');
+const rollbackScript = resolve(root, 'deploy/aws/lightsail/rollback.sh');
+const deploymentTooling = resolve(
+  root,
+  'deploy/aws/lightsail/deployment-tooling.mjs',
+);
+const toolingErrorFactory = resolve(
+  root,
+  'platform/errors/src/tooling-error.mjs',
+);
 const sha = 'a'.repeat(40);
 const currentSha = 'b'.repeat(40);
 const unverifiedSha = 'c'.repeat(40);
@@ -54,13 +62,15 @@ const fiveImageMetadata = ({
 const fiveImageIdentity = ({
   sourceSha = sha,
   releaseImages = images,
-} = {}) => {
-  const { deployedAt: _deployedAt, ...identity } = fiveImageMetadata({
-    sourceSha,
-    releaseImages,
-  });
-  return identity;
-};
+} = {}) => ({
+  releaseFormat: 'five-image-v1',
+  sourceSha,
+  apiImage: releaseImages.PRESSLY_API_IMAGE,
+  webImage: releaseImages.PRESSLY_WEB_IMAGE,
+  workerImage: releaseImages.PRESSLY_WORKER_IMAGE,
+  processorImage: releaseImages.PRESSLY_PROCESSOR_IMAGE,
+  controlImage: releaseImages.PRESSLY_CONTROL_IMAGE,
+});
 
 const fiveImageDeploymentState = ({
   sourceSha = sha,
@@ -81,29 +91,6 @@ const fiveImageDeploymentState = ({
   outcome,
   exitCode,
   updatedAt: deployedAt,
-});
-
-const fourImageMetadata = ({ sourceSha = sha } = {}) => ({
-  releaseFormat: 'four-image-v1',
-  sourceSha,
-  apiImage: images.PRESSLY_API_IMAGE,
-  webImage: images.PRESSLY_WEB_IMAGE,
-  workerImage: images.PRESSLY_WORKER_IMAGE,
-  processorImage: images.PRESSLY_PROCESSOR_IMAGE,
-  deployedAt,
-});
-
-const legacyMetadata = ({ sourceSha = sha, marked = true } = {}) => ({
-  ...(marked
-    ? {
-        releaseFormat: 'legacy-two-image-v1',
-        transition: 'first-four-image-cutover',
-      }
-    : {}),
-  sourceSha,
-  apiImage: image('api', 'e'),
-  webImage: image('web', 'f'),
-  deployedAt,
 });
 
 const writeMode600Env = (directory) => {
@@ -144,22 +131,22 @@ const writeCommandStubs = (directory) => {
       'if [ "$1" = "status" ]; then',
       '  checkout_sha="$(cat "$GIT_CHECKOUT_STATE_FILE")"',
       '  if [ "${DIRTY_CHECKOUT:-false}" = "true" ]; then',
-      '    printf "%s\\n" "${DIRTY_STATUS_OUTPUT:- M infra/aws/lightsail/deploy.sh}"',
+      '    printf "%s\\n" "${DIRTY_STATUS_OUTPUT:- M deploy/aws/lightsail/deploy.sh}"',
       '  elif [ "${DIRTY_AFTER_CHECKOUT:-false}" = "true" ] && [ "$checkout_sha" != "$INVOCATION_CHECKOUT_SHA" ]; then',
-      '    printf "%s\\n" "${DIRTY_STATUS_OUTPUT:- M infra/aws/lightsail/docker-compose.production.yml}"',
+      '    printf "%s\\n" "${DIRTY_STATUS_OUTPUT:- M deploy/aws/lightsail/docker-compose.production.yml}"',
       '  fi',
       'fi',
       'if [ "$1" = "checkout" ] && [ "${2:-}" = "--detach" ]; then',
       '  printf "%s\\n" "$3" > "$GIT_CHECKOUT_STATE_FILE"',
       '  if [ "${REPLACE_REPO_TOOLING_ON_TARGET:-false}" = "true" ]; then',
       '    if [ "$3" = "$INVOCATION_CHECKOUT_SHA" ]; then',
-      '      cp "$HARDENED_DEPLOY_SCRIPT" "$PRESSLY_REPO_DIR/infra/aws/lightsail/deploy.sh"',
-      '      cp "$HARDENED_ROLLBACK_SCRIPT" "$PRESSLY_REPO_DIR/infra/aws/lightsail/rollback.sh"',
+      '      cp "$HARDENED_DEPLOY_SCRIPT" "$PRESSLY_REPO_DIR/deploy/aws/lightsail/deploy.sh"',
+      '      cp "$HARDENED_ROLLBACK_SCRIPT" "$PRESSLY_REPO_DIR/deploy/aws/lightsail/rollback.sh"',
       '    else',
-      '      printf "#!/bin/sh\\necho incompatible-target-deploy >&2\\nexit 97\\n" > "$PRESSLY_REPO_DIR/infra/aws/lightsail/deploy.sh"',
-      '      printf "#!/bin/sh\\necho incompatible-target-rollback >&2\\nexit 97\\n" > "$PRESSLY_REPO_DIR/infra/aws/lightsail/rollback.sh"',
+      '      printf "#!/bin/sh\\necho incompatible-target-deploy >&2\\nexit 97\\n" > "$PRESSLY_REPO_DIR/deploy/aws/lightsail/deploy.sh"',
+      '      printf "#!/bin/sh\\necho incompatible-target-rollback >&2\\nexit 97\\n" > "$PRESSLY_REPO_DIR/deploy/aws/lightsail/rollback.sh"',
       '    fi',
-      '    chmod 700 "$PRESSLY_REPO_DIR/infra/aws/lightsail/deploy.sh" "$PRESSLY_REPO_DIR/infra/aws/lightsail/rollback.sh"',
+      '    chmod 700 "$PRESSLY_REPO_DIR/deploy/aws/lightsail/deploy.sh" "$PRESSLY_REPO_DIR/deploy/aws/lightsail/rollback.sh"',
       '  fi',
       'fi',
       '',
@@ -167,7 +154,7 @@ const writeCommandStubs = (directory) => {
   );
   writeFileSync(
     join(binDirectory, 'docker'),
-    '#!/bin/sh\nset -eu\nprintf "docker %s\\n" "$*" >> "$COMMAND_LOG"\ncase " $* " in *" pull "*) if [ "${FAIL_DOCKER:-false}" = "true" ]; then exit 23; fi;; *" run --rm --workdir /repo/packages/db migrate "*) if [ -n "${STATE_AT_MIGRATION_FILE:-}" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_MIGRATION_FILE"; fi; if [ "${FAIL_MIGRATION:-false}" = "true" ]; then exit 31; fi;; *" up -d "*) if [ -n "${STATE_AT_COMPOSE_UP_FILE:-}" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_COMPOSE_UP_FILE"; fi; if [ -n "${PREVIOUS_AT_COMPOSE_UP_FILE:-}" ]; then cp "$PRESSLY_PREVIOUS_RELEASE_METADATA_FILE" "$PREVIOUS_AT_COMPOSE_UP_FILE"; fi; if [ "${FAIL_COMPOSE_UP:-false}" = "true" ]; then exit 29; fi;; esac\nif [ "${1:-}" = image ] && [ "${2:-}" = inspect ]; then printf "%s\\n" "${IMAGE_REVISION_OVERRIDE:-$EXPECTED_TARGET_SHA}"; fi\n',
+    '#!/bin/sh\nset -eu\nprintf "docker %s\\n" "$*" >> "$COMMAND_LOG"\ncase " $* " in *" pull "*) if [ "${FAIL_DOCKER:-false}" = "true" ]; then exit 23; fi;; *" run --rm --workdir /repo migrate "*) if [ -n "${STATE_AT_MIGRATION_FILE:-}" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_MIGRATION_FILE"; fi; if [ "${FAIL_MIGRATION:-false}" = "true" ]; then exit 31; fi;; *" up -d "*) if [ -n "${STATE_AT_COMPOSE_UP_FILE:-}" ]; then cp "$PRESSLY_DEPLOYMENT_STATE_FILE" "$STATE_AT_COMPOSE_UP_FILE"; fi; if [ -n "${PREVIOUS_AT_COMPOSE_UP_FILE:-}" ]; then cp "$PRESSLY_PREVIOUS_RELEASE_METADATA_FILE" "$PREVIOUS_AT_COMPOSE_UP_FILE"; fi; if [ "${FAIL_COMPOSE_UP:-false}" = "true" ]; then exit 29; fi;; esac\nif [ "${1:-}" = image ] && [ "${2:-}" = inspect ]; then printf "%s\\n" "${IMAGE_REVISION_OVERRIDE:-$EXPECTED_TARGET_SHA}"; fi\n',
   );
   writeFileSync(
     join(binDirectory, 'curl'),
@@ -188,7 +175,7 @@ const createHostFixture = (currentMetadata) => {
   const repoDirectory = join(directory, 'repo');
   const compose = join(
     repoDirectory,
-    'infra/aws/lightsail/docker-compose.production.yml',
+    'deploy/aws/lightsail/docker-compose.production.yml',
   );
   mkdirSync(resolve(compose, '..'), { recursive: true });
   writeFileSync(compose, 'services: {}\n');
@@ -202,11 +189,24 @@ const createHostFixture = (currentMetadata) => {
     'restore-postgres.sh',
     'run-monitored-operation.sh',
   ]) {
-    const source = join(root, 'infra/aws/lightsail', scriptName);
-    const destination = join(repoDirectory, 'infra/aws/lightsail', scriptName);
+    const source = join(root, 'deploy/aws/lightsail', scriptName);
+    const destination = join(repoDirectory, 'deploy/aws/lightsail', scriptName);
     copyFileSync(source, destination);
     chmodSync(destination, 0o700);
   }
+  const fixtureDeploymentTooling = join(
+    repoDirectory,
+    'deploy/aws/lightsail/deployment-tooling.mjs',
+  );
+  copyFileSync(deploymentTooling, fixtureDeploymentTooling);
+  chmodSync(fixtureDeploymentTooling, 0o700);
+  const fixtureErrorFactory = join(
+    repoDirectory,
+    'platform/errors/src/tooling-error.mjs',
+  );
+  mkdirSync(resolve(fixtureErrorFactory, '..'), { recursive: true });
+  copyFileSync(toolingErrorFactory, fixtureErrorFactory);
+  chmodSync(fixtureErrorFactory, 0o700);
   writeFileSync(
     join(directory, 'current-release'),
     `${currentMetadata.sourceSha}\n`,
@@ -243,11 +243,11 @@ const installPreviousRelease = (fixture, metadata) => {
 const installHostReleaseTooling = (fixture) => {
   const hostDeploy = join(
     fixture.repoDirectory,
-    'infra/aws/lightsail/deploy.sh',
+    'deploy/aws/lightsail/deploy.sh',
   );
   const hostRollback = join(
     fixture.repoDirectory,
-    'infra/aws/lightsail/rollback.sh',
+    'deploy/aws/lightsail/rollback.sh',
   );
   copyFileSync(deployScript, hostDeploy);
   copyFileSync(rollbackScript, hostRollback);
@@ -308,8 +308,9 @@ describe('release deployment identity', () => {
 
     const deploy = readFileSync(deployScript, 'utf8');
     expect(deploy).toContain('export PRESSLY_RELEASE_SHA="${DEPLOY_SHA,,}"');
+    expect(deploy).toContain('node --import tsx tooling/postgres/migrate.ts');
     const compose = readFileSync(
-      resolve(root, 'infra/aws/lightsail/docker-compose.production.yml'),
+      resolve(root, 'deploy/aws/lightsail/docker-compose.production.yml'),
       'utf8',
     );
     expect(
@@ -317,7 +318,7 @@ describe('release deployment identity', () => {
     ).toHaveLength(2);
   });
 
-  it('stages and verifies the target-commit deploy script before first cutover', () => {
+  it('stages and verifies the target-commit deploy script before execution', () => {
     const workflow = readFileSync(
       resolve(root, '.github/workflows/deploy-production.yml'),
       'utf8',
@@ -325,23 +326,32 @@ describe('release deployment identity', () => {
 
     expect(workflow).toContain('Checkout deployed release tooling');
     expect(workflow).toContain(
-      "local_deploy_script='release-source/infra/aws/lightsail/deploy.sh'",
+      "local_deploy_script='release-source/deploy/aws/lightsail/deploy.sh'",
     );
     expect(workflow).toContain(
       "'umask 077; mktemp -d /tmp/pressly-deploy.XXXXXXXX'",
     );
     expect(workflow).toContain('scp "${ssh_args[@]}"');
     expect(workflow).toContain('deploy_script_digest="$(sha256sum');
-    expect(workflow).toContain('sha256sum --check --status');
+    expect(workflow).toContain('sha256sum --check --strict --status');
+    expect(workflow).toContain(
+      "local_deployment_tooling='release-source/deploy/aws/lightsail/deployment-tooling.mjs'",
+    );
+    expect(workflow).toContain(
+      "local_tooling_error_factory='release-source/platform/errors/src/tooling-error.mjs'",
+    );
+    expect(workflow).toContain(
+      "PRESSLY_DEPLOY_TOOLING_FILE='$remote_deployment_tooling'",
+    );
     expect(workflow).toContain("'$remote_deploy_script'");
     expect(workflow).not.toContain(
-      "PROCESSOR_IMAGE='$PROCESSOR_IMAGE' /opt/pressly/repo/infra/aws/lightsail/deploy.sh",
+      "PROCESSOR_IMAGE='$PROCESSOR_IMAGE' /opt/pressly/repo/deploy/aws/lightsail/deploy.sh",
     );
   });
 
   it('documents the dry host preflight and file-scoped production bootstrap', () => {
     const runbook = readFileSync(
-      resolve(root, 'infra/aws/lightsail/README.md'),
+      resolve(root, 'deploy/aws/lightsail/README.md'),
       'utf8',
     );
 
@@ -823,21 +833,28 @@ describe('release deployment identity', () => {
     );
   });
 
-  it('normalizes only the old two-image current shape for first-cutover rollback', () => {
-    const current = legacyMetadata({ sourceSha: currentSha, marked: false });
+  it('rejects an unsupported current release format before target mutation', () => {
+    const current = {
+      ...fiveImageMetadata({
+        sourceSha: currentSha,
+        releaseImages: currentImages,
+      }),
+      releaseFormat: 'unsupported-release-v0',
+    };
     const fixture = createHostFixture(current);
 
     const result = spawnSync('bash', [deployScript], {
       encoding: 'utf8',
-      env: deploymentEnv(fixture, { FAIL_DOCKER: 'true' }),
+      env: deploymentEnv(fixture),
     });
 
-    expect(result.status).toBe(23);
-    expect(
-      JSON.parse(
-        readFileSync(join(fixture.directory, 'previous-release.json'), 'utf8'),
-      ),
-    ).toEqual(legacyMetadata({ sourceSha: currentSha }));
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'metadata is not a complete five-image release',
+    );
+    expect(readFileSync(fixture.commandLog, 'utf8')).not.toMatch(
+      /git (fetch|checkout)/,
+    );
   });
 
   it('rotates current and previous metadata as one five-image release identity', () => {
@@ -1569,9 +1586,7 @@ describe('release deployment identity', () => {
     );
     const commands = readFileSync(fixture.commandLog, 'utf8');
     expect(commands).toContain('docker image inspect');
-    expect(commands).not.toContain(
-      'run --rm --workdir /repo/packages/db migrate',
-    );
+    expect(commands).not.toContain('run --rm --workdir /repo migrate');
     expect(commands).not.toContain('up -d --remove-orphans --wait');
   });
 
@@ -1600,10 +1615,16 @@ describe('release deployment identity', () => {
   it.each([
     [
       'tracked Compose input',
-      ' M infra/aws/lightsail/docker-compose.production.yml',
+      ' M deploy/aws/lightsail/docker-compose.production.yml',
     ],
-    ['tracked migration input', ' M packages/db/drizzle/0099_shadow.sql'],
-    ['untracked migration shadow', '?? packages/db/drizzle/shadow.sql'],
+    [
+      'tracked migration input',
+      ' M platform/postgres/migrations/0099_shadow.sql',
+    ],
+    [
+      'untracked migration shadow',
+      '?? platform/postgres/migrations/shadow.sql',
+    ],
   ])(
     'fails closed and restores the invocation checkout for a %s after checkout',
     (_description, dirtyStatus) => {
@@ -1633,9 +1654,7 @@ describe('release deployment identity', () => {
       expect(commands).toContain(`git checkout --detach ${currentSha}`);
       expect(commands).not.toContain('config --quiet');
       expect(commands).not.toContain(' pull');
-      expect(commands).not.toContain(
-        'run --rm --workdir /repo/packages/db migrate',
-      );
+      expect(commands).not.toContain('run --rm --workdir /repo migrate');
       expect(commands).not.toContain('up -d --remove-orphans --wait');
     },
   );
@@ -1732,7 +1751,7 @@ describe('release deployment identity', () => {
     const fixture = createHostFixture(current);
     const missingScript = join(
       fixture.repoDirectory,
-      'infra/aws/lightsail/restore-postgres.sh',
+      'deploy/aws/lightsail/restore-postgres.sh',
     );
     rmSync(missingScript);
 
@@ -1747,7 +1766,7 @@ describe('release deployment identity', () => {
     );
     expect(readFileSync(fixture.checkoutState, 'utf8').trim()).toBe(currentSha);
     expect(readFileSync(fixture.commandLog, 'utf8')).not.toContain(
-      'run --rm --workdir /repo/packages/db migrate',
+      'run --rm --workdir /repo migrate',
     );
     expect(existsSync(join(fixture.directory, 'ops/current'))).toBe(false);
   });
@@ -1794,7 +1813,7 @@ describe('release deployment identity', () => {
 
     const repoDeploy = join(
       fixture.repoDirectory,
-      'infra/aws/lightsail/deploy.sh',
+      'deploy/aws/lightsail/deploy.sh',
     );
     writeFileSync(repoDeploy, '#!/bin/sh\nexit 97\n');
     chmodSync(repoDeploy, 0o700);
@@ -1854,7 +1873,7 @@ describe('release deployment identity', () => {
     for (const scriptName of ['deploy.sh', 'rollback.sh']) {
       const path = join(
         fixture.repoDirectory,
-        'infra/aws/lightsail',
+        'deploy/aws/lightsail',
         scriptName,
       );
       writeFileSync(path, '#!/bin/sh\nexit 97\n');
@@ -1900,7 +1919,7 @@ describe('release deployment identity', () => {
     );
     const repoDeploy = join(
       fixture.repoDirectory,
-      'infra/aws/lightsail/deploy.sh',
+      'deploy/aws/lightsail/deploy.sh',
     );
     writeFileSync(
       repoDeploy,
@@ -2290,7 +2309,7 @@ describe('release deployment identity', () => {
     writeFileSync(metadata, `${JSON.stringify(fiveImageMetadata())}\n`);
     writeFileSync(
       stub,
-      '#!/bin/sh\nset -eu\nprintf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" "$PRESSLY_TARGET_RELEASE_FORMAT" "$DEPLOY_SHA" "$PRESSLY_API_IMAGE" "$PRESSLY_WEB_IMAGE" "$PRESSLY_WORKER_IMAGE" "$PRESSLY_PROCESSOR_IMAGE" "$PRESSLY_CONTROL_IMAGE" > "$CAPTURE_FILE"\n',
+      '#!/bin/sh\nset -eu\nprintf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" "$DEPLOY_SHA" "$PRESSLY_API_IMAGE" "$PRESSLY_WEB_IMAGE" "$PRESSLY_WORKER_IMAGE" "$PRESSLY_PROCESSOR_IMAGE" "$PRESSLY_CONTROL_IMAGE" > "$CAPTURE_FILE"\n',
     );
     chmodSync(stub, 0o700);
 
@@ -2308,7 +2327,6 @@ describe('release deployment identity', () => {
     expect(rollback.stderr).toBe('');
     expect(rollback.status).toBe(0);
     expect(readFileSync(capture, 'utf8').trim().split('\n')).toEqual([
-      'five-image-v1',
       sha,
       images.PRESSLY_API_IMAGE,
       images.PRESSLY_WEB_IMAGE,
@@ -2389,101 +2407,19 @@ describe('release deployment identity', () => {
     expect(existsSync(capture)).toBe(false);
   });
 
-  it('rolls back to a complete four-image release without inventing Control', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'pressly-rollback-'));
-    const metadata = join(directory, 'previous-release.json');
-    const capture = join(directory, 'capture.txt');
-    const stub = join(directory, 'deploy-stub.sh');
-    writeFileSync(metadata, `${JSON.stringify(fourImageMetadata())}\n`);
-    writeFileSync(
-      stub,
-      '#!/bin/sh\nset -eu\nprintf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" "$PRESSLY_TARGET_RELEASE_FORMAT" "$DEPLOY_SHA" "$PRESSLY_API_IMAGE" "$PRESSLY_WEB_IMAGE" "$PRESSLY_WORKER_IMAGE" "$PRESSLY_PROCESSOR_IMAGE" "${PRESSLY_CONTROL_IMAGE:-}" > "$CAPTURE_FILE"\n',
-    );
-    chmodSync(stub, 0o700);
-
-    const rollback = spawnSync('bash', [rollbackScript], {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        PRESSLY_PREVIOUS_RELEASE_METADATA_FILE: metadata,
-        PRESSLY_DEPLOY_LOCK_FILE: join(directory, 'deploy.lock'),
-        PRESSLY_DEPLOY_SCRIPT: stub,
-        CAPTURE_FILE: capture,
-      },
-    });
-
-    expect(rollback.stderr).toBe('');
-    expect(rollback.status).toBe(0);
-    expect(readFileSync(capture, 'utf8').trim().split('\n')).toEqual([
-      'four-image-v1',
-      sha,
-      images.PRESSLY_API_IMAGE,
-      images.PRESSLY_WEB_IMAGE,
-      images.PRESSLY_WORKER_IMAGE,
-      images.PRESSLY_PROCESSOR_IMAGE,
-    ]);
-  });
-
-  it('restores the strictly marked first-cutover release and removes four-image orphans', () => {
-    const current = fiveImageMetadata({
-      sourceSha: currentSha,
-      releaseImages: currentImages,
-    });
-    const fixture = createHostFixture(current);
-    const legacy = legacyMetadata();
-    writeFileSync(
-      join(fixture.directory, 'previous-release.json'),
-      `${JSON.stringify(legacy)}\n`,
-    );
-
-    const rollback = spawnSync('bash', [rollbackScript], {
-      encoding: 'utf8',
-      env: deploymentEnv(fixture, {
-        PRESSLY_DEPLOY_SCRIPT: deployScript,
-      }),
-    });
-
-    expect(rollback.status).toBe(0);
-    expect(rollback.stderr).toBe('');
-    expect(
-      JSON.parse(
-        readFileSync(join(fixture.directory, 'current-release.json'), 'utf8'),
-      ),
-    ).toMatchObject({
-      releaseFormat: 'legacy-two-image-v1',
-      transition: 'first-four-image-cutover',
-      sourceSha: sha,
-      apiImage: legacy.apiImage,
-      webImage: legacy.webImage,
-    });
-    expect(
-      JSON.parse(
-        readFileSync(join(fixture.directory, 'previous-release.json'), 'utf8'),
-      ),
-    ).toEqual(current);
-
-    const commands = readFileSync(fixture.commandLog, 'utf8');
-    const checkoutIndex = commands.indexOf(`git checkout --detach ${sha}`);
-    const upIndex = commands.indexOf('up -d --remove-orphans --wait');
-    expect(checkoutIndex).toBeGreaterThan(-1);
-    expect(upIndex).toBeGreaterThan(checkoutIndex);
-    expect(commands).toContain(
-      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve api.example.test:443:127.0.0.1 https://api.example.test/health/ready',
-    );
-    expect(commands).toContain(
-      'curl --silent --show-error --max-time 10 --output /dev/null --write-out %{http_code} --resolve web.example.test:443:127.0.0.1 https://web.example.test/health',
-    );
-    expect(commands).not.toContain('https://processor.example.test/health');
-    expect(commands.match(/^docker image inspect /gm)).toHaveLength(2);
-  });
-
   it.each([
-    ['an unmarked two-image record', legacyMetadata({ marked: false })],
     [
-      'a mixed legacy and Worker record',
+      'an unsupported release format',
       {
-        ...legacyMetadata(),
-        workerImage: images.PRESSLY_WORKER_IMAGE,
+        ...fiveImageMetadata(),
+        releaseFormat: 'unsupported-release-v0',
+      },
+    ],
+    [
+      'a release with an unknown field',
+      {
+        ...fiveImageMetadata(),
+        extraImage: image('extra', 'f'),
       },
     ],
     [

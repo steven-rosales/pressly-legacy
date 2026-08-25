@@ -27,15 +27,17 @@ tasks:
     agent_can_verify: true
     deps: []
     reads:
-      - apps/api
-      - packages/http
+      - hosts/http
+      - platform/http
+      - topology/runtime/http
       - .github/workflows
-      - infra/aws/lightsail
+      - deploy/aws/lightsail
     writes:
-      - apps/api
-      - packages/http
+      - hosts/http
+      - platform/http
+      - topology/runtime/http
       - .github/workflows
-      - infra/aws/lightsail
+      - deploy/aws/lightsail
     action:
       - Implement ingress, deployment-selection, and service-env hardening.
     verifier:

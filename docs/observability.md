@@ -42,12 +42,15 @@ those recovery signals and infrastructure services.
 
 ## Signal contracts
 
-`@pressly/observability` is the deployment-neutral catalog for every metric's
-instrument, unit, and allowed attributes. API and Worker are separate Sentry
-interpreters of that catalog. Values outside a finite vocabulary become
-`other`; undeclared attributes are discarded. IDs, arbitrary URLs, SQL,
-parameters, payloads, customer data, and exception messages are never metric
-attributes.
+`@pressly/observability` owns the business-neutral descriptor algebra, generic
+runtime descriptors, and sink mechanisms. Production and Ingress own their
+metric descriptors. Topology composes and collision-checks those descriptors
+with every selected operation and job in `generated/observability-catalog.ts`,
+exported as `@pressly/generated/observability-catalog`. API and Worker are
+separate Sentry interpreters of that generated catalog. Values outside a finite
+vocabulary become `other`; undeclared attributes are discarded. IDs, arbitrary
+URLs, SQL, parameters, payloads, customer data, and exception messages are
+never metric attributes.
 
 Named Worker jobs create `worker.job` spans and record every busy or failed
 pass. Successful idle-pass metrics are sampled at most once per minute. Queue
@@ -105,7 +108,7 @@ cannot select notification recipients.
 - SSE: critical on `api.sse_feed_failures >= 1` in five minutes; warning when
   resyncs remain elevated for ten minutes.
 - Worker: use the exact Cron, backlog, retry, dead-letter, lease-loss, and loop
-  rules in `apps/worker/README.md`.
+  rules in `hosts/jobs/README.md`.
 - Deployment: alert immediately on an `error` check-in and after a 30-minute
   incomplete check-in; recover after one successful deployment. GitHub remains
   authoritative when Sentry delivery itself is unavailable.

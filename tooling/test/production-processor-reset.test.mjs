@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(import.meta.dirname, '../..');
 const resetPath = resolve(
   root,
-  'infra/aws/lightsail/reset-processor-operational-data.sql',
+  'deploy/aws/lightsail/reset-processor-operational-data.sql',
 );
 const resetSql = readFileSync(resetPath, 'utf8');
 

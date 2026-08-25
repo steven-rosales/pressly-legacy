@@ -1,0 +1,604 @@
+work_id: pressly-cellular-architecture-refactor
+title: Pressly cellular modular-monolith architecture refactor
+status: complete
+
+goal:
+  - Execute docs/plan/refactoring-cell.md and docs/plan/refactor-code-quality.md end to end as one behavior-preserving vertical migration.
+  - Make systems, cells, experiences, hosts, platform mechanisms, topology, generated artifacts, state ownership, and dependency direction explicit.
+  - Delete the superseded module architecture and custom enforcement only after every legacy owner has migrated and equivalent behavior is proven.
+
+invariants:
+  - Preserve public HTTP methods, paths, bodies, statuses, responses, cookies, CSRF, authentication, authorization, event contracts, and browser-visible behavior unless separately specified.
+  - Preserve all laundry-production invariants and keep Orders commercial truth separate from Production physical-floor truth.
+  - Preserve PostgreSQL transactions, locks, optimistic versions, idempotency, rollback, inbox/outbox delivery, leases, retries, dead letters, live revisions, and work-event semantics.
+  - Exactly one implementation is authoritative for each state-changing operation; never dual-write during migration.
+  - Use experiences as the canonical plural directory name and retain one topology authority.
+  - Access owns canonical business-account and location scope identity; Customers owns customer profiles; no system writes or queries a peer system's schema.
+  - Keep one ordered Drizzle migration ledger and runner for the shared PostgreSQL database throughout the refactor.
+  - Keep platform/kernel separate from platform/cells and keep business roles and capabilities out of platform/auth.
+  - Generated catalogs and clients are deterministic static artifacts with freshness checks; hosts contain no handwritten domain imports, routes, jobs, or branches.
+  - Preserve the five application image names, services, ports, health checks, Caddy topology, release-manifest fields, immutable digest flow, and process lifecycle semantics.
+  - Keep every checked-in Turbo entrypoint at concurrency two, Vitest unit paths at two workers, and database integration at one worker.
+  - Preserve unrelated user-owned working-tree changes and never treat prior Stateworks or SHA-bound deployment evidence as proof of this refactor.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: T0
+    title: Reconcile authority and establish the completion matrix
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo:docs/plan/refactoring-cell.md
+      - repo:docs/plan/refactor-code-quality.md
+      - repo:docs/architecture.md
+      - repo:docs/module-architecture.md
+      - repo:stateworks/memory/domains/steven-collaboration/context-pack.md
+      - repo:stateworks/memory/domains/laundry-production/context-pack.md
+      - repo:stateworks/work/active
+      - repo:stateworks/work/queued
+      - repo:apps
+      - repo:modules
+      - repo:packages
+      - repo:tooling
+    writes:
+      - repo:stateworks/work/active/pressly-cellular-architecture-refactor
+      - repo:docs/architecture.md
+      - repo:docs/module-architecture.md
+    action:
+      - Record every plan phase, invariant, named artifact, gate, and definition-of-done obligation in the evidence ledger.
+      - Reconcile the target vocabulary, business and location ownership, migration-ledger custody, generated dependency direction, and legacy-enforcement transition.
+      - Update normative architecture documents before new backend placement becomes authoritative.
+      - Record the exact dirty-worktree exclusions and baseline commit.
+    verifier:
+      - Stateworks network validation passes and the active state selects T0.
+      - The evidence matrix covers both plan documents without silently narrowing their scope.
+      - Normative architecture documents describe the migration state and do not create conflicting placement authority.
+    rollback:
+      - Revert only the new Stateworks item and normative-document changes; no runtime source is changed by T0.
+    secret_handling: none
+    status: committed
+
+  - id: T1
+    title: Freeze external and distributed behavior
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+    reads:
+      - repo:apps
+      - repo:modules
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:infra/aws/lightsail
+      - repo:.github/workflows
+    writes:
+      - repo:verification
+      - repo:verification/equivalence
+      - repo:systems/production
+      - repo:apps/api/test
+      - repo:packages/db/test
+    action:
+      - Characterize HTTP, authorization, validation ordering, contract, state delta, work event, live revision, idempotency, optimistic version, locking, rollback, and Processor-visible behavior for advance-stage.
+      - Add real-PostgreSQL race fixtures for same-version writes and same-key same/different-payload commands.
+      - Inventory and retain current Worker crash, lease, retry, dead-letter, outbox, inbox, and deployment behavior proofs.
+    verifier:
+      - Characterization covers success, expected failures, replay, idempotency conflict, version conflict, invalid transition, authorization denial, rollback, and concurrent attempts.
+      - Database-controlled semantics run against real PostgreSQL at one worker.
+      - No new route, event, table, state, or business transition is introduced.
+    rollback:
+      - Characterization tests are additive and can be removed without changing production behavior.
+    secret_handling: none
+    status: committed
+
+  - id: T2
+    title: Introduce cellular primitives topology catalogs and dual enforcement
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T0
+      - T1
+    reads:
+      - repo:tooling/architecture
+      - repo:eslint.config.mjs
+      - repo:package.json
+      - repo:pnpm-workspace.yaml
+      - repo:tsconfig.json
+      - repo:apps/api/Dockerfile
+      - repo:apps/worker/Dockerfile
+    writes:
+      - repo:platform/cells
+      - repo:packages/kernel
+      - repo:hosts
+      - repo:systems
+      - repo:experiences
+      - repo:topology
+      - repo:generated
+      - repo:verification/topology
+      - repo:dependency-cruiser.config.mjs
+      - repo:eslint.config.mjs
+      - repo:package.json
+      - repo:pnpm-lock.yaml
+      - repo:pnpm-workspace.yaml
+      - repo:tsconfig.json
+      - repo:apps/api/Dockerfile
+      - repo:apps/worker/Dockerfile
+    action:
+      - Add the minimal immutable cell and surface declaration algebra without a runtime service container.
+      - Add deployment topology, deterministic static HTTP and job catalogs, typed client generation, architecture explain output, duplicate identity checks, and freshness checks.
+      - Add dependency-cruiser and local boundary feedback for new directories while retaining the current compiler and ESLint enforcement for modules.
+      - Make workspace and container dependency discovery resilient before adding many new workspace packages.
+    verifier:
+      - Cell algebra and topology tests cover valid declarations, duplicate operation/route/event/job identities, and deterministic generation.
+      - Hosts compile with only platform and generated imports.
+      - Existing module architecture checks remain green beside the new checks.
+      - Catalog generation followed by freshness check produces no diff.
+    rollback:
+      - New hosts and catalogs remain inactive while existing API and Worker entrypoints stay authoritative.
+    secret_handling: none
+    status: committed
+
+  - id: T3
+    title: Migrate and cut over production advance-stage
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T1
+      - T2
+    reads:
+      - repo:modules/business/production/src/features/floor/advance-stage
+      - repo:modules/business/production/src/foundations/adapters/postgres/execution
+      - repo:apps/api/src/http/production
+      - repo:apps/processor/src/features/production-board
+      - repo:packages/contracts/src/production
+      - repo:packages/db/src/schema/laundry-production.schema.ts
+    writes:
+      - repo:systems/production/src/cells/floor/advance-stage
+      - repo:systems/production/src/model
+      - repo:experiences/processor/src/features/floor/advance-stage
+      - repo:topology
+      - repo:generated
+      - repo:apps/api
+      - repo:apps/processor
+      - repo:modules/business/production
+      - repo:verification/equivalence/src/production
+    action:
+      - Extract a deterministic decision from complete aggregate facts and make the legacy path call it before changing authority.
+      - Implement the inactive cell shell against current contracts and database semantics.
+      - Differentially compare canonical outcome, state delta, work events, idempotency receipt, live revision, signal, and protocol behavior.
+      - Cut over one existing composition binding to the cell, keep one writer, then delete the legacy advance-stage leaf and compatibility code.
+      - Move the Processor feature to its experience owner and generated client only after the write cutover is proven.
+    verifier:
+      - Both existing start and complete endpoints remain byte/protocol compatible.
+      - Real PostgreSQL proves concurrency, replay, conflict, work-event/live-revision uniqueness, and late-failure rollback.
+      - Architecture explain resolves production.advance-stage.v1 end to end.
+      - The legacy operation no longer exists after cutover.
+    rollback:
+      - Before legacy deletion, restore the single composition binding to the characterized legacy writer; never run both writers.
+    secret_handling: none
+    status: committed
+
+  - id: T4
+    title: Migrate Production and Processor as one operational cluster
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T3
+    reads:
+      - repo:modules/business/production
+      - repo:modules/experience/processor
+      - repo:apps/processor
+      - repo:apps/api/src/http/production
+    writes:
+      - repo:modules/business/production
+      - repo:modules/experience/processor
+      - repo:systems/production
+      - repo:experiences/processor
+      - repo:platform/cells
+      - repo:hosts/http
+      - repo:hosts/browser/processor
+      - repo:generated/clients/processor.ts
+      - repo:topology
+      - repo:apps/api
+      - repo:apps/processor
+      - repo:apps/cli
+      - repo:apps/worker/src/bootstrap/production-signals.adapter.ts
+      - repo:apps/worker/src/jobs/project-fulfillment-demand
+      - repo:verification/commands
+      - repo:verification/queries
+      - repo:verification/scheduling
+      - repo:packages/observability
+      - repo:package.json
+      - repo:pnpm-lock.yaml
+    action:
+      - Move Production commands, queries, scheduling, live change feed, schema source, and tests cell by cell.
+      - Move Processor cross-system workflows and presentation composition into the Processor experience and browser host.
+      - Replace handwritten URLs and DTOs with generated Processor clients while retaining server-authoritative policies.
+      - Delete each legacy leaf immediately after its single-authority cutover and proof.
+      - Prove but defer only the apply-fulfillment-demand and source-closed-resolution runtime bindings to T5, where the single Worker queue cutover can preserve one active consumer.
+      - Collapse the final legacy Production foundations to their observed owners: target system signal types, the apply leaf, or the app-owned Worker failure presenter.
+    verifier:
+      - Every Production operation meets the migrated-cell definition of done.
+      - Production and Processor unit, contract, PostgreSQL, flow, UI, and browser-smoke gates pass.
+      - No Production or Processor HTTP, CLI, query, scheduling, or live runtime behavior remains under legacy module/app ownership.
+      - The only retained Production legacy runtime bindings are apply-fulfillment-demand and source-closed-resolution, with accepted target parity and explicit T5 no-dual-consumer cutover ownership.
+    rollback:
+      - Roll back one not-yet-deleted leaf through its single composition binding; retain completed cell cutovers.
+    secret_handling: none
+    status: committed
+
+  - id: T5
+    title: Migrate ingress Orders reactions and generic jobs
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T2
+      - T4
+    reads:
+      - repo:modules/integration/webhook-ingestion
+      - repo:modules/business/orders
+      - repo:apps/worker
+      - repo:apps/api/src/http/webhooks
+    writes:
+      - repo:apps/worker
+      - repo:apps/api/package.json
+      - repo:apps/api/src/bootstrap
+      - repo:apps/api/src/http/webhooks
+      - repo:apps/api/src/http/webhook-ingestion
+      - repo:apps/api/test
+      - repo:apps/cli
+      - repo:modules/integration/webhook-ingestion
+      - repo:modules/business/orders
+      - repo:modules/business/production/module.architecture.ts
+      - repo:modules/business/production/package.json
+      - repo:modules/business/production/src/composition
+      - repo:modules/business/production/src/main.ts
+      - repo:modules/business/production/src/public.ts
+      - repo:modules/business/production/test
+      - repo:modules/business/production/src/features/demand/apply-fulfillment-demand
+      - repo:modules/business/production/src/features/demand/resolve-source-closed-fulfillment
+      - repo:systems/ingress
+      - repo:systems/orders
+      - repo:systems/production
+      - repo:hosts/jobs
+      - repo:platform/jobs
+      - repo:platform/cells
+      - repo:topology
+      - repo:generated/architecture-map.ts
+      - repo:generated/job-catalog.ts
+      - repo:generated/package.json
+      - repo:topology/package.json
+      - repo:verification/commands
+      - repo:verification/equivalence
+      - repo:verification/flows
+      - repo:verification/ingress
+      - repo:verification/orders-outbox
+      - repo:verification/topology
+      - repo:.github/workflows/ci.yml
+      - repo:tooling/test/ci-production-artifacts.test.mjs
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - repo:tooling/cents-webhook.postman_collection.json
+      - repo:tooling/scripts/run-integration-tests.sh
+      - repo:stateworks/work/active/lpms-production-readiness/brief.md
+      - repo:stateworks/work/active/lpms-production-readiness/network.yaml
+      - repo:stateworks/work/active/lpms-production-readiness/evidence.md
+      - repo:stateworks/work/active/pressly-control-workforce-identity/network.yaml
+      - repo:stateworks/work/active/pressly-control-workforce-identity/evidence.md
+      - repo:package.json
+      - repo:pnpm-lock.yaml
+      - repo:tsconfig.json
+    action:
+      - Move webhook receipt, quarantine, inbox lease, replay, and dead-letter ownership into Ingress cells.
+      - Move source translation under Ingress adapters and canonical candidate behavior into Orders cells.
+      - Move fulfillment-demand projection into Production reaction cells while preserving Orders outbox and Production idempotency.
+      - Preserve raw request verification and raw Orders-message translation as app-owned adapters while target cells own the resulting business decisions and effects.
+      - Reduce the jobs runtime to one process, one sequential poll loop, queue adapters, leasing, the existing process-progress heartbeat, backoff, cancellation, dead-letter, shutdown, and telemetry mechanisms.
+      - Propagate an exact cell-owned job failure presentation through the generated registration instead of adding a handwritten operation switch to the host.
+      - Preserve fail-open backlog and quarantine maintenance after each queue pass, per-source processing latency, and cooperative cancellation that never detaches a live database mutation.
+      - Keep raw Cents content-type, 256 KiB body, HMAC, normalization, optional encryption, durable ingest and quarantine-link ordering app-owned while an Ingress reaction owns claimed-event dispatch and downstream sequencing.
+      - Reconcile current executable paths and verifier commands in other active Stateworks packages to the new system/verifier authorities while preserving their dated historical evidence as historical fact.
+    verifier:
+      - Existing PostgreSQL inbox/outbox tables and at-least-once semantics remain compatible.
+      - Crash-before-acknowledgement, redelivery, lease expiry, retry, dead-letter, and idempotent projection tests pass.
+      - The jobs host has no handwritten Pressly business imports or branching.
+      - Exactly one generated registration and one active runtime handler exist for each queue throughout cutover; no second Worker process or dual consumer is introduced.
+      - The deployed eight-attempt policy is authoritative or startup rejects a conflicting runtime configuration.
+      - Webhook processing remains first, Orders outbox processing remains second, and the one process-progress heartbeat occurs only after the composite pass.
+      - Shutdown, timeout, and cancellation tests prove that a non-cooperative cell invocation settles before database resources close.
+    rollback:
+      - Cut over and roll back one job catalog binding at a time with only one active business handler.
+    secret_handling: none
+    status: committed
+
+  - id: T6
+    title: Migrate remaining systems experiences and hosts
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T5
+    reads:
+      - repo:modules/business
+      - repo:modules/security
+      - repo:modules/experience
+      - repo:apps
+      - repo:packages/auth
+    writes:
+      - repo:modules/business/orders
+      - repo:modules/business/pricing
+      - repo:modules/business/users
+      - repo:modules/security/authorization
+      - repo:modules/security/identity
+      - repo:modules/experience/control
+      - repo:modules/experience/processor
+      - repo:systems/orders
+      - repo:systems/customers
+      - repo:systems/access
+      - repo:systems/pricing
+      - repo:experiences/control
+      - repo:experiences/customer
+      - repo:experiences/processor
+      - repo:hosts/http
+      - repo:hosts/cli
+      - repo:hosts/browser
+      - repo:platform/auth
+      - repo:platform/cells
+      - repo:topology
+      - repo:generated
+      - repo:apps/api
+      - repo:apps/cli
+      - repo:apps/control
+      - repo:apps/processor
+      - repo:apps/web
+      - repo:apps/worker
+      - repo:packages/auth
+      - repo:verification
+      - repo:infra/aws/lightsail
+      - repo:tooling/browser-e2e
+      - repo:tooling/scripts
+      - repo:tooling/test
+      - repo:.github/workflows
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/active/pressly-control-workforce-identity
+      - repo:package.json
+      - repo:pnpm-workspace.yaml
+      - repo:pnpm-lock.yaml
+      - repo:tsconfig.json
+    action:
+      - Migrate Orders, Customers, Access, Control experience, Pricing, customer experience, CLI, HTTP host, and browser hosts in dependency-safe vertical slices.
+      - Preserve existing workspace package names until each old package is deleted, then update Turbo, CI, Compose, Dockerfiles, smoke tests, and release tooling atomically.
+      - Split credential mechanisms from Pressly access language and keep cross-system collaboration behind public versioned capabilities or messages.
+      - Add opaque generated HTTP boundary profiles for public, bearer, Processor-cookie, and Control-cookie authentication, parser phase, exact-origin/CSRF, content type, rate limits, no-store, context, and authorization without host domain switches.
+      - Add a generated CLI surface/catalog before moving commands to hosts/cli; preserve arguments, prompts, stdout/stderr, exit codes, and app-owned process effects.
+      - Migrate independent Orders operations first, then Customers, then Customer-dependent Orders; preserve proposal acceptance atomically through one narrow versioned Customers capability executed in the caller transaction rather than peer-schema access.
+      - Preserve current session realm, lifetime, audit atomicity, idempotency, and malformed-request ordering quirks unless a separately recorded security correction explicitly changes them; cellular relocation does not close pending Control human/product gates.
+      - Preserve the current absence of Stripe, payment, billing, and checkout authority and the documented DB-versus-Web pricing fallback mismatch; do not turn an architecture move into a product correction.
+      - Treat production_locations as a transitional composite until T7: Access owns canonical scope facts, Production owns live-revision meaning, and neither system may gain a peer-schema import.
+      - Build inactive candidate process/browser hosts, prove the complete five-image topology, then switch path-bound entrypoints once with no dual listener, poller, root, or CLI registry.
+      - Repoint the active LPMS and Control work packages to surviving system, Experience, host and verifier authorities without changing their task status, human gates or historical evidence.
+    verifier:
+      - Every remaining operation and experience meets its definition of done and uses generated protocol clients where applicable.
+      - All five images build with unchanged names, ports, health behavior, Caddy routing, and release manifest semantics.
+      - Generic hosts contain no handwritten domain-specific imports, routes, jobs, or branches.
+      - All generated Access-backed Control and Processor authentication and administration HTTP surfaces retain exact cookie, bearer, CSRF, origin, limit, rate, header, failure, and ordering behavior unless an accepted correction is named in evidence; generated catalogs are the current inventory.
+      - Customer-plus-Order acceptance, command receipts, outbox, audit, version and rollback behavior remain atomic without direct peer-schema imports.
+      - Chromium smoke and the complete five-image production-topology smoke pass before any process entrypoint switches.
+      - The separate active Control and LPMS work items have current source anchors but no pending live, vendor, pilot, or human gate is advanced by relocation alone.
+    rollback:
+      - Preserve image and service entrypoints until replacement hosts pass their full topology smoke; switch entrypoints atomically.
+    secret_handling: none
+    status: committed
+
+  - id: T7
+    title: Decentralize contract and schema source ownership
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T4
+      - T5
+      - T6
+    reads:
+      - repo:packages/contracts
+      - repo:packages/db/src/schema
+      - repo:packages/db/src/migrations
+      - repo:systems
+      - repo:experiences
+    writes:
+      - repo:systems
+      - repo:experiences
+      - repo:platform/codec
+      - repo:platform/postgres
+      - repo:generated
+      - repo:topology
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:dependency-cruiser.config.mjs
+      - repo:eslint.config.mjs
+      - repo:tooling
+      - repo:.github/workflows
+      - repo:infra/aws/lightsail
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/active/pressly-control-workforce-identity
+      - repo:package.json
+      - repo:pnpm-workspace.yaml
+      - repo:pnpm-lock.yaml
+      - repo:tsconfig.json
+    action:
+      - Move serialized contract source beside producer cells and consumer-safe public contract surfaces.
+      - Move table definition source to owning systems without allowing cross-system table access.
+      - Preserve one ordered historical migration ledger and runner, database compatibility, restore tooling, and migration verification.
+      - Remove compatibility exports only after all consumers use the new semantic owner directly.
+      - Keep the physical packages/db migration path and all 40 historical SQL files immutable; do not create a second ledger, runner, PostgreSQL schema, or migration path.
+      - Compose cross-owner foreign keys from system-owned schema factories at topology without weakening constraints or creating system-to-peer schema imports.
+      - Assign production_locations table source to Access while injecting a transaction-bound live-revision capability into Production so the existing work-event transaction remains atomic and no physical table split is introduced.
+      - Add ordered journal timestamp and SQL-byte SHA-256 verification for every database ledger row after fresh apply and restored-candidate verification.
+      - Keep the active LPMS and Control work packages source-current as contract and schema ownership paths move, without advancing their independent gates.
+    verifier:
+      - Central Contracts and DB packages no longer own Pressly business contract or schema source.
+      - Contract compatibility, migration ledger order, migration apply/restore, and cross-owner schema guards pass.
+      - No system imports a peer system's internals or schema.
+      - Exactly 59 tables and 8 enums have one source owner, every existing FK/index/check/action is unchanged, and Drizzle sees each object once.
+      - The historical journal remains version 7 with 40 entries, including the historical missing index 1, and every applied migration hash matches its checked-in SQL bytes.
+      - API-image migration, encrypted backup/restore, public+drizzle schema recovery, and candidate hash verification remain green.
+    rollback:
+      - Retain a compatibility export only while named consumers remain; never create a second migration runner or ledger.
+    secret_handling: none
+    status: committed
+
+  - id: T8
+    title: Delete the legacy architecture and custom compiler
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T7
+    reads:
+      - repo:apps
+      - repo:modules
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:tooling/architecture
+      - repo:tooling/test/architecture-boundaries.test.mjs
+      - repo:eslint.config.mjs
+    writes:
+      - repo:apps
+      - repo:modules
+      - repo:packages/contracts
+      - repo:packages/db
+      - repo:tooling
+      - repo:eslint.config.mjs
+      - repo:package.json
+      - repo:pnpm-lock.yaml
+      - repo:docs/architecture.md
+      - repo:docs/module-architecture.md
+      - repo:AGENTS.md
+      - repo:dependency-cruiser.config.mjs
+      - repo:pnpm-workspace.yaml
+      - repo:tsconfig.json
+      - repo:topology
+      - repo:generated
+      - repo:hosts
+      - repo:systems
+      - repo:experiences
+      - repo:infra/aws/lightsail
+      - repo:.github/workflows
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/active/pressly-control-workforce-identity
+    action:
+      - Delete legacy domain HTTP/job trees, modules, module manifests and surfaces, central business contract/schema authority, and superseded compiler implementation.
+      - Move still-relevant domain, deployment, throwable-ownership, mapper-purity, and explicit-surface assertions into owning topology, system, host, and lint tests.
+      - Make dependency-cruiser, boundary lint, TypeScript, and small topology tests the final architecture enforcement.
+      - Reconcile all normative documentation and agent guidance to the final architecture.
+      - Replace active LPMS and Control legacy source anchors with final surviving authorities while retaining historical evidence verbatim.
+    verifier:
+      - Searches find no runtime dependency on legacy module placement or compiler machinery.
+      - Architecture checks enforce cycles, legal directions, private cells, schema ownership, purity, uniqueness, and generated freshness.
+      - A normal feature needs only its cell, system registration, generation, and colocated tests.
+      - Final dependency and cycle enforcement covers every surviving app, host, system, experience, and platform package, including app cycles found during T6 audit.
+    rollback:
+      - Delete legacy sources only after the replacement owner and all consumers pass; use version control to restore a mistakenly removed non-runtime assertion.
+    secret_handling: none
+    status: committed
+
+  - id: V1
+    title: Prove repository behavior architecture and deployment parity
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - T8
+    reads:
+      - repo:apps
+      - repo:systems
+      - repo:experiences
+      - repo:hosts
+      - repo:platform
+      - repo:packages
+      - repo:topology
+      - repo:generated
+      - repo:verification
+      - repo:tooling
+      - repo:infra/aws/lightsail
+      - repo:.github/workflows
+      - repo:docker-compose.yml
+      - repo:dependency-cruiser.config.mjs
+      - repo:eslint.config.mjs
+      - repo:package.json
+      - repo:pnpm-lock.yaml
+    writes:
+      - repo:stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md
+    action:
+      - Run the full completion matrix, including architecture, lint, typecheck, tests, real-PostgreSQL integration, equivalence/conformance, cross-system flows, browser smoke, builds, generated freshness, migration verification, and production-topology smoke.
+      - Audit every explicit requirement in both plans against authoritative current evidence.
+      - Distinguish local repository proof from external deployment, vendor, and pilot proof.
+    verifier:
+      - pnpm install --offline --frozen-lockfile
+      - pnpm architecture:check
+      - pnpm lint:architecture
+      - pnpm lint
+      - pnpm typecheck
+      - VITEST_MAX_WORKERS=2 pnpm test
+      - pnpm build
+      - Run every system and cross-system PostgreSQL suite with explicit unique template0 databases, one worker, forced teardown, and absence readback.
+      - Run every permanent equivalence/conformance package and distributed crash/redelivery/lease/rollback flow.
+      - Run contract compatibility, generated freshness, migration ledger hash, fresh apply, N-1 upgrade, encrypted backup/restore, and production API-image migration proof.
+      - pnpm test:browser:smoke
+      - pnpm test:browser:e2e
+      - Build all five production Dockerfiles and run pnpm docker:production:smoke.
+      - Run release-manifest, CI artifact, deploy, rollback, Compose, Caddy, health, restore, and image-inspection tests.
+      - pnpm stateworks:validate stateworks/work/done/pressly-cellular-architecture-refactor/network.yaml
+      - pnpm stateworks:verify stateworks/work/done/pressly-cellular-architecture-refactor/network.yaml --state stateworks/work/done/pressly-cellular-architecture-refactor/state.yaml
+    rollback:
+      - Keep the work active and repair the failing owner; never weaken an invariant or narrow the completion claim to make closure pass.
+    secret_handling: none
+    status: committed
+
+  - id: T9
+    title: Close evidence and archive completed work
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps:
+      - V1
+    reads:
+      - repo:stateworks/work/done/pressly-cellular-architecture-refactor/evidence.md
+      - repo:docs/plan/refactoring-cell.md
+      - repo:docs/plan/refactor-code-quality.md
+    writes:
+      - repo:stateworks/work/done/pressly-cellular-architecture-refactor/state.yaml
+      - repo:stateworks/work/done/pressly-cellular-architecture-refactor/final-report.md
+      - repo:stateworks/work/done/pressly-cellular-architecture-refactor
+    action:
+      - Record requirement-by-requirement completion evidence, residual external limitations, and final architecture judgment.
+      - Move the complete Stateworks item from active to done only after every task is committed and verification has current evidence.
+    verifier:
+      - The completed network validates and verifies done with no stop reasons.
+      - The final report does not upgrade local proof into deployment, live-vendor, or pilot proof.
+    rollback:
+      - Keep the work active until every completion obligation has authoritative evidence.
+    secret_handling: none
+    status: committed

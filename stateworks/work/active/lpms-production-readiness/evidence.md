@@ -785,3 +785,74 @@ The Control `API-E` issue also remains open under
 `pressly-control-workforce-identity`: its focused projection repair has no
 recurrence, but no authenticated production Order-detail read has yet exercised
 the repaired path.
+
+## 2026-08-22 — Cellular successor-authority reconciliation
+
+The active cellular migration now provides the source successors for the
+deleted legacy business, Production, and webhook-ingestion packages:
+`systems/ingress` owns durable intake and claimed-event processing,
+`systems/customers` owns canonical customer profiles, `systems/orders` owns
+incoming-order intake plus canonical commercial, fulfillment-release, and
+outbox behavior, and `systems/production` owns canonical fulfillment-demand
+consumption and floor truth. `apps/worker` retains only process lifecycle and
+queue-adapter effects, while topology and generated catalogs own operation
+selection. Permanent target proof is split across `verification/customers`,
+`verification/orders`, `verification/ingress`,
+`verification/orders-outbox`, `verification/commands`,
+`verification/queries`, `verification/scheduling`, and `verification/flows`.
+
+The current commercial successor commands are
+`pnpm --filter @pressly/customers-system test:postgres`,
+`pnpm --filter @pressly/customers-verification test:postgres`,
+`pnpm --filter @pressly/orders-system test:postgres`, and
+`pnpm --filter @pressly/orders-verification test:postgres`. They replace
+future reliance on the deleted Users and Orders package suites; their presence
+here does not upgrade prior proof or close a readiness gate.
+
+The active network's executable paths and verifier commands now point to those
+successor authorities. Every earlier dated count, command, module path, and
+deployment observation above remains historical evidence of the repository at
+the time it was recorded. This reconciliation changes no task status, evidence
+array, human conclusion, deployment claim, readiness gate, or stop condition;
+the cellular work package still owns cutover and deletion proof.
+
+`pnpm stateworks:validate` and `pnpm stateworks:verify` both passed for this
+network after the pointer update. Verification still reports `done: no` and
+`human_action_required`, with H1 still the next ready human task.
+
+## 2026-08-22 — Access and Processor legacy-root deletion reconciliation
+
+The cellular migration deleted the superseded Identity, Authorization, and
+Processor Experience module roots after their target-only conformance passed.
+Current Access authentication, sessions, workforce state, scope queries, and
+authorization policy live under `systems/access`; Control/Processor protocol
+and projection behavior live under `experiences/control` and
+`experiences/processor`; permanent security proof lives under
+`verification/access`, `verification/access-experiences`, and
+`verification/auth`.
+
+The active network now points its authorization, session, Processor, target
+API, and verifier anchors to those successors. Every earlier dated legacy path
+and command above remains historical evidence from its recorded checkout. This
+pointer reconciliation changes no task status, dependency, evidence array,
+human action, deployment claim, or readiness conclusion.
+
+After this reconciliation, `pnpm stateworks:validate` and
+`pnpm stateworks:verify` both passed. Verification remains `done: no` with
+`human_action_required`, and H1 remains the next ready human task.
+
+## 2026-08-22 — Contract and schema owner-source reconciliation
+
+The cellular migration retired the central Contracts source and moved table
+definitions from DB into Access, Customers, Orders, Pricing, Production, and
+Ingress. Topology now composes the one physical Pressly schema; `packages/db`
+retains only the immutable migration ledger, runner, restore verification, and
+seeds. LPMS contract pointers now name Ingress and Production owner surfaces,
+and schema pointers name the topology composition rather than deleted central
+files.
+
+Earlier dated Contracts and DB-schema paths above remain historical evidence.
+This pointer reconciliation changes no task status, evidence array, vendor
+claim, deployment claim, human conclusion, or stop condition. Network
+validation and verification remain green; the work is still `done: no` and
+`human_action_required`, with H1 still the next ready human task.

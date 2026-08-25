@@ -1,0 +1,551 @@
+work_id: pressly-cellular-architecture-fidelity-completion
+title: Pressly cellular architecture fidelity completion
+status: done
+
+goal:
+  - Implement the exact repository and code-quality target in docs/plan/refactoring-cell.md and docs/plan/refactor-code-quality.md.
+  - Remove apps, packages, legacy, compatibility, and stale generated/build residue after verified replacement.
+  - Prove every operation through real owner-local code and behavior evidence rather than path-existence heuristics.
+
+invariants:
+  - Preserve external protocols, durable state semantics, distributed delivery behavior, authorization, and browser workflows.
+  - Preserve the protected Pricing catalog exactly while replacing the compatibility-era 40-file history with one clean immutable database epoch and one shared PostgreSQL topology, as authorized at H1.
+  - Preserve five production image and service identities while moving their source entrypoints into the final architecture.
+  - One independently observable operation owns one unique cell path.
+  - Applicable contracts, decisions, executors, persistence, and tests are operation-owned and locally traversable.
+  - No owner-level fallback or bare file reference may certify an operation-level behavioral obligation.
+  - Final source roots contain no apps, packages, modules, central business contract/schema authority, or retired compiler residue.
+  - Independent LPMS and Control work status and evidence remain unchanged.
+
+max_repair_attempts: 3
+stop_on:
+  - human_action_required
+  - destructive_change_required
+  - repeated_verifier_failure
+  - invariant_violation
+
+tasks:
+  - id: F0
+    title: Restore the original plans as the acceptance authority
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: []
+    reads:
+      - repo:docs/plan/refactoring-cell.md
+      - repo:docs/plan/refactor-code-quality.md
+      - repo:stateworks/work/done/pressly-cellular-architecture-refactor
+      - repo:apps
+      - repo:packages
+      - repo:platform
+      - repo:systems
+      - repo:experiences
+      - repo:hosts
+    writes:
+      - repo:stateworks/work/done/pressly-cellular-architecture-fidelity-completion
+    action:
+      - Record every literal target-tree, operation-locality, test-ownership, behavioral, deletion, and verification obligation.
+      - Inventory exact deviations without treating rewritten living docs or prior green gates as completion authority.
+      - Freeze current protocols, migration hashes, workspace graph, operation inventory, and independent-work status.
+    verifier:
+      - The corrective network validates and selects only F0.
+      - Evidence lists every apps, packages, multi-operation-cell, test, DoD, deployment, and residue delta.
+    rollback:
+      - Remove only this unreferenced corrective work item before implementation begins.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f0---restore-the-original-plans-as-the-acceptance-authority
+
+  - id: F1
+    title: Consolidate all generic mechanisms under platform and eliminate packages
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [F0]
+    reads:
+      - repo:packages
+      - repo:platform
+      - repo:pnpm-lock.yaml
+      - repo:tsconfig.json
+    writes:
+      - repo:platform
+      - repo:pnpm-lock.yaml
+      - repo:tsconfig.json
+      - repo:pnpm-workspace.yaml
+      - repo:tooling
+    action:
+      - Move config, Errors, HTTP, logging, money, observability, testing, time, PostgreSQL ledger custody, and remaining neutral primitives into their target platform owners.
+      - Preserve public package names temporarily only during atomic consumer cutover, then remove every packages workspace and path.
+      - Preserve all migration bytes and ordered ledger identities.
+    verifier:
+      - Platform package gates and every consumer pass.
+      - packages is absent and no manifest, lock importer, symlink, source import, Dockerfile, CI, or documentation reference requires it.
+      - Migration hashes and Drizzle no-diff proof remain exact.
+    rollback:
+      - Move one mechanism family at a time and retain version-control recovery until its consumers pass.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f1---consolidate-generic-mechanisms-and-eliminate-packages
+
+  - id: F2
+    title: Move backend processes into hosts and topology and eliminate backend apps
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [F1]
+    reads:
+      - repo:apps/api
+      - repo:apps/worker
+      - repo:apps/cli
+      - repo:hosts
+      - repo:topology
+      - repo:generated
+    writes:
+      - repo:hosts
+      - repo:topology
+      - repo:generated
+      - repo:deploy
+      - repo:tooling
+      - repo:.github/workflows
+    action:
+      - Move API, Worker, and CLI process lifecycle/composition into their generic hosts and topology-owned deployment composition.
+      - Remove remaining domain HTTP/job code and delete backend app source roots after entrypoint cutover.
+      - Preserve image names, services, ports, health, signals, queues, cookies, CSRF, release, and rollback behavior.
+    verifier:
+      - HTTP/jobs/CLI hosts remain business-neutral and all generated catalogs execute.
+      - API, Worker, and CLI images and integration/runtime tests pass without apps source.
+    rollback:
+      - Cut over one process entrypoint at a time and keep the prior image source recoverable until smoke passes.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f2---move-backend-processes-into-hosts-and-topology
+
+  - id: F3
+    title: Move browser applications into Experiences and browser hosts and eliminate frontend apps
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [F2]
+    reads:
+      - repo:apps/control
+      - repo:apps/processor
+      - repo:apps/web
+      - repo:experiences
+      - repo:hosts/browser
+    writes:
+      - repo:experiences
+      - repo:hosts/browser
+      - repo:generated
+      - repo:deploy
+      - repo:tooling/browser-e2e
+    action:
+      - Move feature state, views, hooks, and tests beside their owning Experience features.
+      - Keep browser startup and framework lifecycle in generic browser hosts.
+      - Delete Control, Processor, and Web app roots after image and browser cutover.
+    verifier:
+      - Browser hosts contain no business policy and Experiences contain no process lifecycle.
+      - Component, browser smoke, full E2E, responsive, session, conflict, and reconnect proofs pass.
+    rollback:
+      - Move one browser application at a time and preserve its production image contract.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f3---move-browser-applications-into-experiences-and-browser-hosts
+
+  - id: F4
+    title: Make Access Customers and Pricing operations literal cells with local proof
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [F1]
+    reads:
+      - repo:systems/access
+      - repo:systems/customers
+      - repo:systems/pricing
+    writes:
+      - repo:systems/access
+      - repo:systems/customers
+      - repo:systems/pricing
+      - repo:verification/access
+      - repo:verification/customers
+      - repo:verification/pricing
+    action:
+      - Split multi-operation and relabeled legacy files into unique verb-object cells.
+      - Colocate every applicable contract, decision, executor, persistence adapter, unit test, contract test, and PostgreSQL test.
+      - Retain only genuinely shared owner language with source-observed multi-cell use.
+    verifier:
+      - One operation maps to one cell path and all applicable per-operation scenario obligations pass.
+    rollback:
+      - Migrate and verify one owner at a time without dual writers.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f4---make-access-customers-and-pricing-operations-literal-cells
+
+  - id: F5
+    title: Make Ingress and Orders operations literal cells with local proof
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [F1]
+    reads:
+      - repo:systems/ingress
+      - repo:systems/orders
+    writes:
+      - repo:systems/ingress
+      - repo:systems/orders
+      - repo:verification/ingress
+      - repo:verification/orders
+      - repo:verification/orders-outbox
+      - repo:verification/flows
+    action:
+      - Split every shared declaration/executor into exact cells and colocate operation-owned code and tests.
+      - Preserve inbox/outbox, lease, retry, dead-letter, idempotency, and cross-system flow semantics.
+    verifier:
+      - One operation maps to one cell path; all write cells have real PostgreSQL replay, race, rollback, and failure proof.
+    rollback:
+      - Preserve one authority and migrate one operation cluster at a time.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f5---make-ingress-and-orders-operations-literal-cells
+
+  - id: F6
+    title: Finish Production and Experience operation locality and proof
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [F3, F4, F5]
+    reads:
+      - repo:systems/production
+      - repo:experiences
+    writes:
+      - repo:systems/production
+      - repo:experiences
+      - repo:verification/commands
+      - repo:verification/queries
+      - repo:verification/scheduling
+      - repo:verification/flows
+    action:
+      - Remove remaining multi-operation sources and nonlocal operation tests.
+      - Colocate Experience state/component proof and every applicable Production decision, executor, contract, persistence, and PostgreSQL scenario.
+    verifier:
+      - Every selected system and Experience operation has one unique path and complete applicable proof.
+    rollback:
+      - Preserve canonical behavior matrices while moving one cluster at a time.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f6---finish-production-and-experience-operation-locality
+
+  - id: F7
+    title: Replace heuristic definition-of-done with semantic operation evidence
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [F4, F5, F6]
+    reads:
+      - repo:topology
+      - repo:generated
+      - repo:verification/topology
+    writes:
+      - repo:topology
+      - repo:generated
+      - repo:verification/topology
+      - repo:dependency-cruiser.config.mjs
+      - repo:eslint.config.mjs
+    action:
+      - Delete owner-level fallback and bare-reference completion heuristics.
+      - Require named per-operation scenario evidence for every applicable DoD obligation.
+      - Fail on shared cell paths, missing local contracts/executors/tests, unproven PostgreSQL semantics, and unjustified not-applicable claims.
+    verifier:
+      - The semantic index proves every operation and fails focused negative fixtures for each obligation class.
+    rollback:
+      - Keep the old verifier only until the new one fails on known current gaps and passes after their repair, then delete it.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f7---replace-heuristic-definition-of-done-with-semantic-evidence
+
+  - id: F8
+    title: Delete all residue and reconcile the sole final architecture
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [F2, F3, F7]
+    reads:
+      - repo:.
+    writes:
+      - repo:pnpm-workspace.yaml
+      - repo:pnpm-lock.yaml
+      - repo:tsconfig.json
+      - repo:docs
+      - repo:AGENTS.md
+      - repo:deploy
+      - repo:tooling
+      - repo:.github/workflows
+      - repo:stateworks/work/active/lpms-production-readiness
+      - repo:stateworks/work/active/pressly-control-workforce-identity
+    action:
+      - Delete apps, packages, compatibility surfaces, obsolete aliases, stale outputs, broken symlinks, old path references, and superseded tests/tooling.
+      - Reconcile living documentation and active-work source pointers without rewriting historical evidence or advancing independent gates.
+    verifier:
+      - Exact target-tree audit has zero forbidden roots or references and all surviving paths have one current owner.
+    rollback:
+      - Delete only after replacement gates pass; use version control for mistaken removals.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#f8---delete-source-residue-and-reconcile-the-final-tree
+
+  - id: H1
+    title: Choose the disposition of four protected-plan contradictions
+    type: human_gate
+    owner: human
+    surface: repo
+    agent_can_verify: false
+    deps: [F8]
+    reads:
+      - repo:docs/plan/refactoring-cell.md
+      - repo:docs/plan/refactor-code-quality.md
+      - repo:systems/orders/src/cells/intake/accept-incoming-order-proposal/postgres.ts
+      - repo:systems/customers/src/contracts/canonical-order-customer-read-v1.ts
+      - repo:systems/production/src/cells/resources/manage-resources/postgres.ts
+      - repo:systems/access/src/assembly/production-capabilities.ts
+      - repo:platform/postgres/migrations/0017_production_live_revisions.sql
+    writes:
+      - repo:stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md
+      - repo:stateworks/work/done/pressly-cellular-architecture-fidelity-completion/human-actions.md
+    human_instructions:
+      - Choose whether to preserve current behavior and the immutable ledger by accepting the four named bounded deviations, or authorize a redesign that changes ownership, transaction, query, or migration behavior to satisfy the protected plans literally.
+      - Record the choice explicitly; general implementation authorization is not approval of a protected-plan exception.
+    expected_external_state:
+      - One explicit decision identifies the accepted boundary and its consequences for V1.
+    verifier:
+      - Evidence cites the exact human decision and does not describe a deviation as literal plan fidelity.
+      - If literal redesign is selected, all affected PostgreSQL, conformance, browser, restore, and five-image gates rerun on the replacement behavior.
+    rollback:
+      - Leave V1 and T9 pending and keep this work item active until the decision is explicit and its selected verification is complete.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#h1---four-protected-plan-contradictions
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/human-actions.md#h1---protected-plan-boundary-decision
+
+  - id: V1
+    title: Prove exact plan fidelity behavior and deployment parity
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [O2E]
+    reads:
+      - repo:.
+    writes:
+      - repo:stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md
+    action:
+      - Audit every original-plan requirement against current source and semantic evidence.
+      - Run complete static, unit, PostgreSQL, browser, restore, and five-image matrices on frozen final source with exact teardown readback.
+    verifier:
+      - Original target tree and all operation-level DoD obligations are literally satisfied.
+      - All required commands pass with no forbidden residue or temporary resources.
+    rollback:
+      - Keep the work active and repair the failing owner; never weaken the plan or verifier to obtain green.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#v1---prove-exact-plan-fidelity-behavior-and-deployment-parity
+
+  - id: O2A
+    title: Remove Orders and Customers cross-System database seams
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [H1]
+    reads:
+      - repo:systems/orders
+      - repo:systems/customers
+      - repo:experiences/processor
+      - repo:topology
+      - repo:verification/orders
+      - repo:verification/customers
+    writes:
+      - repo:systems/orders
+      - repo:systems/customers
+      - repo:experiences/processor
+      - repo:topology
+      - repo:verification/orders
+      - repo:verification/customers
+    action:
+      - Replace caller-owned Customer transactions with owner-executed declarative capabilities and explicit retryable coordination.
+      - Replace Customer SQL-plan composition inside Orders with data-only owner queries and declarative cross-System read composition.
+      - Delete every Postgres-bearing peer contract and preserve typed HTTP behavior except for newly explicit partial-state semantics.
+    verifier:
+      - Orders imports no Customer Postgres type, SQL value, schema, relation, transaction, or persistence implementation.
+      - Owner-local and cross-System tests prove replay, races, partial failure, retry, search, pagination, and projection or fan-out behavior.
+    rollback:
+      - Keep one authoritative write path and delete the old seam only after the replacement scenarios pass.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#o2a---remove-orders-and-customers-cross-system-database-seams
+
+  - id: O2B
+    title: Remove Production and Access cross-System database seams
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [H1]
+    reads:
+      - repo:systems/access
+      - repo:systems/production
+      - repo:experiences/control
+      - repo:topology
+      - repo:verification/commands
+      - repo:verification/queries
+    writes:
+      - repo:systems/access
+      - repo:systems/production
+      - repo:experiences/control
+      - repo:topology
+      - repo:verification/commands
+      - repo:verification/queries
+    action:
+      - Make Access location reconciliation an owner-local declarative command coordinated by the existing Control bootstrap cell.
+      - Give Production an owner-local location projection and live revision updated atomically with Production work events.
+      - Delete the caller-owned reconciliation bridge and every Access-owned live-revision dependency.
+    verifier:
+      - Production reads and writes no Access table or transaction and Access reads and writes no Production table or transaction.
+      - Bootstrap, work-event revision, SSE invalidation, replay, concurrency, and failure recovery pass with owner-local PostgreSQL proof.
+    rollback:
+      - Cut over the declarative Control workflow only after Access and Production owner-local commands pass independently.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#o2b---remove-production-and-access-cross-system-database-seams
+
+  - id: O2C
+    title: Replace the database history with one clean Pricing-preserving baseline
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [O2A, O2B]
+    reads:
+      - repo:platform/postgres/migrations
+      - repo:systems/pricing
+      - repo:topology/pressly-postgres-schema.ts
+      - repo:verification/migrations
+      - repo:deploy
+    writes:
+      - repo:platform/postgres/migrations
+      - repo:platform/postgres/src/migration-ledger.ts
+      - repo:verification/migrations
+      - repo:deploy
+      - repo:tooling/postgres
+    action:
+      - Replace compatibility-era non-Pricing migration history with a clean generated baseline for the final owner schema.
+      - Preserve Pricing schema, seed values, public catalog contracts, and Web-visible values exactly.
+      - Remove upgrade-only and historical repair machinery that has no pre-user compatibility purpose.
+    verifier:
+      - Fresh migration and destructive local reset compose the exact final schema and seed the exact Pricing catalog.
+      - Migration, role, restore, and schema-diff proof pass without historical compatibility branches.
+    rollback:
+      - Preserve the pre-replacement migration tree recoverably outside the repository until the final proof passes.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#o2c---replace-the-database-history-with-one-clean-pricing-preserving-baseline
+
+  - id: O2D
+    title: Delete boundary exceptions and enforce literal database ownership
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [O2C]
+    reads:
+      - repo:systems
+      - repo:experiences
+      - repo:topology
+      - repo:verification/topology
+      - repo:tooling
+    writes:
+      - repo:systems
+      - repo:experiences
+      - repo:topology
+      - repo:verification/topology
+      - repo:tooling
+    action:
+      - Delete every exception contract, bridge, test, alias, stale schema field, and generated reference.
+      - Replace exception-presence tests with negative gates rejecting peer transactions, SQL composition, schema access, and writes.
+    verifier:
+      - Architecture and lint gates contain no allowlist for the four retired seams and focused negative fixtures fail each forbidden pattern.
+      - Exact source and dependency audits report zero boundary or compatibility residue.
+    rollback:
+      - Repair the declarative owner operation rather than weakening an enforcement rule.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#o2d---delete-boundary-exceptions-and-enforce-literal-database-ownership
+
+  - id: O2E
+    title: Prove the clean topology through Docker endpoints and Chromium
+    type: verification
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [O2D]
+    reads:
+      - repo:.
+    writes:
+      - repo:stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md
+    action:
+      - Run the complete static, unit, PostgreSQL, migration, restore, and endpoint matrices on frozen source.
+      - Compose all five Docker images, seed representative data, and use Chromium to exercise authenticated Control and Processor workflows plus public Web and remaining endpoints.
+      - Tear down disposable resources and remove every generated output before V1.
+    verifier:
+      - Control and Processor render and mutate authoritative seeded state correctly through Caddy-only ingress.
+      - API, Worker, Web, health, authentication, CSRF, Pricing, Orders, Production, and recovery paths pass with exact teardown and zero residue.
+    rollback:
+      - Keep the work active and repair the owning cell, schema, topology, or harness; never weaken the browser or endpoint proof.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#o2e---prove-the-clean-topology-through-docker-endpoints-and-chromium
+
+  - id: T9
+    title: Report and archive exact completion
+    type: primitive
+    owner: agent
+    surface: repo
+    agent_can_verify: true
+    deps: [V1]
+    reads:
+      - repo:stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md
+    writes:
+      - repo:stateworks/work/done/pressly-cellular-architecture-fidelity-completion
+    action:
+      - Write the requirement-by-requirement final report and archive only after literal plan fidelity and current proof are complete.
+    verifier:
+      - Completed Stateworks verifies done with no stop reasons or ready tasks.
+    rollback:
+      - Keep active until every obligation has authoritative proof.
+    secret_handling: none
+    status: committed
+    evidence:
+      - stateworks/work/done/pressly-cellular-architecture-fidelity-completion/evidence.md#t9---report-and-archive-exact-completion

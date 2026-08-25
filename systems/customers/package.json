@@ -1,0 +1,87 @@
+{
+  "name": "@pressly/customers-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/public.js",
+  "types": "./dist/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./capabilities/resolve-exact-source-customer-v1": {
+      "types": "./dist/contracts/resolve-exact-source-customer-v1.d.ts",
+      "import": "./dist/contracts/resolve-exact-source-customer-v1.js",
+      "default": "./dist/contracts/resolve-exact-source-customer-v1.js"
+    },
+    "./capabilities/customer-reference-v1": {
+      "types": "./dist/contracts/customer-reference-v1.d.ts",
+      "import": "./dist/contracts/customer-reference-v1.js",
+      "default": "./dist/contracts/customer-reference-v1.js"
+    },
+    "./capabilities/customer-management-v1": {
+      "types": "./dist/contracts/customer-management-v1.d.ts",
+      "import": "./dist/contracts/customer-management-v1.js",
+      "default": "./dist/contracts/customer-management-v1.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/public.d.ts",
+      "import": "./dist/schema/public.js",
+      "default": "./dist/schema/public.js"
+    },
+    "./operations/profiles/create-customer/types": {
+      "types": "./dist/cells/profiles/create-customer/types.d.ts",
+      "import": "./dist/cells/profiles/create-customer/types.js",
+      "default": "./dist/cells/profiles/create-customer/types.js"
+    },
+    "./operations/profiles/get-customer/types": {
+      "types": "./dist/cells/profiles/get-customer/types.d.ts",
+      "import": "./dist/cells/profiles/get-customer/types.js",
+      "default": "./dist/cells/profiles/get-customer/types.js"
+    },
+    "./operations/profiles/list-customers/types": {
+      "types": "./dist/cells/profiles/list-customers/types.d.ts",
+      "import": "./dist/cells/profiles/list-customers/types.js",
+      "default": "./dist/cells/profiles/list-customers/types.js"
+    },
+    "./operations/profiles/update-customer/types": {
+      "types": "./dist/cells/profiles/update-customer/types.d.ts",
+      "import": "./dist/cells/profiles/update-customer/types.js",
+      "default": "./dist/cells/profiles/update-customer/types.js"
+    },
+    "./operations/sources/resolve-exact-source-customer/types": {
+      "types": "./dist/cells/sources/resolve-exact-source-customer/types.d.ts",
+      "import": "./dist/cells/sources/resolve-exact-source-customer/types.js",
+      "default": "./dist/cells/sources/resolve-exact-source-customer/types.js"
+    },
+    "./testing/assembly": {
+      "types": "./dist/system.d.ts",
+      "import": "./dist/system.js",
+      "default": "./dist/system.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint src --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run src --exclude '**/*.int.spec.ts'",
+    "test:postgres": "VITEST_MAX_WORKERS=1 vitest run --config vitest.postgres.config.ts --no-file-parallelism"
+  },
+  "dependencies": {
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@pressly/testkit": "workspace:*",
+    "@types/node": "^25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

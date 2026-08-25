@@ -1,12 +1,21 @@
 import js from '@eslint/js';
 import nextPlugin from '@next/eslint-plugin-next';
-import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import prettier from 'eslint-config-prettier';
+import boundaries from 'eslint-plugin-boundaries';
 import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
-import { makeArchitectureEslintPlugin } from './tooling/architecture/architecture-eslint.plugin.ts';
-import { presslyRepositoryRoot } from './tooling/architecture/architecture-discovery.ts';
-import { presslyModuleArchitecture } from './tooling/architecture/pressly-module-architecture.ts';
+import {
+  aggregatePackageRootDynamicSyntax,
+  aggregatePackageRootRestrictions,
+  entityLanguageSyntax,
+  expectedFailureImportRestrictions,
+  expectedFailureSyntax,
+  makePresslyLanguagePlugin,
+  nativeThrowableSyntax,
+  pureDecisionImportRestrictions,
+  pureDecisionSyntax,
+} from './tooling/eslint/pressly-language-rules.mjs';
 
 const commonGlobals = {
   AbortController: 'readonly',
@@ -43,6 +52,13 @@ const testGlobals = {
   test: 'readonly',
 };
 
+const aggregateBusinessOwnerRootPattern = {
+  regex:
+    '^@pressly/(?:(?:access|customers|ingress|orders|pricing|production)-system|experience-(?:control|customer|processor))$',
+  message:
+    'Import an exact owner operation, contract, capability, assembly, or testing subpath instead of the aggregate business-owner root.',
+};
+
 const restrictedFileNameRule = (message) => ({
   'no-restricted-syntax': [
     'error',
@@ -53,434 +69,11 @@ const restrictedFileNameRule = (message) => ({
   ],
 });
 
-const moduleGroupExpression = presslyModuleArchitecture.groupNames.join('|');
-const moduleOwnerRootPattern = new RegExp(
-  `^(.*\\/modules\\/(?:${moduleGroupExpression})\\/[^/]+)\\/src(?:\\/|$)`,
-);
+const repositoryRoot = fileURLToPath(new URL('.', import.meta.url));
 
-const modulePackageNames = new Set(
-  presslyModuleArchitecture.modulePackageNames,
-);
-
-const moduleArchitectureV2Plugin = makeArchitectureEslintPlugin({
-  architecture: presslyModuleArchitecture,
-  repositoryRoot: presslyRepositoryRoot,
+export const presslyLanguagePlugin = makePresslyLanguagePlugin({
+  repositoryRoot,
 });
-
-const isPathInside = (candidate, owner) =>
-  candidate === owner || candidate.startsWith(`${owner}/`);
-
-const importSpecifier = (node) => {
-  const specifier = node.source?.value;
-
-  return typeof specifier === 'string' ? specifier : undefined;
-};
-
-const importVisitors = (checkImport) => ({
-  ImportDeclaration: checkImport,
-  ImportExpression: checkImport,
-  ExportAllDeclaration: checkImport,
-  ExportNamedDeclaration: checkImport,
-});
-
-export const architecturePlugin = {
-  rules: {
-    ...moduleArchitectureV2Plugin.rules,
-    'explicit-package-boundaries': {
-      meta: {
-        type: 'problem',
-        docs: {
-          description:
-            'Require explicit Contracts, DB, and Errors package subpaths at every dependency boundary.',
-        },
-        schema: [],
-        messages: {
-          packageRoot:
-            'Import "{{target}}" through an explicit public subpath; its package root is intentionally not exported.',
-        },
-      },
-      create(context) {
-        const forbiddenRoots = new Set([
-          '@pressly/contracts',
-          '@pressly/db',
-          '@pressly/errors',
-        ]);
-        const checkImport = (node) => {
-          const specifier = importSpecifier(node);
-
-          if (specifier === undefined || !forbiddenRoots.has(specifier)) return;
-
-          context.report({
-            node,
-            messageId: 'packageRoot',
-            data: { target: specifier },
-          });
-        };
-
-        return importVisitors(checkImport);
-      },
-    },
-    'module-isolation': {
-      meta: {
-        type: 'problem',
-        docs: {
-          description:
-            'Keep modules isolated peers; only application composition roots may connect them.',
-        },
-        schema: [],
-        messages: {
-          moduleDependency:
-            'Module source cannot import sibling module package "{{target}}". Inject its public application surface from an app composition root.',
-          outsideModule:
-            'Module source cannot import another module by relative path. Inject its public application surface from an app composition root.',
-        },
-      },
-      create(context) {
-        const filename = path
-          .resolve(context.filename)
-          .replaceAll(path.sep, '/');
-        const match = filename.match(moduleOwnerRootPattern);
-
-        if (match === null) return {};
-
-        const ownerRoot = match[1];
-        const checkImport = (node) => {
-          const specifier = importSpecifier(node);
-
-          if (specifier === undefined) return;
-
-          const moduleDependency = [...modulePackageNames].find(
-            (name) => specifier === name || specifier.startsWith(`${name}/`),
-          );
-
-          if (moduleDependency !== undefined) {
-            context.report({
-              node,
-              messageId: 'moduleDependency',
-              data: { target: moduleDependency },
-            });
-            return;
-          }
-
-          if (!specifier.startsWith('.')) return;
-
-          const target = path
-            .resolve(path.dirname(filename), specifier)
-            .replaceAll(path.sep, '/');
-
-          if (!isPathInside(target, ownerRoot))
-            context.report({ node, messageId: 'outsideModule' });
-        };
-
-        return importVisitors(checkImport);
-      },
-    },
-
-    'web-zone-imports': {
-      meta: {
-        type: 'problem',
-        docs: {
-          description:
-            'Enforce dependency direction between web routes, features, UI primitives, and technical infrastructure.',
-        },
-        schema: [],
-        messages: {
-          zoneDependency: '{{reason}} Imported web path: "{{target}}".',
-        },
-      },
-      create(context) {
-        const filename = path.resolve(context.filename);
-        const normalizedFilename = filename.replaceAll(path.sep, '/');
-        const webSrcMarker = '/apps/web/src/';
-        const webSrcIndex = normalizedFilename.indexOf(webSrcMarker);
-
-        if (webSrcIndex === -1) return {};
-
-        const webSrcRoot = normalizedFilename
-          .slice(0, webSrcIndex + webSrcMarker.length)
-          .replace(/\/$/, '');
-        const sourceRelative = normalizedFilename.slice(webSrcRoot.length + 1);
-        const sourceName = path.basename(normalizedFilename);
-        const isFeatureServer = /^(?:server|.+\.server)\.[jt]sx?$/.test(
-          sourceName,
-        );
-        const inZone = (relativePath, zone) =>
-          relativePath === zone || relativePath.startsWith(`${zone}/`);
-
-        const checkImport = (node) => {
-          const specifier = importSpecifier(node);
-
-          if (specifier === undefined) return;
-
-          let target;
-
-          if (specifier.startsWith('@/'))
-            target = path.resolve(webSrcRoot, specifier.slice(2));
-          else if (specifier.startsWith('.'))
-            target = path.resolve(path.dirname(filename), specifier);
-          else return;
-
-          const normalizedTarget = target.replaceAll(path.sep, '/');
-
-          if (!isPathInside(normalizedTarget, webSrcRoot)) return;
-
-          const targetRelative = normalizedTarget.slice(webSrcRoot.length + 1);
-          let reason;
-
-          if (inZone(sourceRelative, 'common/core')) {
-            if (
-              inZone(targetRelative, 'app') ||
-              inZone(targetRelative, 'features') ||
-              inZone(targetRelative, 'common/adapters')
-            )
-              reason =
-                'Web core cannot import routes, product features, or concrete adapters.';
-          } else if (inZone(sourceRelative, 'common/adapters')) {
-            if (
-              inZone(targetRelative, 'app') ||
-              inZone(targetRelative, 'features')
-            )
-              reason =
-                'Concrete web adapters cannot import routes or product features.';
-          } else if (inZone(sourceRelative, 'common')) {
-            if (
-              inZone(targetRelative, 'app') ||
-              inZone(targetRelative, 'features')
-            )
-              reason =
-                'Web common code cannot import routes or product features.';
-          } else if (inZone(sourceRelative, 'features')) {
-            if (inZone(targetRelative, 'app'))
-              reason = 'Product features cannot import the Next route tree.';
-            else if (
-              !isFeatureServer &&
-              inZone(targetRelative, 'common/adapters')
-            )
-              reason =
-                'Product feature logic cannot select concrete adapters. Compose them in server.ts or the route boundary.';
-          } else if (inZone(sourceRelative, 'components/ui')) {
-            const targetWithoutExtension = targetRelative.replace(
-              /\.[jt]sx?$/,
-              '',
-            );
-
-            if (
-              !inZone(targetWithoutExtension, 'components/ui') &&
-              targetWithoutExtension !== 'styles/utils'
-            )
-              reason =
-                'UI primitives may only import other UI primitives or the shared style utility.';
-          } else if (inZone(sourceRelative, 'config')) {
-            if (
-              inZone(targetRelative, 'app') ||
-              inZone(targetRelative, 'features') ||
-              inZone(targetRelative, 'common/adapters')
-            )
-              reason =
-                'Static web configuration cannot depend on routes, product behavior, or concrete adapters.';
-          }
-
-          if (reason !== undefined)
-            context.report({
-              node,
-              messageId: 'zoneDependency',
-              data: { reason, target: targetRelative },
-            });
-        };
-
-        return importVisitors(checkImport);
-      },
-    },
-
-    'web-private-route-imports': {
-      meta: {
-        type: 'problem',
-        docs: {
-          description:
-            'Keep Next private route folders inside the route subtree that owns them.',
-        },
-        schema: [],
-        messages: {
-          privateRoute:
-            'Private route code may only be imported from inside its owning route subtree.',
-        },
-      },
-      create(context) {
-        const filename = path.resolve(context.filename);
-        const normalizedFilename = filename.replaceAll(path.sep, '/');
-        const appMarker = '/apps/web/src/app/';
-        const appIndex = normalizedFilename.indexOf(appMarker);
-        const webSrcRoot =
-          appIndex === -1
-            ? normalizedFilename.slice(
-                0,
-                normalizedFilename.indexOf('/apps/web/src/') +
-                  '/apps/web/src/'.length,
-              )
-            : normalizedFilename.slice(0, appIndex + '/apps/web/src/'.length);
-
-        const checkImport = (node) => {
-          const specifier = importSpecifier(node);
-
-          if (specifier === undefined) return;
-
-          let target;
-
-          if (specifier.startsWith('@/'))
-            target = path.resolve(webSrcRoot, specifier.slice(2));
-          else if (specifier.startsWith('.'))
-            target = path.resolve(path.dirname(filename), specifier);
-          else return;
-
-          const normalizedTarget = target.replaceAll(path.sep, '/');
-          const targetAppIndex = normalizedTarget.indexOf(appMarker);
-
-          if (targetAppIndex === -1) return;
-
-          const targetSegments = normalizedTarget
-            .slice(targetAppIndex + appMarker.length)
-            .split('/');
-          const privateIndex = targetSegments.findIndex((segment) =>
-            /^_(?:components|lib|shared)$/.test(segment),
-          );
-
-          if (privateIndex === -1) return;
-
-          const owner =
-            `${normalizedTarget.slice(0, targetAppIndex + appMarker.length)}${targetSegments
-              .slice(0, privateIndex)
-              .join('/')}`.replace(/\/$/, '');
-
-          if (isPathInside(normalizedFilename, owner)) return;
-
-          context.report({ node, messageId: 'privateRoute' });
-        };
-
-        return importVisitors(checkImport);
-      },
-    },
-
-    'processor-zone-imports': {
-      meta: {
-        type: 'problem',
-        docs: {
-          description:
-            'Enforce dependency direction between processor composition, feature, port, adapter, and UI zones.',
-        },
-        schema: [],
-        messages: {
-          zoneDependency: '{{reason}} Imported processor path: "{{target}}".',
-        },
-      },
-      create(context) {
-        const filename = path.resolve(context.filename);
-        const normalizedFilename = filename.replaceAll(path.sep, '/');
-        const srcMarker = '/apps/processor/src/';
-        const srcIndex = normalizedFilename.indexOf(srcMarker);
-
-        if (srcIndex === -1) return {};
-
-        const srcRoot = normalizedFilename
-          .slice(0, srcIndex + srcMarker.length)
-          .replace(/\/$/, '');
-        const sourceRelative = normalizedFilename.slice(srcRoot.length + 1);
-        const inZone = (relativePath, zone) =>
-          relativePath === zone || relativePath.startsWith(`${zone}/`);
-        const featureName = (relativePath) =>
-          inZone(relativePath, 'features')
-            ? relativePath.slice('features/'.length).split('/')[0]
-            : undefined;
-
-        const checkImport = (node) => {
-          const specifier = importSpecifier(node);
-
-          if (specifier === undefined) return;
-
-          let target;
-
-          if (specifier.startsWith('@/'))
-            target = path.resolve(srcRoot, specifier.slice(2));
-          else if (specifier.startsWith('.'))
-            target = path.resolve(path.dirname(filename), specifier);
-          else return;
-
-          const normalizedTarget = target.replaceAll(path.sep, '/');
-
-          if (!isPathInside(normalizedTarget, srcRoot)) return;
-
-          const targetRelative = normalizedTarget.slice(srcRoot.length + 1);
-          let reason;
-
-          if (inZone(sourceRelative, 'ports')) {
-            if (
-              inZone(targetRelative, 'app') ||
-              inZone(targetRelative, 'adapters') ||
-              inZone(targetRelative, 'features') ||
-              inZone(targetRelative, 'components')
-            )
-              reason =
-                'Processor ports are framework-free inward contracts and cannot depend on composition, adapters, features, or UI.';
-          } else if (inZone(sourceRelative, 'adapters')) {
-            if (
-              inZone(targetRelative, 'app') ||
-              inZone(targetRelative, 'features') ||
-              inZone(targetRelative, 'components')
-            )
-              reason =
-                'Processor adapters implement ports and cannot depend on app composition, product features, or UI.';
-          } else if (inZone(sourceRelative, 'features')) {
-            if (inZone(targetRelative, 'app'))
-              reason =
-                'Processor features cannot import the app composition root.';
-            else if (inZone(targetRelative, 'adapters'))
-              reason =
-                'Processor features cannot select concrete adapters; receive ports from app composition.';
-            else if (
-              inZone(targetRelative, 'features') &&
-              featureName(sourceRelative) !== featureName(targetRelative)
-            )
-              reason =
-                'Processor feature slices cannot import peer features; compose them in app.';
-          } else if (inZone(sourceRelative, 'components/ui')) {
-            const targetWithoutExtension = targetRelative.replace(
-              /\.[jt]sx?$/,
-              '',
-            );
-
-            if (!inZone(targetWithoutExtension, 'components/ui'))
-              reason =
-                'Processor UI primitives may only import other UI primitives.';
-          } else if (inZone(sourceRelative, 'components/layout')) {
-            if (
-              inZone(targetRelative, 'app') ||
-              inZone(targetRelative, 'adapters') ||
-              inZone(targetRelative, 'features') ||
-              inZone(targetRelative, 'ports')
-            )
-              reason =
-                'Processor layout primitives cannot depend on app composition, adapters, product features, or protocols.';
-          } else if (sourceRelative === 'main.tsx') {
-            if (
-              targetRelative !== 'index.css' &&
-              !inZone(targetRelative, 'app')
-            )
-              reason =
-                'The Vite entrypoint may only load global CSS and invoke the app composition root.';
-          }
-
-          if (reason !== undefined)
-            context.report({
-              node,
-              messageId: 'zoneDependency',
-              data: { reason, target: targetRelative },
-            });
-        };
-
-        return importVisitors(checkImport);
-      },
-    },
-  },
-};
 
 export default tseslint.config(
   {
@@ -488,6 +81,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/.next/**',
       '**/dist/**',
+      '**/dist-runtime/**',
       '**/build/**',
       '**/coverage/**',
       '**/.turbo/**',
@@ -499,12 +93,20 @@ export default tseslint.config(
 
   {
     plugins: {
-      architecture: architecturePlugin,
+      'pressly-language': presslyLanguagePlugin,
     },
   },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,
+
+  {
+    languageOptions: {
+      parserOptions: {
+        tsconfigRootDir: repositoryRoot,
+      },
+    },
+  },
 
   {
     files: ['**/*.{js,mjs,cjs}'],
@@ -514,7 +116,9 @@ export default tseslint.config(
       globals: commonGlobals,
     },
     rules: {
-      'architecture/explicit-package-boundaries': 'error',
+      'no-restricted-imports': ['error', aggregatePackageRootRestrictions],
+      'no-restricted-syntax': ['error', ...aggregatePackageRootDynamicSyntax],
+      'pressly-language/mapper-role': 'error',
     },
   },
 
@@ -524,6 +128,9 @@ export default tseslint.config(
       ecmaVersion: 'latest',
       sourceType: 'module',
       globals: commonGlobals,
+      parserOptions: {
+        tsconfigRootDir: repositoryRoot,
+      },
     },
     rules: {
       'no-undef': 'off',
@@ -543,28 +150,185 @@ export default tseslint.config(
         },
       ],
       '@typescript-eslint/no-explicit-any': 'off',
-      'architecture/explicit-package-boundaries': 'error',
-      'architecture/symbol-ownership': 'error',
+      'no-restricted-imports': ['error', aggregatePackageRootRestrictions],
+      'no-restricted-syntax': ['error', ...aggregatePackageRootDynamicSyntax],
+      'pressly-language/mapper-role': 'error',
+      'pressly-language/symbol-ownership': 'error',
+    },
+  },
+
+  {
+    files: ['experiences/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          ...aggregatePackageRootRestrictions,
+          patterns: [aggregateBusinessOwnerRootPattern],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['experiences/*/src/**/*.{ts,tsx}'],
+    ignores: [
+      '**/*.test.{ts,tsx}',
+      '**/*.spec.{ts,tsx}',
+      '**/*.int.spec.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        ...[
+          'clearInterval',
+          'clearTimeout',
+          'crypto',
+          'document',
+          'fetch',
+          'globalThis',
+          'localStorage',
+          'navigator',
+          'performance',
+          'process',
+          'requestAnimationFrame',
+          'setInterval',
+          'setTimeout',
+          'window',
+        ].map((name) => ({
+          name,
+          message:
+            'Experience source receives process and browser effects through an Experience-owned capability implemented by its host.',
+        })),
+      ],
+      'pressly-language/experience-effect-ownership': 'error',
+    },
+  },
+
+  {
+    files: ['systems/*/src/**/*.{ts,tsx}'],
+    ignores: [
+      'systems/*/src/testing/**/*.{ts,tsx}',
+      'systems/*/src/**/*.spec.{ts,tsx}',
+      'systems/*/src/**/*.test.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          ...aggregatePackageRootRestrictions,
+          patterns: [
+            aggregateBusinessOwnerRootPattern,
+            {
+              regex: '^(?![.]|@pressly/|zod$|drizzle-orm(?:/|$)).+',
+              message:
+                'Systems may use owner source, Pressly Platform contracts, Zod contracts, and Drizzle schema declarations only; vendor and process mechanisms belong outside Systems.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['verification/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          ...aggregatePackageRootRestrictions,
+          patterns: [aggregateBusinessOwnerRootPattern],
+        },
+      ],
     },
   },
 
   {
     files: [
-      'apps/**/*.{ts,tsx}',
-      'modules/**/*.{ts,tsx}',
-      'packages/**/*.{ts,tsx}',
+      'verification/queries/test/load-board.conformance.int.test.ts',
+      'verification/queries/test/preview-order-backlog.conformance.int.test.ts',
+      'verification/queries/test/preview-order-route.conformance.int.test.ts',
     ],
-    ignores: ['packages/db/src/**/*.{ts,tsx}'],
     rules: {
-      'architecture/module-isolation': 'error',
       'no-restricted-imports': [
         'error',
         {
+          ...aggregatePackageRootRestrictions,
+          patterns: [
+            aggregateBusinessOwnerRootPattern,
+            {
+              regex:
+                '^@pressly/access-system/assembly/production-capabilities$',
+              message:
+                'Production-only query verification uses data-only assembly dependencies, not the real Access PostgreSQL capability adapter.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: [
+      'systems/*/src/testing/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'systems/*/src/**/*.spec.{js,jsx,mjs,cjs,ts,tsx}',
+      'systems/*/src/**/*.test.{js,jsx,mjs,cjs,ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          ...aggregatePackageRootRestrictions,
+          patterns: [aggregateBusinessOwnerRootPattern],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['systems/*/src/testing/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
+    rules: {
+      'pressly-language/system-testing-owner-schema': 'error',
+    },
+  },
+
+  {
+    files: [
+      'systems/production/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'verification/scheduling/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'verification/queries/test/load-board.conformance.int.test.ts',
+      'verification/queries/test/preview-order-backlog.conformance.int.test.ts',
+      'verification/queries/test/preview-order-route.conformance.int.test.ts',
+    ],
+    rules: {
+      'pressly-language/production-peer-schema-isolation': 'error',
+    },
+  },
+
+  {
+    files: ['hosts/**/src/**/*.{ts,tsx}'],
+    rules: {
+      'pressly-language/host-domain-neutrality': 'error',
+      'no-restricted-imports': [
+        'error',
+        {
+          ...aggregatePackageRootRestrictions,
           patterns: [
             {
               regex: '^drizzle-orm(?:/.*)?$',
               message:
-                'Import database primitives through @pressly/db so SQL safety constraints cannot be bypassed.',
+                'Import database runtime primitives through explicit @pressly/postgres subpaths.',
+            },
+            {
+              regex:
+                '^@pressly/(?:experience-[^/]+|[^/]+-system|topology)(?:/.*)?$',
+              message:
+                'Hosts consume generated runtime bindings and Platform mechanisms, never business owners directly.',
+            },
+            {
+              regex: '^(?:\\.\\./)+(?:systems|experiences|topology)(?:/.*)?$',
+              message:
+                'Hosts consume generated runtime bindings and never reach into business roots by relative path.',
             },
           ],
         },
@@ -574,40 +338,20 @@ export default tseslint.config(
 
   {
     files: [
-      'apps/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
-      'modules/*/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
-      'packages/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'topology/runtime/**/*.{ts,tsx}',
+      'topology/src/runtime/**/*.{ts,tsx}',
     ],
     rules: {
-      'architecture/qualified-mapper-role': 'error',
-    },
-  },
-
-  {
-    files: [
-      'apps/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
-      'packages/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
-    ],
-    ignores: ['packages/errors/src/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
-    rules: {
-      'architecture/owned-throwable': 'error',
-    },
-  },
-
-  {
-    files: [
-      'apps/api/src/http/control/**/*.{ts,tsx}',
-      'apps/control/src/**/*.{ts,tsx}',
-    ],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
+      'no-restricted-imports': [
         'error',
         {
+          ...aggregatePackageRootRestrictions,
           patterns: [
             {
-              regex: '^@pressly/contracts$',
+              regex:
+                '^(?:express|cors|helmet|dotenv|@sentry(?:/.*)?|node:(?:fs|os|child_process|process))(?:/.*)?$',
               message:
-                'Control surfaces must import the explicit Auth, Users, or Orders contract boundary instead of the package root.',
+                'Topology assembles injected structural capabilities; protocol frameworks and process effects belong to hosts.',
             },
           ],
         },
@@ -616,14 +360,79 @@ export default tseslint.config(
   },
 
   {
-    files: ['apps/web/**/*.{ts,tsx}'],
+    files: ['generated/runtime/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'window',
+          message:
+            'Generated bindings receive browser effects from their owning host.',
+        },
+        {
+          name: 'document',
+          message:
+            'Generated bindings receive browser effects from their owning host.',
+        },
+        {
+          name: 'localStorage',
+          message:
+            'Generated bindings receive browser effects from their owning host.',
+        },
+        {
+          name: 'process',
+          message:
+            'Generated bindings receive process effects from their owning host.',
+        },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          ...aggregatePackageRootRestrictions,
+          patterns: [
+            {
+              regex:
+                '^(?:dotenv|@sentry(?:/.*)?|node:(?:fs|os|child_process|process))(?:/.*)?$',
+              message:
+                'Generated runtime binds injected effects; vendor and process mechanisms belong to hosts.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: [
+      'experiences/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'hosts/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'hosts/browser/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'platform/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'systems/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'topology/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+    ],
+    ignores: ['platform/errors/src/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...aggregatePackageRootDynamicSyntax,
+        ...nativeThrowableSyntax,
+      ],
+    },
+  },
+
+  {
+    files: [
+      'experiences/customer/src/web/**/*.{ts,tsx}',
+      'hosts/browser/customer/**/*.{ts,tsx}',
+    ],
     plugins: {
       '@next/next': nextPlugin,
       'react-hooks': reactHooks,
     },
     settings: {
       next: {
-        rootDir: ['apps/web/'],
+        rootDir: ['hosts/browser/customer/'],
       },
     },
     rules: {
@@ -642,114 +451,12 @@ export default tseslint.config(
   },
 
   {
-    files: ['modules/*/*/src/{main,public}.ts'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '^(?!express$|@pressly\\/|\\.).*',
-              message:
-                'Module main files may only import packages from express or @pressly/*.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
     files: [
-      'modules/security/identity/src/foundations/adapters/http/authentication-request/**/*.{ts,tsx}',
+      'experiences/customer/src/web/actions/**/*.{ts,tsx}',
+      'experiences/customer/src/web/composition/model/**/*.{ts,tsx}',
+      'experiences/customer/src/web/telemetry/model/**/*.{ts,tsx}',
+      'experiences/customer/src/web/transport/model/**/*.{ts,tsx}',
     ],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '^(?:drizzle-orm(?:/.*)?$|@pressly/db(?:/.*)?$)',
-              message:
-                'The auth HTTP foundation cannot import persistence mechanisms.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: [
-      'modules/security/identity/src/foundations/adapters/postgres/identity-store/**/*.{ts,tsx}',
-    ],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '^(?:express$|@pressly/http(?:/.*)?$)',
-              message:
-                'The auth persistence foundation cannot import HTTP mechanisms.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['modules/*/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
-    rules: {
-      'architecture/module-v2-file-role': 'error',
-      'architecture/module-v2-dependencies': 'error',
-      'architecture/module-v2-failure-boundary': 'error',
-      'architecture/module-v2-pure-role': 'error',
-      'architecture/module-v2-port-shape': 'error',
-      'architecture/module-v2-semantic-role': 'error',
-      'architecture/module-v2-usecase-shape': 'error',
-      'architecture/module-public-surface': 'error',
-    },
-  },
-
-  {
-    files: ['modules/*/*/src/*.{js,jsx,mjs,cjs,ts,tsx}'],
-    ignores: ['modules/*/*/src/main.ts', 'modules/*/*/src/public.ts'],
-    rules: restrictedFileNameRule(
-      'Module src roots are sealed. Only main.ts and public.ts may be root files; move this file into its owning feature, foundation, or composition zone.',
-    ),
-  },
-
-  {
-    files: [
-      'modules/*/*/src/**/common/**/*.{ts,tsx}',
-      'modules/*/*/src/**/shared/**/*.{ts,tsx}',
-    ],
-    rules: restrictedFileNameRule(
-      'Module-local common/shared folders are forbidden. Name the owning feature or use an explicit foundation.',
-    ),
-  },
-
-  {
-    files: [
-      'modules/*/*/src/**/*.{schema,parser,test,spec}.{js,jsx,mjs,cjs,ts,tsx}',
-      'modules/*/*/src/**/__tests__/**/*.{js,jsx,mjs,cjs,ts,tsx}',
-    ],
-    rules: restrictedFileNameRule(
-      'Module src cannot contain tests, schemas, or parsers. Keep tests under test/, runtime schemas in @pressly/contracts, and parsing at the application adapter boundary.',
-    ),
-  },
-
-  {
-    files: ['modules/*/*/src/**/*.{js,jsx,mjs,cjs,tsx}'],
-    rules: restrictedFileNameRule(
-      'Module source files must use the .ts extension.',
-    ),
-  },
-
-  {
-    files: ['apps/web/src/common/core/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -768,7 +475,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['apps/web/src/components/ui/**/*.{ts,tsx}'],
+    files: ['experiences/customer/src/web/components/ui/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -786,17 +493,185 @@ export default tseslint.config(
   },
 
   {
-    files: ['apps/web/src/**/*.{ts,tsx}'],
+    files: [
+      'experiences/*/src/cells/**/*.{ts,tsx}',
+      'systems/*/src/cells/**/*.{ts,tsx}',
+    ],
     rules: {
-      'architecture/web-zone-imports': 'error',
-      'architecture/web-private-route-imports': 'error',
+      'pressly-language/cell-isolation': 'error',
     },
   },
 
   {
     files: [
-      'apps/web/src/app/shared/**/*.{ts,tsx}',
-      'apps/web/src/infra/**/*.{ts,tsx}',
+      'hosts/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'systems/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'experiences/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'platform/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'topology/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'generated/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+    ],
+    ignores: ['hosts/**/test/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
+    plugins: { boundaries },
+    settings: {
+      'boundaries/elements': [
+        { type: 'host', pattern: 'hosts/*/**' },
+        { type: 'system', pattern: 'systems/*/**' },
+        { type: 'experience', pattern: 'experiences/*/**' },
+        { type: 'platform', pattern: 'platform/*/**' },
+        { type: 'topology', pattern: 'topology/**' },
+        { type: 'generated', pattern: 'generated/**' },
+      ],
+    },
+    rules: {
+      'boundaries/dependencies': [
+        'error',
+        {
+          default: 'allow',
+          policies: [
+            {
+              from: { element: { type: 'host' } },
+              disallow: {
+                to: {
+                  element: {
+                    types: { anyOf: ['system', 'experience', 'topology'] },
+                  },
+                },
+              },
+            },
+            {
+              from: { element: { type: 'platform' } },
+              disallow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: [
+                        'host',
+                        'system',
+                        'experience',
+                        'topology',
+                        'generated',
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+            {
+              from: { element: { type: 'system' } },
+              disallow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: ['host', 'experience', 'topology', 'generated'],
+                    },
+                  },
+                },
+              },
+            },
+            {
+              from: { element: { type: 'experience' } },
+              disallow: {
+                to: {
+                  element: {
+                    types: { anyOf: ['host', 'topology', 'generated'] },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: [
+      'experiences/*/src/**/*.{ts,tsx}',
+      'generated/**/*.{ts,tsx}',
+      'hosts/*/src/**/*.{ts,tsx}',
+      'platform/*/src/**/*.{ts,tsx}',
+      'systems/*/src/**/*.{ts,tsx}',
+      'topology/src/**/*.{ts,tsx}',
+      'topology/tooling/**/*.{ts,tsx}',
+    ],
+    ignores: [
+      '**/*.int.spec.{ts,tsx}',
+      '**/*.spec.{ts,tsx}',
+      '**/*.test.{ts,tsx}',
+      'platform/cells/src/state-machine.ts',
+    ],
+    rules: {
+      'pressly-language/no-double-unknown-assertion': 'error',
+      'pressly-language/no-non-null-assertion': 'error',
+    },
+  },
+
+  {
+    files: [
+      'systems/**/cells/**/{algorithm,confirmation,decide,decision,idempotency,lifecycle,policy}.{ts,tsx}',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        pureDecisionImportRestrictions,
+      ],
+      'no-restricted-syntax': [
+        'error',
+        ...aggregatePackageRootDynamicSyntax,
+        ...nativeThrowableSyntax,
+        ...pureDecisionSyntax,
+      ],
+    },
+  },
+
+  {
+    files: [
+      'experiences/**/*.failure.{ts,tsx}',
+      'systems/**/*.failure.{ts,tsx}',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        expectedFailureImportRestrictions,
+      ],
+      'no-restricted-syntax': [
+        'error',
+        ...aggregatePackageRootDynamicSyntax,
+        ...nativeThrowableSyntax,
+        ...expectedFailureSyntax,
+      ],
+    },
+  },
+
+  {
+    files: ['experiences/**/*.entity.{ts,tsx}', 'systems/**/*.entity.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...aggregatePackageRootDynamicSyntax,
+        ...nativeThrowableSyntax,
+        ...entityLanguageSyntax,
+      ],
+    },
+  },
+
+  {
+    files: [
+      'hosts/**/{common,shared,utils,services}/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'systems/**/{common,shared,utils,services}/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'experiences/**/{common,shared,utils,services}/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+      'platform/**/{common,shared,utils,services}/**/*.{js,jsx,mjs,cjs,ts,tsx}',
+    ],
+    rules: restrictedFileNameRule(
+      'Cellular code requires a precise semantic owner; generic common, shared, utils, and services buckets are forbidden.',
+    ),
+  },
+
+  {
+    files: [
+      'hosts/browser/customer/src/app/shared/**/*.{ts,tsx}',
+      'hosts/browser/customer/src/deploy/**/*.{ts,tsx}',
     ],
     rules: restrictedFileNameRule(
       'Web code is feature-oriented. Use a product feature, a bounded route-private folder, or common technical infrastructure.',

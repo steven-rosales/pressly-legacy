@@ -87,14 +87,14 @@ parallel lifecycle machines.
 
 ### Incoming Order Candidate
 
-| Property        | Value                                                                                                           |
-| --------------- | --------------------------------------------------------------------------------------------------------------- |
-| Persisted field | immutable candidate, current state, append-only transitions, and tombstone                                      |
-| States          | `pending`, `source_closed`, `restored_pending`, `accepted`, `rejected`                                          |
-| Owner           | `modules/business/orders/src/foundations/language/incoming-order-proposal/incoming-order-proposal.lifecycle.ts` |
-| Current writers | source-neutral submit/close; explicit operator Accept, Reject, or Restore                                       |
-| Lock/version    | exact source identity, candidate lock, optimistic version                                                       |
-| Terminal states | `accepted`, `rejected`                                                                                          |
+| Property        | Value                                                                      |
+| --------------- | -------------------------------------------------------------------------- |
+| Persisted field | immutable candidate, current state, append-only transitions, and tombstone |
+| States          | `pending`, `source_closed`, `restored_pending`, `accepted`, `rejected`     |
+| Owner           | `systems/orders/src/model/incoming-order-proposal/lifecycle.ts`            |
+| Current writers | source-neutral submit/close; explicit operator Accept, Reject, or Restore  |
+| Lock/version    | exact source identity, candidate lock, optimistic version                  |
+| Terminal states | `accepted`, `rejected`                                                     |
 
 Authoritative graph:
 
@@ -113,14 +113,14 @@ unreleased fulfillment; rejection creates none.
 
 ### Commercial Order
 
-| Property        | Value                                                                                           |
-| --------------- | ----------------------------------------------------------------------------------------------- |
-| Persisted field | `orders.state`                                                                                  |
-| States          | `open`, `completed`, `canceled`                                                                 |
-| Owner           | `modules/business/orders/src/foundations/language/order-lifecycle/order-lifecycle.lifecycle.ts` |
-| Current writers | explicit Complete or Cancel command; initial order creation                                     |
-| Lock/version    | Order aggregate lock and `orders.version`                                                       |
-| Terminal states | `completed`, `canceled`                                                                         |
+| Property        | Value                                                       |
+| --------------- | ----------------------------------------------------------- |
+| Persisted field | `orders.state`                                              |
+| States          | `open`, `completed`, `canceled`                             |
+| Owner           | `systems/orders/src/model/canonical-order/policy.ts`        |
+| Current writers | explicit Complete or Cancel command; initial order creation |
+| Lock/version    | Order aggregate lock and `orders.version`                   |
+| Terminal states | `completed`, `canceled`                                     |
 
 Authoritative graph:
 
@@ -135,14 +135,14 @@ operator context.
 
 ### Fulfillment Release
 
-| Property        | Value                                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------------------- |
-| Persisted field | `order_fulfillments.release_state`                                                                      |
-| States          | `unreleased`, `released`, `withdrawn`                                                                   |
-| Owner           | `modules/business/orders/src/foundations/language/fulfillment-release/fulfillment-release.lifecycle.ts` |
-| Current writers | explicit Release or Withdraw command; initial order creation                                            |
-| Lock/version    | Fulfillment aggregate lock and `order_fulfillments.version`                                             |
-| Terminal state  | `withdrawn`                                                                                             |
+| Property        | Value                                                        |
+| --------------- | ------------------------------------------------------------ |
+| Persisted field | `order_fulfillments.release_state`                           |
+| States          | `unreleased`, `released`, `withdrawn`                        |
+| Owner           | `systems/orders/src/model/canonical-order/policy.ts`         |
+| Current writers | explicit Release or Withdraw command; initial order creation |
+| Lock/version    | Fulfillment aggregate lock and `order_fulfillments.version`  |
+| Terminal state  | `withdrawn`                                                  |
 
 Authoritative graph:
 
@@ -178,7 +178,7 @@ facts is a commercial or fulfillment transition.
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Persisted field | `production_shifts.status`                                                                                                       |
 | Runtime states  | `open`, `closed` (`draft` is a legacy/default storage value)                                                                     |
-| Owner           | `modules/business/production/src/foundations/language/lifecycles/production-shift-lifecycle.lifecycle.ts`                        |
+| Owner           | `systems/production/src/model/lifecycles/shift.ts`                                                                               |
 | Current writers | `create-production-shift`; final-batch completion through `advance-stage` or `reconcile-batch-progress`; migration `0031` repair |
 | Lock/version    | location scheduling lock and `production_shifts.version`                                                                         |
 | Terminal state  | `closed`                                                                                                                         |
@@ -198,7 +198,7 @@ to add a second runtime transition table.
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | Persisted field | `schedule_runs.status`                                                                                                                  |
 | States          | `draft`, `accepted`, `superseded`, `rejected`                                                                                           |
-| Owner           | `modules/business/production/src/foundations/language/lifecycles/schedule-revision-lifecycle.lifecycle.ts`                              |
+| Owner           | `systems/production/src/model/lifecycles/schedule-revision.ts`                                                                          |
 | Current writers | `create-schedule`; `accept-schedule`; supersession from `update-production-shift` or `replace-shift-selection`; migration `0031` repair |
 | Lock/version    | location scheduling lock, immutable snapshot hashes, one-current-plan unique index                                                      |
 | Terminal states | `superseded`, `rejected`                                                                                                                |
@@ -217,14 +217,14 @@ hashes are guards. They are not states.
 
 ### Production Run
 
-| Property        | Value                                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------------------- |
-| Persisted field | `production_runs.status`                                                                                |
-| Runtime states  | `started`, `completed`                                                                                  |
-| Owner           | `modules/business/production/src/foundations/language/lifecycles/production-run-lifecycle.lifecycle.ts` |
-| Current writers | `start-schedule`; final-batch completion through `advance-stage` or `reconcile-batch-progress`          |
-| Lock/version    | run-first lock, `production_runs.version`, and independent `queue_version`                              |
-| Terminal state  | `completed`                                                                                             |
+| Property        | Value                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| Persisted field | `production_runs.status`                                                                       |
+| Runtime states  | `started`, `completed`                                                                         |
+| Owner           | `systems/production/src/model/lifecycles/run.ts`                                               |
+| Current writers | `start-schedule`; final-batch completion through `advance-stage` or `reconcile-batch-progress` |
+| Lock/version    | run-first lock, `production_runs.version`, and independent `queue_version`                     |
+| Terminal state  | `completed`                                                                                    |
 
 Graph:
 
@@ -238,14 +238,14 @@ facts.
 
 ### Production Batch
 
-| Property        | Value                                                                                                     |
-| --------------- | --------------------------------------------------------------------------------------------------------- |
-| Persisted field | `production_batches.status`                                                                               |
-| States          | `queued`, `sorting`, `washing`, `drying`, `folding_packaging`, `finished`                                 |
-| Owner           | `modules/business/production/src/foundations/language/lifecycles/production-batch-lifecycle.lifecycle.ts` |
-| Current writers | `start-schedule`; `place-order`; `advance-stage`; `reconcile-batch-progress`                              |
-| Lock/version    | run-first lock, queue version, and `production_batches.version`                                           |
-| Terminal state  | `finished`                                                                                                |
+| Property        | Value                                                                        |
+| --------------- | ---------------------------------------------------------------------------- |
+| Persisted field | `production_batches.status`                                                  |
+| States          | `queued`, `sorting`, `washing`, `drying`, `folding_packaging`, `finished`    |
+| Owner           | `systems/production/src/model/lifecycles/batch.ts`                           |
+| Current writers | `start-schedule`; `place-order`; `advance-stage`; `reconcile-batch-progress` |
+| Lock/version    | run-first lock, queue version, and `production_batches.version`              |
+| Terminal state  | `finished`                                                                   |
 
 Ordinary execution follows:
 
@@ -259,14 +259,14 @@ reopen path.
 
 ### Stage Run
 
-| Property        | Value                                                                                              |
-| --------------- | -------------------------------------------------------------------------------------------------- |
-| Persisted field | `stage_runs.status`                                                                                |
-| States          | `planned`, `started`, `completed`                                                                  |
-| Owner           | `modules/business/production/src/foundations/language/stage-transition/stage-transition.policy.ts` |
-| Current writers | `start-schedule`; `place-order`; `advance-stage`; `reconcile-batch-progress`                       |
-| Lock/version    | run-first lock, batch lock, and `stage_runs.version`                                               |
-| Terminal state  | `completed`                                                                                        |
+| Property        | Value                                                                        |
+| --------------- | ---------------------------------------------------------------------------- |
+| Persisted field | `stage_runs.status`                                                          |
+| States          | `planned`, `started`, `completed`                                            |
+| Owner           | `systems/production/src/model/stage.ts`                                      |
+| Current writers | `start-schedule`; `place-order`; `advance-stage`; `reconcile-batch-progress` |
+| Lock/version    | run-first lock, batch lock, and `stage_runs.version`                         |
+| Terminal state  | `completed`                                                                  |
 
 Graph:
 
@@ -285,7 +285,7 @@ capacity, and provenance remain guards and effects around this graph.
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Persisted field | `production_orders.execution_status`                                                                                                                 |
 | States          | `unassigned`, `scheduled`, `finished`                                                                                                                |
-| Owner           | `modules/business/production/src/foundations/language/lifecycles/production-order-execution-lifecycle.lifecycle.ts`                                  |
+| Owner           | `systems/production/src/model/lifecycles/order-execution.ts`                                                                                         |
 | Current writers | initial state from `apply-fulfillment-demand`; `start-schedule` or `place-order`; finalization through `advance-stage` or `reconcile-batch-progress` |
 | Lock/version    | location scheduling lock before selection; run-first lock after commitment; `production_orders.version`                                              |
 
@@ -301,14 +301,14 @@ historical transition.
 
 ### Production Order Resolution
 
-| Property        | Value                                                                                                                |
-| --------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Persisted field | `production_orders.resolution_state`                                                                                 |
-| States          | `open`, `resolved_without_production`                                                                                |
-| Owner           | `modules/business/production/src/foundations/language/lifecycles/production-order-resolution-lifecycle.lifecycle.ts` |
-| Writers         | explicit manager resolve and restore commands only                                                                   |
-| Lock/version    | location scheduling lock and `production_orders.version`                                                             |
-| Archive meaning | read-only presentation of retained `resolved_without_production` work; never deletion, cancellation, or finish       |
+| Property        | Value                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------- |
+| Persisted field | `production_orders.resolution_state`                                                                           |
+| States          | `open`, `resolved_without_production`                                                                          |
+| Owner           | `systems/production/src/model/lifecycles/order-resolution.ts`                                                  |
+| Writers         | explicit manager resolve and restore commands only                                                             |
+| Lock/version    | location scheduling lock and `production_orders.version`                                                       |
+| Archive meaning | read-only presentation of retained `resolved_without_production` work; never deletion, cancellation, or finish |
 
 Authoritative graph:
 
@@ -325,14 +325,14 @@ observations cannot request either edge or implicitly restore resolved work.
 
 ### Order Stage Attempt
 
-| Property        | Value                                                                                                                   |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Persisted field | `production_order_stage_attempts.status`                                                                                |
-| States          | `assigned`, `completed`, `released`                                                                                     |
-| Owner           | `modules/business/production/src/foundations/language/lifecycles/production-order-stage-attempt-lifecycle.lifecycle.ts` |
-| Current writers | `start-schedule` or `place-order`; `advance-stage` or `reconcile-batch-progress`; `route-order`                         |
-| Lock/version    | owning run, batch, order, and stage versions                                                                            |
-| Terminal states | `completed`, `released`                                                                                                 |
+| Property        | Value                                                                                           |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| Persisted field | `production_order_stage_attempts.status`                                                        |
+| States          | `assigned`, `completed`, `released`                                                             |
+| Owner           | `systems/production/src/model/lifecycles/order-stage-attempt.ts`                                |
+| Current writers | `start-schedule` or `place-order`; `advance-stage` or `reconcile-batch-progress`; `route-order` |
+| Lock/version    | owning run, batch, order, and stage versions                                                    |
+| Terminal states | `completed`, `released`                                                                         |
 
 Graph:
 
@@ -374,7 +374,7 @@ The starting checkout for
 point-in-time mismatches. They are preserved as historical evidence and are not
 descriptions of the current authority model:
 
-1. `apps/worker/.../cents-order.handler.ts` maps Cents `COMPLETED` to canonical
+1. `systems/ingress/src/cells/processing/process-inbound-event/cents.ts` maps Cents `COMPLETED` to canonical
    commercial completion, `CANCELED` to canonical cancellation/withdrawal, and
    every other status after `PICKED_UP` to released.
 2. Orders source observation currently decides snapshot retention and
@@ -389,8 +389,7 @@ descriptions of the current authority model:
    repository/use-case assignments.
 5. `production_orders.status` mixes readiness and execution.
 6. Source comparison is implemented independently in both
-   `modules/computation/order-control` and
-   `modules/business/production/src/list-production-order-control`, then
+   `systems/production/src/cells/orders/list-order-control`, then
    rendered as floor attention by Home and Intake.
 7. The existing demand forecast is shift-scoped, returns no forecast when an
    active run exists, and models an empty future pipeline rather than unfinished

@@ -1,0 +1,65 @@
+{
+  "name": "@pressly/auth-platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./cookies": {
+      "types": "./dist/cookies.d.ts",
+      "import": "./dist/cookies.js",
+      "default": "./dist/cookies.js"
+    },
+    "./csrf": {
+      "types": "./dist/csrf.d.ts",
+      "import": "./dist/csrf.js",
+      "default": "./dist/csrf.js"
+    },
+    "./hmac-sha256": {
+      "types": "./dist/hmac-sha256.d.ts",
+      "import": "./dist/hmac-sha256.js",
+      "default": "./dist/hmac-sha256.js"
+    },
+    "./passwords": {
+      "types": "./dist/passwords.d.ts",
+      "import": "./dist/passwords.js",
+      "default": "./dist/passwords.js"
+    },
+    "./recovery-codes": {
+      "types": "./dist/recovery-codes.d.ts",
+      "import": "./dist/recovery-codes.js",
+      "default": "./dist/recovery-codes.js"
+    },
+    "./secret-box": {
+      "types": "./dist/secret-box.d.ts",
+      "import": "./dist/secret-box.js",
+      "default": "./dist/secret-box.js"
+    },
+    "./tokens": {
+      "types": "./dist/tokens.d.ts",
+      "import": "./dist/tokens.js",
+      "default": "./dist/tokens.js"
+    },
+    "./totp": {
+      "types": "./dist/totp.d.ts",
+      "import": "./dist/totp.js",
+      "default": "./dist/totp.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "lint": "eslint src test --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@pressly/errors": "workspace:*",
+    "argon2": "^0.44.0",
+    "otpauth": "^9.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

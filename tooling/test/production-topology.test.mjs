@@ -6,9 +6,9 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(import.meta.dirname, '../..');
 const composeFile = resolve(
   root,
-  'infra/aws/lightsail/docker-compose.production.yml',
+  'deploy/aws/lightsail/docker-compose.production.yml',
 );
-const composeEnv = resolve(root, 'infra/aws/docs/env/compose.env.example');
+const composeEnv = resolve(root, 'deploy/aws/docs/env/compose.env.example');
 
 const renderCompose = () =>
   JSON.parse(
@@ -53,7 +53,7 @@ describe('production topology', () => {
     expect(services.worker.read_only).toBe(true);
     expect(services.worker.cap_drop).toContain('ALL');
     expect(services.worker.healthcheck.test).toContain(
-      'apps/worker/dist/runtime/healthcheck.js',
+      'hosts/jobs/dist/runtime/healthcheck.js',
     );
     expect(services.processor.expose).toEqual(['80']);
     expect(services.processor.read_only).toBe(true);
@@ -75,7 +75,7 @@ describe('production topology', () => {
 
   it('routes same-origin processor API traffic with the prefix removed', () => {
     const caddyfile = readFileSync(
-      resolve(root, 'infra/aws/lightsail/Caddyfile'),
+      resolve(root, 'deploy/aws/lightsail/Caddyfile'),
       'utf8',
     );
 
@@ -90,7 +90,7 @@ describe('production topology', () => {
 
   it('routes Control through its same-origin API boundary with hardened headers', () => {
     const caddyfile = readFileSync(
-      resolve(root, 'infra/aws/lightsail/Caddyfile'),
+      resolve(root, 'deploy/aws/lightsail/Caddyfile'),
       'utf8',
     );
 
@@ -108,7 +108,7 @@ describe('production topology', () => {
     expect(caddyfile).toContain('X-Content-Type-Options "nosniff"');
 
     const nginx = readFileSync(
-      resolve(root, 'apps/control/nginx.conf'),
+      resolve(root, 'deploy/images/control/nginx.conf'),
       'utf8',
     );
     expect(nginx).toContain("default-src 'self'");
@@ -124,7 +124,7 @@ describe('production topology', () => {
 
   it('redirects the www web hostname to the canonical hostname', () => {
     const caddyfile = readFileSync(
-      resolve(root, 'infra/aws/lightsail/Caddyfile'),
+      resolve(root, 'deploy/aws/lightsail/Caddyfile'),
       'utf8',
     );
 

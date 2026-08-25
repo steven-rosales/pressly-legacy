@@ -1,4 +1,4 @@
-import { toolingError } from '../../packages/errors/src/tooling-error.mjs';
+import { toolingError } from '../../platform/errors/src/tooling-error.mjs';
 
 const commitShaPattern = /^[0-9a-f]{40}$/i;
 

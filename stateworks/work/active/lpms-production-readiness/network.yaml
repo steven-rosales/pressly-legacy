@@ -8,7 +8,7 @@ goal:
   - Prove one controlled happy-path pilot from Cents demand accepted under the configured ingress mode through operator-confirmed production without implementing deferred exception workflows.
 
 invariants:
-  - No module imports, calls, or declares a package dependency on another module; apps remain the only composition roots.
+  - No System imports a peer's private cells, model, persistence, or schema; Topology selects target cells, generated runtime binds them, and hosts own process effects.
   - Intrinsic Production policy and approved algorithm foundations remain headless and expose no HTTP routes.
   - Production writes remain strongly consistent, versioned, idempotent, and atomically recorded with work events.
   - Cents ingress mode is explicit: hmac verifies exact raw body bytes before JSON parsing, while unsigned intentionally matches the vendor's documented sender without claiming authenticity.
@@ -53,16 +53,18 @@ tasks:
       - repo:docs/plan/lpms.md
       - repo:docs/architecture.md
       - repo:docs/devops.md
-      - repo:apps/api
-      - repo:apps/worker
-      - repo:apps/processor
-      - repo:modules/business/production
-      - repo:modules/business/production/src/foundations/language
-      - repo:modules/business/production/src/foundations/algorithms
-      - repo:packages/contracts/src/cents
-      - repo:packages/db/src/schema/laundry-production.schema.ts
+      - repo:hosts/http
+      - repo:hosts/jobs
+      - repo:experiences/processor
+      - repo:systems/production
+      - repo:systems/production/src/model
+      - repo:systems/production/src/model/fixed-pulse-planning
+      - repo:systems/production/src/model/fixed-pulse-demand-outlook
+      - repo:systems/production/src/model/online-order-placement
+      - repo:systems/ingress/src/contracts/cents-v1.ts
+      - repo:topology/pressly-postgres-schema.ts
       - repo:.github/workflows
-      - repo:infra/aws/lightsail
+      - repo:deploy/aws/lightsail
       - external:https://chathelp.trycents.com/en/articles/12083443-cents-webhooks
     writes:
       - repo:docs/plan/lpms.md
@@ -102,18 +104,18 @@ tasks:
     deps:
       - T0
     reads:
-      - repo:packages/contracts/src/cents
-      - repo:packages/contracts/test
-      - repo:apps/api/src/http/webhooks/cents/cents-webhook.verifier.ts
-      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event
-      - repo:apps/worker/src/jobs/process-webhook-inbox/cents/cents-order.handler.ts
+      - repo:systems/ingress/src/contracts/cents-v1.ts
+      - repo:verification/topology
+      - repo:topology/runtime/http/bootstrap/app.ts
+      - repo:systems/ingress/src/cells/inbox/ingest-event
+      - repo:systems/ingress/src/cells/processing/process-inbound-event
       - repo:docs/plan/lpms.md
       - external:https://chathelp.trycents.com/en/articles/12083443-cents-webhooks
     writes:
-      - repo:packages/contracts/src/cents
-      - repo:packages/contracts/test
-      - repo:apps/api/src/http/webhooks/cents
-      - repo:apps/api/test/cents
+      - repo:systems/ingress/src/contracts/cents-v1.ts
+      - repo:verification/topology
+      - repo:systems/ingress/src/cells/sources/receive-cents-webhook
+      - repo:verification/http/test/cents
     preconditions:
       - T0 confirms the current documented and implemented contract mismatch.
       - Fixtures are synthetic or irreversibly redacted and contain no real customer identifiers.
@@ -130,11 +132,11 @@ tasks:
       - Production application input contains canonical values and no transport aliases.
       - Missing bag count and unknown store remain explicit facts rather than defaults.
     verifier:
-      - pnpm --filter @pressly/contracts test
-      - pnpm --filter @pressly/contracts typecheck
-      - pnpm --filter @pressly/contracts lint
-      - pnpm --filter @pressly/api test -- cents
-      - pnpm --filter @pressly/api typecheck
+      - pnpm --filter @pressly/topology-verification test
+      - pnpm --filter @pressly/topology-verification typecheck
+      - pnpm --filter @pressly/topology-verification lint
+      - pnpm --filter @pressly/http-verification test -- cents
+      - pnpm --filter @pressly/http-host typecheck
     rollback:
       - Revert the new wire adapter and contract tests while leaving the existing live verifier disabled.
     secret_handling: none
@@ -150,26 +152,26 @@ tasks:
     deps:
       - T1
     reads:
-      - repo:apps/api/src/bootstrap/api.composition.ts
-      - repo:apps/api/src/runtime/env.ts
-      - repo:apps/api/src/http/webhooks/cents/cents-webhook.verifier.ts
-      - repo:apps/api/src/http/webhooks/cents
-      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event
-      - repo:packages/db/src/schema/laundry-production.schema.ts
-      - repo:packages/config
-      - repo:packages/logging
-      - repo:packages/observability
+      - repo:topology/runtime/http/bootstrap/app.ts
+      - repo:topology/runtime/http/runtime/env.ts
+      - repo:topology/runtime/http/bootstrap/app.ts
+      - repo:systems/ingress/src/cells/sources/receive-cents-webhook
+      - repo:systems/ingress/src/cells/inbox/ingest-event
+      - repo:topology/pressly-postgres-schema.ts
+      - repo:platform/config
+      - repo:platform/logging
+      - repo:platform/observability
     writes:
-      - repo:apps/api/src/http/webhooks/cents
-      - repo:apps/api/src/runtime/env.ts
-      - repo:apps/api/src/bootstrap/api.composition.ts
-      - repo:apps/api/.env.example
-      - repo:apps/api/test/cents
-      - repo:modules/integration/webhook-ingestion/src/features/inbox/ingest-event
-      - repo:modules/integration/webhook-ingestion/test/features/inbox/ingest-event
-      - repo:packages/db/src/schema/laundry-production.schema.ts
-      - repo:packages/db/src/migrations
-      - repo:packages/db/test
+      - repo:systems/ingress/src/cells/sources/receive-cents-webhook
+      - repo:topology/runtime/http/runtime/env.ts
+      - repo:topology/runtime/http/bootstrap/app.ts
+      - repo:hosts/http/.env.example
+      - repo:verification/http/test/cents
+      - repo:systems/ingress/src/cells/inbox/ingest-event
+      - repo:verification/ingress
+      - repo:topology/pressly-postgres-schema.ts
+      - repo:platform/postgres/migrations
+      - repo:verification/migrations
     preconditions:
       - Exact raw request bytes are available before the JSON parser for /webhooks/cents.
       - Production enablement can fail startup when hmac mode lacks required secret configuration.
@@ -189,12 +191,12 @@ tasks:
       - An accepted customer or marketing event is minimally recorded and ignored without PII retention.
       - Secret absence cannot silently disable verification when hmac mode is configured in production.
     verifier:
-      - pnpm --filter @pressly/api test
-      - pnpm --filter @pressly/production test
-      - pnpm --filter @pressly/db test
-      - pnpm --filter @pressly/db test:integration
+      - pnpm --filter @pressly/http-verification test
+      - pnpm --filter @pressly/production-system test
+      - pnpm --filter @pressly/postgres test
+      - pnpm --filter @pressly/migrations-verification test:postgres
       - pnpm typecheck
-      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - pnpm architecture:check
     rollback:
       - Disable the Cents route or restore hmac mode and retain already minimized receipts; never relabel unsigned receipts as authenticated.
     secret_handling: env_file_only
@@ -210,34 +212,40 @@ tasks:
     deps:
       - T2
     reads:
-      - repo:packages/db/src/schema/laundry-production.schema.ts
-      - repo:packages/db/src/migrations
-      - repo:modules/integration/webhook-ingestion/src/features/bindings/resolve-source-location
-      - repo:modules/business/orders/src/features/intake/propose-incoming-order
-      - repo:apps/worker/src/jobs/project-fulfillment-demand
-      - repo:modules/business/production/src/features/demand/apply-fulfillment-demand
-      - repo:modules/business/production/src/features/scheduling/create-schedule
-      - repo:modules/business/production/src/foundations/adapters/postgres
-      - repo:modules/business/production/src/foundations/language
+      - repo:topology/pressly-postgres-schema.ts
+      - repo:platform/postgres/migrations
+      - repo:systems/ingress/src/cells/bindings/resolve-source-location
+      - repo:systems/customers
+      - repo:systems/orders/src/cells/intake/propose-incoming-order
+      - repo:systems/orders/src/capabilities/order-outbox-job
+      - repo:systems/production/src/cells/demand/apply-fulfillment-demand
+      - repo:systems/production/src/cells/scheduling/create-schedule
+      - repo:systems/production/src/postgres
+      - repo:systems/production/src/model
       - repo:docs/plan/lpms.md
     writes:
-      - repo:packages/db/src/schema/laundry-production.schema.ts
-      - repo:packages/db/src/migrations
-      - repo:packages/db/src/migrations/meta
-      - repo:packages/db/test
-      - repo:modules/integration/webhook-ingestion/src/features/bindings/resolve-source-location
-      - repo:modules/business/orders/src/features/intake/propose-incoming-order
-      - repo:apps/worker/src/jobs/project-fulfillment-demand
-      - repo:modules/business/production/src/features/demand/apply-fulfillment-demand
-      - repo:modules/business/production/src/features/scheduling/create-schedule
-      - repo:modules/business/production/src/foundations/adapters/postgres
-      - repo:modules/business/production/test
+      - repo:topology/pressly-postgres-schema.ts
+      - repo:platform/postgres/migrations
+      - repo:platform/postgres/migrations/meta
+      - repo:verification/migrations
+      - repo:systems/ingress/src/cells/bindings/resolve-source-location
+      - repo:systems/customers
+      - repo:systems/orders/src/cells/intake/propose-incoming-order
+      - repo:systems/orders/src/capabilities/order-outbox-job
+      - repo:systems/production/src/cells/demand/apply-fulfillment-demand
+      - repo:systems/production/src/cells/scheduling/create-schedule
+      - repo:systems/production/src/postgres
+      - repo:systems/production/src
+      - repo:verification/commands
+      - repo:verification/scheduling
+      - repo:verification/customers
+      - repo:verification/orders
     preconditions:
       - Migration tests use an isolated clean database and a representative pre-migration fixture.
       - Existing migration history is never rewritten after deployment.
     action:
       - Replace invented numeric vendor ordering with source_updated_at ordering plus equal-timestamp divergence detection.
-      - Add an explicit Cents store-to-Pressly-location mapping owned by production persistence and configured through a composition-root capability.
+      - Add an explicit Cents store-to-Pressly-location mapping owned by Ingress persistence and configured through the topology-selected Control CLI bootstrap capability.
       - Scope CRM projections, production orders, eligible-order reads, shifts, configs, schedules, runs, boards, and uniqueness constraints by location where required.
       - Keep unknown-store events pending or dead with a stable inspectable code; never project them into a default location.
       - Model bag count as missing until authoritative vendor input or operator intake records it, with provenance and optimistic versioning.
@@ -248,10 +256,10 @@ tasks:
       - Newer source updatedAt wins regardless of arrival order; equal-time divergence is visible.
       - Missing bag count is represented honestly and blocks scheduling without blocking CRM projection.
     verifier:
-      - pnpm --filter @pressly/db test
-      - pnpm --filter @pressly/db test:integration
-      - pnpm --filter @pressly/production test
-      - pnpm --filter @pressly/production typecheck
+      - pnpm --filter @pressly/postgres test
+      - pnpm --filter @pressly/migrations-verification test:postgres
+      - pnpm --filter @pressly/production-system test
+      - pnpm --filter @pressly/production-system typecheck
       - pnpm db:test:migrate
       - Migration upgrade test proves pre-existing rows are handled explicitly.
       - Cross-location and concurrent projection integration tests pass.
@@ -271,48 +279,51 @@ tasks:
       - T2
       - T3
     reads:
-      - repo:packages/contracts/src/production
-      - repo:modules/business/production
-      - repo:modules/security/authorization
-      - repo:apps/api/src/bootstrap/api.composition.ts
-      - repo:packages/db/src/schema/laundry-production.schema.ts
-      - repo:infra/aws/docs
+      - repo:systems/production/src
+      - repo:systems/production
+      - repo:systems/access/src/model/authorization/operations/authorize-production
+      - repo:topology/runtime/http/bootstrap/app.ts
+      - repo:topology/pressly-postgres-schema.ts
+      - repo:deploy/aws/docs
     writes:
-      - repo:packages/contracts/src/production
-      - repo:packages/contracts/test
-      - repo:modules/business/production/src/features/resources/list-locations
-      - repo:modules/business/production/src/features/orders/list-orders
-      - repo:modules/business/production/src/features/demand/record-order-intake
-      - repo:modules/business/production/src/features/queries/load-workspace
-      - repo:modules/business/production/src/features/resources/manage-resources
-      - repo:modules/business/production/test
-      - repo:modules/security/authorization/src/features/operations/authorize-production
-      - repo:modules/security/authorization/test/features/operations/authorize-production
-      - repo:apps/cli/src/commands
-      - repo:apps/api/test/lpms
-      - repo:infra/aws/docs/lpms-bootstrap.example.json
+      - repo:systems/production/src
+      - repo:verification/topology
+      - repo:systems/production/src/cells/resources/list-locations
+      - repo:systems/production/src/cells/orders/list-orders
+      - repo:systems/production/src/cells/demand/record-order-intake
+      - repo:systems/production/src/cells/queries/load-workspace
+      - repo:systems/production/src/cells/resources/manage-resources
+      - repo:systems/production/src
+      - repo:verification/commands
+      - repo:verification/queries
+      - repo:systems/access/src/model/authorization/operations/authorize-production
+      - repo:verification/access
+      - repo:experiences/control/src/cli
+      - repo:verification/flows
+      - repo:deploy/aws/docs/lpms-bootstrap.example.json
     preconditions:
       - T3 has one authoritative location and intake representation.
-      - Module-isolation and filename architecture tests pass before adding features.
+      - System/cell-isolation and filename architecture tests pass before adding features.
     action:
       - Add authenticated, location-scoped reads for allowed locations, eligible and intake-pending orders, current shift/config, latest proposal, active run, board, stations, and machines.
       - Add a versioned idempotent command to record bag count and provenance without changing vendor facts.
       - Expose the existing machine-assignment happy-path command through the processor contract if it is not already fully reachable.
-      - Add one idempotent API composition-root bootstrap command that reads an operator-owned JSON file and invokes production-owned capabilities for location, store mapping, stations, machines, and initial scheduler config.
+      - Add one idempotent Control CLI bootstrap workflow that reads an operator-owned JSON file and invokes owner capabilities for locations, source mappings, stations, machines, and initial scheduler config.
       - Make bootstrap converge on natural keys, report create/update/no-op results, support dry-run, and reject destructive inventory changes.
-      - Keep intrinsic Production policies and approved algorithms headless; expose them through Production features and let apps inject only explicit effects and module capabilities.
+      - Keep intrinsic Production policies and approved algorithms headless; expose them through Production cells, let topology inject narrow capabilities, and let generic hosts supply only explicit process effects.
       - Add authorization, version conflict, idempotency, resume-after-restart, unknown-location, and cross-location tests.
     postconditions:
       - A production environment can be initialized without hardcoded seed data or direct ad hoc SQL.
       - The processor can discover scope and resume real operational state after refresh or restart.
       - Intake and resource mutations remain auditable production commands.
     verifier:
-      - pnpm --filter @pressly/contracts test
-      - pnpm --filter @pressly/production test
-      - pnpm --filter @pressly/authorization test
-      - pnpm --filter @pressly/api test
-      - pnpm --filter @pressly/api typecheck
-      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
+      - pnpm --filter @pressly/topology-verification test
+      - pnpm --filter @pressly/production-system test
+      - pnpm --filter @pressly/access-system test
+      - pnpm --filter @pressly/access-verification test
+      - pnpm --filter @pressly/http-verification test
+      - pnpm --filter @pressly/http-host typecheck
+      - pnpm architecture:check
       - Bootstrap dry-run and repeated-apply integration tests produce the same final state.
     rollback:
       - Disable bootstrap and new mutation routes; preserve created audit events and use forward commands to correct production resources.
@@ -329,28 +340,35 @@ tasks:
     deps:
       - T4
     reads:
-      - repo:apps/processor
-      - repo:packages/contracts/src/auth
-      - repo:packages/contracts/src/production
-      - repo:modules/security/identity
-      - repo:apps/api/src/bootstrap/api.composition.ts
+      - repo:experiences/processor
+      - repo:experiences/processor
+      - repo:generated/clients/processor.ts
+      - repo:experiences/processor/src/contracts/authentication-v1.ts
+      - repo:systems/production/src
+      - repo:systems/access
+      - repo:topology/runtime/http/bootstrap/app.ts
+      - repo:topology/runtime/http/bootstrap/app.ts
       - repo:docs/agents/07/10
-      - repo:apps/web/src/styles/globals.css
+      - repo:hosts/browser/customer/src/styles/globals.css
     writes:
-      - repo:apps/processor/src/app
-      - repo:apps/processor/src/adapters
-      - repo:apps/processor/src/features/authentication
-      - repo:apps/processor/src/features/location-selection
-      - repo:apps/processor/src/features/intake
-      - repo:apps/processor/src/features/scheduling
-      - repo:apps/processor/src/features/production-board
-      - repo:apps/processor/src/ports
-      - repo:apps/processor/test
-      - repo:apps/processor/README.md
-      - repo:apps/api/src/http/processor/session
-      - repo:apps/api/test/security
-      - repo:modules/security/identity
-      - repo:modules/security/identity/test
+      - repo:experiences/processor/src/browser
+      - repo:hosts/browser/processor/src
+      - repo:experiences/processor/src/features/authentication
+      - repo:experiences/processor/src/features/location-selection
+      - repo:experiences/processor/src/features/intake
+      - repo:experiences/processor/src/features/scheduling
+      - repo:experiences/processor/src/features/production-board
+      - repo:experiences/processor/src/capabilities
+      - repo:experiences/processor/test
+      - repo:experiences/processor/src
+      - repo:experiences/processor/test
+      - repo:topology/pressly.topology.ts
+      - repo:hosts/browser/processor/README.md
+      - repo:experiences/processor/src/server/authentication
+      - repo:verification/http/test/bootstrap
+      - repo:systems/access
+      - repo:verification/access
+      - repo:verification/access-experiences
     preconditions:
       - Location discovery, workspace resume, intake, scheduling, board, and machine-assignment contracts are stable.
       - The existing opaque session remains the source of truth.
@@ -370,13 +388,13 @@ tasks:
       - A credential is not readable from localStorage, sessionStorage, URL, logs, or rendered markup.
       - The UI does not duplicate production policy or scheduler decisions.
     verifier:
-      - pnpm --filter @pressly/processor test
-      - pnpm --filter @pressly/processor typecheck
-      - pnpm --filter @pressly/processor lint
-      - pnpm --filter @pressly/processor build
-      - pnpm --filter @pressly/api test
+      - pnpm --filter @pressly/experience-processor test
+      - pnpm --filter @pressly/experience-processor typecheck
+      - pnpm --filter @pressly/experience-processor lint
+      - pnpm --filter @pressly/experience-processor build
+      - pnpm --filter @pressly/http-verification test
       - Login, MFA, CSRF, cookie attributes, logout, expiry, refresh, location discovery, intake, machine assignment, and resume browser tests pass.
-      - rg -n "demo|location-1|2026-07-10|live=1" apps/processor/src returns no runtime match.
+      - rg -n "demo|location-1|2026-07-10|live=1" experiences/processor/src returns no runtime match.
     rollback:
       - Disable the processor route or serve a maintenance page; do not restore demo data or weaken authentication.
     secret_handling: never_show_agent
@@ -394,20 +412,20 @@ tasks:
       - T3
       - T4
     reads:
-      - repo:apps/worker
-      - repo:packages/logging
-      - repo:packages/observability
-      - repo:packages/db
-      - repo:modules/business/production
+      - repo:hosts/jobs
+      - repo:platform/logging
+      - repo:platform/observability
+      - repo:platform/postgres
+      - repo:systems/production
       - repo:docs/plan/lpms.md
     writes:
-      - repo:apps/worker/src
-      - repo:apps/worker/test
-      - repo:apps/worker/.env.example
-      - repo:apps/worker/README.md
-      - repo:apps/cli/src/commands
-      - repo:packages/logging
-      - repo:packages/observability
+      - repo:hosts/jobs/src
+      - repo:hosts/jobs/test
+      - repo:hosts/jobs/.env.example
+      - repo:hosts/jobs/README.md
+      - repo:experiences/control/src/cli
+      - repo:platform/logging
+      - repo:platform/observability
     preconditions:
       - Durable receipt and projection semantics from T2 and T3 are stable.
       - Reconciliation support is not claimed until an authoritative Cents read API is proven.
@@ -425,11 +443,11 @@ tasks:
       - Worker restart and replay cannot duplicate projections or bypass production invariants.
       - The worker has no route and no public port.
     verifier:
-      - pnpm --filter @pressly/worker test
-      - pnpm --filter @pressly/worker test:integration
-      - pnpm --filter @pressly/worker typecheck
-      - pnpm --filter @pressly/worker lint
-      - pnpm --filter @pressly/api test
+      - pnpm --filter @pressly/jobs-host test
+      - pnpm --filter @pressly/flow-verification test:postgres
+      - pnpm --filter @pressly/jobs-host typecheck
+      - pnpm --filter @pressly/jobs-host lint
+      - pnpm --filter @pressly/http-verification test
       - Logging-redaction and stalled-heartbeat tests pass.
     rollback:
       - Stop the worker, leave pending and dead rows intact, and use the bounded replay command after repair.
@@ -448,9 +466,11 @@ tasks:
       - T6
     reads:
       - repo:tooling/scripts/run-integration-tests.sh
-      - repo:apps/api/test/lpms
-      - repo:apps/worker/test
-      - repo:apps/processor/test
+      - repo:verification/flows
+      - repo:hosts/jobs/test
+      - repo:experiences/processor/test
+      - repo:verification/ingress
+      - repo:verification/flows
       - repo:docker-compose.yml
       - repo:package.json
     writes:
@@ -458,9 +478,11 @@ tasks:
       - repo:tooling/cents-webhook.postman_environment.example.json
       - repo:docs/runbooks/cents-webhook.md
       - repo:tooling/scripts/run-integration-tests.sh
-      - repo:apps/api/test/lpms
-      - repo:apps/worker/test
-      - repo:apps/processor/test
+      - repo:verification/flows
+      - repo:hosts/jobs/test
+      - repo:experiences/processor/test
+      - repo:verification/ingress
+      - repo:verification/flows
       - repo:package.json
     preconditions:
       - No Postman collection or fixture contains a real secret, token, customer identity, or production URL by default.
@@ -497,7 +519,14 @@ tasks:
     deps:
       - T7
     reads:
-      - repo:all-production-readiness-code
+      - repo:systems
+      - repo:experiences
+      - repo:hosts
+      - repo:platform
+      - repo:topology
+      - repo:generated
+      - repo:verification
+      - repo:tooling
       - repo:stateworks/work/active/lpms-production-readiness/brief.md
       - repo:stateworks/work/active/lpms-production-readiness/evidence.md
     writes:
@@ -540,10 +569,10 @@ tasks:
       - V1
     reads:
       - repo:.github/workflows/ci.yml
-      - repo:apps/api/Dockerfile
-      - repo:apps/web/Dockerfile
-      - repo:apps/worker/Dockerfile
-      - repo:apps/processor/Dockerfile
+      - repo:deploy/images/api/Dockerfile
+      - repo:deploy/images/web/Dockerfile
+      - repo:deploy/images/worker/Dockerfile
+      - repo:deploy/images/processor/Dockerfile
       - repo:tooling/scripts/release-manifest.mjs
       - repo:tooling/test/release-manifest.test.mjs
     writes:
@@ -586,21 +615,21 @@ tasks:
     deps:
       - T8
     reads:
-      - repo:infra/aws/lightsail/docker-compose.production.yml
-      - repo:infra/aws/lightsail/Caddyfile
-      - repo:infra/aws/lightsail/deploy.sh
-      - repo:infra/aws/lightsail/rollback.sh
-      - repo:infra/aws/lightsail/README.md
-      - repo:infra/aws/docs
+      - repo:deploy/aws/lightsail/docker-compose.production.yml
+      - repo:deploy/aws/lightsail/Caddyfile
+      - repo:deploy/aws/lightsail/deploy.sh
+      - repo:deploy/aws/lightsail/rollback.sh
+      - repo:deploy/aws/lightsail/README.md
+      - repo:deploy/aws/docs
       - repo:.github/workflows/deploy-production.yml
       - repo:tooling/scripts/deployment-selection.mjs
     writes:
-      - repo:infra/aws/lightsail/docker-compose.production.yml
-      - repo:infra/aws/lightsail/Caddyfile
-      - repo:infra/aws/lightsail/deploy.sh
-      - repo:infra/aws/lightsail/rollback.sh
-      - repo:infra/aws/lightsail/README.md
-      - repo:infra/aws/docs
+      - repo:deploy/aws/lightsail/docker-compose.production.yml
+      - repo:deploy/aws/lightsail/Caddyfile
+      - repo:deploy/aws/lightsail/deploy.sh
+      - repo:deploy/aws/lightsail/rollback.sh
+      - repo:deploy/aws/lightsail/README.md
+      - repo:deploy/aws/docs
       - repo:.github/workflows/deploy-production.yml
       - repo:tooling/test
       - repo:docs/devops.md
@@ -621,9 +650,9 @@ tasks:
       - Processor API traffic is same-origin and Worker remains a separate private container.
       - Deploy and rollback operate on one atomic four-image release identity.
     verifier:
-      - docker compose --env-file infra/aws/docs/env/compose.env.example -f infra/aws/lightsail/docker-compose.production.yml config
+      - docker compose --env-file deploy/aws/docs/env/compose.env.example -f deploy/aws/lightsail/docker-compose.production.yml config
       - pnpm exec vitest run tooling/test
-      - shellcheck infra/aws/lightsail/deploy.sh infra/aws/lightsail/rollback.sh when shellcheck is available.
+      - shellcheck deploy/aws/lightsail/deploy.sh deploy/aws/lightsail/rollback.sh when shellcheck is available.
       - Caddy configuration adapts successfully with placeholder domains and no live certificate request.
       - Deploy and rollback dry-run fixtures reject missing, mutable, or mixed-SHA images.
     rollback:
@@ -642,8 +671,12 @@ tasks:
       - T9
     reads:
       - repo:.github/workflows
-      - repo:infra/aws/lightsail
-      - repo:all-five-Dockerfiles
+      - repo:deploy/aws/lightsail
+      - repo:deploy/images/api/Dockerfile
+      - repo:deploy/images/web/Dockerfile
+      - repo:deploy/images/worker/Dockerfile
+      - repo:deploy/images/processor/Dockerfile
+      - repo:deploy/images/control/Dockerfile
       - repo:stateworks/work/done/lpms-order-control-correctness-hardening
       - repo:stateworks/work/done/lpms-production-order-resolution-and-identity
       - repo:stateworks/work/done/cents-webhook-redelivery-idempotency
@@ -686,53 +719,68 @@ tasks:
     deps:
       - V2
     reads:
-      - repo:apps/api/src/http/webhooks
-      - repo:apps/worker/src
-      - repo:modules/business/production
-      - repo:packages/contracts/src/cents
-      - repo:packages/db/src/schema
+      - repo:systems/ingress/src/cells/sources
+      - repo:hosts/jobs/src
+      - repo:systems/production
+      - repo:systems/ingress/src/contracts/cents-v1.ts
+      - repo:topology/pressly-postgres-schema.ts
       - repo:docs/architecture.md
       - repo:docs/plan/lpms.md
     writes:
-      - repo:apps/api/src/http/webhooks/cents
-      - repo:apps/api/src/http/webhook-ingestion/dead-letters/dead-letter.route.ts
-      - repo:apps/worker/src
-      - repo:modules/integration/webhook-ingestion
-      - repo:modules/business/production
-      - repo:packages/contracts/src/webhook-ingestion
-      - repo:packages/contracts/src/lpms
-      - repo:packages/db/src/schema
-      - repo:packages/db/src/migrations
+      - repo:systems/ingress/src/cells/sources/receive-cents-webhook
+      - repo:systems/ingress/src/cells/inbox/list-dead-events/http.ts
+      - repo:hosts/jobs/src
+      - repo:systems/ingress
+      - repo:systems/orders
+      - repo:systems/production
+      - repo:verification/ingress
+      - repo:verification/orders-outbox
+      - repo:verification/commands
+      - repo:verification/flows
+      - repo:systems/ingress/src/contracts/webhook-ingestion-v1.ts
+      - repo:experiences/control/src/cli
+      - repo:topology/pressly-postgres-schema.ts
+      - repo:platform/postgres/migrations
       - repo:tooling
       - repo:docs/architecture.md
       - repo:docs/plan/lpms.md
-      - repo:apps/worker/README.md
+      - repo:hosts/jobs/README.md
       - repo:stateworks/work/active/lpms-production-readiness
     preconditions:
-      - Existing V2 proof is retained as historical evidence but is not treated as proof of the refactored module boundary.
+      - Existing V2 proof is retained as historical evidence but is not treated as proof of the current cellular boundary.
       - No exception workflow or live vendor, cloud, DNS, secret, or production state is added or changed.
     action:
-      - Move durable inbox, claims, leases, retries, dead letters, replay, and source-location bindings into the generic webhook-ingestion integration module.
-      - Keep Cents HMAC verification and wire normalization in the API vendor adapter.
-      - Compose an application-owned Worker dispatcher whose Cents consumer translates a claimed event into Production's canonical ApplyOrderDemand command.
+      - Keep durable inbox, claims, leases, retries, dead letters, replay, source-location bindings, and claimed-event processing in the Ingress system.
+      - Keep Cents HMAC policy and wire normalization in the Ingress source cell while the HTTP host owns exact raw-body mechanics.
+      - Keep durable queue capabilities with Ingress and Orders, and compose generated reactions through the generic Jobs host; Ingress translates a claimed Cents event through narrow Orders and Production capabilities.
       - Make Production own only source-neutral order demand, planning, and physical execution; remove all Cents, webhook, receipt, lease, and CRM concepts from Production source.
       - Preserve crash-after-Production-commit safety with a stable event-derived idempotency key and lease-fenced inbox completion.
       - Split persistence schemas and migrate existing rows forward without data loss, including generic source bindings and canonical order-demand revision ordering.
       - Update contracts, bootstrap manifests, tooling, architecture rails, runbooks, and canonical docs to the implemented boundary.
     postconditions:
-      - No module imports or declares a dependency on another module; API and Worker remain the composition roots.
-      - webhook-ingestion can accept other sources and dispatch targets without changing its persistence or application language.
+      - No System imports peer private source; Topology selects target operations, generated runtime owns static bindings, and HTTP and Jobs hosts own process effects only.
+      - Ingress can accept other sources and dispatch targets without changing its persistence or application language.
       - Production can accept equivalent wash-and-fold demand from any adapter through one canonical command.
       - Existing Cents behavior remains authenticated, durable, idempotent, recoverable, and PII-minimized.
     verifier:
-      - pnpm exec vitest run tooling/test/architecture-boundaries.test.mjs
-      - pnpm --filter @pressly/contracts test
-      - pnpm --filter @pressly/db test
-      - pnpm --filter @pressly/webhook-ingestion test
-      - pnpm --filter @pressly/production test
-      - pnpm --filter @pressly/worker test
-      - pnpm --filter @pressly/api test
-      - rg -n -i "cents|webhook|receipt|lease|\\bcrm\\b|crm_" modules/business/production/src returns no matches.
+      - pnpm architecture:check
+      - pnpm --filter @pressly/topology-verification test
+      - pnpm --filter @pressly/postgres test
+      - pnpm --filter @pressly/ingress-system test
+      - pnpm --filter @pressly/ingress-system test:postgres
+      - pnpm --filter @pressly/customers-system test:postgres
+      - pnpm --filter @pressly/customers-verification test:postgres
+      - pnpm --filter @pressly/orders-system test:postgres
+      - pnpm --filter @pressly/orders-verification test:postgres
+      - pnpm --filter @pressly/production-system test
+      - pnpm --filter @pressly/production-system test:postgres
+      - pnpm --filter @pressly/ingress-verification test:postgres
+      - pnpm --filter @pressly/orders-outbox-verification test:postgres
+      - pnpm --filter @pressly/command-verification test:postgres
+      - pnpm --filter @pressly/flow-verification test:postgres
+      - pnpm --filter @pressly/jobs-host test
+      - pnpm --filter @pressly/http-verification test
+      - rg -n -i "cents|webhook|receipt|lease|\\bcrm\\b|crm_" systems/production/src returns no matches.
     rollback:
       - Revert only the unverified boundary refactor before deployment; never restore a partially migrated runtime or weaken Cents authentication.
     secret_handling: none
@@ -749,11 +797,16 @@ tasks:
       - R1
     reads:
       - repo:stateworks/work/active/lpms-production-readiness/evidence.md
-      - repo:modules/integration/webhook-ingestion
-      - repo:modules/business/production
-      - repo:apps/api
-      - repo:apps/worker
-      - repo:packages/db/src/migrations
+      - repo:systems/ingress
+      - repo:systems/orders
+      - repo:systems/production
+      - repo:verification/ingress
+      - repo:verification/orders-outbox
+      - repo:verification/commands
+      - repo:verification/flows
+      - repo:hosts/http
+      - repo:hosts/jobs
+      - repo:platform/postgres/migrations
       - repo:tooling/scripts/production-topology-smoke.sh
     writes:
       - repo:stateworks/work/active/lpms-production-readiness/evidence.md
@@ -833,8 +886,8 @@ tasks:
     deps:
       - H1
     reads:
-      - repo:infra/aws/lightsail/README.md
-      - repo:infra/aws/docs
+      - repo:deploy/aws/lightsail/README.md
+      - repo:deploy/aws/docs
       - external:AWS-Lightsail-console
     writes:
       - external:Lightsail-instance-and-static-IP
@@ -869,7 +922,7 @@ tasks:
     reads:
       - external:DNS-provider
       - external:Lightsail-static-IP
-      - repo:infra/aws/lightsail/Caddyfile
+      - repo:deploy/aws/lightsail/Caddyfile
     writes:
       - external:Web-API-Processor-Control-DNS-records
       - repo:stateworks/work/active/lpms-production-readiness/human-actions.md
@@ -896,8 +949,8 @@ tasks:
     deps:
       - H2B
     reads:
-      - repo:infra/aws/docs
-      - repo:infra/aws/docs/lpms-bootstrap.example.json
+      - repo:deploy/aws/docs
+      - repo:deploy/aws/docs/lpms-bootstrap.example.json
       - external:approved-secret-store
       - external:confirmed-Cents-store-mapping
     writes:
@@ -934,7 +987,7 @@ tasks:
       - H2C
     reads:
       - external:server-observability-project
-      - repo:apps/worker/README.md
+      - repo:hosts/jobs/README.md
       - repo:docs/devops.md
     writes:
       - external:worker-alert-rules
@@ -1224,8 +1277,8 @@ tasks:
       - repo:docs/plan/lpms.md
       - repo:docs/architecture.md
       - repo:docs/devops.md
-      - repo:apps/processor/README.md
-      - repo:apps/worker/README.md
+      - repo:hosts/browser/processor/README.md
+      - repo:hosts/jobs/README.md
     preconditions:
       - Pilot and external evidence are redacted and contain no secret, signature, credential, recovery code, or customer PII.
       - Every committed task has passing verification or explicit human proof.

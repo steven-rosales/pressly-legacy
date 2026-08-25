@@ -1,0 +1,50 @@
+{
+  "extends": "../../../tooling/typescript/next.json",
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "incremental": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@test/*": ["./test/*"],
+      "@pressly/config": ["../../../platform/config/dist/index"],
+      "@pressly/errors/*": ["../../../platform/errors/dist/*"],
+      "@pressly/logging": ["../../../platform/logging/dist/index"],
+      "@pressly/observability": ["../../../platform/observability/dist/index"],
+      "@pressly/time": ["../../../platform/time/dist/index"]
+    },
+    "resolveJsonModule": true,
+    "types": ["node", "vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"],
+  "references": [
+    {
+      "path": "../../../generated/runtime/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/cells/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/config/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/errors/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/http/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/logging/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/observability/tsconfig.json"
+    },
+    {
+      "path": "../../../platform/time/tsconfig.json"
+    }
+  ]
+}

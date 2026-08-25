@@ -1,0 +1,139 @@
+{
+  "common": {
+    "appName": "Procesador Pressly",
+    "loading": "Cargando",
+    "retry": "Reintentar",
+    "refresh": "Actualizar",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "continue": "Continuar",
+    "save": "Guardar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "search": "Buscar",
+    "all": "Todos",
+    "none": "Ninguno",
+    "notAvailable": "No disponible",
+    "orderNumber": "Pedido {{orderNumber}}",
+    "customerUnavailable": "Cliente no disponible",
+    "orderIdentityLabel": "Pedido {{orderNumber}}, {{customer}}",
+    "pounds": "{{value, number}} lb",
+    "bags_one": "{{count}} bolsa",
+    "bags_other": "{{count}} bolsas",
+    "orders_one": "{{count}} pedido",
+    "orders_other": "{{count}} pedidos",
+    "batches_one": "{{count}} lote",
+    "batches_other": "{{count}} lotes",
+    "minutes_one": "{{count}} minuto",
+    "minutes_other": "{{count}} minutos",
+    "minutesUnit": "minutos",
+    "minutesShort": "{{minutes}} min",
+    "queued": "En cola",
+    "due": {
+      "overdue": "Vencido",
+      "today": "Hoy",
+      "tomorrow": "Mañana",
+      "later": "Más adelante"
+    },
+    "stage": {
+      "sorting": "Clasificación",
+      "washing": "Lavado",
+      "drying": "Secado",
+      "foldingPackaging": "Doblado y empaque"
+    },
+    "employees_one": "{{count}} empleado",
+    "employees_other": "{{count}} empleados"
+  },
+  "navigation": {
+    "label": "Procesador",
+    "open": "Abrir navegación",
+    "skipToContent": "Saltar al contenido principal",
+    "dialogTitle": "Navegación del Procesador",
+    "dialogDescription": "Elige un espacio de trabajo del Procesador para esta ubicación.",
+    "home": "Inicio",
+    "orders": "Pedidos",
+    "intake": "Recepción",
+    "production": "Producción",
+    "schedule": "Planificación",
+    "forecast": "Previsión",
+    "history": "Historial",
+    "configuration": "Configuración",
+    "sections": {
+      "dailyWork": "Trabajo diario",
+      "manageReview": "Administrar y revisar",
+      "system": "Sistema"
+    },
+    "homeDescription": "Revisa el trabajo de hoy y abre el espacio correcto para la siguiente acción.",
+    "ordersDescription": "Busca pedidos, resuelve excepciones y administra el trabajo de producción activo.",
+    "intakeDescription": "Revisa pedidos entrantes, registra la recepción física y libera trabajo verificado a Producción.",
+    "productionDescription": "Avanza el trabajo iniciado desde la clasificación hasta el doblado.",
+    "scheduleDescription": "Planifica pedidos listos y revisa adiciones a una corrida de producción activa.",
+    "forecastDescription": "Revisa el trabajo pendiente, la capacidad actual y lo que necesita otro turno para un día de servicio.",
+    "historyDescription": "Revisa las corridas de producción, la actividad del piso y el historial de los planes.",
+    "configurationDescription": "Administra el idioma, la apariencia y los parámetros inmutables del planificador.",
+    "laundryProduction": "Producción de lavandería",
+    "locationAndTimezone": "{{location}} · {{timezone}}",
+    "signedInAs": "Sesión iniciada como {{name}}",
+    "signOut": "Cerrar sesión",
+    "lockAndSwitch": "Bloquear / cambiar empleado",
+    "applications": "Aplicaciones de Pressly",
+    "switchApplication": "Cambiar desde {{application}}"
+  },
+  "applications": {
+    "processor": {
+      "label": "Procesador Pressly",
+      "description": "Opera la producción de lavandería."
+    },
+    "control": {
+      "label": "Control de Pressly",
+      "description": "Administra el negocio."
+    }
+  },
+  "connection": {
+    "offline": "Sin conexión",
+    "live": "En vivo",
+    "reconnecting": "Reconectando",
+    "connecting": "Conectando",
+    "offlineTitle": "Estás sin conexión",
+    "offlineDescription": "Los datos actuales siguen visibles, pero las acciones del servidor no se completarán hasta que vuelva la conexión."
+  },
+  "workspace": {
+    "loading": "Cargando el espacio de producción",
+    "attentionTitle": "El espacio de trabajo requiere atención",
+    "unavailableTitle": "No hay un espacio de producción disponible",
+    "unavailableDescription": "Actualiza después de configurar la ubicación en el servidor.",
+    "noActiveRun": "No hay una corrida de producción activa",
+    "ambiguousRun": "Los pedidos pendientes necesitan una selección explícita porque hay varias corridas de producción activas.",
+    "startSchedule": "Inicia un plan aceptado antes de abrir el piso de producción.",
+    "openCandidate": "Abrir {{reason}}",
+    "openScheduling": "Abrir planificación",
+    "pageNotFound": "Página no encontrada",
+    "pageNotFoundDescription": "Esta dirección no forma parte del espacio de producción.",
+    "openHome": "Abrir el inicio del Procesador",
+    "candidateReason": {
+      "startedRun": "corrida iniciada",
+      "acceptedPlan": "plan aceptado",
+      "openShift": "turno abierto"
+    }
+  },
+  "errors": {
+    "loadProduction": "No se pudieron cargar los datos actuales de producción. Actualiza antes de tomar decisiones en el piso.",
+    "loadLocations": "No se pudieron cargar las ubicaciones de producción. Revisa tu conexión y actualiza.",
+    "unauthorized": "Tu sesión ya no es válida. Inicia sesión de nuevo.",
+    "forbidden": "No tienes permiso para completar esta acción.",
+    "conflict": "El registro de producción cambió. Actualízalo y revísalo antes de volver a intentarlo.",
+    "unavailable": "El servicio de producción no está disponible temporalmente. Inténtalo de nuevo en breve.",
+    "invalidResponse": "El servicio de producción devolvió datos que el Procesador no pudo leer.",
+    "unexpected": "El Procesador no pudo confirmar el estado actual de producción. Actualiza antes de volver a intentarlo.",
+    "locationNotFound": "Esta ubicación de producción ya no existe. Elige otra ubicación.",
+    "locationUnavailable": "Esta ubicación de producción no está disponible. Elige otra ubicación o pide a un gerente que la restaure.",
+    "workspaceNotFound": "Esta corrida de producción ya no está disponible. Vuelve a Planificación o Historial y abre un registro actual."
+  },
+  "errorBoundary": {
+    "title": "El Procesador necesita recargarse",
+    "description": "Es posible que tu última acción no se haya completado. Recarga y confirma el estado del piso antes de volver a intentarlo.",
+    "reload": "Recargar el Procesador"
+  }
+}

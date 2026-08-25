@@ -732,3 +732,64 @@ rendered item proof, no write request, a fixed five-minute Sentry ingestion
 window with no recurrence, and only then `API-E` resolution plus status
 readback. No production Order or customer fact is recorded here, and H1 remains
 pending.
+
+## 2026-08-22 — Cellular successor-authority reconciliation
+
+Canonical customer and commercial Order contracts, decisions, persistence,
+and colocated tests now have their current source authority under
+`systems/customers` and `systems/orders`. Control's cross-system management
+workflow and serialized HTTP surfaces are under `experiences/control`, with
+browser presentation under `apps/control`. Topology selects the operations,
+generated catalogs and the generated Control client carry static protocol
+registrations, and `apps/api/src/bootstrap` provides process-specific HTTP
+mechanisms without recreating Customer or Order policy.
+
+T6 and T7B read/write pointers now follow those current owners. Their current
+commercial verification commands are the Customers-system and Orders-system
+unit/PostgreSQL commands, the permanent `@pressly/customers-verification` and
+`@pressly/orders-verification` PostgreSQL commands, and the Control Experience,
+API, and Control application tests recorded in the active network. Earlier
+dated module paths and test summaries above remain historical facts. This
+reconciliation changes no task status, dependency, evidence array, human
+action, `API-E` conclusion, V1 gate, or completion claim.
+
+`pnpm stateworks:validate` and `pnpm stateworks:verify` both passed for this
+network after the pointer update. Verification still reports `done: no`; no
+task status or human gate was advanced.
+
+## 2026-08-22 — Access and Experience legacy-root deletion reconciliation
+
+The cellular migration deleted the superseded Identity, Authorization,
+Control Experience, and Processor Experience module roots after target-only
+security and HTTP/projection conformance passed. Current identity, credential,
+session, workforce, scope, and authorization meaning lives under
+`systems/access`; cross-system Control and Processor workflows live under
+`experiences/control` and `experiences/processor`; target protocol proof lives
+under `verification/access`, `verification/access-experiences`, and
+`verification/auth`.
+
+The active network now points its Identity, authorization, Control, Processor,
+target API, and verifier anchors to those successors. Earlier dated module
+paths and package names above remain historical evidence of their recorded
+checkout. This reconciliation changes no task status, dependency, evidence
+array, human action, `API-E` conclusion, V1 gate, or completion claim.
+
+After this reconciliation, `pnpm stateworks:validate` and
+`pnpm stateworks:verify` both passed. Verification remains `done: no`, with no
+stop reason asserted and no task or human gate advanced.
+
+## 2026-08-22 — Contract and schema owner-source reconciliation
+
+The cellular migration retired the central Contracts source and central DB
+schema source. Control's serialized authentication, workforce, invitation,
+customer, Order, security, and CLI projections now belong to
+`experiences/control`; Access, Customers, Orders, and Production own their
+schemas and public contracts; topology composes the one physical database and
+generated catalogs.
+
+All active network pointers and verifier commands now name those surviving
+authorities. Earlier dated Contracts and DB-schema paths above remain
+historical evidence. This reconciliation changes no task status, dependency,
+evidence array, human action, `API-E` conclusion, V1 gate, or completion claim.
+Network validation and verification remain green with `done: no` and no stop
+reason.

@@ -1,2 +1,0 @@
-CREATE TYPE "public"."auth_role" AS ENUM('owner', 'admin', 'operator', 'customer', 'driver', 'service', 'developer', 'ci');--> statement-breakpoint
-ALTER TABLE "auth_identity_roles" ALTER COLUMN "role" SET DATA TYPE "public"."auth_role" USING "role"::"public"."auth_role";

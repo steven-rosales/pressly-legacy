@@ -1,0 +1,70 @@
+{
+  "name": "@pressly/generated-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js",
+      "default": "./dist/http.js"
+    },
+    "./jobs": {
+      "types": "./dist/jobs.d.ts",
+      "import": "./dist/jobs.js",
+      "default": "./dist/jobs.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js",
+      "default": "./dist/cli.js"
+    },
+    "./browser/control": {
+      "types": "./dist/browser/control.d.ts",
+      "import": "./dist/browser/control.js",
+      "default": "./dist/browser/control.js"
+    },
+    "./browser/processor": {
+      "types": "./dist/browser/processor.d.ts",
+      "import": "./dist/browser/processor.js",
+      "default": "./dist/browser/processor.js"
+    },
+    "./browser/customer": {
+      "types": "./dist/browser/customer.d.ts",
+      "import": "./dist/browser/customer.js",
+      "default": "./dist/browser/customer.js"
+    },
+    "./browser/customer-client": {
+      "types": "./dist/browser/customer-client.d.ts",
+      "import": "./dist/browser/customer-client.js",
+      "default": "./dist/browser/customer-client.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "lint": "eslint src --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/experience-control": "workspace:*",
+    "@pressly/experience-customer": "workspace:*",
+    "@pressly/experience-processor": "workspace:*",
+    "@pressly/generated": "workspace:*",
+    "@pressly/http": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "@pressly/topology": "workspace:*",
+    "react": "^19.2.6",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

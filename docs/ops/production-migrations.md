@@ -24,6 +24,26 @@ Do not treat code rollback as database rollback. If a bad migration reaches
 production, the normal fix is a forward migration or a restore drill, not
 guessing at reverse SQL during an incident.
 
+## One-Time Pre-User Clean Epoch
+
+Pressly used one explicit exception before customer production data existed:
+the compatibility-era non-Pricing schema and migration history were replaced
+by a clean owner-local baseline. Pricing was excluded from the destructive
+scope and had to retain its schema, catalog values, contracts, seed behavior,
+and public rendering exactly.
+
+This was a coordinated database-epoch cutover, not a normal deploy or a
+precedent for rewriting history. It required fenced writers, recoverable old
+database and migration artifacts, a fresh backup and restore proof, a clean
+database apply from `template0`, exact Pricing equivalence, role verification,
+and full application/runtime proof. Backups from before the cutover remain
+paired with the old release and ledger.
+
+After that cutover, the clean-epoch ledger is immutable and append-only. All
+future production changes follow the additive guidance below unless a new,
+explicitly approved breaking-release plan satisfies the destructive
+checklist.
+
 ## Allowed In Normal Deploys
 
 These are normally safe because old and new app versions can keep running:
@@ -102,8 +122,8 @@ This costs more steps, but it keeps rollback boring.
 Before a production deploy with new migrations:
 
 ```bash
-git diff origin/main...HEAD -- packages/db/src/migrations
-rg -n "drop table|drop column|rename column|rename table|truncate|delete from" packages/db/src/migrations
+git diff origin/main...HEAD -- platform/postgres/migrations
+rg -n "drop table|drop column|rename column|rename table|truncate|delete from" platform/postgres/migrations
 ```
 
 If either command shows destructive SQL, pause and use the destructive
@@ -111,7 +131,7 @@ checklist.
 
 ## Current Production Deploy Behavior
 
-`infra/aws/lightsail/deploy.sh` deploys artifacts built and verified by CI. The
+`deploy/aws/lightsail/deploy.sh` deploys artifacts built and verified by CI. The
 server does not rebuild application images.
 
 The release sequence is:
@@ -119,26 +139,28 @@ The release sequence is:
 ```txt
 validate the release manifest and Compose configuration
 check out the exact verified source SHA
-pull immutable API, Web, Worker, and Processor image digests
+pull immutable API, Web, Worker, Processor, and Control image digests
 verify each image revision label against the source SHA
 run the tools-profile migrate service with migration-only credentials
 docker compose up -d --remove-orphans --wait
 verify Compose state and application health endpoints
 ```
 
-The deploy script runs Drizzle directly from the immutable API image with the
-production Compose file and environment selected explicitly:
+The deploy script runs the canonical Pressly migration wrapper from the
+immutable API image with the production Compose file and environment selected
+explicitly. The wrapper verifies the current clean-epoch history and applied
+ledger before and after migration:
 
 ```bash
 docker compose \
   --profile tools \
   --env-file "$COMPOSE_ENV_FILE" \
   -f "$COMPOSE_FILE" \
-  run --rm --workdir /repo/packages/db migrate \
-  node node_modules/drizzle-kit/bin.cjs migrate --config drizzle.config.ts
+  run --rm --workdir /repo migrate \
+  node --import tsx tooling/postgres/migrate.ts
 ```
 
-This is the invocation inside `infra/aws/lightsail/deploy.sh`; operators should
+This is the invocation inside `deploy/aws/lightsail/deploy.sh`; operators should
 run the deploy workflow rather than paste it from the repository root without
 those production selectors.
 

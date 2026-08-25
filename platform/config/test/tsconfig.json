@@ -1,0 +1,8 @@
+{
+  "extends": "../tsconfig.test.json",
+  "references": [
+    {
+      "path": "../../errors/tsconfig.json"
+    }
+  ]
+}

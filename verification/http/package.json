@@ -1,0 +1,47 @@
+{
+  "name": "@pressly/http-verification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist",
+    "lint": "eslint test vitest.config.ts --max-warnings=0",
+    "test": "VITEST_MAX_WORKERS=2 vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@pressly/access-system": "workspace:*",
+    "@pressly/auth-platform": "workspace:*",
+    "@pressly/cells": "workspace:*",
+    "@pressly/codec": "workspace:*",
+    "@pressly/config": "workspace:*",
+    "@pressly/customers-system": "workspace:*",
+    "@pressly/errors": "workspace:*",
+    "@pressly/experience-control": "workspace:*",
+    "@pressly/experience-customer": "workspace:*",
+    "@pressly/experience-processor": "workspace:*",
+    "@pressly/generated": "workspace:*",
+    "@pressly/http": "workspace:*",
+    "@pressly/http-host": "workspace:*",
+    "@pressly/ingress-system": "workspace:*",
+    "@pressly/logging": "workspace:*",
+    "@pressly/observability": "workspace:*",
+    "@pressly/orders-system": "workspace:*",
+    "@pressly/postgres": "workspace:*",
+    "@pressly/pricing-system": "workspace:*",
+    "@pressly/production-system": "workspace:*",
+    "@pressly/testkit": "workspace:*",
+    "@pressly/time": "workspace:*",
+    "@pressly/topology": "workspace:*",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/cors": "^2.8.19",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}
