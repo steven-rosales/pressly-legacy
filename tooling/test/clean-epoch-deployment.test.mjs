@@ -96,6 +96,12 @@ describe('clean database epoch deployment evidence', () => {
     expect(rollback).toContain(
       'Application-only rollback across the clean database epoch is forbidden.',
     );
+    expect(rollback).toContain(
+      '"${recovery_compose[@]}" up -d --remove-orphans\n',
+    );
+    expect(rollback).not.toContain(
+      '"${recovery_compose[@]}" up -d --remove-orphans --wait',
+    );
     expect(legacyOverride).toContain(
       'PRESSLY_CLEAN_EPOCH_LEGACY_WEB_CACHE_PATH',
     );

@@ -306,7 +306,7 @@ clean_epoch_recovery_switch() {
     fi
   done
 
-  "${recovery_compose[@]}" up -d --remove-orphans --wait
+  "${recovery_compose[@]}" up -d --remove-orphans
   "${recovery_compose[@]}" ps
   echo "Clean-epoch legacy runtime selected: ${release[1]}"
 }
